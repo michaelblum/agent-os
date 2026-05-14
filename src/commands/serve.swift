@@ -59,6 +59,12 @@ func serveCommand(args: [String]) {
         }
     }
 
+    daemon.canvasInspectorAnnotationModeHandler = { [weak statusItem] active in
+        DispatchQueue.main.async {
+            statusItem?.manager?.setCanvasInspectorAnnotationModeActive(active)
+        }
+    }
+
     // Watch config for status item changes.
     // ConfigWatcher fires on a background queue; NSStatusBar requires main thread.
     daemon.configChangeHandler = { [weak statusItem, weak daemon] newConfig in

@@ -200,7 +200,13 @@ private func devBuildCommand(args: [String]) {
         exitError("Missing build script: \(buildScript)", code: "MISSING_BUILD_SCRIPT")
     }
 
-    let permissionNote = "aos dev build wraps build.sh; rebuilt repo binaries may require a fresh macOS Accessibility/Input Monitoring grant if readiness later reports stale TCC identity."
+    let permissionNote = """
+    aos dev build wraps build.sh; rebuilt repo binaries may require a fresh macOS Accessibility/Input Monitoring grant if readiness later reports stale TCC identity.
+    Safe reset sequence if readiness reports stale TCC/input tap:
+    1. ./aos service stop --mode repo
+    2. Remove/re-add \(repoRoot)/aos in Accessibility/Input Monitoring only after service stop reports running=false.
+    3. ./aos ready --post-permission
+    """
     let result = runProcessCapturingOutput("/bin/bash", arguments: [buildScript] + passthrough, cwd: repoRoot)
 
     if asJSON {

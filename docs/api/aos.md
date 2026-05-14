@@ -40,6 +40,13 @@ itself under repair.
 
 `aos` is a single binary with Unix-style subcommand groups.
 
+The binary exposes platform primitives, not product policy. For surfaces, the
+daemon should provide native lifecycle, display, input, content, and routing
+capabilities that any consumer can build on. The default AOS panel/windowing
+policy belongs in `packages/toolkit/`, not in app code and not as
+Sigil-specific branches inside the daemon. A consumer may use toolkit
+windowing, customize it, or bypass it for non-panel surfaces.
+
 Examples:
 
 ```bash
@@ -114,7 +121,7 @@ The current top-level commands are:
 ```bash
 aos see cursor
 aos see capture main --base64
-aos see capture --canvas canvas-inspector --perception --out /tmp/inspector.png
+aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png
 aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png
 aos do click 500,300
 ```
@@ -160,6 +167,50 @@ aos show update --id demo --at 150,120,320,200
 aos show eval --id demo --js 'document.body.style.opacity = "0.7"'
 aos show remove --id demo
 ```
+
+`show remove --id <root>` is the daemon-facing cleanup primitive for a selected
+canvas lifecycle tree. Removing a root canvas removes cascade-owned child
+canvases and daemon input regions owned by those canvases. Children created
+with `cascade: false` are detached and preserved, and unrelated canvases such as
+developer/admin tools remain untouched because they are outside the selected
+tree. Toolkit resources that are not daemon state, such as shared
+DesktopWorld-stage layers, must be cleaned up by their toolkit resource scope;
+see [toolkit/runtime.md](./toolkit/runtime.md).
+
+### Reload an Existing Canvas From Current Content
+
+When you change web assets under an active content root, reload the existing
+canvas by updating it to the same `aos://` URL, then gate on `show wait`:
+
+```bash
+aos show update --id inspector --url 'aos://toolkit/components/inspector-panel/index.html'
+aos show wait --id inspector --manifest inspector-panel
+```
+
+This is the canonical reload workflow for existing URL-backed canvases. It does
+not remove or recreate the canvas, so unrelated developer/admin surfaces such as
+`surface-inspector` are not disturbed. When the update only supplies `--url`,
+AOS preserves the canvas id, frame, DesktopWorld segments/track/surface when
+applicable, scope, interactivity, window level, parent relationship, and any
+active TTL timer. The page reloads through the current active content server
+root for the URL host.
+
+If the content root is not live, make that explicit before reloading:
+
+```bash
+aos content wait --root toolkit --auto-start
+```
+
+Topic worktrees should use branch-scoped root names from
+`scripts/aos-content-scope.sh` or pass explicit root query parameters where the
+surface supports them. Do not overwrite canonical `content.roots.toolkit` or
+`content.roots.sigil` from a topic worktree just to refresh a canvas.
+
+For inline `--html` or `--file` canvases, `show update --html ...` or
+`show update --file ...` replaces the content in place. `--file` is resolved by
+the CLI at update time, so repeat the `--file` update after editing the file.
+Use `show wait` after either form when the reloaded page has a readiness
+manifest or observable JavaScript condition.
 
 ### 3. Load Toolkit Content Through the Content Server
 
@@ -219,7 +270,7 @@ Shorthand capture is supported:
 ```bash
 aos see main
 aos see external 1
-aos see capture --canvas canvas-inspector --perception
+aos see capture --canvas surface-inspector --perception
 aos see capture --canvas sigil-radial-menu --xray
 aos see capture --region 1172,442,320,480 --perception
 ```
@@ -236,6 +287,14 @@ Capture responses include an opaque `state_id` such as `see_abc123def456`.
 Work-record and recipe layers can carry that id into the next action as the
 perception state the agent acted from. The id is a correlation handle, not a
 stable object reference or cache key.
+
+`aos see cursor` returns the cursor point, display ordinal, the frontmost
+visible window under the cursor when available, and an optional AX `element`.
+When present, the element includes `role`, `title`, `label`, `value`, `enabled`,
+`bounds`, `context_path`, `action_names`, and normalized `capabilities` such as
+`press`, `focus`, `set_value`, `scroll`, `increment`, or `decrement`. The
+capture-pipeline cursor response uses the same AX element fields when it can
+resolve the element explicitly under the cursor.
 
 `--xray` returns AX-derived interactive elements in `elements`. For AOS-owned
 canvas captures, `aos see capture --canvas <id> --xray` also runs a fixed
@@ -438,10 +497,18 @@ Voice output surface:
 
 ```bash
 aos say "Hello"
+aos say --voice-slot 1 --language en --quality-tier premium,enhanced "Hello"
 aos say --list-voices
 ```
 
 `aos say` is sugar for `aos tell human ...`. Consumers that need one communication surface should prefer `aos tell`.
+Use `--voice <id>` to select a concrete voice id, or `--voice-slot <n>` to
+select the nth currently speakable voice after any `--language`, `--gender`,
+and `--quality-tier` filters are applied. `--quality-tier` accepts repeated
+flags or comma-separated values. Voice slots are 1-based for human readability.
+Slot selection is intentionally ordinal: if the filtered speakable voice list
+changes, the same slot can resolve to a different voice. If filters produce no
+speakable voices, normal CLI use fails with `VOICE_FILTER_EMPTY`.
 
 ## `aos voice`
 
@@ -532,12 +599,11 @@ Voice deliveries and final-response ingress failures append local JSONL records 
 `~/.config/aos/{mode}/voice-events.jsonl` so operators can inspect which session,
 voice, purpose, and failure code were involved without storing full message bodies.
 
-Docked workflows should use registered role session ids for final-response TTS
-instead of provider-transient hook ids. The `run-workflow` dock launcher uses
-stable ids such as `<workflow-id>:gdi` and `<workflow-id>:foreman`, registers
-them with `aos tell --register`, binds voices with filtered `aos voice bind`
-calls, and routes role-local Stop hook speech through `aos voice final-response
---session-id <workflow-id>:<role>`.
+Docked sessions should use registered role session ids for true final-response
+TTS instead of provider-transient hook ids. Dock Stop-hook notices are fixed
+role-local status messages, not the assistant's final answer; route those
+through `aos say --voice-slot <n> "<notice>"` rather than
+`aos voice final-response`.
 
 ## `aos config`
 
@@ -552,14 +618,18 @@ aos config set voice.enabled true
 aos config set voice.filter.language en
 aos config set voice.filter.tiers premium,enhanced
 aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
+aos config set see.canvas_inspector_bundle.include.annotation_snapshot false
 ```
 
 `aos config` dumps the current runtime config as JSON. `aos config get` defaults
 to shell-friendly scalar text and accepts `--json` when you want JSON output.
-Discoverable config subtrees include the Canvas Inspector see-bundle surface
-under `see.canvas_inspector_bundle.*`, including the export hotkey and bundle
-artifact include toggles. `aos set <key> <value>` remains supported as the
-shorthand write form.
+Discoverable config subtrees include the Surface Inspector see-bundle surface
+under the legacy-compatible `see.canvas_inspector_bundle.*` namespace,
+including the export hotkey and bundle artifact include toggles. The default-on
+`see.canvas_inspector_bundle.include.annotation_snapshot` toggle controls the
+public `annotation-snapshot.json` artifact recorded in
+`bundle.json.files.annotation_snapshot_json`. `aos set <key> <value>` remains
+supported as the shorthand write form.
 
 Failed CLI invocations now append local JSONL records to
 `~/.config/aos/{mode}/cli-errors.jsonl`, which makes it easier to review
@@ -599,10 +669,10 @@ Direct routing should prefer canonical session ids. Human-readable names remain 
 Presence is lease-based and restored from the runtime snapshot after daemon restart. Discover peers with `aos tell --who`, then keep using direct `--session-id` routing once a peer id is known; direct session messaging does not require `--who` to be non-empty at send time.
 
 Docked role sessions are ordinary registered sessions. Supervisors should
-register each role before launch with stable ids such as `<workflow-id>:gdi`,
+register each role before launch with stable ids such as `<run-id>:gdi`,
 include role and harness metadata, and unregister the session after that role
-completes. This keeps `aos tell --who`, `aos voice assignments`, and workflow
-status aligned around the same role session identity.
+completes. This keeps `aos tell --who`, `aos voice assignments`, and docked
+session status aligned around the same role session identity.
 
 ## `aos listen`
 
@@ -699,7 +769,11 @@ when judging whether the daemon can actually observe and inject input.
   "attempts": 1,
   "listen_access": true,     // CGPreflightListenEventAccess() in daemon
   "post_access": true,       // CGPreflightPostEventAccess() in daemon
-  "last_error_at": null      // ISO-8601 of most recent CGEventTap failure
+  "last_error_at": null,     // ISO-8601 of most recent CGEventTap failure
+  "panic_passthrough_active": false, // legacy name for Force Quit safety window
+  "panic_passthrough_until": null,
+  "panic_trigger": null,
+  "panic_trigger_count": 0
 },
 "permissions": {
   "accessibility": true      // AXIsProcessTrusted() in daemon
@@ -713,13 +787,16 @@ Consumers:
   `action_trace` fields for agents. Plain `ready` performs one short automatic
   daemon restart/recheck when it detects a daemon ownership mismatch or inactive
   input tap, because those states commonly appear after a human refreshes macOS
-  privacy grants. `--post-permission` is the explicit agent handoff check after
-  the human has removed/re-added Accessibility or Input Monitoring grants; it is
-  bounded and reports the remaining blocker instead of encouraging repeated
-  ad-hoc repair loops. `--repair` runs the longer safe recovery path: restart,
-  wait/recheck, then report plain-English human instructions when macOS privacy
-  settings still require manual action. It does not open Settings or show
-  permission dialogs by itself.
+  privacy grants. Human-required Accessibility/Input Monitoring reset handoffs
+  must stop the managed daemon first with `./aos service stop --mode repo`, wait
+  for `running=false`, remove/re-add `/Users/Michael/Code/agent-os/aos`, then
+  return to `./aos ready --post-permission`. `--post-permission` is the explicit
+  agent handoff check after the human has removed/re-added Accessibility or
+  Input Monitoring grants; it is bounded and reports the remaining blocker
+  instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
+  longer safe recovery path: restart, wait/recheck, then report plain-English
+  human instructions when macOS privacy settings still require manual action. It
+  does not open Settings or show permission dialogs by itself.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.
@@ -730,8 +807,8 @@ Consumers:
 - `aos permissions setup --once` checks the full CLI permission set
   (Accessibility, Screen Recording, Input Monitoring listen, Input Monitoring
   post). If the CLI grant is present but the daemon reports stale or missing
-  daemon-owned grants, setup returns degraded with remove/re-add guidance
-  instead of silently declaring onboarding complete.
+  daemon-owned grants, setup returns degraded with the same stop-daemon-first
+  remove/re-add guidance instead of silently declaring onboarding complete.
 - The permissions onboarding marker is mode-scoped and proves the operator has
   completed the setup flow for that runtime mode. The marker's recorded
   `bundle_path` is diagnostic only: in repo mode, readiness does not fail solely
@@ -837,7 +914,7 @@ Then:
 
 ```bash
 aos show create \
-  --id canvas-inspector \
+  --id surface-inspector \
   --at 200,200,320,480 \
   --interactive \
   --url 'aos://toolkit/components/canvas-inspector/index.html'

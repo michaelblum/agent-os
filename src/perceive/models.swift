@@ -34,6 +34,8 @@ struct CursorElement: Encodable {
     let value: String?
     let enabled: Bool
     let bounds: Bounds?
+    let action_names: [String]
+    let capabilities: [String]
     let context_path: [String]
 }
 
@@ -193,6 +195,10 @@ struct CursorElementJSON: Encodable {
     let label: String?
     let value: String?
     let enabled: Bool
+    let action_names: [String]
+    let capabilities: [String]
+    let bounds: STBounds?
+    let context_path: [String]
 }
 
 /// Capture pipeline's cursor response (distinct from the aos cursorCommand response).

@@ -50,7 +50,7 @@ Today `snapshot:true` replays current state for `display_geometry` and
 `canvas_lifecycle` immediately after the success response. For
 `canvas_lifecycle`, the replay uses the same payload shape as live events,
 including canvas metadata such as `parent`, `track`, `interactive`, `window_level`, `scope`,
-`owner`, `windowNumbers`, the nested `canvas` object, and `segments` for DesktopWorld surfaces. For a
+`lifecycle_state`, `owner`, `windowNumbers`, the nested `canvas` object, and `segments` for DesktopWorld surfaces. For a
 DesktopWorld surface, snapshot replay sends `canvas_topology_settled` before
 the synthetic `created` lifecycle event so segment-aware renderers can identify
 their topology before normal boot side effects run.
@@ -68,7 +68,7 @@ their topology before normal boot side effects run.
 | `app_entered` | `{app, pid, bundle_id}` | Cursor crossed into a different app (tier 1) |
 | `focus_changed` | `{pid, window_id}` | Frontmost app/window changed |
 | `channel_updated` | `{id}` | Focus channel state changed |
-| `element_focused` | `{role, title, label, value, bounds, context_path}` | AX element under cursor changed (tier 2) |
+| `element_focused` | `{role, title, label, value, bounds, action_names, capabilities, context_path}` | AX element under cursor changed (tier 2) |
 | `element_detail` | `{...element_focused fields, children, parent, siblings}` | Subtree around element (tier 3, on demand) |
 
 ### display
@@ -76,12 +76,32 @@ their topology before normal boot side effects run.
 | Event | Data | Trigger |
 |-------|------|---------|
 | `canvas_message` | `{id, payload}` | Canvas JS called postMessage |
-| `canvas_lifecycle` | `{canvas_id, action, at, parent?, track?, interactive, window_level?, scope?, ttl?, cascade?, suspended?, owner?, windowNumbers?, canvas}` | Canvas created/removed/updated |
+| `canvas_lifecycle` | `{canvas_id, action, at, parent?, track?, interactive, window_level?, scope?, ttl?, cascade?, suspended?, lifecycle_state?, owner?, windowNumbers?, canvas}` | Canvas created/removed/updated |
 | `canvas_segment_added` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface gained a display-backed segment |
 | `canvas_segment_removed` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface lost a display-backed segment |
 | `canvas_segment_changed` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface segment ordering or bounds changed |
 | `canvas_topology_settled` | `{canvas_id, segments}` | Full ordered segment snapshot after a DesktopWorld surface topology batch |
 | `channel_post` | `{channel, payload}` | Channel message relayed |
+| `input_region` | `{action, region}` | A canvas registered, updated, or removed a daemon-owned rectangular input region |
+
+Canvases register input regions by posting `input_region.register`,
+`input_region.update`, and `input_region.remove` through the canvas bridge.
+The payload is `{id, frame:[x,y,w,h], coordinate_space?, owner_canvas_id?,
+semantic_label?, priority?, consume_policy?, metadata?,
+remove_on_owner_suspend?, enabled?}`. `coordinate_space` is `native` or
+`desktop_world`; the daemon stores native coordinates and returns them in
+snapshots. `consume_policy` is `always`, `captured`, `down_only`, or `never`.
+When native pointer input routes to a region, the owner canvas receives
+`{type:"input_region.event", routed_input, region_id, owner_canvas_id,
+semantic_label, phase, source_event, source_sequence, source_origin, captured,
+capture_id, should_consume, native, desktop_world, metadata}`. The top-level
+fields are the V0 compatibility surface; `routed_input` is the canonical
+`aos_routed_input` payload from `shared/schemas/input-event-v2` and carries
+`delivery_role`, stable `capture_id` for captured drags, `region_id`,
+`owner_canvas_id`, `source_event`/`source_sequence`, `source_origin`,
+`desktop_world`, and `coordinate_authority`.
+Canvases can subscribe to `input_region` with `snapshot:true` to receive
+`input_region.snapshot` plus live register/update/remove notifications.
 
 ### act
 

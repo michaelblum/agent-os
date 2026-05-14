@@ -302,6 +302,7 @@ class Canvas {
         didSet { applyWindowLevel() }
     }
     var suspended: Bool = false
+    var lifecycleState: String = "active"
     var cascadeFromParent: Bool = true
     var parent: String?
     var owner: CanvasOwnerInfo?
@@ -514,6 +515,7 @@ class Canvas {
             parent: parent,
             cascade: cascadeFromParent,
             suspended: suspended,
+            lifecycleState: lifecycleState,
             windowNumbers: windowNumbers,
             segments: nil,
             owner: owner
@@ -1012,6 +1014,7 @@ class CanvasManager {
         }()
         if bornSuspended {
             canvas.suspended = true
+            canvas.lifecycleState = "warm_suspended"
         }
 
         // --focus on create: activate immediately and arm a one-shot
@@ -1215,6 +1218,7 @@ class CanvasManager {
 
         if !bornSuspended {
             canvas.show()
+            canvas.lifecycleState = "active"
             if req.focus == true && interactive {
                 canvas.grabFocus()
             }
@@ -1414,6 +1418,7 @@ class CanvasManager {
         guard let canvas = canvases.removeValue(forKey: id) else {
             return .fail("Canvas '\(id)' not found", code: "NOT_FOUND")
         }
+        canvas.lifecycleState = "removed"
         let info = canvas.toInfo()
         canvas.close()
         abandonLifecycleCompletions(forCanvasID: id)
@@ -1425,6 +1430,9 @@ class CanvasManager {
 
     private func handleRemoveAll() -> CanvasResponse {
         let removedCanvases = Array(canvases.values)
+        for canvas in removedCanvases {
+            canvas.lifecycleState = "removed"
+        }
         let removedInfos = removedCanvases.map { $0.toInfo() }
         let removedIds = removedCanvases.map(\.id)
         for canvas in removedCanvases {
@@ -1573,6 +1581,7 @@ class CanvasManager {
             guard let c = canvases[cid] else { continue }
             c.orderOut()
             c.suspended = true
+            c.lifecycleState = c.lifecycleState == "warm_suspended" ? "warm_suspended" : "suspended"
             emitLifecycle(c, action: "updated")
         }
 
@@ -1605,6 +1614,7 @@ class CanvasManager {
                 guard let c = self.canvases[cid] else { continue }
                 c.show()
                 c.suspended = false
+                c.lifecycleState = "active"
                 self.emitLifecycle(c, action: "updated")
             }
             self.onCanvasCountChanged?()

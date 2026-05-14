@@ -129,3 +129,29 @@ test('renderMinimapMark rounds position to integers', () => {
   // top = 60.3 - 10.5 = 49.8 → round → 50
   assert.match(svg, /top:50px/);
 });
+
+test('renderMinimapMark scales DesktopWorld-sized marks with minimap layout scale', () => {
+  const svg = renderMinimapMark(
+    mark({ id: 'radial-context-menu', w: 112, h: 112, minimapSizeMode: 'desktop_world' }),
+    { x: 20, y: 30 },
+    { canvasId: 'avatar-main', layout: { scale: 0.065 } },
+  );
+  assert.match(svg, /left:17px/);
+  assert.match(svg, /top:27px/);
+  assert.match(svg, /width:7px;height:7px/);
+  assert.match(svg, /viewBox="0 0 7 7"/);
+  assert.match(svg, /data-mark-minimap-size-mode="desktop_world"/);
+});
+
+test('renderMinimapMark keeps minimap-sized marks stable when layout scale is present', () => {
+  const svg = renderMinimapMark(
+    mark({ id: 'avatar-center', w: 20, h: 20, minimapSizeMode: 'minimap' }),
+    { x: 20, y: 30 },
+    { canvasId: 'avatar-main', layout: { scale: 0.065 } },
+  );
+  assert.match(svg, /left:10px/);
+  assert.match(svg, /top:20px/);
+  assert.match(svg, /width:20px;height:20px/);
+  assert.match(svg, /viewBox="0 0 20 20"/);
+  assert.match(svg, /data-mark-minimap-size-mode="minimap"/);
+});

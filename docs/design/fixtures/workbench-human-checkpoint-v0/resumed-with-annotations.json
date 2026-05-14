@@ -1,0 +1,172 @@
+{
+  "type": "aos.workbench_human_checkpoint",
+  "schema_version": "2026-05-09",
+  "checkpoint_id": "checkpoint-fixture-resumed-annotations",
+  "status": "draft",
+  "subject": {
+    "type": "markdown.document",
+    "subject_type": "markdown.document",
+    "path": "docs/example.md",
+    "source": { "kind": "file", "path": "docs/example.md" },
+    "label": "example.md"
+  },
+  "canvas_id": "markdown-workbench-test",
+  "launch_status": "launched",
+  "readiness": {
+    "status": "ready",
+    "command": "./aos ready",
+    "exit_code": 0,
+    "diagnostics": { "ready": true },
+    "repair_instructions": []
+  },
+  "initial": {
+    "content_hash": "sha256:4a43f835b5e935348c4a2bb648c28ec187fd70d9322884a661d5f4fcf43e01f4",
+    "content": "# Draft\n\nInitial text.\n",
+    "diagnostics": {
+      "line_count": 3,
+      "word_count": 4,
+      "heading_count": 1,
+      "headings": [{ "depth": 1, "text": "Draft", "line": 1 }],
+      "mermaid_blocks": [],
+      "unclosed_fence": false
+    }
+  },
+  "handoff": {
+    "expected_human_action": "Edit the opened Markdown Workbench surface, then reply when done.",
+    "resume_condition": "Human replies that Markdown edits are complete.",
+    "instructions": "Edit the opened Markdown Workbench surface, then reply when done. Resume condition: Human replies that Markdown edits are complete. Checkpoint: checkpoint-fixture-resumed-annotations."
+  },
+  "resume": {
+    "behavior": "draft",
+    "resumed_at": "2026-05-09T12:10:00.000Z",
+    "resumed_by": "gdi",
+    "current_content_hash": "sha256:69e367a6583318a743ee3f61c77558d85caa4dc91625be637db52cae825a5da8",
+    "current_diagnostics": {
+      "line_count": 7,
+      "word_count": 7,
+      "heading_count": 2,
+      "headings": [
+        { "depth": 1, "text": "Draft", "line": 1 },
+        { "depth": 2, "text": "Human note", "line": 5 }
+      ],
+      "mermaid_blocks": [],
+      "unclosed_fence": false
+    },
+    "diff_summary": {
+      "changed": true,
+      "line_count_delta": 4,
+      "heading_count_delta": 1,
+      "heading_delta": {
+        "added": ["Human note"],
+        "removed": []
+      },
+      "diagnostic_delta": {
+        "line_count": 4,
+        "word_count": 3,
+        "heading_count": 1,
+        "mermaid_block_count": 0,
+        "unclosed_fence_changed": false
+      },
+      "unified_diff_snippet": "@@ -1,3 +1,7 @@\n # Draft\n \n Initial text.\n+\n+## Human note\n+\n+Accepted."
+    },
+    "save_result": null,
+    "annotations": [
+      {
+        "id": "ann-point-1",
+        "ordinal": 1,
+        "kind": "point_comment",
+        "surface_id": "markdown-workbench-test",
+        "source_url": null,
+        "source_path": "docs/example.md",
+        "coordinate_space": "viewport",
+        "point": { "x": 128, "y": 72 },
+        "bounds": null,
+        "viewport_bounds": null,
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "",
+        "text_range": null,
+        "role": "",
+        "label": "Opening note",
+        "ancestor_chain": [],
+        "note": "Use this point as the copy edit focus.",
+        "actor": { "role": "human", "id": "operator" },
+        "status": "committed",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": "2026-05-09T12:00:00.000Z",
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "hide_annotation_controls": true,
+            "keep_target_evidence_visible": true
+          },
+          "restore": {
+            "restore_annotation_controls": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {}
+      }
+    ],
+    "metadata": {
+      "committed_annotation_count": 1,
+      "adapter": "markdown-workbench",
+      "dirty": true,
+      "path": "docs/example.md"
+    }
+  },
+  "annotations": [
+    {
+      "id": "ann-point-1",
+      "ordinal": 1,
+      "kind": "point_comment",
+      "surface_id": "markdown-workbench-test",
+      "source_url": null,
+      "source_path": "docs/example.md",
+      "coordinate_space": "viewport",
+      "point": { "x": 128, "y": 72 },
+      "bounds": null,
+      "viewport_bounds": null,
+      "page_bounds": null,
+      "selector_candidates": [],
+      "text_excerpt": "",
+      "text_range": null,
+      "role": "",
+      "label": "Opening note",
+      "ancestor_chain": [],
+      "note": "Use this point as the copy edit focus.",
+      "actor": { "role": "human", "id": "operator" },
+      "status": "committed",
+      "lifecycle": {
+        "clearable": true,
+        "committed_at": "2026-05-09T12:00:00.000Z",
+        "resolved_at": null,
+        "rejected_at": null,
+        "recovered_from": null
+      },
+      "capture": {
+        "prepare": {
+          "hide_annotation_controls": true,
+          "keep_target_evidence_visible": true
+        },
+        "restore": {
+          "restore_annotation_controls": true
+        }
+      },
+      "created_at": "2026-05-09T12:00:00.000Z",
+      "updated_at": "2026-05-09T12:00:00.000Z",
+      "metadata": {}
+    }
+  ],
+  "created_at": "2026-05-09T12:00:00.000Z",
+  "created_by": "gdi",
+  "metadata": {
+    "adapter": "markdown-workbench",
+    "initial_hash": "sha256:4a43f835b5e935348c4a2bb648c28ec187fd70d9322884a661d5f4fcf43e01f4"
+  }
+}

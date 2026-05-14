@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-live-evidence-target-plan-v0.schema.json",
+  "title": "Employer Brand Live Evidence Target Plan v0",
+  "description": "Human-authored live website evidence target plan for Employer Brand audits. V0 records exact companies, source categories, pages, URLs, natural-language element targets, evidence goals, KILOS relevance, acceptance criteria, and review status before selector, XPath, Playwright, codegen, browsing, collection, capture, rendering, export, or workflow execution.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "project_ref",
+    "expected_totals",
+    "targets",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_live_evidence_target_plan"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-live-evidence-target-plan-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "human_review_required",
+        "approved",
+        "archived"
+      ]
+    },
+    "project_ref": {
+      "$ref": "#/$defs/project_ref"
+    },
+    "expected_totals": {
+      "$ref": "#/$defs/expected_totals"
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/target"
+      }
+    },
+    "controls": {
+      "$ref": "#/$defs/controls"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "review_decision_summary": {
+      "$ref": "#/$defs/review_decision_summary"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      }
+    },
+    "kilos_relevance": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "kinship",
+          "impact",
+          "lifestyle",
+          "opportunity",
+          "status"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "project_ref": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "project_path",
+        "framework",
+        "read_only",
+        "planning_metadata_only"
+      ],
+      "properties": {
+        "project_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "project_path": {
+          "const": "intake/project.json"
+        },
+        "framework": {
+          "const": "KILOS"
+        },
+        "read_only": {
+          "const": true
+        },
+        "planning_metadata_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "expected_totals": {
+      "type": "object",
+      "required": [
+        "company_count",
+        "source_category_count",
+        "page_count",
+        "target_count",
+        "expected_clip_count"
+      ],
+      "properties": {
+        "company_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_category_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "target_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "locator_placeholders": {
+      "type": "object",
+      "required": [
+        "selector",
+        "xpath",
+        "playwright_locator",
+        "codegen_hint",
+        "crawl_discovery_notes",
+        "capture_script_slot"
+      ],
+      "properties": {
+        "selector": {
+          "type": "null"
+        },
+        "xpath": {
+          "type": "null"
+        },
+        "playwright_locator": {
+          "type": "null"
+        },
+        "codegen_hint": {
+          "type": "null"
+        },
+        "crawl_discovery_notes": {
+          "type": "null"
+        },
+        "capture_script_slot": {
+          "type": "null"
+        }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "target_id",
+        "company_id",
+        "company",
+        "company_role",
+        "source_category",
+        "page_name",
+        "url",
+        "target_element",
+        "evidence_goal",
+        "kilos_relevance",
+        "capture_type",
+        "expected_clip_count",
+        "acceptance_criteria",
+        "review_status",
+        "locator_placeholders",
+        "notes"
+      ],
+      "properties": {
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company_role": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "source_category": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "page_name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "minLength": 1
+        },
+        "target_element": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "evidence_goal": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "kilos_relevance": {
+          "$ref": "#/$defs/kilos_relevance"
+        },
+        "capture_type": {
+          "enum": [
+            "element_clip",
+            "element_text_extract",
+            "element_clip_and_text_extract"
+          ]
+        },
+        "expected_clip_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acceptance_criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "review_status": {
+          "enum": [
+            "draft",
+            "human_review_required",
+            "approved",
+            "rejected"
+          ]
+        },
+        "locator_placeholders": {
+          "$ref": "#/$defs/locator_placeholders"
+        },
+        "notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "controls": {
+      "type": "object",
+      "required": [
+        "full_page_grabs",
+        "autonomous_browsing_authorized",
+        "live_collection_authorized",
+        "report_renderer_authorized",
+        "export_execution_authorized",
+        "workflow_engine_authorized"
+      ],
+      "properties": {
+        "full_page_grabs": {
+          "const": false
+        },
+        "autonomous_browsing_authorized": {
+          "const": false
+        },
+        "live_collection_authorized": {
+          "const": false
+        },
+        "report_renderer_authorized": {
+          "const": false
+        },
+        "export_execution_authorized": {
+          "const": false
+        },
+        "workflow_engine_authorized": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "required": [
+        "reviewer_id",
+        "reviewer_name",
+        "reviewer_role"
+      ],
+      "properties": {
+        "reviewer_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "reviewer_name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "reviewer_role": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "review_decision_summary": {
+      "type": "object",
+      "required": [
+        "total_targets",
+        "approved_count",
+        "rejected_count",
+        "draft_count",
+        "edited_count",
+        "unchanged_count",
+        "expected_clip_count_after_rejected_targets_excluded",
+        "reviewer",
+        "reviewed_at",
+        "approval_patch_id"
+      ],
+      "properties": {
+        "total_targets": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "approved_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "draft_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edited_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unchanged_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_clip_count_after_rejected_targets_excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reviewer": {
+          "$ref": "#/$defs/reviewer"
+        },
+        "reviewed_at": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "approval_patch_id": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "human_authored_contract",
+        "planning_metadata_only",
+        "read_only",
+        "live_evidence_collected",
+        "selectors_resolved",
+        "non_goals"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "human_authored_contract": {
+          "const": true
+        },
+        "planning_metadata_only": {
+          "const": true
+        },
+        "read_only": {
+          "const": true
+        },
+        "live_evidence_collected": {
+          "const": false
+        },
+        "selectors_resolved": {
+          "const": false
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        },
+        "source_target_plan_path": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "source_review_pack_path": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "approval_patch_path": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "original_target_plan_unchanged": {
+          "type": "boolean"
+        },
+        "rejected_targets_excluded_from_readiness": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

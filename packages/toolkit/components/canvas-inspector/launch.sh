@@ -1,5 +1,5 @@
 #!/bin/bash
-# launch.sh — Create the canvas inspector and seed it with initial state.
+# launch.sh — Create Surface Inspector and seed it with initial state.
 # Live updates flow via in-canvas subscriptions (`canvas_lifecycle` +
 # `display_geometry`); no external subprocess needed.
 
@@ -10,12 +10,16 @@ ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
 source "$ROOT/scripts/aos-content-scope.sh"
 
 AOS="${AOS:-$ROOT/aos}"
-CANVAS_ID="canvas-inspector"
+CANVAS_ID="${AOS_SURFACE_INSPECTOR_ID:-${AOS_CANVAS_INSPECTOR_ID:-surface-inspector}}"
+LEGACY_CANVAS_ID="canvas-inspector"
 PANEL_W="${AOS_CANVAS_INSPECTOR_W:-320}"
 PANEL_H="${AOS_CANVAS_INSPECTOR_H:-480}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 
 $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
+if [[ "$CANVAS_ID" != "$LEGACY_CANVAS_ID" ]]; then
+  $AOS show remove --id "$LEGACY_CANVAS_ID" 2>/dev/null || true
+fi
 
 aos_ensure_content_roots_live "$AOS" \
   "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
@@ -55,5 +59,5 @@ $AOS show wait \
   --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
   --timeout 5s >/dev/null
 
-echo "Canvas inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-right of the main display's visible bounds for operator convenience only"
+echo "Surface Inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-right of the main display's visible bounds for operator convenience only"
 echo "Live lifecycle + display geometry updates flow via in-canvas subscribe snapshots — no manual bootstrap needed."

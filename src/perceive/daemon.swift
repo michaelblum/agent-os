@@ -19,6 +19,7 @@ class PerceptionEngine {
     /// Called for raw input events captured by the daemon's event tap.
     /// Returns true when the event should be consumed.
     var onInputEvent: ((String, [String: Any]) -> Bool)?
+    var onInputSafetyHotkeyTriggered: ((Date) -> Void)?
 
     // Cursor state
     private var lastCursorPoint: CGPoint = .zero
@@ -37,6 +38,7 @@ class PerceptionEngine {
     private var eventTapRetryTimer: DispatchSourceTimer?
     private var eventTapStartAttempts: Int = 0
     private var lastEventTapErrorAt: Date?
+    private let inputSafetyHotkeyState = InputSafetyHotkeyState()
 
     var inputTapStatus: String {
         if eventTap != nil { return "active" }
@@ -64,6 +66,10 @@ class PerceptionEngine {
             return CGPreflightPostEventAccess()
         }
         return true
+    }
+
+    var inputSafetyHotkeySnapshot: InputSafetyHotkeySnapshot {
+        inputSafetyHotkeyState.snapshot()
     }
 
     var daemonAccessibilityGranted: Bool {
@@ -99,6 +105,7 @@ class PerceptionEngine {
             .otherMouseDown,
             .otherMouseUp,
             .otherMouseDragged,
+            .scrollWheel,
             .keyDown,
             .keyUp,
             .tapDisabledByTimeout,
@@ -181,6 +188,15 @@ class PerceptionEngine {
 
     private func handleTapEvent(_ event: CGEvent) -> Bool {
         let type = event.type
+        let safetyDecision = inputSafetyHotkeyState.classify(inputSafetyHotkeyEvent(for: type, event: event))
+        if safetyDecision.passThrough {
+            if safetyDecision.triggered, let deadline = safetyDecision.deadline {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onInputSafetyHotkeyTriggered?(deadline)
+                }
+            }
+            return false
+        }
 
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
@@ -197,6 +213,32 @@ class PerceptionEngine {
         guard let eventName = inputEventName(for: type) else { return false }
         let data = inputEventPayload(for: type, event: event, eventName: eventName)
         return onInputEvent?(eventName, data) ?? false
+    }
+
+    private func inputSafetyHotkeyEvent(for type: CGEventType, event: CGEvent) -> InputSafetyHotkeyEvent {
+        let kind: InputSafetyHotkeyEventKind
+        switch type {
+        case .keyDown:
+            kind = .keyDown
+        case .keyUp:
+            kind = .keyUp
+        default:
+            kind = .other
+        }
+
+        let keyCode: Int64?
+        switch kind {
+        case .keyDown, .keyUp:
+            keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        case .other:
+            keyCode = nil
+        }
+
+        return InputSafetyHotkeyEvent(
+            kind: kind,
+            keyCode: keyCode,
+            modifiers: InputSafetyModifierSnapshot(flags: event.flags)
+        )
     }
 
     private func inputEventName(for type: CGEventType) -> String? {
@@ -221,6 +263,8 @@ class PerceptionEngine {
             return "other_mouse_up"
         case .otherMouseDragged:
             return "other_mouse_dragged"
+        case .scrollWheel:
+            return "scroll_wheel"
         case .keyDown:
             return "key_down"
         case .keyUp:
@@ -236,15 +280,19 @@ class PerceptionEngine {
         case .keyDown, .keyUp:
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             return inputEventData(type: eventName, keyCode: keyCode, flags: flags)
+        case .scrollWheel:
+            let point = event.location
+            let dx = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2))
+            let dy = Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1))
+            return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags, scrollDX: dx, scrollDY: dy)
         default:
             let point = event.location
             return inputEventData(type: eventName, x: point.x, y: point.y, flags: flags)
         }
     }
 
-    /// Map `CGEventFlags` to the shared {shift, ctrl, cmd, opt, fn} dict used
-    /// in every `input_event` payload. `.maskAlphaShift` (capslock) is ignored
-    /// intentionally.
+    /// Map `CGEventFlags` to the shared modifier dict used in every
+    /// `input_event` payload.
     private func modifierFlags(from flags: CGEventFlags) -> [String: Bool] {
         return [
             "shift": flags.contains(.maskShift),
@@ -252,6 +300,7 @@ class PerceptionEngine {
             "cmd": flags.contains(.maskCommand),
             "opt": flags.contains(.maskAlternate),
             "fn": flags.contains(.maskSecondaryFn),
+            "caps_lock": flags.contains(.maskAlphaShift),
         ]
     }
 
@@ -376,6 +425,8 @@ class PerceptionEngine {
                 let data = elementFocusedData(
                     role: hit.role, title: hit.title, label: hit.label, value: hit.value,
                     bounds: hit.bounds.map { Bounds(from: $0) },
+                    action_names: hit.actionNames,
+                    capabilities: hit.capabilities,
                     context_path: hit.contextPath)
                 onEvent?("element_focused", data)
             }

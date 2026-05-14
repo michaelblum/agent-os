@@ -1,50 +1,114 @@
 # Annotation Schema
 
 **File:** `annotation.schema.json`
-**Version:** 0.1.0
-**Producer:** `aos see capture --label`
-**Consumers:** `aos show`, orchestrators, vision models
+**Version:** 0.2.0
+**Producers:** `aos see capture --label`, workbench checkpoint helpers, future show/capture layers
+**Consumers:** `aos show`, orchestrators, workbenches, vision models
 
 ## What This Is
 
-A minimal data format describing labeled regions on a surface. An annotation is a rectangular region plus an optional text label. Array position is the ordinal — no explicit ordinal field.
+The annotation schema now accepts two compatible record families:
 
-## Coordinate Space
+- structured annotation intent records, used when a human or operator points,
+  selects, marks a region, or leaves a note on a visible surface;
+- legacy labeled-region records, used by older `aos see capture --label`
+  producers that only emit `{ bounds, label }`.
 
-The schema is coordinate-space-agnostic. The coordinate space depends on the producer:
+Structured records are the durable contract for intent convergence. They are not
+screenshot-only markup and they are not a live overlay system. Rendering layers
+can draw badges from them later, but the record itself must be agent-readable.
 
-| Producer | Coordinate space |
-|---|---|
-| `aos see capture --label` | LCS (top-left of captured region = 0,0) |
-| Spatial topology cross-reference | Use the referenced topology layer directly. Current daemon/topology producers may still emit Native desktop compatibility, while shared-world consumers should prefer DesktopWorld. |
+## Structured Intent Records
 
-The consumer knows which space it's operating in.
+A structured annotation includes an explicit `ordinal`. Array position alone is
+not enough for durable references. Once a show layer renders badges, phrases
+such as "use annotation 2" should resolve through this field.
 
-## How Ordinals Work
+Required fields include:
 
-Array index = ordinal. Index 0 renders as badge "1", index 1 as badge "2", etc. There is no explicit ordinal field — array position is the single source of truth (same convention as `spatial-topology.schema.json` where array position = z-order).
+- `id`, `ordinal`, `kind`, `surface_id`, and `coordinate_space`;
+- non-empty `source_url` or non-empty `source_path`;
+- `note`, `actor`, `status`, `created_at`, and `updated_at`;
+- lifecycle data for clear/commit/recover/resolve/reject behavior;
+- capture `prepare` and `restore` objects so future capture steps can hide
+  annotation controls while keeping target evidence visible.
+
+Supported V0 kinds are:
+
+- `point_comment`;
+- `region_comment`;
+- `element_selection`;
+- `selection_comment`.
+
+Selectors are optional candidates, not the only anchor. Use bounds, text
+excerpt, role, label, ancestor chain, source identity, and coordinate space
+where available.
 
 ## Example
 
 ```json
 {
   "schema": "annotations",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "annotations": [
-    { "bounds": { "x": 100, "y": 200, "width": 50, "height": 30 }, "label": "Search" },
-    { "bounds": { "x": 300, "y": 400, "width": 120, "height": 25 }, "label": "Submit" }
+    {
+      "id": "ann-1",
+      "ordinal": 1,
+      "kind": "region_comment",
+      "surface_id": "markdown-workbench",
+      "source_url": null,
+      "source_path": "docs/example.md",
+      "coordinate_space": "viewport",
+      "point": null,
+      "bounds": { "x": 100, "y": 120, "width": 320, "height": 90 },
+      "viewport_bounds": { "x": 100, "y": 120, "width": 320, "height": 90 },
+      "page_bounds": null,
+      "selector_candidates": [],
+      "text_excerpt": "Initial text.",
+      "text_range": { "start_line": 3, "end_line": 3 },
+      "role": "",
+      "label": "Body region",
+      "ancestor_chain": [],
+      "note": "Clarify this paragraph.",
+      "actor": { "role": "human", "id": "operator" },
+      "status": "committed",
+      "lifecycle": {
+        "clearable": true,
+        "committed_at": "2026-05-09T12:00:00.000Z",
+        "resolved_at": null,
+        "rejected_at": null,
+        "recovered_from": null
+      },
+      "capture": {
+        "prepare": {
+          "hide_annotation_controls": true,
+          "keep_target_evidence_visible": true
+        },
+        "restore": {
+          "restore_annotation_controls": true
+        }
+      },
+      "created_at": "2026-05-09T12:00:00.000Z",
+      "updated_at": "2026-05-09T12:00:00.000Z",
+      "metadata": {}
+    }
   ]
 }
 ```
 
-Badge "1" marks the Search field at (100, 200). Badge "2" marks the Submit button at (300, 400).
+## Legacy Regions
 
-## Rendering
+Legacy records are still accepted:
 
-The schema describes WHAT to label, not HOW to render it. An HTML/CSS/SVG template turns annotation data into visual content. The `aos show render` command rasterizes the template to a bitmap. Different templates can produce different visual styles from the same data.
+```json
+{
+  "schema": "annotations",
+  "version": "0.1.0",
+  "annotations": [
+    { "bounds": { "x": 100, "y": 200, "width": 50, "height": 30 }, "label": "Search" }
+  ]
+}
+```
 
-## Relationship to `aos see --xray`
-
-`--xray` returns a flat array of interactive UI elements with `role`, `title`, `label`, `value`, `enabled`, `context_path`, and (for macOS-sourced elements or browser-sourced elements captured with `--label`) `bounds`. Browser-sourced elements captured with `--xray` alone carry a `ref` identifier instead of `bounds`; their geometry is fetched per-element on demand when `--label` is passed.
-
-`--label` converts annotatable elements (those with `bounds`) into the annotation schema format, using the AX element's `title` or `label` as the annotation label. Elements without `bounds` are silently skipped by `buildAnnotations`. The annotation array is a strict subset of the xray data — just `bounds` + `label`.
+For these records only, array index remains the display ordinal. New structured
+records should always include `ordinal`.

@@ -40,18 +40,18 @@ vw = int(visible.get("w", 1920))
 vh = int(visible.get("h", 1080))
 
 canvas_by_id = {canvas["id"]: canvas for canvas in canvases.get("canvases", [])}
-for required in ("canvas-inspector", "spatial-telemetry"):
+for required in ("surface-inspector", "spatial-telemetry"):
     if required not in canvas_by_id:
         raise SystemExit(f"FAIL: missing {required} canvas")
 
-inspector = canvas_by_id["canvas-inspector"]["at"]
+inspector = canvas_by_id["surface-inspector"]["at"]
 telemetry = canvas_by_id["spatial-telemetry"]["at"]
 
 expected_inspector = [vx + vw - inspector[2], vy + vh - inspector[3], inspector[2], inspector[3]]
 expected_telemetry = [vx, vy + vh - telemetry[3], telemetry[2], telemetry[3]]
 
 if inspector != expected_inspector:
-    raise SystemExit(f"FAIL: canvas-inspector not flush bottom-right of main visible bounds: got {inspector}, expected {expected_inspector}")
+    raise SystemExit(f"FAIL: surface-inspector not flush bottom-right of main visible bounds: got {inspector}, expected {expected_inspector}")
 if telemetry != expected_telemetry:
     raise SystemExit(f"FAIL: spatial-telemetry not flush bottom-left of main visible bounds: got {telemetry}, expected {expected_telemetry}")
 PY

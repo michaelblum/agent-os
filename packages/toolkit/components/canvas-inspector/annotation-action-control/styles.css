@@ -1,0 +1,82 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.annotation-action-control {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 7px;
+  background: rgba(10, 12, 16, 0.96);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(0, 0, 0, 0.72);
+  cursor: pointer;
+  padding: 0;
+}
+
+.annotation-action-control:active {
+  transform: translateY(1px);
+}
+
+.annotation-action-control.is-pressed {
+  border-color: rgba(244, 197, 66, 0.85);
+  background: rgba(46, 36, 8, 0.98);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.58), 0 0 0 2px rgba(244, 197, 66, 0.72);
+}
+
+.plus-icon,
+.pin-icon {
+  position: relative;
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.plus-icon::before,
+.plus-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 5px;
+  border-radius: 999px;
+  background: #168cff;
+  transform: translate(-50%, -50%);
+}
+
+.plus-icon::after {
+  width: 5px;
+  height: 18px;
+}
+
+.pin-icon::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 8px 8px 8px 1px;
+  background: #f4c542;
+  transform: translateX(-50%) rotate(-45deg);
+}
+
+.pin-icon::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 4px;
+  height: 12px;
+  border-radius: 999px;
+  background: #f4c542;
+  transform: translateX(-50%);
+}

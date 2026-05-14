@@ -1,7 +1,7 @@
 // drag-transfer.js — cross-display transfer affordance for panel drags.
 
 import { emit, wireBridge } from '../runtime/bridge.js'
-import { spawnChild } from '../runtime/canvas.js'
+import { spawnChild, waitForCanvasStatusReady } from '../runtime/canvas.js'
 import { subscribe } from '../runtime/subscribe.js'
 import {
   findDisplayForPoint,
@@ -124,23 +124,74 @@ export function ensureDesktopWorldStage({
   id = 'aos-desktop-world-stage',
   url = defaultDesktopWorldStageUrl(),
   createStage = spawnChild,
+  waitForStage = waitForCanvasStatusReady,
 } = {}) {
-  if (!id || typeof createStage !== 'function') return Promise.resolve(false)
-  const key = `${id}:${url}`
-  if (!stageEnsurePromises.has(key)) {
-    stageEnsurePromises.set(key, Promise.resolve().then(() => createStage({
+  if (!id || typeof createStage !== 'function') {
+    return Promise.resolve({
+      ok: false,
+      status: 'invalid_stage_request',
       id,
       url,
-      surface: 'desktop-world',
-      scope: 'global',
-      interactive: false,
-      focus: false,
-      cascade: false,
-    })).then(() => true).catch((error) => {
+      created: false,
+    })
+  }
+  const key = `${id}:${url}`
+  if (!stageEnsurePromises.has(key)) {
+    stageEnsurePromises.set(key, Promise.resolve().then(async () => {
+      await createStage({
+        id,
+        url,
+        surface: 'desktop-world',
+        scope: 'global',
+        interactive: false,
+        focus: false,
+        cascade: false,
+      })
+      if (typeof waitForStage === 'function') {
+        await waitForStage(id, { timeoutMs: 3000, intervalMs: 50, infoTimeoutMs: 500, requireManifest: true, manifestName: 'desktop-world-stage' })
+      }
+      return {
+        ok: true,
+        status: 'created',
+        id,
+        url,
+        created: true,
+      }
+    }).catch(async (error) => {
       const message = String(error?.message || error)
-      if (/already exists|exists|duplicate/i.test(message)) return false
+      if (/already exists|exists|duplicate/i.test(message)) {
+        try {
+          if (typeof waitForStage === 'function') {
+            await waitForStage(id, { timeoutMs: 3000, intervalMs: 50, infoTimeoutMs: 500, requireManifest: true, manifestName: 'desktop-world-stage' })
+          }
+        } catch (readyError) {
+          return {
+            ok: false,
+            status: 'ready_check_failed',
+            id,
+            url,
+            created: false,
+            error: String(readyError?.message || readyError),
+          }
+        }
+        return {
+          ok: true,
+          status: 'already_exists',
+          id,
+          url,
+          created: false,
+        }
+      }
       console.warn('[aos-panel] desktop-world transfer stage unavailable', error)
-      return false
+      stageEnsurePromises.delete(key)
+      return {
+        ok: false,
+        status: 'create_failed',
+        id,
+        url,
+        created: false,
+        error: message,
+      }
     }))
   }
   return stageEnsurePromises.get(key)
@@ -213,6 +264,7 @@ export function createPanelTransferController({
   stageUrl = defaultDesktopWorldStageUrl(),
   ensureStage = 'auto',
   createStage = spawnChild,
+  waitForStage = waitForCanvasStatusReady,
   layerId = null,
   label = 'Move here',
   getDisplays = () => [],
@@ -249,6 +301,7 @@ export function createPanelTransferController({
           id: stageCanvasId,
           url: stageUrl,
           createStage,
+          waitForStage,
         })
       }
       const freshDisplays = normalizeDisplays(getDisplays())

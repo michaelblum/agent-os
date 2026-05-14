@@ -1,0 +1,472 @@
+{
+  "type": "aos.employer_brand_source_artifact_target_plan",
+  "schema_version": "2026-05-employer-brand-source-artifact-target-plan-v0",
+  "id": "source-artifact-target-plan:kilos-comp-audit-source-elements-v0",
+  "label": "KILOS Comp Audit Source Element Target Plan",
+  "status": "hand_authored",
+  "capture_scope": {
+    "capture_unit": "page_element",
+    "full_page_grabs": false,
+    "policy": "Capture only the named slide, PDF, or SPA page elements. Do not capture whole pages or whole browser viewports unless a later reviewed target explicitly narrows the element to that full visible component.",
+    "non_goals": [
+      "full_page_grabs",
+      "report_renderer",
+      "html_css_polish",
+      "pdf_export",
+      "docx_export",
+      "live_collection",
+      "workflow_engine"
+    ]
+  },
+  "source_artifact_refs": [
+    {
+      "id": "source:kilos-template-pptx",
+      "kind": "pptx",
+      "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pptx",
+      "role": "slide_template_reference",
+      "notes": "Editable source deck reference; use for slide object intent and layout vocabulary, not as a generated output."
+    },
+    {
+      "id": "source:kilos-template-pdf",
+      "kind": "pdf",
+      "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf",
+      "role": "rendered_slide_reference",
+      "notes": "Rendered 47-page slide reference used to identify precise page regions and expected element clips."
+    },
+    {
+      "id": "source:spv5-html",
+      "kind": "html_spa",
+      "path": "/Users/Michael/Desktop/SPv5.html",
+      "role": "interactive_spa_reference",
+      "notes": "Interactive Employer Brand Competitive Audit SPA reference with KILOS, summary, competition, and deep-dive views."
+    }
+  ],
+  "expected_totals": {
+    "target_count": 13,
+    "expected_clip_count": 44
+  },
+  "targets": [
+    {
+      "target_id": "target:pdf-method-scope-bullets",
+      "source_artifact_id": "source:kilos-template-pdf",
+      "target_name": "Method Scope Bullets",
+      "page_element_target": {
+        "artifact_location": "PDF page 2, 'What we did'",
+        "element_ref": "assessment bullet list under 'During the assessment, we considered'",
+        "natural_language_target": "Clip the bullet list describing audited surfaces and assessment dimensions, excluding the title, surrounding whitespace, and page number."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "The clip includes all bullets for messaging, tone, campaigns, job listings, social channels, reviews, and awards.",
+        "The clip excludes the full slide frame and does not include unrelated deck chrome.",
+        "The text extract preserves the scope list as separate bullet-like entries."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "This is source-method context, not report content."
+    },
+    {
+      "target_id": "target:pdf-summary-insight-blocks",
+      "source_artifact_id": "source:kilos-template-pdf",
+      "target_name": "Summary Insight Blocks",
+      "page_element_target": {
+        "artifact_location": "PDF page 4, 'Summary of insights'",
+        "element_ref": "four labeled narrative blocks: Shared themes, Differences, Where messaging gaps exist, Visual identity",
+        "natural_language_target": "Clip each labeled narrative block as its own element so downstream data can preserve the source distinction between shared themes, differentiators, gaps, and visual identity."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 4,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "Exactly four clips are produced, one per labeled block.",
+        "Each clip includes its label and body text.",
+        "No clip includes the entire slide or another labeled block."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "This target forces block-level capture instead of a single full-slide screenshot."
+    },
+    {
+      "target_id": "target:pdf-messaging-snapshot-table",
+      "source_artifact_id": "source:kilos-template-pdf",
+      "target_name": "Messaging Snapshot Table",
+      "page_element_target": {
+        "artifact_location": "PDF page 5, 'Employer brand messaging snapshot insights'",
+        "element_ref": "company/headline/example table body",
+        "natural_language_target": "Clip the messaging snapshot table body that pairs companies with headlines and example positioning copy."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "The clip includes the table headers and all visible company rows on the page.",
+        "The clip preserves headline-to-company alignment.",
+        "The clip does not include adjacent page number or unrelated margins."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "Useful for normalizing headline and example-copy fields."
+    },
+    {
+      "target_id": "target:pdf-kilos-top-themes-matrix",
+      "source_artifact_id": "source:kilos-template-pdf",
+      "target_name": "KILOS Messaging Top Themes Matrix",
+      "page_element_target": {
+        "artifact_location": "PDF page 6, 'Messaging top themes'",
+        "element_ref": "KILOS dimension matrix with Kinship, Impact, Lifestyle, Opportunity, and Status columns",
+        "natural_language_target": "Clip the KILOS top-themes matrix as the matrix element only, preserving the five KILOS column headings and visible theme labels."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "The clip includes all five KILOS column headings.",
+        "The clip preserves matrix rows and score markers well enough to trace theme placement.",
+        "The clip is not a full-page grab."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "Later automation may need PDF crop coordinates rather than DOM locators."
+    },
+    {
+      "target_id": "target:pptx-slide-object-structure",
+      "source_artifact_id": "source:kilos-template-pptx",
+      "target_name": "Template Slide Object Structure",
+      "page_element_target": {
+        "artifact_location": "PPTX source deck, corresponding rendered pages 2, 4, 5, and 6",
+        "element_ref": "source slide objects behind method, summary, snapshot, and KILOS matrix pages",
+        "natural_language_target": "Record the editable deck as the structural source for the same precise element targets found in the rendered PDF; do not create slide exports."
+      },
+      "capture_type": "element_text_extract",
+      "expected_clip_count": 0,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "The target points back to editable slide objects as source structure.",
+        "No screenshot, deck export, or generated slide artifact is produced.",
+        "Later extraction fields remain nullable until a PPTX object parser or codegen pass fills them."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "Expected clip count is zero because the rendered PDF carries the visual clip targets."
+    },
+    {
+      "target_id": "target:spa-header-view-nav",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA Header View Navigation",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, header#main-header",
+        "element_ref": "top navigation buttons for Overview, Summary, Competition, KILOS, and deep-dive company entry",
+        "natural_language_target": "Clip the sticky header navigation element that controls the SPA views."
+      },
+      "capture_type": "element_clip",
+      "expected_clip_count": 1,
+      "kilos_relevance": [],
+      "acceptance_criteria": [
+        "The clip includes the visible view controls and enough header context to identify the audit surface.",
+        "The clip does not include the full browser viewport.",
+        "The active-view styling is visible for the selected state used during capture."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "Later Playwright can target #main-header or generated button text after review."
+    },
+    {
+      "target_id": "target:spa-intro-methodology-elements",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA Intro and Methodology Elements",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, overview-view generated from introContent.auditPreamble",
+        "element_ref": "introductory audit preamble and methodology explanation components",
+        "natural_language_target": "Clip the intro and methodology cards/elements separately after the Overview view has rendered."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 2,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "Exactly two clips are produced: one for the audit introduction and one for methodology/framework context.",
+        "The method clip includes the KILOS framework explanation when visible.",
+        "Neither clip includes the whole overview page."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "The SPA currently renders this content from data near introContent.auditPreamble."
+    },
+    {
+      "target_id": "target:spa-competition-logo-grid",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA Competitive Landscape Logo Grid",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, #competition-content-wrapper generated by renderCompetition()",
+        "element_ref": "Competitive Landscape logo grid linking to all company deep dives",
+        "natural_language_target": "Clip the logo grid element that shows the complete company set represented by the SPA."
+      },
+      "capture_type": "element_clip",
+      "expected_clip_count": 1,
+      "kilos_relevance": [],
+      "acceptance_criteria": [
+        "The clip includes the grid title and all visible company logo tiles.",
+        "The clip excludes the rest of the competition page if additional sections are present.",
+        "The company count can vary in later audits; this target is a repeated-grid element, not a fixed company schema."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "SPv5 currently derives the grid from allCompanies."
+    },
+    {
+      "target_id": "target:spa-kilos-matrix",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA KILOS Messaging Matrix",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, #kilos-matrix",
+        "element_ref": "rendered KILOS Messaging Matrix table",
+        "natural_language_target": "Clip the KILOS matrix element after switching to the KILOS view."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "The clip includes the KILOS matrix title and table content.",
+        "The clip preserves company columns and KILOS dimension grouping.",
+        "The clip is scoped to #kilos-matrix, not the full KILOS page."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "The HTML source already names this element with id=\"kilos-matrix\" but the reviewed selector field remains null in V0."
+    },
+    {
+      "target_id": "target:spa-kilos-framework-analysis-accordions",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA KILOS Framework Analysis Accordions",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, each rendered company deep-dive KILOS Framework Analysis block",
+        "element_ref": "accordion panels for Kinship, Impact, Lifestyle, Opportunity, and Status",
+        "natural_language_target": "For a selected company deep dive, open and clip one accordion panel for each KILOS dimension."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 5,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "Exactly five clips are produced for the selected company: Kinship, Impact, Lifestyle, Opportunity, and Status.",
+        "Each clip includes the dimension label, summary, and supporting evidence when present.",
+        "Clips are accordion-panel scoped and do not include the entire company deep-dive section."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "Later deterministic runs can repeat this target for arbitrary n companies."
+    },
+    {
+      "target_id": "target:spa-company-deep-dive-cards",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA Company Deep-Dive Cards",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, #deepdives-content-wrapper generated by _renderSingleDeepDive(c)",
+        "element_ref": "one rendered company section card per allCompanies item",
+        "natural_language_target": "Clip each generated company deep-dive card as a separate element, preserving the company logo/header, value proposition, KILOS analysis column, and evidence column boundaries."
+      },
+      "capture_type": "element_clip",
+      "expected_clip_count": 13,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "One clip is produced for each rendered company deep-dive section in SPv5.",
+        "The clip count is data-driven by the rendered company set; SPv5 currently has 13 company sections.",
+        "Each clip is section scoped and not a full-page or full-viewport screenshot."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "This target is the explicit arbitrary-n company repeated element target."
+    },
+    {
+      "target_id": "target:spa-evidence-gallery-active-frames",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA Evidence Gallery Active Frames",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, Evidence Gallery card inside each company deep dive",
+        "element_ref": "active carousel image frame and source-domain tabs",
+        "natural_language_target": "For each company with visual evidence, clip the active evidence-gallery frame and visible source-domain tabs as an element."
+      },
+      "capture_type": "element_clip",
+      "expected_clip_count": 13,
+      "kilos_relevance": [
+        "kinship",
+        "impact",
+        "lifestyle",
+        "opportunity",
+        "status"
+      ],
+      "acceptance_criteria": [
+        "One active-gallery clip is produced per company with an evidence gallery.",
+        "Each clip includes the active image frame, carousel controls, and source-domain tabs.",
+        "The clip does not include the entire company deep-dive section."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "If a later source data set has companies without images, this target's expected count must be reviewed."
+    },
+    {
+      "target_id": "target:spa-citation-controls",
+      "source_artifact_id": "source:spv5-html",
+      "target_name": "SPA Citation Controls",
+      "page_element_target": {
+        "artifact_location": "SPv5.html, rendered citation controls from citeList() and cite()",
+        "element_ref": "purple citation bubbles, '+', and related source-link controls attached to evidence text",
+        "natural_language_target": "Clip a representative citation-control cluster showing numbered source bubbles and expansion affordance."
+      },
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "kilos_relevance": [],
+      "acceptance_criteria": [
+        "The clip includes at least one numbered citation bubble and the related expansion control when present.",
+        "The text extract identifies the source URL or citation index relationship when visible.",
+        "The clip is scoped to the citation cluster, not the whole paragraph or page."
+      ],
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null
+      },
+      "notes": "This supports later citation normalization without committing to a report renderer."
+    }
+  ],
+  "controls": {
+    "full_page_capture_authorized": false,
+    "remote_web_collection_authorized": false,
+    "autonomous_browsing_authorized": false,
+    "report_renderer_authorized": false,
+    "export_execution_authorized": false,
+    "workflow_engine_authorized": false
+  },
+  "provenance": {
+    "authored_at": "2026-05-08T00:00:00Z",
+    "authored_by": "foreman",
+    "read_only": true,
+    "provenance_only": true,
+    "derived_from": [
+      {
+        "id": "source:kilos-template-pptx",
+        "kind": "pptx",
+        "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pptx",
+        "role": "slide_template_reference",
+        "notes": "Original slide template reference."
+      },
+      {
+        "id": "source:kilos-template-pdf",
+        "kind": "pdf",
+        "path": "/Users/Michael/Documents/DownloadedDecks/KILOS comp audit template.pdf",
+        "role": "rendered_slide_reference",
+        "notes": "Rendered slide reference."
+      },
+      {
+        "id": "source:spv5-html",
+        "kind": "html_spa",
+        "path": "/Users/Michael/Desktop/SPv5.html",
+        "role": "interactive_spa_reference",
+        "notes": "Interactive SPA reference."
+      }
+    ]
+  }
+}

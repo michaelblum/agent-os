@@ -33,8 +33,7 @@ addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet }
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
-const { createMaximizeController, createSplitPane, syncMaximizeButton, wireDrag, wireResize } = await import(`/${toolkitRoot}/panel/index.js`);
-const { removeSelf, spawnChild, suspendCanvas } = await import(`/${toolkitRoot}/runtime/canvas.js`);
+const { createPanelWindowController, createSplitPane, syncMaximizeButton } = await import(`/${toolkitRoot}/panel/index.js`);
 
 const workbenchShell = document.querySelector('.aos-workbench-shell');
 const workbenchMain = document.getElementById('workbench-main');
@@ -83,19 +82,36 @@ let lastLockIn = null;
 const undoStack = [];
 const redoStack = [];
 
-const maximizeController = createMaximizeController({
-    onStateChange(state) {
-        if (maximizeWorkbenchButton) syncMaximizeButton(maximizeWorkbenchButton, state);
+const panelWindowController = createPanelWindowController({
+    getCanvasId: () => window.__aosCanvasId || window.__aosSurfaceCanvasId || canvasId,
+    drag: {
+        clampOnEnd: true,
+        transfer: true,
+        onStateChange(state) {
+            const transferActive = Boolean(state.transferActive);
+            workbenchShell?.classList.toggle('aos-workbench-transfer-active', transferActive);
+            if (workbenchShell) workbenchShell.dataset.transferActive = String(transferActive);
+        },
     },
+    resize: {
+        minWidth: 760,
+        minHeight: 520,
+    },
+    maximize: {
+        onStateChange(state) {
+            if (maximizeWorkbenchButton) syncMaximizeButton(maximizeWorkbenchButton, state);
+        },
+    },
+    minimize: true,
+    close: true,
 });
+const maximizeController = panelWindowController.maximizeController;
 if (maximizeWorkbenchButton) {
     syncMaximizeButton(maximizeWorkbenchButton, maximizeController.getState());
 }
 
 const resizeController = workbenchShell
-    ? wireResize(workbenchShell, {
-        minWidth: 760,
-        minHeight: 520,
+    ? panelWindowController.wireResize(workbenchShell, {
         onStart() {
             if (maximizeController.getState().maximized) maximizeController.restore();
         },
@@ -441,16 +457,9 @@ window.headsup.receive = function receive(b64) {
 };
 
 const dragController = dragHandle
-    ? wireDrag(dragHandle, workbenchShell?.querySelector('.aos-window-controls'), {
-        clampOnEnd: true,
-        transfer: true,
+    ? panelWindowController.wireDrag(dragHandle, workbenchShell?.querySelector('.aos-window-controls'), {
         onStart() {
             if (maximizeController.getState().maximized) maximizeController.restore();
-        },
-        onStateChange(state) {
-            const transferActive = Boolean(state.transferActive);
-            workbenchShell?.classList.toggle('aos-workbench-transfer-active', transferActive);
-            if (workbenchShell) workbenchShell.dataset.transferActive = String(transferActive);
         },
     })
     : null;
@@ -516,45 +525,17 @@ resetOrbitButton.addEventListener('click', resetOrbit);
 undoButton.addEventListener('click', undoChange);
 redoButton.addEventListener('click', redoChange);
 
-function chipFrame() {
-    const x = Number(window.screenX ?? window.screenLeft ?? 80);
-    const y = Number(window.screenY ?? window.screenTop ?? 80);
-    const width = Math.min(280, Math.max(180, Number(window.innerWidth || 240) * 0.42));
-    return [
-        Math.round(Number.isFinite(x) ? x : 80),
-        Math.round(Number.isFinite(y) ? y : 80),
-        Math.round(width),
-        38,
-    ];
-}
-
-function minimizeWorkbench() {
-    const target = window.__aosCanvasId || window.__aosSurfaceCanvasId || canvasId;
+function workbenchWindowTitle() {
     const item = selectedRadialItem(editorState);
-    const title = item
+    return item
         ? `Sigil / Radial Menu / Item Editor - ${item.label || item.id}`
         : 'Sigil / Radial Menu / Item Editor';
-    const chipId = `aos-chip-${target}-${Date.now().toString(36)}`;
-    const url = `/${toolkitRoot}/panel/minimized-chip.html?target=${encodeURIComponent(target)}&title=${encodeURIComponent(title)}`;
-    spawnChild({
-        id: chipId,
-        url,
-        frame: chipFrame(),
-        interactive: true,
-        focus: false,
-        parent: target,
-        cascade: false,
-    })
-        .then(() => suspendCanvas(target))
-        .catch((error) => {
-            console.warn('[sigil/radial-item-workbench] minimize failed', error);
-        });
 }
 
 closeWorkbenchButton?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    removeSelf({ orphan_children: true }).catch((error) => {
+    panelWindowController.close()?.catch((error) => {
         console.warn('[sigil/radial-item-workbench] close failed', error);
     });
 });
@@ -562,13 +543,15 @@ closeWorkbenchButton?.addEventListener('click', (event) => {
 minimizeWorkbenchButton?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    minimizeWorkbench();
+    panelWindowController.minimize({ title: workbenchWindowTitle() })?.catch((error) => {
+        console.warn('[sigil/radial-item-workbench] minimize failed', error);
+    });
 });
 
 maximizeWorkbenchButton?.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    maximizeController.toggle();
+    panelWindowController.toggleMaximize();
 });
 
 syncControls();
@@ -586,6 +569,7 @@ window.__sigilRadialItemWorkbench = {
     visuals,
     orbit,
     orbitState,
+    panelWindowController,
     maximizeController,
     dragController,
     resizeController,

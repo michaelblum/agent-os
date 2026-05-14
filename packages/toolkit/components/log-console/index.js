@@ -2,7 +2,7 @@
 //
 // Displays log entries with severity levels (info/warn/error/debug).
 // Fed by `aos log` which pushes log/append messages and log/clear.
-// The router strips the log/ prefix and delivers as {type:'append'|'clear'}.
+// The router strips the log/ prefix before delivery.
 
 import { esc } from '../../runtime/bridge.js'
 
@@ -12,6 +12,7 @@ const BASE_TITLE = 'Log'
 export default function LogConsole() {
   let entriesEl = null
   let host = null
+  let countdown = null
 
   function ts() {
     const now = new Date()
@@ -40,11 +41,33 @@ export default function LogConsole() {
     }
   }
 
+  function upsertCountdown({ title, remaining, deadline, active }) {
+    if (!entriesEl) return
+    if (!countdown) {
+      countdown = document.createElement('div')
+      countdown.className = 'entry input-safety-countdown'
+      countdown.setAttribute('role', 'status')
+      countdown.setAttribute('aria-live', 'assertive')
+      entriesEl.appendChild(countdown)
+    }
+    countdown.dataset.deadline = deadline || ''
+    countdown.dataset.remaining = String(remaining ?? '')
+    countdown.dataset.active = active ? 'true' : 'false'
+    const displayRemaining = Number.isFinite(Number(remaining)) ? String(Number(remaining)) : ''
+    countdown.innerHTML =
+      `<span class="ts">${esc(ts())}</span>` +
+      `<span class="level warn">warn</span>` +
+      `<span class="msg">${esc(title || 'AOS input passthrough')}<br>${esc(displayRemaining)}</span>`
+    if (entriesEl.parentElement) {
+      entriesEl.parentElement.scrollTop = entriesEl.parentElement.scrollHeight
+    }
+  }
+
   return {
     manifest: {
       name: 'log-console',
       title: BASE_TITLE,
-      accepts: ['append', 'clear'],
+      accepts: ['append', 'clear', 'input_safety_countdown'],
       emits: [],
       channelPrefix: 'log',
       defaultSize: { w: 450, h: 300 },
@@ -78,6 +101,19 @@ export default function LogConsole() {
       if (msg.type === 'clear') {
         if (!entriesEl) return
         entriesEl.innerHTML = ''
+        countdown = null
+        updateTitle()
+        return
+      }
+
+      if (msg.type === 'input_safety_countdown') {
+        const p = msg.payload || {}
+        upsertCountdown({
+          title: p.title,
+          remaining: p.remaining,
+          deadline: p.deadline,
+          active: p.active !== false,
+        })
         updateTitle()
         return
       }
@@ -85,12 +121,22 @@ export default function LogConsole() {
 
     serialize() {
       if (!entriesEl) return { entries: [] }
-      const entries = Array.from(entriesEl.querySelectorAll('.entry')).map(el => ({
+      const entries = Array.from(entriesEl.querySelectorAll('.entry:not(.input-safety-countdown)')).map(el => ({
         ts: el.querySelector('.ts')?.textContent || '',
         level: el.querySelector('.level')?.textContent || 'info',
         text: el.querySelector('.msg')?.textContent || '',
       }))
-      return { entries }
+      return {
+        entries,
+        input_safety_countdown: countdown
+          ? {
+              active: countdown.dataset.active === 'true',
+              remaining: Number(countdown.dataset.remaining || 0),
+              deadline: countdown.dataset.deadline || null,
+              text: countdown.querySelector('.msg')?.textContent || '',
+            }
+          : null,
+      }
     },
 
     restore(state, host_) {
@@ -99,6 +145,14 @@ export default function LogConsole() {
       entriesEl.innerHTML = ''
       for (const e of state.entries) {
         appendEntry({ ts: e.ts, level: e.level || 'info', text: e.text })
+      }
+      if (state.input_safety_countdown) {
+        upsertCountdown({
+          title: 'AOS input passthrough',
+          remaining: state.input_safety_countdown.remaining,
+          deadline: state.input_safety_countdown.deadline,
+          active: state.input_safety_countdown.active,
+        })
       }
       updateTitle()
     },

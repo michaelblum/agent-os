@@ -1,0 +1,81 @@
+{
+  "type": "aos.workbench_human_checkpoint",
+  "schema_version": "2026-05-09",
+  "checkpoint_id": "workbench-checkpoint-fixture-start",
+  "status": "launched",
+  "subject": {
+    "type": "markdown.document",
+    "subject_type": "markdown.document",
+    "path": "docs/example.md",
+    "source": { "kind": "file", "path": "docs/example.md" },
+    "label": "example.md"
+  },
+  "canvas_id": "markdown-workbench-fixture",
+  "launch_status": "launched",
+  "readiness": {
+    "status": "ready",
+    "command": "./aos ready",
+    "exit_code": 0,
+    "diagnostics": { "ready": true },
+    "repair_instructions": []
+  },
+  "initial": {
+    "content_hash": "sha256:e3b3902842fdb24de5477d010306b9ad6c632feccfb86a80997fe0cef062ea2d",
+    "content": "# Draft\n\nInitial text.\n",
+    "diagnostics": {
+      "line_count": 4,
+      "word_count": 4,
+      "heading_count": 1,
+      "headings": [{ "depth": 1, "text": "Draft", "line": 1 }],
+      "mermaid_blocks": [],
+      "unclosed_fence": false
+    }
+  },
+  "handoff": {
+    "expected_human_action": "Edit the opened Markdown Workbench surface, then reply when done.",
+    "resume_condition": "Human replies that Markdown edits are complete.",
+    "instructions": "Edit the opened Markdown Workbench surface, then reply when done. Resume condition: Human replies that Markdown edits are complete. Checkpoint: workbench-checkpoint-fixture-start."
+  },
+  "resume": null,
+  "annotations": [],
+  "created_at": "2026-05-09T12:00:00.000Z",
+  "created_by": "test",
+  "metadata": {
+    "adapter": "markdown-workbench",
+    "fixture": true,
+    "canvas_id_requested": "markdown-workbench-fixture",
+    "launch_attempts": [
+      {
+        "step": "launch",
+        "command": "packages/toolkit/components/markdown-workbench/launch.sh docs/example.md",
+        "exit_code": 0,
+        "stdout_snippet": "content-root refreshed; restarting markdown workbench canvas",
+        "stderr_snippet": "",
+        "status": "completed",
+        "content_root_refresh_restart_detected": true,
+        "content_root_refresh_restart_signals": [
+          "content-root refreshed; restarting markdown workbench canvas"
+        ]
+      },
+      {
+        "step": "verify_canvas_state",
+        "command": "./aos show eval --id markdown-workbench-fixture --js JSON.stringify(window.__markdownWorkbenchState || null)",
+        "exit_code": 0,
+        "stdout_snippet": "",
+        "stderr_snippet": "",
+        "status": "usable",
+        "canvas_id": "markdown-workbench-fixture",
+        "content_root_refresh_restart_detected": false,
+        "content_root_refresh_restart_signals": []
+      }
+    ],
+    "launch_result": {
+      "status": "launched",
+      "canvas_id": "markdown-workbench-fixture",
+      "content_root_refresh_restart_detected": true,
+      "content_root_refresh_restart_signals": [
+        "content-root refreshed; restarting markdown workbench canvas"
+      ]
+    }
+  }
+}

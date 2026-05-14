@@ -33,6 +33,8 @@ export {
   chipFrameFromWindow,
   createDragController,
   createMaximizeController,
+  createMinimizeController,
+  createPanelWindowController,
   createResizeController,
   dragFrameFromPointer,
   frameFromWindow,
@@ -54,6 +56,13 @@ export {
   restoredPanelFrameForChip,
   workAreaForPoint,
 } from './placement.js'
+export {
+  cloneFrame as cloneStageAffordanceFrame,
+  createStageAffordance,
+  insetFrame as stageAffordanceInsetFrame,
+  isStageAffordanceInputEvent,
+  stageAffordanceRegionId,
+} from './stage-affordance.js'
 export { Single } from './layouts/single.js'
 export {
   clampSplitPaneState,

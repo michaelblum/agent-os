@@ -120,7 +120,20 @@ else
     fail "voice help drifted from assignment surface: $OUT"
 fi
 
-# --- 12. aos help config --json exposes the discoverable config surface ---
+# --- 12. aos help say --json exposes voice slot selection ---
+OUT=$(./aos help say --json 2>/dev/null)
+if echo "$OUT" | grep -q '"token" : "--voice-slot"' &&
+   echo "$OUT" | grep -q '"token" : "--language"' &&
+   echo "$OUT" | grep -q '"token" : "--gender"' &&
+   echo "$OUT" | grep -q '"token" : "--quality-tier"' &&
+   echo "$OUT" | grep -q 'aos say \[--voice id\] \[--voice-slot n\] \[--language value\] \[--gender value\] \[--quality-tier value\] \[--rate wpm\] <text>' &&
+   echo "$OUT" | grep -q 'resolved after filters'; then
+    pass "say help exposes filtered voice-slot selection"
+else
+    fail "say help is missing filtered voice-slot selection: $OUT"
+fi
+
+# --- 13. aos help config --json exposes the discoverable config surface ---
 OUT=$(./aos help config --json 2>/dev/null)
 if echo "$OUT" | grep -q '"config-get"' &&
    echo "$OUT" | grep -q '"config-set"' &&
@@ -130,7 +143,7 @@ else
     fail "config help is missing get/set forms: $OUT"
 fi
 
-# --- 13. aos help tell --json exposes session-backed human delivery context ---
+# --- 14. aos help tell --json exposes session-backed human delivery context ---
 OUT=$(./aos help tell --json 2>/dev/null)
 if echo "$OUT" | grep -q '"token" : "--from-session-id"' &&
    echo "$OUT" | grep -q '"token" : "--purpose"' &&
@@ -140,7 +153,7 @@ else
     fail "tell help is missing final-response relay flags: $OUT"
 fi
 
-# --- 14. aos help ready --json exposes the front-door readiness gate ---
+# --- 15. aos help ready --json exposes the front-door readiness gate ---
 OUT=$(./aos help ready --json 2>/dev/null)
 if echo "$OUT" | grep -q '"ready"' &&
    echo "$OUT" | grep -q 'aos ready \[--json\] \[--repair\] \[--post-permission\]' &&
@@ -152,7 +165,7 @@ else
     fail "ready help is missing or malformed: $OUT"
 fi
 
-# --- 15. show create/update registry stays aligned with canvas parser enums ---
+# --- 16. show create/update registry stays aligned with canvas parser enums ---
 if CREATE="$(./aos help show create --json 2>/dev/null)" UPDATE="$(./aos help show update --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -180,7 +193,7 @@ else
     fail "show create/update registry drifted from canvas parser"
 fi
 
-# --- 16. do click help exposes coordinate, browser, and canvas ref target forms ---
+# --- 17. do click help exposes coordinate, browser, and canvas ref target forms ---
 OUT=$(./aos help do click --json 2>/dev/null)
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -198,6 +211,22 @@ then
     pass "do click help exposes ref target forms"
 else
     fail "do click help is missing ref target forms: $OUT"
+fi
+
+# --- 18. dev build warning documents the safe permission-reset sequence ---
+if python3 - <<'PY'
+from pathlib import Path
+
+source = Path("src/commands/dev.swift").read_text(encoding="utf-8")
+assert "Safe reset sequence if readiness reports stale TCC/input tap:" in source
+assert "1. ./aos service stop --mode repo" in source
+assert "service stop reports running=false" in source
+assert "3. ./aos ready --post-permission" in source
+PY
+then
+    pass "dev build warning includes safe permission reset sequence"
+else
+    fail "dev build warning is missing the safe permission reset sequence"
 fi
 
 echo

@@ -32,7 +32,7 @@ cat > "$POLICY" <<JSON
 JSON
 
 # Widen the filter to include the standard tier so all five mock voices
-# (alpha..echo, all en/standard except alpha=premium) participate in rotation.
+# (alpha=premium, bravo=enhanced, charlie..echo=standard) participate in rotation.
 cat > "$CONFIG" <<JSON
 {
   "voice": {
@@ -160,7 +160,7 @@ echo "out-of-pool voice next ok"
 # ---- 6. restore-time revalidation drops out-of-filter voices ----
 # Filter is still premium-only from scenario 5.
 # S1 is on alpha (premium) -> should survive daemon restart.
-# S2 is on bravo (standard) -> should be dropped to null on restore.
+# S2 is on bravo (enhanced) -> should be dropped to null on restore.
 aos_test_kill_root "$ROOT"
 aos_test_start_daemon "$ROOT"
 

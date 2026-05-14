@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/annotation-perception-verification-v0.schema.json",
+  "title": "Annotation Perception Verification Report V0",
+  "description": "Structured report proving annotation intent, projection, and re-perception round-trip through surface adapters without Operator visual confirmation or screenshot pixel assertions.",
+  "type": "object",
+  "required": ["schema", "version", "created_at", "summary", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "annotation_perception_verification" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["status", "total_cases", "passed", "failed", "blocked", "adapter_fixture_only"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "enum": ["passed", "failed", "blocked"] },
+        "total_cases": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 },
+        "adapter_fixture_only": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Case" }
+    }
+  },
+  "$defs": {
+    "Rect": {
+      "type": ["object", "null"],
+      "required": ["x", "y", "width", "height"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "SurfaceBinding": {
+      "type": "object",
+      "required": ["surface_id", "surface_type", "source_path", "source_url", "subject_id", "canvas_id", "window_id", "tab_id"],
+      "additionalProperties": false,
+      "properties": {
+        "surface_id": { "type": "string", "minLength": 1 },
+        "surface_type": {
+          "enum": ["markdown_workbench", "browser_page", "mermaid_svg", "three_scene", "pdf_page", "image", "generic_canvas"]
+        },
+        "source_path": { "type": ["string", "null"] },
+        "source_url": { "type": ["string", "null"] },
+        "subject_id": { "type": ["string", "null"] },
+        "canvas_id": { "type": ["string", "null"] },
+        "window_id": { "type": ["string", "null"] },
+        "tab_id": { "type": ["string", "null"] }
+      }
+    },
+    "Target": {
+      "type": "object",
+      "required": ["id", "path", "kind", "label", "source_ids", "perceived_bounds", "role", "capabilities", "metadata"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "source_ids": {
+          "type": "object",
+          "required": ["canvas_id", "surface_id", "window_id", "display_id", "subject_id", "adapter_subject_id"],
+          "additionalProperties": false,
+          "properties": {
+            "canvas_id": { "type": ["string", "null"] },
+            "surface_id": { "type": ["string", "null"] },
+            "window_id": { "type": ["string", "null"] },
+            "display_id": { "type": ["string", "null"] },
+            "subject_id": { "type": ["string", "null"] },
+            "adapter_subject_id": { "type": ["string", "null"] }
+          }
+        },
+        "perceived_bounds": { "$ref": "#/$defs/Rect" },
+        "role": { "type": ["string", "null"] },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "Assertion": {
+      "type": "object",
+      "required": ["name", "status"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["passed", "failed", "blocked", "not_applicable"] }
+      }
+    },
+    "Decorator": {
+      "type": "object",
+      "required": ["annotation_id", "ordinal", "bounds", "discoverable"],
+      "additionalProperties": true,
+      "properties": {
+        "annotation_id": { "type": "string", "minLength": 1 },
+        "ordinal": { "type": "integer", "minimum": 1 },
+        "bounds": { "$ref": "#/$defs/Rect" },
+        "discoverable": { "type": "boolean" }
+      }
+    },
+    "Reperception": {
+      "type": "object",
+      "required": ["source", "target", "decorators", "layer", "content_before", "content_after", "raw"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "target": { "$ref": "#/$defs/Target" },
+        "decorators": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Decorator" }
+        },
+        "layer": {
+          "type": "object",
+          "required": ["visible", "hidden_state", "shown_state", "content_mutated"],
+          "additionalProperties": false,
+          "properties": {
+            "visible": { "type": "boolean" },
+            "hidden_state": { "type": "string" },
+            "shown_state": { "type": "string" },
+            "content_mutated": { "type": "boolean" }
+          }
+        },
+        "content_before": { "type": ["string", "number", "boolean", "object", "array", "null"] },
+        "content_after": { "type": ["string", "number", "boolean", "object", "array", "null"] },
+        "raw": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "Case": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "surface_class",
+        "surface_binding",
+        "perception_source",
+        "target",
+        "annotation",
+        "projection",
+        "reperception",
+        "assertions",
+        "status",
+        "blockers",
+        "notes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "case_id": { "type": "string", "minLength": 1 },
+        "surface_class": {
+          "enum": [
+            "aos_canvas_semantic_target",
+            "markdown_workbench_text_range",
+            "browser_page_local_html",
+            "mac_window_topology",
+            "generic_ax_element",
+            "mermaid_svg",
+            "three_scene",
+            "pdf_image"
+          ]
+        },
+        "surface_binding": { "$ref": "#/$defs/SurfaceBinding" },
+        "perception_source": { "type": "string", "minLength": 1 },
+        "target": { "$ref": "#/$defs/Target" },
+        "annotation": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "projection": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "reperception": { "$ref": "#/$defs/Reperception" },
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/Assertion" }
+        },
+        "status": { "enum": ["passed", "failed", "blocked", "adapter_fixture_only"] },
+        "blockers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

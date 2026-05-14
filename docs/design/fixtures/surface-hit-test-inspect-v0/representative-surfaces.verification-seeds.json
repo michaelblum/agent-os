@@ -1,0 +1,1537 @@
+{
+  "schema": "surface_hit_test_inspect_verification_seeds",
+  "version": "0.1.0",
+  "created_at": "2026-05-09T12:00:00.000Z",
+  "seeds": [
+    {
+      "case_id": "aos-canvas-semantic-target-primary-cta",
+      "surface_class": "aos_canvas_semantic_target",
+      "perception_source": "aos_canvas",
+      "adapter_fixture_only": false,
+      "surface_binding": {
+        "surface_id": "comparative-audit",
+        "surface_type": "generic_canvas",
+        "source_path": "docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json",
+        "source_url": null,
+        "subject_id": "primary-cta",
+        "canvas_id": "brand-audit",
+        "window_id": "1001",
+        "tab_id": null
+      },
+      "target": {
+        "id": "target:primary-cta",
+        "path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:primary-cta",
+        "kind": "semantic_target",
+        "label": "Primary CTA",
+        "role": "semantic_target",
+        "source_ids": {
+          "canvas_id": "brand-audit",
+          "surface_id": "comparative-audit",
+          "window_id": null,
+          "display_id": null,
+          "subject_id": "primary-cta",
+          "adapter_subject_id": "button-primary-cta"
+        },
+        "perceived_bounds": {
+          "x": 48,
+          "y": 80,
+          "width": 160,
+          "height": 36
+        },
+        "selector_candidates": [],
+        "text_excerpt": null,
+        "text_range": null,
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "project_annotation": false,
+          "action": true,
+          "capture": true,
+          "inspect_children": false
+        },
+        "metadata": {}
+      },
+      "annotation": {
+        "id": "draft-aos-canvas-semantic-target-primary-cta",
+        "ordinal": 1,
+        "kind": "element_selection",
+        "surface_id": "comparative-audit",
+        "source_path": "docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json",
+        "source_url": null,
+        "coordinate_space": "viewport",
+        "point": null,
+        "bounds": {
+          "x": 48,
+          "y": 80,
+          "width": 160,
+          "height": 36
+        },
+        "viewport_bounds": {
+          "x": 48,
+          "y": 80,
+          "width": 160,
+          "height": 36
+        },
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "Primary CTA",
+        "text_range": null,
+        "role": "semantic_target",
+        "label": "Primary CTA",
+        "ancestor_chain": [
+          "desktop-world",
+          "display:1",
+          "window:1001",
+          "canvas:brand-audit",
+          "surface:comparative-audit"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "aos-canvas-semantic-target-primary-cta",
+          "target_path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:primary-cta",
+          "target_kind": "semantic_target",
+          "adapter_id": "aos-semantic-targets",
+          "adapter_type": "aos_canvas"
+        }
+      },
+      "viewport": {
+        "width": 852,
+        "height": 540,
+        "scroll_x": 0,
+        "scroll_y": 0,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "aos-canvas-structured-targets"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-aos-canvas-semantic-target-primary-cta",
+        "status": "resolved",
+        "anchor_type": "element_selection",
+        "rects": [
+          {
+            "x": 48,
+            "y": 80,
+            "width": 160,
+            "height": 36
+          }
+        ],
+        "decorator": {
+          "x": 30,
+          "y": 80,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.85
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "target:primary-cta",
+          "path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:primary-cta",
+          "kind": "semantic_target",
+          "label": "Primary CTA",
+          "role": "semantic_target",
+          "source_ids": {
+            "canvas_id": "brand-audit",
+            "surface_id": "comparative-audit",
+            "window_id": null,
+            "display_id": null,
+            "subject_id": "primary-cta",
+            "adapter_subject_id": "button-primary-cta"
+          },
+          "perceived_bounds": {
+            "x": 48,
+            "y": 80,
+            "width": 160,
+            "height": 36
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "project_annotation": false,
+            "action": true,
+            "capture": true,
+            "inspect_children": false
+          },
+          "metadata": {}
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": "spatial-subject-tree-v0:desktop-world-aos-canvas",
+        "content_after": "spatial-subject-tree-v0:desktop-world-aos-canvas",
+        "raw": {
+          "inspect_case_id": "aos-canvas-semantic-target-primary-cta",
+          "selected_path": "desktop-world/display:1/window:1001/canvas:brand-audit/surface:comparative-audit/target:primary-cta"
+        }
+      },
+      "blockers": [],
+      "notes": [
+        "Required passing AOS canvas/semantic target case; pointer is surface-local and selects Primary CTA."
+      ]
+    },
+    {
+      "case_id": "markdown-workbench-line-range",
+      "surface_class": "markdown_workbench_text_range",
+      "perception_source": "markdown_workbench",
+      "adapter_fixture_only": false,
+      "surface_binding": {
+        "surface_id": "markdown-workbench",
+        "surface_type": "markdown_workbench",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/markdown-workbench.fixture.md",
+        "source_url": null,
+        "subject_id": "line-4",
+        "canvas_id": null,
+        "window_id": null,
+        "tab_id": null
+      },
+      "target": {
+        "id": "line-4",
+        "path": "workbench:markdown/source:markdown-workbench.fixture.md/text:line-4",
+        "kind": "text_range",
+        "label": "Line 4",
+        "role": null,
+        "source_ids": {
+          "canvas_id": null,
+          "surface_id": null,
+          "window_id": null,
+          "display_id": null,
+          "subject_id": "line-4",
+          "adapter_subject_id": null
+        },
+        "perceived_bounds": {
+          "x": 28,
+          "y": 96,
+          "width": 520,
+          "height": 20
+        },
+        "selector_candidates": [],
+        "text_excerpt": "Use structured source and line rectangles for annotation.",
+        "text_range": {
+          "start_line": 4,
+          "end_line": 4,
+          "start_column": 1,
+          "end_column": 58
+        },
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "project_annotation": true
+        },
+        "metadata": {}
+      },
+      "annotation": {
+        "id": "draft-markdown-workbench-line-range",
+        "ordinal": 1,
+        "kind": "selection_comment",
+        "surface_id": "markdown-workbench",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/markdown-workbench.fixture.md",
+        "source_url": null,
+        "coordinate_space": "document",
+        "point": null,
+        "bounds": {
+          "x": 28,
+          "y": 96,
+          "width": 520,
+          "height": 20
+        },
+        "viewport_bounds": null,
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "Use structured source and line rectangles for annotation.",
+        "text_range": {
+          "start_line": 4,
+          "end_line": 4,
+          "start_column": 1,
+          "end_column": 58
+        },
+        "role": "",
+        "label": "Line 4",
+        "ancestor_chain": [
+          "workbench:markdown",
+          "source:markdown-workbench.fixture.md"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "markdown-workbench-line-range",
+          "target_path": "workbench:markdown/source:markdown-workbench.fixture.md/text:line-4",
+          "target_kind": "text_range",
+          "adapter_id": "fixture-adapter",
+          "adapter_type": "markdown_workbench_line_rects"
+        }
+      },
+      "viewport": {
+        "width": 900,
+        "height": 640,
+        "scroll_x": 0,
+        "scroll_y": 40,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "source"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-markdown-workbench-line-range",
+        "status": "resolved",
+        "anchor_type": "selection_comment",
+        "rects": [
+          {
+            "x": 28,
+            "y": 96,
+            "width": 520,
+            "height": 20
+          }
+        ],
+        "decorator": {
+          "x": 10,
+          "y": 96,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.97
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "line-4",
+          "path": "workbench:markdown/source:markdown-workbench.fixture.md/text:line-4",
+          "kind": "text_range",
+          "label": "Line 4",
+          "role": null,
+          "source_ids": {
+            "canvas_id": null,
+            "surface_id": null,
+            "window_id": null,
+            "display_id": null,
+            "subject_id": "line-4",
+            "adapter_subject_id": null
+          },
+          "perceived_bounds": {
+            "x": 28,
+            "y": 96,
+            "width": 520,
+            "height": 20
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "project_annotation": true
+          },
+          "metadata": {}
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": "sha256:markdown-workbench-fixture-v0",
+        "content_after": "sha256:markdown-workbench-fixture-v0",
+        "raw": {
+          "inspect_case_id": "markdown-workbench-line-range",
+          "selected_path": "workbench:markdown/source:markdown-workbench.fixture.md/text:line-4"
+        }
+      },
+      "blockers": [],
+      "notes": [
+        "Required passing Markdown Workbench class; no pixel inspection is used."
+      ]
+    },
+    {
+      "case_id": "browser-local-html-button",
+      "surface_class": "browser_page_local_html",
+      "perception_source": "browser_dom",
+      "adapter_fixture_only": false,
+      "surface_binding": {
+        "surface_id": "local-browser-fixture",
+        "surface_type": "browser_page",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/local-browser-fixture.html",
+        "source_url": null,
+        "subject_id": "dom:#save-button",
+        "canvas_id": null,
+        "window_id": null,
+        "tab_id": "local-fixture-tab"
+      },
+      "target": {
+        "id": "save-button",
+        "path": "browser:local-fixture/dom:main/dom:save-button",
+        "kind": "dom_element",
+        "label": "Save",
+        "role": "button",
+        "source_ids": {
+          "canvas_id": null,
+          "surface_id": null,
+          "window_id": null,
+          "display_id": null,
+          "subject_id": "save-button",
+          "adapter_subject_id": null
+        },
+        "perceived_bounds": {
+          "x": 120,
+          "y": 88,
+          "width": 96,
+          "height": 34
+        },
+        "selector_candidates": [
+          "#save-button",
+          "button[data-testid=\"save\"]"
+        ],
+        "text_excerpt": "Save",
+        "text_range": null,
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "project_annotation": true
+        },
+        "metadata": {}
+      },
+      "annotation": {
+        "id": "draft-browser-local-html-button",
+        "ordinal": 1,
+        "kind": "element_selection",
+        "surface_id": "local-browser-fixture",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/local-browser-fixture.html",
+        "source_url": null,
+        "coordinate_space": "viewport",
+        "point": null,
+        "bounds": {
+          "x": 120,
+          "y": 88,
+          "width": 96,
+          "height": 34
+        },
+        "viewport_bounds": {
+          "x": 120,
+          "y": 88,
+          "width": 96,
+          "height": 34
+        },
+        "page_bounds": null,
+        "selector_candidates": [
+          "#save-button",
+          "button[data-testid=\"save\"]"
+        ],
+        "text_excerpt": "Save",
+        "text_range": null,
+        "role": "button",
+        "label": "Save",
+        "ancestor_chain": [
+          "browser:local-fixture",
+          "dom:main"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "browser-local-html-button",
+          "target_path": "browser:local-fixture/dom:main/dom:save-button",
+          "target_kind": "dom_element",
+          "adapter_id": "fixture-adapter",
+          "adapter_type": "local_dom_fixture"
+        }
+      },
+      "viewport": {
+        "width": 800,
+        "height": 480,
+        "scroll_x": 0,
+        "scroll_y": 0,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "local-html"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-browser-local-html-button",
+        "status": "resolved",
+        "anchor_type": "element_selection",
+        "rects": [
+          {
+            "x": 120,
+            "y": 88,
+            "width": 96,
+            "height": 34
+          }
+        ],
+        "decorator": {
+          "x": 102,
+          "y": 88,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.94
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "save-button",
+          "path": "browser:local-fixture/dom:main/dom:save-button",
+          "kind": "dom_element",
+          "label": "Save",
+          "role": "button",
+          "source_ids": {
+            "canvas_id": null,
+            "surface_id": null,
+            "window_id": null,
+            "display_id": null,
+            "subject_id": "save-button",
+            "adapter_subject_id": null
+          },
+          "perceived_bounds": {
+            "x": 120,
+            "y": 88,
+            "width": 96,
+            "height": 34
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "project_annotation": true
+          },
+          "metadata": {}
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": "sha256:local-browser-fixture-v0",
+        "content_after": "sha256:local-browser-fixture-v0",
+        "raw": {
+          "inspect_case_id": "browser-local-html-button",
+          "selected_path": "browser:local-fixture/dom:main/dom:save-button"
+        }
+      },
+      "blockers": [],
+      "notes": [
+        "Controlled local HTML fixture only; no arbitrary live websites are opened or browsed."
+      ]
+    },
+    {
+      "case_id": "mac-window-topology-canvas",
+      "surface_class": "mac_window_topology",
+      "perception_source": "spatial_topology",
+      "adapter_fixture_only": false,
+      "surface_binding": {
+        "surface_id": "desktop-world",
+        "surface_type": "generic_canvas",
+        "source_path": "docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json",
+        "source_url": null,
+        "subject_id": "canvas:brand-audit",
+        "canvas_id": "brand-audit",
+        "window_id": "1001",
+        "tab_id": null
+      },
+      "target": {
+        "id": "canvas:brand-audit",
+        "path": "desktop-world/display:1/window:1001/canvas:brand-audit",
+        "kind": "canvas",
+        "label": "Brand Audit Canvas",
+        "role": "canvas",
+        "source_ids": {
+          "canvas_id": "brand-audit",
+          "surface_id": null,
+          "window_id": "1001",
+          "display_id": null,
+          "subject_id": "canvas:brand-audit",
+          "adapter_subject_id": null
+        },
+        "perceived_bounds": {
+          "x": 100,
+          "y": 80,
+          "width": 900,
+          "height": 620
+        },
+        "selector_candidates": [],
+        "text_excerpt": null,
+        "text_range": null,
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "project_annotation": false,
+          "action": false,
+          "capture": true,
+          "inspect_children": true
+        },
+        "metadata": {}
+      },
+      "annotation": {
+        "id": "draft-mac-window-topology-canvas",
+        "ordinal": 1,
+        "kind": "element_selection",
+        "surface_id": "desktop-world",
+        "source_path": "docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json",
+        "source_url": null,
+        "coordinate_space": "desktop_world",
+        "point": null,
+        "bounds": {
+          "x": 100,
+          "y": 80,
+          "width": 900,
+          "height": 620
+        },
+        "viewport_bounds": null,
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "Brand Audit Canvas",
+        "text_range": null,
+        "role": "canvas",
+        "label": "Brand Audit Canvas",
+        "ancestor_chain": [
+          "desktop-world",
+          "display:1",
+          "window:1001"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "mac-window-topology-canvas",
+          "target_path": "desktop-world/display:1/window:1001/canvas:brand-audit",
+          "target_kind": "canvas",
+          "adapter_id": "aos-canvas",
+          "adapter_type": "aos_canvas"
+        }
+      },
+      "viewport": {
+        "width": 1512,
+        "height": 982,
+        "scroll_x": 0,
+        "scroll_y": 0,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "desktop_world"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-mac-window-topology-canvas",
+        "status": "resolved",
+        "anchor_type": "element_selection",
+        "rects": [
+          {
+            "x": 100,
+            "y": 80,
+            "width": 900,
+            "height": 620
+          }
+        ],
+        "decorator": {
+          "x": 82,
+          "y": 80,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.9
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "canvas:brand-audit",
+          "path": "desktop-world/display:1/window:1001/canvas:brand-audit",
+          "kind": "canvas",
+          "label": "Brand Audit Canvas",
+          "role": "canvas",
+          "source_ids": {
+            "canvas_id": "brand-audit",
+            "surface_id": null,
+            "window_id": "1001",
+            "display_id": null,
+            "subject_id": "canvas:brand-audit",
+            "adapter_subject_id": null
+          },
+          "perceived_bounds": {
+            "x": 100,
+            "y": 80,
+            "width": 900,
+            "height": 620
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "project_annotation": false,
+            "action": false,
+            "capture": true,
+            "inspect_children": true
+          },
+          "metadata": {}
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": "spatial-subject-tree-v0:desktop-world-aos-canvas",
+        "content_after": "spatial-subject-tree-v0:desktop-world-aos-canvas",
+        "raw": {
+          "inspect_case_id": "mac-window-topology-canvas",
+          "selected_path": "desktop-world/display:1/window:1001/canvas:brand-audit"
+        }
+      },
+      "blockers": [],
+      "notes": [
+        "Required passing Mac window/topology class; selects the AOS-owned canvas node from structured topology."
+      ]
+    },
+    {
+      "case_id": "generic-ax-element-fixture",
+      "surface_class": "generic_ax_element",
+      "perception_source": "generic_ax",
+      "adapter_fixture_only": true,
+      "surface_binding": {
+        "surface_id": "ax-fixture-window",
+        "surface_type": "generic_canvas",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/generic-ax-element.fixture.json",
+        "source_url": null,
+        "subject_id": "ax:button-submit",
+        "canvas_id": null,
+        "window_id": "ax-window-1",
+        "tab_id": null
+      },
+      "target": {
+        "id": "ax:button-submit",
+        "path": "desktop-world/display:1/window:ax-window-1/ax:button-submit",
+        "kind": "ax_element",
+        "label": "Submit",
+        "role": "AXButton",
+        "source_ids": {
+          "canvas_id": null,
+          "surface_id": null,
+          "window_id": null,
+          "display_id": null,
+          "subject_id": "ax:button-submit",
+          "adapter_subject_id": null
+        },
+        "perceived_bounds": {
+          "x": 220,
+          "y": 180,
+          "width": 120,
+          "height": 32
+        },
+        "selector_candidates": [],
+        "text_excerpt": null,
+        "text_range": null,
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "action": true,
+          "inspect_children": false
+        },
+        "metadata": {
+          "subrole": null,
+          "title": "Submit",
+          "description": "Submit form",
+          "value": null,
+          "actions": [
+            "AXPress"
+          ],
+          "center": {
+            "x": 280,
+            "y": 196
+          },
+          "source_app": {
+            "bundle_id": "fixture.app",
+            "pid": 42420
+          }
+        }
+      },
+      "annotation": {
+        "id": "draft-generic-ax-element-fixture",
+        "ordinal": 1,
+        "kind": "element_selection",
+        "surface_id": "ax-fixture-window",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/generic-ax-element.fixture.json",
+        "source_url": null,
+        "coordinate_space": "desktop_world",
+        "point": null,
+        "bounds": {
+          "x": 220,
+          "y": 180,
+          "width": 120,
+          "height": 32
+        },
+        "viewport_bounds": null,
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "Submit",
+        "text_range": null,
+        "role": "AXButton",
+        "label": "Submit",
+        "ancestor_chain": [
+          "desktop-world",
+          "display:1",
+          "window:ax-window-1"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "generic-ax-element-fixture",
+          "target_path": "desktop-world/display:1/window:ax-window-1/ax:button-submit",
+          "target_kind": "ax_element",
+          "adapter_id": "fixture-adapter",
+          "adapter_type": "generic_ax_fixture"
+        }
+      },
+      "viewport": {
+        "width": 800,
+        "height": 600,
+        "scroll_x": 0,
+        "scroll_y": 0,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "desktop_world"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-generic-ax-element-fixture",
+        "status": "resolved",
+        "anchor_type": "element_selection",
+        "rects": [
+          {
+            "x": 220,
+            "y": 180,
+            "width": 120,
+            "height": 32
+          }
+        ],
+        "decorator": {
+          "x": 202,
+          "y": 180,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.82
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "ax:button-submit",
+          "path": "desktop-world/display:1/window:ax-window-1/ax:button-submit",
+          "kind": "ax_element",
+          "label": "Submit",
+          "role": "AXButton",
+          "source_ids": {
+            "canvas_id": null,
+            "surface_id": null,
+            "window_id": null,
+            "display_id": null,
+            "subject_id": "ax:button-submit",
+            "adapter_subject_id": null
+          },
+          "perceived_bounds": {
+            "x": 220,
+            "y": 180,
+            "width": 120,
+            "height": 32
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "action": true,
+            "inspect_children": false
+          },
+          "metadata": {
+            "subrole": null,
+            "title": "Submit",
+            "description": "Submit form",
+            "value": null,
+            "actions": [
+              "AXPress"
+            ],
+            "center": {
+              "x": 280,
+              "y": 196
+            },
+            "source_app": {
+              "bundle_id": "fixture.app",
+              "pid": 42420
+            }
+          }
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": null,
+        "content_after": null,
+        "raw": {
+          "inspect_case_id": "generic-ax-element-fixture",
+          "selected_path": "desktop-world/display:1/window:ax-window-1/ax:button-submit"
+        }
+      },
+      "blockers": [
+        "No deterministic live AOS generic AX adapter exists in this slice; live user-app AX harvesting is intentionally out of scope."
+      ],
+      "notes": [
+        "Pi-inspired metadata shape is represented as fixture data only; pi-computer-use is not imported or called."
+      ]
+    },
+    {
+      "case_id": "mermaid-svg-node-fixture",
+      "surface_class": "mermaid_svg",
+      "perception_source": "mermaid_svg",
+      "adapter_fixture_only": true,
+      "surface_binding": {
+        "surface_id": "mermaid-fixture",
+        "surface_type": "mermaid_svg",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/mermaid-svg.fixture.svg",
+        "source_url": null,
+        "subject_id": "svg:node-a",
+        "canvas_id": null,
+        "window_id": null,
+        "tab_id": null
+      },
+      "target": {
+        "id": "svg:node-a",
+        "path": "surface:mermaid-fixture/svg:node-a",
+        "kind": "svg_node",
+        "label": "Node A",
+        "role": null,
+        "source_ids": {
+          "canvas_id": null,
+          "surface_id": null,
+          "window_id": null,
+          "display_id": null,
+          "subject_id": "svg:node-a",
+          "adapter_subject_id": null
+        },
+        "perceived_bounds": {
+          "x": 40,
+          "y": 32,
+          "width": 160,
+          "height": 48
+        },
+        "selector_candidates": [],
+        "text_excerpt": null,
+        "text_range": null,
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "project_annotation": true
+        },
+        "metadata": {}
+      },
+      "annotation": {
+        "id": "draft-mermaid-svg-node-fixture",
+        "ordinal": 1,
+        "kind": "element_selection",
+        "surface_id": "mermaid-fixture",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/mermaid-svg.fixture.svg",
+        "source_url": null,
+        "coordinate_space": "viewport",
+        "point": null,
+        "bounds": {
+          "x": 40,
+          "y": 32,
+          "width": 160,
+          "height": 48
+        },
+        "viewport_bounds": {
+          "x": 40,
+          "y": 32,
+          "width": 160,
+          "height": 48
+        },
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "Node A",
+        "text_range": null,
+        "role": "",
+        "label": "Node A",
+        "ancestor_chain": [
+          "surface:mermaid-fixture"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "mermaid-svg-node-fixture",
+          "target_path": "surface:mermaid-fixture/svg:node-a",
+          "target_kind": "svg_node",
+          "adapter_id": "fixture-adapter",
+          "adapter_type": "svg_node_fixture"
+        }
+      },
+      "viewport": {
+        "width": 640,
+        "height": 360,
+        "scroll_x": 0,
+        "scroll_y": 0,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "svg"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-mermaid-svg-node-fixture",
+        "status": "resolved",
+        "anchor_type": "element_selection",
+        "rects": [
+          {
+            "x": 40,
+            "y": 32,
+            "width": 160,
+            "height": 48
+          }
+        ],
+        "decorator": {
+          "x": 22,
+          "y": 32,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.88
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "svg:node-a",
+          "path": "surface:mermaid-fixture/svg:node-a",
+          "kind": "svg_node",
+          "label": "Node A",
+          "role": null,
+          "source_ids": {
+            "canvas_id": null,
+            "surface_id": null,
+            "window_id": null,
+            "display_id": null,
+            "subject_id": "svg:node-a",
+            "adapter_subject_id": null
+          },
+          "perceived_bounds": {
+            "x": 40,
+            "y": 32,
+            "width": 160,
+            "height": 48
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "project_annotation": true
+          },
+          "metadata": {}
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": null,
+        "content_after": null,
+        "raw": {
+          "inspect_case_id": "mermaid-svg-node-fixture",
+          "selected_path": "surface:mermaid-fixture/svg:node-a"
+        }
+      },
+      "blockers": [
+        "No live Mermaid/SVG structured perception adapter is present yet."
+      ],
+      "notes": []
+    },
+    {
+      "case_id": "three-object-fixture",
+      "surface_class": "three_scene",
+      "perception_source": "three_scene",
+      "adapter_fixture_only": true,
+      "surface_binding": {
+        "surface_id": "three-fixture",
+        "surface_type": "three_scene",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/three-scene.fixture.json",
+        "source_url": null,
+        "subject_id": "three:cube-primary",
+        "canvas_id": null,
+        "window_id": null,
+        "tab_id": null
+      },
+      "target": {
+        "id": "three:cube-primary",
+        "path": "surface:three-fixture/three:cube-primary",
+        "kind": "three_object",
+        "label": "Primary Cube",
+        "role": null,
+        "source_ids": {
+          "canvas_id": null,
+          "surface_id": null,
+          "window_id": null,
+          "display_id": null,
+          "subject_id": "three:cube-primary",
+          "adapter_subject_id": null
+        },
+        "perceived_bounds": {
+          "x": 280,
+          "y": 180,
+          "width": 96,
+          "height": 96
+        },
+        "selector_candidates": [],
+        "text_excerpt": null,
+        "text_range": null,
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "project_annotation": true
+        },
+        "metadata": {
+          "object_type": "Mesh",
+          "object_uuid": "fixture-cube-primary",
+          "projected_center": {
+            "x": 328,
+            "y": 228
+          }
+        }
+      },
+      "annotation": {
+        "id": "draft-three-object-fixture",
+        "ordinal": 1,
+        "kind": "element_selection",
+        "surface_id": "three-fixture",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/three-scene.fixture.json",
+        "source_url": null,
+        "coordinate_space": "viewport",
+        "point": null,
+        "bounds": {
+          "x": 280,
+          "y": 180,
+          "width": 96,
+          "height": 96
+        },
+        "viewport_bounds": {
+          "x": 280,
+          "y": 180,
+          "width": 96,
+          "height": 96
+        },
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "Primary Cube",
+        "text_range": null,
+        "role": "",
+        "label": "Primary Cube",
+        "ancestor_chain": [
+          "surface:three-fixture"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "three-object-fixture",
+          "target_path": "surface:three-fixture/three:cube-primary",
+          "target_kind": "three_object",
+          "adapter_id": "fixture-adapter",
+          "adapter_type": "three_object_fixture"
+        }
+      },
+      "viewport": {
+        "width": 800,
+        "height": 500,
+        "scroll_x": 0,
+        "scroll_y": 0,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "three-scene"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-three-object-fixture",
+        "status": "resolved",
+        "anchor_type": "element_selection",
+        "rects": [
+          {
+            "x": 280,
+            "y": 180,
+            "width": 96,
+            "height": 96
+          }
+        ],
+        "decorator": {
+          "x": 262,
+          "y": 180,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.84
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "three:cube-primary",
+          "path": "surface:three-fixture/three:cube-primary",
+          "kind": "three_object",
+          "label": "Primary Cube",
+          "role": null,
+          "source_ids": {
+            "canvas_id": null,
+            "surface_id": null,
+            "window_id": null,
+            "display_id": null,
+            "subject_id": "three:cube-primary",
+            "adapter_subject_id": null
+          },
+          "perceived_bounds": {
+            "x": 280,
+            "y": 180,
+            "width": 96,
+            "height": 96
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "project_annotation": true
+          },
+          "metadata": {
+            "object_type": "Mesh",
+            "object_uuid": "fixture-cube-primary",
+            "projected_center": {
+              "x": 328,
+              "y": 228
+            }
+          }
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": null,
+        "content_after": null,
+        "raw": {
+          "inspect_case_id": "three-object-fixture",
+          "selected_path": "surface:three-fixture/three:cube-primary"
+        }
+      },
+      "blockers": [
+        "No live Three.js object-picking adapter is present yet."
+      ],
+      "notes": []
+    },
+    {
+      "case_id": "pdf-image-region-fixture",
+      "surface_class": "pdf_image",
+      "perception_source": "pdf_image",
+      "adapter_fixture_only": true,
+      "surface_binding": {
+        "surface_id": "pdf-image-fixture",
+        "surface_type": "image",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/pdf-image.fixture.json",
+        "source_url": null,
+        "subject_id": "image:callout-region",
+        "canvas_id": null,
+        "window_id": null,
+        "tab_id": null
+      },
+      "target": {
+        "id": "image:callout-region",
+        "path": "surface:pdf-image-fixture/image-region:callout",
+        "kind": "image_region",
+        "label": "Callout Region",
+        "role": null,
+        "source_ids": {
+          "canvas_id": null,
+          "surface_id": null,
+          "window_id": null,
+          "display_id": null,
+          "subject_id": "image:callout-region",
+          "adapter_subject_id": null
+        },
+        "perceived_bounds": {
+          "x": 96,
+          "y": 160,
+          "width": 180,
+          "height": 72
+        },
+        "selector_candidates": [],
+        "text_excerpt": null,
+        "text_range": null,
+        "capabilities": {
+          "hit_test": true,
+          "annotate": true,
+          "project_annotation": true
+        },
+        "metadata": {
+          "page_number": 1,
+          "image_sha256": "fixture-image-sha"
+        }
+      },
+      "annotation": {
+        "id": "draft-pdf-image-region-fixture",
+        "ordinal": 1,
+        "kind": "region_comment",
+        "surface_id": "pdf-image-fixture",
+        "source_path": "docs/design/fixtures/surface-hit-test-inspect-v0/pdf-image.fixture.json",
+        "source_url": null,
+        "coordinate_space": "image",
+        "point": null,
+        "bounds": {
+          "x": 96,
+          "y": 160,
+          "width": 180,
+          "height": 72
+        },
+        "viewport_bounds": null,
+        "page_bounds": null,
+        "selector_candidates": [],
+        "text_excerpt": "Callout Region",
+        "text_range": null,
+        "role": "",
+        "label": "Callout Region",
+        "ancestor_chain": [
+          "surface:pdf-image-fixture"
+        ],
+        "note": "Inspect-selected annotation draft.",
+        "actor": {
+          "role": "system",
+          "id": "surface-hit-test-inspect"
+        },
+        "status": "draft",
+        "lifecycle": {
+          "clearable": true,
+          "committed_at": null,
+          "resolved_at": null,
+          "rejected_at": null,
+          "recovered_from": null
+        },
+        "capture": {
+          "prepare": {
+            "annotation_layer_visible": false,
+            "target_content_mutated": false
+          },
+          "restore": {
+            "annotation_layer_visible": true
+          }
+        },
+        "created_at": "2026-05-09T12:00:00.000Z",
+        "updated_at": "2026-05-09T12:00:00.000Z",
+        "metadata": {
+          "inspect_case_id": "pdf-image-region-fixture",
+          "target_path": "surface:pdf-image-fixture/image-region:callout",
+          "target_kind": "image_region",
+          "adapter_id": "fixture-adapter",
+          "adapter_type": "pdf_image_fixture"
+        }
+      },
+      "viewport": {
+        "width": 612,
+        "height": 792,
+        "scroll_x": 0,
+        "scroll_y": 0,
+        "zoom": 1,
+        "scale": 1,
+        "view_mode": "pdf-page-image"
+      },
+      "adapter_projection": {
+        "annotation_id": "draft-pdf-image-region-fixture",
+        "status": "resolved",
+        "anchor_type": "region_comment",
+        "rects": [
+          {
+            "x": 96,
+            "y": 160,
+            "width": 180,
+            "height": 72
+          }
+        ],
+        "decorator": {
+          "x": 78,
+          "y": 160,
+          "placement": "start-outside"
+        },
+        "precision": "surface_hit_test_inspect_structured_seed",
+        "confidence": 0.8
+      },
+      "reperception": {
+        "source": "surface_hit_test_inspect_structured_seed",
+        "target": {
+          "id": "image:callout-region",
+          "path": "surface:pdf-image-fixture/image-region:callout",
+          "kind": "image_region",
+          "label": "Callout Region",
+          "role": null,
+          "source_ids": {
+            "canvas_id": null,
+            "surface_id": null,
+            "window_id": null,
+            "display_id": null,
+            "subject_id": "image:callout-region",
+            "adapter_subject_id": null
+          },
+          "perceived_bounds": {
+            "x": 96,
+            "y": 160,
+            "width": 180,
+            "height": 72
+          },
+          "capabilities": {
+            "hit_test": true,
+            "annotate": true,
+            "project_annotation": true
+          },
+          "metadata": {
+            "page_number": 1,
+            "image_sha256": "fixture-image-sha"
+          }
+        },
+        "layer": {
+          "hidden_state": "hidden",
+          "shown_state": "visible",
+          "content_mutated": false
+        },
+        "content_before": null,
+        "content_after": null,
+        "raw": {
+          "inspect_case_id": "pdf-image-region-fixture",
+          "selected_path": "surface:pdf-image-fixture/image-region:callout"
+        }
+      },
+      "blockers": [
+        "No live PDF/image region hit-test adapter is present yet."
+      ],
+      "notes": []
+    }
+  ]
+}

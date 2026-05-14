@@ -4,10 +4,11 @@
 // and reports absolute drag updates through the runtime canvas helper.
 
 import { emit, wireBridge } from '../runtime/bridge.js'
-import { moveAbsolute, mutateSelf, removeSelf, spawnChild, suspendCanvas } from '../runtime/canvas.js'
+import { moveAbsolute, mutateSelf, removeSelf, removeCanvas, resumeCanvas, spawnChild, suspendCanvas } from '../runtime/canvas.js'
+import { registerInputRegion, removeInputRegion } from '../runtime/input-region.js'
 import { normalizeCanvasInputMessage } from '../runtime/input-events.js'
 import { subscribe, unsubscribe } from '../runtime/subscribe.js'
-import { createPanelTransferController, wirePanelTransferDisplayGeometry } from './drag-transfer.js'
+import { createPanelTransferController, defaultDesktopWorldStageUrl, ensureDesktopWorldStage, sendDesktopWorldStageLayer, wirePanelTransferDisplayGeometry } from './drag-transfer.js'
 import {
   chipFrameForPanelFrame,
   clampFrameToWorkArea as placementClampFrameToWorkArea,
@@ -20,6 +21,11 @@ import {
   workAreaForPoint as placementWorkAreaForPoint,
   workAreaFromWindow as placementWorkAreaFromWindow,
 } from './placement.js'
+import {
+  createStageAffordance,
+  insetFrame,
+  stageAffordanceRegionId,
+} from './stage-affordance.js'
 
 let displayGeometryWired = false
 let panelDisplays = []
@@ -66,20 +72,37 @@ export function mountChrome(container, {
   windowControlsEl.className = 'aos-window-controls'
   wirePanelDisplayGeometry()
 
-  let maximizeController = null
-  if (maximize) {
-    const maximizeButton = document.createElement('button')
+  const { onStateChange: onDragStateChange, ...dragOptions } = drag
+  let maximizeButton = null
+  const panelWindowController = createPanelWindowController({
+    drag: draggable ? { clampOnEnd: true, transfer: true, ...dragOptions } : false,
+    resize: resizable ? resize : false,
+    maximize: Boolean(maximize),
+    minimize: Boolean(minimize),
+    close: false,
+    onDragStateChange(state) {
+      const transferActive = Boolean(state.transferActive)
+      panel.classList.toggle('aos-panel-transfer-active', transferActive)
+      panel.dataset.transferActive = String(transferActive)
+      onDragStateChange?.(state)
+    },
+    onMaximizeStateChange(state) {
+      if (maximizeButton) syncMaximizeButton(maximizeButton, state)
+    },
+  })
+  if (typeof window !== 'undefined') {
+    window.__aosPanelWindowController = panelWindowController
+  }
+  const maximizeController = panelWindowController.maximizeController
+
+  if (maximizeController) {
+    maximizeButton = document.createElement('button')
     maximizeButton.type = 'button'
     maximizeButton.className = 'aos-window-button aos-window-maximize'
     maximizeButton.setAttribute('aria-label', 'Maximize panel')
     maximizeButton.setAttribute('aria-pressed', 'false')
     maximizeButton.title = 'Maximize'
     maximizeButton.textContent = '+'
-    maximizeController = createMaximizeController({
-      onStateChange(state) {
-        syncMaximizeButton(maximizeButton, state)
-      },
-    })
     syncMaximizeButton(maximizeButton, maximizeController.getState())
     maximizeButton.addEventListener('click', (event) => {
       event.preventDefault()
@@ -91,6 +114,7 @@ export function mountChrome(container, {
   }
 
   if (minimize) {
+    const minimizeController = panelWindowController.minimizeController
     const minimizeButton = document.createElement('button')
     minimizeButton.type = 'button'
     minimizeButton.className = 'aos-window-button aos-window-minimize'
@@ -100,8 +124,20 @@ export function mountChrome(container, {
     minimizeButton.addEventListener('click', (event) => {
       event.preventDefault()
       event.stopPropagation()
-      const action = onMinimize || (() => defaultMinimize({ title: titleEl.textContent || title }))
-      action?.()
+      if (minimizeController.getState().inFlight) return
+      minimizeButton.disabled = true
+      minimizeButton.dataset.inFlight = 'true'
+      const action = onMinimize
+        ? () => onMinimize(minimizeController, event)
+        : () => minimizeController.minimize({ title: titleEl.textContent || title })
+      Promise.resolve(action?.())
+        .catch((error) => {
+          console.warn('[aos-panel] minimize failed', error)
+        })
+        .finally(() => {
+          minimizeButton.disabled = false
+          delete minimizeButton.dataset.inFlight
+        })
     })
     windowControlsEl.appendChild(minimizeButton)
   }
@@ -144,23 +180,11 @@ export function mountChrome(container, {
     })
   }
 
-  const { onStateChange: onDragStateChange, ...dragOptions } = drag
   const dragController = draggable
-    ? wireDrag(header, controlsEl, {
-      clampOnEnd: true,
-      transfer: true,
-      ...dragOptions,
-      onStateChange(state) {
-        const transferActive = Boolean(state.transferActive)
-        panel.classList.toggle('aos-panel-transfer-active', transferActive)
-        panel.dataset.transferActive = String(transferActive)
-        onDragStateChange?.(state)
-      },
-    })
+    ? panelWindowController.wireDrag(header, controlsEl)
     : null
   const resizeController = resizable
-    ? wireResize(panel, {
-      ...resize,
+    ? panelWindowController.wireResize(panel, {
       onStart(edge, event, controller) {
         resize.onStart?.(edge, event, controller)
         if (maximizeController?.getState().maximized) maximizeController.restore()
@@ -176,6 +200,7 @@ export function mountChrome(container, {
     customControlsEl,
     windowControlsEl,
     contentEl: content,
+    panelWindowController,
     maximizeController,
     dragController,
     resizeController,
@@ -213,6 +238,14 @@ export function workAreaForWindowTopLeft(view = window, displays = panelDisplays
   return workAreaForFrameTopLeft(frameFromWindow(view), displays, workAreaFromWindow(view))
 }
 
+function defaultPanelWorkArea(frame = frameFromWindow()) {
+  return workAreaForFrameTopLeft(frame, panelDisplays, workAreaFromWindow())
+}
+
+function defaultPanelDragWorkArea(frame = frameFromWindow(), pointer = null) {
+  return workAreaForPoint(pointer, panelDisplays, defaultPanelWorkArea(frame))
+}
+
 function screenPoint(pointer = null) {
   const x = finiteNumber(pointer?.screenX ?? pointer?.x, null)
   const y = finiteNumber(pointer?.screenY ?? pointer?.y, null)
@@ -242,10 +275,153 @@ export function dragFrameFromPointer(pointer = {}, offsetX = 0, offsetY = 0, fra
   ])
 }
 
+function optionObject(value) {
+  return value && typeof value === 'object' ? value : {}
+}
+
+function monotonicNow() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now()
+  }
+  return Date.now()
+}
+
+export function createPanelWindowController({
+  getCanvasId = currentCanvasId,
+  getFrame = () => frameFromWindow(),
+  getWorkArea = defaultPanelWorkArea,
+  getDragWorkArea = defaultPanelDragWorkArea,
+  getChipFrame = chipFrame,
+  updateFrame = updateSelfFrame,
+  move = moveAbsolute,
+  drag = true,
+  resize = false,
+  maximize = false,
+  minimize = true,
+  close = true,
+  closeAction = defaultClose,
+  onDragStateChange = null,
+  onResizeStateChange = null,
+  onMaximizeStateChange = null,
+  onMinimizeStateChange = null,
+} = {}) {
+  const dragOptions = optionObject(drag)
+  const resizeOptions = optionObject(resize)
+  const maximizeOptions = optionObject(maximize)
+  const minimizeOptions = optionObject(minimize)
+  const dragEnabled = Boolean(drag)
+  const resizeEnabled = Boolean(resize)
+  const maximizeEnabled = Boolean(maximize)
+  const minimizeEnabled = Boolean(minimize)
+
+  const maximizeController = maximizeEnabled
+    ? createMaximizeController({
+      getFrame,
+      getWorkArea,
+      updateFrame,
+      ...maximizeOptions,
+      onStateChange(state) {
+        maximizeOptions.onStateChange?.(state)
+        onMaximizeStateChange?.(state)
+      },
+    })
+    : null
+
+  const dragController = dragEnabled
+    ? createDragController({
+      move,
+      getFrame,
+      getWorkArea,
+      getDragWorkArea,
+      updateFrame,
+      clampOnEnd: true,
+      transfer: true,
+      ...dragOptions,
+      onStateChange(state) {
+        dragOptions.onStateChange?.(state)
+        onDragStateChange?.(state)
+      },
+    })
+    : null
+
+  const resizeController = resizeEnabled
+    ? createResizeController({
+      getFrame,
+      getWorkArea,
+      updateFrame,
+      ...resizeOptions,
+      onStateChange(state) {
+        resizeOptions.onStateChange?.(state)
+        onResizeStateChange?.(state)
+      },
+    })
+    : null
+
+  const minimizeController = minimizeEnabled
+    ? createMinimizeController({
+      getCanvasId,
+      getFrame,
+      getChipFrame,
+      maximizeController,
+      ...minimizeOptions,
+      onStateChange(state) {
+        minimizeOptions.onStateChange?.(state)
+        onMinimizeStateChange?.(state)
+      },
+    })
+    : null
+  if (
+    minimizeController
+    && minimizeOptions.prewarmStage !== false
+    && minimizeOptions.useStageChips !== false
+  ) {
+    minimizeController.prewarmStage()
+  }
+
+  return {
+    dragController,
+    resizeController,
+    maximizeController,
+    minimizeController,
+    close() {
+      if (!close) return null
+      return closeAction?.()
+    },
+    minimize(options) {
+      return minimizeController?.minimize(options) || null
+    },
+    maximize() {
+      return maximizeController?.maximize() || null
+    },
+    restore() {
+      return maximizeController?.restore() || null
+    },
+    toggleMaximize() {
+      return maximizeController?.toggle() || null
+    },
+    wireDrag(header, controlsEl, options = {}) {
+      if (!dragController) return null
+      return wireDrag(header, controlsEl, { controller: dragController, ...options })
+    },
+    wireResize(panel, options = {}) {
+      if (!resizeController) return null
+      return wireResize(panel, { controller: resizeController, ...options })
+    },
+    getState() {
+      return {
+        drag: dragController?.getState?.() || null,
+        resize: resizeController?.getState?.() || null,
+        maximize: maximizeController?.getState?.() || null,
+        minimize: minimizeController?.getState?.() || null,
+      }
+    },
+  }
+}
+
 export function createDragController({
   move = moveAbsolute,
   getFrame = () => frameFromWindow(),
-  getWorkArea = (frame = frameFromWindow()) => workAreaForFrameTopLeft(frame, panelDisplays, workAreaFromWindow()),
+  getWorkArea = defaultPanelWorkArea,
   getDragWorkArea = (frame = frameFromWindow(), pointer = null) => (
     placementWorkAreaForPoint(pointer, panelDisplays, getWorkArea(frame))
   ),
@@ -292,7 +468,7 @@ export function createDragController({
         lastPointer: startPoint,
       }
       frame = cloneFrame(active.frame)
-      panelTransfer?.start({ frame, pointer })
+      panelTransfer?.start({ frame })
       return notify({ phase: 'start' })
     },
     move(pointer = {}) {
@@ -321,13 +497,20 @@ export function createDragController({
     end(pointer = {}) {
       if (!active) return state({ phase: 'idle' })
       const releasePointer = screenPoint(pointer) || active.lastPointer
+      const startFrame = cloneFrame(active.frame)
       active = null
       const transferResult = panelTransfer?.end()
       if (transferResult?.nativeFrame) {
         frame = cloneFrame(transferResult.nativeFrame)
         updateFrame(frame)
       } else if (clampOnEnd) {
-        frame = cloneFrame(frame)
+        const actualFrame = cloneFrame(getFrame())
+        // WKWebView exposes display-local pointer screenY values on some
+        // extended-display arrangements, while the daemon moves canvases with
+        // native desktop coordinates. Prefer the daemon-reported frame at drag
+        // release so the final visibility clamp does not snap a correctly moved
+        // panel back to the display's menu-bar edge.
+        frame = framesEqual(actualFrame, startFrame) ? cloneFrame(frame) : actualFrame
         const clamped = clampFrameToWorkArea(frame, {
           workArea: getDragWorkArea(frame, releasePointer),
           minVisibleWidth,
@@ -526,9 +709,18 @@ export function createMaximizeController({
     return state()
   }
 
+  function resetPanel() {
+    if (!maximized && !restoreFrame) return state()
+    maximized = false
+    restoreFrame = null
+    notify()
+    return state()
+  }
+
   return {
     maximize: maximizePanel,
     restore: restorePanel,
+    reset: resetPanel,
     toggle() {
       return maximized ? restorePanel() : maximizePanel()
     },
@@ -597,28 +789,528 @@ function chipUrl({ target, title, restoreFrame, chipId = null, chipFrame = null 
   return url.href
 }
 
-function defaultMinimize({ title = 'AOS' } = {}) {
-  const target = currentCanvasId()
-  if (!target) {
-    console.warn('[aos-panel] minimize failed: missing canvas id')
-    return
+function chipRegionIds(chipId) {
+  return {
+    restore: stageAffordanceRegionId(chipId, 'restore'),
+    close: stageAffordanceRegionId(chipId, 'close'),
+    body: stageAffordanceRegionId(chipId, 'body'),
   }
-  const chipId = `aos-chip-${target}-${Date.now().toString(36)}`
-  const restoreFrame = frameFromWindow(window)
-  const minimizedFrame = chipFrame()
-  spawnChild({
+}
+
+function chipStageLayer({ chipId, title, frame }) {
+  return {
     id: chipId,
-    url: chipUrl({ target, title, restoreFrame, chipId, chipFrame: minimizedFrame }),
-    frame: minimizedFrame,
-    interactive: true,
-    focus: false,
-    parent: target,
-    cascade: false,
-  })
-    .then(() => suspendCanvas(target))
-    .catch((error) => {
-      console.warn('[aos-panel] minimize failed', error)
+    kind: 'chip',
+    label: title,
+    frame: cloneFrame(frame),
+    zIndex: 20_000,
+    style: {
+      color: 'rgba(245, 247, 250, 0.96)',
+      fill: 'rgba(27, 31, 38, 0.92)',
+      strokeWidth: 1,
+    },
+    metadata: {
+      toolkit_role: 'minimized_panel_chip',
+    },
+  }
+}
+
+export function createMinimizeController({
+  getCanvasId = currentCanvasId,
+  getFrame = () => frameFromWindow(window),
+  getChipFrame = chipFrame,
+  makeChipUrl = chipUrl,
+  spawn = spawnChild,
+  suspend = suspendCanvas,
+  resume = resumeCanvas,
+  remove = removeCanvas,
+  registerRegion = registerInputRegion,
+  removeRegion = removeInputRegion,
+  ensureStage = ensureDesktopWorldStage,
+  stageCanvasId = 'aos-desktop-world-stage',
+  stageUrl = defaultDesktopWorldStageUrl,
+  sendStageMessage = (message) => sendDesktopWorldStageLayer(stageCanvasId, message),
+  useStageChips = true,
+  maximizeController = null,
+  now = monotonicNow,
+  onStateChange = null,
+} = {}) {
+  let inFlight = false
+  let last = null
+  let activeStageChip = null
+  let stageEnsureRecord = null
+
+  function restoreFrameForMinimize() {
+    const maximizeState = maximizeController?.getState?.()
+    if (maximizeState?.maximized && maximizeState.restoreFrame) return cloneFrame(maximizeState.restoreFrame)
+    return cloneFrame(getFrame())
+  }
+
+  function snapshot(extra = {}) {
+    return {
+      sourceCanvasId: last?.sourceCanvasId || null,
+      chipCanvasId: last?.chipCanvasId || null,
+      chipLayerId: last?.chipLayerId || null,
+      regionIds: last?.regionIds ? { ...last.regionIds } : null,
+      registeredRegionIds: last?.registeredRegionIds ? [...last.registeredRegionIds] : [],
+      stageEnsureStatus: last?.stageEnsureStatus || null,
+      stageLayerUpsertSent: Boolean(last?.stageLayerUpsertSent),
+      fallbackChipCreated: Boolean(last?.fallbackChipCreated),
+      fallbackChipResumed: Boolean(last?.fallbackChipResumed),
+      mode: last?.mode || 'idle',
+      inFlight,
+      restoreFrame: last?.restoreFrame ? cloneFrame(last.restoreFrame) : null,
+      targetSuspendSucceeded: Boolean(last?.targetSuspendSucceeded),
+      rollbackRemovedChip: Boolean(last?.rollbackRemovedChip),
+      fallbackCleanupAttempted: Boolean(last?.fallbackCleanupAttempted),
+      fallbackCleanupAttempts: last?.fallbackCleanupAttempts || 0,
+      cleanupRemovedRegions: Boolean(last?.cleanupRemovedRegions),
+      cleanupRemovedLayer: Boolean(last?.cleanupRemovedLayer),
+      status: last?.status || 'idle',
+      error: last?.error || null,
+      timing: last?.timing ? { ...last.timing } : null,
+      ...extra,
+    }
+  }
+
+  function notify(extra = {}) {
+    const state = snapshot(extra)
+    onStateChange?.(state)
+    return state
+  }
+
+  async function cleanupStageChip(record = activeStageChip, { resumeSource = false, removeSource = false } = {}) {
+    if (!record) return { removedRegions: false, removedLayer: false }
+    try {
+      await record.affordance?.cleanup?.()
+    } catch {}
+    const affordanceState = record.affordance?.getState?.()
+    const removedRegions = Boolean(affordanceState?.cleanupStatus?.removedRegions)
+    const removedLayer = Boolean(affordanceState?.cleanupStatus?.removedLayer)
+    if (resumeSource && record.sourceCanvasId) {
+      try { await resume(record.sourceCanvasId) } catch {}
+    }
+    if (removeSource && record.sourceCanvasId) {
+      try { await remove(record.sourceCanvasId, { orphan_children: true }) } catch {}
+    }
+    if (activeStageChip?.chipId === record.chipId) activeStageChip = null
+    if (last?.chipLayerId === record.chipId) {
+      last.cleanupRemovedRegions = removedRegions
+      last.cleanupRemovedLayer = removedLayer
+    }
+    notify()
+    return { removedRegions, removedLayer }
+  }
+
+  async function createStageChip({ target, chipId, title, restoreFrame, minimizedFrame }) {
+    const regionIds = chipRegionIds(chipId)
+    const closeWidth = Math.min(36, Math.max(28, Math.round(minimizedFrame[3] * 0.9)))
+    const record = {
+      sourceCanvasId: target,
+      chipId,
+      regionIds,
+      restoreFrame: cloneFrame(restoreFrame),
+      frame: cloneFrame(minimizedFrame),
+      affordance: null,
+    }
+    const timedEnsureStage = async (options = {}) => {
+      markTiming('stageEnsureStart')
+      const result = await ensureStageForMinimize(options)
+      markTiming('stageEnsureEnd')
+      last.timing.stageEnsureDurationMs = duration(
+        last.timing.stageEnsureStart,
+        last.timing.stageEnsureEnd
+      )
+      return result
+    }
+    const timedSendStageMessage = (message) => {
+      sendStageMessage(message)
+      if (message?.type === 'desktop_world_stage.layer.upsert') {
+        markTiming('stageLayerUpsertSentAt')
+      }
+    }
+    const timedRegisterRegion = async (region) => {
+      if (!last.timing.inputRegionRegistrationStart) {
+        markTiming('inputRegionRegistrationStart')
+        last.timing.inputRegionRegistrationCount = 0
+      }
+      await registerRegion(region)
+      last.timing.inputRegionRegistrationCount = (last.timing.inputRegionRegistrationCount || 0) + 1
+      markTiming('inputRegionRegistrationEnd')
+      last.timing.inputRegionRegistrationDurationMs = duration(
+        last.timing.inputRegionRegistrationStart,
+        last.timing.inputRegionRegistrationEnd
+      )
+    }
+    const common = {
+      owner_canvas_id: target,
+      coordinate_space: 'native',
+      remove_on_owner_suspend: false,
+      enabled: true,
+      metadata: {
+        toolkit_role: 'minimized_panel_chip',
+        chip_id: chipId,
+      },
+    }
+    const affordance = createStageAffordance({
+      id: chipId,
+      ownerCanvasId: target,
+      sourceCanvasId: target,
+      targetCanvasId: stageCanvasId,
+      mode: 'minimized_panel_chip',
+      layer: chipStageLayer({ chipId, title, frame: minimizedFrame }),
+      regions: [
+        {
+          ...common,
+          id: regionIds.body,
+          frame: insetFrame(minimizedFrame),
+          semantic_label: 'drag',
+          priority: 1000,
+          consume_policy: 'never',
+          metadata: { ...common.metadata, action: 'drag', drag_deferred: true },
+        },
+        {
+          ...common,
+          id: regionIds.restore,
+          frame: insetFrame(minimizedFrame, { insetRight: closeWidth }),
+          semantic_label: 'restore',
+          priority: 1100,
+          consume_policy: 'down_only',
+          metadata: { ...common.metadata, action: 'restore' },
+        },
+        {
+          ...common,
+          id: regionIds.close,
+          frame: insetFrame(minimizedFrame, { insetLeft: minimizedFrame[2] - closeWidth }),
+          semantic_label: 'close',
+          priority: 1200,
+          consume_policy: 'down_only',
+          metadata: { ...common.metadata, action: 'close' },
+        },
+      ],
+      cleanupRegionIds: [regionIds.restore, regionIds.close, regionIds.body],
+      stageCanvasId,
+      stageUrl,
+      createStage: spawn,
+      ensureStage: timedEnsureStage,
+      sendStageMessage: timedSendStageMessage,
+      registerRegion: timedRegisterRegion,
+      removeRegion,
+      onInputRegionEvent({ message }) {
+        if (message.phase && message.phase !== 'down') return
+        const activeRecord = activeStageChip?.chipId === chipId ? activeStageChip : record
+        if (message.region_id === regionIds.close) {
+          cleanupStageChip(activeRecord, { removeSource: true }).catch((error) => {
+            console.warn('[aos-panel] minimized chip close cleanup failed', error)
+          })
+          return
+        }
+        if (message.region_id === regionIds.restore) {
+          cleanupStageChip(activeRecord, { resumeSource: true }).catch((error) => {
+            console.warn('[aos-panel] minimized chip restore cleanup failed', error)
+          })
+        }
+      },
+      onSourceRemoved() {
+        const activeRecord = activeStageChip?.chipId === chipId ? activeStageChip : record
+        cleanupStageChip(activeRecord).catch((error) => {
+          console.warn('[aos-panel] minimized chip owner cleanup failed', error)
+        })
+      },
     })
+    record.affordance = affordance
+
+    try {
+      await affordance.setup()
+      const affordanceState = affordance.getState?.() || {}
+      record.stageEnsureStatus = affordanceState.stageEnsureStatus || null
+      record.stageLayerUpsertSent = Boolean(affordanceState.stageLayerUpsertSent)
+      record.registeredRegionIds = [...(affordanceState.registeredRegionIds || [])]
+      activeStageChip = record
+      return record
+    } catch (error) {
+      const affordanceState = affordance.getState?.() || {}
+      error.stageEnsureStatus = error.stageEnsureStatus || affordanceState.stageEnsureStatus || null
+      error.stageLayerUpsertSent = Boolean(affordanceState.stageLayerUpsertSent)
+      error.registeredRegionIds = [...(affordanceState.registeredRegionIds || [])]
+      await cleanupStageChip(record)
+      throw error
+    }
+  }
+
+  async function rollbackChip(chipId, { resumeSource = false, sourceCanvasId = null } = {}) {
+    let removed = false
+    try {
+      if (last) {
+        last.fallbackCleanupAttempted = true
+        last.fallbackCleanupAttempts = (last.fallbackCleanupAttempts || 0) + 1
+      }
+      await remove(chipId, { orphan_children: true })
+      removed = true
+    } catch {}
+    if (resumeSource && sourceCanvasId) {
+      try { await resume(sourceCanvasId) } catch {}
+    }
+    return removed
+  }
+
+  async function cleanupFallbackChipCreateFailure(chipId) {
+    if (!chipId) return false
+    const retryDelays = [0, 50, 150]
+    let removed = false
+    for (const delayMs of retryDelays) {
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+      removed = await rollbackChip(chipId)
+      if (removed) break
+    }
+    return removed
+  }
+
+  function markTiming(name) {
+    if (!last) return null
+    if (!last.timing) last.timing = {}
+    const value = now()
+    last.timing[name] = value
+    return value
+  }
+
+  function duration(start, end) {
+    return Number.isFinite(start) && Number.isFinite(end)
+      ? Math.max(0, end - start)
+      : null
+  }
+
+  function stageEnsureKey(id, url) {
+    return `${id || ''}:${url || ''}`
+  }
+
+  function stageUrlValue() {
+    return typeof stageUrl === 'function' ? stageUrl() : stageUrl
+  }
+
+  function beginStageEnsure({ id = stageCanvasId, url = stageUrlValue(), createStage = spawn, force = false } = {}) {
+    if (!useStageChips) {
+      return Promise.resolve({
+        ok: false,
+        status: 'stage_chips_disabled',
+        id,
+        url,
+        created: false,
+      })
+    }
+    const key = stageEnsureKey(id, url)
+    if (!force && stageEnsureRecord?.key === key) return stageEnsureRecord.promise
+    const promise = Promise.resolve()
+      .then(() => ensureStage({ id, url, createStage }))
+      .catch((error) => ({
+        ok: false,
+        status: 'ensure_failed',
+        id,
+        url,
+        created: false,
+        error: String(error?.message || error),
+      }))
+    stageEnsureRecord = {
+      key,
+      promise,
+    }
+    return promise
+  }
+
+  function prewarmStage({ force = false, retry = false } = {}) {
+    return beginStageEnsure({ force: force || retry })
+  }
+
+  function ensureStageForMinimize(options = {}) {
+    return beginStageEnsure(options)
+  }
+
+  async function minimize({ title = 'AOS' } = {}) {
+    if (inFlight) return notify({ status: 'ignored_in_flight' })
+    const handlerStart = now()
+    const target = getCanvasId()
+    if (!target) {
+      last = {
+        sourceCanvasId: null,
+        chipCanvasId: null,
+        chipLayerId: null,
+        regionIds: null,
+        registeredRegionIds: [],
+        stageEnsureStatus: null,
+        stageLayerUpsertSent: false,
+        fallbackChipCreated: false,
+        fallbackChipResumed: false,
+        mode: 'none',
+        restoreFrame: null,
+        targetSuspendSucceeded: false,
+        rollbackRemovedChip: false,
+        fallbackCleanupAttempted: false,
+        fallbackCleanupAttempts: 0,
+        cleanupRemovedRegions: false,
+        cleanupRemovedLayer: false,
+        status: 'missing_canvas_id',
+        error: 'missing_canvas_id',
+        timing: {
+          handlerStart,
+          totalElapsedMs: 0,
+        },
+      }
+      return notify()
+    }
+
+    const chipId = `aos-chip-${target}-${now().toString(36)}`
+    const restoreFrame = restoreFrameForMinimize()
+    const minimizedFrame = cloneFrame(getChipFrame())
+    last = {
+      sourceCanvasId: target,
+      chipCanvasId: null,
+      chipLayerId: null,
+      regionIds: null,
+      registeredRegionIds: [],
+      stageEnsureStatus: null,
+      stageLayerUpsertSent: false,
+      fallbackChipCreated: false,
+      fallbackChipResumed: false,
+      mode: useStageChips ? 'stage' : 'fallback_webview',
+      restoreFrame,
+      targetSuspendSucceeded: false,
+      rollbackRemovedChip: false,
+      fallbackCleanupAttempted: false,
+      fallbackCleanupAttempts: 0,
+      cleanupRemovedRegions: false,
+      cleanupRemovedLayer: false,
+      status: 'creating_chip',
+      error: null,
+      timing: {
+        handlerStart,
+      },
+    }
+    inFlight = true
+    notify()
+
+    let chipCreated = false
+    let stageCreated = false
+    let stageRecord = null
+    try {
+      if (useStageChips) {
+        try {
+          stageRecord = await createStageChip({ target, chipId, title, restoreFrame, minimizedFrame })
+          stageCreated = true
+          last.chipLayerId = chipId
+          last.regionIds = { ...stageRecord.regionIds }
+          last.registeredRegionIds = [...(stageRecord.registeredRegionIds || [])]
+          last.stageEnsureStatus = stageRecord.stageEnsureStatus || null
+          last.stageLayerUpsertSent = Boolean(stageRecord.stageLayerUpsertSent)
+        } catch (error) {
+          last.mode = 'fallback_webview'
+          last.status = 'stage_unavailable_fallback'
+          last.error = String(error?.message || error || 'stage_unavailable')
+          last.stageEnsureStatus = error?.stageEnsureStatus || null
+          last.stageLayerUpsertSent = Boolean(error?.stageLayerUpsertSent)
+          last.registeredRegionIds = [...(error?.registeredRegionIds || [])]
+          console.warn('[aos-panel] minimized chip stage unavailable; using WebView fallback', error)
+          notify()
+        }
+      } else {
+        last.mode = 'fallback_webview'
+      }
+
+      if (!stageCreated) {
+        last.chipCanvasId = chipId
+        last.mode = 'fallback_webview'
+        try {
+          markTiming('fallbackCreateStart')
+          await spawn({
+            id: chipId,
+            url: makeChipUrl({ target, title, restoreFrame, chipId, chipFrame: minimizedFrame }),
+            frame: minimizedFrame,
+            interactive: true,
+            focus: false,
+            parent: target,
+            cascade: false,
+            suspended: true,
+          })
+          markTiming('fallbackCreateEnd')
+          last.timing.fallbackCreateDurationMs = duration(
+            last.timing.fallbackCreateStart,
+            last.timing.fallbackCreateEnd
+          )
+        } catch (error) {
+          console.warn('[aos-panel] minimized fallback chip create failed; source remains active', error)
+          last.rollbackRemovedChip = await cleanupFallbackChipCreateFailure(chipId)
+          throw error
+        }
+        chipCreated = true
+        last.fallbackChipCreated = true
+      }
+      last.status = 'suspending_source'
+      notify()
+      markTiming('sourceSuspendStart')
+      await suspend(target)
+      markTiming('sourceSuspendEnd')
+      last.timing.sourceSuspendDurationMs = duration(
+        last.timing.sourceSuspendStart,
+        last.timing.sourceSuspendEnd
+      )
+      last.targetSuspendSucceeded = true
+      maximizeController?.reset?.()
+      last.status = 'showing_chip'
+      notify()
+      if (chipCreated) {
+        try {
+          markTiming('fallbackResumeStart')
+          await resume(chipId)
+          markTiming('fallbackResumeEnd')
+          last.timing.fallbackResumeDurationMs = duration(
+            last.timing.fallbackResumeStart,
+            last.timing.fallbackResumeEnd
+          )
+          last.fallbackChipResumed = true
+        } catch (error) {
+          console.warn('[aos-panel] minimized fallback chip resume failed; rolling back', error)
+          throw error
+        }
+      }
+      last.status = 'success'
+      last.timing.totalElapsedMs = duration(last.timing.handlerStart, now())
+      notify()
+    } catch (error) {
+      const message = String(error?.message || error || 'unknown')
+      const resumeSource = Boolean(last.targetSuspendSucceeded)
+      if (chipCreated) {
+        last.rollbackRemovedChip = await rollbackChip(chipId, {
+          resumeSource,
+          sourceCanvasId: target,
+        })
+      }
+      if (stageCreated || stageRecord) {
+        await cleanupStageChip(stageRecord, { resumeSource })
+      }
+      last.status = 'failed'
+      last.error = message
+      if (last?.timing) last.timing.totalElapsedMs = duration(last.timing.handlerStart, now())
+      notify()
+      throw error
+    } finally {
+      inFlight = false
+      notify()
+    }
+    return snapshot()
+  }
+
+  return {
+    prewarmStage,
+    minimize,
+    getState() {
+      return snapshot()
+    },
+  }
+}
+
+function defaultMinimize({ title = 'AOS' } = {}) {
+  return createMinimizeController().minimize({ title }).catch((error) => {
+    console.warn('[aos-panel] minimize failed', error)
+  })
 }
 
 function wirePanelDisplayGeometry() {
@@ -652,6 +1344,7 @@ export function wireDrag(header, controlsEl, {
   let activePointerId = null
   let finishDrag = null
   let inputBridgeInstalled = false
+  let lastGlobalPointer = null
 
   function installInputBridge() {
     if (inputBridgeInstalled || !globalInput) return
@@ -663,16 +1356,17 @@ export function wireDrag(header, controlsEl, {
       const eventType = input.type || input.eventKind || input.sourceEvent
       const x = Number(input.x)
       const y = Number(input.y)
+      const globalPointer = Number.isFinite(x) && Number.isFinite(y)
+        ? { pointerId: activePointerId, screenX: x, screenY: y, source: 'input_event' }
+        : null
       if ((eventType === 'left_mouse_dragged' || eventType === 'mouse_moved') && Number.isFinite(x) && Number.isFinite(y)) {
-        dragController.move({
-          pointerId: activePointerId,
-          screenX: x,
-          screenY: y,
-        })
+        lastGlobalPointer = globalPointer
+        dragController.move(globalPointer)
         return
       }
       if (eventType === 'left_mouse_up' || eventType === 'pointer_cancel' || eventType === 'mouse_cancel') {
-        finishDrag({ pointerId: activePointerId, screenX: x, screenY: y, source: 'input_event' })
+        if (globalPointer) lastGlobalPointer = globalPointer
+        finishDrag(globalPointer || lastGlobalPointer || { pointerId: activePointerId, source: 'input_event' })
       }
     })
   }
@@ -698,6 +1392,7 @@ export function wireDrag(header, controlsEl, {
 
     const onMove = (ev) => {
       if (ev.pointerId !== pointerId) return
+      if (globalInput) return
       dragController.move(ev)
     }
 
@@ -713,6 +1408,9 @@ export function wireDrag(header, controlsEl, {
 
     finishDrag = (ev) => {
       if (!finishDrag) return
+      const releasePointer = globalInput && ev?.source !== 'input_event'
+        ? lastGlobalPointer || ev
+        : ev
       delete header.dataset.dragging
       header.removeEventListener('pointermove', onMove)
       header.removeEventListener('pointerup', onUp)
@@ -721,11 +1419,12 @@ export function wireDrag(header, controlsEl, {
       try {
         if (header.hasPointerCapture(pointerId)) header.releasePointerCapture(pointerId)
       } catch {}
-      dragController.end(ev)
+      dragController.end(releasePointer)
       emit('drag_end')
       if (globalInput) unsubscribe(['input_event'])
       activePointerId = null
       finishDrag = null
+      lastGlobalPointer = null
       onEnd?.(ev, dragController)
     }
 

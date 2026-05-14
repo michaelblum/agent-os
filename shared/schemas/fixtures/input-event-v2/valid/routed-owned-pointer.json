@@ -4,9 +4,15 @@
   "type": "left_mouse_down",
   "phase": "down",
   "delivery_role": "owned",
-  "sequence": { "source": "daemon", "value": 42 },
+  "sequence": {
+    "source": "daemon",
+    "value": 42
+  },
   "gesture_id": "g-42",
-  "desktop_world": { "x": 714, "y": 373 },
+  "desktop_world": {
+    "x": 714,
+    "y": 373
+  },
   "coordinate_authority": "daemon",
   "region_id": "sigil-avatar",
   "button": "left",
@@ -23,10 +29,19 @@
     "phase": "down",
     "device": "mouse",
     "timestamp_monotonic_ms": 123456789.25,
-    "sequence": { "source": "daemon", "value": 42 },
+    "sequence": {
+      "source": "daemon",
+      "value": 42
+    },
     "gesture_id": "g-42",
-    "native": { "x": 529, "y": 373 },
-    "desktop_world": { "x": 714, "y": 373 },
+    "native": {
+      "x": 529,
+      "y": 373
+    },
+    "desktop_world": {
+      "x": 714,
+      "y": 373
+    },
     "coordinate_authority": "daemon",
     "display_id": 1,
     "topology_version": 17,
@@ -46,5 +61,11 @@
       "fn": false,
       "caps_lock": false
     }
+  },
+  "source_origin": "daemon",
+  "owner_canvas_id": "avatar-main",
+  "source_sequence": {
+    "source": "daemon",
+    "value": 42
   }
 }

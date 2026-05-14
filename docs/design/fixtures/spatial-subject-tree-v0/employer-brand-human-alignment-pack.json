@@ -1,0 +1,2474 @@
+{
+  "schema": "spatial_subject_tree",
+  "version": "0.1.0",
+  "created_at": "2026-05-09T12:00:00.000Z",
+  "root": "desktop-world",
+  "nodes": [
+    {
+      "id": "desktop-world",
+      "parent_id": null,
+      "path": "desktop-world",
+      "kind": "desktop_world",
+      "label": "DesktopWorld",
+      "source": {},
+      "bounds": {
+        "desktop_world": {
+          "x": 0,
+          "y": 0,
+          "width": 1200,
+          "height": 2688
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-fixture-topology",
+        "type": "spatial_topology",
+        "confidence": 1,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": false,
+        "project_annotation": false,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      },
+      "z_order": null,
+      "sibling_order": null,
+      "metadata": {}
+    },
+    {
+      "id": "display:1",
+      "parent_id": "desktop-world",
+      "path": "desktop-world/display:1",
+      "kind": "display",
+      "label": "Deterministic Markdown Display",
+      "source": {
+        "display_id": "1"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 0,
+          "y": 0,
+          "width": 1200,
+          "height": 2688
+        },
+        "desktop_world": {
+          "x": 0,
+          "y": 0,
+          "width": 1200,
+          "height": 2688
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-fixture-topology",
+        "type": "spatial_topology",
+        "confidence": 1,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": false,
+        "project_annotation": false,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "window:markdown-alignment-pack",
+      "parent_id": "display:1",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack",
+      "kind": "window",
+      "label": "Markdown Alignment Pack",
+      "source": {
+        "window_id": "markdown-alignment-pack",
+        "app_bundle_id": "dev.agent-os.fixture"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 80,
+          "y": 60,
+          "width": 1040,
+          "height": 2608
+        },
+        "desktop_world": {
+          "x": 80,
+          "y": 60,
+          "width": 1040,
+          "height": 2608
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-fixture-topology",
+        "type": "spatial_topology",
+        "confidence": 0.95,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": false,
+        "project_annotation": false,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 0,
+            "y": 0
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "canvas:markdown-alignment-pack",
+      "parent_id": "window:markdown-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack",
+      "kind": "canvas",
+      "label": "Markdown Workbench Canvas",
+      "source": {
+        "canvas_id": "markdown-alignment-pack",
+        "window_id": "markdown-alignment-pack"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 0,
+          "y": 0,
+          "width": 1040,
+          "height": 2608
+        },
+        "desktop_world": {
+          "x": 80,
+          "y": 60,
+          "width": 1040,
+          "height": 2608
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-workbench-canvas-fixture",
+        "type": "aos_canvas",
+        "confidence": 0.9,
+        "freshness": "snapshot",
+        "child_discovery": "partial"
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": false,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 80,
+            "y": 60
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "surface:employer-brand-human-alignment-pack",
+      "parent_id": "canvas:markdown-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack",
+      "kind": "surface",
+      "label": "Employer Brand Human Alignment Pack Markdown",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "employer-brand-human-alignment-pack"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 24,
+          "y": 24,
+          "width": 960,
+          "height": 2528
+        },
+        "desktop_world": {
+          "x": 104,
+          "y": 84,
+          "width": 960,
+          "height": 2528
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.9,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 80,
+            "y": 60
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "source_type": "markdown_document",
+        "coordinate_space": "markdown_line_document_v0",
+        "coordinate_oracle": "synthetic_line_based_not_rendered_pixels",
+        "line_count": 124,
+        "geometry": {
+          "line_height": 20,
+          "char_width": 8,
+          "margin_x": 32,
+          "margin_y": 24,
+          "document_width": 960,
+          "min_target_height": 24
+        }
+      }
+    },
+    {
+      "id": "document:human-alignment-pack-md",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/document:human-alignment-pack-md",
+      "kind": "document",
+      "label": "human-alignment-pack.md",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "document:human-alignment-pack-md",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 24,
+          "width": 896,
+          "height": 2480
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 108,
+          "width": 896,
+          "height": 2480
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.96,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": true
+      },
+      "z_order": null,
+      "sibling_order": 0,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "markdown_document",
+        "coordinate_space": "markdown_line_document_v0",
+        "coordinate_oracle": "synthetic_line_based_not_rendered_pixels",
+        "line_range": {
+          "start_line": 1,
+          "end_line": 124
+        }
+      }
+    },
+    {
+      "id": "text:line-001-employer-brand-audit-human-alignment-pack-v0",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-001-employer-brand-audit-human-alignment-pack-v0",
+      "kind": "text_range",
+      "label": "Employer Brand Audit Human Alignment Pack V0",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-001-employer-brand-audit-human-alignment-pack-v0",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L1-L124",
+        "line_start": 1,
+        "line_end": 124,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 24,
+          "width": 896,
+          "height": 2480
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 108,
+          "width": 896,
+          "height": 2480
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 1,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 1,
+        "line_range": {
+          "start_line": 1,
+          "end_line": 124
+        },
+        "text_excerpt": "# Employer Brand Audit Human Alignment Pack V0",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-005-current-assumptions",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-005-current-assumptions",
+      "kind": "text_range",
+      "label": "Current Assumptions",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-005-current-assumptions",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L5-L15",
+        "line_start": 5,
+        "line_end": 15,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 104,
+          "width": 896,
+          "height": 220
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 188,
+          "width": 896,
+          "height": 220
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 2,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 5,
+          "end_line": 15
+        },
+        "text_excerpt": "## Current Assumptions",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-016-evidence-flow",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-016-evidence-flow",
+      "kind": "text_range",
+      "label": "Evidence Flow",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-016-evidence-flow",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L16-L34",
+        "line_start": 16,
+        "line_end": 34,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 324,
+          "width": 896,
+          "height": 380
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 408,
+          "width": 896,
+          "height": 380
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 3,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 16,
+          "end_line": 34
+        },
+        "text_excerpt": "## Evidence Flow",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-035-evidence-requirements-brief",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-035-evidence-requirements-brief",
+      "kind": "text_range",
+      "label": "Evidence Requirements Brief",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-035-evidence-requirements-brief",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L35-L40",
+        "line_start": 35,
+        "line_end": 40,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 704,
+          "width": 896,
+          "height": 120
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 788,
+          "width": 896,
+          "height": 120
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 4,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 35,
+          "end_line": 40
+        },
+        "text_excerpt": "## Evidence Requirements Brief",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-041-companies-and-competitor-set",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-041-companies-and-competitor-set",
+      "kind": "text_range",
+      "label": "Companies And Competitor Set",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-041-companies-and-competitor-set",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L41-L50",
+        "line_start": 41,
+        "line_end": 50,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 824,
+          "width": 896,
+          "height": 200
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 908,
+          "width": 896,
+          "height": 200
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 5,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 41,
+          "end_line": 50
+        },
+        "text_excerpt": "## Companies And Competitor Set",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-051-source-categories-and-page-types",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-051-source-categories-and-page-types",
+      "kind": "text_range",
+      "label": "Source Categories And Page Types",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-051-source-categories-and-page-types",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L51-L56",
+        "line_start": 51,
+        "line_end": 56,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1024,
+          "width": 896,
+          "height": 120
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1108,
+          "width": 896,
+          "height": 120
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 6,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 51,
+          "end_line": 56
+        },
+        "text_excerpt": "## Source Categories And Page Types",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-057-desired-evidence-elements-and-expected-clip-counts",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-057-desired-evidence-elements-and-expected-clip-counts",
+      "kind": "text_range",
+      "label": "Desired Evidence Elements And Expected Clip Counts",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-057-desired-evidence-elements-and-expected-clip-counts",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L57-L74",
+        "line_start": 57,
+        "line_end": 74,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1144,
+          "width": 896,
+          "height": 360
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1228,
+          "width": 896,
+          "height": 360
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 7,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 57,
+          "end_line": 74
+        },
+        "text_excerpt": "## Desired Evidence Elements And Expected Clip Counts",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-075-what-not-to-collect",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-075-what-not-to-collect",
+      "kind": "text_range",
+      "label": "What Not To Collect",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-075-what-not-to-collect",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L75-L78",
+        "line_start": 75,
+        "line_end": 78,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1504,
+          "width": 896,
+          "height": 80
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1588,
+          "width": 896,
+          "height": 80
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 8,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 75,
+          "end_line": 78
+        },
+        "text_excerpt": "## What Not To Collect",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-079-kilos-interpretation",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-079-kilos-interpretation",
+      "kind": "text_range",
+      "label": "KILOS Interpretation",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-079-kilos-interpretation",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L79-L88",
+        "line_start": 79,
+        "line_end": 88,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1584,
+          "width": 896,
+          "height": 200
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1668,
+          "width": 896,
+          "height": 200
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 9,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 79,
+          "end_line": 88
+        },
+        "text_excerpt": "## KILOS Interpretation",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-089-source-trust-and-inaccessible-source-policy",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-089-source-trust-and-inaccessible-source-policy",
+      "kind": "text_range",
+      "label": "Source Trust And Inaccessible-Source Policy",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-089-source-trust-and-inaccessible-source-policy",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L89-L94",
+        "line_start": 89,
+        "line_end": 94,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1784,
+          "width": 896,
+          "height": 120
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1868,
+          "width": 896,
+          "height": 120
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 10,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 89,
+          "end_line": 94
+        },
+        "text_excerpt": "## Source Trust And Inaccessible-Source Policy",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-095-visual-evidence-quality-criteria",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-095-visual-evidence-quality-criteria",
+      "kind": "text_range",
+      "label": "Visual Evidence Quality Criteria",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-095-visual-evidence-quality-criteria",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L95-L98",
+        "line_start": 95,
+        "line_end": 98,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1904,
+          "width": 896,
+          "height": 80
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1988,
+          "width": 896,
+          "height": 80
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 11,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 95,
+          "end_line": 98
+        },
+        "text_excerpt": "## Visual Evidence Quality Criteria",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-099-report-tone-and-direction",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-099-report-tone-and-direction",
+      "kind": "text_range",
+      "label": "Report Tone And Direction",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-099-report-tone-and-direction",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L99-L104",
+        "line_start": 99,
+        "line_end": 104,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1984,
+          "width": 896,
+          "height": 120
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 2068,
+          "width": 896,
+          "height": 120
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 12,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 99,
+          "end_line": 104
+        },
+        "text_excerpt": "## Report Tone And Direction",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-105-explicit-human-decision-points",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-105-explicit-human-decision-points",
+      "kind": "text_range",
+      "label": "Explicit Human Decision Points",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-105-explicit-human-decision-points",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L105-L116",
+        "line_start": 105,
+        "line_end": 116,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 2104,
+          "width": 896,
+          "height": 240
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 2188,
+          "width": 896,
+          "height": 240
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 13,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 105,
+          "end_line": 116
+        },
+        "text_excerpt": "## Explicit Human Decision Points",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-117-boundary-for-foreman-gdi-and-operator",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-117-boundary-for-foreman-gdi-and-operator",
+      "kind": "text_range",
+      "label": "Boundary For Foreman, GDI, And Operator",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-117-boundary-for-foreman-gdi-and-operator",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L117-L120",
+        "line_start": 117,
+        "line_end": 120,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 2344,
+          "width": 896,
+          "height": 80
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 2428,
+          "width": 896,
+          "height": 80
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 14,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 117,
+          "end_line": 120
+        },
+        "text_excerpt": "## Boundary For Foreman, GDI, And Operator",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "text:line-121-future-direction",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/text:line-121-future-direction",
+      "kind": "text_range",
+      "label": "Future Direction",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "text:line-121-future-direction",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L121-L124",
+        "line_start": 121,
+        "line_end": 124,
+        "markdown_kind": "heading"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 2424,
+          "width": 896,
+          "height": 80
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 2508,
+          "width": 896,
+          "height": 80
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 15,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "heading",
+        "heading_level": 2,
+        "line_range": {
+          "start_line": 121,
+          "end_line": 124
+        },
+        "text_excerpt": "## Future Direction",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "region:line-018-mermaid-evidence-flow",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/region:line-018-mermaid-evidence-flow",
+      "kind": "region",
+      "label": "Evidence Flow Mermaid block",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "region:line-018-mermaid-evidence-flow",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L18-L27",
+        "line_start": 18,
+        "line_end": 27,
+        "markdown_kind": "mermaid_block"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 364,
+          "width": 896,
+          "height": 200
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 448,
+          "width": 896,
+          "height": 200
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 16,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "mermaid_block",
+        "line_range": {
+          "start_line": 18,
+          "end_line": 27
+        },
+        "text_excerpt": "```mermaid flowchart TD A[Human confirms audit intent] --> B[Approve company set and KILOS interpretation] B --> C[Approve source categories and page types] C --> D[Approve desired evidence elements and clip-count expectations] D --> E{More capture allowed?} E -- No --> F[Keep visibility-adjusted plan as read-only provenance] E -- Yes, after approval --> G[Resume deterministic capture slice from approved plan] G --> H[Accepted evidence can support comparisons, findings, and report direction] ```",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "region:line-029-fallback-evidence-flow-table",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/region:line-029-fallback-evidence-flow-table",
+      "kind": "region",
+      "label": "Fallback evidence-flow table",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "region:line-029-fallback-evidence-flow-table",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L29-L33",
+        "line_start": 29,
+        "line_end": 33,
+        "markdown_kind": "table"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 584,
+          "width": 896,
+          "height": 100
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 668,
+          "width": 896,
+          "height": 100
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 17,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "markdown_table",
+        "line_range": {
+          "start_line": 29,
+          "end_line": 33
+        },
+        "text_excerpt": "| Stage | Companies | Evidence sources | KILOS dimensions | Comparisons | Findings | Report direction | | --- | --- | --- | --- | --- | --- | --- | | Human alignment | Symphony Talent, Phenom, Radancy | Planned and provenance-only sources | Confirm meaning and weighting | Confirm comparison scope | Open questions only | Confirm tone and intended reader | | Evidence requirements | Same set unless edited | Careers, employer-brand, LinkedIn context, reviews, social/campaign, awards, employee storie",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "region:line-043-markdown-table-lines-43-47",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/region:line-043-markdown-table-lines-43-47",
+      "kind": "region",
+      "label": "Markdown table lines 43-47",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "region:line-043-markdown-table-lines-43-47",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L43-L47",
+        "line_start": 43,
+        "line_end": 47,
+        "markdown_kind": "table"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 864,
+          "width": 896,
+          "height": 100
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 948,
+          "width": 896,
+          "height": 100
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 18,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "markdown_table",
+        "line_range": {
+          "start_line": 43,
+          "end_line": 47
+        },
+        "text_excerpt": "| Role | Company | Current use | Human decision needed | | --- | --- | --- | --- | | Client | Symphony Talent | Primary subject for comparison | Approve, rename, or replace | | Competitor | Phenom | Peer comparison target | Approve, remove, or replace | | Competitor | Radancy | Peer comparison target | Approve, remove, or replace |",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "region:line-081-kilos-interpretation-table",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/region:line-081-kilos-interpretation-table",
+      "kind": "region",
+      "label": "KILOS interpretation table",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "region:line-081-kilos-interpretation-table",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L81-L87",
+        "line_start": 81,
+        "line_end": 87,
+        "markdown_kind": "table"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1624,
+          "width": 896,
+          "height": 140
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1708,
+          "width": 896,
+          "height": 140
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 19,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "markdown_table",
+        "line_range": {
+          "start_line": 81,
+          "end_line": 87
+        },
+        "text_excerpt": "| Dimension | Working interpretation | Prompt for human correction | | --- | --- | --- | | Kinship | Belonging, culture, community, team identity, inclusion proof | What signals count as real proof rather than generic culture language? | | Impact | Purpose, business/customer outcomes, societal value, candidate contribution | Should impact emphasize employer purpose, product value, or candidate role impact? | | Lifestyle | Flexibility, work model, benefits, employee experience, wellbeing | Which ",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "region:line-107-explicit-human-decision-table",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/region:line-107-explicit-human-decision-table",
+      "kind": "region",
+      "label": "Explicit human decision table",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "region:line-107-explicit-human-decision-table",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L107-L115",
+        "line_start": 107,
+        "line_end": 115,
+        "markdown_kind": "table"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 2144,
+          "width": 896,
+          "height": 180
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 2228,
+          "width": 896,
+          "height": 180
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.92,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 20,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "markdown_table",
+        "line_range": {
+          "start_line": 107,
+          "end_line": 115
+        },
+        "text_excerpt": "| Decision | Approve | Edit | Reject | | --- | --- | --- | --- | | Company set: Symphony Talent, Phenom, Radancy | Continue with current set | Replace or add companies | Stop comparison until set is corrected | | KILOS framework | Use all five dimensions | Reweight or redefine dimensions | Use a different framework | | Source categories | Use listed categories | Add, remove, or rename categories | Pause source planning | | Live capture scope | Resume only after approval from visibility-adjusted ",
+        "coordinate_space": "markdown_line_document_v0"
+      }
+    },
+    {
+      "id": "target:line-005-current-assumptions-0-accepted-live-captures",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-005-current-assumptions-0-accepted-live-captures",
+      "kind": "semantic_target",
+      "label": "Current assumptions / 0 accepted live captures",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-005-current-assumptions-0-accepted-live-captures",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L5-L14",
+        "line_start": 5,
+        "line_end": 14,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 104,
+          "width": 896,
+          "height": 200
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 188,
+          "width": 896,
+          "height": 200
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 21,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 5,
+          "end_line": 14
+        },
+        "text_excerpt": "## Current Assumptions The current project compares Symphony Talent against Phenom and Radancy through the KILOS framework: Kinship, Impact, Lifestyle, Opportunity, and Status. The current evidence-control path has produced planning, review, approval, repair, visibility-adjusted capture-plan, and provenance artifacts, but accepted live captures remain at 0 and actual live clip/text assets remain at 0. The visibility-adjusted plan has 4 Operator-approved executable repairs, preserves LinkedIn as ",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    },
+    {
+      "id": "target:line-041-company-and-competitor-set",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-041-company-and-competitor-set",
+      "kind": "semantic_target",
+      "label": "Company and competitor set",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-041-company-and-competitor-set",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L41-L49",
+        "line_start": 41,
+        "line_end": 49,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 824,
+          "width": 896,
+          "height": 180
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 908,
+          "width": 896,
+          "height": 180
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 22,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 41,
+          "end_line": 49
+        },
+        "text_excerpt": "## Companies And Competitor Set | Role | Company | Current use | Human decision needed | | --- | --- | --- | --- | | Client | Symphony Talent | Primary subject for comparison | Approve, rename, or replace | | Competitor | Phenom | Peer comparison target | Approve, remove, or replace | | Competitor | Radancy | Peer comparison target | Approve, remove, or replace | Open question: should this audit compare only direct talent-platform competitors, or should it include aspirational employer-brand exa",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    },
+    {
+      "id": "target:line-057-desired-evidence-elements-4-visibility-adjusted-slots",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-057-desired-evidence-elements-4-visibility-adjusted-slots",
+      "kind": "semantic_target",
+      "label": "Desired evidence elements and 4 visibility-adjusted executable slots",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-057-desired-evidence-elements-4-visibility-adjusted-slots",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L57-L73",
+        "line_start": 57,
+        "line_end": 73,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1144,
+          "width": 896,
+          "height": 340
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1228,
+          "width": 896,
+          "height": 340
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 23,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 57,
+          "end_line": 73
+        },
+        "text_excerpt": "## Desired Evidence Elements And Expected Clip Counts Current source-artifact planning expects 44 local element clips across template, PDF, and SPv5 references. Current live-evidence planning has progressed to a visibility-adjusted plan with 4 executable slots and 0 accepted captures. These counts are planning state, not evidence quality. For the next approved capture slice, each desired evidence element should identify: - company, - source category, - page type, - target element description, - ",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    },
+    {
+      "id": "target:line-075-what-not-to-collect",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-075-what-not-to-collect",
+      "kind": "semantic_target",
+      "label": "What not to collect",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-075-what-not-to-collect",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L75-L77",
+        "line_start": 75,
+        "line_end": 77,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1504,
+          "width": 896,
+          "height": 60
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1588,
+          "width": 896,
+          "height": 60
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 24,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 75,
+          "end_line": 77
+        },
+        "text_excerpt": "## What Not To Collect Do not collect private, login-gated, paywalled, consent-bypassed, CAPTCHA-bypassed, or otherwise restricted content. Do not collect full-page grabs. Do not crawl broadly. Do not infer missing evidence. Do not treat LinkedIn unavailable context as a failure to bypass. Do not run locator codegen, locator resolution, URL opening, or live capture from this alignment pack.",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    },
+    {
+      "id": "target:line-079-kilos-interpretation-table",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-079-kilos-interpretation-table",
+      "kind": "semantic_target",
+      "label": "KILOS interpretation table",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-079-kilos-interpretation-table",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L79-L87",
+        "line_start": 79,
+        "line_end": 87,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1584,
+          "width": 896,
+          "height": 180
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1668,
+          "width": 896,
+          "height": 180
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 25,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 79,
+          "end_line": 87
+        },
+        "text_excerpt": "## KILOS Interpretation | Dimension | Working interpretation | Prompt for human correction | | --- | --- | --- | | Kinship | Belonging, culture, community, team identity, inclusion proof | What signals count as real proof rather than generic culture language? | | Impact | Purpose, business/customer outcomes, societal value, candidate contribution | Should impact emphasize employer purpose, product value, or candidate role impact? | | Lifestyle | Flexibility, work model, benefits, employee experi",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    },
+    {
+      "id": "target:line-089-linkedin-source-unavailable-policy",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-089-linkedin-source-unavailable-policy",
+      "kind": "semantic_target",
+      "label": "LinkedIn/source-unavailable policy",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-089-linkedin-source-unavailable-policy",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L89-L93",
+        "line_start": 89,
+        "line_end": 93,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1784,
+          "width": 896,
+          "height": 100
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 1868,
+          "width": 896,
+          "height": 100
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 26,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 89,
+          "end_line": 93
+        },
+        "text_excerpt": "## Source Trust And Inaccessible-Source Policy Trust should be highest for first-party pages with visible timestamped capture evidence and lower for inaccessible, stale, or provenance-only context. Review and social sources may be useful but should be labeled by source type and collection constraints. Inaccessible sources should be recorded as unavailable, blocked, login-gated, source-unavailable, or out of scope rather than silently replaced. Human decision needed: confirm whether inaccessible ",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    },
+    {
+      "id": "target:line-099-report-tone-and-direction",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-099-report-tone-and-direction",
+      "kind": "semantic_target",
+      "label": "Report tone and direction",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-099-report-tone-and-direction",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L99-L103",
+        "line_start": 99,
+        "line_end": 103,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 1984,
+          "width": 896,
+          "height": 100
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 2068,
+          "width": 896,
+          "height": 100
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 27,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 99,
+          "end_line": 103
+        },
+        "text_excerpt": "## Report Tone And Direction The later report should be evidence-led, comparative, and candid about source limits. It should distinguish current assumptions from verified claims. It should avoid overstating strategic conclusions when accepted live captures are still 0. The tone should be useful to a human decision-maker who needs to approve source intent, not a polished final marketing analysis. Open question: should the eventual report primarily recommend positioning changes for Symphony Talent",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    },
+    {
+      "id": "target:line-105-explicit-human-decision-table",
+      "parent_id": "surface:employer-brand-human-alignment-pack",
+      "path": "desktop-world/display:1/window:markdown-alignment-pack/canvas:markdown-alignment-pack/surface:employer-brand-human-alignment-pack/target:line-105-explicit-human-decision-table",
+      "kind": "semantic_target",
+      "label": "Explicit human decision table",
+      "source": {
+        "file_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+        "canvas_id": "markdown-alignment-pack",
+        "surface_id": "employer-brand-human-alignment-pack",
+        "subject_id": "target:line-105-explicit-human-decision-table",
+        "adapter_subject_id": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md:L105-L115",
+        "line_start": 105,
+        "line_end": 115,
+        "markdown_kind": "decision_target"
+      },
+      "bounds": {
+        "parent_local": {
+          "x": 32,
+          "y": 2104,
+          "width": 896,
+          "height": 220
+        },
+        "desktop_world": {
+          "x": 136,
+          "y": 2188,
+          "width": 896,
+          "height": 220
+        }
+      },
+      "state": "visible",
+      "adapter": {
+        "id": "markdown-spatial-subject-tree",
+        "type": "markdown_workbench",
+        "confidence": 0.98,
+        "freshness": "snapshot",
+        "child_discovery": "complete",
+        "reason": "Deterministic Markdown fixture/builder; not a live browser, AX tree, screenshot, or rendered-pixel oracle."
+      },
+      "capabilities": {
+        "hit_test": true,
+        "annotate": true,
+        "project_annotation": true,
+        "action": false,
+        "capture": false,
+        "inspect_children": false
+      },
+      "z_order": null,
+      "sibling_order": 28,
+      "transforms": [
+        {
+          "from": "parent_local",
+          "to": "desktop_world",
+          "status": "available",
+          "translation": {
+            "x": 104,
+            "y": 84
+          },
+          "scale": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      ],
+      "metadata": {
+        "role": "decision_target",
+        "line_range": {
+          "start_line": 105,
+          "end_line": 115
+        },
+        "text_excerpt": "## Explicit Human Decision Points | Decision | Approve | Edit | Reject | | --- | --- | --- | --- | | Company set: Symphony Talent, Phenom, Radancy | Continue with current set | Replace or add companies | Stop comparison until set is corrected | | KILOS framework | Use all five dimensions | Reweight or redefine dimensions | Use a different framework | | Source categories | Use listed categories | Add, remove, or rename categories | Pause source planning | | Live capture scope | Resume only after ",
+        "coordinate_space": "markdown_line_document_v0",
+        "required_alignment_target": true
+      }
+    }
+  ],
+  "metadata": {
+    "builder": "markdown-spatial-subject-tree",
+    "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+    "source_type": "markdown",
+    "coordinate_space": "markdown_line_document_v0",
+    "coordinate_oracle": "synthetic_line_based_not_rendered_pixels",
+    "adapter_fixture_only": true,
+    "hard_boundaries": {
+      "live_capture": false,
+      "url_opening": false,
+      "screenshot_pixel_oracle": false,
+      "ax_harvest": false
+    }
+  }
+}

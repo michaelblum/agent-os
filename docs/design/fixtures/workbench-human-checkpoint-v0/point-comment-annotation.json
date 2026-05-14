@@ -1,0 +1,41 @@
+{
+  "id": "ann-point-1",
+  "ordinal": 1,
+  "kind": "point_comment",
+  "surface_id": "markdown-workbench-test",
+  "source_url": null,
+  "source_path": "docs/example.md",
+  "coordinate_space": "viewport",
+  "point": { "x": 128, "y": 72 },
+  "bounds": null,
+  "viewport_bounds": null,
+  "page_bounds": null,
+  "selector_candidates": [],
+  "text_excerpt": "",
+  "text_range": null,
+  "role": "",
+  "label": "Opening note",
+  "ancestor_chain": [],
+  "note": "Use this point as the copy edit focus.",
+  "actor": { "role": "human", "id": "operator" },
+  "status": "committed",
+  "lifecycle": {
+    "clearable": true,
+    "committed_at": "2026-05-09T12:00:00.000Z",
+    "resolved_at": null,
+    "rejected_at": null,
+    "recovered_from": null
+  },
+  "capture": {
+    "prepare": {
+      "hide_annotation_controls": true,
+      "keep_target_evidence_visible": true
+    },
+    "restore": {
+      "restore_annotation_controls": true
+    }
+  },
+  "created_at": "2026-05-09T12:00:00.000Z",
+  "updated_at": "2026-05-09T12:00:00.000Z",
+  "metadata": {}
+}

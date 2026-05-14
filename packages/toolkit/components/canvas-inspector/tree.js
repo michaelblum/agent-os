@@ -32,20 +32,141 @@ function getMarks(marksByCanvas, canvasId) {
   return entry?.marks ?? [];
 }
 
-function canvasNode(canvas, marksByCanvas) {
+function surfaceResourcesForCanvas(surfaceResources, canvasId) {
+  if (!surfaceResources) return []
+  const affordances = (surfaceResources.affordances || [])
+    .filter((affordance) => affordance.ownerCanvasId === canvasId)
+    .map((affordance) => ({
+      type: 'surface_affordance',
+      id: affordance.id,
+      label: affordance.id,
+      affordance,
+      children: [
+        ...(surfaceResources.stageLayers || [])
+          .filter((layer) => affordance.stageLayerIds.includes(layer.id))
+          .map((layer) => ({
+            type: 'stage_layer',
+            id: layer.id,
+            label: layer.label || layer.id,
+            stageLayer: layer,
+            children: [],
+          })),
+        ...(surfaceResources.inputRegions || [])
+          .filter((region) => affordance.inputRegionIds.includes(region.id))
+          .map((region) => ({
+            type: 'input_region',
+            id: region.id,
+            label: region.semanticLabel || region.id,
+            inputRegion: region,
+            children: [],
+          })),
+      ],
+    }))
+
+  const groupedLayerIds = new Set(affordances.flatMap((affordance) => affordance.affordance.stageLayerIds))
+  const groupedRegionIds = new Set(affordances.flatMap((affordance) => affordance.affordance.inputRegionIds))
+  return [
+    ...affordances,
+    ...(surfaceResources.stageLayers || [])
+      .filter((layer) => layer.ownerCanvasId === canvasId && !groupedLayerIds.has(layer.id))
+      .map((layer) => ({
+        type: 'stage_layer',
+        id: layer.id,
+        label: layer.label || layer.id,
+        stageLayer: layer,
+        children: [],
+      })),
+    ...(surfaceResources.inputRegions || [])
+      .filter((region) => region.ownerCanvasId === canvasId && !groupedRegionIds.has(region.id))
+      .map((region) => ({
+        type: 'input_region',
+        id: region.id,
+        label: region.semanticLabel || region.id,
+        inputRegion: region,
+        children: [],
+      })),
+  ]
+}
+
+function orphanSurfaceResourceNodes(surfaceResources, canvases = []) {
+  if (!surfaceResources) return []
+  const canvasIds = new Set(canvases.map((canvas) => canvas.id))
+  const orphanAffordances = (surfaceResources.affordances || [])
+    .filter((affordance) => affordance.ownerCanvasId && !canvasIds.has(affordance.ownerCanvasId))
+    .map((affordance) => ({
+      type: 'surface_affordance',
+      id: affordance.id,
+      label: affordance.id,
+      affordance,
+      children: [
+        ...(surfaceResources.stageLayers || [])
+          .filter((layer) => affordance.stageLayerIds.includes(layer.id))
+          .map((layer) => ({
+            type: 'stage_layer',
+            id: layer.id,
+            label: layer.label || layer.id,
+            stageLayer: layer,
+            children: [],
+          })),
+        ...(surfaceResources.inputRegions || [])
+          .filter((region) => affordance.inputRegionIds.includes(region.id))
+          .map((region) => ({
+            type: 'input_region',
+            id: region.id,
+            label: region.semanticLabel || region.id,
+            inputRegion: region,
+            children: [],
+          })),
+      ],
+    }))
+  const groupedLayerIds = new Set(orphanAffordances.flatMap((affordance) => affordance.affordance.stageLayerIds))
+  const groupedRegionIds = new Set(orphanAffordances.flatMap((affordance) => affordance.affordance.inputRegionIds))
+  const orphanLayers = (surfaceResources.stageLayers || [])
+    .filter((layer) => layer.ownerCanvasId && !canvasIds.has(layer.ownerCanvasId) && !groupedLayerIds.has(layer.id))
+    .map((layer) => ({
+      type: 'stage_layer',
+      id: layer.id,
+      label: layer.label || layer.id,
+      stageLayer: layer,
+      children: [],
+    }))
+  const orphanRegions = (surfaceResources.inputRegions || [])
+    .filter((region) => region.ownerCanvasId && !canvasIds.has(region.ownerCanvasId) && !groupedRegionIds.has(region.id))
+    .map((region) => ({
+      type: 'input_region',
+      id: region.id,
+      label: region.semanticLabel || region.id,
+      inputRegion: region,
+      children: [],
+    }))
+  const children = [...orphanAffordances, ...orphanLayers, ...orphanRegions]
+  return children.length
+    ? [{
+      type: 'surface_resource_group',
+      id: '__surface_resources__',
+      label: 'surface resources',
+      children,
+    }]
+    : []
+}
+
+function canvasNode(canvas, marksByCanvas, surfaceResources) {
   const marks = getMarks(marksByCanvas, canvas.id);
   return {
     type: 'canvas',
     id: canvas.id,
     label: canvas.id,
     canvas,
-    children: marks.map(mark => ({
-      type: 'mark',
-      id: mark.id,
-      label: mark.name,
-      mark,
-      children: [],
-    })),
+    children: [
+      ...surfaceResourcesForCanvas(surfaceResources, canvas.id),
+      ...marks.map(mark => ({
+        type: 'mark',
+        id: mark.id,
+        label: mark.name,
+        mark,
+        children: [],
+      })),
+    ],
   };
 }
 
@@ -53,6 +174,7 @@ export function computeInspectorTree({
   displays = [],
   canvases = [],
   marksByCanvas = new Map(),
+  surfaceResources = null,
 } = {}) {
   if (displays.length === 0) {
     return { type: 'empty', id: null, label: '', children: [] };
@@ -80,10 +202,20 @@ export function computeInspectorTree({
     id: display.id,
     label,
     display,
-    children: (perDisplay.get(display.id) || []).map(c => canvasNode(c, marksByCanvas)),
+    children: (perDisplay.get(display.id) || []).map(c => canvasNode(c, marksByCanvas, surfaceResources)),
   }));
 
-  if (singleDisplay) return displayNodes[0];
+  const orphanResources = orphanSurfaceResourceNodes(surfaceResources, canvases)
+
+  if (singleDisplay) {
+    return {
+      ...displayNodes[0],
+      children: [
+        ...displayNodes[0].children,
+        ...orphanResources,
+      ],
+    };
+  }
 
   return {
     type: 'union',
@@ -91,7 +223,8 @@ export function computeInspectorTree({
     label: 'union',
     children: [
       ...displayNodes,
-      ...unionCanvases.map(c => canvasNode(c, marksByCanvas)),
+      ...orphanResources,
+      ...unionCanvases.map(c => canvasNode(c, marksByCanvas, surfaceResources)),
     ],
   };
 }

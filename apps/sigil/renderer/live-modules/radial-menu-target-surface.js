@@ -1,7 +1,6 @@
 import { toolkitSpecifier } from './content-roots.js';
 
-const { createInteractionSurface } = await import(toolkitSpecifier('runtime/interaction-surface.js'));
-const { desktopWorldToNativePoint } = await import(toolkitSpecifier('runtime/spatial.js'));
+const { createDesktopWorldHitRegionController } = await import(toolkitSpecifier('runtime/desktop-world-hit-region.js'));
 const { normalizeSemanticTarget } = await import(toolkitSpecifier('runtime/semantic-targets.js'));
 
 const DEFAULT_TARGET_MIN_SIZE = 56;
@@ -10,23 +9,6 @@ const DEFAULT_FRAME_PADDING = 10;
 function finite(value, fallback = 0) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
-}
-
-function appendQuery(url, params) {
-    const separator = url.includes('?') ? '&' : '?';
-    const query = new URLSearchParams(params).toString();
-    return `${url}${separator}${query}`;
-}
-
-function sameFrame(a, b) {
-    return Array.isArray(a)
-        && Array.isArray(b)
-        && a.length >= 4
-        && b.length >= 4
-        && a[0] === b[0]
-        && a[1] === b[1]
-        && a[2] === b[2]
-        && a[3] === b[3];
 }
 
 function safeId(value) {
@@ -41,19 +23,8 @@ function actionForItem(item = {}) {
     return String(item.action || item.id || 'unknown');
 }
 
-function ownerCanvasId() {
-    return (
-        typeof window !== 'undefined'
-        && (window.__aosCanvasId || window.__aosSurfaceCanvasId)
-    ) || 'avatar-main';
-}
-
 function offscreenFrame(size = [1, 1]) {
     return [-10000, -10000, Math.max(1, Math.round(size[0] || 1)), Math.max(1, Math.round(size[1] || 1))];
-}
-
-function normalizeFrame(frame) {
-    return frame.slice(0, 4).map((value) => Math.round(finite(value, 0)));
 }
 
 export function radialMenuTargetsFromSnapshot(snapshot, options = {}) {
@@ -136,32 +107,6 @@ function localizeTargets(targets, worldRect) {
     }));
 }
 
-function payloadKey(payload) {
-    return JSON.stringify({
-        phase: payload.phase,
-        activeItemId: payload.activeItemId,
-        bounds: payload.bounds,
-        items: payload.items.map((item) => [
-            item.id,
-            item.label,
-            item.name,
-            item.action,
-            item.ariaLabel,
-            item.aosRef,
-            item.active,
-            item.x,
-            item.y,
-            item.size,
-        ]),
-    });
-}
-
-function postCanvasMessage(runtime, target, message) {
-    if (typeof runtime?.post === 'function') {
-        runtime.post('canvas.send', { target, message });
-    }
-}
-
 export function createRadialMenuTargetSurface({
     runtime,
     url,
@@ -173,56 +118,46 @@ export function createRadialMenuTargetSurface({
     if (!runtime) throw new Error('RadialMenuTargetSurface requires runtime');
     if (!url) throw new Error('RadialMenuTargetSurface requires url');
 
-    const parent = ownerCanvasId();
-    const surfaceId = id || `${idPrefix}-${Math.random().toString(36).slice(2, 8)}`;
+    const controller = createDesktopWorldHitRegionController({
+        runtime,
+        url,
+        id,
+        idPrefix,
+        fallbackOwnerCanvasId: 'avatar-main',
+        windowLevel: 'screen_saver',
+        messageType: 'radial_menu.surface.update',
+    });
     const state = {
-        id: surfaceId,
-        parent,
+        id: controller.id,
+        parent: controller.parent,
         ready: false,
         creating: false,
         interactive: false,
         frame: offscreenFrame([1, 1]),
         targets: [],
-        lastPayloadKey: null,
         pendingSnapshot: null,
         pendingDisplays: [],
     };
-    const surface = createInteractionSurface({
-        runtime,
-        id: surfaceId,
-        url: appendQuery(url, { parent, id: surfaceId }),
-        parent,
-        frame: state.frame,
-        interactive: false,
-        windowLevel: 'screen_saver',
-    });
+
+    function syncControllerState() {
+        const snapshot = controller.snapshot();
+        state.ready = snapshot.ready;
+        state.creating = snapshot.creating;
+        state.interactive = snapshot.interactive;
+        state.frame = snapshot.frame || offscreenFrame([1, 1]);
+    }
 
     async function ensureCreated() {
         if (state.ready || state.creating) return state.id;
         state.creating = true;
         try {
-            await surface.ensureCreated();
-            state.ready = true;
+            await controller.ensureCreated();
+            syncControllerState();
             return state.id;
-        } catch (error) {
-            if (String(error?.message || error).includes('DUPLICATE')) {
-                state.ready = true;
-                return state.id;
-            }
-            throw error;
         } finally {
             state.creating = false;
+            syncControllerState();
         }
-    }
-
-    function sendUpdate(payload) {
-        const key = payloadKey(payload);
-        if (key === state.lastPayloadKey) return;
-        state.lastPayloadKey = key;
-        postCanvasMessage(runtime, state.id, {
-            type: 'radial_menu.surface.update',
-            payload,
-        });
     }
 
     function applySnapshot(snapshot, displays = []) {
@@ -233,46 +168,40 @@ export function createRadialMenuTargetSurface({
             parentCanvasId: state.parent,
         });
         if (targets.length === 0) {
-            if (state.interactive) {
-                const disabledFrame = offscreenFrame([state.frame[2], state.frame[3]]);
-                surface.setPlacement(disabledFrame, false);
-                state.frame = disabledFrame;
-                state.interactive = false;
-                state.targets = [];
-            }
-            sendUpdate({
+            state.targets = [];
+            const changed = controller.disable({ payload: {
                 phase: snapshot?.phase || 'idle',
                 activeItemId: null,
                 bounds: { x: 0, y: 0, w: 1, h: 1 },
                 items: [],
-            });
-            return false;
+            } });
+            syncControllerState();
+            return changed && state.interactive;
         }
 
         const worldRect = radialMenuWorldRect(targets, { padding: framePadding });
         if (!worldRect) return false;
-        const nativeOrigin = desktopWorldToNativePoint({ x: worldRect.x, y: worldRect.y }, displays) || { x: worldRect.x, y: worldRect.y };
-        const frame = normalizeFrame([nativeOrigin.x, nativeOrigin.y, worldRect.w, worldRect.h]);
-        if (!sameFrame(frame, state.frame) || !state.interactive) {
-            surface.setPlacement(frame, true);
-            state.frame = frame;
-            state.interactive = true;
-        }
         state.targets = localizeTargets(targets, worldRect);
-        sendUpdate({
+        const changed = controller.sync({
+            worldRect,
+            displays,
+            interactive: true,
+            payload: {
             phase: snapshot.phase,
             activeItemId: snapshot.activeItemId || null,
             bounds: {
                 x: 0,
                 y: 0,
-                w: frame[2],
-                h: frame[3],
+                w: Math.round(worldRect.w),
+                h: Math.round(worldRect.h),
                 worldX: worldRect.x,
                 worldY: worldRect.y,
             },
             items: state.targets,
+            },
         });
-        return true;
+        syncControllerState();
+        return changed;
     }
 
     function sync(snapshot, options = {}) {
@@ -295,10 +224,14 @@ export function createRadialMenuTargetSurface({
         return applySnapshot(null, state.pendingDisplays);
     }
 
+    function refreshPayload() {
+        return controller.refreshPayload?.() || false;
+    }
+
     async function remove() {
         if (!state.ready && !state.creating) return;
         try {
-            await surface.remove();
+            await controller.remove();
         } finally {
             state.ready = false;
             state.creating = false;
@@ -333,6 +266,7 @@ export function createRadialMenuTargetSurface({
         ensureCreated,
         sync,
         disable,
+        refreshPayload,
         remove,
         snapshot,
     };

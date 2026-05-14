@@ -24,7 +24,31 @@ function pointFromEvent(event = {}) {
   return { x, y, valid: true }
 }
 
-function sourceName(options = {}) {
+function normalizeSourceIdentity(rawEvent = {}, options = {}) {
+  const identity = options.sourceIdentity || rawEvent.sourceIdentity || null
+  const sourceOrigin = identity?.sourceOrigin
+    || identity?.source_origin
+    || rawEvent.sourceOrigin
+    || rawEvent.source_origin
+    || null
+  const sourceCanvasId = identity?.sourceCanvasId
+    || identity?.source_canvas_id
+    || rawEvent.sourceCanvasId
+    || rawEvent.source_canvas_id
+    || null
+  const ownerCanvasId = identity?.ownerCanvasId
+    || identity?.owner_canvas_id
+    || rawEvent.ownerCanvasId
+    || rawEvent.owner_canvas_id
+    || null
+  if (!sourceOrigin && !sourceCanvasId && !ownerCanvasId) return null
+  return { sourceOrigin, sourceCanvasId, ownerCanvasId }
+}
+
+function sourceName(rawEvent = {}, options = {}) {
+  const identity = normalizeSourceIdentity(rawEvent, options)
+  if (identity?.sourceCanvasId) return `${identity.sourceOrigin || 'canvas'}:${identity.sourceCanvasId}`
+  if (identity?.sourceOrigin) return identity.sourceOrigin
   return options.source || (options.assumeInside ? 'hit' : 'global')
 }
 
@@ -74,7 +98,7 @@ export function createDesktopWorldInteractionRouter(options = {}) {
       cancel_reason: reason,
       cancelReason: reason,
       ...rawEvent,
-    }, { source: current.source })
+    }, { source: current.source, sourceIdentity: current.sourceIdentity })
     capture = null
     suppressNextOutsideUp = true
     return true
@@ -119,11 +143,13 @@ export function createDesktopWorldInteractionRouter(options = {}) {
 
   function dispatch(region, phase, rawEvent, routeOptions = {}) {
     const point = pointFromEvent(rawEvent)
+    const identity = normalizeSourceIdentity(rawEvent, routeOptions)
     return region.onPointer({
       ...rawEvent,
       phase,
       point,
-      source: sourceName(routeOptions),
+      source: sourceName(rawEvent, routeOptions),
+      sourceIdentity: identity,
       regionId: region.id,
       captured: capture?.region?.id === region.id,
       captureId: capture?.region?.id === region.id ? capture.captureId : null,
@@ -134,16 +160,18 @@ export function createDesktopWorldInteractionRouter(options = {}) {
     const handler = options.onOutsidePointer
     if (typeof handler !== 'function') return false
     const point = pointFromEvent(rawEvent)
+    const identity = normalizeSourceIdentity(rawEvent, routeOptions)
     return handler({
       ...rawEvent,
       phase,
       point,
-      source: sourceName(routeOptions),
+      source: sourceName(rawEvent, routeOptions),
+      sourceIdentity: identity,
     }) !== false
   }
 
   function updateHover(rawEvent, routeOptions = {}) {
-    const source = sourceName(routeOptions)
+    const source = sourceName(rawEvent, routeOptions)
     const point = pointFromEvent(rawEvent)
     const previous = hoverBySource.get(source) || null
     const nextRegion = pickRegion(point, routeOptions)
@@ -168,7 +196,8 @@ export function createDesktopWorldInteractionRouter(options = {}) {
   function route(rawEvent = {}, routeOptions = {}) {
     const phase = routeOptions.phase || pointerPhase(rawEvent.type)
     if (!phase) return false
-    const source = sourceName(routeOptions)
+    const source = sourceName(rawEvent, routeOptions)
+    const sourceIdentity = normalizeSourceIdentity(rawEvent, routeOptions)
     const point = pointFromEvent(rawEvent)
 
     if (capture) {
@@ -191,6 +220,7 @@ export function createDesktopWorldInteractionRouter(options = {}) {
         capture = {
           region,
           source,
+          sourceIdentity,
           captureId: routeOptions.captureId || rawEvent.capture_id || rawEvent.captureId || defaultCaptureId(rawEvent, region),
         }
         outsidePointerDown = false
@@ -231,6 +261,7 @@ export function createDesktopWorldInteractionRouter(options = {}) {
     return {
       capturedRegionId: capture?.region?.id || null,
       capturedSource: capture?.source || null,
+      capturedSourceIdentity: capture?.sourceIdentity || null,
       hoveredRegions: [...hoverBySource.entries()].map(([source, hovered]) => ({
         source,
         regionId: hovered?.region?.id || null,

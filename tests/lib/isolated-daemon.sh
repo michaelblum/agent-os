@@ -167,6 +167,13 @@ aos_test_start_daemon() {
   local root="$1"
   shift
 
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  # Isolated daemon tests still need the branch-scoped content roots used by
+  # component launch scripts, otherwise launches may restart the test daemon.
+  # shellcheck source=/dev/null
+  source "$repo_root/scripts/aos-content-scope.sh"
+
   local content_wait_args=()
   while (( $# > 0 )); do
     local name="$1"
@@ -174,6 +181,16 @@ aos_test_start_daemon() {
     shift 2
     ./aos set "content.roots.${name}" "$path" >/dev/null
     content_wait_args+=(--root "$name")
+    case "$name" in
+      toolkit|sigil|repo)
+        local scoped_name
+        scoped_name="$(aos_content_root_key_for "$name" "$repo_root")"
+        if [[ "$scoped_name" != "$name" ]]; then
+          ./aos set "content.roots.${scoped_name}" "$path" >/dev/null
+          content_wait_args+=(--root "$scoped_name")
+        fi
+        ;;
+    esac
   done
 
   aos_test_record_permissions_setup_if_granted

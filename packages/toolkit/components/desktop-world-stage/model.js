@@ -168,3 +168,36 @@ export function desktopWorldStageSnapshot(state) {
     layers: stageLayerList(state).map((layer) => ({ ...layer, frame: [...layer.frame] })),
   }
 }
+
+export function desktopWorldStageRegistry(state, { canvasId = 'aos-desktop-world-stage' } = {}) {
+  return {
+    type: 'canvas_object.registry',
+    schema_version: '2026-05-03',
+    canvas_id: canvasId,
+    objects: stageLayerList(state).map((layer) => ({
+      object_id: `desktop_world_stage.layer:${layer.id}`,
+      name: layer.label || layer.id,
+      kind: 'desktop_world_stage.layer',
+      capabilities: [],
+      visible: layer.visible !== false,
+      units: {
+        position: 'desktop_world',
+        scale: 'none',
+        rotation: 'none',
+      },
+      descriptors: {
+        geometry: `Inspector-only DesktopWorld stage layer ${layer.id}.`,
+      },
+      metadata: {
+        ...layer.metadata,
+        inspector_only: true,
+        inspector_surface_resource_type: 'desktop_world_stage_layer',
+        stage_layer_id: layer.id,
+        stage_layer_kind: layer.kind,
+        label: layer.label,
+        frame: [...layer.frame],
+        zIndex: layer.zIndex,
+      },
+    })),
+  }
+}

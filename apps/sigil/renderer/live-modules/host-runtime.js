@@ -118,6 +118,19 @@ export function createHostRuntime() {
                 },
             });
         },
+        inputRegionRegister(region) {
+            return request('input_region.register', region);
+        },
+        inputRegionUpdate(region) {
+            return request('input_region.update', region);
+        },
+        inputRegionRemove(id) {
+            return request('input_region.remove', { id }, {
+                mapResult() {
+                    return undefined;
+                },
+            });
+        },
         canvasSuspend(id) {
             return request('canvas.suspend', { id }, {
                 mapResult() {

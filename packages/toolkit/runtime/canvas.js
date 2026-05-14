@@ -8,8 +8,20 @@ import { emit, wireBridge } from './bridge.js'
 const pending = new Map()  // request_id → { resolve, reject, timer }
 let routerInstalled = false
 
+export const CANVAS_LIFECYCLE_STATES = Object.freeze({
+  COLD: 'cold',
+  WARMING: 'warming',
+  WARM_SUSPENDED: 'warm_suspended',
+  ACTIVE: 'active',
+  SUSPENDED: 'suspended',
+  REMOVED: 'removed',
+})
+
 function installResponseRouter() {
-  if (routerInstalled) return
+  if (routerInstalled) {
+    wireBridge()
+    return
+  }
   routerInstalled = true
   wireBridge((msg) => {
     if (msg?.type !== 'canvas.response') return
@@ -55,6 +67,175 @@ export function spawnChild(opts) {
   })
 }
 
+const WARM_READY_SCRIPT = `JSON.stringify({
+  readyState: document.readyState,
+  manifest: window.headsup && window.headsup.manifest || null,
+  ready: document.readyState === 'interactive' || document.readyState === 'complete'
+})`
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function parseReadyResult(result) {
+  if (typeof result !== 'string' || !result) return { ready: false, manifest: null, readyState: null }
+  try {
+    const parsed = JSON.parse(result)
+    return {
+      ready: Boolean(parsed?.ready),
+      manifest: parsed?.manifest || null,
+      readyState: parsed?.readyState || null,
+    }
+  } catch {
+    return { ready: false, manifest: null, readyState: null }
+  }
+}
+
+export async function waitForCanvasReady(id, {
+  timeoutMs = 5000,
+  intervalMs = 50,
+  evalTimeoutMs = 500,
+  requireManifest = false,
+} = {}) {
+  const deadline = Date.now() + timeoutMs
+  let last = { ready: false, manifest: null, readyState: null }
+  let lastError = null
+
+  while (Date.now() <= deadline) {
+    try {
+      last = parseReadyResult(await evalCanvas(id, WARM_READY_SCRIPT, { timeoutMs: evalTimeoutMs }))
+      if (last.ready && (!requireManifest || last.manifest)) {
+        return { id, ...last }
+      }
+    } catch (error) {
+      lastError = error
+    }
+    await sleep(intervalMs)
+  }
+
+  const detail = lastError ? `; last error: ${lastError.message || lastError}` : ''
+  throw new Error(`TIMEOUT: canvas.ready ${id} (${timeoutMs}ms)${detail}`)
+}
+
+function normalizeCanvasInfoResponse(msg = {}) {
+  const canvas = msg.canvas || null
+  const ready = msg.ready || {}
+  const manifest = ready.manifest || canvas?.ready_manifest || canvas?.manifest || null
+  const lifecycleState = ready.lifecycle_state || canvas?.lifecycle_state || canvas?.lifecycleState || null
+  const suspended = ready.suspended ?? canvas?.suspended ?? null
+  return {
+    id: canvas?.id || msg.id || null,
+    exists: msg.exists !== false && Boolean(canvas || msg.exists),
+    canvas,
+    ready: Boolean(ready.ready || manifest),
+    manifest,
+    lifecycle_state: lifecycleState,
+    suspended,
+  }
+}
+
+export function canvasInfo(id, opts = {}) {
+  const payload = {}
+  if (id) payload.id = id
+  return rpc('canvas.info', payload, {
+    timeoutMs: opts.timeoutMs ?? 1000,
+    mapResult: normalizeCanvasInfoResponse,
+  })
+}
+
+export async function waitForCanvasStatusReady(id, {
+  timeoutMs = 5000,
+  intervalMs = 50,
+  infoTimeoutMs = 500,
+  requireManifest = false,
+  manifestName = null,
+  allowedLifecycleStates = [
+    CANVAS_LIFECYCLE_STATES.ACTIVE,
+    CANVAS_LIFECYCLE_STATES.WARM_SUSPENDED,
+    CANVAS_LIFECYCLE_STATES.SUSPENDED,
+  ],
+} = {}) {
+  const deadline = Date.now() + timeoutMs
+  let last = null
+  let lastError = null
+
+  while (Date.now() <= deadline) {
+    try {
+      last = await canvasInfo(id, { timeoutMs: infoTimeoutMs })
+      const lifecycleOk = !allowedLifecycleStates
+        || allowedLifecycleStates.length === 0
+        || allowedLifecycleStates.includes(last.lifecycle_state)
+      const manifestOk = !requireManifest
+        || Boolean(last.manifest && (!manifestName || last.manifest.name === manifestName))
+      if (last.exists && lifecycleOk && manifestOk) {
+        return { id, ...last }
+      }
+    } catch (error) {
+      lastError = error
+    }
+    await sleep(intervalMs)
+  }
+
+  const detail = lastError ? `; last error: ${lastError.message || lastError}` : ''
+  const observed = last ? `; last status: ${JSON.stringify(last)}` : ''
+  throw new Error(`TIMEOUT: canvas.info ${id} (${timeoutMs}ms)${observed}${detail}`)
+}
+
+export async function warmCanvas({
+  id,
+  url,
+  frame,
+  at,
+  interactive = true,
+  focus = false,
+  parent,
+  cascade = true,
+  timeoutMs = 5000,
+  intervalMs = 50,
+  evalTimeoutMs = 500,
+  requireManifest = false,
+  cleanupOnFailure = true,
+  ...rest
+} = {}) {
+  if (!id) throw new Error('warmCanvas requires id')
+  if (!url) throw new Error('warmCanvas requires url')
+  const resolvedFrame = frame || at
+  if (!Array.isArray(resolvedFrame) || resolvedFrame.length !== 4) {
+    throw new Error('warmCanvas requires frame [x,y,w,h]')
+  }
+
+  try {
+    await spawnChild({
+      ...rest,
+      id,
+      url,
+      frame: resolvedFrame,
+      interactive,
+      focus,
+      parent,
+      cascade,
+      suspended: true,
+    })
+    const ready = await waitForCanvasReady(id, {
+      timeoutMs,
+      intervalMs,
+      evalTimeoutMs,
+      requireManifest,
+    })
+    return {
+      id,
+      lifecycle_state: CANVAS_LIFECYCLE_STATES.WARM_SUSPENDED,
+      suspended: true,
+      ready,
+    }
+  } catch (error) {
+    if (cleanupOnFailure) {
+      try { await removeCanvas(id, { orphan_children: true }) } catch {}
+    }
+    throw error
+  }
+}
+
 export function mutateSelf(opts) {
   // opts: { frame?: [x,y,w,h], interactive?: bool }
   // fire-and-forget; daemon defaults id to caller (this canvas) when omitted
@@ -64,6 +245,16 @@ export function mutateSelf(opts) {
 export function removeSelf(opts = {}) {
   // opts: { orphan_children?: bool }
   return rpc('canvas.remove', opts, {
+    mapResult() {
+      return undefined
+    },
+  })
+}
+
+export function removeCanvas(id, opts = {}) {
+  const payload = { ...opts }
+  if (id) payload.id = id
+  return rpc('canvas.remove', payload, {
     mapResult() {
       return undefined
     },

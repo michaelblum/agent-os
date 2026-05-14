@@ -51,7 +51,7 @@ bash packages/toolkit/components/canvas-inspector/launch.sh >/dev/null
 python3 - <<'PY'
 import json, subprocess
 payload = json.loads(subprocess.check_output([
-    "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
+    "./aos", "show", "eval", "--id", "surface-inspector", "--js",
     'document.body.textContent.replace(/\\s+/g," ").trim()'
 ], text=True))
 text = payload.get("result") or ""
@@ -70,7 +70,7 @@ png_path = pathlib.Path(sys.argv[1])
 json_path = pathlib.Path(sys.argv[2])
 capture = json.loads(subprocess.check_output([
     "./aos", "see", "capture",
-    "--canvas", "canvas-inspector",
+    "--canvas", "surface-inspector",
     "--perception",
     "--out", str(png_path),
 ], text=True))
@@ -99,7 +99,7 @@ if other is None:
     raise SystemExit(0)
 
 show = run("show", "list", "--json")
-canvas = next(c for c in show["canvases"] if c["id"] == "canvas-inspector")
+canvas = next(c for c in show["canvases"] if c["id"] == "surface-inspector")
 x, y, w, h = canvas["at"]
 
 safe_offset_x = 100
@@ -115,7 +115,7 @@ subprocess.run(
 )
 
 show = run("show", "list", "--json")
-canvas = next(c for c in show["canvases"] if c["id"] == "canvas-inspector")
+canvas = next(c for c in show["canvases"] if c["id"] == "surface-inspector")
 new_x, new_y, new_w, new_h = canvas["at"]
 
 if (new_x, new_y) == (x, y):
@@ -132,7 +132,7 @@ if not (ox <= new_x < ox + ow and oy <= new_y < oy + oh):
     raise SystemExit(1)
 
 layout = json.loads(run(
-    "show", "eval", "--id", "canvas-inspector", "--js",
+    "show", "eval", "--id", "surface-inspector", "--js",
     'JSON.stringify((() => { const map = document.querySelector(".minimap"); const selfRect = document.querySelector(".minimap-canvas.self"); const selfDims = document.querySelector(".tree-row.canvas.self .canvas-dims"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, self: selfRect ? { left: parseInt(selfRect.style.left, 10), top: parseInt(selfRect.style.top, 10), width: parseInt(selfRect.style.width, 10), height: parseInt(selfRect.style.height, 10) } : null, selfDims: selfDims?.textContent ?? null, displayRects: [...document.querySelectorAll(".minimap-display")].map(el => ({ left: parseInt(el.style.left, 10), top: parseInt(el.style.top, 10), width: parseInt(el.style.width, 10), height: parseInt(el.style.height, 10) })) }; })())'
 )["result"])
 

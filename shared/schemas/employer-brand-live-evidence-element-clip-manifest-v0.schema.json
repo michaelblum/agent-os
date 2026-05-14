@@ -1,0 +1,461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-live-evidence-element-clip-manifest-v0.schema.json",
+  "title": "Employer Brand Live Evidence Element Clip Manifest v0",
+  "description": "Manifest for the supervised live element capture slice. V0 records only reviewed locator-ready live captures, element clips, required text extracts, blocked/not-run context, and verifier metadata proving no full-page grabs, report rendering, export, workflow automation, crawling, or bypass work was performed.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "source_refs",
+    "capture_plan",
+    "summary",
+    "entries",
+    "controls",
+    "acceptance",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_live_evidence_element_clip_manifest"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-live-evidence-element-clip-manifest-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "enum": [
+        "captured",
+        "captured_with_blocked_context",
+        "not_accepted"
+      ]
+    },
+    "source_refs": {
+      "type": "object"
+    },
+    "capture_plan": {
+      "type": "object",
+      "required": [
+        "id",
+        "path",
+        "schema"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "path": {
+          "enum": [
+            "live-evidence-reviewed-locator-capture-plan.json",
+            "live-evidence-repaired-locator-capture-plan.json"
+          ]
+        },
+        "schema": {
+          "enum": [
+            "shared/schemas/employer-brand-live-evidence-reviewed-locator-capture-plan-v0.schema.json",
+            "shared/schemas/employer-brand-live-evidence-repaired-locator-capture-plan-v0.schema.json"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "executable_unit_count",
+        "planned_output_slot_count",
+        "captured_slot_count",
+        "failed_slot_count",
+        "blocked_not_run_count",
+        "total_manifest_entry_count",
+        "full_page_grab_count",
+        "text_extract_required_count",
+        "text_extract_present_count",
+        "acceptance_passed"
+      ],
+      "properties": {
+        "executable_unit_count": {
+          "const": 4
+        },
+        "planned_output_slot_count": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 5
+        },
+        "captured_slot_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_slot_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked_not_run_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_manifest_entry_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "full_page_grab_count": {
+          "const": 0
+        },
+        "text_extract_required_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text_extract_present_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acceptance_passed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    },
+    "controls": {
+      "type": "object",
+      "required": [
+        "explicit_execution_gate",
+        "live_element_capture_authorized",
+        "reviewed_locator_only",
+        "approved_original_or_final_url_only",
+        "full_page_grabs_authorized",
+        "autonomous_crawl_authorized",
+        "locator_codegen_authorized",
+        "locator_discovery_authorized",
+        "report_renderer_authorized",
+        "export_execution_authorized",
+        "workflow_engine_authorized",
+        "login_bypass_authorized",
+        "paywall_bypass_authorized",
+        "captcha_bypass_authorized",
+        "consent_bypass_authorized"
+      ],
+      "properties": {
+        "explicit_execution_gate": {
+          "enum": [
+            "execute-reviewed-live-element-capture-v0",
+            "execute-repaired-live-element-capture-v0"
+          ]
+        },
+        "live_element_capture_authorized": {
+          "const": true
+        },
+        "reviewed_locator_only": {
+          "const": true
+        },
+        "approved_original_or_final_url_only": {
+          "const": true
+        },
+        "full_page_grabs_authorized": {
+          "const": false
+        },
+        "autonomous_crawl_authorized": {
+          "const": false
+        },
+        "locator_codegen_authorized": {
+          "const": false
+        },
+        "locator_discovery_authorized": {
+          "const": false
+        },
+        "report_renderer_authorized": {
+          "const": false
+        },
+        "export_execution_authorized": {
+          "const": false
+        },
+        "workflow_engine_authorized": {
+          "const": false
+        },
+        "login_bypass_authorized": {
+          "const": false
+        },
+        "paywall_bypass_authorized": {
+          "const": false
+        },
+        "captcha_bypass_authorized": {
+          "const": false
+        },
+        "consent_bypass_authorized": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "acceptance": {
+      "type": "object",
+      "required": [
+        "count_reconciliation_passed",
+        "full_page_grab_false",
+        "text_extracts_present_when_required",
+        "target_work_unit_linkage_present",
+        "locator_provenance_present",
+        "kilos_citation_metadata_present"
+      ],
+      "properties": {
+        "count_reconciliation_passed": {
+          "type": "boolean"
+        },
+        "full_page_grab_false": {
+          "const": true
+        },
+        "text_extracts_present_when_required": {
+          "type": "boolean"
+        },
+        "target_work_unit_linkage_present": {
+          "type": "boolean"
+        },
+        "locator_provenance_present": {
+          "type": "boolean"
+        },
+        "kilos_citation_metadata_present": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "manifest_path",
+        "read_only_captured_evidence",
+        "no_full_page_grabs",
+        "no_report_rendering",
+        "no_export_work",
+        "no_workflow_automation",
+        "non_goals"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "manifest_path": {
+          "const": "source-artifacts/live-evidence-element-clip-manifest.json"
+        },
+        "read_only_captured_evidence": {
+          "const": true
+        },
+        "no_full_page_grabs": {
+          "const": true
+        },
+        "no_report_rendering": {
+          "const": true
+        },
+        "no_export_work": {
+          "const": true
+        },
+        "no_workflow_automation": {
+          "const": true
+        },
+        "non_goals": {
+          "$ref": "#/$defs/string_array"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "string_array": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/non_empty_string"
+      }
+    },
+    "kilos_relevance": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "kinship",
+          "impact",
+          "lifestyle",
+          "opportunity",
+          "status"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "entry": {
+      "type": "object",
+      "required": [
+        "slot_id",
+        "target_id",
+        "work_unit_id",
+        "company",
+        "company_role",
+        "source_category",
+        "original_url",
+        "final_url",
+        "reviewed_locator",
+        "locator_provenance",
+        "capture_type",
+        "clip_path",
+        "text_extract_path",
+        "text_extract_content",
+        "kilos_relevance",
+        "citation_source_metadata",
+        "acceptance_criteria_refs",
+        "citation_refs",
+        "capture_timestamp",
+        "full_page_grab",
+        "status",
+        "blocker_reason",
+        "capture_metadata",
+        "acceptance_checks",
+        "provenance"
+      ],
+      "properties": {
+        "slot_id": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "work_unit_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "company_role": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "source_category": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "original_url": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "final_url": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "reviewed_locator": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "locator_provenance": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "capture_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "clip_path": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "text_extract_path": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "text_extract_content": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "kilos_relevance": {
+          "$ref": "#/$defs/kilos_relevance"
+        },
+        "citation_source_metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "acceptance_criteria_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "citation_refs": {
+          "$ref": "#/$defs/string_array"
+        },
+        "capture_timestamp": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "full_page_grab": {
+          "const": false
+        },
+        "status": {
+          "enum": [
+            "captured",
+            "failed",
+            "blocked_not_run"
+          ]
+        },
+        "blocker_reason": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "required_next_action": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "retry_eligibility": {
+          "$ref": "#/$defs/nullable_string"
+        },
+        "capture_metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "acceptance_checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "status"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "status": {
+                "enum": [
+                  "pass",
+                  "fail"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "provenance": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

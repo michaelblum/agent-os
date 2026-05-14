@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/employer-brand-live-evidence-human-locator-approval-patch-v0.schema.json",
+  "title": "Employer Brand Human Locator Approval Patch v0",
+  "description": "Data-only human/operator locator decisions that can promote reviewed locator targets to locator_ready without executing locators or opening URLs.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "id",
+    "label",
+    "status",
+    "review_pack_ref",
+    "reviewer",
+    "reviewed_at",
+    "decisions",
+    "controls",
+    "provenance"
+  ],
+  "properties": {
+    "type": {
+      "const": "aos.employer_brand_live_evidence_human_locator_approval_patch"
+    },
+    "schema_version": {
+      "const": "2026-05-employer-brand-live-evidence-human-locator-approval-patch-v0"
+    },
+    "id": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "label": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "status": {
+      "const": "reviewed"
+    },
+    "review_pack_ref": {
+      "type": "object",
+      "required": [
+        "review_pack_id",
+        "review_pack_path",
+        "review_pack_schema",
+        "read_only",
+        "planning_metadata_only"
+      ],
+      "properties": {
+        "review_pack_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "review_pack_path": {
+          "const": "live-evidence-human-locator-review-pack.json"
+        },
+        "review_pack_schema": {
+          "const": "shared/schemas/employer-brand-live-evidence-human-locator-review-pack-v0.schema.json"
+        },
+        "read_only": {
+          "const": true
+        },
+        "planning_metadata_only": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "required": [
+        "reviewer_id",
+        "reviewer_name",
+        "reviewer_role"
+      ],
+      "properties": {
+        "reviewer_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "reviewer_name": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "reviewer_role": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewed_at": {
+      "$ref": "#/$defs/non_empty_string"
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/decision"
+      }
+    },
+    "controls": {
+      "$ref": "#/$defs/non_goal_flags"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "nullable_string": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_name": {
+      "enum": [
+        "approve_selector",
+        "edit_selector",
+        "provide_xpath",
+        "provide_playwright_locator",
+        "refine_natural_language_target",
+        "mark_blocked",
+        "keep_draft",
+        "reject_target"
+      ]
+    },
+    "locator": {
+      "type": "object",
+      "properties": {
+        "selector": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "xpath": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "playwright_locator": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "review_item_id",
+        "target_id",
+        "work_unit_id",
+        "decision",
+        "locator",
+        "human_notes"
+      ],
+      "properties": {
+        "review_item_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "target_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "work_unit_id": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "decision": {
+          "$ref": "#/$defs/decision_name"
+        },
+        "locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "refined_desired_element": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "blocker_reason": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "human_notes": {
+          "$ref": "#/$defs/nullable_string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "non_goal_flags": {
+      "type": "object",
+      "required": [
+        "locator_execution",
+        "codegen_execution",
+        "url_opening",
+        "screenshot_capture",
+        "element_clip_generation",
+        "capture_execution",
+        "report_rendering",
+        "export_execution",
+        "workflow_engine",
+        "full_page_grabs",
+        "autonomous_crawling",
+        "bypasses"
+      ],
+      "properties": {
+        "locator_execution": {
+          "const": false
+        },
+        "codegen_execution": {
+          "const": false
+        },
+        "url_opening": {
+          "const": false
+        },
+        "screenshot_capture": {
+          "const": false
+        },
+        "element_clip_generation": {
+          "const": false
+        },
+        "capture_execution": {
+          "const": false
+        },
+        "report_rendering": {
+          "const": false
+        },
+        "export_execution": {
+          "const": false
+        },
+        "workflow_engine": {
+          "const": false
+        },
+        "full_page_grabs": {
+          "const": false
+        },
+        "autonomous_crawling": {
+          "const": false
+        },
+        "bypasses": {
+          "const": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_at",
+        "explicit_human_locator_approval_required",
+        "unconfirmed_machine_candidates_do_not_promote",
+        "read_only",
+        "planning_metadata_only",
+        "no_locator_execution",
+        "no_codegen_execution",
+        "no_url_opening",
+        "no_screenshots",
+        "no_element_clips",
+        "no_capture_execution",
+        "no_report_renderer",
+        "no_export_work",
+        "no_workflow_engine",
+        "no_full_page_grabs",
+        "no_autonomous_crawling_or_bypasses"
+      ],
+      "properties": {
+        "created_at": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "explicit_human_locator_approval_required": {
+          "const": true
+        },
+        "unconfirmed_machine_candidates_do_not_promote": {
+          "const": true
+        },
+        "read_only": {
+          "const": true
+        },
+        "planning_metadata_only": {
+          "const": true
+        },
+        "no_locator_execution": {
+          "const": true
+        },
+        "no_codegen_execution": {
+          "const": true
+        },
+        "no_url_opening": {
+          "const": true
+        },
+        "no_screenshots": {
+          "const": true
+        },
+        "no_element_clips": {
+          "const": true
+        },
+        "no_capture_execution": {
+          "const": true
+        },
+        "no_report_renderer": {
+          "const": true
+        },
+        "no_export_work": {
+          "const": true
+        },
+        "no_workflow_engine": {
+          "const": true
+        },
+        "no_full_page_grabs": {
+          "const": true
+        },
+        "no_autonomous_crawling_or_bypasses": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

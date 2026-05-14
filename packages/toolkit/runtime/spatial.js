@@ -404,7 +404,14 @@ export function resolveCanvasFrames(list = []) {
   }))
 }
 
-export function computeMinimapLayout(displays, canvases, mapW, { selfId = 'canvas-inspector', border = 1, inset = 2 } = {}) {
+export function computeMinimapLayout(displays, canvases, mapW, {
+  selfId = 'canvas-inspector',
+  border = 1,
+  inset = 2,
+  maxH = Infinity,
+  minW = 120,
+  minH = 96,
+} = {}) {
   if (!displays || displays.length === 0) return null
   const normalizedDisplays = sortDisplaysSpatially(displays)
   const nativeDesktopBounds = computeNativeDesktopBounds(normalizedDisplays)
@@ -414,27 +421,42 @@ export function computeMinimapLayout(displays, canvases, mapW, { selfId = 'canva
 
   const totalW = Math.max(1, union.w)
   const totalH = Math.max(1, union.h)
-  const contentW = Math.max(1, mapW - border * 2)
+  const requestedW = Math.max(1, Number(mapW) || 1)
+  const boundedMaxH = Number.isFinite(Number(maxH)) ? Math.max(1, Number(maxH)) : Infinity
+  const lowerW = Math.max(1, Number(minW) || 1)
+  const lowerH = Math.max(1, Number(minH) || 1)
+  const contentW = Math.max(1, requestedW - border * 2)
   const innerW = Math.max(1, contentW - inset * 2)
-  const scale = innerW / totalW
-  const contentH = Math.round(totalH * scale) + inset * 2
-  const mapH = contentH + border * 2
+  const maxInnerH = Number.isFinite(boundedMaxH)
+    ? Math.max(1, boundedMaxH - border * 2 - inset * 2)
+    : Infinity
+  const widthScale = innerW / totalW
+  const heightScale = maxInnerH / totalH
+  const scale = Math.min(widthScale, heightScale)
+  const worldW = Math.round(totalW * scale)
+  const worldH = Math.round(totalH * scale)
+  const mapWOut = Math.max(lowerW, worldW + inset * 2 + border * 2)
+  const mapH = Math.max(lowerH, worldH + inset * 2 + border * 2)
+  const offsetX = Math.max(inset, Math.round((mapWOut - border * 2 - worldW) / 2))
+  const offsetY = Math.max(inset, Math.round((mapH - border * 2 - worldH) / 2))
 
   return {
-    mapW,
+    mapW: mapWOut,
     mapH,
     inset,
+    offsetX,
+    offsetY,
     minX: union.x,
     minY: union.y,
     scale,
     displays: normalizedDisplays.map((display) => ({
       display,
-      x: inset + Math.round((display.bounds.x - union.x) * scale),
-      y: inset + Math.round((display.bounds.y - union.y) * scale),
+      x: offsetX + Math.round((display.bounds.x - union.x) * scale),
+      y: offsetY + Math.round((display.bounds.y - union.y) * scale),
       w: Math.round(display.bounds.w * scale),
       h: Math.round(display.bounds.h * scale),
-      visibleX: inset + Math.round((display.visibleBounds.x - union.x) * scale),
-      visibleY: inset + Math.round((display.visibleBounds.y - union.y) * scale),
+      visibleX: offsetX + Math.round((display.visibleBounds.x - union.x) * scale),
+      visibleY: offsetY + Math.round((display.visibleBounds.y - union.y) * scale),
       visibleW: Math.max(1, Math.round(display.visibleBounds.w * scale)),
       visibleH: Math.max(1, Math.round(display.visibleBounds.h * scale)),
     })),
@@ -444,8 +466,8 @@ export function computeMinimapLayout(displays, canvases, mapW, { selfId = 'canva
       if (!rect) return []
       return [{
         canvas,
-        x: inset + Math.round((rect.x - union.x) * scale),
-        y: inset + Math.round((rect.y - union.y) * scale),
+        x: offsetX + Math.round((rect.x - union.x) * scale),
+        y: offsetY + Math.round((rect.y - union.y) * scale),
         w: Math.max(2, Math.round(rect.w * scale)),
         h: Math.max(2, Math.round(rect.h * scale)),
         isSelf: selfId != null && canvas.id === selfId,
@@ -460,7 +482,7 @@ export function projectPointToMinimap(layout, point) {
   const y = asNumber(point.y)
   if (x == null || y == null) return null
   return {
-    x: layout.inset + Math.round((x - layout.minX) * layout.scale),
-    y: layout.inset + Math.round((y - layout.minY) * layout.scale),
+    x: (layout.offsetX ?? layout.inset) + Math.round((x - layout.minX) * layout.scale),
+    y: (layout.offsetY ?? layout.inset) + Math.round((y - layout.minY) * layout.scale),
   }
 }

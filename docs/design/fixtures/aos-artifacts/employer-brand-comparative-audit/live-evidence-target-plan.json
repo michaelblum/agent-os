@@ -1,0 +1,748 @@
+{
+  "type": "aos.employer_brand_live_evidence_target_plan",
+  "schema_version": "2026-05-employer-brand-live-evidence-target-plan-v0",
+  "id": "live-evidence-target-plan:symphony-talent-phenom-radancy",
+  "label": "Symphony Talent Employer Brand Comparative Audit Project Live Evidence Target Plan",
+  "status": "human_review_required",
+  "project_ref": {
+    "project_id": "symphony-talent-phenom-radancy",
+    "project_path": "intake/project.json",
+    "framework": "KILOS",
+    "read_only": true,
+    "planning_metadata_only": true
+  },
+  "expected_totals": {
+    "company_count": 3,
+    "source_category_count": 7,
+    "page_count": 21,
+    "target_count": 21,
+    "expected_clip_count": 21
+  },
+  "targets": [
+    {
+      "target_id": "live-target:symphony-talent:careers-site",
+      "company_id": "company:symphony-talent",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "careers_site",
+      "page_name": "Symphony Talent Careers or jobs site",
+      "url": "https://www.symphonytalent.com/",
+      "target_element": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+      "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+      "kilos_relevance": [
+        "opportunity",
+        "lifestyle"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Careers or jobs site source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:symphony-talent:employer-brand-pages",
+      "company_id": "company:symphony-talent",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "employer_brand_pages",
+      "page_name": "Symphony Talent Employer brand, culture, mission, values, or benefits pages",
+      "url": "https://www.symphonytalent.com/careers/culture",
+      "target_element": "Human-selected page element that best supports the Employer brand, culture, mission, values, or benefits pages evidence goal without capturing the full page.",
+      "evidence_goal": "Capture explicit EVP, culture, values, benefits, and employee promise messaging.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle",
+        "opportunity"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Employer brand, culture, mission, values, or benefits pages source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:symphony-talent:linkedin-presence",
+      "company_id": "company:symphony-talent",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "linkedin_presence",
+      "page_name": "Symphony Talent LinkedIn company, life, and jobs presence",
+      "url": "https://www.linkedin.com/company/symphony-talent/",
+      "target_element": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+      "evidence_goal": "Capture social proof, talent-facing positioning, and active hiring signals.",
+      "kilos_relevance": [
+        "status",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the LinkedIn company, life, and jobs presence source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:symphony-talent:review-platforms",
+      "company_id": "company:symphony-talent",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "review_platforms",
+      "page_name": "Symphony Talent Review platforms",
+      "url": "https://www.glassdoor.com/Search/results.htm?keyword=Symphony%20Talent",
+      "target_element": "Human-selected rating, review-theme, or employee-sentiment element on the chosen review platform page.",
+      "evidence_goal": "Capture employee sentiment, ratings, and recurring themes when available.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Review platforms source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:symphony-talent:social-campaigns",
+      "company_id": "company:symphony-talent",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "social_campaigns",
+      "page_name": "Symphony Talent Social or campaign examples",
+      "url": "https://www.symphonytalent.com/news",
+      "target_element": "Human-selected page element that best supports the Social or campaign examples evidence goal without capturing the full page.",
+      "evidence_goal": "Capture recruiting campaign tone, proof points, and engagement examples.",
+      "kilos_relevance": [
+        "kinship",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Social or campaign examples source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:symphony-talent:awards-recognition",
+      "company_id": "company:symphony-talent",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "awards_recognition",
+      "page_name": "Symphony Talent Awards, rankings, or employer recognition",
+      "url": "https://www.symphonytalent.com/news",
+      "target_element": "Human-selected page element that best supports the Awards, rankings, or employer recognition evidence goal without capturing the full page.",
+      "evidence_goal": "Capture reputation proof points and employer recognition.",
+      "kilos_relevance": [
+        "status",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Awards, rankings, or employer recognition source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:symphony-talent:employee-stories",
+      "company_id": "company:symphony-talent",
+      "company": "Symphony Talent",
+      "company_role": "client",
+      "source_category": "employee_stories",
+      "page_name": "Symphony Talent Employee story or talent community examples",
+      "url": "https://www.symphonytalent.com/careers/employee-stories",
+      "target_element": "Human-selected page element that best supports the Employee story or talent community examples evidence goal without capturing the full page.",
+      "evidence_goal": "Capture lived-experience proof and candidate engagement examples.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle",
+        "opportunity"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Employee story or talent community examples source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:phenom:careers-site",
+      "company_id": "company:phenom",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "careers_site",
+      "page_name": "Phenom Careers or jobs site",
+      "url": "https://www.phenom.com/",
+      "target_element": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+      "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+      "kilos_relevance": [
+        "opportunity",
+        "lifestyle"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Careers or jobs site source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:phenom:employer-brand-pages",
+      "company_id": "company:phenom",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "employer_brand_pages",
+      "page_name": "Phenom Employer brand, culture, mission, values, or benefits pages",
+      "url": "https://www.phenom.com/careers/culture",
+      "target_element": "Human-selected page element that best supports the Employer brand, culture, mission, values, or benefits pages evidence goal without capturing the full page.",
+      "evidence_goal": "Capture explicit EVP, culture, values, benefits, and employee promise messaging.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle",
+        "opportunity"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Employer brand, culture, mission, values, or benefits pages source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:phenom:linkedin-presence",
+      "company_id": "company:phenom",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "linkedin_presence",
+      "page_name": "Phenom LinkedIn company, life, and jobs presence",
+      "url": "https://www.linkedin.com/company/phenom/",
+      "target_element": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+      "evidence_goal": "Capture social proof, talent-facing positioning, and active hiring signals.",
+      "kilos_relevance": [
+        "status",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the LinkedIn company, life, and jobs presence source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:phenom:review-platforms",
+      "company_id": "company:phenom",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "review_platforms",
+      "page_name": "Phenom Review platforms",
+      "url": "https://www.glassdoor.com/Search/results.htm?keyword=Phenom",
+      "target_element": "Human-selected rating, review-theme, or employee-sentiment element on the chosen review platform page.",
+      "evidence_goal": "Capture employee sentiment, ratings, and recurring themes when available.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Review platforms source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:phenom:social-campaigns",
+      "company_id": "company:phenom",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "social_campaigns",
+      "page_name": "Phenom Social or campaign examples",
+      "url": "https://www.phenom.com/news",
+      "target_element": "Human-selected page element that best supports the Social or campaign examples evidence goal without capturing the full page.",
+      "evidence_goal": "Capture recruiting campaign tone, proof points, and engagement examples.",
+      "kilos_relevance": [
+        "kinship",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Social or campaign examples source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:phenom:awards-recognition",
+      "company_id": "company:phenom",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "awards_recognition",
+      "page_name": "Phenom Awards, rankings, or employer recognition",
+      "url": "https://www.phenom.com/news",
+      "target_element": "Human-selected page element that best supports the Awards, rankings, or employer recognition evidence goal without capturing the full page.",
+      "evidence_goal": "Capture reputation proof points and employer recognition.",
+      "kilos_relevance": [
+        "status",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Awards, rankings, or employer recognition source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:phenom:employee-stories",
+      "company_id": "company:phenom",
+      "company": "Phenom",
+      "company_role": "competitor",
+      "source_category": "employee_stories",
+      "page_name": "Phenom Employee story or talent community examples",
+      "url": "https://www.phenom.com/careers/employee-stories",
+      "target_element": "Human-selected page element that best supports the Employee story or talent community examples evidence goal without capturing the full page.",
+      "evidence_goal": "Capture lived-experience proof and candidate engagement examples.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle",
+        "opportunity"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Employee story or talent community examples source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:radancy:careers-site",
+      "company_id": "company:radancy",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "careers_site",
+      "page_name": "Radancy Careers or jobs site",
+      "url": "https://www.radancy.com/en/",
+      "target_element": "Human-selected page element that best supports the Careers or jobs site evidence goal without capturing the full page.",
+      "evidence_goal": "Capture the primary employer value proposition and talent promise.",
+      "kilos_relevance": [
+        "opportunity",
+        "lifestyle"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Careers or jobs site source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:radancy:employer-brand-pages",
+      "company_id": "company:radancy",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "employer_brand_pages",
+      "page_name": "Radancy Employer brand, culture, mission, values, or benefits pages",
+      "url": "https://www.radancy.com/careers/culture",
+      "target_element": "Human-selected page element that best supports the Employer brand, culture, mission, values, or benefits pages evidence goal without capturing the full page.",
+      "evidence_goal": "Capture explicit EVP, culture, values, benefits, and employee promise messaging.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle",
+        "opportunity"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Employer brand, culture, mission, values, or benefits pages source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:radancy:linkedin-presence",
+      "company_id": "company:radancy",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "linkedin_presence",
+      "page_name": "Radancy LinkedIn company, life, and jobs presence",
+      "url": "https://www.linkedin.com/company/radancy/",
+      "target_element": "Human-selected LinkedIn company, life, jobs, or post element that shows talent-facing positioning or hiring proof.",
+      "evidence_goal": "Capture social proof, talent-facing positioning, and active hiring signals.",
+      "kilos_relevance": [
+        "status",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the LinkedIn company, life, and jobs presence source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:radancy:review-platforms",
+      "company_id": "company:radancy",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "review_platforms",
+      "page_name": "Radancy Review platforms",
+      "url": "https://www.glassdoor.com/Search/results.htm?keyword=Radancy",
+      "target_element": "Human-selected rating, review-theme, or employee-sentiment element on the chosen review platform page.",
+      "evidence_goal": "Capture employee sentiment, ratings, and recurring themes when available.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Review platforms source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:radancy:social-campaigns",
+      "company_id": "company:radancy",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "social_campaigns",
+      "page_name": "Radancy Social or campaign examples",
+      "url": "https://www.radancy.com/news",
+      "target_element": "Human-selected page element that best supports the Social or campaign examples evidence goal without capturing the full page.",
+      "evidence_goal": "Capture recruiting campaign tone, proof points, and engagement examples.",
+      "kilos_relevance": [
+        "kinship",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Social or campaign examples source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:radancy:awards-recognition",
+      "company_id": "company:radancy",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "awards_recognition",
+      "page_name": "Radancy Awards, rankings, or employer recognition",
+      "url": "https://www.radancy.com/news",
+      "target_element": "Human-selected page element that best supports the Awards, rankings, or employer recognition evidence goal without capturing the full page.",
+      "evidence_goal": "Capture reputation proof points and employer recognition.",
+      "kilos_relevance": [
+        "status",
+        "impact"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Awards, rankings, or employer recognition source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    },
+    {
+      "target_id": "live-target:radancy:employee-stories",
+      "company_id": "company:radancy",
+      "company": "Radancy",
+      "company_role": "competitor",
+      "source_category": "employee_stories",
+      "page_name": "Radancy Employee story or talent community examples",
+      "url": "https://www.radancy.com/careers/employee-stories",
+      "target_element": "Human-selected page element that best supports the Employee story or talent community examples evidence goal without capturing the full page.",
+      "evidence_goal": "Capture lived-experience proof and candidate engagement examples.",
+      "kilos_relevance": [
+        "kinship",
+        "lifestyle",
+        "opportunity"
+      ],
+      "capture_type": "element_clip_and_text_extract",
+      "expected_clip_count": 1,
+      "acceptance_criteria": [
+        "The captured evidence is scoped to the named element, not the full page.",
+        "The element visibly supports the Employee story or talent community examples source category.",
+        "The element preserves enough surrounding labels or headings to understand the evidence out of context.",
+        "The element can be reviewed against the stated KILOS relevance before capture execution."
+      ],
+      "review_status": "human_review_required",
+      "locator_placeholders": {
+        "selector": null,
+        "xpath": null,
+        "playwright_locator": null,
+        "codegen_hint": null,
+        "crawl_discovery_notes": null,
+        "capture_script_slot": null
+      },
+      "notes": "Draft placeholder seeded from project intake. Human review must confirm the URL and target element before locator work or capture execution."
+    }
+  ],
+  "controls": {
+    "full_page_grabs": false,
+    "autonomous_browsing_authorized": false,
+    "live_collection_authorized": false,
+    "report_renderer_authorized": false,
+    "export_execution_authorized": false,
+    "workflow_engine_authorized": false
+  },
+  "provenance": {
+    "created_at": "2026-05-08T00:00:00Z",
+    "human_authored_contract": true,
+    "planning_metadata_only": true,
+    "read_only": true,
+    "live_evidence_collected": false,
+    "selectors_resolved": false,
+    "non_goals": [
+      "full_page_grabs",
+      "autonomous_browsing",
+      "live_collection",
+      "locator_codegen",
+      "capture_execution",
+      "report_renderer",
+      "export_execution",
+      "workflow_engine"
+    ]
+  }
+}

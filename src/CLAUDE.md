@@ -1,4 +1,5 @@
 @../AGENTS.md
+@AGENTS.md
 
 # aos — Agent Operating System
 
@@ -63,6 +64,12 @@ Before interactive commands (`do`, `see cursor/observe/capture`, `inspect`) will
 
 Interactive commands exit early with `PERMISSIONS_SETUP_REQUIRED` until onboarding completes for the current runtime mode.
 
+If readiness or permissions setup says repo-mode Accessibility/Input Monitoring
+must be removed/re-added, stop the managed daemon first with
+`./aos service stop --mode repo` and wait for `running=false`; then remove/re-add
+`/Users/Michael/Code/agent-os/aos` and return with
+`./aos ready --post-permission`.
+
 See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped state).
 
 ## Usage
@@ -84,6 +91,7 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos do click 500,300            # Click at coordinates
 ./aos do type "hello world"       # Type with natural cadence
 ./aos say "Hello, I'm your agent" # Speak text aloud (sugar for tell human)
+./aos say --voice-slot 1 "Done"   # Speak with nth speakable registry voice
 ./aos say --list-voices           # List available voices
 ./aos voice list                  # Registry-backed voice catalog
 ./aos voice assignments           # Active session-centric voice assignments
@@ -229,8 +237,8 @@ auditions the new voice (does not pin).
 | status_item.toggle_url | string | — | URL loaded in toggled canvas |
 | status_item.toggle_track | string | — | Optional track target (e.g. "union") |
 | status_item.icon | string | "hexagon" | Icon style |
-| see.canvas_inspector_bundle.hotkey | string\|none | ctrl+opt+c | Global hotkey for Canvas Inspector see-bundle export |
-| see.canvas_inspector_bundle.include.{capture_image,capture_metadata,inspector_state,display_geometry,canvas_list,xray} | bool | true except xray=false | Include specific artifacts in the Canvas Inspector see bundle |
+| see.canvas_inspector_bundle.hotkey | string\|none | ctrl+opt+c | Global hotkey for Surface Inspector see-bundle export (legacy namespace) |
+| see.canvas_inspector_bundle.include.{capture_image,capture_metadata,inspector_state,display_geometry,canvas_list,xray} | bool | true except xray=false | Include specific artifacts in the Surface Inspector see bundle |
 
 ### Content Server
 

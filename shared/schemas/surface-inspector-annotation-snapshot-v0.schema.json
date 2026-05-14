@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/surface-inspector-annotation-snapshot-v0.schema.json",
+  "title": "Surface Inspector Annotation Snapshot Artifact V0",
+  "description": "Point-in-time Surface Inspector Annotation Mode state captured as a durable see-bundle artifact.",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "capture",
+    "active_context",
+    "selection",
+    "annotation_mode",
+    "empty_state",
+    "pins",
+    "comments",
+    "hover_candidate",
+    "projection_capabilities",
+    "adapter_capability_summary",
+    "blockers",
+    "reveal",
+    "annotation_scope_stack",
+    "source_state"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "surface_inspector_annotation_snapshot" },
+    "version": { "const": "0.1.0" },
+    "capture": { "$ref": "#/$defs/Capture" },
+    "active_context": { "$ref": "#/$defs/ActiveContext" },
+    "selection": { "$ref": "#/$defs/Selection" },
+    "annotation_mode": {
+      "type": "object",
+      "required": ["active"],
+      "additionalProperties": false,
+      "properties": {
+        "active": { "type": "boolean" }
+      }
+    },
+    "empty_state": { "type": "boolean" },
+    "pins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Pin" }
+    },
+    "comments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Comment" }
+    },
+    "hover_candidate": {
+      "anyOf": [
+        { "$ref": "#/$defs/HoverCandidate" },
+        { "type": "null" }
+      ]
+    },
+    "projection_capabilities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Capability" }
+    },
+    "adapter_capability_summary": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/AdapterCapability" }
+    },
+    "blockers": {
+      "type": "object",
+      "required": ["last_projection_blocker", "unsupported_stale_absent"],
+      "additionalProperties": false,
+      "properties": {
+        "last_projection_blocker": {
+          "type": ["object", "null"],
+          "additionalProperties": true
+        },
+        "unsupported_stale_absent": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pin_id", "status", "blocker_reason"],
+            "additionalProperties": false,
+            "properties": {
+              "pin_id": { "type": "string" },
+              "status": { "type": "string" },
+              "blocker_reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "reveal": {
+      "type": "object",
+      "required": ["last_request", "last_result"],
+      "additionalProperties": false,
+      "properties": {
+        "last_request": { "type": ["object", "null"], "additionalProperties": true },
+        "last_result": { "type": ["object", "null"], "additionalProperties": true }
+      }
+    },
+    "annotation_scope_stack": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ScopeFrame" }
+    },
+    "source_state": {
+      "type": "object",
+      "required": ["schema", "version", "snapshot_version"],
+      "additionalProperties": true,
+      "properties": {
+        "schema": { "const": "surface_inspector_annotation_state" },
+        "version": { "type": "string" },
+        "snapshot_version": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "IsoDate": { "type": "string", "format": "date-time" },
+    "Rect": {
+      "type": ["object", "null"],
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "w": { "type": "number", "minimum": 0 },
+        "h": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Metadata": {
+      "type": "object",
+      "propertyNames": {
+        "not": { "pattern": "([Bb][Aa][Ss][Ee]64|[Bb][Ii][Nn][Aa][Rr][Yy]|[Ii][Mm][Aa][Gg][Ee]_[Dd][Aa][Tt][Aa])" }
+      },
+      "additionalProperties": true
+    },
+    "Capture": {
+      "type": "object",
+      "required": ["captured_at", "trigger", "source_canvas_id", "surface_inspector_frame", "assets"],
+      "additionalProperties": false,
+      "properties": {
+        "captured_at": { "$ref": "#/$defs/IsoDate" },
+        "trigger": { "type": "string", "minLength": 1 },
+        "source_canvas_id": { "type": "string", "minLength": 1 },
+        "surface_inspector_frame": {
+          "anyOf": [
+            {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "items": { "type": "number" }
+            },
+            { "$ref": "#/$defs/Rect" }
+          ]
+        },
+        "assets": {
+          "type": "object",
+          "propertyNames": {
+            "not": { "pattern": "([Bb][Aa][Ss][Ee]64|[Bb][Ii][Nn][Aa][Rr][Yy]|[Ii][Mm][Aa][Gg][Ee]_[Dd][Aa][Tt][Aa])" }
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "not": { "pattern": "^[Dd][Aa][Tt][Aa]:[Ii][Mm][Aa][Gg][Ee]/" }
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    },
+    "ActiveContext": {
+      "type": "object",
+      "required": ["current_scope_id", "root_id", "root_kind", "root_label", "adapter_id", "subject_id", "subject_path", "display_space_rect", "local_space_rect", "source_metadata"],
+      "additionalProperties": false,
+      "properties": {
+        "current_scope_id": { "type": "string" },
+        "root_id": { "type": "string" },
+        "root_kind": { "type": "string" },
+        "root_label": { "type": "string" },
+        "adapter_id": { "type": "string" },
+        "subject_id": { "type": "string" },
+        "subject_path": { "type": "array", "items": { "type": "string" } },
+        "display_space_rect": { "$ref": "#/$defs/Rect" },
+        "local_space_rect": { "$ref": "#/$defs/Rect" },
+        "source_metadata": { "$ref": "#/$defs/Metadata" }
+      }
+    },
+    "Selection": {
+      "type": "object",
+      "required": ["active_edge_id", "active_frame_id", "current_scope_id", "frame_path_pin_ids"],
+      "additionalProperties": false,
+      "properties": {
+        "active_edge_id": { "type": "string" },
+        "active_frame_id": { "type": "string" },
+        "current_scope_id": { "type": "string" },
+        "frame_path_pin_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Subject": {
+      "type": "object",
+      "required": ["id", "path", "kind", "role", "label", "value", "text_excerpt", "source_metadata"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "array", "items": { "type": "string" } },
+        "kind": { "type": "string" },
+        "role": { "type": "string" },
+        "label": { "type": "string" },
+        "value": { "type": ["string", "number", "boolean", "null"] },
+        "text_excerpt": { "type": "string" },
+        "source_metadata": { "$ref": "#/$defs/Metadata" }
+      }
+    },
+    "Projection": {
+      "type": ["object", "null"],
+      "required": ["current_render_status", "projectable", "can_project_display_overlay", "can_reveal", "visible_display_rect", "display_space_rect", "local_space_rect", "coordinate_space", "blocker_reason", "blocker", "reveal_status", "reveal_blocker_reason", "ancestor_viewport_clip_chain", "scrollable_ancestor_chain", "z_order_evidence", "refreshed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "current_render_status": { "type": "string" },
+        "projectable": { "type": "boolean" },
+        "can_project_display_overlay": { "type": "boolean" },
+        "can_reveal": { "type": "boolean" },
+        "visible_display_rect": { "$ref": "#/$defs/Rect" },
+        "display_space_rect": { "$ref": "#/$defs/Rect" },
+        "local_space_rect": { "$ref": "#/$defs/Rect" },
+        "coordinate_space": { "type": "string" },
+        "blocker_reason": { "type": "string" },
+        "blocker": { "type": ["object", "null"], "additionalProperties": true },
+        "reveal_status": { "type": "string" },
+        "reveal_blocker_reason": { "type": "string" },
+        "ancestor_viewport_clip_chain": { "type": "array" },
+        "scrollable_ancestor_chain": { "type": "array" },
+        "z_order_evidence": { "type": ["object", "null"], "additionalProperties": true },
+        "refreshed_at": { "type": "string" }
+      }
+    },
+    "Pin": {
+      "type": "object",
+      "required": ["id", "kind", "root_id", "root_label", "root_kind", "adapter_id", "parent_pin_id", "depth", "actor", "created_at", "updated_at", "status", "subject", "projection"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "frame_pin" },
+        "root_id": { "type": "string" },
+        "root_label": { "type": "string" },
+        "root_kind": { "type": "string" },
+        "adapter_id": { "type": "string" },
+        "parent_pin_id": { "type": ["string", "null"] },
+        "depth": { "type": "integer", "minimum": 0 },
+        "actor": { "$ref": "#/$defs/Actor" },
+        "created_at": { "$ref": "#/$defs/IsoDate" },
+        "updated_at": { "$ref": "#/$defs/IsoDate" },
+        "status": { "type": "string" },
+        "subject": { "$ref": "#/$defs/Subject" },
+        "projection": { "$ref": "#/$defs/Projection" }
+      }
+    },
+    "Comment": {
+      "type": "object",
+      "required": ["id", "kind", "pin_id", "annotation_kind", "actor", "created_at", "updated_at", "status", "text", "subject", "projection"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "const": "comment" },
+        "pin_id": { "type": "string" },
+        "annotation_kind": { "const": "comment" },
+        "actor": { "$ref": "#/$defs/Actor" },
+        "created_at": { "$ref": "#/$defs/IsoDate" },
+        "updated_at": { "$ref": "#/$defs/IsoDate" },
+        "status": { "type": "string" },
+        "text": { "type": "string" },
+        "subject": { "$ref": "#/$defs/Subject" },
+        "projection": { "$ref": "#/$defs/Projection" }
+      }
+    },
+    "HoverCandidate": {
+      "type": "object",
+      "required": ["id", "adapter_id", "root_id", "root_kind", "root_label", "subject", "projection", "blocker_reason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "adapter_id": { "type": "string" },
+        "root_id": { "type": "string" },
+        "root_kind": { "type": "string" },
+        "root_label": { "type": "string" },
+        "subject": { "$ref": "#/$defs/Subject" },
+        "projection": { "$ref": "#/$defs/Projection" },
+        "blocker_reason": { "type": "string" }
+      }
+    },
+    "Actor": {
+      "type": "object",
+      "required": ["role", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string" },
+        "id": { "type": "string" }
+      }
+    },
+    "Capability": {
+      "type": "object",
+      "required": ["adapter_id", "status", "display_overlay", "minimap", "tree", "can_reveal"],
+      "additionalProperties": true,
+      "properties": {
+        "adapter_id": { "type": "string" },
+        "status": { "type": "string" },
+        "display_overlay": { "type": "boolean" },
+        "minimap": { "type": "boolean" },
+        "tree": { "type": "boolean" },
+        "can_reveal": { "type": "boolean" },
+        "blocker_reason": { "type": "string" }
+      }
+    },
+    "AdapterCapability": {
+      "type": "object",
+      "required": ["adapter_id", "status", "can_project_display_overlay", "can_reveal", "tree", "minimap", "blocker_reason"],
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": { "type": "string" },
+        "status": { "type": "string" },
+        "can_project_display_overlay": { "type": "boolean" },
+        "can_reveal": { "type": "boolean" },
+        "tree": { "type": "boolean" },
+        "minimap": { "type": "boolean" },
+        "blocker_reason": { "type": "string" }
+      }
+    },
+    "ScopeFrame": {
+      "type": "object",
+      "required": ["pin_id", "subject_id", "subject_path", "root_id", "root_label", "adapter_id", "root_kind", "source_metadata", "source_tree_node_metadata", "projection"],
+      "additionalProperties": false,
+      "properties": {
+        "pin_id": { "type": "string" },
+        "subject_id": { "type": "string" },
+        "subject_path": { "type": "array", "items": { "type": "string" } },
+        "root_id": { "type": "string" },
+        "root_label": { "type": "string" },
+        "adapter_id": { "type": "string" },
+        "root_kind": { "type": "string" },
+        "source_metadata": { "$ref": "#/$defs/Metadata" },
+        "source_tree_node_metadata": { "$ref": "#/$defs/Metadata" },
+        "projection": { "$ref": "#/$defs/Projection" }
+      }
+    }
+  }
+}

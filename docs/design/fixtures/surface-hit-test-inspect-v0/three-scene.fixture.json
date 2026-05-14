@@ -1,0 +1,11 @@
+{
+  "fixture_only": true,
+  "objects": [
+    {
+      "id": "three:cube-primary",
+      "type": "Mesh",
+      "label": "Primary Cube",
+      "projected_bounds": { "x": 280, "y": 180, "width": 96, "height": 96 }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "fixture_only": true,
+  "role": "AXButton",
+  "title": "Submit",
+  "description": "Submit form",
+  "actions": ["AXPress"],
+  "frame": { "x": 220, "y": 180, "width": 120, "height": 32 },
+  "center": { "x": 280, "y": 196 }
+}

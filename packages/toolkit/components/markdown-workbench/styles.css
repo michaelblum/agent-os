@@ -244,6 +244,153 @@
   background: #282825;
 }
 
+.markdown-workbench-annotation-overlay,
+.markdown-workbench-annotation-panel {
+  position: absolute;
+  z-index: 5;
+}
+
+.markdown-workbench-annotation-overlay {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.markdown-workbench-annotation-overlay[hidden] {
+  display: none;
+}
+
+.markdown-workbench-annotation-overlay-marker {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.34));
+  pointer-events: auto;
+}
+
+.markdown-workbench-annotation-overlay-marker[data-projection-status="out_of_viewport"] {
+  opacity: 0.46;
+}
+
+.markdown-workbench-annotation-panel {
+  right: 12px;
+  bottom: 34px;
+  width: min(320px, calc(100% - 58px));
+  max-height: min(44%, 320px);
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(122, 241, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(5, 12, 16, 0.92);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(14px);
+}
+
+.markdown-workbench-annotation-panel[hidden] {
+  display: none;
+}
+
+.markdown-workbench-annotation-title {
+  color: rgba(235, 255, 255, 0.82);
+  font: 700 10px/1.3 var(--font-mono);
+  text-transform: uppercase;
+}
+
+.markdown-workbench-annotation-panel ol {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.markdown-workbench-annotation-card {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid rgba(122, 241, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(16, 34, 40, 0.82);
+}
+
+.markdown-workbench-annotation-card.secondary {
+  border-color: rgba(220, 255, 255, 0.12);
+  background: rgba(18, 22, 26, 0.76);
+}
+
+.markdown-workbench-annotation-badge {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(5, 10, 14, 0.62);
+  border-radius: 999px;
+  background: #7af1ff;
+  color: #061014;
+  font: 800 11px/1 var(--font-mono);
+}
+
+.markdown-workbench-annotation-overlay-marker:focus-visible .markdown-workbench-annotation-badge {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.markdown-workbench-annotation-popover {
+  position: absolute;
+  left: 26px;
+  top: 50%;
+  width: min(280px, calc(100vw - 96px));
+  display: none;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid rgba(122, 241, 255, 0.24);
+  border-radius: 7px;
+  background: rgba(5, 12, 16, 0.94);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  text-align: left;
+  transform: translateY(-50%);
+  backdrop-filter: blur(14px);
+}
+
+.markdown-workbench-annotation-overlay-marker:hover .markdown-workbench-annotation-popover,
+.markdown-workbench-annotation-overlay-marker:focus-visible .markdown-workbench-annotation-popover,
+.markdown-workbench-annotation-overlay-marker[aria-expanded="true"] .markdown-workbench-annotation-popover {
+  display: grid;
+}
+
+.markdown-workbench-annotation-card.secondary .markdown-workbench-annotation-badge,
+.markdown-workbench-annotation-overlay-marker.secondary .markdown-workbench-annotation-badge {
+  background: rgba(220, 255, 255, 0.36);
+  color: rgba(235, 255, 255, 0.84);
+}
+
+.markdown-workbench-annotation-body {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.markdown-workbench-annotation-note {
+  color: rgba(245, 255, 255, 0.92);
+  font: 600 12px/1.35 var(--font-ui);
+}
+
+.markdown-workbench-annotation-meta {
+  color: rgba(220, 255, 255, 0.56);
+  font: 10px/1.4 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
 .markdown-workbench-outline-panel {
   position: absolute;
   top: 12px;

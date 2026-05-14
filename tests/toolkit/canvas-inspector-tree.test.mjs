@@ -165,6 +165,69 @@ test('marks nest under their parent canvas node (Map API)', () => {
   assert.equal(cv.children[0].type, 'mark');
 });
 
+test('surface resource rows nest under their owning canvas before marks', () => {
+  const tree = computeInspectorTree({
+    displays: [display('d1', { is_main: true })],
+    canvases: [canvas('panel-a', [0, 0, 100, 100])],
+    marksByCanvas: new Map([['panel-a', { marks: [mark('m1', 'Obj 1')] }]]),
+    surfaceResources: {
+      affordances: [{
+        id: 'chip',
+        ownerCanvasId: 'panel-a',
+        stageLayerIds: ['chip'],
+        inputRegionIds: ['chip:restore'],
+        statuses: ['active'],
+      }],
+      stageLayers: [{
+        id: 'chip',
+        label: 'Panel chip',
+        ownerCanvasId: 'panel-a',
+        statuses: ['active'],
+      }],
+      inputRegions: [{
+        id: 'chip:restore',
+        semanticLabel: 'restore',
+        ownerCanvasId: 'panel-a',
+        statuses: ['active'],
+      }],
+    },
+  });
+
+  const panel = tree.children[0];
+  assert.deepEqual(panel.children.map((child) => child.type), ['surface_affordance', 'mark']);
+  assert.deepEqual(panel.children[0].children.map((child) => child.type), ['stage_layer', 'input_region']);
+  assert.equal(panel.children[0].children[0].label, 'Panel chip');
+  assert.equal(panel.children[0].children[1].label, 'restore');
+});
+
+test('orphaned surface resources nest under an explicit resource group', () => {
+  const tree = computeInspectorTree({
+    displays: [display('d1', { is_main: true })],
+    canvases: [canvas('panel-a', [0, 0, 100, 100])],
+    surfaceResources: {
+      affordances: [],
+      stageLayers: [{
+        id: 'ghost-layer',
+        label: 'Ghost',
+        ownerCanvasId: 'removed-panel',
+        statuses: ['active', 'orphaned_owner_missing'],
+      }],
+      inputRegions: [{
+        id: 'ghost-region',
+        semanticLabel: 'restore',
+        ownerCanvasId: 'removed-panel',
+        statuses: ['active', 'orphaned_owner_missing'],
+      }],
+    },
+  });
+
+  const group = tree.children.find((child) => child.type === 'surface_resource_group');
+  assert.ok(group);
+  assert.deepEqual(group.children.map((child) => child.type), ['stage_layer', 'input_region']);
+  assert.equal(group.children[0].id, 'ghost-layer');
+  assert.equal(group.children[1].id, 'ghost-region');
+});
+
 test('marks nest under their parent canvas node (plain-object API)', () => {
   const tree = computeInspectorTree({
     displays: [display('d1', { is_main: true })],

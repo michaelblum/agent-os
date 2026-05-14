@@ -48,7 +48,7 @@ sleep 1
 python3 - <<'PY'
 import json, subprocess
 payload = json.loads(subprocess.check_output([
-    "./aos", "show", "eval", "--id", "canvas-inspector", "--js",
+    "./aos", "show", "eval", "--id", "surface-inspector", "--js",
     'document.body.textContent.replace(/\\s+/g," ").trim()'
 ], text=True))
 text = payload.get("result") or ""
@@ -78,18 +78,18 @@ mouse_y = target_y + offset_y
 
 subprocess.run(["./aos", "do", "hover", f"{mouse_x},{mouse_y}"], check=True)
 run(
-    "show", "eval", "--id", "canvas-inspector", "--js",
+    "show", "eval", "--id", "surface-inspector", "--js",
     'window.webkit.messageHandlers.headsup.postMessage({type:"move_abs",screenX:0,screenY:0,offsetX:100,offsetY:15}); "ok"'
 )
 time.sleep(0.2)
 
-canvas = next(c for c in run("show", "list", "--json")["canvases"] if c["id"] == "canvas-inspector")
+canvas = next(c for c in run("show", "list", "--json")["canvases"] if c["id"] == "surface-inspector")
 new_x, new_y, new_w, new_h = canvas["at"]
 
 layout = None
 for _ in range(30):
     payload = run(
-        "show", "eval", "--id", "canvas-inspector", "--js",
+        "show", "eval", "--id", "surface-inspector", "--js",
         'JSON.stringify((() => { const map = document.querySelector(".minimap"); const selfDims = document.querySelector(".tree-row.canvas.self .canvas-dims")?.textContent ?? null; const selfRect = document.querySelector(".minimap-canvas.self"); return { mapW: map?.clientWidth, mapH: map?.clientHeight, selfDims, selfRect: selfRect ? { left: parseInt(selfRect.style.left, 10), top: parseInt(selfRect.style.top, 10), width: parseInt(selfRect.style.width, 10), height: parseInt(selfRect.style.height, 10) } : null }; })())'
     )
     layout = json.loads(payload["result"])

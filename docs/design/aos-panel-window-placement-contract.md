@@ -1,8 +1,8 @@
 # AOS Panel Window Placement Contract
 
 **Date:** 2026-05-05
-**Status:** Design note and handoff map. The first toolkit slice exists on
-`codex/wiki-workbench-layout-polish`, but the platform contract is not complete.
+**Status:** Closure audit for #261. The public toolkit policy path exists; the
+remaining native drag-end question is classified below.
 
 ## Plain-English Model
 
@@ -22,7 +22,7 @@ In this sense, a "toolkit window" does not mean "a window owned by
 ## Why This Matters
 
 The observed bug class was inconsistent placement when dragging windows between
-a main display and an extended display. Canvas Inspector, Agent Terminal, older
+a main display and an extended display. Surface Inspector, Agent Terminal, older
 Sigil editors, and minimized chips could differ because they do not all share
 one placement path.
 
@@ -64,7 +64,7 @@ The current branch has a useful partial extraction:
   release-frame behavior.
 - `packages/toolkit/panel/layouts/split-pane.js` provides reusable split panes
   and accordion-style collapsed panes.
-- Canvas Inspector now uses toolkit chrome and split-pane footer behavior.
+- Surface Inspector now uses toolkit chrome and split-pane footer behavior.
 - The wiki workbench now opens graph-first and reveals markdown content as a
   second pane.
 
@@ -75,26 +75,32 @@ This is a convergence slice, not a finished contract.
 The following surfaces still carry private or parallel behavior:
 
 - `apps/sigil/codex-terminal/index.html`
-  - Private titlebar, private window buttons, and raw
-    `drag_start` / `move_abs` / `drag_end`.
-  - This can behave differently from Canvas Inspector.
+  - Migrated precedent: uses `mountChrome()` and the shared toolkit
+    panel/window controller path for drag, minimize, maximize, resize, and
+    close behavior.
 - `apps/sigil/chat/index.html`
-  - Same older private drag/chrome pattern.
+  - Parked legacy prototype. It still contains older private drag/chrome code,
+    but `apps/sigil/AGENTS.md` marks it non-canonical and future chat work
+    should be rebuilt from Agent Terminal/toolkit primitives instead of copying
+    this file.
 - `apps/sigil/radial-item-editor/index.js`
-  - Older private drag logic using raw `move_abs`.
+  - Migrated window drag to `createPanelWindowController().wireDrag(...)`.
+    The Three.js object/orbit drag remains app-owned product behavior.
 - `apps/sigil/radial-item-workbench/index.js`
-  - Better: uses toolkit `wireDrag` and `wireResize`.
-  - Still owns a custom workbench shell instead of mounting fully through the
-    panel/window contract.
+  - Migrated window policy to the public toolkit
+    `createPanelWindowController()` path for drag, resize, maximize, minimize,
+    and close while preserving its custom workbench shell and 3D radial item
+    preview as Sigil-owned product UI.
 - `packages/toolkit/panel/minimized-chip.html`
-  - Owns a small alternate drag/restore loop. It should become a first-class
-    toolkit placement primitive instead of a special HTML page with private
-    movement policy.
+  - Transitional fallback for environments where the shared DesktopWorld stage
+    or input-region primitive is unavailable. The default toolkit minimize path
+    renders a passive stage chip and routes restore/close through explicit
+    daemon input regions owned by the source panel.
 - `src/display/canvas.swift`
-  - Correctly owns native movement, but currently also performs drag-end
-    finalization. That must be reconciled with toolkit final-placement policy so
-    the daemon and toolkit do not both independently decide the final resting
-    frame.
+  - Owns native movement mechanics. Its `drag_end` finalization is not a
+    competing placement-policy path; it applies the toolkit-requested
+    `desiredCGFrame` with mixed-DPI fallback disabled after the toolkit has
+    already decided whether to release a transfer frame or clamp the panel.
 
 ## Contract Shape Needed
 
@@ -105,8 +111,10 @@ AOS needs a small, explicit panel placement contract. It should define:
   coordinates;
 - panel rest policy: normal panels rest on one display, clamped to that
   display's visible work area unless a surface explicitly opts out;
-- drag authority: active drag movement can remain direct/native, but final
-  placement should have one authoritative policy path;
+- drag authority: active drag movement can remain direct/native. Toolkit policy
+  decides transfer release and final clamping, then calls `updateFrame()` /
+  emits `drag_end`; daemon `drag_end` finalization completes the native frame
+  mutation without changing that policy decision;
 - display ownership: during drag, the release/cursor display should win over a
   seam-adjacent top-left inference;
 - cross-display transfer: outline behavior is a toolkit policy rendered through
@@ -114,22 +122,87 @@ AOS needs a small, explicit panel placement contract. It should define:
 - minimize/restore ownership: chip placement and restore should use the same
   display/work-area helper as drag and maximize;
 - app integration: app windows opt into `mountPanel` or the equivalent
-  panel/window controller instead of emitting raw `move_abs`.
+  `createPanelWindowController()` path instead of emitting raw `move_abs`.
 
 ## Short-Term Exit Criteria
 
 The next implementable slice should be small and testable:
 
 - one public toolkit API for panel/window placement policy;
-- minimized chip restore routed through that API;
+- stock panel chrome routes through `createPanelWindowController()`;
+- minimized chip restore routed through that API and backed by stage layers plus
+  explicit input regions by default;
 - Agent Terminal migrated off private drag/chrome;
+- radial item editor migrated off private window drag while keeping 3D orbit
+  drag app-owned;
 - legacy Sigil chat marked parked, with any future "Sigil Chat 2" rebuilt from
   Agent Terminal/toolkit primitives instead of extending the old private shell;
 - tests covering stacked displays, side-by-side displays, mixed-DPI displays,
   off-left/off-right/off-bottom drops, minimize/restore across displays, and
   maximize work-area clamping;
-- Canvas Inspector and Agent Terminal behave the same for drag/drop/minimize
+- Surface Inspector and Agent Terminal behave the same for drag/drop/minimize
   when launched from the same branch root.
+
+## #261 Closure Audit
+
+The current code satisfies the issue's exit criteria with one intentionally
+parked legacy exception:
+
+- **One public toolkit API owns panel/window placement policy.** Satisfied by
+  `createPanelWindowController()` in `packages/toolkit/panel/chrome.js`, which
+  composes drag, resize, maximize, minimize, restore, close, work-area clamp,
+  transfer release, and fallback behavior. Stock `mountChrome()` routes through
+  that controller.
+- **Minimized chip restore routes through the accepted toolkit baseline.**
+  Satisfied by the controller's `createMinimizeController()` path: the default
+  chip is a passive DesktopWorld stage layer plus daemon input regions, while
+  `packages/toolkit/panel/minimized-chip.html` remains explicit fallback only.
+- **Agent Terminal no longer carries private drag/chrome.** Satisfied by
+  `apps/sigil/codex-terminal/index.html` using `mountChrome()` with drag,
+  minimize, maximize, resize, and close enabled. Guard coverage lives in
+  `tests/renderer/agent-terminal-chrome.test.mjs`.
+- **Sigil chat is not a live migration target.** Satisfied by
+  `apps/sigil/AGENTS.md`, which marks `apps/sigil/chat/` as a parked legacy
+  prototype. Its raw `drag_start` / `move_abs` / `drag_end` code is accepted
+  only as historical code, not as a live panel pattern.
+- **Radial editor and workbench no longer own private window placement.**
+  Satisfied by the radial editor's
+  `createPanelWindowController().wireDrag(...)` use and the radial workbench's
+  controller-backed drag, resize, maximize, minimize, and close path. Their
+  Three.js object/orbit dragging remains app-owned product behavior.
+- **Display and clamp coverage exists.** Deterministic coverage includes
+  side-by-side display ownership, stacked-display cursor ownership,
+  mixed-DPI/display-local pointer fallback, off-left/off-right/off-bottom
+  clamps, minimize/restore across displays, transfer outline release, and
+  maximize work-area clamping in `tests/toolkit/panel-chrome.test.mjs` and
+  `tests/toolkit/panel-drag-transfer.test.mjs`.
+- **Surface Inspector and Agent Terminal share the same branch-root behavior.**
+  The remaining live smoke evidence is the accepted #304 stage-chip proof
+  recorded in `docs/design/aos-surface-stack-v0-integration-ledger.md`.
+  Deterministic guardrails show both surfaces consume toolkit panel chrome
+  instead of private panel movement paths.
+
+## Drag-End Finalization Authority
+
+The daemon/toolkit split is intentional:
+
+- Toolkit owns policy: choosing the drag work area, deciding whether a
+  cross-display transfer outline releases to a native frame, clamping the final
+  panel frame, and updating the requested frame before `drag_end`.
+- Daemon owns mechanics: applying `move_abs` with the native AppKit mouse
+  location, suppressing mixed-DPI fallback while `isActivelyDraggingCanvas` is
+  true, and on `drag_end` applying `finalizeDragPosition()` to the last
+  `desiredCGFrame` with fallback still disabled.
+
+That means `src/display/canvas.swift` finalization should stay. Removing it
+would weaken the native primitive that makes toolkit policy reliable across
+mixed-DPI display seams.
+
+## Foreman Recommendation
+
+Close #261. The remaining work belongs in separate narrow issues or work cards:
+fallback-chip retirement confidence, broader DesktopWorld interaction routing,
+and any future Sigil Chat 2 rebuild from Agent Terminal/toolkit primitives.
 
 ## Related Work
 

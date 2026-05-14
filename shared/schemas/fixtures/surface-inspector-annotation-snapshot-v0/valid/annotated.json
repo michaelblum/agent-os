@@ -1,0 +1,198 @@
+{
+  "schema": "surface_inspector_annotation_snapshot",
+  "version": "0.1.0",
+  "capture": {
+    "captured_at": "2026-05-13T03:40:00.000Z",
+    "trigger": "test",
+    "source_canvas_id": "surface-inspector",
+    "surface_inspector_frame": [1020, 40, 360, 520],
+    "assets": {
+      "capture_image": "capture.png",
+      "capture_json": "capture.json",
+      "display_geometry_json": "display-geometry.json",
+      "canvas_list_json": "canvas-list.json",
+      "inspector_state_json": "inspector-state.json"
+    }
+  },
+  "active_context": {
+    "current_scope_id": "target-button",
+    "root_id": "workbench-root",
+    "root_kind": "aos_canvas",
+    "root_label": "Workbench",
+    "adapter_id": "aos-toolkit-semantic-target",
+    "subject_id": "target-button",
+    "subject_path": ["workbench-root", "target-button"],
+    "display_space_rect": { "x": 100, "y": 120, "w": 80, "h": 32 },
+    "local_space_rect": { "x": 20, "y": 40, "w": 80, "h": 32 },
+    "source_metadata": {
+      "data_aos_ref": "html-workbench-expression:save"
+    }
+  },
+  "selection": {
+    "active_edge_id": "edge:pin-1",
+    "active_frame_id": "pin-1",
+    "current_scope_id": "target-button",
+    "frame_path_pin_ids": ["pin-1"]
+  },
+  "annotation_mode": { "active": true },
+  "empty_state": false,
+  "pins": [
+    {
+      "id": "pin-1",
+      "kind": "frame_pin",
+      "root_id": "workbench-root",
+      "root_label": "Workbench",
+      "root_kind": "aos_canvas",
+      "adapter_id": "aos-toolkit-semantic-target",
+      "parent_pin_id": null,
+      "depth": 1,
+      "actor": { "role": "operator", "id": "human" },
+      "created_at": "2026-05-13T03:39:00.000Z",
+      "updated_at": "2026-05-13T03:39:30.000Z",
+      "status": "active",
+      "subject": {
+        "id": "target-button",
+        "path": ["workbench-root", "target-button"],
+        "kind": "button",
+        "role": "button",
+        "label": "Save",
+        "value": null,
+        "text_excerpt": "Save",
+        "source_metadata": {
+          "data_aos_ref": "html-workbench-expression:save"
+        }
+      },
+      "projection": {
+        "current_render_status": "visible",
+        "projectable": true,
+        "can_project_display_overlay": true,
+        "can_reveal": true,
+        "visible_display_rect": { "x": 100, "y": 120, "w": 80, "h": 32 },
+        "display_space_rect": { "x": 100, "y": 120, "w": 80, "h": 32 },
+        "local_space_rect": { "x": 20, "y": 40, "w": 80, "h": 32 },
+        "coordinate_space": "native_display",
+        "blocker_reason": "",
+        "blocker": null,
+        "reveal_status": "available",
+        "reveal_blocker_reason": "",
+        "ancestor_viewport_clip_chain": [],
+        "scrollable_ancestor_chain": [],
+        "z_order_evidence": null,
+        "refreshed_at": "2026-05-13T03:39:30.000Z"
+      }
+    }
+  ],
+  "comments": [
+    {
+      "id": "comment-1",
+      "kind": "comment",
+      "pin_id": "pin-1",
+      "annotation_kind": "comment",
+      "actor": { "role": "operator", "id": "human" },
+      "created_at": "2026-05-13T03:39:45.000Z",
+      "updated_at": "2026-05-13T03:39:45.000Z",
+      "status": "open",
+      "text": "Check this target.",
+      "subject": {
+        "id": "target-button",
+        "path": ["workbench-root", "target-button"],
+        "kind": "",
+        "role": "",
+        "label": "",
+        "value": null,
+        "text_excerpt": "",
+        "source_metadata": {
+          "data_aos_ref": "html-workbench-expression:save"
+        }
+      },
+      "projection": {
+        "current_render_status": "visible",
+        "projectable": true,
+        "can_project_display_overlay": true,
+        "can_reveal": true,
+        "visible_display_rect": { "x": 100, "y": 120, "w": 80, "h": 32 },
+        "display_space_rect": { "x": 100, "y": 120, "w": 80, "h": 32 },
+        "local_space_rect": { "x": 20, "y": 40, "w": 80, "h": 32 },
+        "coordinate_space": "native_display",
+        "blocker_reason": "",
+        "blocker": null,
+        "reveal_status": "available",
+        "reveal_blocker_reason": "",
+        "ancestor_viewport_clip_chain": [],
+        "scrollable_ancestor_chain": [],
+        "z_order_evidence": null,
+        "refreshed_at": "2026-05-13T03:39:30.000Z"
+      }
+    }
+  ],
+  "hover_candidate": null,
+  "projection_capabilities": [
+    {
+      "adapter_id": "aos-toolkit-semantic-target",
+      "status": "visible",
+      "display_overlay": true,
+      "minimap": true,
+      "tree": true,
+      "can_reveal": true
+    }
+  ],
+  "adapter_capability_summary": [
+    {
+      "adapter_id": "aos-toolkit-semantic-target",
+      "status": "visible",
+      "can_project_display_overlay": true,
+      "can_reveal": true,
+      "tree": true,
+      "minimap": true,
+      "blocker_reason": ""
+    }
+  ],
+  "blockers": {
+    "last_projection_blocker": null,
+    "unsupported_stale_absent": []
+  },
+  "reveal": {
+    "last_request": null,
+    "last_result": null
+  },
+  "annotation_scope_stack": [
+    {
+      "pin_id": "pin-1",
+      "subject_id": "target-button",
+      "subject_path": ["workbench-root", "target-button"],
+      "root_id": "workbench-root",
+      "root_label": "Workbench",
+      "adapter_id": "aos-toolkit-semantic-target",
+      "root_kind": "aos_canvas",
+      "source_metadata": {
+        "data_aos_ref": "html-workbench-expression:save"
+      },
+      "source_tree_node_metadata": {
+        "data_aos_ref": "html-workbench-expression:save"
+      },
+      "projection": {
+        "current_render_status": "visible",
+        "projectable": true,
+        "can_project_display_overlay": true,
+        "can_reveal": true,
+        "visible_display_rect": { "x": 100, "y": 120, "w": 80, "h": 32 },
+        "display_space_rect": { "x": 100, "y": 120, "w": 80, "h": 32 },
+        "local_space_rect": { "x": 20, "y": 40, "w": 80, "h": 32 },
+        "coordinate_space": "native_display",
+        "blocker_reason": "",
+        "blocker": null,
+        "reveal_status": "available",
+        "reveal_blocker_reason": "",
+        "ancestor_viewport_clip_chain": [],
+        "scrollable_ancestor_chain": [],
+        "z_order_evidence": null,
+        "refreshed_at": "2026-05-13T03:39:30.000Z"
+      }
+    }
+  ],
+  "source_state": {
+    "schema": "surface_inspector_annotation_state",
+    "version": "0.1.0",
+    "snapshot_version": 2
+  }
+}

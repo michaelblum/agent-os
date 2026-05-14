@@ -1,4 +1,5 @@
 import { renderMarkdown } from '../../markdown/render.js';
+import { buildAnnotationProjectionResult } from '../../workbench/annotation-projection.js';
 import {
   createMarkdownOpenRequestFromWikiSelection,
   createWikiSubjectOpenRequest,
@@ -12,9 +13,12 @@ import {
 } from './editor-commands.js';
 import {
   applyMarkdownSaveResult,
+  applyMarkdownAnnotations,
   applyMarkdownTextPatch,
   buildMarkdownSaveRequest,
+  clearMarkdownAnnotations,
   createMarkdownWorkbenchState,
+  markdownWorkbenchAnnotationViewModels,
   markdownWorkbenchSnapshot,
   openMarkdownDocument,
 } from './model.js';
@@ -36,6 +40,8 @@ export default function MarkdownWorkbench(options = {}) {
   let graphWorkbench = null;
   let graphLoadTimer = null;
   let graphFitTimers = [];
+  let annotationLayerVisible = true;
+  const expandedAnnotationIds = new Set();
   const state = createMarkdownWorkbenchState(options.document || {});
   const dom = {};
 
@@ -64,12 +70,274 @@ export default function MarkdownWorkbench(options = {}) {
     }
     dom.warning.hidden = !diagnostics.unclosed_fence;
     dom.mermaid.textContent = diagnostics.mermaid_blocks.length > 0
-      ? `${diagnostics.mermaid_blocks.length} Mermaid fence${diagnostics.mermaid_blocks.length === 1 ? '' : 's'} detected`
+      ? `${diagnostics.mermaid_blocks.length} Mermaid diagram${diagnostics.mermaid_blocks.length === 1 ? '' : 's'} previewable`
       : 'No Mermaid fences';
   }
 
   function syncPreview() {
     dom.preview.innerHTML = renderMarkdown(state.content);
+  }
+
+  function renderAnnotationBadge(annotation) {
+    const badge = el('span', 'markdown-workbench-annotation-badge', String(annotation.ordinal));
+    badge.dataset.annotationOrdinal = String(annotation.ordinal);
+    badge.dataset.annotationStatus = annotation.status;
+    badge.setAttribute('aria-label', `Annotation ${annotation.ordinal}`);
+    return badge;
+  }
+
+  function lineRange(annotation = {}) {
+    const range = annotation.text_range && typeof annotation.text_range === 'object'
+      ? annotation.text_range
+      : null;
+    const startLine = Number(range?.start_line ?? range?.startLine ?? range?.line);
+    const endLine = Number(range?.end_line ?? range?.endLine ?? range?.line ?? startLine);
+    if (!Number.isFinite(startLine) || startLine < 1) return null;
+    return {
+      start_line: Math.max(1, Math.floor(startLine)),
+      end_line: Math.max(Math.floor(startLine), Number.isFinite(endLine) ? Math.floor(endLine) : Math.floor(startLine)),
+    };
+  }
+
+  function bodyRect() {
+    return dom.documentBody?.getBoundingClientRect?.() || { left: 0, top: 0, width: 0, height: 0 };
+  }
+
+  function rectRelativeToBody(rect) {
+    const base = bodyRect();
+    return {
+      x: rect.left - base.left,
+      y: rect.top - base.top,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  function sourceLineProjection(annotation) {
+    const range = lineRange(annotation);
+    if (!range || !dom.editor || dom.sourcePane.hidden) return null;
+    const editorRect = rectRelativeToBody(dom.editor.getBoundingClientRect());
+    const style = window.getComputedStyle(dom.editor);
+    const lineHeight = Number.parseFloat(style.lineHeight) || 19.8;
+    const paddingTop = Number.parseFloat(style.paddingTop) || 0;
+    const paddingLeft = Number.parseFloat(style.paddingLeft) || 0;
+    const paddingRight = Number.parseFloat(style.paddingRight) || 0;
+    const startY = editorRect.y + paddingTop + ((range.start_line - 1) * lineHeight) - dom.editor.scrollTop;
+    const height = Math.max(lineHeight, ((range.end_line - range.start_line) + 1) * lineHeight);
+    const rect = {
+      x: editorRect.x + paddingLeft,
+      y: startY,
+      width: Math.max(1, editorRect.width - paddingLeft - paddingRight),
+      height,
+    };
+    const visible = rect.y + rect.height >= editorRect.y && rect.y <= editorRect.y + editorRect.height;
+    return {
+      annotation_id: annotation.id,
+      status: visible ? 'resolved' : 'out_of_viewport',
+      anchor_type: 'text_range',
+      rects: [rect],
+      precision: 'editor_line',
+      confidence: annotation.text_excerpt ? 0.86 : 0.78,
+      reason: visible ? '' : 'line anchor is outside the source editor viewport',
+      decorator: {
+        placement: 'start-outside',
+        x: Math.max(8, rect.x - 10),
+        y: Math.max(editorRect.y + 10, Math.min(rect.y + 10, editorRect.y + editorRect.height - 10)),
+        avoid_covering_anchor: true,
+        detail_preference: 'hover_click_focus',
+      },
+    };
+  }
+
+  function previewLineProjection(annotation) {
+    const range = lineRange(annotation);
+    if (!range || !dom.preview || dom.previewPane.hidden) return null;
+    const target = dom.preview.querySelector(`[data-source-line="${range.start_line}"]`)
+      || dom.preview.querySelector('[data-source-line]');
+    if (!target) {
+      return {
+        annotation_id: annotation.id,
+        status: 'unresolved',
+        anchor_type: 'text_range',
+        reason: 'preview does not expose rendered line geometry for this anchor',
+        precision: 'none',
+      };
+    }
+    const paneRect = rectRelativeToBody(dom.previewPane.getBoundingClientRect());
+    const rect = rectRelativeToBody(target.getBoundingClientRect());
+    const visible = rect.y + rect.height >= paneRect.y && rect.y <= paneRect.y + paneRect.height;
+    return {
+      annotation_id: annotation.id,
+      status: visible ? 'resolved' : 'out_of_viewport',
+      anchor_type: 'text_range',
+      rects: [rect],
+      precision: target.dataset.sourceLine === String(range.start_line) ? 'preview_source_line' : 'preview_section_approximate',
+      confidence: target.dataset.sourceLine === String(range.start_line) ? 0.74 : 0.46,
+      reason: visible ? '' : 'line anchor is outside the preview viewport',
+      decorator: {
+        placement: 'start-outside',
+        x: Math.max(8, rect.x - 12),
+        y: Math.max(paneRect.y + 10, Math.min(rect.y + 10, paneRect.y + paneRect.height - 10)),
+        avoid_covering_anchor: true,
+        detail_preference: 'hover_click_focus',
+      },
+    };
+  }
+
+  function geometryProjection(annotation) {
+    const bounds = annotation.bounds || annotation.viewport_bounds || annotation.page_bounds;
+    const point = annotation.point || (bounds
+      ? { x: bounds.x + (bounds.width / 2), y: bounds.y + (bounds.height / 2) }
+      : null);
+    if (!point && !bounds) return null;
+    const rect = bounds
+      ? { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
+      : { x: point.x, y: point.y, width: 1, height: 1 };
+    return {
+      annotation_id: annotation.id,
+      status: 'resolved',
+      anchor_type: bounds ? 'region' : 'point',
+      rects: [rect],
+      precision: annotation.coordinate_space || 'viewport',
+      confidence: 0.66,
+      decorator: {
+        placement: 'start-outside',
+        x: Math.max(8, rect.x - 10),
+        y: Math.max(10, rect.y + Math.min(10, rect.height / 2)),
+        avoid_covering_anchor: true,
+        detail_preference: 'hover_click_focus',
+      },
+    };
+  }
+
+  function projectionViewport() {
+    const rect = bodyRect();
+    const scroller = viewMode === 'source' ? dom.editor : dom.previewPane;
+    return {
+      width: rect.width,
+      height: rect.height,
+      scroll_x: scroller?.scrollLeft || 0,
+      scroll_y: scroller?.scrollTop || 0,
+      zoom: 1,
+      scale: 1,
+      device_pixel_ratio: window.devicePixelRatio || 1,
+      view_mode: viewMode,
+    };
+  }
+
+  function buildMarkdownAnnotationProjection() {
+    const adapter_projections = state.annotations.map((annotation) => {
+      if (annotation.kind === 'selection_comment' || annotation.text_range) {
+        return viewMode === 'source'
+          ? sourceLineProjection(annotation)
+          : previewLineProjection(annotation);
+      }
+      return geometryProjection(annotation);
+    }).filter(Boolean);
+
+    return buildAnnotationProjectionResult({
+      surface_binding: {
+        surface_id: 'markdown-workbench',
+        surface_type: 'markdown_workbench',
+        source_path: state.source?.path || state.path,
+        subject_id: state.source?.kind === 'wiki' ? `wiki:${state.source.path}` : `file:${state.path}`,
+      },
+      viewport: projectionViewport(),
+      annotations: state.annotations,
+      adapter_projections,
+      layer: {
+        visible: annotationLayerVisible,
+        dismissed: !annotationLayerVisible,
+        decorator_mode: annotationLayerVisible ? 'ordinal_badge' : 'hidden',
+        expanded_annotation_ids: [...expandedAnnotationIds],
+        capture: {
+          prepare: {
+            hide_annotation_controls: true,
+            keep_target_evidence_visible: true,
+          },
+          restore: {
+            restore_annotation_controls: true,
+          },
+        },
+      },
+    });
+  }
+
+  function renderAnnotationCard(view) {
+    const { annotation } = view;
+    const item = el('li', `markdown-workbench-annotation-card${view.secondary ? ' secondary' : ''}`);
+    item.dataset.annotationId = annotation.id;
+    item.dataset.annotationStatus = annotation.status;
+    item.dataset.annotationOrdinal = String(annotation.ordinal);
+    item.appendChild(renderAnnotationBadge(annotation));
+
+    const body = el('div', 'markdown-workbench-annotation-body');
+    const note = el('div', 'markdown-workbench-annotation-note', annotation.note);
+    const meta = el('div', 'markdown-workbench-annotation-meta');
+    meta.textContent = `${annotation.actor.role}:${annotation.actor.id} · ${annotation.status} · ${view.anchor_summary}`;
+    body.append(note, meta);
+    item.appendChild(body);
+    return item;
+  }
+
+  function renderOverlayDecorator(view, projection) {
+    const { annotation } = view;
+    if (!projection || !['resolved', 'out_of_viewport'].includes(projection.status)) return null;
+    const marker = el('button', `markdown-workbench-annotation-overlay-marker${view.secondary ? ' secondary' : ''}`);
+    marker.type = 'button';
+    marker.dataset.annotationId = annotation.id;
+    marker.dataset.annotationStatus = annotation.status;
+    marker.dataset.annotationOrdinal = String(annotation.ordinal);
+    marker.dataset.projectionStatus = projection.status;
+    marker.dataset.projectionPrecision = projection.precision;
+    marker.style.left = `${Math.max(0, projection.decorator.x ?? 0)}px`;
+    marker.style.top = `${Math.max(0, projection.decorator.y ?? 0)}px`;
+    marker.setAttribute('aria-label', `Annotation ${annotation.ordinal}: ${annotation.note}`);
+    marker.setAttribute('aria-expanded', String(expandedAnnotationIds.has(annotation.id)));
+    marker.appendChild(renderAnnotationBadge(annotation));
+    const detail = el('span', 'markdown-workbench-annotation-popover');
+    const note = el('span', 'markdown-workbench-annotation-note', annotation.note);
+    const meta = el('span', 'markdown-workbench-annotation-meta');
+    meta.textContent = `${annotation.actor.role}:${annotation.actor.id} · ${projection.status} · ${view.anchor_summary}`;
+    detail.append(note, meta);
+    marker.appendChild(detail);
+    marker.addEventListener('click', () => {
+      if (expandedAnnotationIds.has(annotation.id)) expandedAnnotationIds.delete(annotation.id);
+      else expandedAnnotationIds.add(annotation.id);
+      syncAnnotations();
+      syncInspectableState();
+    });
+    return marker;
+  }
+
+  function syncAnnotations() {
+    const views = markdownWorkbenchAnnotationViewModels(state.annotations);
+    const projection = buildMarkdownAnnotationProjection();
+    state.annotation_projection = projection;
+    const projectionsById = new Map(projection.projections.map((item) => [item.annotation_id, item]));
+    dom.annotationPanel.hidden = true;
+    dom.annotationList.replaceChildren();
+    dom.annotationOverlay.replaceChildren();
+    dom.annotationOverlay.hidden = !annotationLayerVisible || views.length === 0;
+    dom.annotationToggle.hidden = views.length === 0;
+    dom.annotationToggle.classList.toggle('active', annotationLayerVisible);
+    dom.annotationToggle.setAttribute('aria-pressed', String(annotationLayerVisible));
+    dom.root.dataset.annotations = String(views.length);
+    dom.root.dataset.annotationLayer = annotationLayerVisible ? 'visible' : 'hidden';
+    for (const view of views) {
+      dom.annotationList.appendChild(renderAnnotationCard(view));
+      const marker = annotationLayerVisible
+        ? renderOverlayDecorator(view, projectionsById.get(view.annotation.id))
+        : null;
+      if (marker) dom.annotationOverlay.appendChild(marker);
+    }
+  }
+
+  function syncInspectableState() {
+    window.__markdownWorkbenchState = {
+      ...markdownWorkbenchSnapshot(state),
+      annotation_projection: state.annotation_projection || buildMarkdownAnnotationProjection(),
+    };
   }
 
   function syncViewMode() {
@@ -134,10 +402,11 @@ export default function MarkdownWorkbench(options = {}) {
     syncTitle();
     syncDiagnostics();
     syncPreview();
+    syncAnnotations();
     syncViewMode();
     syncOutline();
     syncSplit();
-    window.__markdownWorkbenchState = markdownWorkbenchSnapshot(state);
+    syncInspectableState();
   }
 
   function parseWikiFrontmatter(raw = '') {
@@ -396,6 +665,13 @@ export default function MarkdownWorkbench(options = {}) {
                   <circle cx="2.8" cy="14.5" r="0.9" fill="currentColor"/>
                 </svg>
               </button>
+              <button type="button" class="markdown-workbench-icon-button" data-action="toggle-annotations" aria-label="Annotations" title="Annotations" aria-pressed="true" hidden data-aos-ref="markdown-workbench:annotation-toggle" data-aos-action="toggle_annotations" data-aos-surface="markdown-workbench" data-semantic-target-id="annotation-toggle">
+                <svg aria-hidden="true" viewBox="0 0 20 20">
+                  <path d="M4.5 5.5h11v7h-6L6 15.5v-3h-1.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <circle cx="8" cy="9" r="0.8" fill="currentColor"/>
+                  <circle cx="12" cy="9" r="0.8" fill="currentColor"/>
+                </svg>
+              </button>
               <button type="button" data-action="revert" data-aos-ref="markdown-workbench:revert" data-aos-action="revert_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="revert">Revert</button>
               <button type="button" data-action="save" data-aos-ref="markdown-workbench:save" data-aos-action="save_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="save">Save</button>
             </div>
@@ -408,6 +684,11 @@ export default function MarkdownWorkbench(options = {}) {
             <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview" data-aos-ref="markdown-workbench:preview-pane" data-aos-surface="markdown-workbench" data-semantic-target-id="preview-pane">
               <div class="aos-markdown-preview markdown-workbench-preview" data-aos-ref="markdown-workbench:preview" data-aos-surface="markdown-workbench" data-semantic-target-id="preview"></div>
             </section>
+            <div class="markdown-workbench-annotation-overlay" data-role="annotation-overlay" data-aos-ref="markdown-workbench:annotation-overlay" data-aos-surface="markdown-workbench" data-semantic-target-id="annotation-overlay"></div>
+            <aside class="markdown-workbench-annotation-panel" aria-label="Annotations" data-role="annotation-panel" hidden data-aos-ref="markdown-workbench:annotations" data-aos-surface="markdown-workbench" data-semantic-target-id="annotations">
+              <div class="markdown-workbench-annotation-title">Annotations</div>
+              <ol data-role="annotation-list"></ol>
+            </aside>
             <aside class="markdown-workbench-outline-panel" aria-label="Document index" hidden>
               <div class="markdown-workbench-outline-title">Index</div>
               <ol data-role="outline"></ol>
@@ -426,6 +707,7 @@ export default function MarkdownWorkbench(options = {}) {
     dom.sourcePane = root.querySelector('.markdown-workbench-source');
     dom.previewPane = root.querySelector('.markdown-workbench-preview-pane');
     dom.preview = root.querySelector('.markdown-workbench-preview');
+    dom.documentBody = root.querySelector('.markdown-workbench-document-body');
     dom.stats = root.querySelector('[data-role="stats"]');
     dom.mermaid = root.querySelector('[data-role="mermaid"]');
     dom.warning = root.querySelector('[data-role="warning"]');
@@ -435,8 +717,12 @@ export default function MarkdownWorkbench(options = {}) {
     dom.documentPane = root.querySelector('.markdown-workbench-document-pane');
     dom.closeContentButton = root.querySelector('[data-action="close-content"]');
     dom.saveButton = root.querySelector('[data-action="save"]');
+    dom.annotationToggle = root.querySelector('[data-action="toggle-annotations"]');
     dom.graph = root.querySelector('[data-role="graph"]');
     dom.graphStatus = root.querySelector('[data-role="graph-status"]');
+    dom.annotationPanel = root.querySelector('[data-role="annotation-panel"]');
+    dom.annotationList = root.querySelector('[data-role="annotation-list"]');
+    dom.annotationOverlay = root.querySelector('[data-role="annotation-overlay"]');
 
     graphWorkbench = WikiKB({ chrome: 'embedded', views: ['graph'] });
     graphHost = {
@@ -461,13 +747,30 @@ export default function MarkdownWorkbench(options = {}) {
 
     dom.editor.addEventListener('input', () => setContent(dom.editor.value));
     dom.editor.addEventListener('keydown', handleEditorKeydown);
+    dom.editor.addEventListener('scroll', () => {
+      if (viewMode === 'source') {
+        syncAnnotations();
+        syncInspectableState();
+      }
+    });
+    dom.previewPane.addEventListener('scroll', () => {
+      if (viewMode === 'preview') {
+        syncAnnotations();
+        syncInspectableState();
+      }
+    });
     for (const button of root.querySelectorAll('[data-view-mode]')) {
       button.addEventListener('click', () => {
         viewMode = button.dataset.viewMode === 'source' ? 'source' : 'preview';
-        syncViewMode();
+        sync();
         if (viewMode === 'source') dom.editor.focus();
       });
     }
+    dom.annotationToggle.addEventListener('click', () => {
+      annotationLayerVisible = !annotationLayerVisible;
+      syncAnnotations();
+      syncInspectableState();
+    });
     dom.outlineToggle.addEventListener('click', () => {
       outlineOpen = !outlineOpen;
       syncOutline();
@@ -484,6 +787,10 @@ export default function MarkdownWorkbench(options = {}) {
       state.content = state.savedContent;
       state.dirty = false;
       sync({ replaceEditorValue: true });
+    });
+    window.addEventListener('resize', () => {
+      syncAnnotations();
+      syncInspectableState();
     });
     sync({ replaceEditorValue: true });
     return root;
@@ -504,6 +811,25 @@ export default function MarkdownWorkbench(options = {}) {
     } else if (type === 'markdown_document.text.patch') {
       applyMarkdownTextPatch(state, message);
       sync({ replaceEditorValue: true });
+    } else if (type === 'markdown_workbench.annotations.replace' || type === 'markdown_workbench.annotations.load') {
+      applyMarkdownAnnotations(state, message);
+      sync();
+    } else if (type === 'markdown_workbench.annotations.clear') {
+      clearMarkdownAnnotations(state);
+      expandedAnnotationIds.clear();
+      sync();
+    } else if (type === 'markdown_workbench.annotations.hide') {
+      annotationLayerVisible = false;
+      syncAnnotations();
+      syncInspectableState();
+    } else if (type === 'markdown_workbench.annotations.show') {
+      annotationLayerVisible = true;
+      syncAnnotations();
+      syncInspectableState();
+    } else if (type === 'markdown_workbench.annotations.toggle') {
+      annotationLayerVisible = !annotationLayerVisible;
+      syncAnnotations();
+      syncInspectableState();
     } else if (type === 'markdown_document.save.result') {
       applyMarkdownSaveResult(state, message);
       sync();
@@ -527,7 +853,7 @@ export default function MarkdownWorkbench(options = {}) {
     manifest: {
       name: 'markdown-workbench',
       title: 'Markdown Workbench',
-      accepts: [WIKI_SUBJECT_SELECTION_TYPE, 'markdown_document.open', 'markdown_document.text.patch', 'markdown_document.save.result'],
+    accepts: [WIKI_SUBJECT_SELECTION_TYPE, 'markdown_document.open', 'markdown_document.text.patch', 'markdown_document.save.result', 'markdown_workbench.annotations.replace', 'markdown_workbench.annotations.load', 'markdown_workbench.annotations.clear', 'markdown_workbench.annotations.show', 'markdown_workbench.annotations.hide', 'markdown_workbench.annotations.toggle'],
       emits: ['markdown-workbench/save.requested', 'markdown-workbench/save.result', WIKI_SUBJECT_OPEN_REQUEST_TYPE],
       channelPrefix: 'markdown-workbench',
       defaultSize: { w: 1120, h: 720 },

@@ -1,0 +1,25 @@
+{
+  "routed_schema_version": 1,
+  "event_kind": "scroll",
+  "type": "scroll_wheel",
+  "phase": "scroll",
+  "delivery_role": "owned",
+  "sequence": {
+    "source": "daemon",
+    "value": 48
+  },
+  "gesture_id": "g-48",
+  "desktop_world": {
+    "x": 714,
+    "y": 373
+  },
+  "coordinate_authority": "daemon",
+  "region_id": "sigil-avatar",
+  "source_event": "daemon:48",
+  "source_origin": "daemon",
+  "owner_canvas_id": "avatar-main",
+  "source_sequence": {
+    "source": "daemon",
+    "value": 48
+  }
+}

@@ -24,7 +24,7 @@ import { createHitTargetController } from './hit-target.js';
 import { createInteractionTrace } from './interaction-trace.js';
 import { createVisibilityTransitionController } from './visibility-transition.js';
 import { DesktopWorldSurface3D } from './desktop-world-surface-runtime.js';
-import { normalizeMessage } from './input-message.js';
+import { normalizeCanvasOriginInputMessage, normalizeMessage } from './input-message.js';
 import {
     clampPointToDisplays,
     computeDesktopWorldBounds,
@@ -41,6 +41,7 @@ import { createRadialActivationTransitionController } from './radial-activation-
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import { advanceMenuActivation } from './menu-activation-runtime.js';
+import { createSigilInputRegionAdapter } from './input-regions.js';
 import {
     currentSigilRoot,
     currentToolkitRoot,
@@ -180,6 +181,29 @@ const INPUT_POINTER_EVENT_TYPES = new Set([
     'scroll_wheel',
 ]);
 
+let sigilInputRegions = null;
+
+function nativeFrameForAvatar() {
+    if (!liveJs.avatarPos.valid) return null;
+    const center = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
+    const size = Math.max(1, Math.round(liveJs.avatarHitRadius * 2));
+    const half = size / 2;
+    return [
+        Math.round(center.x - half),
+        Math.round(center.y - half),
+        size,
+        size,
+    ];
+}
+
+function removeSigilInputRegions() {
+    sigilInputRegions?.removeAll();
+}
+
+function syncSigilInputRegions() {
+    sigilInputRegions?.sync();
+}
+
 function boundsWithMinMax(rect) {
     if (!rect || typeof rect.x !== 'number' || typeof rect.y !== 'number'
         || typeof rect.w !== 'number' || typeof rect.h !== 'number') return null;
@@ -256,6 +280,11 @@ function isPrimarySurfaceSegment() {
 
 function shouldProcessGlobalDaemonEvent(msg = {}) {
     if (isPrimarySurfaceSegment()) return true;
+    if (
+        msg.type === 'status_item.toggle'
+        || msg.type === 'status_item.show'
+        || msg.type === 'status_item.hide'
+    ) return false;
     if (msg.type === 'display_geometry') return false;
     if (msg.type === 'input_event' || msg.envelope_type === 'input_event') return false;
     if (msg.type === 'canvas_message' && msg.id === hitTarget.hit.id) return false;
@@ -605,11 +634,23 @@ const contextMenu = createSigilContextMenu({
     onUtilityAction: toggleUtilityCanvas,
     onAvatarAction: handleAvatarMenuAction,
     onAvatarWindowLevelChange: applyAvatarWindowLevel,
+    onBoundsChange: syncSigilInputRegions,
     onClose: handleContextMenuClose,
     trace: interactionTrace,
 });
+sigilInputRegions = createSigilInputRegionAdapter({
+    host,
+    liveState: liveJs,
+    fallbackCanvasId: 'avatar-main',
+    windowObject: window,
+    isPrimarySegment: isPrimarySurfaceSegment,
+    avatarNativeFrame: nativeFrameForAvatar,
+    contextMenuIsOpen: () => contextMenu.isOpen(),
+    contextMenuNativeFrame: () => nativeFrameFromDesktopRect(contextMenu.interactiveBounds()),
+});
 const UTILITY_CANVAS_IDS = new Set([
     '__log__',
+    'surface-inspector',
     'canvas-inspector',
     'sigil-interaction-trace',
     RENDER_PERFORMANCE_CANVAS_ID,
@@ -736,7 +777,7 @@ function utilityConfig(kind) {
         };
     }
     return {
-        id: 'canvas-inspector',
+        id: 'surface-inspector',
         url: toolkitUrl('components/canvas-inspector/index.html'),
         frame: utilityFrame(kind),
     };
@@ -1183,6 +1224,7 @@ function setInteractionState(next, reason) {
     liveJs.state = next;
     if (next === 'IDLE' && !liveJs.travel) postLastPositionToDaemon();
     emitAvatarMark();
+    syncSigilInputRegions();
 }
 
 function postLastPositionToDaemon() {
@@ -1359,7 +1401,7 @@ function emitStatusItemState() {
 }
 
 // canvas_object.marks — publish the avatar's current desktop position so the
-// canvas-inspector can mark it on its minimap and indented tree list.
+// Surface Inspector can mark it on its minimap and indented tree list.
 // Event-driven via setAvatarPosition + visibility changes; a ~5 s heartbeat
 // keeps the mark alive inside the inspector's 10 s TTL while idle-visible.
 const MARKS_CANVAS_ID = SIGIL_OBJECT_CONTROL_CANVAS_ID;
@@ -1401,6 +1443,7 @@ function radialGestureObjectMarks() {
             color: item.id === radial.activeItemId ? '#ffffff' : '#8cf8ff',
             w: Math.max(44, Math.round(Number(item.hitRadius || item.visualRadius || 24) * 2)),
             h: Math.max(44, Math.round(Number(item.hitRadius || item.visualRadius || 24) * 2)),
+            minimap_size_mode: 'desktop_world',
             rect: true,
             ellipse: true,
             cross: false,
@@ -1455,6 +1498,8 @@ function setAvatarVisibility(visible) {
     }
     emitStatusItemState();
     emitAvatarMark();
+    syncSigilInputRegions();
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function animateVisibility(visible, lifecycleAction = null, origin = null) {
@@ -1467,6 +1512,7 @@ function animateVisibility(visible, lifecycleAction = null, origin = null) {
         origin,
         avatarPos: liveJs.avatarPos.valid ? { ...liveJs.avatarPos } : null,
     });
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function toggleAvatarVisibility(origin = null) {
@@ -1481,14 +1527,17 @@ function setAvatarPosition(x, y) {
     liveJs.avatarPos = { x: next.x, y: next.y, valid: true };
     postLastPositionToDaemon();
     emitAvatarMark();
+    syncSigilInputRegions();
 }
 
 function syncHitTargetToAvatar() {
     if (!isPrimarySurfaceSegment() || !liveJs.avatarPos.valid) return;
     hitTarget.setSize(state.avatarHitRadius * 2);
-    const nativeAvatarPos = desktopWorldToNativePoint(liveJs.avatarPos, liveJs.displays) || liveJs.avatarPos;
-    nativeAvatarPos.valid = true;
-    hitTarget.sync(nativeAvatarPos, liveJs.avatarVisible && ['IDLE', 'PRESS', 'RADIAL', 'FAST_TRAVEL'].includes(liveJs.currentState));
+    hitTarget.syncWorldCenter(
+        liveJs.avatarPos,
+        liveJs.avatarVisible && ['IDLE', 'PRESS', 'RADIAL', 'FAST_TRAVEL'].includes(liveJs.currentState),
+        { displays: liveJs.displays }
+    );
 }
 
 function cancelInteraction(reason) {
@@ -1507,7 +1556,7 @@ const HIT_ECHO_SUPPRESS_MS = 450;
 const HIT_ECHO_SUPPRESS_DISTANCE = 6;
 
 function rememberDaemonPointerEvent(msg = {}) {
-    if (msg.fromHitTarget === true) return;
+    if (msg.sourceOrigin === 'canvas' || msg.source_origin === 'canvas') return;
     if (
         msg.type !== 'left_mouse_down'
         && msg.type !== 'left_mouse_dragged'
@@ -1563,12 +1612,19 @@ function openContextMenuAt(x, y, options = {}) {
     contextMenu.openAt({ x, y, valid: true });
     lastContextMenuOpenAt = performance.now();
     lastContextMenuOpenPoint = { x, y };
+    syncSigilInputRegions();
     recordInteraction('context-menu:open-request', { x, y, options });
     return true;
 }
 
+function syncRadialTargetSurface() {
+    if (!isPrimarySurfaceSegment()) return false;
+    return radialTargetSurface.sync(liveJs.radialGestureMenu, { displays: liveJs.displays });
+}
+
 function applyRadialGestureMove(update, x, y) {
     liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
+    syncRadialTargetSurface();
     emitAvatarMark();
     if (update?.enteredFastTravel) {
         fastTravel.beginGesture({ ...liveJs.avatarPos });
@@ -1691,7 +1747,8 @@ function handleInputEvent(msg) {
             y: msg.y,
             dx: msg.dx,
             dy: msg.dy,
-            fromHitTarget: msg.fromHitTarget === true,
+            sourceOrigin: msg.sourceOrigin ?? msg.source_origin ?? null,
+            sourceCanvasId: msg.sourceCanvasId ?? msg.source_canvas_id ?? null,
             envelopeType: msg.envelope_type ?? null,
         });
     }
@@ -1714,7 +1771,18 @@ function handleInputEvent(msg) {
         const point = { x: msg.x, y: msg.y, valid: true };
         const inMenu = contextMenu.containsDesktopPoint(point);
         if (msg.type !== 'mouse_moved') recordInteraction('context-menu:route-attempt', { type: msg.type, point, inMenu });
-        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point, { raw: msg })) {
+        const sourceOrigin = msg.sourceOrigin ?? msg.source_origin ?? null;
+        const sourceCanvasId = msg.sourceCanvasId ?? msg.source_canvas_id ?? null;
+        const ownerCanvasId = msg.ownerCanvasId ?? msg.owner_canvas_id ?? null;
+        const sourceIdentity = sourceOrigin || sourceCanvasId || ownerCanvasId
+            ? { sourceOrigin, sourceCanvasId, ownerCanvasId }
+            : null;
+        const routeOptions = {
+            raw: msg,
+            ...(sourceIdentity ? { sourceIdentity } : {}),
+            ...(sourceOrigin === 'canvas' && sourceCanvasId === hitTarget.hit.id ? { regionId: 'sigil-context-menu' } : {}),
+        };
+        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point, routeOptions)) {
             if (msg.type !== 'mouse_moved') recordInteraction('context-menu:routed', { type: msg.type, point, inMenu });
             return;
         }
@@ -1794,9 +1862,13 @@ function nativeFrameFromDesktopRect(rect) {
 }
 
 function handleHitCanvasEvent(payload = {}) {
-    if (payload.source !== 'sigil-hit') return;
+    const sourceCanvasId = payload.sourceCanvasId ?? payload.source_canvas_id ?? hitTarget.hit.id;
+    const ownerCanvasId = payload.ownerCanvasId ?? payload.owner_canvas_id ?? payload.parent_canvas_id ?? null;
+    if (payload.source !== 'sigil-hit' && payload.source_origin !== 'canvas' && sourceCanvasId !== hitTarget.hit.id) return;
     interactionTrace.record('hit-canvas', {
         kind: payload.kind,
+        sourceCanvasId,
+        ownerCanvasId,
         offsetX: payload.offsetX,
         offsetY: payload.offsetY,
         dx: payload.dx,
@@ -1830,13 +1902,25 @@ function handleHitCanvasEvent(payload = {}) {
         interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'daemon-echo', point });
         return;
     }
+    const normalized = normalizeCanvasOriginInputMessage({ type: 'canvas_message', id: sourceCanvasId, payload }, {
+        desktopWorld: point,
+        sourceCanvasId,
+        ownerCanvasId,
+        sourceEvent: payload.kind,
+        native: Array.isArray(hitTarget.hit.frame)
+            ? {
+                x: Number(hitTarget.hit.frame[0]) + Number(payload.offsetX ?? 0),
+                y: Number(hitTarget.hit.frame[1]) + Number(payload.offsetY ?? 0),
+            }
+            : null,
+    });
+    if (!normalized) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'normalization-failed', point });
+        return;
+    }
     handleInputEvent({
-        type: payload.kind,
-        x: point.x,
-        y: point.y,
-        dx: payload.dx,
-        dy: payload.dy,
-        fromHitTarget: true,
+        ...normalized,
+        envelope_type: normalized.envelopeType,
     });
 }
 
@@ -1847,6 +1931,10 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
         itemId: payload.itemId,
         radialPhase: liveJs.radialGestureMenu?.phase ?? null,
     });
+    if (payload.kind === 'radial_surface_ready') {
+        radialTargetSurface.refreshPayload();
+        return;
+    }
     if (payload.kind === 'radial_cancel') {
         radialGestureMenu.cancel('radial-surface-cancel');
         clearGestureState();
@@ -1890,6 +1978,22 @@ function originFromMessage(msg = {}) {
     const y = Number(msg.origin_y ?? msg.originY);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     return nativeToDesktopWorldPoint({ x, y }, liveJs.displays) ?? { x, y, valid: true };
+}
+
+function desktopWorldPointFromInputMessage(msg = {}) {
+    const authority = msg.coordinateAuthority ?? msg.coordinate_authority ?? null;
+    const desktopWorld = msg.desktop_world ?? msg.desktopWorld ?? null;
+    if (desktopWorld && authority === 'daemon') {
+        const x = Number(desktopWorld.x);
+        const y = Number(desktopWorld.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
+    }
+    if (msg.envelope_type === 'input_region.event' || msg.envelopeType === 'input_region.event') {
+        const x = Number(msg.x);
+        const y = Number(msg.y);
+        if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
+    }
+    return nativeToDesktopWorldPoint({ x: msg.x, y: msg.y }, liveJs.displays) ?? { x: msg.x, y: msg.y };
 }
 
 function publishSessionVitalitySnapshot() {
@@ -2080,11 +2184,13 @@ function handleHostMessage(rawMsg) {
             animateVisibility(false, 'exit', origin);
         } else if (msg.action === 'suspend') {
             rendererSuspended = true;
+            removeSigilInputRegions();
             renderLoop.suspend();
         } else if (msg.action === 'resume') {
             rendererSuspended = false;
             renderLoop.resume();
             liveJs._pendingLifecycleComplete = 'resume';
+            syncSigilInputRegions();
             scheduleRenderFrame();
         }
         return;
@@ -2096,6 +2202,7 @@ function handleHostMessage(rawMsg) {
             ?? computeDesktopWorldBounds(liveJs.displays);
         liveJs.visibleBounds = boundsWithMinMax(msg.visible_desktop_world_bounds)
             ?? computeVisibleDesktopWorldBounds(liveJs.displays);
+        syncSigilInputRegions();
         if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {
             const resolve = liveJs._resolveFirstDisplayGeometry;
             liveJs._resolveFirstDisplayGeometry = null;
@@ -2128,7 +2235,7 @@ function handleHostMessage(rawMsg) {
     }
 
     if (INPUT_POINTER_EVENT_TYPES.has(msg.type) && typeof msg.x === 'number' && typeof msg.y === 'number') {
-        const worldPoint = nativeToDesktopWorldPoint({ x: msg.x, y: msg.y }, liveJs.displays) ?? { x: msg.x, y: msg.y };
+        const worldPoint = desktopWorldPointFromInputMessage(msg);
         handleInputEvent({ ...msg, x: worldPoint.x, y: worldPoint.y });
         return;
     }
@@ -2196,6 +2303,7 @@ async function setupHostSurface() {
         },
         onState(snapshot) {
             applySurfaceRenderSnapshot(snapshot);
+            if (!rendererSuspended) scheduleRenderFrame();
         },
     });
     desktopWorldSurface.mountScene({
@@ -2238,6 +2346,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
     if (state.omegaGroup) state.omegaGroup.visible = false;
     if (isPrimarySurfaceSegment()) {
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
+        removeSigilInputRegions();
     }
     overlay.draw({ state: 'IDLE', avatarPos: null, dragOrigin: null });
     radialActivationTransition.clear();
@@ -2263,7 +2372,6 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         host.post('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });
         liveJs._pendingLifecycleComplete = null;
     }
-    scheduleRenderFrame();
 }
 
 function animate() {
@@ -2376,15 +2484,15 @@ function animate() {
     contextMenu.updateSegmentPosition();
 
     if (primarySegment && contextMenu.isOpen()) {
-        const frame = nativeFrameFromDesktopRect(contextMenu.interactiveBounds());
-        if (frame) hitTarget.syncFrame(frame, true);
+        hitTarget.syncWorldRect(contextMenu.interactiveBounds(), true, { displays: liveJs.displays });
     } else if (primarySegment && liveJs.avatarParking) {
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
     } else if (primarySegment && liveJs.avatarPos.valid) {
         syncHitTargetToAvatar();
     }
     if (primarySegment) {
-        radialTargetSurface.sync(liveJs.radialGestureMenu, { displays: liveJs.displays });
+        syncRadialTargetSurface();
+        syncSigilInputRegions();
     }
     const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
@@ -2485,6 +2593,7 @@ window.__sigilDebug = {
             hitTargetReady: hitTarget.hit.ready,
             hitTargetFrame: hitTarget.hit.frame,
             hitTargetInteractive: hitTarget.hit.interactive,
+            inputRegions: sigilInputRegions?.snapshot?.() ?? null,
             radialTargetSurface: radialTargetSurface.snapshot(),
             transition: visibilityTransition.active?.effect ?? null,
             surface: desktopWorldSurface ? {

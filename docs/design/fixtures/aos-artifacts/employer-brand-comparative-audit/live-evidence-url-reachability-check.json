@@ -1,0 +1,956 @@
+{
+  "type": "aos.employer_brand_live_evidence_url_reachability_check",
+  "schema_version": "2026-05-employer-brand-live-evidence-url-reachability-check-v0",
+  "id": "live-evidence-url-reachability-check:symphony-talent-phenom-radancy",
+  "label": "Symphony Talent Employer Brand Comparative Audit Project Live Evidence URL Reachability Check",
+  "status": "checked_with_blockers",
+  "source_refs": {
+    "supervised_locator_plan_id": "live-evidence-supervised-locator-plan:symphony-talent-phenom-radancy",
+    "supervised_locator_plan_path": "live-evidence-supervised-locator-plan.json",
+    "supervised_locator_plan_schema": "shared/schemas/employer-brand-live-evidence-supervised-locator-plan-v0.schema.json",
+    "locator_readiness_id": "live-evidence-locator-readiness:symphony-talent-phenom-radancy",
+    "locator_readiness_path": "live-evidence-locator-readiness.json",
+    "reviewed_target_plan_id": "live-evidence-reviewed-target-plan:symphony-talent-phenom-radancy",
+    "reviewed_target_plan_path": "live-evidence-target-plan.reviewed.json",
+    "data_bundle_id": "employer-brand-comparative-audit-data-bundle:symphony-talent-phenom-radancy",
+    "data_bundle_path": "data-bundle.json",
+    "url_open_run_id": "live-evidence-url-open-run:symphony-talent-phenom-radancy",
+    "url_open_run_path": "live-evidence-url-open-run.json",
+    "url_open_run_schema": "shared/schemas/employer-brand-live-evidence-url-open-run-v0.schema.json"
+  },
+  "summary": {
+    "not_checked_count": 0,
+    "reachable_count": 5,
+    "blocked_count": 2,
+    "redirected_count": 2,
+    "login_required_count": 0,
+    "paywall_count": 0,
+    "captcha_count": 0,
+    "consent_required_count": 0,
+    "network_error_count": 9,
+    "safety_gate_blocked_count": 2,
+    "supervised_locator_work_unit_count": 18,
+    "executable_target_count": 16,
+    "non_executed_blocked_target_count": 2,
+    "checked_count": 16,
+    "same_domain_confirmed_count": 16,
+    "same_domain_unknown_count": 2
+  },
+  "results": [
+    {
+      "result_id": "url-reachability-result:symphony-talent:careers-site",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:careers-site",
+      "target_id": "live-target:symphony-talent:careers-site",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "reachable",
+      "url": "https://www.symphonytalent.com/",
+      "final_url": "https://www.symphonytalent.com/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.symphonytalent.com",
+        "requested_hostname": "www.symphonytalent.com",
+        "expected_origin": "https://www.symphonytalent.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 200,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:symphony-talent:careers-site",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:symphony-talent:careers-site",
+        "source_index": 0,
+        "source_url_open_result_id": "url-open-result:symphony-talent:careers-site",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:symphony-talent:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:employer-brand-pages",
+      "target_id": "live-target:symphony-talent:employer-brand-pages",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.symphonytalent.com/careers/culture",
+      "final_url": "https://www.symphonytalent.com/careers/culture",
+      "same_domain_gate": {
+        "requested_origin": "https://www.symphonytalent.com",
+        "requested_hostname": "www.symphonytalent.com",
+        "expected_origin": "https://www.symphonytalent.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:symphony-talent:employer-brand-pages",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:symphony-talent:employer-brand-pages",
+        "source_index": 1,
+        "source_url_open_result_id": "url-open-result:symphony-talent:employer-brand-pages",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:symphony-talent:linkedin-presence",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:linkedin-presence",
+      "target_id": "live-target:symphony-talent:linkedin-presence",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "reachable",
+      "url": "https://www.linkedin.com/company/symphony-talent/",
+      "final_url": "https://www.linkedin.com/company/symphony-talent/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.linkedin.com",
+        "requested_hostname": "www.linkedin.com",
+        "expected_origin": "https://www.linkedin.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 200,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:symphony-talent:linkedin-presence",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:symphony-talent:linkedin-presence",
+        "source_index": 2,
+        "source_url_open_result_id": "url-open-result:symphony-talent:linkedin-presence",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:symphony-talent:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:social-campaigns",
+      "target_id": "live-target:symphony-talent:social-campaigns",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.symphonytalent.com/news",
+      "final_url": "https://www.symphonytalent.com/news",
+      "same_domain_gate": {
+        "requested_origin": "https://www.symphonytalent.com",
+        "requested_hostname": "www.symphonytalent.com",
+        "expected_origin": "https://www.symphonytalent.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:symphony-talent:social-campaigns",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:symphony-talent:social-campaigns",
+        "source_index": 3,
+        "source_url_open_result_id": "url-open-result:symphony-talent:social-campaigns",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:symphony-talent:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:awards-recognition",
+      "target_id": "live-target:symphony-talent:awards-recognition",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.symphonytalent.com/news",
+      "final_url": "https://www.symphonytalent.com/news",
+      "same_domain_gate": {
+        "requested_origin": "https://www.symphonytalent.com",
+        "requested_hostname": "www.symphonytalent.com",
+        "expected_origin": "https://www.symphonytalent.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:symphony-talent:awards-recognition",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:symphony-talent:awards-recognition",
+        "source_index": 4,
+        "source_url_open_result_id": "url-open-result:symphony-talent:awards-recognition",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:symphony-talent:employee-stories",
+      "work_unit_id": "live-locator-work-unit:symphony-talent:employee-stories",
+      "target_id": "live-target:symphony-talent:employee-stories",
+      "executable": false,
+      "executed": false,
+      "non_executed": true,
+      "status": "safety_gate_blocked",
+      "url": "https://www.symphonytalent.com/careers/employee-stories",
+      "final_url": null,
+      "same_domain_gate": {
+        "requested_origin": "https://www.symphonytalent.com",
+        "requested_hostname": "www.symphonytalent.com",
+        "expected_origin": "https://www.symphonytalent.com",
+        "same_domain_required": true,
+        "same_domain": null
+      },
+      "http": {
+        "status_code": null,
+        "status_text": null,
+        "method": null,
+        "headers_observed": false
+      },
+      "blocker_reason": "non_executable_target_not_opened; target_review_status_not_approved; locator_placeholders_unresolved; url_reachability_not_checked; non_executable_until_human_target_review; readiness_state_not_needs_locator; approval_decision_not_approve",
+      "checked_at": null,
+      "operator_notes": "Preserved from supervised locator plan as non-executable; URL was not opened.",
+      "review_status": "blocked_non_executable",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:symphony-talent:employee-stories",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:symphony-talent:employee-stories",
+        "source_index": 5,
+        "source_url_open_result_id": "url-open-result:symphony-talent:employee-stories",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:phenom:careers-site",
+      "work_unit_id": "live-locator-work-unit:phenom:careers-site",
+      "target_id": "live-target:phenom:careers-site",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "reachable",
+      "url": "https://www.phenom.com/",
+      "final_url": "https://www.phenom.com/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.phenom.com",
+        "requested_hostname": "www.phenom.com",
+        "expected_origin": "https://www.phenom.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 200,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:phenom:careers-site",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:phenom:careers-site",
+        "source_index": 6,
+        "source_url_open_result_id": "url-open-result:phenom:careers-site",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:phenom:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:phenom:employer-brand-pages",
+      "target_id": "live-target:phenom:employer-brand-pages",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.phenom.com/careers/culture",
+      "final_url": "https://www.phenom.com/careers/culture",
+      "same_domain_gate": {
+        "requested_origin": "https://www.phenom.com",
+        "requested_hostname": "www.phenom.com",
+        "expected_origin": "https://www.phenom.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:phenom:employer-brand-pages",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:phenom:employer-brand-pages",
+        "source_index": 7,
+        "source_url_open_result_id": "url-open-result:phenom:employer-brand-pages",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:phenom:linkedin-presence",
+      "work_unit_id": "live-locator-work-unit:phenom:linkedin-presence",
+      "target_id": "live-target:phenom:linkedin-presence",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.linkedin.com/company/phenom/",
+      "final_url": "https://www.linkedin.com/company/phenom/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.linkedin.com",
+        "requested_hostname": "www.linkedin.com",
+        "expected_origin": "https://www.linkedin.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:phenom:linkedin-presence",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:phenom:linkedin-presence",
+        "source_index": 8,
+        "source_url_open_result_id": "url-open-result:phenom:linkedin-presence",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:phenom:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:phenom:social-campaigns",
+      "target_id": "live-target:phenom:social-campaigns",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.phenom.com/news",
+      "final_url": "https://www.phenom.com/news",
+      "same_domain_gate": {
+        "requested_origin": "https://www.phenom.com",
+        "requested_hostname": "www.phenom.com",
+        "expected_origin": "https://www.phenom.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:phenom:social-campaigns",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:phenom:social-campaigns",
+        "source_index": 9,
+        "source_url_open_result_id": "url-open-result:phenom:social-campaigns",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:phenom:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:phenom:awards-recognition",
+      "target_id": "live-target:phenom:awards-recognition",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.phenom.com/news",
+      "final_url": "https://www.phenom.com/news",
+      "same_domain_gate": {
+        "requested_origin": "https://www.phenom.com",
+        "requested_hostname": "www.phenom.com",
+        "expected_origin": "https://www.phenom.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:phenom:awards-recognition",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:phenom:awards-recognition",
+        "source_index": 10,
+        "source_url_open_result_id": "url-open-result:phenom:awards-recognition",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:phenom:employee-stories",
+      "work_unit_id": "live-locator-work-unit:phenom:employee-stories",
+      "target_id": "live-target:phenom:employee-stories",
+      "executable": false,
+      "executed": false,
+      "non_executed": true,
+      "status": "safety_gate_blocked",
+      "url": "https://www.phenom.com/careers/employee-stories",
+      "final_url": null,
+      "same_domain_gate": {
+        "requested_origin": "https://www.phenom.com",
+        "requested_hostname": "www.phenom.com",
+        "expected_origin": "https://www.phenom.com",
+        "same_domain_required": true,
+        "same_domain": null
+      },
+      "http": {
+        "status_code": null,
+        "status_text": null,
+        "method": null,
+        "headers_observed": false
+      },
+      "blocker_reason": "non_executable_target_not_opened; target_review_status_not_approved; locator_placeholders_unresolved; url_reachability_not_checked; non_executable_until_human_target_review; readiness_state_not_needs_locator; approval_decision_not_approve",
+      "checked_at": null,
+      "operator_notes": "Preserved from supervised locator plan as non-executable; URL was not opened.",
+      "review_status": "blocked_non_executable",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:phenom:employee-stories",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:phenom:employee-stories",
+        "source_index": 11,
+        "source_url_open_result_id": "url-open-result:phenom:employee-stories",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:radancy:careers-site",
+      "work_unit_id": "live-locator-work-unit:radancy:careers-site",
+      "target_id": "live-target:radancy:careers-site",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "reachable",
+      "url": "https://www.radancy.com/en/",
+      "final_url": "https://www.radancy.com/en/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.radancy.com",
+        "requested_hostname": "www.radancy.com",
+        "expected_origin": "https://www.radancy.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 200,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:radancy:careers-site",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:radancy:careers-site",
+        "source_index": 12,
+        "source_url_open_result_id": "url-open-result:radancy:careers-site",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:radancy:employer-brand-pages",
+      "work_unit_id": "live-locator-work-unit:radancy:employer-brand-pages",
+      "target_id": "live-target:radancy:employer-brand-pages",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.radancy.com/careers/culture",
+      "final_url": "https://www.radancy.com/careers/culture",
+      "same_domain_gate": {
+        "requested_origin": "https://www.radancy.com",
+        "requested_hostname": "www.radancy.com",
+        "expected_origin": "https://www.radancy.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:radancy:employer-brand-pages",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:radancy:employer-brand-pages",
+        "source_index": 13,
+        "source_url_open_result_id": "url-open-result:radancy:employer-brand-pages",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:radancy:linkedin-presence",
+      "work_unit_id": "live-locator-work-unit:radancy:linkedin-presence",
+      "target_id": "live-target:radancy:linkedin-presence",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "reachable",
+      "url": "https://www.linkedin.com/company/radancy/",
+      "final_url": "https://www.linkedin.com/company/radancy/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.linkedin.com",
+        "requested_hostname": "www.linkedin.com",
+        "expected_origin": "https://www.linkedin.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 200,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:radancy:linkedin-presence",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:radancy:linkedin-presence",
+        "source_index": 14,
+        "source_url_open_result_id": "url-open-result:radancy:linkedin-presence",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:radancy:social-campaigns",
+      "work_unit_id": "live-locator-work-unit:radancy:social-campaigns",
+      "target_id": "live-target:radancy:social-campaigns",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "redirected",
+      "url": "https://www.radancy.com/news",
+      "final_url": "https://www.radancy.com/en/news/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.radancy.com",
+        "requested_hostname": "www.radancy.com",
+        "expected_origin": "https://www.radancy.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 200,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:radancy:social-campaigns",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:radancy:social-campaigns",
+        "source_index": 15,
+        "source_url_open_result_id": "url-open-result:radancy:social-campaigns",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:radancy:awards-recognition",
+      "work_unit_id": "live-locator-work-unit:radancy:awards-recognition",
+      "target_id": "live-target:radancy:awards-recognition",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "redirected",
+      "url": "https://www.radancy.com/news",
+      "final_url": "https://www.radancy.com/en/news/",
+      "same_domain_gate": {
+        "requested_origin": "https://www.radancy.com",
+        "requested_hostname": "www.radancy.com",
+        "expected_origin": "https://www.radancy.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 200,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:radancy:awards-recognition",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:radancy:awards-recognition",
+        "source_index": 16,
+        "source_url_open_result_id": "url-open-result:radancy:awards-recognition",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    },
+    {
+      "result_id": "url-reachability-result:radancy:employee-stories",
+      "work_unit_id": "live-locator-work-unit:radancy:employee-stories",
+      "target_id": "live-target:radancy:employee-stories",
+      "executable": true,
+      "executed": true,
+      "non_executed": false,
+      "status": "network_error",
+      "url": "https://www.radancy.com/careers/employee-stories",
+      "final_url": "https://www.radancy.com/careers/employee-stories",
+      "same_domain_gate": {
+        "requested_origin": "https://www.radancy.com",
+        "requested_hostname": "www.radancy.com",
+        "expected_origin": "https://www.radancy.com",
+        "same_domain_required": true,
+        "same_domain": true
+      },
+      "http": {
+        "status_code": 404,
+        "status_text": null,
+        "method": "GET",
+        "headers_observed": true
+      },
+      "blocker_reason": null,
+      "checked_at": "2026-05-08T15:30:03.636Z",
+      "operator_notes": "Bounded supervised URL open recorded only navigation metadata; no locator, element, screenshot, clip, report, export, workflow, or crawl work was performed.",
+      "review_status": "checked_by_bounded_url_open_run",
+      "safety_gates": [
+        "human_approval_required",
+        "same_domain_constraint",
+        "no_autonomous_crawl",
+        "no_login_paywall_captcha_or_consent_bypass",
+        "no_element_identification",
+        "no_locator_resolution",
+        "no_codegen",
+        "no_screenshots",
+        "no_clips",
+        "no_full_page_grabs"
+      ],
+      "provenance": {
+        "source_supervised_locator_plan_target_id": "live-target:radancy:employee-stories",
+        "source_supervised_locator_plan_work_unit_id": "live-locator-work-unit:radancy:employee-stories",
+        "source_index": 17,
+        "source_url_open_result_id": "url-open-result:radancy:employee-stories",
+        "planning_check_only": false,
+        "read_only": true
+      }
+    }
+  ],
+  "controls": {
+    "dry_run_only": false,
+    "human_approval_required": true,
+    "url_opening_performed": true,
+    "autonomous_crawl_authorized": false,
+    "autonomous_browsing_authorized": false,
+    "locator_resolution_authorized": false,
+    "locator_codegen_executed": false,
+    "element_identification_authorized": false,
+    "screenshot_capture_authorized": false,
+    "full_page_grabs_authorized": false,
+    "clip_generation_authorized": false,
+    "report_renderer_authorized": false,
+    "export_execution_authorized": false,
+    "workflow_engine_authorized": false,
+    "login_bypass_authorized": false,
+    "paywall_bypass_authorized": false,
+    "captcha_bypass_authorized": false,
+    "consent_bypass_authorized": false
+  },
+  "provenance": {
+    "created_at": "2026-05-08T00:00:00Z",
+    "supervised_locator_plan_is_input_source": true,
+    "executable_only_for_approved_targets": true,
+    "blocked_draft_targets_preserved_as_non_executed": true,
+    "rejected_targets_excluded_by_input_plan": true,
+    "final_url_only_when_safely_known": true,
+    "http_metadata_only_when_available_without_escalation": true,
+    "dry_run_not_checked_fixture": false,
+    "planning_check_only": false,
+    "url_open_run_is_input_source": true,
+    "url_open_run_path": "live-evidence-url-open-run.json",
+    "url_open_run_schema": "shared/schemas/employer-brand-live-evidence-url-open-run-v0.schema.json",
+    "read_only": true,
+    "non_goals": [
+      "locator_resolution",
+      "locator_codegen_execution",
+      "screenshots",
+      "clip_generation",
+      "report_rendering",
+      "export_execution",
+      "workflow_automation",
+      "full_page_grabs",
+      "autonomous_crawl",
+      "login_bypass",
+      "paywall_bypass",
+      "captcha_bypass",
+      "consent_bypass",
+      "element_identification"
+    ]
+  }
+}

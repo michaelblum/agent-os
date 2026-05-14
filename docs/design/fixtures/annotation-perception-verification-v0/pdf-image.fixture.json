@@ -1,0 +1,24 @@
+{
+  "adapter": "pdf_image_region_fixture",
+  "live_adapter": false,
+  "document": {
+    "source_path": "fixture.pdf",
+    "page_count": 1
+  },
+  "pages": [
+    {
+      "page_number": 1,
+      "image_size": { "width": 612, "height": 792 },
+      "regions": [
+        {
+          "id": "image-region:header",
+          "path": "surface:pdf-image-fixture/pdf-page:1/image-region:header",
+          "kind": "image_region",
+          "label": "Header Region",
+          "bounds": { "x": 72, "y": 54, "width": 468, "height": 72 },
+          "coordinate_space": "image_local"
+        }
+      ]
+    }
+  ]
+}

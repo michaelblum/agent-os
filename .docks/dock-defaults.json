@@ -1,0 +1,8 @@
+{
+  "voice": {
+    "enabled": true,
+    "language": "en",
+    "gender": "female",
+    "quality_tiers": ["premium", "enhanced"]
+  }
+}

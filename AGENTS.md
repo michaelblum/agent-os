@@ -23,6 +23,32 @@ creating separate workflows.
 - Runtime mode is path-selected: `./aos` is repo mode, the packaged app is
   installed mode, and state is isolated under `~/.config/aos/{mode}/`.
 
+## Architecture Compass
+
+When a request touches canvases, panels, DesktopWorld, input routing, Sigil, or
+window-shaped surfaces, keep the ownership model loud:
+
+- **Daemon/kernel:** owns native capability and generic contracts: canvas
+  lifecycle, native frames, display topology, content serving, input streams,
+  voice, coordination, and platform state that must survive individual canvases.
+  It is not the product UI layer and should not encode app-specific windowing or
+  Sigil behavior.
+- **Toolkit/default surface system:** owns opt-in reusable policy for AOS
+  surfaces: panel chrome, controls, workbench shells, window state, placement,
+  minimize/maximize/restore, DesktopWorld visual stages, and
+  visual/interaction bindings. This is the default AOS windowing system, but it
+  is a toolkit capability developers can use, customize, or bypass.
+- **Apps:** own product expression, domain state, content, theming, and special
+  behavior. If an app needs a capability every future app will need, extract it
+  to daemon primitives or toolkit policy before growing a private parallel
+  system.
+
+Do not overcorrect performance or lifecycle bugs by moving toolkit policy into
+the daemon. First ask which missing daemon primitive would make the toolkit
+policy cheap, reliable, and optional. Do not overcorrect customizability by
+leaving the daemon as a thin message pipe; native input, display topology,
+canvas lifecycle, and cheap hit/routing primitives belong below WebView code.
+
 ## Agent Entry Paths
 
 Treat repo sessions as agentic dogfooding. Choose the narrowest entry path that
@@ -40,7 +66,7 @@ The common entry paths are:
 - **Testing**: use the smallest appropriate harness; synthetic events are fine
   for deterministic logic, but bugs observed through real user interaction need
   at least one real-input verification or a captured trace explaining why not.
-- **Visual diagnostics**: add canvas inspector, spatial telemetry, screenshots,
+- **Visual diagnostics**: add Surface Inspector, spatial telemetry, screenshots,
   or app-specific trace panels as diagnostic overlays, not as hidden assumptions.
 - **User-input diagnostics**: when ownership of mouse/keyboard streams is the
   issue, collect event-stream and routing evidence before guessing at fixes.
@@ -118,6 +144,11 @@ design context is archived at
   start/checks the daemon, performs one restart/recheck for expected daemon
   drift, then either reports `ready=true` or gives the remaining concrete
   blocker. Do not run repeated ad-hoc repair loops.
+- Before telling a human to remove/re-add repo-mode Accessibility or Input
+  Monitoring grants, stop the managed daemon with
+  `./aos service stop --mode repo` and wait for `running=false`. Only then should
+  the human remove/re-add `/Users/Michael/Code/agent-os/aos`; when they return,
+  run `./aos ready --post-permission`.
 - If `./aos ready` reports blockers and the user wants repair, run
   `./aos ready --repair`. It performs safe automated recovery steps, records a
   trace, and prints plain-English human instructions when macOS privacy settings
@@ -126,9 +157,10 @@ design context is archived at
 - If `./aos ready --repair --json` returns `phase=human_required`, do not dump
   raw JSON at the user. Give a concise, assertive summary. For
   `diagnosis=daemon_tcc_grant_stale_or_missing`, say the repo-mode `aos` macOS
-  permission grant is stale and must be removed/re-added. Offer short numbered
-  choices: more detail, open the listed `open_settings` panes, or stop. Tell the
-  user to come back and say `ready`; when they do, run `./aos ready`.
+  permission grant is stale and must be removed/re-added only after
+  `./aos service stop --mode repo` reports `running=false`. Offer short numbered
+  choices: more detail, run the safe stop, or stop. Tell the user to come back
+  and say `ready`; when they do, run `./aos ready --post-permission`.
 - Use `./aos introspect review` for self-review or recovery after repeated failed
   `./aos` attempts.
 - Treat `doctor`, `daemon-snapshot`, and `clean` as deeper follow-up tools, not
@@ -197,11 +229,6 @@ design context is archived at
   confidently. Do not leave agent-created Git noise behind, and do not delete
   substantive long-lived branches unless the user asks.
 - Treat `_dev` demos as non-canonical.
-- `.docks/` is the durable repo-local launch/control surface for docked
-  role/persona/agent workflows. Treat entries there as dock templates. Generated
-  role directories and workflow run state belong under
-  `.aos-test-tmp/workflows/<id>/`; do not write source edits or generated run
-  state into `.docks/`.
 - Never attribute commits to Claude or any AI assistant in this repo. No
   `Co-Authored-By: Claude ...` trailers, no "Generated with Claude Code"
   tags, and no AI attribution in commit messages, PR descriptions, or issue

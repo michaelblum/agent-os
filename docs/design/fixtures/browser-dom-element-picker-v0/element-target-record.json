@@ -1,0 +1,173 @@
+{
+  "id": "element-target-shuvvm",
+  "ordinal": 1,
+  "kind": "element_target",
+  "surface_id": "controlled-browser-page",
+  "surface_type": "browser_page",
+  "source_url": "file:///Users/Michael/Code/agent-os/docs/design/fixtures/browser-dom-element-picker-v0/controlled-page.html",
+  "source_path": "docs/design/fixtures/browser-dom-element-picker-v0/controlled-page.html",
+  "coordinate_space": "viewport",
+  "point": {
+    "x": 156,
+    "y": 124
+  },
+  "anchor_point": {
+    "x": 156,
+    "y": 124
+  },
+  "bounds": {
+    "x": 57,
+    "y": 57,
+    "width": 520,
+    "height": 104
+  },
+  "viewport_bounds": {
+    "x": 57,
+    "y": 57,
+    "width": 520,
+    "height": 104
+  },
+  "page_bounds": {
+    "x": 57,
+    "y": 57,
+    "width": 520,
+    "height": 104
+  },
+  "selector_candidates": [
+    "[data-testid=\"hero-card\"]",
+    "[role=\"region\"][aria-label=\"Employer brand hero\"]",
+    "section.hero-card"
+  ],
+  "preferred_selector": "[data-testid=\"hero-card\"]",
+  "xpath": "/body[1]/main[1]/section[1]",
+  "tag_name": "section",
+  "role": "region",
+  "label": "Employer brand hero",
+  "accessible_name": "Employer brand hero",
+  "text_excerpt": "Build a candidate story from exact page evidence. Request demo",
+  "ancestor_chain": [
+    "[data-testid=\"hero-card\"]",
+    "[data-qa=\"campaign-hero\"]",
+    "body:nth-of-type(1)"
+  ],
+  "ancestor_descriptors": [
+    {
+      "id": "dom-node-18ljw9q",
+      "tag_name": "section",
+      "role": "region",
+      "label": "Employer brand hero",
+      "text_excerpt": "Build a candidate story from exact page evidence. Request demo",
+      "selector_candidates": [
+        "[data-testid=\"hero-card\"]",
+        "[role=\"region\"][aria-label=\"Employer brand hero\"]",
+        "section.hero-card"
+      ],
+      "preferred_selector": "[data-testid=\"hero-card\"]",
+      "xpath": "/body[1]/main[1]/section[1]",
+      "viewport_bounds": {
+        "x": 57,
+        "y": 57,
+        "width": 520,
+        "height": 104
+      },
+      "page_bounds": {
+        "x": 57,
+        "y": 57,
+        "width": 520,
+        "height": 104
+      }
+    },
+    {
+      "id": "dom-node-n39yjj",
+      "tag_name": "main",
+      "role": "main",
+      "label": "Campaign hero",
+      "text_excerpt": "Build a candidate story from exact page evidence. Request demo",
+      "selector_candidates": [
+        "[data-qa=\"campaign-hero\"]",
+        "[role=\"main\"][aria-label=\"Campaign hero\"]",
+        "main.hero"
+      ],
+      "preferred_selector": "[data-qa=\"campaign-hero\"]",
+      "xpath": "/body[1]/main[1]",
+      "viewport_bounds": {
+        "x": 32,
+        "y": 32,
+        "width": 570,
+        "height": 154
+      },
+      "page_bounds": {
+        "x": 32,
+        "y": 32,
+        "width": 570,
+        "height": 154
+      }
+    },
+    {
+      "id": "dom-node-zagefc",
+      "tag_name": "body",
+      "role": "",
+      "label": "Build a candidate story from exact page evidence. Request demo Offscreen action",
+      "text_excerpt": "Build a candidate story from exact page evidence. Request demo Offscreen action",
+      "selector_candidates": [
+        "body:nth-of-type(1)"
+      ],
+      "preferred_selector": "body:nth-of-type(1)",
+      "xpath": "/body[1]",
+      "viewport_bounds": {
+        "x": 0,
+        "y": 32,
+        "width": 800,
+        "height": 1248
+      },
+      "page_bounds": {
+        "x": 0,
+        "y": 32,
+        "width": 800,
+        "height": 1248
+      }
+    }
+  ],
+  "note": "Browser DOM element target.",
+  "actor": {
+    "role": "human",
+    "id": "operator"
+  },
+  "status": "committed",
+  "lifecycle": {
+    "clearable": true,
+    "committed_at": "2026-05-10T00:00:00.000Z",
+    "resolved_at": null,
+    "rejected_at": null,
+    "recovered_from": null
+  },
+  "capture": {
+    "prepare": {
+      "annotation_layer_visible": false,
+      "target_content_mutated": false,
+      "browser_dom_picker_overlay_hidden": true
+    },
+    "restore": {
+      "annotation_layer_visible": true,
+      "browser_dom_picker_overlay_hidden": false
+    }
+  },
+  "created_at": "2026-05-10T00:00:00.000Z",
+  "updated_at": "2026-05-10T00:00:00.000Z",
+  "metadata": {
+    "picker": {
+      "source": "right_click_badge",
+      "state_version": "0.1.0"
+    },
+    "visibility": {
+      "state": "visible",
+      "can_reveal": true,
+      "reveal_action": "scrollIntoView",
+      "blocker_reason": ""
+    },
+    "later": {
+      "playwright_locator": null,
+      "codegen": null
+    }
+  }
+}

@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-html-workbench-expression-v0.schema.json",
+  "title": "AOS HTML Workbench Expression V0",
+  "description": "Metadata sidecar for a safe, annotation-ready HTML projection of a durable AOS artifact source such as a Markdown work-card.",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "expression_id",
+    "source",
+    "generated_at",
+    "artifact_kind",
+    "html",
+    "semantic_targets",
+    "source_map",
+    "mermaid_blocks",
+    "capabilities",
+    "security",
+    "export_resume"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "aos_html_workbench_expression" },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "expression_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "required": ["kind", "path", "content_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["markdown"] },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "artifact_kind": {
+      "enum": ["work_card", "human_alignment_pack"]
+    },
+    "html": {
+      "type": "object",
+      "required": ["path", "inline_fixture_path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": ["string", "null"]
+        },
+        "inline_fixture_path": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "semantic_targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/SemanticTarget" }
+    },
+    "source_map": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SourceMapEntry" }
+    },
+    "mermaid_blocks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/MermaidBlock" }
+    },
+    "capabilities": {
+      "type": "object",
+      "required": [
+        "annotation",
+        "checkpoint",
+        "resume",
+        "export_sidecar",
+        "proposed_markdown_patch",
+        "source_mutation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "annotation": { "type": "boolean" },
+        "checkpoint": { "type": "boolean" },
+        "resume": { "type": "boolean" },
+        "export_sidecar": { "type": "boolean" },
+        "proposed_markdown_patch": { "type": "boolean" },
+        "source_mutation": { "type": "boolean" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "required": [
+        "markdown_html_escaped",
+        "unsafe_links_stripped",
+        "source_authored_script_execution",
+        "source_authored_inline_event_handlers",
+        "sandbox"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "markdown_html_escaped": { "type": "boolean" },
+        "unsafe_links_stripped": { "type": "boolean" },
+        "source_authored_script_execution": { "type": "boolean" },
+        "source_authored_inline_event_handlers": { "type": "boolean" },
+        "sandbox": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "export_resume": {
+      "type": "object",
+      "required": ["automatic_source_mutation", "supported_outputs"],
+      "additionalProperties": false,
+      "properties": {
+        "automatic_source_mutation": { "type": "boolean" },
+        "supported_outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "annotation_sidecar",
+              "decision_sidecar",
+              "proposed_markdown_patch",
+              "noop_approval"
+            ]
+          }
+        }
+      }
+    },
+    "outline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["target_id", "label", "level", "selector"],
+        "additionalProperties": false,
+        "properties": {
+          "target_id": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+          "selector": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "SemanticTarget": {
+      "type": "object",
+      "required": [
+        "target_id",
+        "data_aos_ref",
+        "aos_ref",
+        "kind",
+        "accessible_label",
+        "source_path",
+        "source_line_start",
+        "source_line_end",
+        "selector",
+        "annotation_eligible",
+        "reveal_eligible"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "target_id": { "type": "string", "minLength": 1 },
+        "data_aos_ref": { "type": "string", "minLength": 1 },
+        "aos_ref": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": [
+            "document",
+            "section",
+            "heading",
+            "decision",
+            "checklist_item",
+            "mermaid_block",
+            "code_block",
+            "non_goal",
+            "verification"
+          ]
+        },
+        "accessible_label": { "type": "string", "minLength": 1 },
+        "source_path": { "type": "string", "minLength": 1 },
+        "source_line_start": { "type": "integer", "minimum": 1 },
+        "source_line_end": { "type": "integer", "minimum": 1 },
+        "selector": { "type": "string", "minLength": 1 },
+        "annotation_eligible": { "type": "boolean" },
+        "reveal_eligible": { "type": "boolean" }
+      }
+    },
+    "SourceMapEntry": {
+      "type": "object",
+      "required": ["target_id", "source_path", "source_line_start", "source_line_end", "selector"],
+      "additionalProperties": false,
+      "properties": {
+        "target_id": { "type": "string", "minLength": 1 },
+        "source_path": { "type": "string", "minLength": 1 },
+        "source_line_start": { "type": "integer", "minimum": 1 },
+        "source_line_end": { "type": "integer", "minimum": 1 },
+        "selector": { "type": "string", "minLength": 1 }
+      }
+    },
+    "MermaidBlock": {
+      "type": "object",
+      "required": ["target_id", "source_path", "source_line_start", "source_line_end", "selector", "source_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "target_id": { "type": "string", "minLength": 1 },
+        "source_path": { "type": "string", "minLength": 1 },
+        "source_line_start": { "type": "integer", "minimum": 1 },
+        "source_line_end": { "type": "integer", "minimum": 1 },
+        "selector": { "type": "string", "minLength": 1 },
+        "source_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

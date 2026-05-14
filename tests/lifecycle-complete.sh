@@ -29,6 +29,40 @@ trap cleanup EXIT
   --js 'document.body.dataset.ready === "1"' \
   --timeout 5s >/dev/null
 
+./aos show eval --id lifecycle-smoke --js 'window.startWarmChild("lifecycle-warm-child")' >/dev/null
+
+python3 - <<'PY'
+import json
+import subprocess
+import time
+
+
+def run(*args):
+    return subprocess.check_output(args, text=True)
+
+
+def canvas_info(canvas_id):
+    payload = json.loads(run("./aos", "show", "list"))
+    for canvas in payload.get("canvases", []):
+        if canvas.get("id") == canvas_id:
+            return canvas
+    return None
+
+
+deadline = time.time() + 5.0
+while time.time() < deadline:
+    canvas = canvas_info("lifecycle-warm-child")
+    if canvas and canvas.get("suspended") is True:
+        if (canvas.get("lifecycle_state") or canvas.get("lifecycleState")) != "warm_suspended":
+            raise SystemExit(f"FAIL: warm child lifecycle_state mismatch: {canvas}")
+        break
+    time.sleep(0.05)
+else:
+    raise SystemExit("FAIL: warm child never reached suspended list state")
+
+run("./aos", "show", "remove", "--id", "lifecycle-warm-child")
+PY
+
 ./aos show eval --id lifecycle-smoke --js 'window.startResumeCycle(50)' >/dev/null
 
 python3 - <<'PY'
@@ -58,7 +92,10 @@ def smoke_state():
 
 deadline = time.time() + 1.0
 while time.time() < deadline:
-    if canvas_info().get("suspended") is True and smoke_state().get("resumeRequestedAt"):
+    canvas = canvas_info()
+    if canvas.get("suspended") is True and smoke_state().get("resumeRequestedAt"):
+        if (canvas.get("lifecycle_state") or canvas.get("lifecycleState")) != "suspended":
+            raise SystemExit(f"FAIL: suspended lifecycle_state mismatch: {canvas}")
         break
     time.sleep(0.05)
 else:
@@ -71,9 +108,12 @@ if not resume_requested:
 
 deadline = time.time() + 1.0
 while time.time() < deadline:
-    suspended = canvas_info().get("suspended")
+    canvas = canvas_info()
+    suspended = canvas.get("suspended")
     state = smoke_state()
     if suspended is False:
+        if (canvas.get("lifecycle_state") or canvas.get("lifecycleState")) != "active":
+            raise SystemExit(f"FAIL: active lifecycle_state mismatch: {canvas}")
         if not state.get("resumeCompletedAt"):
             state = smoke_state()
         if not state.get("resumeCompletedAt"):

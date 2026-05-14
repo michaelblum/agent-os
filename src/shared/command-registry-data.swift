@@ -106,7 +106,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos see capture main --out /tmp/screen.png",
                 "aos see main --base64 --format jpg",
                 "aos see capture user_active --window --xray",
-                "aos see capture --canvas canvas-inspector --perception --out /tmp/inspector.png",
+                "aos see capture --canvas surface-inspector --perception --out /tmp/inspector.png",
                 "aos see capture --channel slack-msgs --perception --out /tmp/messages.png",
                 "aos see capture --region 1172,442,320,480 --perception --out /tmp/inspector.png",
                 "aos see mouse --radius 200"
@@ -335,7 +335,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(daemon: true),
             output: outJSONFlag,
             examples: [
-                "aos show wait --id canvas-inspector --manifest canvas-inspector",
+                "aos show wait --id surface-inspector --manifest canvas-inspector",
                 "aos show wait --id sigil-workbench --js '!!document.querySelector(\".surface-frame\")'"
             ]),
         InvocationForm(id: "show-exists", usage: "aos show exists --id <name>",
@@ -603,9 +603,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
 
     // ── say ───────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["say"], summary: "Voice — speak text aloud (sugar for tell human)", forms: [
-        InvocationForm(id: "say-text", usage: "aos say [--voice id] [--rate wpm] <text>",
+        InvocationForm(id: "say-text", usage: "aos say [--voice id] [--voice-slot n] [--language value] [--gender value] [--quality-tier value] [--rate wpm] <text>",
             args: [
                 flag("voice", "--voice", "Voice identifier", discovery: [.command(path: ["say"], formId: "say-list-voices")]),
+                flag("voice-slot", "--voice-slot", "1-based speakable voice slot resolved after filters in registry order", type: .int),
+                flag("language", "--language", "Filter voice-slot candidates by language"),
+                flag("gender", "--gender", "Filter voice-slot candidates by gender"),
+                flag("quality-tier", "--quality-tier", "Filter voice-slot candidates by quality tier; repeat or use comma-separated values", variadic: true),
                 flag("rate", "--rate", "Speech rate in WPM", type: .int),
                 pos("text", "Text to speak", required: false, variadic: true)
             ],
@@ -613,7 +617,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             constraints: nil,
             execution: execMutating(),
             output: outJSON,
-            examples: ["aos say \"Hello, I'm your agent\"", "echo 'status' | aos say"]),
+            examples: ["aos say \"Hello, I'm your agent\"", "aos say --voice-slot 1 --language en --quality-tier premium,enhanced \"Done\"", "echo 'status' | aos say"]),
         InvocationForm(id: "say-list-voices", usage: "aos say --list-voices",
             args: [flag("list-voices", "--list-voices", "List available system voices", type: .bool, required: true)],
             stdin: nil, constraints: nil,

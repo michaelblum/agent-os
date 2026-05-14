@@ -16,6 +16,7 @@ mkdir -p "$(dirname "$SOCK")"
 # gate without depending on live macOS TCC grants for the running ./aos binary.
 # This isolates the test from developer-machine state and makes it portable.
 export AOS_BYPASS_PERMISSIONS_SETUP=1
+export AOS_TEST_SKIP_READY_SERVICE_START=1
 
 cleanup() {
   if [[ -n "${MOCK_PID:-}" ]] && kill -0 "$MOCK_PID" 2>/dev/null; then
@@ -108,5 +109,59 @@ case "$DO_OUT" in
   *INPUT_TAP_NOT_ACTIVE*) echo "PASS: do click exits with INPUT_TAP_NOT_ACTIVE" ;;
   *) echo "FAIL: do click error code missing INPUT_TAP_NOT_ACTIVE: $DO_OUT (rc=$DO_RC)"; exit 1 ;;
 esac
+
+# ready --json should put the safe daemon stop before any settings action when
+# stale daemon-owned TCC/input tap grants require a human reset.
+set +e
+READY_JSON="$(./aos ready --json)"
+READY_RC=$?
+set -e
+python3 - "$ROOT/aos" "$READY_JSON" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[2])
+target = sys.argv[1]
+assert d.get("ready") is False, d
+assert d.get("phase") == "human_required", d
+assert d.get("diagnosis") == "daemon_tcc_grant_stale_or_missing", d
+actions = d.get("next_actions", [])
+commands = [a.get("command", "") for a in actions]
+assert "./aos service stop --mode repo" in commands, actions
+assert "./aos ready --post-permission" in commands, actions
+stop_index = commands.index("./aos service stop --mode repo")
+open_indexes = [i for i, a in enumerate(actions) if a.get("type") == "open_settings"]
+assert open_indexes, actions
+assert all(stop_index < i for i in open_indexes), actions
+blockers = d.get("blockers", [])
+assert any(b.get("target_path") == target for b in blockers), blockers
+PY
+if [[ "$READY_RC" -eq 0 ]]; then
+  echo "FAIL: ready --json unexpectedly exited 0 against stale daemon permissions"
+  exit 1
+fi
+echo "PASS: ready --json safe permission reset next_actions"
+
+set +e
+READY_TEXT="$(./aos ready 2>&1)"
+READY_TEXT_RC=$?
+set -e
+if [[ "$READY_TEXT" == *"Safe permission reset sequence:"* ]] &&
+   [[ "$READY_TEXT" == *"Runtime mode: repo"* ]] &&
+   [[ "$READY_TEXT" == *"Target binary: $ROOT/aos"* ]] &&
+   [[ "$READY_TEXT" == *"1. Stop the managed daemon first: ./aos service stop --mode repo"* ]] &&
+   [[ "$READY_TEXT" == *"Do not remove/re-add macOS permissions until service status reports running=false"* ]] &&
+   [[ "$READY_TEXT" == *"Remove/re-add $ROOT/aos in Accessibility and/or Input Monitoring"* ]] &&
+   [[ "$READY_TEXT" == *"The agent should run: ./aos ready --post-permission"* ]]; then
+  echo "PASS: ready text safe permission reset handoff"
+else
+  echo "FAIL: ready text missing safe permission reset handoff:"
+  echo "$READY_TEXT"
+  exit 1
+fi
+if [[ "$READY_TEXT_RC" -eq 0 ]]; then
+  echo "FAIL: ready text unexpectedly exited 0 against stale daemon permissions"
+  exit 1
+fi
 
 echo "PASS"

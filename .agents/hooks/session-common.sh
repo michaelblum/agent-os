@@ -128,6 +128,83 @@ aos_resolve_session_id() {
   fi
 }
 
+aos_extract_final_message() {
+  local hook_input="${1:-}"
+  python3 - "$hook_input" <<'PY'
+import json
+import pathlib
+import sys
+
+raw = sys.argv[1]
+
+def text_from_message(message):
+    if isinstance(message, str):
+        return message
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                value = item.get("text") or item.get("output_text")
+                if value:
+                    parts.append(str(value))
+        return "".join(parts)
+    return ""
+
+try:
+    payload = json.loads(raw) if raw else {}
+except json.JSONDecodeError:
+    payload = {}
+
+for key in ("last_assistant_message", "last_agent_message"):
+    value = payload.get(key)
+    if value:
+        print(str(value).rstrip())
+        raise SystemExit(0)
+
+transcript_path = payload.get("transcript_path")
+if transcript_path:
+    path = pathlib.Path(transcript_path).expanduser()
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        lines = []
+    for line in reversed(lines):
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        event_payload = event.get("payload", {})
+        if event_payload.get("type") == "task_complete" and event_payload.get("last_agent_message"):
+            print(str(event_payload["last_agent_message"]).rstrip())
+            raise SystemExit(0)
+        if event_payload.get("type") == "message" and event_payload.get("role") == "assistant":
+            text = text_from_message(event_payload).rstrip()
+            if text:
+                print(text)
+                raise SystemExit(0)
+print("")
+PY
+}
+
+aos_strip_clipboard_chat_marker() {
+  local message="${1:-}"
+  python3 - "$message" <<'PY'
+import re
+import sys
+
+message = sys.argv[1]
+message = re.sub(r"(?:\r?\n\s*)*\(on clipboard\)\s*$", "", message)
+print(message.rstrip())
+PY
+}
+
 aos_session_compaction_file() {
   local session_key="$1"
   printf '%s/compact-%s\n' "$(aos_session_state_dir)" "$(aos_sanitize_token "$session_key")"
@@ -140,4 +217,27 @@ aos_emit_stop_hook_success() {
       printf '{"continue":true}\n'
       ;;
   esac
+}
+
+aos_run_hook_command_bounded() {
+  local timeout_seconds="${1:-4}"
+  shift || return 2
+
+  "$@" &
+  local pid=$!
+  local remaining="$timeout_seconds"
+
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    if (( remaining <= 0 )); then
+      kill "$pid" >/dev/null 2>&1 || true
+      sleep 0.1
+      kill -9 "$pid" >/dev/null 2>&1 || true
+      wait "$pid" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 1
+    remaining=$((remaining - 1))
+  done
+
+  wait "$pid"
 }

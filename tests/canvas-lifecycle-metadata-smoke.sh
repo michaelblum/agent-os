@@ -25,6 +25,7 @@ bash packages/toolkit/components/spatial-telemetry/launch.sh >/dev/null
 ./aos show create --id parent-canvas --track union --scope global --html '<!doctype html><html><body style="margin:0;background:transparent"></body></html>' >/dev/null
 sleep 1
 ./aos show eval --id parent-canvas --js 'window.webkit.messageHandlers.headsup.postMessage({type:"canvas.create",payload:{id:"child-canvas",frame:[120,140,80,80],url:"aos://toolkit/runtime/_smoke/index.html"}})' >/dev/null
+./aos show eval --id parent-canvas --js 'window.webkit.messageHandlers.headsup.postMessage({type:"canvas.create",payload:{id:"bridge-stage-canvas",surface:"desktop-world",scope:"global",interactive:false,cascade:false,url:"aos://toolkit/components/desktop-world-stage/index.html"}})' >/dev/null
 
 python3 - <<'PY'
 import json
@@ -35,11 +36,11 @@ deadline = time.time() + 10
 while time.time() < deadline:
     canvases = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"], text=True)).get("canvases", [])
     ids = {canvas["id"] for canvas in canvases}
-    if {"parent-canvas", "child-canvas"}.issubset(ids):
+    if {"parent-canvas", "child-canvas", "bridge-stage-canvas"}.issubset(ids):
         break
     time.sleep(0.2)
 else:
-    raise SystemExit("FAIL: expected parent-canvas and child-canvas in show list")
+    raise SystemExit("FAIL: expected parent-canvas, child-canvas, and bridge-stage-canvas in show list")
 
 def eval_json(canvas_id, expr):
     payload = json.loads(subprocess.check_output([
@@ -48,21 +49,25 @@ def eval_json(canvas_id, expr):
     return json.loads(payload["result"])
 
 for _ in range(50):
-    inspector_canvases = eval_json("canvas-inspector", "JSON.stringify(window.__canvasInspectorState?.canvases || [])")
+    inspector_canvases = eval_json("surface-inspector", "JSON.stringify(window.__canvasInspectorState?.canvases || [])")
     telemetry_canvases = eval_json("spatial-telemetry", "JSON.stringify(window.__spatialTelemetryState?.raw?.canvases || [])")
 
     states = {
-        "canvas-inspector": {canvas["id"]: canvas for canvas in inspector_canvases},
+        "surface-inspector": {canvas["id"]: canvas for canvas in inspector_canvases},
         "spatial-telemetry": {canvas["id"]: canvas for canvas in telemetry_canvases},
     }
     ready = True
     for by_id in states.values():
         parent = by_id.get("parent-canvas")
         child = by_id.get("child-canvas")
-        if not parent or not child:
+        stage = by_id.get("bridge-stage-canvas")
+        if not parent or not child or not stage:
             ready = False
             break
         if parent.get("track") != "union" or child.get("parent") != "parent-canvas" or child.get("scope") != "global":
+            ready = False
+            break
+        if stage.get("track") != "union" or not stage.get("segments") or stage.get("parent") != "parent-canvas":
             ready = False
             break
         if not isinstance(parent.get("windowNumbers"), list) or not parent["windowNumbers"]:

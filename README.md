@@ -32,4 +32,4 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.
 Maintained consumer-facing API docs live in [docs/api/](docs/api/):
 
 - [docs/api/aos.md](docs/api/aos.md) — unified `aos` CLI contract
-- [docs/api/toolkit.md](docs/api/toolkit.md) — toolkit runtime/panel/content contract
+- [docs/api/toolkit.md](docs/api/toolkit.md) — toolkit API index with scoped runtime, panel/window, workbench, component, and content-host contracts

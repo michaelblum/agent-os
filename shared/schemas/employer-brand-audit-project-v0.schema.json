@@ -378,6 +378,8 @@
         "work_record_path",
         "browser_evidence_manifest_path",
         "browser_evidence_registry_path",
+        "live_evidence_target_plan_schema",
+        "live_evidence_target_plan_path",
         "company_brand_audit_schema",
         "company_brand_audit_paths",
         "comparative_brand_audit_schema",
@@ -406,6 +408,12 @@
         },
         "browser_evidence_registry_path": {
           "$ref": "#/$defs/relative_path"
+        },
+        "live_evidence_target_plan_schema": {
+          "const": "shared/schemas/employer-brand-live-evidence-target-plan-v0.schema.json"
+        },
+        "live_evidence_target_plan_path": {
+          "const": "live-evidence-target-plan.json"
         },
         "company_brand_audit_schema": {
           "$ref": "#/$defs/relative_path"

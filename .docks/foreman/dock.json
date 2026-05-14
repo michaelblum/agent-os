@@ -1,0 +1,14 @@
+{
+  "name": "foreman",
+  "role": "foreman",
+  "harness": "codex",
+  "hook_timeout_seconds": 8,
+  "stop_notice": "Foreman finished.",
+  "handoff": {
+    "requires_goal_prefix": false
+  },
+  "voice": {
+    "gender": "male",
+    "voice_slot": 1
+  }
+}

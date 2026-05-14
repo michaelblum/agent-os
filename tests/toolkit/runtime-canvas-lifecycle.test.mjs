@@ -31,6 +31,7 @@ test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads
     scope: 'global',
     cascade: true,
     suspended: false,
+    lifecycle_state: 'active',
     canvas: {
       id: 'avatar-main',
       at: [-185, 0, 1920, 2062],
@@ -39,6 +40,7 @@ test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads
       track: 'union',
       cascade: true,
       suspended: false,
+      lifecycle_state: 'active',
       windowNumbers: [1001, 1002],
     },
   })
@@ -53,6 +55,7 @@ test('mergeCanvasLifecycleCanvas preserves rich metadata from lifecycle payloads
     ttl: null,
     cascade: true,
     suspended: false,
+    lifecycle_state: 'active',
     windowNumbers: [1001, 1002],
   })
 })
@@ -68,6 +71,7 @@ test('mergeCanvasLifecycleCanvas falls back to nested canvas metadata for child 
       parent: 'avatar-main',
       cascade: true,
       suspended: false,
+      lifecycle_state: 'warm_suspended',
     },
   })
 
@@ -81,7 +85,22 @@ test('mergeCanvasLifecycleCanvas falls back to nested canvas metadata for child 
     ttl: null,
     cascade: true,
     suspended: false,
+    lifecycle_state: 'warm_suspended',
   })
+})
+
+test('mergeCanvasLifecycleCanvas preserves top-level lifecycle state for warm canvases', () => {
+  const merged = mergeCanvasLifecycleCanvas(null, {
+    canvas_id: 'warm-inspector',
+    action: 'created',
+    at: [10, 20, 300, 200],
+    interactive: true,
+    suspended: true,
+    lifecycle_state: 'warm_suspended',
+  })
+
+  assert.equal(merged.lifecycle_state, 'warm_suspended')
+  assert.equal(merged.suspended, true)
 })
 
 test('mergeCanvasLifecycleCanvas preserves top-level native window numbers', () => {

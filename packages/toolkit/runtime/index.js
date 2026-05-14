@@ -7,7 +7,7 @@
 
 export { wireBridge, emit, esc } from './bridge.js'
 export { subscribe, unsubscribe } from './subscribe.js'
-export { spawnChild, mutateSelf, removeSelf, suspendCanvas, resumeCanvas, setInteractive, evalCanvas, move } from './canvas.js'
+export { CANVAS_LIFECYCLE_STATES, spawnChild, warmCanvas, waitForCanvasReady, canvasInfo, waitForCanvasStatusReady, mutateSelf, removeSelf, removeCanvas, suspendCanvas, resumeCanvas, setInteractive, evalCanvas, move } from './canvas.js'
 export { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from './canvas-lifecycle.js'
 export { DesktopWorldSurfaceAdapter } from './desktop-world-surface.js'
 export { DesktopWorldSurface2D } from './desktop-world-surface-2d.js'
@@ -16,12 +16,28 @@ export {
   DesktopWorldSurfaceThree,
   deriveOrthoCamera,
 } from './desktop-world-surface-three.js'
-export { isCanvasInputEventType, normalizeCanvasInputMessage } from './input-events.js'
+export {
+  createCanvasOriginInputEvent,
+  isCanvasInputEventType,
+  normalizeCanvasInputMessage,
+  normalizeCanvasOriginInputMessage,
+} from './input-events.js'
+export {
+  registerInputRegion,
+  updateInputRegion,
+  removeInputRegion,
+  inputRegionContainsRect,
+} from './input-region.js'
 export {
   createDesktopWorldInteractionRouter,
   pointerPhase,
 } from './interaction-region.js'
 export { createInteractionSurface } from './interaction-surface.js'
+export {
+  createDesktopWorldHitRegionController,
+  desktopWorldHitRegionFrame,
+  resolveDesktopWorldHitRegionOwnerCanvasId,
+} from './desktop-world-hit-region.js'
 export {
   aosRefForTarget,
   applySemanticTargetAttributes,
@@ -36,6 +52,7 @@ export {
   desktopWorldRangeValue,
   updateDesktopWorldRangeDrag,
 } from './range-drag.js'
+export { createResourceScope } from './resource-scope.js'
 export {
   angleDegrees,
   createRadialGestureModel,

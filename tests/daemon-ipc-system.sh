@@ -50,6 +50,15 @@ assert "uptime" in payload, f"uptime missing: {d}"
 assert isinstance(payload.get("pid"), int), f"pid missing: {d}"
 assert payload.get("mode") in ("repo", "installed"), f"mode missing: {d}"
 assert isinstance(payload.get("socket_path"), str) and payload["socket_path"], f"socket_path missing: {d}"
+assert isinstance(payload.get("perception_channels"), int), f"perception_channels missing: {d}"
+canvas_channels = payload.get("canvas_perception_channels")
+assert isinstance(canvas_channels, list), f"canvas_perception_channels missing: {d}"
+for channel in canvas_channels:
+    assert isinstance(channel.get("canvas_id"), str) and channel["canvas_id"], f"canvas channel id missing: {channel}"
+    assert isinstance(channel.get("channel_id"), str) and channel["channel_id"], f"channel id missing: {channel}"
+    assert isinstance(channel.get("depth"), int), f"channel depth missing: {channel}"
+    assert channel.get("scope") == "cursor", f"channel scope invalid: {channel}"
+    assert channel.get("rate") in ("continuous", "on-change", "on-settle"), f"channel rate invalid: {channel}"
 
 # Legacy flat fields preserved
 assert payload.get("input_tap_status") in ("active", "retrying", "unavailable"), f"input_tap_status missing: {d}"
@@ -65,6 +74,10 @@ assert tap["attempts"] == payload["input_tap_attempts"], f"flat/nested mismatch:
 assert isinstance(tap.get("listen_access"), bool), f"input_tap.listen_access missing: {d}"
 assert isinstance(tap.get("post_access"), bool), f"input_tap.post_access missing: {d}"
 assert tap.get("last_error_at") is None or isinstance(tap.get("last_error_at"), str), f"input_tap.last_error_at must be string-or-null: {d}"
+assert isinstance(tap.get("panic_passthrough_active"), bool), f"input_tap.panic_passthrough_active missing: {d}"
+assert tap.get("panic_passthrough_until") is None or isinstance(tap.get("panic_passthrough_until"), str), f"input_tap.panic_passthrough_until must be string-or-null: {d}"
+assert tap.get("panic_trigger") is None or tap.get("panic_trigger") == "cmd_opt_escape", f"input_tap.panic_trigger invalid: {d}"
+assert isinstance(tap.get("panic_trigger_count"), int), f"input_tap.panic_trigger_count missing: {d}"
 
 # New nested permissions block
 perms = payload.get("permissions")
