@@ -63,15 +63,10 @@ git status --short --branch
 rg -n "scheduleRenderFrame|createRenderLoopScheduler|rendererSuspended|visualActive|requestAnimationFrame|postRenderPerformanceSample|renderPerformanceTelemetry|animateVisibility|status_item|openWikiWorkbench|radialActivationTransition" apps/sigil/renderer packages/toolkit tests/renderer
 ```
 
-If on `main` with a clean worktree and this is an implementation session,
-create a short topic branch such as:
-
-```bash
-git switch -c codex/sigil-render-performance-regression
-```
-
-If the tree is dirty, preserve unrelated user changes and choose a branch or
-worktree that does not overwrite them.
+Follow the active dev workflow profile in `docs/dev/workflow-profiles.json`.
+Under the current `hybrid_trunk` profile, stay on `main` for a small,
+single-sitting implementation. Create a short-lived branch or worktree only if
+the slice is risky, experimental, multi-day, or needs dirty-worktree isolation.
 
 ## Current Evidence
 

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/dev-workflow-profiles.schema.json",
+  "title": "AOS Dev Workflow Profiles",
+  "description": "Manifest contract for repo-selectable development workflow profiles.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "summary",
+    "active_profile",
+    "override_policy",
+    "axes",
+    "profiles"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "active_profile": { "$ref": "#/$defs/profile_id" },
+    "override_policy": { "type": "string", "minLength": 1 },
+    "axes": {
+      "type": "object",
+      "required": ["dock", "entry_path", "workflow_profile"],
+      "additionalProperties": false,
+      "properties": {
+        "dock": { "type": "string", "minLength": 1 },
+        "entry_path": { "type": "string", "minLength": 1 },
+        "workflow_profile": { "type": "string", "minLength": 1 }
+      }
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/profile" }
+    }
+  },
+  "$defs": {
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "text_array": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "profile": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "shorthand",
+        "intended_for",
+        "default_work_surface",
+        "main_role",
+        "direct_main_default",
+        "pull_request_required",
+        "review_default",
+        "commit_strategy",
+        "branch_strategy",
+        "branch_required_for",
+        "branch_optional_for",
+        "release_branching",
+        "environment_branches",
+        "agent_guidance"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/profile_id" },
+        "name": { "type": "string", "minLength": 1 },
+        "shorthand": { "$ref": "#/$defs/profile_id" },
+        "intended_for": { "$ref": "#/$defs/text_array" },
+        "default_work_surface": { "type": "string", "minLength": 1 },
+        "main_role": { "type": "string", "minLength": 1 },
+        "direct_main_default": { "type": "boolean" },
+        "pull_request_required": { "type": "boolean" },
+        "review_default": { "type": "string", "minLength": 1 },
+        "commit_strategy": { "type": "string", "minLength": 1 },
+        "branch_strategy": { "type": "string", "minLength": 1 },
+        "branch_required_for": { "$ref": "#/$defs/text_array" },
+        "branch_optional_for": { "$ref": "#/$defs/text_array" },
+        "release_branching": { "type": "boolean" },
+        "environment_branches": { "$ref": "#/$defs/text_array" },
+        "agent_guidance": { "$ref": "#/$defs/text_array" }
+      }
+    }
+  }
+}

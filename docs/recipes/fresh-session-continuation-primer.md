@@ -128,7 +128,10 @@ If `gh` is unavailable or unauthenticated, report that and continue with local e
 1. Switch away from transient/demo branches if needed.
 2. Verify whether `codex/wiki-workbench-sidebar` still exists and is the active toolkit cleanup branch.
 3. If it exists, inspect its diff against `main`.
-4. If it has landed, resume from `main` on a new topic branch.
+4. If it has landed, resume according to the active dev workflow profile in
+   `docs/dev/workflow-profiles.json`. For the current `hybrid_trunk` profile,
+   resume on `main` unless the next slice is risky, experimental, multi-day, or
+   needs dirty-worktree isolation.
 5. If it is stale or conflicts with newer work, summarize the conflict before editing.
 
 Recommended inspection:

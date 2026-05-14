@@ -218,22 +218,29 @@ or ad hoc scripts.
   of trying to fully re-verify it yourself.
 - If display work starts from stale daemons or orphaned canvases, run
   `./aos clean` first and report what was cleaned.
-- Treat `main` as the integration branch, not the default work surface. For
-  substantive feature, bug, docs, or governance work, create or use a named
-  topic branch/worktree unless the user explicitly asks for direct-on-main
-  editing or the change is a tiny repo-local hygiene fix already in progress on
-  `main`. Keep branch names descriptive and short, such as
-  `codex/supervised-run-harness` or `owner/sigil-visuals`.
+- Dev branch, PR, and release mechanics are selected by the active dev workflow
+  profile in `docs/dev/workflow-profiles.json`, not hard-coded in this root
+  contract. Workflow profiles are replaceable examples for development posture;
+  they are separate from docks, entry paths, and Level 0 AOS primitives.
+- The active AOS repo profile is `hybrid_trunk`: use `main` as the normal work
+  surface for small, low-risk, incremental changes. Create a short-lived branch
+  or worktree only for risky, experimental, multi-day, or dirty-worktree work
+  that should not live directly on `main` yet. If the user explicitly states a
+  different workflow preference, follow it and update the active profile when
+  asked.
+- When a profile or user request calls for a branch, keep names descriptive and
+  short, such as `codex/supervised-run-harness` or `owner/sigil-visuals`.
 - Worktree sessions share one singleton repo daemon. Do not overwrite canonical
-  `content.roots.toolkit` or `content.roots.sigil` from a topic worktree unless
-  the task explicitly targets canonical main. Use branch-scoped root names from
-  `scripts/aos-content-scope.sh`, pass explicit `toolkit-root`/`sigil-root`
-  query parameters when a surface crosses app/package roots, and prefer launch
-  scripts that preserve sibling root scope.
-- Before creating a branch, inspect the current worktree. If unrelated dirty
-  changes are present, either choose a separate worktree/branch that preserves
-  them or make a scoped path-only commit when the user has asked for the change.
-  Never discard or move user changes just to satisfy branch hygiene.
+  `content.roots.toolkit` or `content.roots.sigil` from a branch-scoped
+  worktree unless the task explicitly targets canonical main. Use branch-scoped
+  root names from `scripts/aos-content-scope.sh`, pass explicit
+  `toolkit-root`/`sigil-root` query parameters when a surface crosses
+  app/package roots, and prefer launch scripts that preserve sibling root scope.
+- Before creating or switching branches, inspect the current worktree. If
+  unrelated dirty changes are present, either preserve them on the current
+  surface, choose a separate worktree/branch, or make a scoped path-only commit
+  when the user has asked for the change. Never discard or move user changes
+  just to satisfy workflow hygiene.
 - Before treating grep hits, old paths, or old commands as live, check for
   retirement or supersession notes in the nearest subtree docs, active plans,
   and open issues. Retired code can remain in-tree for a while after the live

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "summary": "Example development workflow profiles.",
+  "override_policy": "User instruction overrides the active profile unless unsafe.",
+  "axes": {
+    "dock": "Role boundary.",
+    "entry_path": "Capability layer.",
+    "workflow_profile": "Git and review posture."
+  },
+  "profiles": []
+}

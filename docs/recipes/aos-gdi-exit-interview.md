@@ -58,9 +58,11 @@ git status --short --branch
 git diff --name-only origin/main...HEAD
 ```
 
-Use `origin/main...HEAD` as the default base for topic-branch GDI sessions. If
-the session explicitly used a different integration base, substitute that base
-and name it in the output.
+Use `origin/main...HEAD` as the default comparison when the active workflow
+profile or assigned handoff used a branch. Under the current `hybrid_trunk`
+profile, a GDI session may be working directly on `main`; in that case report
+`git status --short --branch`, the local commit range or file diff that best
+describes the session, and name the base you used.
 
 If the session changed files, also run:
 

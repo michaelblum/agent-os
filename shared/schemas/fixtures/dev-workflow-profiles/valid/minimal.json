@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "summary": "Example development workflow profiles.",
+  "active_profile": "hybrid_trunk",
+  "override_policy": "User instruction overrides the active profile unless unsafe.",
+  "axes": {
+    "dock": "Role boundary.",
+    "entry_path": "Capability layer.",
+    "workflow_profile": "Git and review posture."
+  },
+  "profiles": [
+    {
+      "id": "hybrid_trunk",
+      "name": "Hybrid Trunk",
+      "shorthand": "hybrid_trunk",
+      "intended_for": ["single developer"],
+      "default_work_surface": "main",
+      "main_role": "releasable default work surface",
+      "direct_main_default": true,
+      "pull_request_required": false,
+      "review_default": "local review",
+      "commit_strategy": "small scoped commits",
+      "branch_strategy": "branches only for risk",
+      "branch_required_for": ["risky change"],
+      "branch_optional_for": ["docs-only change"],
+      "release_branching": false,
+      "environment_branches": [],
+      "agent_guidance": ["stay on main for small changes"]
+    }
+  ]
+}

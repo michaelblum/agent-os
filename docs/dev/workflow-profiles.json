@@ -1,0 +1,123 @@
+{
+  "$schema": "../../shared/schemas/dev-workflow-profiles.schema.json",
+  "schema_version": 1,
+  "summary": "Built-in example development workflow profiles for agent-os.",
+  "active_profile": "hybrid_trunk",
+  "override_policy": "A direct user instruction for the current repo or session overrides the active profile unless it would discard work, publish externally, or perform a destructive operation.",
+  "axes": {
+    "dock": "Durable agent role, authority boundary, handoff contract, stop conditions, and lifecycle hooks.",
+    "entry_path": "Active capability layer for the current task, such as Agent harness, AOS developer, testing, visual diagnostics, or user-input diagnostics.",
+    "workflow_profile": "Development branch, commit, review, PR, and release posture."
+  },
+  "profiles": [
+    {
+      "id": "hybrid_trunk",
+      "name": "Hybrid Trunk",
+      "shorthand": "hybrid_trunk",
+      "intended_for": [
+        "single developer",
+        "very tiny team",
+        "agent relay review without mandatory pull requests"
+      ],
+      "default_work_surface": "main",
+      "main_role": "releasable default work surface",
+      "direct_main_default": true,
+      "pull_request_required": false,
+      "review_default": "local tests, agent relay review, or human review when risk warrants it",
+      "commit_strategy": "small frequent scoped commits directly on main",
+      "branch_strategy": "use short-lived branches sparingly as a safety valve",
+      "branch_required_for": [
+        "risky change",
+        "experimental change",
+        "multi-day change",
+        "large half-finished change",
+        "dirty worktree isolation",
+        "external collaboration requiring a pull request"
+      ],
+      "branch_optional_for": [
+        "small low-risk incremental change",
+        "docs-only change",
+        "test-only change",
+        "single-sitting bugfix"
+      ],
+      "release_branching": false,
+      "environment_branches": [],
+      "agent_guidance": [
+        "Prefer staying on main when the worktree is clean and the task is small.",
+        "Keep main releasable by running focused verification before checkpointing.",
+        "Use branches only when they reduce real risk or preserve unrelated work."
+      ]
+    },
+    {
+      "id": "github_flow",
+      "name": "GitHub Flow",
+      "shorthand": "github_flow",
+      "intended_for": [
+        "small team",
+        "medium team",
+        "projects using lightweight pull request review"
+      ],
+      "default_work_surface": "short-lived branch from main",
+      "main_role": "deployable integration branch",
+      "direct_main_default": false,
+      "pull_request_required": true,
+      "review_default": "lightweight pull request review before merge",
+      "commit_strategy": "scoped commits on a short-lived branch",
+      "branch_strategy": "create one branch per feature, bugfix, refactor, or docs change",
+      "branch_required_for": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "docs change",
+        "governance change"
+      ],
+      "branch_optional_for": [
+        "tiny emergency fix when explicitly approved"
+      ],
+      "release_branching": false,
+      "environment_branches": [],
+      "agent_guidance": [
+        "Start from main, create a short-lived branch, and keep it close to main.",
+        "Use a pull request for review and merge back into main when ready.",
+        "Avoid long-running divergence."
+      ]
+    },
+    {
+      "id": "gitflow",
+      "name": "GitFlow",
+      "shorthand": "gitflow",
+      "intended_for": [
+        "formal release cycles",
+        "multiple deployment environments",
+        "projects requiring separated development, release, and production branches"
+      ],
+      "default_work_surface": "feature branch from develop",
+      "main_role": "production release branch",
+      "direct_main_default": false,
+      "pull_request_required": true,
+      "review_default": "review before merging into develop, release, hotfix, or main branches",
+      "commit_strategy": "scoped commits on feature, release, or hotfix branches",
+      "branch_strategy": "use named develop, feature/*, release/*, and hotfix/* branches",
+      "branch_required_for": [
+        "feature",
+        "bugfix",
+        "refactor",
+        "release preparation",
+        "production hotfix"
+      ],
+      "branch_optional_for": [],
+      "release_branching": true,
+      "environment_branches": [
+        "develop",
+        "release/*",
+        "hotfix/*",
+        "main"
+      ],
+      "agent_guidance": [
+        "Do not work directly on main for normal development.",
+        "Branch day-to-day work from develop unless the task is a production hotfix.",
+        "Use release branches to stabilize releases before merging to main."
+      ]
+    }
+  ]
+}

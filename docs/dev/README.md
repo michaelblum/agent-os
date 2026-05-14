@@ -5,6 +5,11 @@
 layers, package loops, schema tests, and local-contract delegation, but do not
 encode app-specific playbooks here.
 
+`workflow-profiles.json` is the source of truth for built-in example development
+workflow profiles. It selects the active branch, commit, review, PR, and release
+posture for repo work without treating that posture as an immutable AOS
+primitive. The active profile for this repo is currently `hybrid_trunk`.
+
 `agent-capabilities.json` is the source of truth for typed developer
 capabilities exposed through `./aos dev capabilities`. `.docks/*/dock.json`
 profiles resolve against that manifest through `./aos dev docks`, so dock
@@ -15,4 +20,5 @@ Validate routing changes with:
 
 ```bash
 node --test tests/schemas/dev-workflow-rules.test.mjs
+node --test tests/schemas/dev-workflow-profiles.test.mjs
 ```
