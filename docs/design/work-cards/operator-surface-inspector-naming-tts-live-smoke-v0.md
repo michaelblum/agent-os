@@ -21,14 +21,14 @@ repo-mode macOS permission reset is complete.
 
 The intended user-facing name is **Surface Inspector**. The component path,
 manifest name, and see-bundle namespace intentionally remain
-`canvas-inspector` / `canvas_inspector_bundle` compatibility contracts.
+`surface-inspector` / `canvas_inspector_bundle` compatibility contracts.
 
 ## Read First
 
 - `AGENTS.md`
 - `docs/design/aos-surface-system.md`
 - `docs/api/toolkit/components.md`
-- `packages/toolkit/components/canvas-inspector/launch.sh`
+- `packages/toolkit/components/surface-inspector/launch.sh`
 
 ## Rediscover State
 
@@ -58,11 +58,11 @@ git status --short --branch
 ## Required Observations
 
 - Launching the toolkit inspector through
-  `packages/toolkit/components/canvas-inspector/launch.sh` creates
+  `packages/toolkit/components/surface-inspector/launch.sh` creates
   `surface-inspector` by default.
-- The old `canvas-inspector` canvas is absent after default launch, unless
+- The old `surface-inspector` canvas is absent after default launch, unless
   compatibility was intentionally forced.
-- `./aos show wait --id surface-inspector --manifest canvas-inspector` succeeds.
+- `./aos show wait --id surface-inspector --manifest surface-inspector` succeeds.
 - Status item / Sigil utility entry labels say `Surface Inspector`, not
   `Canvas Inspector`.
 - When voice announcements are enabled, create/remove announcements say
@@ -71,8 +71,8 @@ git status --short --branch
 - Log console announcements say `Log Console`.
 - `remove-all` announcement says `All surfaces removed`.
 - Compatibility remains visible where intended: component route
-  `aos://toolkit/components/canvas-inspector/index.html`, manifest
-  `canvas-inspector`, and see-bundle namespace/config
+  `aos://toolkit/components/surface-inspector/index.html`, manifest
+  `surface-inspector`, and see-bundle namespace/config
   `canvas_inspector_bundle`.
 
 ## Suggested Evidence
@@ -82,7 +82,7 @@ git status --short --branch
 - A short note on heard TTS phrases, or a clear statement if audio could not be
   observed.
 - One compatibility check, such as
-  `./aos show wait --id surface-inspector --manifest canvas-inspector`.
+  `./aos show wait --id surface-inspector --manifest surface-inspector`.
 
 ## Hard Boundaries / Non-Goals
 
@@ -100,7 +100,7 @@ Include:
 - exact readiness result;
 - actions performed;
 - whether default launch used `surface-inspector`;
-- whether legacy `canvas-inspector` was absent or intentionally present;
+- whether legacy `surface-inspector` was absent or intentionally present;
 - heard or observed announcement phrases;
 - compatibility checks performed;
 - blockers or follow-up needed.

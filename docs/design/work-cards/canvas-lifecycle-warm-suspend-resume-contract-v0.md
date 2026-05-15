@@ -194,7 +194,7 @@ Inspect before editing:
 - `packages/toolkit/runtime/_smoke/lifecycle.html`
 - `packages/toolkit/panel/chrome.js`
 - `packages/toolkit/panel/stage-affordance.js`
-- `packages/toolkit/components/canvas-inspector/`
+- `packages/toolkit/components/surface-inspector/`
 - `docs/api/toolkit/runtime.md`
 - `docs/api/toolkit/panel-window.md`
 - `docs/design/aos-surface-system.md`

@@ -138,7 +138,7 @@ Inspect before editing:
 - `src/perceive/input-safety-hotkeys.swift`
 - `src/perceive/daemon.swift`
 - `src/daemon/unified.swift`
-- `src/daemon/canvas-inspector-bundle.swift`
+- `src/daemon/surface-inspector-bundle.swift`
 - `src/commands/log.swift`
 - `packages/toolkit/components/log-console/index.js`
 - existing canvas lifecycle helpers under `src/display/`

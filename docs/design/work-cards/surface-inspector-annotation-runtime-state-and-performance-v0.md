@@ -67,7 +67,7 @@ Implementation guidance:
 
 - Surface Inspector can emit/cache an annotation-mode state message whenever it
   toggles mode and on bootstrap;
-- the status item can cache that state per `canvas-inspector`;
+- the status item can cache that state per `surface-inspector`;
 - closing/suspending/removing Surface Inspector must reset cached Annotation
   Mode state to off;
 - avoid synchronous WebView eval from menu construction if it would block the
@@ -150,11 +150,11 @@ surface.
 Inspect before editing:
 
 - `src/display/status-item.swift`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/workbench/surface-inspector-annotations.js`
-- `packages/toolkit/components/canvas-inspector/annotation-hit-layer/index.js`
-- `packages/toolkit/components/canvas-inspector/annotation-action-control/index.js`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `packages/toolkit/components/surface-inspector/annotation-hit-layer/index.js`
+- `packages/toolkit/components/surface-inspector/annotation-action-control/index.js`
+- `tests/toolkit/surface-inspector.test.mjs`
 - existing Swift/status item tests, if present.
 
 Likely fixes:
@@ -173,7 +173,7 @@ Likely fixes:
 Run focused tests:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs

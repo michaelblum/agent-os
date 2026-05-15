@@ -206,7 +206,7 @@ made input ownership available for that purpose.
 - Do not hide latency by suspending the source before a stage chip or fallback
   chip exists.
 - Do not migrate Sigil in this slice.
-- Do not rename Surface Inspector or canvas-inspector compatibility namespaces.
+- Do not rename Surface Inspector or surface-inspector compatibility namespaces.
 
 ## Completion Report
 

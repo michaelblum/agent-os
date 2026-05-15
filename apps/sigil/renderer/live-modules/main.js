@@ -703,7 +703,7 @@ sigilInputRegions = createSigilInputRegionAdapter({
 const UTILITY_CANVAS_IDS = new Set([
     '__log__',
     'surface-inspector',
-    'canvas-inspector',
+    'surface-inspector',
     'sigil-interaction-trace',
     RENDER_PERFORMANCE_CANVAS_ID,
     WIKI_WORKBENCH_CANVAS_ID,
@@ -832,7 +832,7 @@ function utilityConfig(kind) {
     }
     return {
         id: 'surface-inspector',
-        url: toolkitUrl('components/canvas-inspector/index.html'),
+        url: toolkitUrl('components/surface-inspector/index.html'),
         frame: utilityFrame(kind),
     };
 }
@@ -1603,7 +1603,7 @@ function requestAnnotationSnapshot(reason = 'radial-camera') {
 }
 
 function requestCanvasInspectorAnnotationToggle(reason = 'sigil-radial') {
-    void ensureUtilityCanvasVisible('canvas-inspector', { focus: false }).then((canvas) => {
+    void ensureUtilityCanvasVisible('surface-inspector', { focus: false }).then((canvas) => {
         window.setTimeout(() => {
             sendCanvasMessage(canvas.id, {
                 type: CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,

@@ -45,7 +45,7 @@ display-first annotation interaction:
 - `apps/sigil/renderer/live-modules/interaction-overlay.js`
 - `apps/sigil/renderer/live-modules/radial-gesture-visuals.js`
 - `packages/toolkit/runtime/radial-gesture.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `tests/renderer/sigil-render-loop.test.mjs`
 - `tests/renderer/radial-gesture-menu.test.mjs`
 - `tests/renderer/annotation-reticle.test.mjs`

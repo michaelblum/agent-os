@@ -277,9 +277,9 @@ Examples:
 - `bash tests/capture-parallel.sh`
 - `bash tests/spatial-telemetry-smoke.sh`
 - `bash tests/display-debug-battery-layout.sh`
-- `bash tests/canvas-inspector-move-abs.sh`
-- `bash tests/canvas-inspector-cross-display-drag.sh`
-- `bash tests/canvas-inspector-tint.sh`
+- `bash tests/surface-inspector-move-abs.sh`
+- `bash tests/surface-inspector-cross-display-drag.sh`
+- `bash tests/surface-inspector-tint.sh`
 - `bash tests/panel-tabs-activation.sh`
 - `bash tests/voice-session-leases.sh`
 - `bash tests/say-voice-slot.sh`

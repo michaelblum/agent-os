@@ -71,20 +71,20 @@ before choosing build or integration checks.
 - `packages/toolkit/workbench/surface-inspector-annotations.js` - owns
   `buildSurfaceInspectorSnapshotPayload(...)`, pins, comments, projection
   blockers, scope stack, and adapter capability summary.
-- `packages/toolkit/components/canvas-inspector/index.js` - owns
+- `packages/toolkit/components/surface-inspector/index.js` - owns
   `window.__canvasInspectorState`, `requestSeeBundle(...)`, Annotation Mode
   state, active root/scope state, and bundle status rendering.
-- `src/daemon/canvas-inspector-bundle.swift` - owns
+- `src/daemon/surface-inspector-bundle.swift` - owns
   `canvas_inspector.capture_bundle`, bundle file creation, manifest files, and
   clipboard path behavior.
 - `src/shared/config.swift` and `src/commands/config-command.swift` - current
   `see.canvas_inspector_bundle.*` config shape if you add an include toggle.
 - `tests/toolkit/surface-inspector-annotations.test.mjs` - focused annotation
   state and snapshot tests.
-- `tests/toolkit/canvas-inspector.test.mjs` - focused Surface Inspector model
+- `tests/toolkit/surface-inspector.test.mjs` - focused Surface Inspector model
   tests.
-- `tests/canvas-inspector-see-bundle.sh` and
-  `tests/canvas-inspector-see-bundle-config.sh` - daemon/bundle integration
+- `tests/surface-inspector-see-bundle.sh` and
+  `tests/surface-inspector-see-bundle-config.sh` - daemon/bundle integration
   checks and existing compatibility expectations.
 
 ## Required Behavior
@@ -206,7 +206,7 @@ Run focused deterministic checks first:
 
 ```bash
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/schemas/surface-inspector-annotation-snapshot-v0.test.mjs
 git diff --check
 ```
@@ -216,8 +216,8 @@ If Swift/config/bundle code changes, also run:
 ```bash
 ./aos dev recommend --json
 ./aos dev build
-bash tests/canvas-inspector-see-bundle.sh
-bash tests/canvas-inspector-see-bundle-config.sh
+bash tests/surface-inspector-see-bundle.sh
+bash tests/surface-inspector-see-bundle-config.sh
 ```
 
 If `./aos ready` passes, run a bounded live smoke:

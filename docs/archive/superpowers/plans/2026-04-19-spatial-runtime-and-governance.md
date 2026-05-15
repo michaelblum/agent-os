@@ -17,7 +17,7 @@ But the implementation is still split across multiple local helper stacks:
   - [src/shared/types.swift](../../../src/shared/types.swift)
   - [src/display/canvas.swift](../../../src/display/canvas.swift)
 - Toolkit minimap/layout math:
-  - [packages/toolkit/components/canvas-inspector/index.js](../../../packages/toolkit/components/canvas-inspector/index.js)
+  - [packages/toolkit/components/surface-inspector/index.js](../../../packages/toolkit/components/surface-inspector/index.js)
   - [packages/toolkit/components/spatial-telemetry/model.js](../../../packages/toolkit/components/spatial-telemetry/model.js)
 - Sigil stage/display math:
   - [apps/sigil/renderer/live-modules/display-utils.js](../../../apps/sigil/renderer/live-modules/display-utils.js)
@@ -147,14 +147,14 @@ Before adding more invariants, re-anchor the canonical shared world:
 
 Acceptance harness for this phase:
 
-- `canvas-inspector`
+- `surface-inspector`
 - `spatial-telemetry`
 - related toolkit tests
 
 Acceptance targets:
 
 - union canvases resolve to `[0,0,w,h]` in DesktopWorld
-- canvas-inspector minimap/world view remains stable if macOS main-display
+- surface-inspector minimap/world view remains stable if macOS main-display
   selection changes but Arrange geometry does not
 - cursor/avatar usable-area logic is explicitly based on VisibleDesktopWorld,
   not full DesktopWorld
@@ -163,7 +163,7 @@ Acceptance targets:
 
 Migrate:
 
-- `canvas-inspector`
+- `surface-inspector`
 - `spatial-telemetry`
 - related tests
 

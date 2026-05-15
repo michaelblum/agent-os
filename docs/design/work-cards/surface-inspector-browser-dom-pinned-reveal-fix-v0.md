@@ -115,7 +115,7 @@ Do not regress:
 
 Inspect before editing:
 
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
   - `buildSurfaceInspectorTargetNodeForAnnotation`;
   - `revealAnnotationTarget`;
   - `buildRevealTargetEvalScript`;
@@ -125,7 +125,7 @@ Inspect before editing:
 - `packages/toolkit/workbench/browser-dom-element-picker.js`
   - committed `element_target` record shape;
 - `packages/toolkit/workbench/annotation-projection.js`;
-- `tests/toolkit/canvas-inspector.test.mjs`;
+- `tests/toolkit/surface-inspector.test.mjs`;
 - `tests/toolkit/browser-dom-element-picker.test.mjs`;
 - `scripts/browser-dom-element-picker-surface-smoke.mjs`.
 
@@ -144,7 +144,7 @@ Run focused tests:
 ```bash
 node --test tests/toolkit/browser-dom-element-picker.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs
 node --test tests/schemas/*.test.mjs
 bash tests/help-contract.sh

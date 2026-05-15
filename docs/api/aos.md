@@ -655,8 +655,8 @@ aos config set see.canvas_inspector_bundle.include.annotation_snapshot false
 `aos config` dumps the current runtime config as JSON. `aos config get` defaults
 to shell-friendly scalar text and accepts `--json` when you want JSON output.
 Discoverable config subtrees include the Surface Inspector see-bundle surface
-under the legacy-compatible `see.canvas_inspector_bundle.*` namespace,
-including the export hotkey and bundle artifact include toggles. The default-on
+under the `see.canvas_inspector_bundle.*` namespace, including the export
+hotkey and bundle artifact include toggles. The default-on
 `see.canvas_inspector_bundle.include.annotation_snapshot` toggle controls the
 public `annotation-snapshot.json` artifact recorded in
 `bundle.json.files.annotation_snapshot_json`. `aos set <key> <value>` remains
@@ -963,7 +963,7 @@ aos show create \
   --id surface-inspector \
   --at 200,200,320,480 \
   --interactive \
-  --url 'aos://toolkit/components/canvas-inspector/index.html'
+  --url 'aos://toolkit/components/surface-inspector/index.html'
 ```
 
 Read-only virtual wiki graph endpoint:

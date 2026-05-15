@@ -98,7 +98,7 @@ Microsoft's `playwright-cli` (9.2k⭐, active) is a token-efficient CLI wrapper 
 
 - Bundling Node and `@playwright/test` into aos would double the binary size and introduce a second runtime.
 - `playwright-cli` ships binaries via npm; subprocess invocation works across macOS architectures without aos vendoring anything.
-- Subprocess parsing is proven in-repo: the daemon already spawns `aos see capture` as a child process (`src/daemon/canvas-inspector-bundle.swift:350`). Same pattern.
+- Subprocess parsing is proven in-repo: the daemon already spawns `aos see capture` as a child process (`src/daemon/surface-inspector-bundle.swift:350`). Same pattern.
 
 ## Target Addressing Grammar
 

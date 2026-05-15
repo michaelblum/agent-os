@@ -82,7 +82,7 @@ helpers where practical:
   canvas lookup, world/native conversion, and extended-display checks.
 - `tests/sigil-avatar-interactions.sh` - duplicates semantic target capture and
   world-point derivation.
-- `tests/canvas-inspector-cross-display-drag.sh` - has conditional
+- `tests/surface-inspector-cross-display-drag.sh` - has conditional
   extended-display setup and should share topology helpers where sensible.
 - `tests/canvas-seam-straddle-placement.sh` - is a lower-level native/AppKit
   boundary test. It may keep native/window-server truth checks because its job

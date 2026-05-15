@@ -99,11 +99,11 @@ regress:
 
 Inspect before editing:
 
-- `packages/toolkit/components/canvas-inspector/index.js`
-- `packages/toolkit/components/canvas-inspector/styles.css`
+- `packages/toolkit/components/surface-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/styles.css`
 - AOS canvas creation/mutation/event APIs used by existing toolkit panel or
   overlay surfaces
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 - `tests/toolkit/surface-inspector-annotations.test.mjs`
 
 Remove or replace `annotationActionControlHelperState` if it only exists as a
@@ -115,7 +115,7 @@ actual overlay canvas ids/frames, not substitute for them.
 Run focused tests:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs

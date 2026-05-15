@@ -188,11 +188,11 @@ snapshots unstable.
 
 Inspect before editing:
 
-- `packages/toolkit/components/canvas-inspector/index.js`
-- `packages/toolkit/components/canvas-inspector/styles.css`
+- `packages/toolkit/components/surface-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/styles.css`
 - `packages/toolkit/runtime/spatial.js`
 - `packages/toolkit/panel/layouts/split-pane.js`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 
 Likely fixes:
 
@@ -211,7 +211,7 @@ Likely fixes:
 Run focused tests:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs

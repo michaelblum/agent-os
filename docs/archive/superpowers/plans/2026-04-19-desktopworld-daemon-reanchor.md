@@ -13,7 +13,7 @@
 | `aos see list` (full topology) | `shared/schemas/spatial-topology.schema.json` + `shared/schemas/spatial-topology.md` | `buildSpatialTopology()` in `src/perceive/capture-pipeline.swift:1425-1583`, backed by `STDisplay` / `STCursor` in `src/perceive/models.swift:92-158` | Displays + windows + apps + cursor. Canonical topology snapshot. **Owns cursor DesktopWorld coordinates.** |
 | `display_geometry` channel | `shared/schemas/daemon-event.md` for envelope; `shared/schemas/spatial-topology.md` for the displays subset | `snapshotDisplayGeometry()` in `src/display/display-geometry.swift` + emitters in `src/daemon/unified.swift:1782` | Displays-only subset for subscribers who need live geometry updates. **No cursor field — stays that way.** |
 
-**Cursor ownership decision:** DesktopWorld cursor coordinates live on the topology schema / `aos see list` producer only. The `display_geometry` channel does not currently carry a cursor field and this plan does not add one. Live-cursor consumers (Sigil, canvas-inspector, spatial-telemetry) already re-anchor `input_event` messages via `nativeToDesktopWorldPoint` in `packages/toolkit/runtime/spatial.js`; that path stays unchanged. A single batch-time DesktopWorld cursor read is available via `aos see list --json`.
+**Cursor ownership decision:** DesktopWorld cursor coordinates live on the topology schema / `aos see list` producer only. The `display_geometry` channel does not currently carry a cursor field and this plan does not add one. Live-cursor consumers (Sigil, surface-inspector, spatial-telemetry) already re-anchor `input_event` messages via `nativeToDesktopWorldPoint` in `packages/toolkit/runtime/spatial.js`; that path stays unchanged. A single batch-time DesktopWorld cursor read is available via `aos see list --json`.
 
 **Tech Stack:** Swift 5.9+ (daemon, CLI), vanilla JS ES modules (toolkit, Sigil renderer), JSON Schema Draft 2020-12, `aos` unified binary, `node --test` (toolkit tests), `bash` (integration tests).
 
@@ -35,7 +35,7 @@
 - `aos runtime display-union` CLI in `src/commands/runtime.swift` — default-shape decision analyzed here.
 - Toolkit JS runtime cleanup in `packages/toolkit/runtime/spatial.js` (retire the `computeDisplayUnion` alias and its re-export in `packages/toolkit/runtime/index.js`, plus its Sigil passthrough in `apps/sigil/renderer/live-modules/display-utils.js`).
 - Allowlist tighten in `tests/fixtures/spatial-governance-allowlist.json`.
-- Consumers that will shift from re-deriving to reading canonical fields: Sigil renderer live modules, canvas-inspector, spatial-telemetry, workbench, `apps/sigil/tests/display-geometry/index.html`, `tests/runtime-display-union.sh`.
+- Consumers that will shift from re-deriving to reading canonical fields: Sigil renderer live modules, surface-inspector, spatial-telemetry, workbench, `apps/sigil/tests/display-geometry/index.html`, `tests/runtime-display-union.sh`.
 - Historical doc supersession notes / `ARCHITECTURE.md` and `AGENTS.md` / session-start hook guidance where it still says "legacy `global_bounds`".
 
 **Out of scope:**
@@ -65,7 +65,7 @@
 
 - `apps/sigil/renderer/live-modules/main.js` — `display_geometry` handler at lines 485-507 and `input_event` re-anchor at line 515.
 - `apps/sigil/renderer/live-modules/display-utils.js` — drop `computeDisplayUnion` passthrough.
-- `packages/toolkit/components/canvas-inspector/index.js` — `display_geometry` handler around line 358, bootstrap handler at line 347.
+- `packages/toolkit/components/surface-inspector/index.js` — `display_geometry` handler around line 358, bootstrap handler at line 347.
 - `packages/toolkit/components/spatial-telemetry/index.js` — `display_geometry` handler around line 299.
 - `packages/toolkit/components/spatial-telemetry/model.js` — re-export surface matches toolkit/runtime.
 - `apps/sigil/workbench/index.html` — subscribes to `display_geometry`, line 148.
@@ -80,7 +80,7 @@
 - `tests/runtime-display-union.sh` — existing; asserts CLI output shape; changes depending on Phase 4 decision.
 - `tests/toolkit/runtime-spatial.test.mjs` — existing; add coverage for DesktopWorld-field ingestion.
 - `tests/toolkit/spatial-governance.test.mjs` — existing; adjusts when `computeDisplayUnion` leaves the allowlist.
-- `tests/toolkit/canvas-inspector.test.mjs` — existing; verify behavior with both old-shape and new-shape payloads.
+- `tests/toolkit/surface-inspector.test.mjs` — existing; verify behavior with both old-shape and new-shape payloads.
 - `tests/toolkit/spatial-telemetry-model.test.mjs` — existing.
 - No Swift unit harness exists in-repo for `snapshotDisplayGeometry` or `buildSpatialTopology`; coverage stays integration-level via the shell tests above.
 
@@ -1131,15 +1131,15 @@ git commit -m "refactor(sigil): consume daemon DesktopWorld fields; drop compute
 ### Task 11: Canvas inspector
 
 **Files:**
-- Modify: `packages/toolkit/components/canvas-inspector/index.js:316-363`
-- Test: `tests/toolkit/canvas-inspector.test.mjs`
+- Modify: `packages/toolkit/components/surface-inspector/index.js:316-363`
+- Test: `tests/toolkit/surface-inspector.test.mjs`
 
 - [ ] **Step 1: Add the failing test**
 
-Append to `tests/toolkit/canvas-inspector.test.mjs`:
+Append to `tests/toolkit/surface-inspector.test.mjs`:
 
 ```js
-test('canvas-inspector uses daemon-provided desktop_world_bounds when present', () => {
+test('surface-inspector uses daemon-provided desktop_world_bounds when present', () => {
   // Build the inspector, deliver a display_geometry payload with desktop_world_bounds,
   // and assert the minimap layout uses union (0,0,w,h) not a re-derived rect.
   // (See existing patterns in this test file for mounting + stubbing the host bridge.)
@@ -1150,25 +1150,25 @@ Flesh out the assertion body matching existing harness patterns in the same file
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `node --test tests/toolkit/canvas-inspector.test.mjs`
+Run: `node --test tests/toolkit/surface-inspector.test.mjs`
 Expected: FAIL.
 
 - [ ] **Step 3: Update the inspector message handler**
 
-Edit the `display_geometry` branch in `packages/toolkit/components/canvas-inspector/index.js:358-363` so the handler records the daemon-provided `desktop_world_bounds` and `visible_desktop_world_bounds` on the local state object for the minimap to consume. `normalizeDisplays` already propagates the per-display rects; the component's minimap computation in `computeMinimapLayout` (`packages/toolkit/runtime/spatial.js:411-459`) already defers to `computeDesktopWorldBounds`.
+Edit the `display_geometry` branch in `packages/toolkit/components/surface-inspector/index.js:358-363` so the handler records the daemon-provided `desktop_world_bounds` and `visible_desktop_world_bounds` on the local state object for the minimap to consume. `normalizeDisplays` already propagates the per-display rects; the component's minimap computation in `computeMinimapLayout` (`packages/toolkit/runtime/spatial.js:411-459`) already defers to `computeDesktopWorldBounds`.
 
 The change is: when the message carries `desktop_world_bounds`, prefer it for any local aggregate state that was previously re-deriving; otherwise fall back.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `node --test tests/toolkit/canvas-inspector.test.mjs`
+Run: `node --test tests/toolkit/surface-inspector.test.mjs`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/toolkit/components/canvas-inspector/index.js tests/toolkit/canvas-inspector.test.mjs
-git commit -m "refactor(canvas-inspector): consume daemon DesktopWorld aggregates"
+git add packages/toolkit/components/surface-inspector/index.js tests/toolkit/surface-inspector.test.mjs
+git commit -m "refactor(surface-inspector): consume daemon DesktopWorld aggregates"
 ```
 
 ---
@@ -1330,7 +1330,7 @@ node scripts/spatial-audit.mjs --check
 
 All PASS.
 
-- [ ] HITL sanity run with `./aos show create --track union ...` for Sigil + canvas-inspector + spatial-telemetry, using `./aos see capture` to verify — do not ask the user what they see.
+- [ ] HITL sanity run with `./aos show create --track union ...` for Sigil + surface-inspector + spatial-telemetry, using `./aos see capture` to verify — do not ask the user what they see.
 
 - [ ] Update memory: only if a surprising-and-durable fact came out of the migration decision (e.g. "external callers relied on the legacy `global_bounds` shape — Option B was rejected because …"). Otherwise leave memory alone.
 

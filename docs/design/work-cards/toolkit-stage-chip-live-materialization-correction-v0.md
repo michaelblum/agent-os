@@ -44,10 +44,10 @@ Surface Inspector naming/TTS smoke passed enough to unblock this work:
 
 - `./aos ready` and `./aos ready --post-permission` reported
   `ready=true mode=repo daemon=reachable tap=active`.
-- `packages/toolkit/components/canvas-inspector/launch.sh` created
+- `packages/toolkit/components/surface-inspector/launch.sh` created
   `surface-inspector`.
-- Legacy `canvas-inspector` was absent.
-- `./aos show wait --id surface-inspector --manifest canvas-inspector --timeout 5s --json`
+- Legacy `surface-inspector` was absent.
+- `./aos show wait --id surface-inspector --manifest surface-inspector --timeout 5s --json`
   passed.
 
 Surface stack minimize smoke failed:
@@ -81,8 +81,8 @@ activity and source cleanup, but no create log for `aos-desktop-world-stage` or
 - `packages/toolkit/panel/drag-transfer.js`
 - `packages/toolkit/runtime/canvas.js`
 - `packages/toolkit/runtime/input-region.js`
-- `packages/toolkit/components/canvas-inspector/index.html`
-- `packages/toolkit/components/canvas-inspector/launch.sh`
+- `packages/toolkit/components/surface-inspector/index.html`
+- `packages/toolkit/components/surface-inspector/launch.sh`
 - `tests/toolkit/panel-chrome.test.mjs`
 - `tests/toolkit/stage-affordance.test.mjs`
 
@@ -220,7 +220,7 @@ unless inspection proves the JS helper is using the daemon API incorrectly.
 - Do not remove the stage-backed chip design.
 - Do not make the fallback WebView the default if the stage path can be fixed.
 - Do not start Sigil migration work.
-- Do not rename Surface Inspector or canvas-inspector compatibility contracts.
+- Do not rename Surface Inspector or surface-inspector compatibility contracts.
 - Do not change macOS permission handling.
 - Do not run real pointer smoke without explicit idle keyboard/mouse handoff.
 

@@ -245,7 +245,7 @@ export default function HtmlWorkbenchExpression(options = {}) {
   }
 
   function sendToSurfaceInspector(message = {}) {
-    sendToCanvas('canvas-inspector', message)
+    sendToCanvas('surface-inspector', message)
   }
 
   function publishSemanticTargets(options = {}) {
@@ -253,7 +253,7 @@ export default function HtmlWorkbenchExpression(options = {}) {
     if (!state.metadata) return
     const payload = buildHtmlWorkbenchSemanticTargetsPayload(state)
     emit('canvas_inspector.semantic_targets', payload)
-    const target = text(options.reply_to || options.requester_canvas_id, 'canvas-inspector')
+    const target = text(options.reply_to || options.requester_canvas_id, 'surface-inspector')
     sendToCanvas(target, {
       ...payload,
       request_id: options.request_id || undefined,

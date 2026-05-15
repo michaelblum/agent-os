@@ -19,7 +19,7 @@ trap cleanup EXIT
 aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
-bash packages/toolkit/components/canvas-inspector/launch.sh >/dev/null
+bash packages/toolkit/components/surface-inspector/launch.sh >/dev/null
 bash packages/toolkit/components/spatial-telemetry/launch.sh >/dev/null
 
 ./aos show create --id parent-canvas --track union --scope global --html '<!doctype html><html><body style="margin:0;background:transparent"></body></html>' >/dev/null

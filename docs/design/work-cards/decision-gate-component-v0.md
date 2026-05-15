@@ -334,7 +334,7 @@ node --test \
   tests/toolkit/controls-timer-bar.test.mjs \
   tests/toolkit/controls-select.test.mjs \
   tests/toolkit/form.test.mjs \
-  tests/toolkit/canvas-inspector.test.mjs
+  tests/toolkit/surface-inspector.test.mjs
 
 git diff --check
 ```

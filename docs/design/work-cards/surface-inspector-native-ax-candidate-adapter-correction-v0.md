@@ -34,7 +34,7 @@ require a separate CLI observer process.
 Foreman review commands:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 git diff --check
 ./aos status
@@ -57,7 +57,7 @@ Relevant code:
   - `checkWindowAndAppChange(at:)`
   - `queryAXElementAtCursor(_:)`
 - `src/perceive/attention.swift`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
   - `syncInputSubscription(...)`
 
 ## Required Behavior
@@ -111,9 +111,9 @@ Also tighten the Surface Inspector side if needed:
 Run:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector-ax.test.mjs
+node --test tests/toolkit/surface-inspector-ax.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 ./aos dev recommend --json
 ./aos dev build

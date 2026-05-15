@@ -102,16 +102,16 @@ run:
   element picker, selector candidates, target rejection, projection, and reveal.
 - `packages/toolkit/workbench/controlled-browser-dom-surface.js` - fixture-only
   controlled DOM publisher for first-party training.
-- `packages/toolkit/components/canvas-inspector/index.js` - Surface Inspector UI
+- `packages/toolkit/components/surface-inspector/index.js` - Surface Inspector UI
   state and action wiring.
-- `packages/toolkit/components/canvas-inspector/styles.css` - visual treatment
+- `packages/toolkit/components/surface-inspector/styles.css` - visual treatment
   for hover/active candidates and annotation controls.
 - Relevant tests:
   `tests/toolkit/surface-inspector-annotations.test.mjs`,
   `tests/toolkit/annotation-projection.test.mjs`,
   `tests/toolkit/browser-dom-element-picker.test.mjs`,
-  `tests/toolkit/canvas-inspector.test.mjs`,
-  `tests/toolkit/canvas-inspector-ax.test.mjs`,
+  `tests/toolkit/surface-inspector.test.mjs`,
+  `tests/toolkit/surface-inspector-ax.test.mjs`,
   `tests/aos-semantic-targets-xray.sh`,
   `tests/see-do-state-metadata.sh`.
 
@@ -300,8 +300,8 @@ Start with deterministic tests:
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/browser-dom-element-picker.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
-node --test tests/toolkit/canvas-inspector-ax.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
+node --test tests/toolkit/surface-inspector-ax.test.mjs
 git diff --check
 ```
 

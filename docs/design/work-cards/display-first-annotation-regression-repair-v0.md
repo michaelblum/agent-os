@@ -33,14 +33,14 @@ full adapter expansion, or unrelated Sigil styling work in this slice.
 - `docs/design/work-cards/display-first-annotation-sigil-reticle-visual-validation-v0.md`
 - `docs/design/work-cards/display-first-annotation-settled-reprojection-v0.md`
 - `packages/toolkit/runtime/spatial.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
-- `packages/toolkit/components/canvas-inspector/annotation-action-control/`
+- `packages/toolkit/components/surface-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/annotation-action-control/`
 - `apps/sigil/renderer/live-modules/annotation-reticle.js`
 - `apps/sigil/renderer/live-modules/main.js`
 - `apps/sigil/renderer/live-modules/radial-gesture-menu.js`
 - `packages/toolkit/runtime/radial-gesture.js`
 - `apps/sigil/renderer/radial-menu-defaults.js`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 - `tests/renderer/annotation-reticle.test.mjs`
 - `tests/renderer/radial-gesture-menu.test.mjs`
 - `tests/renderer/fast-travel-preview.test.mjs`
@@ -155,10 +155,10 @@ Implementation guidance:
 - `packages/toolkit/runtime/spatial.js`
   - verify display normalization and native/desktop-world conversion contracts;
   - add any missing projection helper only at the shared toolkit boundary.
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
   - fix minimap callers and visible pin/lightbulb action control setup;
   - keep Surface Inspector passive/supportive.
-- `packages/toolkit/components/canvas-inspector/annotation-action-control/`
+- `packages/toolkit/components/surface-inspector/annotation-action-control/`
   - replace or remove the visible pin glyph and user-facing labels.
 - `apps/sigil/renderer/live-modules/annotation-reticle.js`
   - add pure helper/state for reticle acquisition if it belongs with reticle
@@ -175,10 +175,10 @@ Run focused checks:
 
 ```bash
 node --check packages/toolkit/runtime/spatial.js
-node --check packages/toolkit/components/canvas-inspector/index.js
+node --check packages/toolkit/components/surface-inspector/index.js
 node --check apps/sigil/renderer/live-modules/annotation-reticle.js
 node --check apps/sigil/renderer/live-modules/main.js
-node --test tests/toolkit/canvas-inspector.test.mjs tests/toolkit/canvas-inspector-mouse-effects.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs tests/toolkit/surface-inspector-mouse-effects.test.mjs
 node --test tests/renderer/annotation-reticle.test.mjs tests/renderer/radial-gesture-menu.test.mjs tests/renderer/radial-gesture-visuals.test.mjs tests/renderer/fast-travel-preview.test.mjs
 git diff --check
 ./aos ready

@@ -327,9 +327,9 @@ Keep image data out of annotation JSON.
 
 ## Suggested Files To Inspect
 
-- `packages/toolkit/components/canvas-inspector/index.js`
-- `packages/toolkit/components/canvas-inspector/tree.js`
-- `packages/toolkit/components/canvas-inspector/styles.css`
+- `packages/toolkit/components/surface-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/tree.js`
+- `packages/toolkit/components/surface-inspector/styles.css`
 - `packages/toolkit/workbench/surface-inspector-annotations.js`
 - `packages/toolkit/workbench/annotation-projection.js`
 - `packages/toolkit/workbench/surface-hit-test-inspect.js`
@@ -337,7 +337,7 @@ Keep image data out of annotation JSON.
 - `tests/aos-semantic-targets-xray.sh`
 - `shared/schemas/annotation-projection-v0.schema.json`
 - `shared/schemas/canvas-object-control.schema.json`
-- `src/daemon/canvas-inspector-bundle.swift`
+- `src/daemon/surface-inspector-bundle.swift`
 - `docs/api/toolkit.md`
 - `docs/api/aos.md`
 
@@ -369,11 +369,11 @@ Required deterministic tests:
 Likely commands:
 
 ```bash
-node --test tests/toolkit/surface-inspector-annotations.test.mjs tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector-annotations.test.mjs tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs tests/toolkit/surface-hit-test-inspect.test.mjs
-node --test tests/toolkit/canvas-inspector-tree.test.mjs
+node --test tests/toolkit/surface-inspector-tree.test.mjs
 bash tests/aos-semantic-targets-xray.sh
-bash tests/canvas-inspector-see-bundle.sh
+bash tests/surface-inspector-see-bundle.sh
 git diff --check
 ```
 

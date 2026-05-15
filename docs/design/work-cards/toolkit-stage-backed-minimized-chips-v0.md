@@ -201,7 +201,7 @@ Run deterministic tests:
 ```bash
 node --test tests/toolkit/panel-chrome.test.mjs
 node --test tests/toolkit/runtime-input-region.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 git diff --check
 ```
 

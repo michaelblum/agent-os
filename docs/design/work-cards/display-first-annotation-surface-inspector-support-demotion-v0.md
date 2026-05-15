@@ -49,11 +49,11 @@ surface for frames, preview, hover, comments, and stale/blocked states.
 - `packages/toolkit/workbench/annotation-overlay-renderer.js`
 - `packages/toolkit/workbench/surface-inspector-annotations.js`
 - `packages/toolkit/workbench/annotation-projection.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `tests/toolkit/annotation-session.test.mjs`
 - `tests/toolkit/annotation-overlay-renderer.test.mjs`
 - `tests/toolkit/surface-inspector-annotations.test.mjs`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 
 ## Rediscover State
 
@@ -83,7 +83,7 @@ schema, or command-contract files.
 
 ## Existing Code To Inspect
 
-- `packages/toolkit/components/canvas-inspector/index.js` - currently renders
+- `packages/toolkit/components/surface-inspector/index.js` - currently renders
   annotation mode controls, scope breadcrumbs, pin/comment rows, inspector
   editor/confirmation overlays, minimap annotation layer, display action
   controls, hit layers, and controlled display overlays.
@@ -94,7 +94,7 @@ schema, or command-contract files.
   session/anchor model, conversion helpers, and opacity helpers.
 - `packages/toolkit/workbench/annotation-overlay-renderer.js` - owns the
   session-to-render-plan helper and per-group overlay signatures.
-- `tests/toolkit/canvas-inspector.test.mjs` - currently asserts some legacy
+- `tests/toolkit/surface-inspector.test.mjs` - currently asserts some legacy
   inspector authoring controls; update those assertions to the support-surface
   contract.
 - `tests/toolkit/surface-inspector-annotations.test.mjs` - preserves state and
@@ -201,14 +201,14 @@ Ownership is toolkit component/workbench:
 
 After reading the code, likely edits are:
 
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
   - replace active Annotation Mode list authoring rows with support summary and
     diagnostic state;
   - keep entry/exit, scope path/back, clear, snapshot/support state, and
     blocker diagnostics;
   - remove or hide primary pin row buttons from active-mode UI;
   - preserve display overlay and hit/action compatibility where still needed.
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
   - assert the new support-surface contract and absence of primary list-row
     authoring controls in active Annotation Mode.
 - `tests/toolkit/surface-inspector-annotations.test.mjs`
@@ -223,7 +223,7 @@ Inspector component from growing presentation-specific data wrangling.
 Run focused deterministic checks:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-session.test.mjs
 node --test tests/toolkit/annotation-overlay-renderer.test.mjs

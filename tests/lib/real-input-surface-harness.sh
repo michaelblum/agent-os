@@ -126,7 +126,7 @@ aos_real_input_surface_assert_inspector_visible() {
 
   "$aos_bin" show wait \
     --id "$inspector_id" \
-    --manifest canvas-inspector \
+    --manifest surface-inspector \
     --js '(() => {
       const state = window.__canvasInspectorState;
       const rows = document.querySelectorAll(".tree-row.canvas").length;

@@ -220,11 +220,11 @@ Not allowed:
 
 Likely files:
 
-- `packages/toolkit/components/canvas-inspector/index.js`
-- `packages/toolkit/components/canvas-inspector/styles.css`
+- `packages/toolkit/components/surface-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/styles.css`
 - `packages/toolkit/workbench/surface-inspector-annotations.js`
 - `tests/toolkit/surface-inspector-annotations.test.mjs`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 - docs/work-card or issue references that use older/ambiguous terms.
 
 The existing internals use `pin` heavily. Avoid a broad mechanical rename unless
@@ -238,7 +238,7 @@ Run focused tests:
 
 ```bash
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs
 bash tests/help-contract.sh

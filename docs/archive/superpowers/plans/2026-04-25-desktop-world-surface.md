@@ -6,7 +6,7 @@
 
 **Architecture:** Phased delivery. **Phase A** ships a renderer-agnostic daemon primitive that is mergeable on its own. **Phase B** ships the toolkit adapter base class and the 2D adapter. **Phase C** is a Three.js validation spike that gates **Phase D** (Sigil migration). **Phase E** is a small spec correction. Phases A and B can land before C resolves; D is gated by C.
 
-**Tech Stack:** Swift (daemon, `src/display/`, `src/daemon/`), JSON Schema 2020-12 (`shared/schemas/`), Node test runner (`tests/`), Three.js (`apps/sigil/renderer/`), DOM (`packages/toolkit/components/canvas-inspector/`), shell integration tests (`tests/*.sh`).
+**Tech Stack:** Swift (daemon, `src/display/`, `src/daemon/`), JSON Schema 2020-12 (`shared/schemas/`), Node test runner (`tests/`), Three.js (`apps/sigil/renderer/`), DOM (`packages/toolkit/components/surface-inspector/`), shell integration tests (`tests/*.sh`).
 
 **Spec:** `docs/superpowers/specs/2026-04-25-desktop-world-surface-design.md` (commit `e6c7580`).
 
@@ -1110,7 +1110,7 @@ git commit -m "Inject segment display id into each segment web view"
 ### Task B4: Inspector list view shows expandable segments
 
 **Files:**
-- Modify: `packages/toolkit/components/canvas-inspector/index.js:332-391` (`renderTreeNode` + `renderCanvasRow`)
+- Modify: `packages/toolkit/components/surface-inspector/index.js:332-391` (`renderTreeNode` + `renderCanvasRow`)
 
 - [ ] **Step 1: Render desktop-world surface rows expanded with segment children**
 
@@ -1144,12 +1144,12 @@ function renderSurfaceRow(c, depth) {
 - [ ] **Step 2: Add a JS test for the rendering**
 
 Files:
-- Create: `tests/toolkit/canvas-inspector-segments.test.mjs`
+- Create: `tests/toolkit/surface-inspector-segments.test.mjs`
 
 ```js
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderCanvasRow } from '../../packages/toolkit/components/canvas-inspector/index.js';
+import { renderCanvasRow } from '../../packages/toolkit/components/surface-inspector/index.js';
 
 test('renderCanvasRow emits segment children for desktop-world surfaces', () => {
   const html = renderCanvasRow({
@@ -1170,14 +1170,14 @@ test('renderCanvasRow emits segment children for desktop-world surfaces', () => 
 
 - [ ] **Step 3: Run the test**
 
-Run: `node --test tests/toolkit/canvas-inspector-segments.test.mjs`
+Run: `node --test tests/toolkit/surface-inspector-segments.test.mjs`
 Expected: 1 passing.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add packages/toolkit/components/canvas-inspector/index.js \
-        tests/toolkit/canvas-inspector-segments.test.mjs
+git add packages/toolkit/components/surface-inspector/index.js \
+        tests/toolkit/surface-inspector-segments.test.mjs
 git commit -m "Render desktop-world surfaces with expandable segments in inspector"
 ```
 

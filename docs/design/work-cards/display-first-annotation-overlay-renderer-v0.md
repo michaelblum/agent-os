@@ -41,7 +41,7 @@ full drag routing, or Surface Inspector UI demotion.
 - `docs/design/work-cards/display-first-annotation-session-model-v0.md`
 - `packages/toolkit/workbench/annotation-session.js`
 - `tests/toolkit/annotation-session.test.mjs`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/workbench/surface-inspector-annotations.js`
 - `packages/toolkit/workbench/annotation-projection.js`
 
@@ -74,7 +74,7 @@ or command-contract changes.
 
 - `packages/toolkit/workbench/annotation-session.js` - owns the neutral session
   shape, anchors, preview/committed stacks, status helpers, and opacity ladder.
-- `packages/toolkit/components/canvas-inspector/index.js` - currently owns
+- `packages/toolkit/components/surface-inspector/index.js` - currently owns
   `buildAnnotationOverlayEvalScript(...)`,
   `syncControlledAnnotationDisplayOverlays()`, overlay signatures, and
   Surface Inspector-driven overlay projection.
@@ -83,7 +83,7 @@ or command-contract changes.
   payload compatibility.
 - `packages/toolkit/workbench/annotation-projection.js` - projection/status
   contract for display overlay eligibility.
-- `tests/toolkit/canvas-inspector.test.mjs` and
+- `tests/toolkit/surface-inspector.test.mjs` and
   `tests/toolkit/surface-inspector-annotations.test.mjs` - adjacent coverage for
   existing inspector behavior that must not regress.
 
@@ -199,7 +199,7 @@ After reading the code, likely edits are:
 
 - add `packages/toolkit/workbench/annotation-overlay-renderer.js`;
 - add `tests/toolkit/annotation-overlay-renderer.test.mjs`;
-- adjust `packages/toolkit/components/canvas-inspector/index.js` to consume the
+- adjust `packages/toolkit/components/surface-inspector/index.js` to consume the
   render plan for existing controlled annotation overlays;
 - add small compatibility helpers near `annotation-session.js` only if the
   conversion boundary belongs there.
@@ -215,7 +215,7 @@ Run focused deterministic checks:
 node --test tests/toolkit/annotation-overlay-renderer.test.mjs
 node --test tests/toolkit/annotation-session.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 git diff --check
 ```

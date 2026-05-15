@@ -50,7 +50,7 @@ The accepted reticle drag/reentry/commit behavior must stay intact.
 - `tests/renderer/annotation-reticle.test.mjs`
 - `tests/renderer/radial-gesture-menu.test.mjs`
 - `tests/renderer/radial-menu-target-surface.test.mjs`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 
 ## Rediscover State
 
@@ -187,7 +187,7 @@ node --test tests/renderer/radial-gesture-visuals.test.mjs
 node --test tests/renderer/fast-travel-preview.test.mjs
 node --test tests/renderer/radial-menu-activation.test.mjs
 node --test tests/toolkit/runtime-radial-gesture.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 git diff --check
 ```
 

@@ -24,7 +24,7 @@ Before starting, ensure:
 
 ## Task 1: Add `canvas_lifecycle` fan-out to subscribed canvases (Layer 0 enhancement)
 
-**Why:** Today's daemon broadcasts `canvas_lifecycle` events to NDJSON socket subscribers (`aos show listen`), but **not** to canvases that subscribe via the in-canvas `subscribe` mechanism. The toolkit's `canvas-inspector` component needs lifecycle events to render its live canvas list. Without this, the migration in Task 4 can't drop its `launch.sh` event-relay subprocess.
+**Why:** Today's daemon broadcasts `canvas_lifecycle` events to NDJSON socket subscribers (`aos show listen`), but **not** to canvases that subscribe via the in-canvas `subscribe` mechanism. The toolkit's `surface-inspector` component needs lifecycle events to render its live canvas list. Without this, the migration in Task 4 can't drop its `launch.sh` event-relay subprocess.
 
 This task adds a `fanOutCanvasLifecycle` function mirroring the existing `fanOutWikiPageChanged` (`src/daemon/unified.swift:364-385`).
 
@@ -48,7 +48,7 @@ In `src/daemon/unified.swift`, add this function alongside `fanOutWikiPageChange
 ```swift
     /// Fan out a canvas_lifecycle event to every canvas that has subscribed
     /// to the `canvas_lifecycle` channel. Mirror of fanOutWikiPageChanged.
-    /// Used by toolkit components (canvas-inspector) that need live awareness
+    /// Used by toolkit components (surface-inspector) that need live awareness
     /// of canvas create/update/remove events.
     func fanOutCanvasLifecycle(_ data: [String: Any]) {
         let targets = canvasEventSubscriptions
@@ -152,7 +152,7 @@ git add src/daemon/unified.swift
 git commit -m "$(cat <<'EOF'
 feat(daemon): fan out canvas_lifecycle events to subscribed canvases
 
-Mirrors fanOutWikiPageChanged. Enables toolkit components (canvas-inspector)
+Mirrors fanOutWikiPageChanged. Enables toolkit components (surface-inspector)
 to track canvas create/update/remove via in-canvas subscribe instead of an
 external launch.sh event-relay subprocess.
 
@@ -803,34 +803,34 @@ EOF
 
 ---
 
-## Task 4: Migrate `canvas-inspector` to Layer 1a + 1b (pilot)
+## Task 4: Migrate `surface-inspector` to Layer 1a + 1b (pilot)
 
 **Why:** First real consumer of the new foundation. Canvas-inspector is the most complex of the three (subscribes to lifecycle events, spawns no children but lists them) — if it migrates cleanly, the other two will be easy. This validates the Content + Single + router pattern end-to-end and proves the Layer 0 `canvas_lifecycle` fan-out from Task 1 works.
 
 **Files:**
-- Create: `packages/toolkit/components/canvas-inspector/index.js` — Content factory
-- Modify: `packages/toolkit/components/canvas-inspector/index.html` — call `mountPanel`
-- Modify: `packages/toolkit/components/canvas-inspector/launch.sh` — drop event-relay subprocess
-- Delete: `packages/toolkit/components/canvas-inspector/inspector.js` — replaced by `index.js`
+- Create: `packages/toolkit/components/surface-inspector/index.js` — Content factory
+- Modify: `packages/toolkit/components/surface-inspector/index.html` — call `mountPanel`
+- Modify: `packages/toolkit/components/surface-inspector/launch.sh` — drop event-relay subprocess
+- Delete: `packages/toolkit/components/surface-inspector/inspector.js` — replaced by `index.js`
 
 - [ ] **Step 1: Read the current implementation**
 
-Read `packages/toolkit/components/canvas-inspector/inspector.js` to understand what the inspector renders and which messages it handles. The new Content needs to preserve all its behavior — list canvases, react to `canvas_lifecycle` events, render whatever spatial visualization it currently provides.
+Read `packages/toolkit/components/surface-inspector/inspector.js` to understand what the inspector renders and which messages it handles. The new Content needs to preserve all its behavior — list canvases, react to `canvas_lifecycle` events, render whatever spatial visualization it currently provides.
 
 - [ ] **Step 2: Read the current `index.html`**
 
-Read `packages/toolkit/components/canvas-inspector/index.html` to see what it imports and how it bootstraps. The new file replaces the `extends AosComponent` boot with a `mountPanel` call.
+Read `packages/toolkit/components/surface-inspector/index.html` to see what it imports and how it bootstraps. The new file replaces the `extends AosComponent` boot with a `mountPanel` call.
 
 - [ ] **Step 3: Create `index.js` (Content factory)**
 
-`packages/toolkit/components/canvas-inspector/index.js`:
+`packages/toolkit/components/surface-inspector/index.js`:
 
 This is a port — preserve all rendering and message-handling logic from `inspector.js`. Replace the class with a factory function that returns a Content object. The `render(host)` method does what `mount()` did minus chrome (chrome is now Layer 1b's job). The `onMessage(msg, host)` method handles `bootstrap` and `canvas_lifecycle`. State (the canvas list, displays, DOM refs) lives in closure variables.
 
 Skeleton (port the actual rendering logic from `inspector.js`):
 
 ```js
-// canvas-inspector — Content factory for the toolkit's canvas debug panel.
+// surface-inspector — Content factory for the toolkit's canvas debug panel.
 //
 // Renders the live list of canvases the daemon knows about and reacts to
 // canvas_lifecycle events to stay current. Subscribes to canvas_lifecycle
@@ -852,18 +852,18 @@ export default function CanvasInspector() {
 
   return {
     manifest: {
-      name: 'canvas-inspector',
+      name: 'surface-inspector',
       title: 'Canvas Inspector',
       accepts: ['bootstrap', 'canvas_lifecycle'],
       emits: [],
-      channelPrefix: 'canvas-inspector',
+      channelPrefix: 'surface-inspector',
       requires: ['canvas_lifecycle'],
       defaultSize: { w: 320, h: 480 },
     },
 
     render(host) {
       contentEl = document.createElement('div')
-      contentEl.className = 'canvas-inspector-body'
+      contentEl.className = 'surface-inspector-body'
       contentEl.style.cssText = 'padding:8px;height:100%;box-sizing:border-box;'
       // Initial render with empty data — bootstrap will populate.
       rerender()
@@ -901,7 +901,7 @@ export default function CanvasInspector() {
 
 - [ ] **Step 4: Update `index.html` to use `mountPanel`**
 
-Replace `packages/toolkit/components/canvas-inspector/index.html` with:
+Replace `packages/toolkit/components/surface-inspector/index.html` with:
 
 ```html
 <!doctype html>
@@ -928,7 +928,7 @@ mountPanel({ title: 'Canvas Inspector', layout: Single(CanvasInspector) })
 
 - [ ] **Step 5: Simplify `launch.sh` (drop the event-relay subprocess)**
 
-Replace `packages/toolkit/components/canvas-inspector/launch.sh` with:
+Replace `packages/toolkit/components/surface-inspector/launch.sh` with:
 
 ```bash
 #!/bin/bash
@@ -939,7 +939,7 @@ Replace `packages/toolkit/components/canvas-inspector/launch.sh` with:
 set -euo pipefail
 
 AOS="${AOS:-./aos}"
-CANVAS_ID="canvas-inspector"
+CANVAS_ID="surface-inspector"
 
 $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
 
@@ -968,7 +968,7 @@ Y=$((MAIN_H - PANEL_H - 60))
 $AOS show create --id "$CANVAS_ID" \
   --at "$X,$Y,$PANEL_W,$PANEL_H" \
   --interactive \
-  --url 'aos://toolkit/components/canvas-inspector/index.html'
+  --url 'aos://toolkit/components/surface-inspector/index.html'
 
 # Wait for the page to wire its bridge
 sleep 0.5
@@ -988,7 +988,7 @@ with open(os.path.join(tmpdir, 'canvases.json')) as f:
 with open(os.path.join(tmpdir, 'displays.json')) as f:
     raw = json.load(f)
     displays = raw.get('displays', raw) if isinstance(raw, dict) else raw
-msg = {'type': 'canvas-inspector/bootstrap', 'payload': {'canvases': canvases, 'displays': displays}}
+msg = {'type': 'surface-inspector/bootstrap', 'payload': {'canvases': canvases, 'displays': displays}}
 print(base64.b64encode(json.dumps(msg).encode()).decode())
 PYEOF
 )
@@ -1002,12 +1002,12 @@ echo "Canvas inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H})"
 echo "Live lifecycle updates flow via in-canvas subscribe — no subprocess needed."
 ```
 
-Note the change to the bootstrap message type: now `canvas-inspector/bootstrap` (with the channelPrefix), so the router delivers it as `{type:'bootstrap'}` to the content.
+Note the change to the bootstrap message type: now `surface-inspector/bootstrap` (with the channelPrefix), so the router delivers it as `{type:'bootstrap'}` to the content.
 
 - [ ] **Step 6: Delete the old `inspector.js`**
 
 ```bash
-git rm packages/toolkit/components/canvas-inspector/inspector.js
+git rm packages/toolkit/components/surface-inspector/inspector.js
 ```
 
 - [ ] **Step 7: Smoke-verify**
@@ -1015,13 +1015,13 @@ git rm packages/toolkit/components/canvas-inspector/inspector.js
 Launch the migrated component:
 
 ```bash
-bash packages/toolkit/components/canvas-inspector/launch.sh
+bash packages/toolkit/components/surface-inspector/launch.sh
 ```
 
 Visual checks:
 1. Panel appears bottom-right of main display.
 2. Header reads "Canvas Inspector" and is draggable.
-3. The body lists currently-active canvases (at minimum, the canvas-inspector itself).
+3. The body lists currently-active canvases (at minimum, the surface-inspector itself).
 
 Then exercise lifecycle:
 
@@ -1038,16 +1038,16 @@ sleep 1
 
 Expected: the inspector's list updates live as each canvas appears and disappears. If updates don't appear, verify Task 1's fan-out is in the running daemon (`./aos doctor --json | grep git_commit` should be a SHA at or after Task 1's commit).
 
-Cleanup: `./aos show remove --id canvas-inspector`
+Cleanup: `./aos show remove --id surface-inspector`
 
 Daemon log check: `tail -50 ~/.config/aos/repo/daemon.log | grep -i error` should produce no JS errors related to the inspector.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add packages/toolkit/components/canvas-inspector
+git add packages/toolkit/components/surface-inspector
 git commit -m "$(cat <<'EOF'
-refactor(toolkit): migrate canvas-inspector to Layer 1a+1b foundation
+refactor(toolkit): migrate surface-inspector to Layer 1a+1b foundation
 
 Replaces extends AosComponent with a Content factory consumed by Single layout.
 launch.sh drops the external aos show listen event-relay subprocess in favor
@@ -1066,7 +1066,7 @@ EOF
 
 ## Task 5: Migrate `inspector-panel` to Layer 1a + 1b
 
-**Why:** Second migration. Inspector-panel is simpler than canvas-inspector (no live event subscription) — primarily a one-shot AX-element display surface fed by `aos inspect` evals. Validates the Content + Single pattern for a passive consumer.
+**Why:** Second migration. Inspector-panel is simpler than surface-inspector (no live event subscription) — primarily a one-shot AX-element display surface fed by `aos inspect` evals. Validates the Content + Single pattern for a passive consumer.
 
 **Files:**
 - Create: `packages/toolkit/components/inspector-panel/index.js` — Content factory
@@ -1205,7 +1205,7 @@ git add packages/toolkit/components/inspector-panel src/
 git commit -m "$(cat <<'EOF'
 refactor(toolkit): migrate inspector-panel to Layer 1a+1b foundation
 
-Same pattern as canvas-inspector: Content factory + Single layout + manifest
+Same pattern as surface-inspector: Content factory + Single layout + manifest
 channel prefix. aos inspect callers updated to use the inspector/ prefix in
 outbound message types.
 
@@ -1546,7 +1546,7 @@ export { Tabs } from './layouts/tabs.js'
 <body>
 <script type="module">
 import { mountPanel, Tabs } from '../../../panel/index.js'
-import CanvasInspector from '../../canvas-inspector/index.js'
+import CanvasInspector from '../../surface-inspector/index.js'
 import InspectorPanel from '../../inspector-panel/index.js'
 import LogConsole from '../../log-console/index.js'
 
@@ -1705,7 +1705,7 @@ panel/                  Layer 1b — panel primitives
 
 components/             Layer 2 — reusable Content units
   _base/                  shared theme.css (legacy AosComponent retired)
-  canvas-inspector/       live canvas list + lifecycle subscription
+  surface-inspector/       live canvas list + lifecycle subscription
   inspector-panel/        AX-element inspector (driven by `aos inspect`)
   log-console/            scrolling timestamped log (driven by `aos log push`)
   _dev/                   developer demos
@@ -1776,9 +1776,9 @@ Re-run the smoke from Tasks 4, 5, 6, 7 in sequence:
 
 ```bash
 # Each component standalone
-bash packages/toolkit/components/canvas-inspector/launch.sh &
+bash packages/toolkit/components/surface-inspector/launch.sh &
 sleep 2
-./aos show remove --id canvas-inspector
+./aos show remove --id surface-inspector
 
 ./aos inspect &
 sleep 2

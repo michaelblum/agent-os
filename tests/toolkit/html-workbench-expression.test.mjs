@@ -343,14 +343,14 @@ test('HTML expression surface replays current semantic targets when Surface Insp
     assert.ok(surface.manifest.accepts.includes(HTML_WORKBENCH_EXPRESSION_SEMANTIC_TARGETS_REQUEST_TYPE));
     surface.onMessage({
       type: HTML_WORKBENCH_EXPRESSION_SEMANTIC_TARGETS_REQUEST_TYPE,
-      requester_canvas_id: 'canvas-inspector',
-      reply_to: 'canvas-inspector',
+      requester_canvas_id: 'surface-inspector',
+      reply_to: 'surface-inspector',
       reason: 'surface_inspector_bootstrap',
     });
 
     assert.equal(sent.length, 1);
     assert.equal(sent[0].type, 'canvas.send');
-    assert.equal(sent[0].payload.target, 'canvas-inspector');
+    assert.equal(sent[0].payload.target, 'surface-inspector');
     assert.equal(sent[0].payload.message.type, 'canvas_inspector.semantic_targets');
     assert.equal(sent[0].payload.message.replay_reason, 'surface_inspector_bootstrap');
     assert.equal(sent[0].payload.message.semantic_targets[0].id, 'goal');

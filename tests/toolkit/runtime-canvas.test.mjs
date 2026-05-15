@@ -72,7 +72,7 @@ test('warmCanvas creates a suspended canvas and waits for document readiness', a
 
   const promise = warmCanvas({
     id: 'warm-inspector',
-    url: 'aos://toolkit/components/canvas-inspector/index.html',
+    url: 'aos://toolkit/components/surface-inspector/index.html',
     frame: [10, 20, 320, 240],
     timeoutMs: 1000,
   });
@@ -81,7 +81,7 @@ test('warmCanvas creates a suspended canvas and waits for document readiness', a
   assert.equal(outbound[0].type, 'canvas.create');
   assert.deepEqual(outbound[0].payload, {
     id: 'warm-inspector',
-    url: 'aos://toolkit/components/canvas-inspector/index.html',
+    url: 'aos://toolkit/components/surface-inspector/index.html',
     frame: [10, 20, 320, 240],
     interactive: true,
     focus: false,

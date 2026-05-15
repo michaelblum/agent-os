@@ -30,8 +30,8 @@ and projected world-size hit areas were not clearly distinguished by contract.
 
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
-- `packages/toolkit/components/canvas-inspector/marks/normalize.js`
-- `packages/toolkit/components/canvas-inspector/marks/render.js`
+- `packages/toolkit/components/surface-inspector/marks/normalize.js`
+- `packages/toolkit/components/surface-inspector/marks/render.js`
 - `docs/api/toolkit/components.md`
 - `docs/design/work-cards/surface-stack-retrospective-followups-v0.md`
 
@@ -52,12 +52,12 @@ repair loop unless the tests you choose require live AOS.
 
 ## Existing Code To Inspect
 
-- `packages/toolkit/components/canvas-inspector/marks/normalize.js` - accepts
+- `packages/toolkit/components/surface-inspector/marks/normalize.js` - accepts
   `minimapSizeMode`, `minimap_size_mode`, `sizeMode`, and `size_mode`; defaults
   to `minimap`; currently only preserves `desktop_world`.
-- `packages/toolkit/components/canvas-inspector/marks/render.js` - applies
+- `packages/toolkit/components/surface-inspector/marks/render.js` - applies
   `desktop_world` sizing by multiplying `w`/`h` by the minimap layout scale.
-- `packages/toolkit/components/canvas-inspector/index.js` - passes layout to
+- `packages/toolkit/components/surface-inspector/index.js` - passes layout to
   `renderMinimapMark`.
 - `packages/toolkit/components/spatial-telemetry/index.js` and
   `packages/toolkit/components/spatial-telemetry/model.js` - consume normalized
@@ -65,10 +65,10 @@ repair loop unless the tests you choose require live AOS.
 - `apps/sigil/renderer/live-modules/main.js` - live mark producer for avatar and
   radial targets; radial marks already opt into `minimap_size_mode:
   "desktop_world"`.
-- `tests/toolkit/canvas-inspector-marks-normalize.test.mjs` and
-  `tests/toolkit/canvas-inspector-marks-render.test.mjs` - focused behavior
+- `tests/toolkit/surface-inspector-marks-normalize.test.mjs` and
+  `tests/toolkit/surface-inspector-marks-render.test.mjs` - focused behavior
   tests for mark normalization/rendering.
-- `tests/canvas-inspector-primitive-marks.sh` and
+- `tests/surface-inspector-primitive-marks.sh` and
   `tests/spatial-telemetry-smoke.sh` - live/shell mark consumers with fixed-size
   test marks.
 
@@ -138,10 +138,10 @@ touch Sigil only if the audit finds a live mark producer with the wrong
 Likely files:
 
 - `docs/api/toolkit/components.md`
-- `packages/toolkit/components/canvas-inspector/marks/normalize.js`
-- `packages/toolkit/components/canvas-inspector/marks/render.js`
-- `tests/toolkit/canvas-inspector-marks-normalize.test.mjs`
-- `tests/toolkit/canvas-inspector-marks-render.test.mjs`
+- `packages/toolkit/components/surface-inspector/marks/normalize.js`
+- `packages/toolkit/components/surface-inspector/marks/render.js`
+- `tests/toolkit/surface-inspector-marks-normalize.test.mjs`
+- `tests/toolkit/surface-inspector-marks-render.test.mjs`
 - `tests/toolkit/toolkit-api-docs-contract.test.mjs`
 - `apps/sigil/renderer/live-modules/main.js` only if the producer audit finds a
   concrete mismatch.
@@ -151,7 +151,7 @@ Likely files:
 Minimum:
 
 ```bash
-node --test tests/toolkit/canvas-inspector-marks-normalize.test.mjs tests/toolkit/canvas-inspector-marks-render.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs
+node --test tests/toolkit/surface-inspector-marks-normalize.test.mjs tests/toolkit/surface-inspector-marks-render.test.mjs tests/toolkit/toolkit-api-docs-contract.test.mjs
 git diff --check
 ```
 

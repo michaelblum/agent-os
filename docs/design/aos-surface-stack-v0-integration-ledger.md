@@ -23,7 +23,7 @@ issues, and commented remaining scope on the issues that should stay open.
 | #120 | `docs/design/work-cards/daemon-toolkit-input-event-identity-contract-v0.md`, `docs/design/work-cards/toolkit-child-hit-surface-source-identity-v0.md`, and `docs/design/work-cards/toolkit-child-hit-surface-normalization-gate-correction-v0.md` | Routed input now carries source identity, child hit-surface identity, capture identity, and toolkit-normalized coordinate authority. |
 | #303 | `docs/design/work-cards/daemon-generic-input-region-contract-v0.md` and `docs/design/work-cards/daemon-sigil-input-path-retirement-v0.md` | Daemon input regions are generic and Sigil-named daemon product branches have been retired. |
 | #305 | `docs/design/work-cards/sigil-platform-input-region-adapter-v0.md`, `docs/design/work-cards/toolkit-desktop-world-hit-region-controller-v0.md`, and `docs/design/work-cards/sigil-avatar-hit-target-toolkit-controller-v0.md` | Sigil has bounded second-client groundwork through the input-region adapter, toolkit DesktopWorld hit-region controller, avatar/radial physical lifecycle migration, and child source identity cleanup. |
-| #223 | `docs/design/work-cards/canvas-inspector-surface-resource-visibility-v0.md` | Surface Inspector can show stage layers, input regions, affordance/resource metadata, owners, and stale/incomplete resource hints. |
+| #223 | `docs/design/work-cards/surface-inspector-surface-resource-visibility-v0.md` | Surface Inspector can show stage layers, input regions, affordance/resource metadata, owners, and stale/incomplete resource hints. |
 
 ## Verification Evidence
 

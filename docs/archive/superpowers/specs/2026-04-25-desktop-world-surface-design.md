@@ -528,8 +528,8 @@ primitive can still ship in advance of that decision; it is renderer-agnostic.
 - `src/display/display-geometry.swift:19-144` (DesktopWorld geometry producer).
 - `src/shared/types.swift:31-93` (Swift coord conversion helpers).
 - `packages/toolkit/runtime/spatial.js` (JS DesktopWorld helpers).
-- `packages/toolkit/components/canvas-inspector/index.js`,
-  `packages/toolkit/components/canvas-inspector/mouse-effects.js`.
+- `packages/toolkit/components/surface-inspector/index.js`,
+  `packages/toolkit/components/surface-inspector/mouse-effects.js`.
 - `apps/sigil/renderer/live-modules/main.js:485-507` (current Sigil
   DesktopWorld input path).
 - `apps/sigil/renderer/live-modules/main.js` (legacy stale-bounds clamp lived
