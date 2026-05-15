@@ -1,5 +1,6 @@
 import { esc } from '../../runtime/bridge.js';
 import { renderMarkdown } from '../../markdown/render.js';
+import { renderButtonHtml } from '../../controls/button.js';
 import {
   ARTIFACT_BUNDLE_WORK_RECORD_CANVAS_ID,
   ARTIFACT_BUNDLE_OPEN_TYPE,
@@ -276,9 +277,12 @@ function renderWorkRecordLink(link = null, summary = null) {
     + `<div class="artifact-bundle-row"><span>Source</span><strong>${esc(text(link.record_path || link.record_url, 'embedded'))}</strong></div>`
     + renderEvidenceSummary(summary)
     + '<div class="artifact-bundle-action-row">'
-      + `<button type="button" class="artifact-bundle-action" data-action="open-work-record" data-aos-ref="${esc(link.open_ref)}"${link.can_open ? '' : ' disabled'}>`
-        + 'Open Work Record Evidence'
-      + '</button>'
+      + renderButtonHtml({
+        className: 'artifact-bundle-action',
+        label: 'Open Work Record Evidence',
+        disabled: !link.can_open,
+        dataset: { action: 'open-work-record', aosRef: link.open_ref },
+      })
     + '</div>'
     + (evidenceRefs.length === 0 ? '<p class="artifact-bundle-muted">No evidence refs recorded.</p>' : (
       '<ol class="artifact-bundle-list artifact-bundle-evidence-list">'

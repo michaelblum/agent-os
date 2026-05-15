@@ -1,4 +1,6 @@
 import { esc } from '../../runtime/bridge.js';
+import { createButton } from '../../controls/button.js';
+import { createButtonGroup } from '../../controls/button-group.js';
 import { createTextarea } from '../../controls/textarea.js';
 import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js';
 import {
@@ -30,6 +32,10 @@ function el(tag, className, textContent) {
 
 function textareaEl(config = {}) {
   return createTextarea({ document, ...config }).el;
+}
+
+function buttonEl(config = {}) {
+  return createButton({ document, ...config }).el;
 }
 
 function text(value, fallback = '') {
@@ -291,11 +297,7 @@ export default function WorkRecordWorkbench(options = {}) {
           <span data-role="record-type"></span>
           <em data-role="dirty"></em>
         </div>
-        <div class="work-record-actions">
-          <button type="button" data-action="apply-json">Apply JSON</button>
-          <button type="button" data-action="revert">Revert</button>
-          <button type="button" data-action="save">Save</button>
-        </div>
+        <div class="work-record-actions"></div>
         `,
       })}
       <main class="work-record-main">
@@ -375,6 +377,14 @@ export default function WorkRecordWorkbench(options = {}) {
       ariaLabel: 'Execution map JSON editor',
       dataset: { role: 'execution-map' },
     }));
+    const actions = createButtonGroup({ document, options: [] }).el;
+    actions.classList.add('work-record-action-group');
+    actions.append(
+      buttonEl({ label: 'Apply JSON', dataset: { action: 'apply-json' } }),
+      buttonEl({ label: 'Revert', dataset: { action: 'revert' } }),
+      buttonEl({ label: 'Save', dataset: { action: 'save' } })
+    );
+    root.querySelector('.work-record-actions')?.appendChild(actions);
 
     dom.recordId = root.querySelector('[data-role="record-id"]');
     dom.recordType = root.querySelector('[data-role="record-type"]');

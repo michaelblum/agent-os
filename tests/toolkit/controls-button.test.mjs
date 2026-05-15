@@ -58,3 +58,18 @@ test('renderButtonHtml escapes labels and supports raw attributes', () => {
   assert.match(html, /data-safe-fragment="ok"/);
   assert.match(html, />Run &lt;now&gt;<\/button>$/);
 });
+
+test('renderButtonHtml escapes labels and stamps semantic attrs', () => {
+  const html = renderButtonHtml({
+    label: 'Save <now>',
+    variant: 'primary',
+    dataset: { aosRef: 'demo:save', semanticTargetId: 'save' },
+    attributes: { 'aria-label': 'Save now' },
+  });
+
+  assert.match(html, /class="aos-button primary"/);
+  assert.match(html, /data-aos-ref="demo:save"/);
+  assert.match(html, /data-semantic-target-id="save"/);
+  assert.match(html, /aria-label="Save now"/);
+  assert.match(html, />Save &lt;now&gt;<\/button>/);
+});

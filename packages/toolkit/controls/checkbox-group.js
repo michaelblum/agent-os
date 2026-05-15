@@ -1,5 +1,39 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function dataAttributeName(name) {
+  return `data-${String(name).replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+}
+
+export function renderCheckboxHtml(config = {}) {
+  const labelClasses = ['aos-checkbox'];
+  if (config.labelClass) labelClasses.push(...String(config.labelClass).split(/\s+/).filter(Boolean));
+  const inputClasses = String(config.inputClass || '').split(/\s+/).filter(Boolean);
+  const inputParts = ['type="checkbox"'];
+  if (inputClasses.length) inputParts.push(`class="${escapeHtml(inputClasses.join(' '))}"`);
+  if (config.value !== undefined) inputParts.push(`value="${escapeHtml(config.value)}"`);
+  if (config.checked) inputParts.push('checked');
+  for (const [name, value] of Object.entries(config.dataset || {})) {
+    if (value === undefined || value === null) continue;
+    inputParts.push(`${escapeHtml(dataAttributeName(name))}="${escapeHtml(value)}"`);
+  }
+  for (const [name, value] of Object.entries(config.attributes || {})) {
+    if (value === undefined || value === null || value === false) continue;
+    inputParts.push(value === true ? escapeHtml(name) : `${escapeHtml(name)}="${escapeHtml(value)}"`);
+  }
+  if (config.rawAttributes) inputParts.push(String(config.rawAttributes));
+  const title = config.title ? ` title="${escapeHtml(config.title)}"` : '';
+  return `<label class="${escapeHtml(labelClasses.join(' '))}"${title}><input ${inputParts.join(' ')}><span>${escapeHtml(config.label ?? '')}</span></label>`;
+}
+
 export function createCheckboxGroup(config = {}) {
   const doc = ownerDocument(config);
   const hub = createEventHub();

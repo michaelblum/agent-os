@@ -11,12 +11,18 @@ function buttonClassName(config = {}) {
   return classes.join(' ');
 }
 
+function normalizedAttributeConfig(config = {}) {
+  if (typeof config.rawAttributes === 'string') {
+    return { ...config, rawAttributes: [config.rawAttributes] };
+  }
+  return config;
+}
+
 export function renderButtonHtml(config = {}) {
   const parts = [
     `class="${escapeHtml(buttonClassName(config))}"`,
     `type="${escapeHtml(config.type || 'button')}"`,
   ];
-  if (config.classFirst) parts.reverse();
   if (config.id) parts.push(`id="${escapeHtml(config.id)}"`);
   if (config.title) parts.push(`title="${escapeHtml(config.title)}"`);
   if (config.ariaLabel) parts.push(`aria-label="${escapeHtml(config.ariaLabel)}"`);
@@ -26,7 +32,7 @@ export function renderButtonHtml(config = {}) {
     parts.push('aria-disabled="true"');
   }
   if (config.pressed !== undefined) parts.push(`aria-pressed="${config.pressed ? 'true' : 'false'}"`);
-  parts.push(...attributeParts(config));
+  parts.push(...attributeParts(normalizedAttributeConfig(config)));
   return `<button ${parts.join(' ')}>${escapeHtml(config.label ?? '')}</button>`;
 }
 

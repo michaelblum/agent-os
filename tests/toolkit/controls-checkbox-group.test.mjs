@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCheckboxGroup } from '../../packages/toolkit/controls/checkbox-group.js';
+import { createCheckboxGroup, renderCheckboxHtml } from '../../packages/toolkit/controls/checkbox-group.js';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
 
 const options = [
@@ -36,4 +36,23 @@ test('checkbox group emits change and select all toggles all options', () => {
   inputs[0].checked = true;
   inputs[0].dispatchEvent(new FakeEvent('change', { bubbles: true }));
   assert.deepEqual(group.getValue(), ['a', 'b', 'c']);
+});
+
+test('renderCheckboxHtml escapes labels and stamps semantic attrs', () => {
+  const html = renderCheckboxHtml({
+    label: 'Visible <stage>',
+    value: 'tree',
+    checked: true,
+    labelClass: 'object-transform-visibility',
+    inputClass: 'object-transform-visibility-input',
+    dataset: { objectVisibilityKey: 'tree' },
+    rawAttributes: 'data-aos-action="toggle_visibility"',
+  });
+
+  assert.match(html, /class="aos-checkbox object-transform-visibility"/);
+  assert.match(html, /class="object-transform-visibility-input"/);
+  assert.match(html, /checked/);
+  assert.match(html, /data-object-visibility-key="tree"/);
+  assert.match(html, /data-aos-action="toggle_visibility"/);
+  assert.match(html, />Visible &lt;stage&gt;<\/span>/);
 });

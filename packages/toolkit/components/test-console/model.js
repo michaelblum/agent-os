@@ -1,3 +1,4 @@
+import { renderButtonHtml } from '../../controls/button.js';
 import { renderTextareaHtml } from '../../controls/textarea.js';
 import {
   TEST_CONSOLE_SURFACE,
@@ -222,7 +223,7 @@ function renderRefRows(refs, emptyText, kind) {
             <code>${escapeHtml(item.ref)}</code>
             <span>${escapeHtml(item.summary)}</span>
           </div>
-          ${kind === 'evidence' ? `<button type="button" data-action="open-evidence" data-ref="${escapeHtml(item.ref)}">Open evidence</button>` : ''}
+          ${kind === 'evidence' ? renderButtonHtml({ label: 'Open evidence', dataset: { action: 'open-evidence', ref: item.ref } }) : ''}
         </li>
       `).join('')}
     </ul>
@@ -511,11 +512,11 @@ export function renderTestConsoleHtml(snapshot = {}) {
             value: snapshot.note || '',
           })}
           <div class="test-console-actions">
-            <button type="button" data-action="confirm" ${loaded ? '' : 'disabled'}>Confirm</button>
-            <button type="button" data-action="fail" ${loaded ? '' : 'disabled'}>Fail</button>
-            <button type="button" data-action="blocked" ${loaded ? '' : 'disabled'}>Blocked</button>
-            <button type="button" data-action="add-note" ${loaded ? '' : 'disabled'}>Add note</button>
-            <button type="button" data-action="retry" ${loaded ? '' : 'disabled'}>Retry</button>
+            ${renderButtonHtml({ label: 'Confirm', disabled: !loaded, dataset: { action: 'confirm' } })}
+            ${renderButtonHtml({ label: 'Fail', disabled: !loaded, dataset: { action: 'fail' } })}
+            ${renderButtonHtml({ label: 'Blocked', disabled: !loaded, dataset: { action: 'blocked' } })}
+            ${renderButtonHtml({ label: 'Add note', disabled: !loaded, dataset: { action: 'add-note' } })}
+            ${renderButtonHtml({ label: 'Retry', disabled: !loaded, dataset: { action: 'retry' } })}
           </div>
         </section>
 

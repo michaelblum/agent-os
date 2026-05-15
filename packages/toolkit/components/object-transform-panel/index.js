@@ -1,5 +1,8 @@
 import { emit, esc } from '../../runtime/bridge.js';
+import { renderButtonHtml } from '../../controls/button.js';
+import { renderCheckboxHtml } from '../../controls/checkbox-group.js';
 import { wireNumberFieldControls } from '../../controls/number-field.js';
+import { renderTextareaHtml } from '../../controls/textarea.js';
 import {
   TRANSFORM_GROUPS,
   VECTOR_AXES,
@@ -77,6 +80,44 @@ function renderObjectIcon(entry) {
   return `<span class="object-transform-icon cube-icon" aria-hidden="true"><i></i></span>`;
 }
 
+function renderCheckboxControl({
+  label,
+  value,
+  checked = false,
+  title = '',
+  labelClass = '',
+  inputClass = '',
+  dataset = {},
+  attributes = {},
+  rawAttributes = '',
+} = {}) {
+  return renderCheckboxHtml({
+    label,
+    value,
+    checked,
+    title,
+    labelClass,
+    inputClass,
+    dataset,
+    attributes,
+    rawAttributes,
+  });
+}
+
+function renderDescriptorModeGroup(field, modes, activeMode) {
+  return (
+    `<div class="object-transform-descriptor-modes aos-segmented" role="tablist" aria-label="Animation/effects view">`
+      + modes.map((mode) => renderButtonHtml({
+        includeBaseClass: false,
+        className: `object-transform-mode-button${mode.id === activeMode ? ' active' : ''}`,
+        label: mode.label,
+        title: mode.title,
+        rawAttributes: `data-object-descriptor-field="${esc(field)}" data-object-descriptor-mode="${esc(mode.id)}" aria-selected="${mode.id === activeMode ? 'true' : 'false'}"`,
+      })).join('')
+    + '</div>'
+  );
+}
+
 function renderObjectList(rows, selectedKey) {
   if (rows.length === 0) {
     return '<div class="object-transform-empty">Waiting for addressable objects</div>';
@@ -97,14 +138,27 @@ function renderObjectList(rows, selectedKey) {
         ].filter(Boolean).join(' ');
         return (
           `<div class="${rowClass}" style="--object-depth: ${Math.max(0, depth)}" data-object-depth="${Math.max(0, depth)}" data-has-children="${hasChildren ? 'true' : 'false'}">`
-            + `<button type="button" class="object-transform-select" data-object-key="${esc(entry.key)}" title="Select ${esc(entry.name)}" ${objectRowAttrs(entry, selected)}>`
-              + renderObjectIcon(entry)
-              + `<strong>${esc(entry.name)}</strong>`
-            + `</button>`
-            + `<label class="object-transform-visibility${visible ? '' : ' off'}" title="Visible on stage">`
-              + `<input type="checkbox" class="object-transform-visibility-input" data-object-visibility-key="${esc(entry.key)}" data-object-visibility-mixed="${mixed ? 'true' : 'false'}" ${visible ? 'checked' : ''}${visibilityDisabled} ${visibilityToggleAttrs(entry, { checked: visible, mixed })}>`
-              + `<span aria-hidden="true"></span>`
-            + `</label>`
+            + renderButtonHtml({
+              includeBaseClass: false,
+              className: 'object-transform-select',
+              label: '',
+              title: `Select ${entry.name}`,
+              dataset: { objectKey: entry.key },
+              rawAttributes: objectRowAttrs(entry, selected),
+            }).replace('</button>', `${renderObjectIcon(entry)}<strong>${esc(entry.name)}</strong></button>`)
+            + renderCheckboxControl({
+              label: '',
+              value: entry.key,
+              checked: visible,
+              title: 'Visible on stage',
+              labelClass: `object-transform-visibility${visible ? '' : ' off'}`,
+              inputClass: 'object-transform-visibility-input',
+              dataset: { objectVisibilityKey: entry.key, objectVisibilityMixed: mixed ? 'true' : 'false' },
+              attributes: {
+                disabled: visibilityDisabled ? true : false,
+              },
+              rawAttributes: visibilityToggleAttrs(entry, { checked: visible, mixed }),
+            })
           + `</div>`
         );
       }).join('')
@@ -122,12 +176,14 @@ function renderEffectControl(control) {
   const value = effectControlValue(control);
   const title = control.tooltip || control.label;
   if (control.type === 'checkbox') {
-    return (
-      `<label class="object-transform-effect-control checkbox-control" title="${esc(title)}">`
-        + `<input type="checkbox" data-object-effect-control="${esc(control.id)}" ${control.value ? 'checked' : ''}>`
-        + `<span>${esc(control.label)}</span>`
-      + `</label>`
-    );
+    return renderCheckboxControl({
+      label: control.label,
+      value: control.id,
+      checked: control.value,
+      title,
+      labelClass: 'object-transform-effect-control checkbox-control',
+      dataset: { objectEffectControl: control.id },
+    });
   }
   return (
     `<label class="object-transform-effect-control" title="${esc(title)}">`
@@ -145,15 +201,7 @@ function renderDescriptorModes(field, activeMode) {
     { id: 'controls', label: 'Controls', title: 'Use rendered controls generated from JSON' },
   ];
   return (
-    `<div class="object-transform-descriptor-modes" role="tablist" aria-label="Animation/effects view">`
-      + modes.map((mode) => (
-        `<button type="button" class="object-transform-mode-button${mode.id === activeMode ? ' active' : ''}" `
-          + `data-object-descriptor-field="${esc(field)}" data-object-descriptor-mode="${esc(mode.id)}" `
-          + `aria-selected="${mode.id === activeMode ? 'true' : 'false'}" title="${esc(mode.title)}">`
-          + `${esc(mode.label)}`
-        + `</button>`
-      )).join('')
-    + `</div>`
+    renderDescriptorModeGroup(field, modes, activeMode)
   );
 }
 
@@ -169,7 +217,7 @@ function renderDescriptorFields(entry, state) {
     `<section class="object-transform-descriptors" aria-label="Object natural-language descriptors">`
       + `<label>`
         + `<span>Geometry</span>`
-        + `<textarea class="object-transform-descriptor-input" rows="3" maxlength="500" data-object-descriptor="geometry" title="Describe this object's geometry" ${descriptorInputAttrs(entry, 'geometry', geometry)}>${esc(geometry)}</textarea>`
+        + renderTextareaHtml({ className: 'object-transform-descriptor-input', rows: 3, maxLength: 500, value: geometry, dataset: { objectDescriptor: 'geometry' }, attributes: { title: "Describe this object's geometry" }, rawAttributes: descriptorInputAttrs(entry, 'geometry', geometry) })
       + `</label>`
       + `<div class="object-transform-descriptor-field">`
         + `<div class="object-transform-descriptor-label"><span>Animation/effects</span>${renderDescriptorModes('animation_effects', effectsMode)}</div>`
@@ -179,9 +227,9 @@ function renderDescriptorFields(entry, state) {
               ? `<div class="object-transform-effect-controls">${controls.map((control) => renderEffectControl(control)).join('')}</div>`
               : `<div class="object-transform-empty compact">No controls described in JSON</div>`)
             : effectsMode === 'json'
-              ? `<textarea class="object-transform-effects-json" rows="7" spellcheck="false" data-object-effects-json="animation_effects" title="Editable JSON that drives rendered effect controls">${esc(controlsJson)}</textarea>`
+              ? renderTextareaHtml({ className: 'object-transform-effects-json', rows: 7, spellcheck: false, value: controlsJson, dataset: { objectEffectsJson: 'animation_effects' }, attributes: { title: 'Editable JSON that drives rendered effect controls' } })
                 + `<div class="object-transform-json-error${jsonError ? '' : ' hidden'}" role="alert">${esc(jsonError)}</div>`
-              : `<textarea class="object-transform-descriptor-input" rows="3" maxlength="500" data-object-descriptor="animation_effects" title="Describe animations and effects for this object" ${descriptorInputAttrs(entry, 'animation_effects', effects)}>${esc(effects)}</textarea>`)
+              : renderTextareaHtml({ className: 'object-transform-descriptor-input', rows: 3, maxLength: 500, value: effects, dataset: { objectDescriptor: 'animation_effects' }, attributes: { title: 'Describe animations and effects for this object' }, rawAttributes: descriptorInputAttrs(entry, 'animation_effects', effects) }))
         + `</div>`
       + `</div>`
     + `</section>`
