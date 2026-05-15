@@ -1,4 +1,6 @@
 import { esc } from '../../runtime/bridge.js'
+import { renderButtonHtml } from '../../controls/button.js'
+import { renderTextFieldHtml } from '../../controls/text-field.js'
 import { applyIntegrationHubSemantics } from './semantics.js'
 
 const DEFAULT_BROKER_URL = 'http://127.0.0.1:47231'
@@ -199,8 +201,8 @@ export default function IntegrationHub(options = {}) {
         </div>
         <label class="integration-hub-console-label" for="integration-hub-command">Command</label>
         <div class="integration-hub-console-row">
-          <input id="integration-hub-command" class="integration-hub-input" value="${esc(state.simulateText)}" placeholder="status">
-          <button type="button" class="integration-hub-action">${state.sending ? 'Sending…' : 'Send'}</button>
+          ${renderTextFieldHtml({ id: 'integration-hub-command', className: 'integration-hub-input', value: state.simulateText, placeholder: 'status' })}
+          ${renderButtonHtml({ includeBaseClass: false, className: 'integration-hub-action', label: state.sending ? 'Sending...' : 'Send' })}
         </div>
         ${reply ? `<pre class="integration-hub-reply">${esc(reply)}</pre>` : '<div class="integration-hub-empty">No broker reply yet.</div>'}
       </section>
@@ -274,16 +276,18 @@ export default function IntegrationHub(options = {}) {
           <div class="integration-hub-status ${state.error ? 'has-error' : ''}">
             ${state.loading ? 'loading snapshot…' : (state.error ? esc(state.error) : `updated ${esc(prettyAge(state.snapshot?.generated_at))}`)}
           </div>
-          <button type="button" class="integration-hub-refresh">Refresh</button>
+          ${renderButtonHtml({ includeBaseClass: false, className: 'integration-hub-refresh', label: 'Refresh' })}
         </section>
 
-        <section class="integration-hub-surface-tabs" role="tablist" aria-label="Integration broker surfaces">
+        <section class="integration-hub-surface-tabs aos-segmented" role="tablist" aria-label="Integration broker surfaces">
           ${surfaces.map((surface) => `
-            <button
-              type="button"
-              class="integration-hub-surface-tab${surface.id === state.activeSurface ? ' active' : ''}"
-              data-surface="${esc(surface.id)}"
-            >${esc(surface.label)}</button>
+            ${renderButtonHtml({
+              includeBaseClass: false,
+              className: `integration-hub-surface-tab${surface.id === state.activeSurface ? ' active' : ''}`,
+              label: surface.label,
+              pressed: surface.id === state.activeSurface,
+              dataset: { surface: surface.id },
+            })}
           `).join('')}
         </section>
 

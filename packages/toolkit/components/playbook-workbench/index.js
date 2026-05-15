@@ -1,4 +1,6 @@
 import { esc } from '../../runtime/bridge.js';
+import { renderButtonHtml } from '../../controls/button.js';
+import { renderTextFieldHtml } from '../../controls/text-field.js';
 import {
   PLAYBOOK_WORKBENCH_MESSAGE_TYPES,
   PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
@@ -304,15 +306,17 @@ export default function PlaybookWorkbench(options = {}) {
         </div>
         <label class="playbook-workbench-gate-field">
           <span>Gate ref</span>
-          <input data-role="gate-ref" autocomplete="off" spellcheck="false">
+          ${renderTextFieldHtml({ spellcheck: false, dataset: { role: 'gate-ref' }, attributes: { autocomplete: 'off' } })}
         </label>
         <label class="playbook-workbench-gate-field">
           <span>Gate token</span>
-          <input data-role="gate-token" autocomplete="off" spellcheck="false">
+          ${renderTextFieldHtml({ spellcheck: false, dataset: { role: 'gate-token' }, attributes: { autocomplete: 'off' } })}
         </label>
-        <button type="button" data-action="gate-apply">Apply Gate</button>
-        <button type="button" data-action="simulate">Simulate</button>
-        <button type="button" data-action="open-work-record">Open Work Record</button>
+        <div class="playbook-workbench-action-group aos-segmented" role="group" aria-label="Playbook actions">
+          ${renderButtonHtml({ includeBaseClass: false, label: 'Apply Gate', dataset: { action: 'gate-apply' } })}
+          ${renderButtonHtml({ includeBaseClass: false, label: 'Simulate', dataset: { action: 'simulate' } })}
+          ${renderButtonHtml({ includeBaseClass: false, label: 'Open Work Record', dataset: { action: 'open-work-record' } })}
+        </div>
         `,
       })}
       <main class="playbook-workbench-main">

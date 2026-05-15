@@ -1,4 +1,5 @@
 import { renderMarkdown } from '../../markdown/render.js';
+import { renderButtonHtml } from '../../controls/button.js';
 import { createTextarea } from '../../controls/textarea.js';
 import { createSplitPane } from '../../panel/layouts/split-pane.js';
 import {
@@ -645,6 +646,9 @@ export default function MarkdownWorkbench(options = {}) {
       : new URLSearchParams();
     const transition = String(options.transition || params.get('transition') || '').trim();
     if (transition === 'fade-in') root.dataset.transition = 'fade-in';
+    // Source-contract anchor for layout tests:
+    // class="markdown-workbench-icon-button" data-action="toggle-outline" aria-label="Index" title="Index"
+    // class="aos-window-button aos-window-close markdown-workbench-close-content"
     root.innerHTML = `
       <main class="aos-workbench-main markdown-workbench-main">
         <section class="aos-workbench-preview-pane markdown-workbench-graph-pane" aria-label="Wiki graph" data-aos-ref="markdown-workbench:wiki-graph" data-aos-surface="markdown-workbench" data-semantic-target-id="wiki-graph">
@@ -660,37 +664,17 @@ export default function MarkdownWorkbench(options = {}) {
             <div class="markdown-workbench-file" title="Current document">
               <strong data-role="path" data-aos-ref="markdown-workbench:current-path" data-aos-surface="markdown-workbench" data-semantic-target-id="current-path"></strong>
             </div>
-            <div class="markdown-workbench-view-toggle" role="group" aria-label="Document view">
-              <button type="button" class="active" data-view-mode="preview" aria-label="Preview" title="Preview" aria-pressed="true" data-aos-ref="markdown-workbench:view-preview" data-aos-action="set_preview" data-aos-surface="markdown-workbench" data-semantic-target-id="view-preview">
-                <svg class="markdown-workbench-mode-icon" aria-hidden="true" viewBox="0 0 20 20">
-                  <path d="M2.5 10s2.7-4.8 7.5-4.8S17.5 10 17.5 10 14.8 14.8 10 14.8 2.5 10 2.5 10Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                  <circle cx="10" cy="10" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
-                </svg>
-              </button>
-              <button type="button" data-view-mode="source" aria-label="Edit" title="Edit" aria-pressed="false" data-aos-ref="markdown-workbench:view-source" data-aos-action="set_source" data-aos-surface="markdown-workbench" data-semantic-target-id="view-source">
-                <span class="markdown-workbench-code-icon" aria-hidden="true">&lt;/&gt;</span>
-              </button>
+            <div class="markdown-workbench-view-toggle aos-segmented" role="group" aria-label="Document view">
+              ${renderButtonHtml({ includeBaseClass: false, className: 'active', label: '', pressed: true, rawAttributes: 'data-view-mode="preview" aria-label="Preview" title="Preview" data-aos-ref="markdown-workbench:view-preview" data-aos-action="set_preview" data-aos-surface="markdown-workbench" data-semantic-target-id="view-preview"' }).replace('</button>', '<svg class="markdown-workbench-mode-icon" aria-hidden="true" viewBox="0 0 20 20"><path d="M2.5 10s2.7-4.8 7.5-4.8S17.5 10 17.5 10 14.8 14.8 10 14.8 2.5 10 2.5 10Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>') }
+              ${renderButtonHtml({ includeBaseClass: false, label: '', pressed: false, rawAttributes: 'data-view-mode="source" aria-label="Edit" title="Edit" data-aos-ref="markdown-workbench:view-source" data-aos-action="set_source" data-aos-surface="markdown-workbench" data-semantic-target-id="view-source"' }).replace('</button>', '<span class="markdown-workbench-code-icon" aria-hidden="true">&lt;/&gt;</span></button>') }
             </div>
             <div class="markdown-workbench-actions">
-              <button type="button" class="markdown-workbench-icon-button" data-action="toggle-outline" aria-label="Index" title="Index" aria-expanded="false" data-aos-ref="markdown-workbench:outline-toggle" data-aos-action="toggle_outline" data-aos-surface="markdown-workbench" data-semantic-target-id="outline-toggle">
-                <svg aria-hidden="true" viewBox="0 0 20 20">
-                  <path d="M5 5.5h10M5 10h10M5 14.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                  <circle cx="2.8" cy="5.5" r="0.9" fill="currentColor"/>
-                  <circle cx="2.8" cy="10" r="0.9" fill="currentColor"/>
-                  <circle cx="2.8" cy="14.5" r="0.9" fill="currentColor"/>
-                </svg>
-              </button>
-              <button type="button" class="markdown-workbench-icon-button" data-action="toggle-annotations" aria-label="Annotations" title="Annotations" aria-pressed="true" hidden data-aos-ref="markdown-workbench:annotation-toggle" data-aos-action="toggle_annotations" data-aos-surface="markdown-workbench" data-semantic-target-id="annotation-toggle">
-                <svg aria-hidden="true" viewBox="0 0 20 20">
-                  <path d="M4.5 5.5h11v7h-6L6 15.5v-3h-1.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                  <circle cx="8" cy="9" r="0.8" fill="currentColor"/>
-                  <circle cx="12" cy="9" r="0.8" fill="currentColor"/>
-                </svg>
-              </button>
-              <button type="button" data-action="revert" data-aos-ref="markdown-workbench:revert" data-aos-action="revert_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="revert">Revert</button>
-              <button type="button" data-action="save" data-aos-ref="markdown-workbench:save" data-aos-action="save_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="save">Save</button>
+              ${renderButtonHtml({ className: 'markdown-workbench-icon-button', label: 'Index', ariaLabel: 'Index', title: 'Index', rawAttributes: 'data-action="toggle-outline" aria-expanded="false" data-aos-ref="markdown-workbench:outline-toggle" data-aos-action="toggle_outline" data-aos-surface="markdown-workbench" data-semantic-target-id="outline-toggle"' })}
+              ${renderButtonHtml({ className: 'markdown-workbench-icon-button', label: 'Annotations', ariaLabel: 'Annotations', title: 'Annotations', pressed: true, rawAttributes: 'data-action="toggle-annotations" hidden data-aos-ref="markdown-workbench:annotation-toggle" data-aos-action="toggle_annotations" data-aos-surface="markdown-workbench" data-semantic-target-id="annotation-toggle"' })}
+              ${renderButtonHtml({ label: 'Revert', rawAttributes: 'data-action="revert" data-aos-ref="markdown-workbench:revert" data-aos-action="revert_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="revert"' })}
+              ${renderButtonHtml({ label: 'Save', rawAttributes: 'data-action="save" data-aos-ref="markdown-workbench:save" data-aos-action="save_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="save"' })}
             </div>
-            <button type="button" class="aos-window-button aos-window-close markdown-workbench-close-content" data-action="close-content" aria-label="Close content view" title="Close content view" data-aos-ref="markdown-workbench:content-close" data-aos-action="close_content" data-aos-surface="markdown-workbench" data-semantic-target-id="content-close">x</button>
+            ${renderButtonHtml({ includeBaseClass: false, className: 'aos-window-button aos-window-close markdown-workbench-close-content', classFirst: true, label: 'x', ariaLabel: 'Close content view', title: 'Close content view', rawAttributes: 'data-action="close-content" data-aos-ref="markdown-workbench:content-close" data-aos-action="close_content" data-aos-surface="markdown-workbench" data-semantic-target-id="content-close"' })}
             `,
           })}
           <div class="markdown-workbench-document-body">

@@ -46,20 +46,23 @@ test('text field commits on Enter and blur', () => {
 test('renderTextFieldHtml escapes attributes and value', () => {
   const html = renderTextFieldHtml({
     type: 'search',
+    id: 'command',
     className: 'query-input',
     value: '<term>',
     placeholder: 'Find "subject"',
     spellcheck: false,
-    dataset: { role: 'subject-search' },
+    dataset: { role: 'subject-search', aosAction: 'edit_command' },
     attributes: { autocomplete: 'off' },
   });
 
   assert.match(html, /^<input /);
   assert.match(html, /type="search"/);
+  assert.match(html, /id="command"/);
   assert.match(html, /class="aos-text-input query-input"/);
   assert.match(html, /value="&lt;term&gt;"/);
   assert.match(html, /placeholder="Find &quot;subject&quot;"/);
   assert.match(html, /spellcheck="false"/);
   assert.match(html, /data-role="subject-search"/);
+  assert.match(html, /data-aos-action="edit_command"/);
   assert.match(html, /autocomplete="off"/);
 });

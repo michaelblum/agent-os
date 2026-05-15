@@ -27,6 +27,8 @@ import {
   renderWorkbenchToolbarSection,
 } from '../../shell/index.js'
 import { renderMarkdown } from '../../markdown/render.js'
+import { createSelect } from '../../controls/select.js'
+import { createToggle } from '../../controls/toggle.js'
 import { resolveMarkdownSourceUrl } from './source-resolution.js'
 
 const DEFAULT_TREE_URL = new URL('../../../../docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json', import.meta.url).href
@@ -51,6 +53,36 @@ function esc(value) {
 
 function formatJson(value) {
   return esc(JSON.stringify(value ?? {}, null, 2))
+}
+
+function controlHtml(control) {
+  const container = document.createElement('div')
+  container.appendChild(control.el)
+  return container.innerHTML
+}
+
+function actionValue(actionAttr) {
+  return String(actionAttr || '').match(/data-action="([^"]+)"/)?.[1] || ''
+}
+
+function renderToolbarToggle({ label, checked, actionAttr }) {
+  const control = createToggle({ document, label, checked })
+  control.el.querySelector('input')?.setAttribute('data-action', actionValue(actionAttr))
+  return controlHtml(control)
+}
+
+function renderToolbarSelect({ label, options, value, actionAttr, disabled = false }) {
+  const control = createSelect({
+    document,
+    label,
+    value,
+    options: options.map(([optionValue, optionLabel]) => ({ value: optionValue, label: optionLabel })),
+  })
+  const select = control.el.querySelector('select')
+  select?.setAttribute('data-action', actionValue(actionAttr))
+  if (disabled) select?.setAttribute('disabled', '')
+  control.el.classList.add('aos-control-row')
+  return controlHtml(control)
 }
 
 function detailSummary(label, value = '') {

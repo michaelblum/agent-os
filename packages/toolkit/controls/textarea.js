@@ -30,6 +30,11 @@ function applyTextareaConfig(el, config = {}) {
     if (value === undefined || value === null || value === false) continue;
     el.setAttribute(name, value === true ? '' : String(value));
   }
+  if (config.rawAttributes) {
+    for (const match of String(config.rawAttributes).matchAll(/([^\s=]+)="([^"]*)"/g)) {
+      el.setAttribute(match[1], match[2]);
+    }
+  }
   for (const [name, value] of Object.entries(config.dataset || {})) {
     if (value === undefined || value === null) continue;
     el.dataset[name] = String(value);
@@ -52,6 +57,7 @@ function textareaAttributeParts(config = {}) {
     if (value === undefined || value === null || value === false) continue;
     parts.push(value === true ? escapeHtml(name) : `${escapeHtml(name)}="${escapeHtml(value)}"`);
   }
+  if (config.rawAttributes) parts.push(String(config.rawAttributes));
   for (const [name, value] of Object.entries(config.dataset || {})) {
     if (value === undefined || value === null) continue;
     const attrName = `data-${String(name).replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
