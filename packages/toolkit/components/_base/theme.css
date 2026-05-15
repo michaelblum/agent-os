@@ -1,105 +1,48 @@
-/* theme.css — Shared tokens and reset utilities for toolkit surfaces.
- *
- * Inline this into component HTML files when you want the standard toolkit
- * custom properties plus a minimal transparent-canvas reset.
- */
-
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-:root {
-  --aos-font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --aos-font-mono: "SF Mono", "Menlo", "Courier New", monospace;
-  --aos-type-body-size: 12px;
-  --aos-type-body-line: 1.4;
-  --aos-type-caption-size: 10px;
-  --aos-type-caption-line: 1.35;
-  --aos-type-label-size: 10px;
-  --aos-type-label-line: 1.3;
-  --aos-type-toolbar-size: 11px;
-  --aos-type-toolbar-line: 1.3;
-  --aos-type-title-size: 12px;
-  --aos-type-title-line: 1.3;
-  --aos-type-body: var(--aos-type-body-size) / var(--aos-type-body-line) var(--aos-font-ui);
-  --aos-type-caption: 650 var(--aos-type-caption-size) / var(--aos-type-caption-line) var(--aos-font-mono);
-  --aos-type-label: 650 var(--aos-type-label-size) / var(--aos-type-label-line) var(--aos-font-mono);
-  --aos-type-toolbar: 600 var(--aos-type-toolbar-size) / var(--aos-type-toolbar-line) var(--aos-font-ui);
-  --aos-type-title: 680 var(--aos-type-title-size) / var(--aos-type-title-line) var(--aos-font-ui);
-  --aos-type-window-control: 700 13px / 1 var(--aos-font-ui);
-  --aos-type-code: var(--aos-type-caption-size) / 1.45 var(--aos-font-mono);
-  --aos-type-code-block: var(--aos-type-body-size) / 1.55 var(--aos-font-mono);
-  --aos-type-micro: 9px / 1.4 var(--aos-font-mono);
-  --aos-type-micro-label: 650 9px / 1.3 var(--aos-font-mono);
-  --aos-type-numeric: var(--aos-type-body-size) / var(--aos-type-body-line) var(--aos-font-mono);
-  --aos-panel-bg: rgba(5, 10, 14, 0.96);
-  --aos-panel-header-bg: rgba(7, 18, 23, 0.96);
-  --aos-panel-content-bg: transparent;
-  --aos-panel-sidebar-bg: rgba(9, 17, 21, 0.88);
-  --aos-panel-border: rgba(122, 241, 255, 0.26);
-  --aos-panel-border-subtle: rgba(122, 241, 255, 0.18);
-  --aos-panel-radius: 8px;
-  --aos-panel-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
-  --aos-panel-blur: 20px;
-  --aos-panel-titlebar-min-height: 44px;
-  --aos-panel-titlebar-padding: 7px 10px;
-  --aos-panel-titlebar-gap: 10px;
-  --aos-panel-control-gap: 8px;
-  --aos-panel-grip-color: rgba(183, 252, 255, 0.58);
-  --aos-control-height: 30px;
-  --aos-control-padding: 4px 9px;
-  --aos-control-gap: 7px;
-  --aos-control-radius: 7px;
-  --aos-control-border: 1px solid rgba(122, 241, 255, 0.26);
-  --aos-control-border-hover: rgba(122, 241, 255, 0.48);
-  --aos-control-bg: rgba(4, 14, 18, 0.78);
-  --aos-control-bg-hover: rgba(16, 38, 46, 0.82);
-  --aos-control-compact-padding: 2px 6px;
-  --aos-control-compact-radius: 3px;
-  --aos-control-compact-bg: rgba(18, 18, 28, 0.78);
-  --aos-control-compact-bg-active: rgba(60, 60, 90, 0.22);
-  --aos-focus-ring: 2px solid rgba(122, 241, 255, 0.68);
-  --aos-icon-button-size: 31px;
-  --aos-window-button-size: 28px;
-  --aos-window-button-radius: 7px;
-  --aos-window-button-border: 1px solid rgba(122, 241, 255, 0.28);
-  --aos-window-button-border-hover: rgba(122, 241, 255, 0.5);
-  --aos-window-button-bg: rgba(4, 14, 18, 0.78);
-  --aos-window-button-bg-hover: rgba(16, 38, 46, 0.82);
-  --aos-window-button-color: rgba(220, 255, 255, 0.82);
-  --aos-window-close-border-hover: rgba(255, 118, 118, 0.58);
-  --aos-window-close-bg-hover: rgba(82, 18, 24, 0.76);
-  --aos-window-minimize-border-hover: rgba(255, 210, 122, 0.58);
-  --aos-window-minimize-bg-hover: rgba(72, 50, 13, 0.76);
-  --aos-window-maximize-border-active: rgba(111, 232, 196, 0.58);
-  --aos-window-maximize-bg-active: rgba(12, 62, 52, 0.76);
-  --bg-panel: var(--aos-panel-bg);
-  --bg-panel-header: var(--aos-panel-header-bg);
-  --bg-panel-content: var(--aos-panel-content-bg);
-  --bg-panel-sidebar: var(--aos-panel-sidebar-bg);
-  --bg-hover: rgba(7, 25, 31, 0.84);
-  --border-panel: var(--aos-panel-border);
-  --border-subtle: var(--aos-panel-border-subtle);
-  --text-primary: rgba(235, 255, 255, 0.94);
-  --text-secondary: rgba(220, 255, 255, 0.68);
-  --text-muted: rgba(220, 255, 255, 0.46);
-  --text-label: rgba(220, 255, 255, 0.62);
-  --text-header: rgba(220, 255, 255, 0.78);
-  --accent-blue: #7af1ff;
-  --accent-green: #6fe8c4;
-  --accent-yellow: #da6;
-  --accent-red: #e66;
-  --accent-purple: rgba(122, 241, 255, 0.16);
-  --shadow-panel: var(--aos-panel-shadow);
-  --font-mono: var(--aos-font-mono);
-  --font-ui: var(--aos-font-ui);
-  --font-size-base: var(--aos-type-body-size);
-  --font-size-small: var(--aos-type-caption-size);
-  --font-size-header: var(--aos-type-title-size);
-  --blur-radius: var(--aos-panel-blur);
-  --radius-panel: var(--aos-panel-radius);
-}
-
-html, body {
-  background: transparent !important;
-  width: 100%;
-  height: 100%;
-}
+@import url("../../../design-tokens/tokens.css") supports(
+  (--aos-font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif) and
+  (--aos-font-mono: "SF Mono", "Menlo", "Courier New", monospace) and
+  (--aos-type-body: var(--aos-type-body-size) / var(--aos-type-body-line) var(--aos-font-ui)) and
+  (--aos-type-caption: 650 var(--aos-type-caption-size) / var(--aos-type-caption-line) var(--aos-font-mono)) and
+  (--aos-type-label: 650 var(--aos-type-label-size) / var(--aos-type-label-line) var(--aos-font-mono)) and
+  (--aos-type-toolbar: 600 var(--aos-type-toolbar-size) / var(--aos-type-toolbar-line) var(--aos-font-ui)) and
+  (--aos-type-title: 680 var(--aos-type-title-size) / var(--aos-type-title-line) var(--aos-font-ui)) and
+  (--aos-type-window-control: 700 13px / 1 var(--aos-font-ui)) and
+  (--aos-type-code: var(--aos-type-caption-size) / 1.45 var(--aos-font-mono)) and
+  (--aos-type-code-block: var(--aos-type-body-size) / 1.55 var(--aos-font-mono)) and
+  (--aos-type-micro: 9px / 1.4 var(--aos-font-mono)) and
+  (--aos-type-micro-label: 650 9px / 1.3 var(--aos-font-mono)) and
+  (--aos-type-numeric: var(--aos-type-body-size) / var(--aos-type-body-line) var(--aos-font-mono)) and
+  (--aos-panel-bg: rgba(5, 10, 14, 0.96)) and
+  (--aos-panel-header-bg: rgba(7, 18, 23, 0.96)) and
+  (--aos-panel-border: rgba(122, 241, 255, 0.26)) and
+  (--aos-panel-border-subtle: rgba(122, 241, 255, 0.18)) and
+  (--aos-panel-radius: 8px) and
+  (--aos-panel-shadow: 0 18px 46px rgba(0, 0, 0, 0.34)) and
+  (--aos-panel-titlebar-min-height: 44px) and
+  (--aos-panel-titlebar-padding: 7px 10px) and
+  (--aos-panel-titlebar-gap: 10px) and
+  (--aos-panel-control-gap: 8px) and
+  (--aos-panel-grip-color: rgba(183, 252, 255, 0.58)) and
+  (--aos-control-height: 30px) and
+  (--aos-control-padding: 4px 9px) and
+  (--aos-control-gap: 7px) and
+  (--aos-control-radius: 7px) and
+  (--aos-control-border: 1px solid rgba(122, 241, 255, 0.26)) and
+  (--aos-control-bg: rgba(4, 14, 18, 0.78)) and
+  (--aos-control-compact-padding: 2px 6px) and
+  (--aos-control-compact-radius: 3px) and
+  (--aos-control-compact-bg: rgba(18, 18, 28, 0.78)) and
+  (--aos-control-compact-bg-active: rgba(60, 60, 90, 0.22)) and
+  (--aos-focus-ring: 2px solid rgba(122, 241, 255, 0.68)) and
+  (--aos-icon-button-size: 31px) and
+  (--aos-window-button-size: 28px) and
+  (--aos-window-button-border: 1px solid rgba(122, 241, 255, 0.28)) and
+  (--aos-window-button-bg: rgba(4, 14, 18, 0.78)) and
+  (--aos-window-button-color: rgba(220, 255, 255, 0.82)) and
+  (--font-ui: var(--aos-font-ui)) and
+  (--font-mono: var(--aos-font-mono)) and
+  (--bg-panel: var(--aos-panel-bg)) and
+  (--border-panel: var(--aos-panel-border)) and
+  (--radius-panel: var(--aos-panel-radius)) and
+  (--accent-blue: #7af1ff)
+);
