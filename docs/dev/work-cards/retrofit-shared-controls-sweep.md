@@ -92,6 +92,48 @@ Work through these in order. Each is retrofit-only — no behavioral changes.
 
 `gdi/retrofit-shared-controls-sweep`
 
+## Relay Review Correction — 2026-05-15
+
+PR #324 is still open and branch `gdi/retrofit-shared-controls-sweep` is behind
+current `main`. The branch cannot be merged cleanly after the select adapter
+merge. Rebase or merge current `origin/main` into the branch and resolve the
+known conflicts in:
+
+- `packages/toolkit/controls/button.js`
+- `packages/toolkit/controls/index.js`
+- `tests/toolkit/controls-text-field.test.mjs`
+
+The current `main` baseline fails `tests/toolkit/surface-inspector-ax.test.mjs`
+because string `rawAttributes` are rendered one character at a time in Surface
+Inspector button markup. This is in scope for the shared-control sweep, not the
+Zag select adapter card. Preserve the intended shared-control behavior while
+making the full toolkit suite green again.
+
+After resolving conflicts, rerun at minimum:
+
+```bash
+node --test --test-reporter=dot tests/toolkit/surface-inspector-ax.test.mjs
+node --test tests/toolkit/controls-button.test.mjs tests/toolkit/controls-checkbox-group.test.mjs tests/toolkit/controls-text-field.test.mjs
+node --test tests/toolkit/*.test.mjs
+bash tests/help-contract.sh
+git diff --check
+```
+
+Completion report must include:
+
+```text
+## Completion Report
+- profile: agentic_relay
+- branch: gdi/retrofit-shared-controls-sweep
+- head_sha: <git rev-parse HEAD>
+- base_sha: <origin/main SHA used for final rebase/merge>
+- files_changed: <n>
+- tests_passed: <n>/<n>
+- conflict_risk: <none|low|medium — list files if low or medium>
+- open_prs_on_same_files: <none|list>
+- relay_action_required: merge
+```
+
 ## Active Workflow Profile
 
 `agentic_relay` — GDI branches `gdi/<slug>`, commits, pushes, reports branch +
