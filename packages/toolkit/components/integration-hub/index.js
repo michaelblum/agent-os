@@ -1,4 +1,5 @@
 import { esc } from '../../runtime/bridge.js'
+import { createAosZagTabs } from '../../adapters/zag/tabs.js'
 import { renderButtonHtml } from '../../controls/button.js'
 import { renderTextFieldHtml } from '../../controls/text-field.js'
 import { applyIntegrationHubSemantics } from './semantics.js'
@@ -43,6 +44,7 @@ export default function IntegrationHub(options = {}) {
   let host = null
   let pollTimer = null
   let rootEl = null
+  let surfaceTabs = null
   let state = {
     brokerUrl,
     loading: true,
@@ -244,6 +246,29 @@ export default function IntegrationHub(options = {}) {
     }
   }
 
+  function surfaceValueFromChange(details) {
+    return typeof details === 'string' ? details : details?.value
+  }
+
+  function bindSurfaceTabs() {
+    if (!rootEl) return
+    surfaceTabs ??= createAosZagTabs({
+      id: 'integration-hub-surfaces',
+      getRootNode: () => rootEl.ownerDocument || document,
+      activationMode: 'automatic',
+    })
+    surfaceTabs.update({
+      value: state.activeSurface,
+      onValueChange(details) {
+        const activeSurface = surfaceValueFromChange(details)
+        if (activeSurface && activeSurface !== state.activeSurface) {
+          setState({ activeSurface })
+        }
+      },
+    })
+    surfaceTabs.bind(rootEl)
+  }
+
   function renderState() {
     if (!rootEl) return
     const surfaces = state.snapshot?.surfaces || [
@@ -279,14 +304,14 @@ export default function IntegrationHub(options = {}) {
           ${renderButtonHtml({ includeBaseClass: false, className: 'integration-hub-refresh', label: 'Refresh' })}
         </section>
 
-        <section class="integration-hub-surface-tabs aos-segmented" role="tablist" aria-label="Integration broker surfaces">
+        <section class="integration-hub-surface-tabs aos-segmented" role="tablist" aria-label="Integration broker surfaces" data-aos-tabs-root data-aos-tabs-list>
           ${surfaces.map((surface) => `
             ${renderButtonHtml({
               includeBaseClass: false,
               className: `integration-hub-surface-tab${surface.id === state.activeSurface ? ' active' : ''}`,
               label: surface.label,
               pressed: surface.id === state.activeSurface,
-              dataset: { surface: surface.id },
+              dataset: { surface: surface.id, value: surface.id, aosTabsTrigger: true },
             })}
           `).join('')}
         </section>
@@ -295,21 +320,17 @@ export default function IntegrationHub(options = {}) {
           ${esc(surfaces.find((surface) => surface.id === state.activeSurface)?.description || '')}
         </section>
 
-        <section class="integration-hub-grid">
+        <section class="integration-hub-grid" data-aos-tabs-content data-value="${esc(state.activeSurface)}">
           ${renderSurfaces()}
         </section>
       </div>
     `
 
+    bindSurfaceTabs()
     applyIntegrationHubSemantics(rootEl, state)
 
     rootEl.querySelector('.integration-hub-refresh')?.addEventListener('click', () => {
       void loadSnapshot()
-    })
-    rootEl.querySelectorAll('.integration-hub-surface-tab').forEach((button) => {
-      button.addEventListener('click', () => {
-        setState({ activeSurface: button.dataset.surface || 'jobs' })
-      })
     })
     wireConsole()
     updateTitle()
@@ -353,6 +374,8 @@ export default function IntegrationHub(options = {}) {
     },
 
     teardown() {
+      surfaceTabs?.destroy()
+      surfaceTabs = null
       if (pollTimer) {
         window.clearInterval(pollTimer)
         pollTimer = null

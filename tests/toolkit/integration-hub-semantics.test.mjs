@@ -22,6 +22,9 @@ function escapeHtml(value) {
 class FakeElement {
   constructor(tagName = 'div') {
     this.tagName = tagName.toUpperCase()
+    this.localName = tagName.toLowerCase()
+    this.nodeName = this.tagName
+    this.nodeType = 1
     this.attributes = new Map()
     this.dataset = {}
     this.style = {}
@@ -73,15 +76,56 @@ class FakeElement {
     if (name.startsWith('data-')) delete this.dataset[dataAttrName(name)]
   }
 
+  hasAttribute(name) {
+    return this.attributes.has(name)
+  }
+
+  toggleAttribute(name, enabled) {
+    if (enabled) this.setAttribute(name, '')
+    else this.removeAttribute(name)
+  }
+
   getAttribute(name) {
     if (name.startsWith('data-')) return this.dataset[dataAttrName(name)] ?? null
     return this.attributes.get(name) ?? null
+  }
+
+  matches(selector) {
+    if (selector === "a[href], button[type='submit'], input[type='submit']") {
+      return (this.localName === 'a' && this.hasAttribute('href'))
+        || (this.localName === 'button' && this.type === 'submit')
+        || (this.localName === 'input' && this.type === 'submit')
+    }
+    return false
   }
 
   addEventListener(type, handler) {
     const handlers = this.listeners.get(type) ?? []
     handlers.push(handler)
     this.listeners.set(type, handlers)
+  }
+
+  removeEventListener(type, handler) {
+    const handlers = this.listeners.get(type) ?? []
+    this.listeners.set(type, handlers.filter((candidate) => candidate !== handler))
+  }
+
+  dispatchEvent(event) {
+    const normalized = event || {}
+    normalized.currentTarget ??= this
+    normalized.target ??= this
+    normalized.defaultPrevented ??= false
+    normalized.preventDefault ??= () => {
+      normalized.defaultPrevented = true
+    }
+    for (const handler of this.listeners.get(normalized.type) ?? []) {
+      handler(normalized)
+    }
+    return !normalized.defaultPrevented
+  }
+
+  click() {
+    return this.dispatchEvent({ type: 'click' })
   }
 
   querySelector(selector) {
@@ -94,6 +138,11 @@ class FakeElement {
         return this.controls.refresh ?? null
       case '.integration-hub-grid':
         return this.controls.panel ?? null
+      case '[data-aos-tabs-root]':
+      case '[data-aos-tabs-list]':
+        return this.controls.tabsRoot ?? null
+      case '[data-aos-tabs-content]':
+        return this.controls.panel ?? null
       default:
         return null
     }
@@ -101,20 +150,38 @@ class FakeElement {
 
   querySelectorAll(selector) {
     if (selector === '.integration-hub-surface-tab') return this.controls.tabs ?? []
+    if (selector === '[data-aos-tabs-trigger]') return this.controls.tabs ?? []
+    if (selector === '[data-aos-tabs-content]') return this.controls.panel ? [this.controls.panel] : []
     return []
   }
 
   parseIntegrationHubControls() {
     const inputMatch = this._innerHTML.match(/<input[^>]*id="integration-hub-command"[^>]*value="([^"]*)"[^>]*>/)
     const actionMatch = this._innerHTML.match(/<button[^>]*class="integration-hub-action"[^>]*>([^<]*)<\/button>/)
-    const tabs = [...this._innerHTML.matchAll(/<button[^>]*class="([^"]*integration-hub-surface-tab[^"]*)"[^>]*data-surface="([^"]*)"[^>]*>([^<]*)<\/button>/g)]
+    const tabs = [...this._innerHTML.matchAll(/<button[^>]*class="([^"]*integration-hub-surface-tab[^"]*)"[^>]*data-surface="([^"]*)"[^>]*data-value="([^"]*)"[^>]*>([^<]*)<\/button>/g)]
+
+    const tabsRoot = this._innerHTML.includes('data-aos-tabs-root')
+      ? Object.assign(new FakeElement('section'), {
+        className: 'integration-hub-surface-tabs aos-segmented',
+        ownerDocument: this.ownerDocument,
+      })
+      : null
+    if (tabsRoot) {
+      tabsRoot.dataset.aosTabsRoot = ''
+      tabsRoot.dataset.aosTabsList = ''
+    }
 
     this.controls = {
+      tabsRoot,
       refresh: this._innerHTML.includes('class="integration-hub-refresh"')
         ? Object.assign(new FakeElement('button'), { className: 'integration-hub-refresh', textContent: 'Refresh' })
         : null,
       panel: this._innerHTML.includes('class="integration-hub-grid"')
-        ? Object.assign(new FakeElement('section'), { className: 'integration-hub-grid' })
+        ? Object.assign(new FakeElement('section'), {
+          className: 'integration-hub-grid',
+          dataset: { aosTabsContent: '', value: this._innerHTML.match(/class="integration-hub-grid"[^>]*data-value="([^"]*)"/)?.[1] || '' },
+          ownerDocument: this.ownerDocument,
+        })
         : null,
       input: inputMatch
         ? Object.assign(new FakeElement('input'), { id: 'integration-hub-command', value: inputMatch[1] })
@@ -126,7 +193,10 @@ class FakeElement {
         const button = new FakeElement('button')
         button.className = match[1]
         button.dataset.surface = match[2]
-        button.textContent = match[3]
+        button.dataset.value = match[3]
+        button.dataset.aosTabsTrigger = ''
+        button.ownerDocument = this.ownerDocument
+        button.textContent = match[4]
         return button
       }),
     }
@@ -134,8 +204,25 @@ class FakeElement {
 }
 
 class FakeDocument {
+  constructor() {
+    this.defaultView = {
+      document: this,
+      requestAnimationFrame: (callback) => {
+        callback()
+        return 0
+      },
+      cancelAnimationFrame: () => {},
+    }
+  }
+
   createElement(tagName) {
-    return new FakeElement(tagName)
+    const element = new FakeElement(tagName)
+    element.ownerDocument = this
+    return element
+  }
+
+  getElementById() {
+    return null
   }
 }
 
@@ -237,10 +324,12 @@ test('surface tabs receive tab state and AOS metadata without label changes', ()
   assert.equal(activityTab.textContent, 'Activity')
 })
 
-test('rendered integration hub stamps actionable controls with semantic metadata', (t) => {
+test('rendered integration hub stamps actionable controls with semantic metadata', async (t) => {
   const previousDocument = globalThis.document
   const previousWindow = globalThis.window
   const previousFetch = globalThis.fetch
+  const previousRequestAnimationFrame = globalThis.requestAnimationFrame
+  const previousCancelAnimationFrame = globalThis.cancelAnimationFrame
   const intervals = new Set()
   globalThis.document = new FakeDocument()
   globalThis.window = {
@@ -254,12 +343,19 @@ test('rendered integration hub stamps actionable controls with semantic metadata
     },
   }
   globalThis.fetch = () => new Promise(() => {})
+  globalThis.requestAnimationFrame = (callback) => {
+    callback()
+    return 0
+  }
+  globalThis.cancelAnimationFrame = () => {}
   let hub = null
   t.after(() => {
     hub?.teardown()
     globalThis.document = previousDocument
     globalThis.window = previousWindow
     globalThis.fetch = previousFetch
+    globalThis.requestAnimationFrame = previousRequestAnimationFrame
+    globalThis.cancelAnimationFrame = previousCancelAnimationFrame
   })
 
   hub = IntegrationHub({ pollMs: 60000 })
@@ -272,6 +368,8 @@ test('rendered integration hub stamps actionable controls with semantic metadata
   const refresh = root.querySelector('.integration-hub-refresh')
   const activityTab = root.querySelectorAll('.integration-hub-surface-tab')
     .find((button) => button.dataset.surface === 'activity')
+  const jobsTab = root.querySelectorAll('.integration-hub-surface-tab')
+    .find((button) => button.dataset.surface === 'jobs')
 
   assert.equal(input.getAttribute('id'), 'integration-hub-command')
   assert.equal(input.dataset.aosAction, 'edit_command')
@@ -281,6 +379,20 @@ test('rendered integration hub stamps actionable controls with semantic metadata
   assert.equal(refresh.dataset.aosAction, 'refresh_snapshot')
   assert.equal(activityTab.getAttribute('role'), 'tab')
   assert.equal(activityTab.getAttribute('aria-selected'), 'true')
+  assert.equal(activityTab.dataset.aosTabsTrigger, '')
   assert.equal(activityTab.dataset.aosAction, 'select_surface')
-  assert.deepEqual(titles, ['Ops', 'Ops'])
+  assert.equal(activityTab.dataset.aosRef, 'integration-hub:surface-tab-activity')
+  assert.equal(jobsTab.dataset.aosTabsTrigger, '')
+  assert.equal(jobsTab.dataset.aosAction, 'select_surface')
+  assert.equal(jobsTab.dataset.aosRef, 'integration-hub:surface-tab-jobs')
+  jobsTab.click()
+  await Promise.resolve()
+  assert.equal(hub.serialize().activeSurface, 'jobs')
+  assert.equal(
+    root.querySelectorAll('.integration-hub-surface-tab')
+      .find((button) => button.dataset.surface === 'jobs')
+      .getAttribute('aria-selected'),
+    'true',
+  )
+  assert.deepEqual(titles, ['Ops', 'Ops', 'Ops'])
 })
