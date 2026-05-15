@@ -17,6 +17,11 @@ import {
   playbookWorkbenchSemanticRefs,
 } from './semantics.js';
 import { createSplitPane } from '../../panel/layouts/split-pane.js';
+import {
+  renderWorkbenchSectionTitle,
+  renderWorkbenchSummaryRows,
+  renderWorkbenchToolbar,
+} from '../../shell/index.js';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -51,9 +56,7 @@ function stableJson(value) {
 }
 
 function summaryRows(rows = []) {
-  return rows.map(([label, value]) => (
-    `<div class="playbook-workbench-row"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`
-  )).join('');
+  return renderWorkbenchSummaryRows({ rowClassName: 'playbook-workbench-row', rows });
 }
 
 function compactList(items = [], empty = 'None') {
@@ -291,7 +294,10 @@ export default function PlaybookWorkbench(options = {}) {
       value: 'fixture-backed report-only one-step shell',
     });
     rootEl.innerHTML = `
-      <header class="playbook-workbench-toolbar">
+      ${renderWorkbenchToolbar({
+        tag: 'header',
+        className: 'playbook-workbench-toolbar',
+        content: `
         <div class="playbook-workbench-title">
           <strong>Playbook Workbench V0</strong>
           <span data-role="surface">${esc(PLAYBOOK_WORKBENCH_SURFACE)}</span>
@@ -307,33 +313,34 @@ export default function PlaybookWorkbench(options = {}) {
         <button type="button" data-action="gate-apply">Apply Gate</button>
         <button type="button" data-action="simulate">Simulate</button>
         <button type="button" data-action="open-work-record">Open Work Record</button>
-      </header>
+        `,
+      })}
       <main class="playbook-workbench-main">
         <section class="playbook-workbench-pane playbook-workbench-step-pane" aria-label="Playbook step descriptor">
-          <div class="playbook-workbench-pane-title">Step Descriptor</div>
+          ${renderWorkbenchSectionTitle({ title: 'Step Descriptor', baseClassName: 'playbook-workbench-pane-title' })}
           <div data-role="step-descriptor" class="playbook-workbench-summary"></div>
-          <div class="playbook-workbench-pane-title">Target / Ref</div>
+          ${renderWorkbenchSectionTitle({ title: 'Target / Ref', baseClassName: 'playbook-workbench-pane-title' })}
           <div data-role="target-summary" class="playbook-workbench-summary"></div>
-          <div class="playbook-workbench-pane-title">Descriptor JSON</div>
+          ${renderWorkbenchSectionTitle({ title: 'Descriptor JSON', baseClassName: 'playbook-workbench-pane-title' })}
           <pre data-role="step-json" class="playbook-workbench-code"></pre>
         </section>
         <div class="playbook-workbench-run-stack">
           <section class="playbook-workbench-pane playbook-workbench-run-pane" aria-label="Gate and verifier status">
-            <div class="playbook-workbench-pane-title">Declared Gates</div>
+            ${renderWorkbenchSectionTitle({ title: 'Declared Gates', baseClassName: 'playbook-workbench-pane-title' })}
             <div data-role="gate-refs"></div>
-            <div class="playbook-workbench-pane-title">Gate Status</div>
+            ${renderWorkbenchSectionTitle({ title: 'Gate Status', baseClassName: 'playbook-workbench-pane-title' })}
             <div data-role="gate-status" class="playbook-workbench-summary"></div>
-            <div class="playbook-workbench-pane-title">Verifier Status</div>
+            ${renderWorkbenchSectionTitle({ title: 'Verifier Status', baseClassName: 'playbook-workbench-pane-title' })}
             <div data-role="verifier-status" class="playbook-workbench-summary"></div>
-            <div class="playbook-workbench-pane-title">Diagnostics</div>
+            ${renderWorkbenchSectionTitle({ title: 'Diagnostics', baseClassName: 'playbook-workbench-pane-title' })}
             <div data-role="diagnostics"></div>
           </section>
           <section class="playbook-workbench-pane playbook-workbench-record-pane" aria-label="Emitted Work Record summary">
-            <div class="playbook-workbench-pane-title">Work Record Summary</div>
+            ${renderWorkbenchSectionTitle({ title: 'Work Record Summary', baseClassName: 'playbook-workbench-pane-title' })}
             <div data-role="work-record-summary" class="playbook-workbench-summary"></div>
-            <div class="playbook-workbench-pane-title">Read-only Handoff</div>
+            ${renderWorkbenchSectionTitle({ title: 'Read-only Handoff', baseClassName: 'playbook-workbench-pane-title' })}
             <div data-role="handoff" class="playbook-workbench-summary"></div>
-            <div class="playbook-workbench-pane-title">Emitted Record JSON</div>
+            ${renderWorkbenchSectionTitle({ title: 'Emitted Record JSON', baseClassName: 'playbook-workbench-pane-title' })}
             <pre data-role="work-record-json" class="playbook-workbench-code"></pre>
           </section>
         </div>

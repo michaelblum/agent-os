@@ -1,6 +1,11 @@
 import { renderMarkdown } from '../../markdown/render.js';
 import { createTextarea } from '../../controls/textarea.js';
 import { createSplitPane } from '../../panel/layouts/split-pane.js';
+import {
+  renderWorkbenchSectionTitle,
+  renderWorkbenchStatusBar,
+  renderWorkbenchToolbar,
+} from '../../shell/index.js';
 import { buildAnnotationProjectionResult } from '../../workbench/annotation-projection.js';
 import {
   createMarkdownOpenRequestFromWikiSelection,
@@ -646,7 +651,12 @@ export default function MarkdownWorkbench(options = {}) {
           <div class="markdown-workbench-graph" data-role="graph" data-aos-ref="markdown-workbench:graph-host" data-aos-surface="markdown-workbench" data-semantic-target-id="graph-host"></div>
         </section>
         <section class="aos-workbench-controls-pane markdown-workbench-document-pane" aria-label="Wiki page content" data-aos-ref="markdown-workbench:content-pane" data-aos-surface="markdown-workbench" data-semantic-target-id="content-pane">
-          <header class="aos-workbench-toolbar markdown-workbench-document-toolbar" data-density="compact" role="toolbar" aria-label="Document tools">
+          ${renderWorkbenchToolbar({
+            tag: 'header',
+            className: 'markdown-workbench-document-toolbar',
+            attributes: { role: 'toolbar', 'aria-label': 'Document tools' },
+            rawAttributes: ['data-density="compact"'],
+            content: `
             <div class="markdown-workbench-file" title="Current document">
               <strong data-role="path" data-aos-ref="markdown-workbench:current-path" data-aos-surface="markdown-workbench" data-semantic-target-id="current-path"></strong>
             </div>
@@ -681,7 +691,8 @@ export default function MarkdownWorkbench(options = {}) {
               <button type="button" data-action="save" data-aos-ref="markdown-workbench:save" data-aos-action="save_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="save">Save</button>
             </div>
             <button type="button" class="aos-window-button aos-window-close markdown-workbench-close-content" data-action="close-content" aria-label="Close content view" title="Close content view" data-aos-ref="markdown-workbench:content-close" data-aos-action="close_content" data-aos-surface="markdown-workbench" data-semantic-target-id="content-close">x</button>
-          </header>
+            `,
+          })}
           <div class="markdown-workbench-document-body">
             <section class="markdown-workbench-source" aria-label="Markdown source"></section>
             <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview" data-aos-ref="markdown-workbench:preview-pane" data-aos-surface="markdown-workbench" data-semantic-target-id="preview-pane">
@@ -689,18 +700,22 @@ export default function MarkdownWorkbench(options = {}) {
             </section>
             <div class="markdown-workbench-annotation-overlay" data-role="annotation-overlay" data-aos-ref="markdown-workbench:annotation-overlay" data-aos-surface="markdown-workbench" data-semantic-target-id="annotation-overlay"></div>
             <aside class="markdown-workbench-annotation-panel" aria-label="Annotations" data-role="annotation-panel" hidden data-aos-ref="markdown-workbench:annotations" data-aos-surface="markdown-workbench" data-semantic-target-id="annotations">
-              <div class="markdown-workbench-annotation-title">Annotations</div>
+              ${renderWorkbenchSectionTitle({ title: 'Annotations', baseClassName: 'markdown-workbench-annotation-title' })}
               <ol data-role="annotation-list"></ol>
             </aside>
             <aside class="markdown-workbench-outline-panel" aria-label="Document index" hidden>
-              <div class="markdown-workbench-outline-title">Index</div>
+              ${renderWorkbenchSectionTitle({ title: 'Index', baseClassName: 'markdown-workbench-outline-title' })}
               <ol data-role="outline"></ol>
             </aside>
-            <footer class="markdown-workbench-document-status" aria-label="Document status">
+            ${renderWorkbenchStatusBar({
+              className: 'markdown-workbench-document-status',
+              attributes: { 'aria-label': 'Document status' },
+              content: `
               <span data-role="stats"></span>
               <span data-role="mermaid"></span>
               <span class="markdown-workbench-warning" data-role="warning" hidden>Unclosed fenced code block</span>
-            </footer>
+              `,
+            })}
           </div>
         </section>
       </main>
