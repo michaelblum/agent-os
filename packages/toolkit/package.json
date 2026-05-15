@@ -1,0 +1,10 @@
+{
+  "name": "@agent-os/toolkit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@zag-js/menu": "^1.40.0",
+    "@zag-js/vanilla": "^1.40.0"
+  }
+}

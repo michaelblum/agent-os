@@ -3,8 +3,15 @@ import { toolkitSpecifier } from '../renderer/live-modules/content-roots.js';
 const TOOLKIT_RUNTIME_BASE = toolkitSpecifier('runtime', {
     local: '../../../packages/toolkit/runtime',
 });
+const TOOLKIT_ZAG_BASE = toolkitSpecifier('adapters/zag', {
+    local: '../../../packages/toolkit/adapters/zag',
+});
 
-const { createStackMenu } = await import(`${TOOLKIT_RUNTIME_BASE}/stack-menu.js`);
+const {
+    createStackMenuModel,
+    applyStackMenuState,
+} = await import(`${TOOLKIT_RUNTIME_BASE}/stack-menu.js`);
+const { createAosZagMenu } = await import(`${TOOLKIT_ZAG_BASE}/menu.js`);
 const { createDesktopWorldInteractionRouter } = await import(`${TOOLKIT_RUNTIME_BASE}/interaction-region.js`);
 const {
     createDesktopWorldRangeDrag,
@@ -487,10 +494,25 @@ export function createSigilContextMenu({
             return true;
         },
     });
-    let stack = null;
-    stack = createStackMenu(anchor, {
-        rootId: 'sigil-menu-root',
-        onChange: () => syncSnapshot(),
+    const stack = createStackMenuModel({ rootId: 'sigil-menu-root' });
+    let suppressZagOpenChange = false;
+    const zagMenu = createAosZagMenu({
+        id: 'sigil-context-menu',
+        ids: {
+            content: 'sigil-context-menu',
+        },
+        getRootNode: () => document,
+        closeOnSelect: false,
+        composite: true,
+        loopFocus: true,
+        typeahead: true,
+        onOpenChange(details = {}) {
+            if (suppressZagOpenChange) return;
+            if (!details.open && menuState.open) close('zag-dismiss');
+        },
+        onStateChange() {
+            syncSnapshot();
+        },
     });
 
     function recordTrace(stage, data = {}) {
@@ -509,18 +531,12 @@ export function createSigilContextMenu({
     }
 
     function syncSnapshot() {
-        syncAccessibilityState();
-        if (!stack) return;
+        bindZagMenu();
         menuState.snapshot = stack.snapshot();
         if (liveJs) liveJs.contextMenu = snapshot();
     }
 
     function syncAccessibilityState() {
-        anchor.setAttribute('aria-hidden', menuState.open ? 'false' : 'true');
-        anchor.querySelectorAll('.ctx-menu-card').forEach((card) => {
-            const visible = card.classList.contains('active') || card.classList.contains('pushed');
-            card.setAttribute('aria-hidden', visible ? 'false' : 'true');
-        });
         anchor.querySelectorAll('.ctx-panel').forEach((panel) => {
             panel.setAttribute('aria-hidden', panel.classList.contains('active') ? 'false' : 'true');
         });
@@ -528,12 +544,6 @@ export function createSigilContextMenu({
             const active = tab.classList.contains('active');
             tab.setAttribute('aria-selected', active ? 'true' : 'false');
             tab.setAttribute('tabindex', active ? '0' : '-1');
-        });
-        anchor.querySelectorAll('.ctx-trigger[data-ctx-open]').forEach((trigger) => {
-            const target = anchor.querySelector(`#${trigger.dataset.ctxOpen}`);
-            const expanded = !!target && target.classList.contains('active');
-            trigger.setAttribute('aria-haspopup', 'true');
-            trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         });
         anchor.querySelectorAll('[data-sigil-shape-scope]').forEach((button) => {
             button.setAttribute('aria-checked', button.classList.contains('active') ? 'true' : 'false');
@@ -547,6 +557,92 @@ export function createSigilContextMenu({
         anchor.querySelectorAll('select').forEach((select) => {
             select.setAttribute('aria-expanded', selectPopover?.selectId === select.id ? 'true' : 'false');
         });
+    }
+
+    function bindZagMenu() {
+        syncAccessibilityState();
+        zagMenu.bind(anchor, {
+            content: anchor,
+            contentProps: {
+                'aria-label': 'Sigil avatar context menu',
+                class: 'ctx-anchor sigil-context-menu',
+            },
+            getItemProps(element) {
+                return {
+                    extra: {
+                        onClick(event) {
+                            handleZagMenuItemClick(element, event);
+                        },
+                    },
+                };
+            },
+        });
+    }
+
+    function applyStackState() {
+        applyStackMenuState(anchor, stack.snapshot(), {
+            cardSelector: '.ctx-menu-card',
+        });
+    }
+
+    function setActiveTab(tab) {
+        const target = tab?.dataset?.ctxTab;
+        if (!target) return;
+        stack.reset('sigil-menu-root');
+        applyStackState();
+        anchor.querySelectorAll('[data-ctx-tab]').forEach((entry) => {
+            entry.classList.toggle('active', entry === tab);
+        });
+        anchor.querySelectorAll('.ctx-panel').forEach((panel) => {
+            panel.classList.toggle('active', panel.id === target);
+        });
+        syncSnapshot();
+    }
+
+    function openCard(cardId) {
+        if (!cardId) return;
+        stack.push(cardId);
+        applyStackState();
+        syncSnapshot();
+    }
+
+    function popCard() {
+        stack.pop();
+        applyStackState();
+        syncSnapshot();
+    }
+
+    function popToCard(cardId) {
+        stack.popTo(cardId);
+        applyStackState();
+        syncSnapshot();
+    }
+
+    function handleZagMenuItemClick(element, event) {
+        if (!element) return;
+        if (element.matches?.('[data-ctx-tab]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            setActiveTab(element);
+            return;
+        }
+        if (element.matches?.('.ctx-trigger[data-ctx-open]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            openCard(element.dataset.ctxOpen);
+            return;
+        }
+        if (element.matches?.('[data-ctx-back]')) {
+            event.preventDefault();
+            event.stopPropagation();
+            popCard();
+            return;
+        }
+        if (element.matches?.('.ctx-menu-card.pushed')) {
+            event.preventDefault();
+            event.stopPropagation();
+            popToCard(element.id);
+        }
     }
 
     function snapshot() {
@@ -806,7 +902,10 @@ export function createSigilContextMenu({
         if (state) state.isMenuOpen = true;
         recordTrace('open', { point, origin, bounds: menuState.bounds });
         syncPosition();
-        stack.open({ x: parseFloat(anchor.style.left) || 0, y: parseFloat(anchor.style.top) || 0 });
+        anchor.classList.add('visible');
+        stack.reset('sigil-menu-root');
+        applyStackState();
+        zagMenu.open({ point: { x: parseFloat(anchor.style.left) || 0, y: parseFloat(anchor.style.top) || 0 } });
         syncSnapshot();
         onBoundsChange?.(snapshot());
         return snapshot();
@@ -820,7 +919,14 @@ export function createSigilContextMenu({
         menuState.activeRange = null;
         interactionRouter.reset();
         if (state) state.isMenuOpen = false;
-        stack.close(reason);
+        anchor.classList.remove('visible');
+        stack.reset('sigil-menu-root');
+        applyStackState();
+        suppressZagOpenChange = true;
+        zagMenu.close({ reason });
+        queueMicrotask(() => {
+            suppressZagOpenChange = false;
+        });
         syncSnapshot();
         const nextSnapshot = snapshot();
         recordTrace('close', { reason, snapshot: nextSnapshot });
@@ -837,13 +943,22 @@ export function createSigilContextMenu({
         interactionRouter.reset();
         if (state) state.isMenuOpen = open;
         if (!open) {
-            stack.close('snapshot');
+            anchor.classList.remove('visible');
+            stack.reset('sigil-menu-root');
+            applyStackState();
+            suppressZagOpenChange = true;
+            zagMenu.close({ reason: 'snapshot' });
+            queueMicrotask(() => {
+                suppressZagOpenChange = false;
+            });
             syncSnapshot();
             return;
         }
         syncPosition();
         anchor.classList.add('visible');
-        stack.applySnapshot(next.stack || {});
+        stack.set(next.stack || {});
+        applyStackState();
+        zagMenu.open({ point: { x: parseFloat(anchor.style.left) || 0, y: parseFloat(anchor.style.top) || 0 } });
         syncSnapshot();
     }
 
@@ -1309,6 +1424,23 @@ export function createSigilContextMenu({
         onAction('toggle-trace', () => onUtilityAction?.('sigil-interaction-trace'));
         onAction('toggle-render-performance', () => onUtilityAction?.('render-performance'));
         onAction('toggle-log', () => onUtilityAction?.('log-console'));
+
+        layer.querySelectorAll('[data-ctx-tab]').forEach((tab) => {
+            tab.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setActiveTab(tab);
+            });
+        });
+
+        layer.querySelectorAll('.ctx-menu-card').forEach((card) => {
+            card.addEventListener('click', (event) => {
+                if (!card.classList.contains('pushed')) return;
+                event.preventDefault();
+                event.stopPropagation();
+                popToCard(card.id);
+            });
+        });
 
         layer.querySelectorAll('[data-sigil-shape-scope]').forEach((button) => {
             button.addEventListener('click', (event) => {
