@@ -1,0 +1,30 @@
+{
+  "$schema": "../../shared/schemas/aos-dock-profile-v0.schema.json",
+  "type": "aos.dock_profile",
+  "schema_version": "2026-05-dock-profile-v0",
+  "name": "relay",
+  "role": "relay",
+  "harness": "perplexity",
+  "summary": "Remote relay partner. Reads GDI branches, merges to main, writes work cards, and maintains workstream continuity across sessions.",
+  "default_entry_path": "agent_harness",
+  "allowed_entry_paths": [
+    "agent_harness"
+  ],
+  "capability_manifest": "docs/dev/agent-capabilities.json",
+  "allowed_capability_classes": [
+    "read_only"
+  ],
+  "allowed_capabilities": [
+    "dev.github.context",
+    "dev.github.ci_inspect",
+    "dev.github.review_comments"
+  ],
+  "hook_timeout_seconds": 8,
+  "stop_notice": "Relay session ended.",
+  "handoff": {
+    "requires_goal_prefix": false
+  },
+  "voice": {
+    "enabled": false
+  }
+}

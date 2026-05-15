@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/dev-active-profile.schema.json",
+  "title": "AOS Active Dev Workflow Profile",
+  "description": "Repo-local selector for the active development workflow profile.",
+  "type": "object",
+  "required": ["active_profile"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "active_profile": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    }
+  }
+}

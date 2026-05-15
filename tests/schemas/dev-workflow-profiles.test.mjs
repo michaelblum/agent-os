@@ -77,7 +77,6 @@ test('canonical profiles preserve the expected built-in examples', async () => {
   const manifest = JSON.parse(await fs.readFile(canonicalPath, 'utf8'));
   const profiles = new Map(manifest.profiles.map((profile) => [profile.id, profile]));
 
-  assert.equal(manifest.active_profile, 'agentic_relay');
   assert.equal(profiles.size, 4);
   assert.ok(profiles.has('agentic_relay'));
   assert.ok(profiles.has('hybrid_trunk'));

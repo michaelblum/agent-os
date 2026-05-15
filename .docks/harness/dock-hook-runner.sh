@@ -18,6 +18,7 @@ AOS_BIN="${AOS_DOCK_AOS_BIN:-$REPO_ROOT/aos}"
 DOCK_ROOT="$REPO_ROOT/.docks/$dock"
 DOCK_CONFIG="$DOCK_ROOT/dock.json"
 DEFAULT_CONFIG="$REPO_ROOT/.docks/dock-defaults.json"
+ACTIVE_PROFILE_FILE="$REPO_ROOT/docs/dev/active-profile.json"
 
 source "$REPO_ROOT/.agents/hooks/session-common.sh"
 
@@ -25,6 +26,30 @@ if [[ ! -f "$DOCK_CONFIG" ]]; then
   echo "FAIL: missing dock config: $DOCK_CONFIG" >&2
   exit 2
 fi
+
+# Resolve active workflow profile from docs/dev/active-profile.json.
+# Falls back to 'hybrid_trunk' only when the active profile file is absent.
+resolve_active_profile() {
+  python3 - "$ACTIVE_PROFILE_FILE" <<'PY'
+import json, sys
+
+active_file = sys.argv[1]
+
+def load(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+active = load(active_file)
+if active.get("active_profile"):
+    print(active["active_profile"])
+    raise SystemExit(0)
+
+print("hybrid_trunk")
+PY
+}
 
 dock_json_value() {
   local path="$1"
@@ -115,6 +140,17 @@ run_optional_hook() {
   fi
 }
 
+# Fire a per-dock profile hook if it exists.
+# Hook path convention: .docks/<dock>/hooks/profile/<profile>-<phase>.sh
+run_optional_profile_hook() {
+  local profile="$1"
+  local hook_phase="$2"
+  local script="$DOCK_ROOT/hooks/profile/${profile}-${hook_phase}.sh"
+  if [[ -x "$script" ]]; then
+    run_visible_command_with_input "$HOOK_INPUT" "$script"
+  fi
+}
+
 run_aos_bounded() {
   if [[ -x "$AOS_BIN" ]]; then
     aos_run_hook_command_bounded "$hook_timeout" "$@" >/dev/null 2>&1 || true
@@ -131,11 +167,25 @@ run_command_with_input() {
   rm -f "$payload_file"
 }
 
+run_visible_command_with_input() {
+  local payload="$1"
+  shift
+  local payload_file
+  payload_file="$(mktemp "${TMPDIR:-/tmp}/aos-dock-hook.XXXXXX")"
+  printf '%s' "$payload" >"$payload_file"
+  aos_run_hook_command_bounded "$hook_timeout" bash -c 'payload_file="$1"; shift; "$@" < "$payload_file"' bash "$payload_file" "$@" || true
+  rm -f "$payload_file"
+}
+
 HOOK_INPUT="$(cat || true)"
 SESSION_ID="$(aos_resolve_session_id "$HOOK_INPUT")"
 export AOS_DOCK_NAME="$dock"
 export AOS_DOCK_PHASE="$phase"
 export AOS_DOCK_SESSION_ID="$SESSION_ID"
+
+# Resolve and export active workflow profile so all hooks and scripts can read
+# it without re-parsing docs/dev/active-profile.json themselves.
+export AOS_ACTIVE_WORKFLOW_PROFILE="$(resolve_active_profile)"
 
 name="$(dock_json_value name "$dock")"
 role="$(dock_json_value role "$dock")"
@@ -199,6 +249,11 @@ if [[ -x "$AOS_BIN" ]]; then
     run_aos_bounded "${say_args[@]}"
   fi
 fi
+
+# Fire profile-specific hook after main body, before post-phase hook.
+# This is where per-role, per-profile automation runs (e.g. git context block
+# for GDI under agentic_relay, relay state snapshot for relay under agentic_relay).
+run_optional_profile_hook "$AOS_ACTIVE_WORKFLOW_PROFILE" "$phase"
 
 run_optional_hook "post-$phase"
 

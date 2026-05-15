@@ -7,7 +7,6 @@
   "required": [
     "schema_version",
     "summary",
-    "active_profile",
     "override_policy",
     "axes",
     "profiles"
@@ -17,7 +16,6 @@
     "$schema": { "type": "string" },
     "schema_version": { "type": "integer", "minimum": 1 },
     "summary": { "type": "string", "minLength": 1 },
-    "active_profile": { "$ref": "#/$defs/profile_id" },
     "override_policy": { "type": "string", "minLength": 1 },
     "axes": {
       "type": "object",

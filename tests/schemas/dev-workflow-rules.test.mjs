@@ -92,6 +92,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     rules.get('dev-workflow-manifest')?.commands?.map((step) => step.command),
     [
       'node --test tests/schemas/dev-workflow-rules.test.mjs',
+      'node --test tests/schemas/dev-active-profile.test.mjs',
       'node --test tests/schemas/dev-workflow-profiles.test.mjs',
       'bash tests/dev-workflow-router.sh',
       'bash tests/dev-audit.sh',
@@ -100,6 +101,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/commands/dev.swift'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/shared/command-registry-data.swift'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/workflow-profiles.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/active-profile.json'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-active-profile.test.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-workflow-profiles.test.mjs'));
   assert.equal(
     rules.get('agent-capability-manifest')?.commands?.[0]?.command,

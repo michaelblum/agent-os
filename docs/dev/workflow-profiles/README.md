@@ -13,7 +13,7 @@ project needs a different development posture.
 
 ## Active Profile
 
-The active profile for this repo is `agentic_relay`.
+The active profile for this repo is selected in `docs/dev/active-profile.json`.
 
 Agents should treat an explicit user instruction as stronger than the active
 profile for the current session, unless the instruction would discard work,
