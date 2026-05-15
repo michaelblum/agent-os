@@ -1,0 +1,134 @@
+/* Sigil product-level token overrides.
+ *
+ * These --sigil-* tokens preserve Sigil's app-specific visual language while
+ * giving each consumer a fallback path to the shared --aos-* toolkit tokens.
+ */
+
+:root {
+    --sigil-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --sigil-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sigil-type-heading-size: 0.9rem;
+    --sigil-type-label-size: 0.65rem;
+    --sigil-type-control-size: 0.75rem;
+    --sigil-type-option-size: 0.72rem;
+    --sigil-type-value: 0.65rem var(--sigil-context-menu-font-mono);
+    --sigil-type-section-title-size: 0.62rem;
+    --sigil-type-action-text-size: 0.68rem;
+    --sigil-type-trigger-caret-size: 1rem;
+    --sigil-radius-scrollbar: 3px;
+    --sigil-radius-control: 4px;
+    --sigil-radius-popover: 5px;
+    --sigil-radius-group: 6px;
+    --sigil-radius-panel: 8px;
+
+    --sigil-context-menu-layer-inset: 0;
+    --sigil-context-menu-layer-z: 20;
+    --sigil-context-menu-anchor-width: 292px;
+    --sigil-context-menu-anchor-z: 100;
+    --sigil-context-menu-card-z: 20;
+    --sigil-context-menu-card-width: 268px;
+    --sigil-context-menu-card-max-height: 424px;
+    --sigil-context-menu-card-padding: 12px;
+    --sigil-context-menu-card-color: var(--sigil-context-menu-color-primary, var(--aos-window-button-color, #fff));
+    --sigil-context-menu-card-bg: var(--sigil-context-menu-surface-bg, var(--aos-panel-bg, rgba(20, 10, 30, 0.95)));
+    --sigil-context-menu-card-border: 1px solid var(--sigil-context-menu-border-color, var(--aos-panel-border, rgba(209, 135, 255, 0.6)));
+    --sigil-context-menu-card-border-radius: var(--sigil-context-menu-radius-panel, var(--aos-panel-radius, 8px));
+    --sigil-context-menu-card-shadow: var(--sigil-context-menu-shadow-panel, var(--aos-panel-shadow, 0 8px 32px rgba(0, 0, 0, 0.8)));
+    --sigil-context-menu-card-blur: var(--sigil-context-menu-blur-panel, var(--aos-panel-blur, 12px));
+    --sigil-context-menu-card-transition-duration: 0.3s;
+    --sigil-context-menu-card-transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+    --sigil-context-menu-card-forward-animation: 0.18s ease-out;
+    --sigil-context-menu-card-pushed-border-color: var(--sigil-context-menu-border-color-muted, var(--aos-panel-border-subtle, rgba(209, 135, 255, 0.35)));
+    --sigil-context-menu-card-pushed-shadow: var(--sigil-context-menu-shadow-card-pushed, var(--aos-panel-shadow, 0 4px 20px rgba(0, 0, 0, 0.5)));
+    --sigil-context-menu-card-depart-y: 14px;
+    --sigil-context-menu-card-depart-scale: 0.97;
+    --sigil-context-menu-card-depart-filter: blur(1px) brightness(0.84);
+    --sigil-context-menu-card-enter-opacity: 0.7;
+    --sigil-context-menu-card-enter-y: -10px;
+    --sigil-context-menu-card-enter-scale: 0.94;
+    --sigil-context-menu-card-enter-filter: brightness(0.72);
+    --sigil-context-menu-opacity-hidden: 0;
+    --sigil-context-menu-opacity-visible: 1;
+    --sigil-context-menu-opacity-muted: 0.6;
+    --sigil-context-menu-scale-full: 1;
+    --sigil-context-menu-icon-stroke-width: 1.5;
+    --sigil-context-menu-line-height-solid: 1;
+    --sigil-context-menu-line-height-tight: 1.1;
+    --sigil-context-menu-size-full: 100%;
+    --sigil-context-menu-size-auto: auto;
+
+    --sigil-context-menu-font-family: var(--sigil-font-ui, var(--aos-font-ui, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif));
+    --sigil-context-menu-font-mono: var(--sigil-font-mono, var(--aos-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace));
+    --sigil-context-menu-type-heading-size: var(--sigil-type-heading-size, var(--aos-type-title-size, 0.9rem));
+    --sigil-context-menu-type-label-size: var(--sigil-type-label-size, var(--aos-type-label-size, 0.65rem));
+    --sigil-context-menu-type-control-size: var(--sigil-type-control-size, var(--aos-type-body-size, 0.75rem));
+    --sigil-context-menu-type-option-size: var(--sigil-type-option-size, var(--aos-type-body-size, 0.72rem));
+    --sigil-context-menu-type-value: var(--sigil-type-value, var(--aos-type-code, 0.65rem var(--sigil-context-menu-font-mono)));
+    --sigil-context-menu-type-section-title-size: var(--sigil-type-section-title-size, var(--aos-type-label-size, 0.62rem));
+    --sigil-context-menu-type-section-title-weight: 700;
+    --sigil-context-menu-type-action-text-size: var(--sigil-type-action-text-size, var(--aos-type-label-size, 0.68rem));
+    --sigil-context-menu-type-trigger-caret-size: var(--sigil-type-trigger-caret-size, var(--aos-type-title-size, 1rem));
+    --sigil-context-menu-heading-letter-spacing: 1px;
+    --sigil-context-menu-section-title-letter-spacing: 0.08em;
+
+    --sigil-context-menu-color-primary: #fff;
+    --sigil-context-menu-color-accent: #d187ff;
+    --sigil-context-menu-color-accent-strong: #bc13fe;
+    --sigil-context-menu-color-accent-muted: rgba(209, 135, 255, 0.7);
+    --sigil-context-menu-color-secondary: rgba(255, 255, 255, 0.78);
+    --sigil-context-menu-color-section-title: rgba(255, 255, 255, 0.82);
+    --sigil-context-menu-color-transparent: transparent;
+    --sigil-context-menu-surface-none: none;
+    --sigil-context-menu-border-none: none;
+    --sigil-context-menu-surface-bg: rgba(20, 10, 30, 0.95);
+    --sigil-context-menu-surface-control-bg: rgba(30, 15, 50, 0.74);
+    --sigil-context-menu-surface-control-bg-strong: rgba(30, 15, 50, 0.85);
+    --sigil-context-menu-surface-control-bg-select: rgba(30, 15, 50, 0.9);
+    --sigil-context-menu-surface-control-bg-action: rgba(30, 15, 50, 0.6);
+    --sigil-context-menu-surface-popover-bg: rgba(12, 8, 24, 0.96);
+    --sigil-context-menu-surface-section-bg: rgba(12, 8, 24, 0.42);
+    --sigil-context-menu-surface-hover-bg: rgba(188, 19, 254, 0.2);
+    --sigil-context-menu-surface-hover-bg-subtle: rgba(188, 19, 254, 0.15);
+    --sigil-context-menu-surface-hover-bg-medium: rgba(188, 19, 254, 0.24);
+    --sigil-context-menu-surface-hover-bg-strong: rgba(188, 19, 254, 0.25);
+    --sigil-context-menu-surface-active-bg: #bc13fe;
+    --sigil-context-menu-surface-option-active-bg: rgba(188, 19, 254, 0.28);
+    --sigil-context-menu-border-color: rgba(209, 135, 255, 0.6);
+    --sigil-context-menu-border-color-muted: rgba(209, 135, 255, 0.35);
+    --sigil-context-menu-border-color-control: rgba(209, 135, 255, 0.38);
+    --sigil-context-menu-border-color-field: rgba(209, 135, 255, 0.4);
+    --sigil-context-menu-border-color-popover: rgba(209, 135, 255, 0.42);
+    --sigil-context-menu-border-color-section: rgba(209, 135, 255, 0.24);
+    --sigil-context-menu-border-color-divider: rgba(188, 19, 254, 0.4);
+    --sigil-context-menu-border-color-subtle: rgba(188, 19, 254, 0.25);
+    --sigil-context-menu-border-color-hairline: rgba(188, 19, 254, 0.3);
+    --sigil-context-menu-shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.8);
+    --sigil-context-menu-shadow-card-pushed: 0 4px 20px rgba(0, 0, 0, 0.5);
+    --sigil-context-menu-shadow-popover-inset: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    --sigil-context-menu-blur-panel: 12px;
+
+    --sigil-context-menu-space-0: 0;
+    --sigil-context-menu-space-1: 1px;
+    --sigil-context-menu-space-2: 2px;
+    --sigil-context-menu-space-3: 3px;
+    --sigil-context-menu-space-4: 4px;
+    --sigil-context-menu-space-5: 5px;
+    --sigil-context-menu-space-6: 6px;
+    --sigil-context-menu-space-8: 8px;
+    --sigil-context-menu-space-10: 10px;
+    --sigil-context-menu-space-12: 12px;
+    --sigil-context-menu-space-18: 18px;
+    --sigil-context-menu-space-22: 22px;
+    --sigil-context-menu-space-24: 24px;
+    --sigil-context-menu-space-26: 26px;
+    --sigil-context-menu-space-28: 28px;
+    --sigil-context-menu-space-32: 32px;
+    --sigil-context-menu-space-44: 44px;
+    --sigil-context-menu-space-124: 124px;
+    --sigil-context-menu-space-168: 168px;
+    --sigil-context-menu-radius-3: var(--sigil-radius-scrollbar, var(--aos-control-compact-radius, 3px));
+    --sigil-context-menu-radius-4: var(--sigil-radius-control, var(--aos-control-compact-radius, 4px));
+    --sigil-context-menu-radius-5: var(--sigil-radius-popover, var(--aos-control-radius, 5px));
+    --sigil-context-menu-radius-6: var(--sigil-radius-group, var(--aos-control-radius, 6px));
+    --sigil-context-menu-radius-8: var(--sigil-radius-panel, var(--aos-panel-radius, 8px));
+}
