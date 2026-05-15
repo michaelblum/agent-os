@@ -14,6 +14,7 @@ import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runti
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
 import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
+import { renderButtonHtml, renderTextFieldHtml } from '../../controls/index.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
   nativeToDesktopWorldPoint,
@@ -336,9 +337,38 @@ function renderCanvasActionButtons(canvasId, options = {}) {
   const statsIds = options.statsIds || new Set()
   const tintClass = tintedIds.has(canvasId) ? 'btn tint-btn active' : 'btn tint-btn'
   const statsClass = statsIds.has(canvasId) ? 'btn stats-btn active' : 'btn stats-btn'
-  return `<button class="${statsClass}" data-id="${escapeHTML(canvasId)}" ${canvasActionAttrs(canvasId, 'stats', { pressed: statsIds.has(canvasId) })}>stats</button>`
-    + `<button class="${tintClass}" data-id="${escapeHTML(canvasId)}" ${canvasActionAttrs(canvasId, 'tint', { pressed: tintedIds.has(canvasId) })}>tint</button>`
-    + `<button class="btn remove-btn" data-id="${escapeHTML(canvasId)}" ${canvasActionAttrs(canvasId, 'remove')}>\u2715</button>`
+  return renderButtonHtml({
+    label: 'stats',
+    className: statsClass,
+    includeBaseClass: false,
+    classFirst: true,
+    dataset: { id: canvasId },
+    rawAttributes: canvasActionAttrs(canvasId, 'stats', { pressed: statsIds.has(canvasId) }),
+  })
+    + renderButtonHtml({
+      label: 'tint',
+      className: tintClass,
+      includeBaseClass: false,
+      classFirst: true,
+      dataset: { id: canvasId },
+      rawAttributes: canvasActionAttrs(canvasId, 'tint', { pressed: tintedIds.has(canvasId) }),
+    })
+    + renderButtonHtml({
+      label: '\u2715',
+      className: 'btn remove-btn',
+      includeBaseClass: false,
+      classFirst: true,
+      dataset: { id: canvasId },
+      rawAttributes: canvasActionAttrs(canvasId, 'remove'),
+    })
+}
+
+function renderInspectorButton(config = {}) {
+  return renderButtonHtml({
+    includeBaseClass: false,
+    classFirst: true,
+    ...config,
+  })
 }
 
 export function renderCursorToggleRowHTML(options = {}) {
@@ -350,11 +380,18 @@ export function renderCursorToggleRowHTML(options = {}) {
     + `<span class="cursor-toggle-label">minimap cursor</span>`
     + `<span class="cursor-toggle-state">${enabled ? 'live' : 'hidden'}</span>`
     + `<span class="canvas-flags">`
-    + `<button class="${toggleClass}" data-enabled="${enabled ? '1' : '0'}" ${inspectorControlAttrs('minimap-cursor', {
-      name: 'Minimap cursor',
-      action: 'toggle_minimap_cursor',
-      pressed: enabled,
-    })}>${toggleLabel}</button>`
+    + renderButtonHtml({
+      label: toggleLabel,
+      className: toggleClass,
+      includeBaseClass: false,
+      classFirst: true,
+      dataset: { enabled: enabled ? '1' : '0' },
+      rawAttributes: inspectorControlAttrs('minimap-cursor', {
+        name: 'Minimap cursor',
+        action: 'toggle_minimap_cursor',
+        pressed: enabled,
+      }),
+    })
     + `</span>`
     + `</div>`
 }
@@ -368,11 +405,18 @@ export function renderMouseEventsToggleRowHTML(options = {}) {
     + `<span class="cursor-toggle-label">mouse events</span>`
     + `<span class="cursor-toggle-state">${enabled ? 'live' : 'hidden'}</span>`
     + `<span class="canvas-flags">`
-    + `<button class="${toggleClass}" data-enabled="${enabled ? '1' : '0'}" ${inspectorControlAttrs('mouse-events', {
-      name: 'Mouse events',
-      action: 'toggle_mouse_events',
-      pressed: enabled,
-    })}>${toggleLabel}</button>`
+    + renderButtonHtml({
+      label: toggleLabel,
+      className: toggleClass,
+      includeBaseClass: false,
+      classFirst: true,
+      dataset: { enabled: enabled ? '1' : '0' },
+      rawAttributes: inspectorControlAttrs('mouse-events', {
+        name: 'Mouse events',
+        action: 'toggle_mouse_events',
+        pressed: enabled,
+      }),
+    })
     + `</span>`
     + `</div>`
 }
@@ -386,11 +430,19 @@ export function renderAnnotationModeToggleRowHTML(options = {}) {
     + `<span class="cursor-toggle-label">annotation mode</span>`
     + `<span class="cursor-toggle-state">${enabled ? 'active' : 'off'}</span>`
     + `<span class="canvas-flags">`
-    + `<button class="${toggleClass}" data-enabled="${enabled ? '1' : '0'}" title="${escapeHTML(label)}" ${inspectorControlAttrs('annotation-mode', {
-      name: label,
-      action: 'toggle_annotation_mode',
-      pressed: enabled,
-    })}>${enabled ? 'on' : 'off'}</button>`
+    + renderButtonHtml({
+      label: enabled ? 'on' : 'off',
+      className: toggleClass,
+      includeBaseClass: false,
+      classFirst: true,
+      title: label,
+      dataset: { enabled: enabled ? '1' : '0' },
+      rawAttributes: inspectorControlAttrs('annotation-mode', {
+        name: label,
+        action: 'toggle_annotation_mode',
+        pressed: enabled,
+      }),
+    })
     + `</span>`
     + `</div>`
 }
@@ -588,13 +640,17 @@ export function buildAnnotationNativeHitRegions({ nativeWindowCandidate = null, 
 export function renderCanvasListToggleButton(options = {}) {
   const collapsed = options.collapsed !== false
   const label = collapsed ? 'Show canvas list' : 'Hide canvas list'
-  return `<button class="canvas-list-toggle" type="button" ${inspectorControlAttrs('canvas-list-toggle', {
-    name: label,
-    action: 'toggle_canvas_list',
-    expanded: !collapsed,
-  })} title="${escapeHTML(label)}">`
-    + `<span class="canvas-list-caret ${collapsed ? '' : 'open'}" aria-hidden="true"></span>`
-    + `</button>`
+  return renderButtonHtml({
+    className: 'canvas-list-toggle',
+    includeBaseClass: false,
+    classFirst: true,
+    title: label,
+    rawAttributes: inspectorControlAttrs('canvas-list-toggle', {
+      name: label,
+      action: 'toggle_canvas_list',
+      expanded: !collapsed,
+    }),
+  }).replace('</button>', `<span class="canvas-list-caret ${collapsed ? '' : 'open'}" aria-hidden="true"></span></button>`)
 }
 
 function renderSurfaceSegmentRow(segment, depth) {
@@ -1876,12 +1932,30 @@ export default function CanvasInspector() {
   function renderAnnotationEditor() {
     if (!annotationState.editor) return ''
     const isEdit = annotationState.editor.mode === 'edit'
-    const value = escapeHTML(annotationState.editor.text || '')
+    const value = annotationState.editor.text || ''
     return `<div class="annotation-editor" role="dialog" aria-label="${isEdit ? 'Edit annotation comment' : 'Add annotation comment'}">`
-      + `<input class="annotation-editor-input" placeholder="Leave a comment" value="${value}" ${inspectorControlAttrs('annotation-comment-input', { name: 'Leave a comment', action: 'edit_comment_text' })}>`
+      + renderTextFieldHtml({
+        className: 'annotation-editor-input',
+        placeholder: 'Leave a comment',
+        value,
+        rawAttributes: inspectorControlAttrs('annotation-comment-input', { name: 'Leave a comment', action: 'edit_comment_text' }),
+      })
       + `<div class="annotation-editor-actions">`
-      + `<button class="btn annotation-editor-cancel" ${inspectorControlAttrs('annotation-editor-cancel', { name: 'Cancel comment edit', action: 'cancel_comment' })}>Cancel</button>`
-      + `<button class="btn annotation-editor-save ${value.trim() ? '' : 'disabled'}" ${value.trim() ? '' : 'disabled'} ${inspectorControlAttrs('annotation-editor-save', { name: isEdit ? 'Update comment' : 'Add Comment', action: isEdit ? 'update_comment' : 'add_comment' })}>${isEdit ? 'Update' : 'Add Comment'}</button>`
+      + renderButtonHtml({
+        label: 'Cancel',
+        className: 'btn annotation-editor-cancel',
+        includeBaseClass: false,
+        classFirst: true,
+        rawAttributes: inspectorControlAttrs('annotation-editor-cancel', { name: 'Cancel comment edit', action: 'cancel_comment' }),
+      })
+      + renderButtonHtml({
+        label: isEdit ? 'Update' : 'Add Comment',
+        className: `btn annotation-editor-save ${value.trim() ? '' : 'disabled'}`,
+        includeBaseClass: false,
+        classFirst: true,
+        disabled: !value.trim(),
+        rawAttributes: inspectorControlAttrs('annotation-editor-save', { name: isEdit ? 'Update comment' : 'Add Comment', action: isEdit ? 'update_comment' : 'add_comment' }),
+      })
       + `</div></div>`
   }
 
@@ -1891,8 +1965,20 @@ export default function CanvasInspector() {
     return `<div class="annotation-confirm" role="alertdialog" aria-label="Confirm destructive annotation clear">`
       + `<div class="annotation-confirm-message">${esc(confirmation.message || 'Annotations will be lost.')}</div>`
       + `<div class="annotation-confirm-actions">`
-      + `<button class="btn annotation-confirm-cancel" ${inspectorControlAttrs('annotation-clear-cancel', { name: 'Cancel annotation clear', action: 'cancel_destructive_clear' })}>Cancel</button>`
-      + `<button class="btn annotation-confirm-ok" ${inspectorControlAttrs('annotation-clear-confirm', { name: 'Confirm annotation clear', action: 'confirm_destructive_clear' })}>Confirm</button>`
+      + renderButtonHtml({
+        label: 'Cancel',
+        className: 'btn annotation-confirm-cancel',
+        includeBaseClass: false,
+        classFirst: true,
+        rawAttributes: inspectorControlAttrs('annotation-clear-cancel', { name: 'Cancel annotation clear', action: 'cancel_destructive_clear' }),
+      })
+      + renderButtonHtml({
+        label: 'Confirm',
+        className: 'btn annotation-confirm-ok',
+        includeBaseClass: false,
+        classFirst: true,
+        rawAttributes: inspectorControlAttrs('annotation-clear-confirm', { name: 'Confirm annotation clear', action: 'confirm_destructive_clear' }),
+      })
       + `</div></div>`
   }
 
@@ -2111,13 +2197,32 @@ export default function CanvasInspector() {
     const canBack = stack.length > 0
     const rootActive = stack.length === 0
     const crumbs = [
-      `<button class="annotation-scope-crumb ${rootActive ? 'active' : ''}" data-pin-id="" ${inspectorControlAttrs('annotation-scope-root', { name: 'Annotation scope main', action: 'select_annotation_scope_root' })}>main</button>`,
-      ...stack.map((frame, index) => `<button class="annotation-scope-crumb ${index === stack.length - 1 ? 'active' : ''}" data-pin-id="${esc(frame.pin_id)}" ${inspectorControlAttrs(`annotation-scope-${frame.pin_id}`, { name: `Annotation scope ${frame.subject_id}`, action: 'select_annotation_scope' })}>${esc(frame.subject_id)}</button>`),
+      renderInspectorButton({
+        label: 'main',
+        className: `annotation-scope-crumb ${rootActive ? 'active' : ''}`,
+        dataset: { pinId: '' },
+        rawAttributes: inspectorControlAttrs('annotation-scope-root', { name: 'Annotation scope main', action: 'select_annotation_scope_root' }),
+      }),
+      ...stack.map((frame, index) => renderInspectorButton({
+        label: frame.subject_id,
+        className: `annotation-scope-crumb ${index === stack.length - 1 ? 'active' : ''}`,
+        dataset: { pinId: frame.pin_id },
+        rawAttributes: inspectorControlAttrs(`annotation-scope-${frame.pin_id}`, { name: `Annotation scope ${frame.subject_id}`, action: 'select_annotation_scope' }),
+      })),
     ].join('<span class="annotation-scope-separator">/</span>')
     return `<div class="tree-row annotation-scope-row" style="${indentStyle(depth)}">`
-      + `<button class="btn annotation-scope-back" ${canBack ? '' : 'disabled'} ${inspectorControlAttrs('annotation-scope-back', { name: 'Back annotation scope', action: 'back_annotation_scope' })}>Back</button>`
+      + renderInspectorButton({
+        label: 'Back',
+        className: 'btn annotation-scope-back',
+        disabled: !canBack,
+        rawAttributes: inspectorControlAttrs('annotation-scope-back', { name: 'Back annotation scope', action: 'back_annotation_scope' }),
+      })
       + `<span class="annotation-scope-crumbs">${crumbs}</span>`
-      + `<button class="btn annotation-clear-anchors" ${inspectorControlAttrs('annotation-clear-anchors', { name: 'Clear anchors', action: 'clear_anchors' })}>Clear anchors</button>`
+      + renderInspectorButton({
+        label: 'Clear anchors',
+        className: 'btn annotation-clear-anchors',
+        rawAttributes: inspectorControlAttrs('annotation-clear-anchors', { name: 'Clear anchors', action: 'clear_anchors' }),
+      })
       + `</div>`
   }
 
@@ -2196,10 +2301,21 @@ export default function CanvasInspector() {
     if (row.type === 'comment') {
       return `<div class="tree-row annotation-row comment ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-comment-id="${esc(row.comment.id)}" style="${indentStyle(depth)}" title="${esc(blocker || row.comment.text)}">`
         + `<span class="annotation-comment-dot"></span>`
-        + `<button class="annotation-comment-text" data-comment-id="${esc(row.comment.id)}" data-pin-id="${esc(row.comment.pin_id)}" ${inspectorControlAttrs(`annotation-comment-${row.comment.id}`, { name: `Edit comment ${row.comment.id}`, action: 'edit_comment' })}>${esc(row.comment.text)}</button>`
+        + renderInspectorButton({
+          label: row.comment.text,
+          className: 'annotation-comment-text',
+          dataset: { commentId: row.comment.id, pinId: row.comment.pin_id },
+          rawAttributes: inspectorControlAttrs(`annotation-comment-${row.comment.id}`, { name: `Edit comment ${row.comment.id}`, action: 'edit_comment' }),
+        })
         + `<span class="annotation-projection-state">${esc(stateLabel)}</span>`
         + (blocker ? `<span class="annotation-blocker">${esc(blocker)}</span>` : '')
-        + `<button class="btn annotation-comment-delete" data-comment-id="${esc(row.comment.id)}" title="Delete comment" ${inspectorControlAttrs(`annotation-delete-${row.comment.id}`, { name: `Delete comment ${row.comment.id}`, action: 'delete_comment' })}>del</button>`
+        + renderInspectorButton({
+          label: 'del',
+          className: 'btn annotation-comment-delete',
+          title: 'Delete comment',
+          dataset: { commentId: row.comment.id },
+          rawAttributes: inspectorControlAttrs(`annotation-delete-${row.comment.id}`, { name: `Delete comment ${row.comment.id}`, action: 'delete_comment' }),
+        })
         + `</div>`
     }
     const expanded = row.pin.expanded === true
@@ -2207,14 +2323,42 @@ export default function CanvasInspector() {
     const label = address.compact
     return `<div class="tree-row annotation-row pin ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-pin-id="${esc(row.pin.id)}" style="${indentStyle(depth)}" title="${esc(address.full)}">`
       + `<span class="annotation-pin-dot"></span>`
-      + `<button class="annotation-pin-label" data-pin-id="${esc(row.pin.id)}" ${inspectorControlAttrs(`annotation-pin-${row.pin.id}`, { name: `Frame address ${address.full}`, action: 'select_frame_anchor' })}>${esc(label)}</button>`
+      + renderInspectorButton({
+        label,
+        className: 'annotation-pin-label',
+        dataset: { pinId: row.pin.id },
+        rawAttributes: inspectorControlAttrs(`annotation-pin-${row.pin.id}`, { name: `Frame address ${address.full}`, action: 'select_frame_anchor' }),
+      })
       + `<span class="annotation-projection-state">${esc(stateLabel)}</span>`
       + `<span class="annotation-reveal-capability">${row.can_reveal ? 'revealable' : 'no reveal'}</span>`
       + (blocker ? `<span class="annotation-blocker">${esc(blocker)}</span>` : '')
-      + (row.can_reveal ? `<button class="btn annotation-pin-reveal" data-pin-id="${esc(row.pin.id)}" ${inspectorControlAttrs(`annotation-reveal-${row.pin.id}`, { name: `Reveal Target ${label}`, action: 'reveal_target' })}>Reveal</button>` : '')
-      + `<button class="btn annotation-pin-expand" data-pin-id="${esc(row.pin.id)}" title="Expand frame address" ${inspectorControlAttrs(`annotation-expand-${row.pin.id}`, { name: `Expand frame address ${label}`, action: 'expand_frame_address' })}>${expanded ? 'less' : 'more'}</button>`
-      + `<button class="btn annotation-pin-copy" data-pin-id="${esc(row.pin.id)}" title="Copy full frame address" ${inspectorControlAttrs(`annotation-copy-${row.pin.id}`, { name: `Copy full frame address ${label}`, action: 'copy_full_frame_address' })}>copy</button>`
-      + `<button class="btn annotation-pin-remove" data-pin-id="${esc(row.pin.id)}" title="Remove frame anchor" ${inspectorControlAttrs(`annotation-remove-${row.pin.id}`, { name: `Remove frame anchor ${label}`, action: 'remove_frame_anchor' })}>remove</button>`
+      + (row.can_reveal ? renderInspectorButton({
+        label: 'Reveal',
+        className: 'btn annotation-pin-reveal',
+        dataset: { pinId: row.pin.id },
+        rawAttributes: inspectorControlAttrs(`annotation-reveal-${row.pin.id}`, { name: `Reveal Target ${label}`, action: 'reveal_target' }),
+      }) : '')
+      + renderInspectorButton({
+        label: expanded ? 'less' : 'more',
+        className: 'btn annotation-pin-expand',
+        title: 'Expand frame address',
+        dataset: { pinId: row.pin.id },
+        rawAttributes: inspectorControlAttrs(`annotation-expand-${row.pin.id}`, { name: `Expand frame address ${label}`, action: 'expand_frame_address' }),
+      })
+      + renderInspectorButton({
+        label: 'copy',
+        className: 'btn annotation-pin-copy',
+        title: 'Copy full frame address',
+        dataset: { pinId: row.pin.id },
+        rawAttributes: inspectorControlAttrs(`annotation-copy-${row.pin.id}`, { name: `Copy full frame address ${label}`, action: 'copy_full_frame_address' }),
+      })
+      + renderInspectorButton({
+        label: 'remove',
+        className: 'btn annotation-pin-remove',
+        title: 'Remove frame anchor',
+        dataset: { pinId: row.pin.id },
+        rawAttributes: inspectorControlAttrs(`annotation-remove-${row.pin.id}`, { name: `Remove frame anchor ${label}`, action: 'remove_frame_anchor' }),
+      })
       + (expanded ? `<span class="annotation-full-path">${esc(address.full)}</span>` : '')
       + `</div>`
   }

@@ -41,6 +41,7 @@ test('renderButtonHtml escapes labels and supports raw attributes', () => {
     variant: 'primary',
     className: 'wide',
     disabled: true,
+    pressed: true,
     dataset: { action: 'runNow' },
     attributes: { title: 'ignored?', 'aria-controls': 'panel-1' },
     rawAttributes: ['data-safe-fragment="ok"'],
@@ -51,6 +52,7 @@ test('renderButtonHtml escapes labels and supports raw attributes', () => {
   assert.match(html, /type="button"/);
   assert.match(html, /disabled/);
   assert.match(html, /aria-disabled="true"/);
+  assert.match(html, /aria-pressed="true"/);
   assert.match(html, /data-action="runNow"/);
   assert.match(html, /aria-controls="panel-1"/);
   assert.match(html, /data-safe-fragment="ok"/);

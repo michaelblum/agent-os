@@ -621,7 +621,8 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.doesNotMatch(source, /makeButton/);
   assert.doesNotMatch(source, /background:rgba\(244,197,66,0\.08\)/);
   assert.doesNotMatch(source, /hover target buttons/);
-  assert.match(source, /placeholder="Leave a comment"/);
+  assert.match(source, /renderTextFieldHtml/);
+  assert.match(source, /placeholder: 'Leave a comment'/);
   assert.match(source, /emit\('canvas_inspector\.annotation_state'/);
   assert.match(source, /surface_inspector_suspended/);
   assert.match(styles, /\.minimap-annotation-frame/);
@@ -700,8 +701,10 @@ test('annotation scope breadcrumbs remain actionable buttons for root and ancest
   const scopeBlock = source.slice(scopeStart, supportStart);
   const bindBlock = source.slice(bindStart, bindEnd);
 
-  assert.match(scopeBlock, /<button class="annotation-scope-crumb \$\{rootActive \? 'active' : ''\}" data-pin-id=""/);
-  assert.match(scopeBlock, /data-pin-id="\$\{esc\(frame\.pin_id\)\}"/);
+  assert.match(scopeBlock, /renderInspectorButton/);
+  assert.match(scopeBlock, /className: `annotation-scope-crumb \$\{rootActive \? 'active' : ''\}`/);
+  assert.match(scopeBlock, /dataset: \{ pinId: '' \}/);
+  assert.match(scopeBlock, /dataset: \{ pinId: frame\.pin_id \}/);
   assert.match(scopeBlock, /inspectorControlAttrs\('annotation-scope-root'/);
   assert.match(scopeBlock, /action: 'select_annotation_scope_root'/);
   assert.match(scopeBlock, /action: 'select_annotation_scope'/);
