@@ -19,6 +19,7 @@ import {
   createWikiSubjectSelectionPayload,
   WIKI_SUBJECT_SELECTION_TYPE,
 } from '../../workbench/wiki-subject-opening.js'
+import { createAosZagTabs } from '../../adapters/zag/tabs.js'
 import { createButton, createButtonGroup, createSelect } from '../../controls/index.js'
 
 const VIEW_DEFS = [
@@ -76,8 +77,13 @@ export default function WikiKB(options = {}) {
   let sidebarMode = 'markdown'
   let selectedNodeId = null
   let graphState = normalizeGraphPayload({})
+  let viewTabs = null
   const viewInstances = new Map()
   const dom = {}
+
+  function viewValueFromChange(details) {
+    return typeof details === 'string' ? details : details?.value
+  }
 
   function currentNode() {
     return findNode(graphState.nodes, selectedNodeId)
@@ -282,6 +288,8 @@ export default function WikiKB(options = {}) {
     viewEl.id = `wiki-kb-panel-${id}`
     viewEl.setAttribute('role', 'tabpanel')
     viewEl.setAttribute('aria-labelledby', `wiki-kb-tab-${id}`)
+    viewEl.dataset.aosTabsContent = ''
+    viewEl.dataset.value = id
     viewEl.hidden = true
     contentEl.appendChild(viewEl)
 
@@ -289,6 +297,25 @@ export default function WikiKB(options = {}) {
     viewInstances.set(id, created)
     instance.load(graphState)
     return created
+  }
+
+  function bindViewTabs() {
+    if (chromeMode !== 'default' || !rootEl) return
+    viewTabs ??= createAosZagTabs({
+      id: 'wiki-kb-view-tabs',
+      getRootNode: () => rootEl.ownerDocument || document,
+      activationMode: 'automatic',
+    })
+    viewTabs.update({
+      value: activeViewId,
+      onValueChange(details) {
+        const nextViewId = viewValueFromChange(details)
+        if (nextViewId && nextViewId !== activeViewId && viewDefs.some((entry) => entry.id === nextViewId)) {
+          switchView(nextViewId)
+        }
+      },
+    })
+    viewTabs.bind(rootEl)
   }
 
   function activateView(id) {
@@ -313,6 +340,7 @@ export default function WikiKB(options = {}) {
         selected: isActive,
       })
     }
+    bindViewTabs()
     if (dom.viewSelectEl) {
       dom.viewSelectEl.value = id
       const view = viewDefs.find((entry) => entry.id === id)
@@ -360,12 +388,6 @@ export default function WikiKB(options = {}) {
   }
 
   function onRootClick(event) {
-    const tabButton = event.target.closest('.wiki-kb-view-tab')
-    if (tabButton) {
-      switchView(tabButton.dataset.view)
-      return
-    }
-
     const toggleButton = event.target.closest('.wiki-kb-toggle-button')
     if (toggleButton) {
       sidebarMode = toggleButton.dataset.mode || 'markdown'
@@ -408,7 +430,7 @@ export default function WikiKB(options = {}) {
             </div>
           ` : `<span class="wiki-kb-status wiki-kb-floating-status" role="status" aria-live="polite"></span>`}
         ` : `
-          <div class="wiki-kb-tab-strip" role="tablist" aria-label="Wiki KB Views">
+          <div class="wiki-kb-tab-strip" role="tablist" aria-label="Wiki KB Views" data-aos-tabs-root data-aos-tabs-list>
             <span data-role="wiki-kb-view-tabs"></span>
             <div class="wiki-kb-tab-spacer"></div>
             <span class="wiki-kb-status" role="status" aria-live="polite"></span>
@@ -463,6 +485,8 @@ export default function WikiKB(options = {}) {
         button.id = `wiki-kb-tab-${view.id}`
         addClassNames(button, `wiki-kb-view-tab${index === 0 ? ' active' : ''}`)
         button.dataset.view = view.id
+        button.dataset.value = view.id
+        button.dataset.aosTabsTrigger = ''
         button.setAttribute('role', 'tab')
         button.setAttribute('aria-selected', index === 0 ? 'true' : 'false')
         button.setAttribute('aria-controls', `wiki-kb-panel-${view.id}`)
@@ -563,6 +587,11 @@ export default function WikiKB(options = {}) {
       const payload = msg?.payload || {}
       if (type === 'graph') applySnapshot(payload)
       else applyUpdate(payload)
+    },
+
+    teardown() {
+      viewTabs?.destroy()
+      viewTabs = null
     },
   }
 }
