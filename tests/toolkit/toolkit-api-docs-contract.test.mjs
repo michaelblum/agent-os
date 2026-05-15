@@ -66,6 +66,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/controls.md'], /createButton/);
   assert.match(docs['docs/api/toolkit/controls.md'], /createButtonGroup/);
   assert.match(docs['docs/api/toolkit/controls.md'], /createTextField/);
+  assert.match(docs['docs/api/toolkit/controls.md'], /createTextarea/);
   assert.match(docs['docs/api/toolkit/controls.md'], /createTimerBar/);
   assert.match(docs['docs/api/toolkit/controls.md'], /wireNumberFieldControls/);
 
