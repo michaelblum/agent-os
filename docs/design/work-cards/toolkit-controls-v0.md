@@ -280,7 +280,7 @@ All tests live in `tests/toolkit/`. Use Node's built-in test runner
 Before writing tests, check whether `tests/toolkit/` has a `setup.js` or
 similar shared DOM stub. If a minimal DOM environment is needed for tests that
 exercise `el` construction, use a lightweight approach consistent with how
-`canvas-inspector.test.mjs` handles it — look at that file first.
+`surface-inspector.test.mjs` handles it — look at that file first.
 
 ### `tests/toolkit/controls-button.test.mjs`
 
@@ -372,7 +372,7 @@ node --test \
   tests/toolkit/form.test.mjs
 
 # Confirm existing tests still pass
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 
 git diff --check
 ```

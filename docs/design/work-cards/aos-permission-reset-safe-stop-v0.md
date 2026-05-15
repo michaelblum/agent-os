@@ -145,7 +145,7 @@ Run focused tests:
 ```bash
 bash tests/input-tap-readiness.sh
 bash tests/ready-ownership-mismatch.sh
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 bash tests/help-contract.sh
 git diff --check
 ```

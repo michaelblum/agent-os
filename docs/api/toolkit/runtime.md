@@ -278,7 +278,7 @@ explicitly resumes it.
 ```js
 const warmed = await warmCanvas({
   id: 'surface-inspector-warm',
-  url: 'aos://toolkit/components/canvas-inspector/index.html',
+  url: 'aos://toolkit/components/surface-inspector/index.html',
   frame: [120, 120, 720, 520],
   parent: window.__aosCanvasId,
   timeoutMs: 5000,

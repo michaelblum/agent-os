@@ -39,7 +39,7 @@ shows:
 'Invalid parameter not satisfying: CGRectContainsRect(..., frame). self=<aos.CanvasWindow ...> frame={{nan, nan}, {nan, nan}}'
 ```
 
-Review points at `packages/toolkit/components/canvas-inspector/index.js`:
+Review points at `packages/toolkit/components/surface-inspector/index.js`:
 
 - `syncAnnotationHitLayer()` computes:
   `const frameRect = rectUnion(regions.map((region) => region.rect)) || currentFrameFallback()`
@@ -77,7 +77,7 @@ Annotation Mode UX.
 Add deterministic coverage for the no-region hit-layer path. Good options:
 
 - export/test a small frame-normalization helper from
-  `packages/toolkit/components/canvas-inspector/index.js`;
+  `packages/toolkit/components/surface-inspector/index.js`;
 - or add a source/assertion test proving `syncAnnotationHitLayer()` cannot use
   array fallback values as object rects;
 - and, if touching Swift validation, add a focused shell or Swift-facing test
@@ -90,9 +90,9 @@ Also preserve the native AX candidate tests from the landed slice.
 Run:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector-ax.test.mjs
+node --test tests/toolkit/surface-inspector-ax.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 ./aos dev recommend --json
 ```

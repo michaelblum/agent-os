@@ -24,7 +24,7 @@ Canvases are transparent NSWindow overlays managed by the aos daemon. Each canva
 
 ## Toolkit Debug Surfaces
 
-The toolkit ships `canvas-inspector`, a daemon-backed debug surface that renders
+The toolkit ships `surface-inspector`, a daemon-backed debug surface that renders
 live canvas geometry on a minimap. Its operator controls are demand-driven:
 
 - `minimap cursor` subscribes to `input_event` only when toggled on and draws a

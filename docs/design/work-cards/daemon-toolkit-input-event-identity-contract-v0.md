@@ -11,7 +11,7 @@
   - `docs/design/work-cards/daemon-generic-input-region-contract-v0.md`
   - `docs/design/work-cards/toolkit-stage-backed-minimized-chips-v0.md`
   - `docs/design/work-cards/toolkit-stage-affordance-extraction-v0.md`
-  - `docs/design/work-cards/canvas-inspector-surface-resource-visibility-v0.md`
+  - `docs/design/work-cards/surface-inspector-surface-resource-visibility-v0.md`
 - Canonical schema/doc starting point:
   - `shared/schemas/input-event-v2.schema.json`
   - `shared/schemas/input-event-v2.md`
@@ -49,7 +49,7 @@ events through toolkit routing without breaking existing consumers.
 - `docs/recipes/aos-surface-interaction-decision-tree.md`
 - `docs/design/aos-surface-system.md`
 - `docs/design/work-cards/daemon-generic-input-region-contract-v0.md`
-- `docs/design/work-cards/canvas-inspector-surface-resource-visibility-v0.md`
+- `docs/design/work-cards/surface-inspector-surface-resource-visibility-v0.md`
 
 ## Rediscover State
 
@@ -82,8 +82,8 @@ that remains true.
   update / remove helper.
 - `packages/toolkit/panel/stage-affordance.js` - current consumer of
   `input_region.event`.
-- `packages/toolkit/components/canvas-inspector/index.js` and
-  `packages/toolkit/components/canvas-inspector/surface-resources.js` - event
+- `packages/toolkit/components/surface-inspector/index.js` and
+  `packages/toolkit/components/surface-inspector/surface-resources.js` - event
   subscribers and inspector-visible surface resources.
 - `apps/sigil/renderer/live-modules/input-message.js`,
   `apps/sigil/renderer/live-modules/main.js`, and
@@ -216,7 +216,7 @@ Likely files, not a mandatory write set:
 - `packages/toolkit/runtime/input-region.js`
 - `packages/toolkit/runtime/index.js`
 - `packages/toolkit/panel/stage-affordance.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/components/spatial-telemetry/index.js`
 - `apps/sigil/renderer/live-modules/input-message.js`
 - `apps/sigil/renderer/live-modules/main.js`
@@ -237,8 +237,8 @@ node --test tests/toolkit/runtime-input-region.test.mjs
 node --test tests/toolkit/runtime-interaction-region.test.mjs
 node --test tests/toolkit/stage-affordance.test.mjs
 node --test tests/toolkit/panel-chrome.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
-node --test tests/toolkit/canvas-inspector-surface-resources.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
+node --test tests/toolkit/surface-inspector-surface-resources.test.mjs
 bash tests/daemon-input-surface-ownership.sh
 ```
 

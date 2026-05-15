@@ -247,8 +247,8 @@ git commit -m "feat(toolkit): ES module base class with bridge, drag, panel chro
 ### Task 3: Build the canvas inspector component
 
 **Files:**
-- Create: `packages/toolkit/components/canvas-inspector/index.html`
-- Create: `packages/toolkit/components/canvas-inspector/inspector.js`
+- Create: `packages/toolkit/components/surface-inspector/index.html`
+- Create: `packages/toolkit/components/surface-inspector/inspector.js`
 
 The canvas inspector is a panel that shows:
 1. A spatial minimap of all displays with canvas rectangles drawn on it
@@ -260,11 +260,11 @@ It bootstraps by fetching data from the daemon via `aos show list --json` and `a
 - `aos show list --json` returns `{ status, canvases: [{ id, at: [x,y,w,h], interactive, scope, ttl, ... }] }`
 - `aos graph displays --json` returns `[{ id, cgID, width, height, scale_factor, bounds: {x,y,w,h}, is_main }]`
 - `canvas_lifecycle` events arrive as headsup messages: `{ service: "display", event: "canvas_lifecycle", data: { canvas_id, action, at } }`
-- The inspector itself is a canvas — it will appear in its own list. Filter it out by its own ID (`canvas-inspector`).
+- The inspector itself is a canvas — it will appear in its own list. Filter it out by its own ID (`surface-inspector`).
 
 - [ ] **Step 1: Create index.html**
 
-Create `packages/toolkit/components/canvas-inspector/index.html`:
+Create `packages/toolkit/components/surface-inspector/index.html`:
 
 ```html
 <!DOCTYPE html>
@@ -413,7 +413,7 @@ Create `packages/toolkit/components/canvas-inspector/index.html`:
 
 - [ ] **Step 2: Create inspector.js**
 
-Create `packages/toolkit/components/canvas-inspector/inspector.js`:
+Create `packages/toolkit/components/surface-inspector/inspector.js`:
 
 ```js
 // inspector.js — Canvas inspector component
@@ -423,7 +423,7 @@ Create `packages/toolkit/components/canvas-inspector/inspector.js`:
 
 import { AosComponent, esc, postToHost } from '../_base/base.js';
 
-const SELF_ID = 'canvas-inspector';
+const SELF_ID = 'surface-inspector';
 const TINT_COLORS = [
   'rgba(255,80,80,0.25)',   // red
   'rgba(80,180,255,0.25)',  // blue
@@ -617,7 +617,7 @@ inspector.mount(document.getElementById('app'));
 - [ ] **Step 3: Commit**
 
 ```bash
-git add packages/toolkit/components/canvas-inspector/
+git add packages/toolkit/components/surface-inspector/
 git commit -m "feat(toolkit): canvas inspector component — minimap + canvas list with live events"
 ```
 
@@ -626,24 +626,24 @@ git commit -m "feat(toolkit): canvas inspector component — minimap + canvas li
 ### Task 4: Create the bootstrap script
 
 **Files:**
-- Create: `packages/toolkit/components/canvas-inspector/launch.sh`
+- Create: `packages/toolkit/components/surface-inspector/launch.sh`
 
 The inspector needs initial data that can't come from headsup messages alone (it needs to call CLI commands). A small launch script creates the canvas and sends bootstrap data.
 
 - [ ] **Step 1: Create launch.sh**
 
-Create `packages/toolkit/components/canvas-inspector/launch.sh`:
+Create `packages/toolkit/components/surface-inspector/launch.sh`:
 
 ```bash
 #!/bin/bash
 # launch.sh — Create the canvas inspector and bootstrap it with display/canvas data
 #
-# Usage: bash packages/toolkit/components/canvas-inspector/launch.sh
+# Usage: bash packages/toolkit/components/surface-inspector/launch.sh
 
 set -euo pipefail
 
 AOS="${AOS:-./aos}"
-CANVAS_ID="canvas-inspector"
+CANVAS_ID="surface-inspector"
 
 # Remove existing instance if any
 $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
@@ -663,7 +663,7 @@ Y=$((MAIN_H - PANEL_H - 60))
 $AOS show create --id "$CANVAS_ID" \
   --at "$X,$Y,$PANEL_W,$PANEL_H" \
   --interactive \
-  --url "aos://toolkit/components/canvas-inspector/index.html"
+  --url "aos://toolkit/components/surface-inspector/index.html"
 
 # Wait for page to load
 sleep 0.5
@@ -692,13 +692,13 @@ echo "Live events require: aos show listen (in another terminal to keep subscrip
 - [ ] **Step 2: Make executable**
 
 ```bash
-chmod +x packages/toolkit/components/canvas-inspector/launch.sh
+chmod +x packages/toolkit/components/surface-inspector/launch.sh
 ```
 
 - [ ] **Step 3: Test the launch script**
 
 ```bash
-bash packages/toolkit/components/canvas-inspector/launch.sh
+bash packages/toolkit/components/surface-inspector/launch.sh
 ```
 
 Expected: Canvas inspector panel appears at bottom-right of main display, showing the minimap with display outlines and any active canvas rectangles.
@@ -718,8 +718,8 @@ Expected: The inspector minimap and list update in real-time when the test canva
 - [ ] **Step 5: Clean up test canvas and commit**
 
 ```bash
-./aos show remove --id canvas-inspector
-git add packages/toolkit/components/canvas-inspector/
+./aos show remove --id surface-inspector
+git add packages/toolkit/components/surface-inspector/
 git commit -m "feat(toolkit): canvas inspector launch script with bootstrap"
 ```
 
@@ -753,7 +753,7 @@ components/
     bridge.js       ES module — headsup bridge (esc, initBridge, postToHost)
     base.js         ES module — AosComponent base class (panel chrome, drag, bridge wiring)
     theme.css       Shared dark theme (CSS custom properties, panel/header classes)
-  canvas-inspector/ Multi-file component — display/canvas debug tool
+  surface-inspector/ Multi-file component — display/canvas debug tool
     index.html      Entry point (loads theme.css + inspector.js)
     inspector.js    Component logic (extends AosComponent)
     launch.sh       Bootstrap script (creates canvas, sends initial data)
@@ -837,7 +837,7 @@ Expected: first 3 lines of `base.js`.
 - [ ] **Step 3: Launch canvas inspector and verify**
 
 ```bash
-bash packages/toolkit/components/canvas-inspector/launch.sh
+bash packages/toolkit/components/surface-inspector/launch.sh
 ```
 
 Expected: Inspector panel appears showing minimap with display geometry and list of active canvases.
@@ -852,7 +852,7 @@ Check inspector updates. Then:
 
 ```bash
 ./aos show remove --id verify-lifecycle
-./aos show remove --id canvas-inspector
+./aos show remove --id surface-inspector
 ```
 
 - [ ] **Step 5: Run final git status check**

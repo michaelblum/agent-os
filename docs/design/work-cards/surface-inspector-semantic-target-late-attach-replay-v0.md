@@ -72,7 +72,7 @@ With `html-workbench-expression` already open and loaded:
 Inspect current Canvas/Surface Inspector and AOS canvas message paths before
 editing. Useful areas may include:
 
-- `packages/toolkit/components/canvas-inspector/`
+- `packages/toolkit/components/surface-inspector/`
 - HTML Workbench Expression semantic target publishing code
 - semantic target projection/reveal adapter helpers
 - `aos see capture --canvas <id> --xray` semantic target discovery if it is the
@@ -102,7 +102,7 @@ Suggested focused commands:
 node --test tests/toolkit/html-workbench-expression.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/schemas/aos-html-workbench-expression-v0.test.mjs
 bash tests/help-contract.sh
 git diff --check

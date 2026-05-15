@@ -61,7 +61,7 @@ Inspect at minimum:
 - `docs/design/surface-annotation-intent-convergence-tracker.md`
 - `docs/api/toolkit.md`
 - `packages/toolkit/runtime/spatial.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - existing schema/test patterns under `tests/schemas/` and `tests/toolkit/`
 
 ## Design Principle

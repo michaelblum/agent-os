@@ -245,12 +245,12 @@ EOF
     --at "$x,$y,$panel_w,$panel_h" \
     --interactive \
     --scope global \
-    --url 'aos://toolkit/components/canvas-inspector/index.html' >/dev/null
+    --url 'aos://toolkit/components/surface-inspector/index.html' >/dev/null
 
-  "$aos_bin" show wait --id "$inspector_id" --manifest canvas-inspector --timeout 5s >/dev/null
+  "$aos_bin" show wait --id "$inspector_id" --manifest surface-inspector --timeout 5s >/dev/null
   "$aos_bin" show wait \
     --id "$inspector_id" \
-    --manifest canvas-inspector \
+    --manifest surface-inspector \
     --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
     --timeout 5s >/dev/null
 }

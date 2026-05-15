@@ -71,7 +71,7 @@ touched unexpectedly, stop and use the router recommendation before building.
 
 ## Existing Code To Inspect
 
-- `packages/toolkit/components/canvas-inspector/index.js` - owns Surface
+- `packages/toolkit/components/surface-inspector/index.js` - owns Surface
   Inspector row actions, `Reveal` dispatch, semantic target requests,
   `buildRevealPayloadForSurfaceInspectorPin`, and target-node normalization.
 - `packages/toolkit/components/html-workbench-expression/index.js` - owns the
@@ -83,7 +83,7 @@ touched unexpectedly, stop and use the router recommendation before building.
   result state, pin projection state, and tree-row fields.
 - `tests/toolkit/html-workbench-expression.test.mjs` - existing semantic target
   publication tests.
-- `tests/toolkit/canvas-inspector.test.mjs` - Surface Inspector reveal payload,
+- `tests/toolkit/surface-inspector.test.mjs` - Surface Inspector reveal payload,
   row, and scoped hit-region tests.
 - `tests/toolkit/annotation-projection.test.mjs` and
   `tests/toolkit/surface-inspector-annotations.test.mjs` - projection/reveal
@@ -202,10 +202,10 @@ Run deterministic tests:
 
 ```bash
 node --test tests/toolkit/html-workbench-expression.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
-node --test tests/toolkit/browser-dom-element-picker.test.mjs tests/toolkit/canvas-inspector-ax.test.mjs
+node --test tests/toolkit/browser-dom-element-picker.test.mjs tests/toolkit/surface-inspector-ax.test.mjs
 git diff --check
 ```
 

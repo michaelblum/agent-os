@@ -191,7 +191,7 @@ first success criterion is structured DOM intent records.
 Inspect before editing:
 
 - `packages/toolkit/workbench/annotation-projection.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `shared/schemas/annotation.schema.json`
 - `shared/schemas/annotation-projection-v0.schema.json`
 - `shared/schemas/aos-semantic-targets.md`
@@ -213,7 +213,7 @@ Run focused tests:
 ```bash
 node --test tests/toolkit/browser-dom-element-picker.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/schemas/*.test.mjs
 bash tests/help-contract.sh
 git diff --check

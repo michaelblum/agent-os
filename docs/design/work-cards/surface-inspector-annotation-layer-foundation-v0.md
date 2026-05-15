@@ -75,22 +75,22 @@ annotation edge/path at a time.
 
 Start by reading the live inspector and related contracts:
 
-- `packages/toolkit/components/canvas-inspector/index.js`
-- `packages/toolkit/components/canvas-inspector/tree.js`
-- `packages/toolkit/components/canvas-inspector/styles.css`
-- `packages/toolkit/components/canvas-inspector/semantics.js`
-- `packages/toolkit/components/canvas-inspector/marks/`
+- `packages/toolkit/components/surface-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/tree.js`
+- `packages/toolkit/components/surface-inspector/styles.css`
+- `packages/toolkit/components/surface-inspector/semantics.js`
+- `packages/toolkit/components/surface-inspector/marks/`
 - `packages/toolkit/runtime/spatial.js`
 - `packages/toolkit/workbench/annotation-projection.js`
 - `packages/toolkit/workbench/surface-hit-test-inspect.js`
 - `shared/schemas/annotation.schema.json`
 - `shared/schemas/annotation-projection-v0.schema.json`
 - `shared/schemas/spatial-subject-tree-v0.md`
-- `src/daemon/canvas-inspector-bundle.swift`
+- `src/daemon/surface-inspector-bundle.swift`
 - `src/commands/serve.swift`
 - `src/commands/config-command.swift`
-- `tests/toolkit/canvas-inspector*.test.mjs`
-- `tests/canvas-inspector-*.sh`
+- `tests/toolkit/surface-inspector*.test.mjs`
+- `tests/surface-inspector-*.sh`
 - `docs/api/toolkit.md`
 - `docs/api/aos.md`
 
@@ -103,12 +103,12 @@ another Surface-Zoom feature.
 
 Work in the smallest set of files needed, likely including:
 
-- `packages/toolkit/components/canvas-inspector/`
+- `packages/toolkit/components/surface-inspector/`
 - `packages/toolkit/workbench/` for a neutral annotation state/model helper
 - `shared/schemas/` if a first-class Surface Inspector annotation snapshot or
   state schema is needed
 - `src/daemon/` and `src/commands/` only for menu, shortcut, or bundle behavior
-- focused tests under `tests/toolkit/` and existing canvas-inspector shell tests
+- focused tests under `tests/toolkit/` and existing surface-inspector shell tests
 - docs at the interface boundary when behavior changes
 
 Keep the work generic. Do not add Employer Brand fields or workflow assumptions.
@@ -476,13 +476,13 @@ Focused tests should cover:
 
 Likely command set:
 
-- `node --test tests/toolkit/canvas-inspector.test.mjs`
-- `node --test tests/toolkit/canvas-inspector-tree.test.mjs`
-- `node --test tests/toolkit/canvas-inspector-marks-normalize.test.mjs tests/toolkit/canvas-inspector-marks-render.test.mjs tests/toolkit/canvas-inspector-marks-reconcile.test.mjs`
+- `node --test tests/toolkit/surface-inspector.test.mjs`
+- `node --test tests/toolkit/surface-inspector-tree.test.mjs`
+- `node --test tests/toolkit/surface-inspector-marks-normalize.test.mjs tests/toolkit/surface-inspector-marks-render.test.mjs tests/toolkit/surface-inspector-marks-reconcile.test.mjs`
 - `node --test tests/toolkit/annotation-projection.test.mjs tests/toolkit/surface-hit-test-inspect.test.mjs`
 - relevant schema tests if schemas are added or changed;
-- `bash tests/canvas-inspector-see-bundle.sh` if bundle behavior changes;
-- `bash tests/canvas-inspector-see-bundle-config.sh` if config changes;
+- `bash tests/surface-inspector-see-bundle.sh` if bundle behavior changes;
+- `bash tests/surface-inspector-see-bundle-config.sh` if config changes;
 - `bash tests/help-contract.sh` if CLI/help changes;
 - `git diff --check`.
 

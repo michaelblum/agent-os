@@ -52,7 +52,7 @@ Inspect at minimum:
 - `shared/schemas/annotation.schema.json`
 - `shared/schemas/annotation-projection-v0.schema.json`
 - `packages/toolkit/workbench/annotation-projection.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/components/markdown-workbench/index.js`
 - `docs/design/aos-surface-system.md`
 - `docs/design/surface-annotation-intent-convergence-tracker.md`

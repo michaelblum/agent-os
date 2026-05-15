@@ -34,7 +34,7 @@ These paths are the core surface-stack implementation:
   `packages/toolkit/components/desktop-world-stage/` for resource scope,
   input-event helpers, DesktopWorld hit-region helpers, stage affordances,
   panel/window policy, and passive stage visuals.
-- `packages/toolkit/components/canvas-inspector/` for inspector resource
+- `packages/toolkit/components/surface-inspector/` for inspector resource
   visibility, minimap mark sizing, tree rows, and launch/root handling.
 - `apps/sigil/renderer/`, `apps/sigil/context-menu/`, and Sigil panel/editor
   paths for second-client consumption of accepted daemon/toolkit primitives.
@@ -72,7 +72,7 @@ These paths are documentation source-of-truth for the checkpoint:
   branch-scoped aliases for canonical `toolkit`, `sigil`, and `repo` content
   roots. This prevents component launch scripts from restarting an isolated
   daemon just to make branch-scoped roots live.
-- `tests/canvas-inspector-snapshot.sh`: the smoke now enables the Inspector's
+- `tests/surface-inspector-snapshot.sh`: the smoke now enables the Inspector's
   minimap cursor control before posting a synthetic `mouse_moved` event,
   matching the current opt-in cursor-tracking behavior.
 - `docs/design/work-cards/surface-stack-integration-checkpoint-hygiene-v0.md`
@@ -128,12 +128,12 @@ Focused surface-stack checks:
   `CONTENT_WAIT_TIMEOUT` for `toolkit_codex_docks_session_roots`; after the
   isolated daemon helper fix, it passed.
 - `bash tests/lifecycle-complete.sh` passed.
-- `bash tests/canvas-inspector-snapshot.sh` initially failed because the test
+- `bash tests/surface-inspector-snapshot.sh` initially failed because the test
   posted a cursor event without enabling the opt-in cursor control; after the
   smoke fix, it passed.
 - `bash tests/spatial-telemetry-smoke.sh` passed.
-- `bash tests/canvas-inspector-primitive-marks.sh` passed.
-- `bash tests/canvas-inspector-move-abs.sh` skipped with its built-in
+- `bash tests/surface-inspector-primitive-marks.sh` passed.
+- `bash tests/surface-inspector-move-abs.sh` skipped with its built-in
   `requires at least two displays` guard in the isolated test context.
 
 GDI previously reported live real-input passes for:

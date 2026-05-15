@@ -11,7 +11,7 @@
 Repair the defects found by Operator and human review after the first real AOS
 overlay-canvas implementation for Surface Inspector Annotation Mode.
 
-The previous slice created real `canvas-inspector-annotation-action-*` canvases,
+The previous slice created real `surface-inspector-annotation-action-*` canvases,
 but the workflow still does not match the intended user interaction model. This
 slice should make Annotation Mode usable enough for the next human-facing
 alignment pass.
@@ -195,7 +195,7 @@ duplicated under the same role.
 Run focused tests:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs

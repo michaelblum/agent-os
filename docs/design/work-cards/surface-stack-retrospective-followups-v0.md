@@ -46,11 +46,11 @@ Smallest useful slice:
 
 Likely files:
 
-- `packages/toolkit/components/canvas-inspector/marks/normalize.js`
-- `packages/toolkit/components/canvas-inspector/marks/render.js`
+- `packages/toolkit/components/surface-inspector/marks/normalize.js`
+- `packages/toolkit/components/surface-inspector/marks/render.js`
 - `docs/api/toolkit/components.md`
-- `tests/toolkit/canvas-inspector-marks-normalize.test.mjs`
-- `tests/toolkit/canvas-inspector-marks-render.test.mjs`
+- `tests/toolkit/surface-inspector-marks-normalize.test.mjs`
+- `tests/toolkit/surface-inspector-marks-render.test.mjs`
 
 ### 2. Canonical Canvas Reload Workflow
 

@@ -361,7 +361,7 @@ class UnifiedDaemon {
         canvasManager.onCanvasLifecycle = { [weak self] canvasInfo, action in
             guard let self = self else { return }
             self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
-            if ["surface-inspector", "canvas-inspector"].contains(canvasInfo.id),
+            if canvasInfo.id == "surface-inspector",
                action == "removed" || canvasInfo.suspended == true {
                 DispatchQueue.main.async { [weak self] in
                     self?.canvasInspectorAnnotationModeHandler?(false)
@@ -2222,9 +2222,7 @@ class UnifiedDaemon {
             "settle_threshold_ms": new.perception.settle_threshold_ms
         ]
         broadcastEvent(service: "system", event: "config_changed", data: data)
-        for canvasID in ["surface-inspector", "canvas-inspector"] {
-            sendCanvasInspectorSeeBundleConfig(canvasID: canvasID)
-        }
+        sendCanvasInspectorSeeBundleConfig(canvasID: "surface-inspector")
 
         // Voice engine lifecycle
         if new.voice.enabled && !old.voice.enabled {
@@ -2293,7 +2291,7 @@ class UnifiedDaemon {
 
     private func spokenCanvasName(_ id: String) -> String {
         switch id {
-        case "canvas-inspector", "surface-inspector":
+        case "surface-inspector":
             return "Surface Inspector"
         case "__log__", "log-console":
             return "Log Console"

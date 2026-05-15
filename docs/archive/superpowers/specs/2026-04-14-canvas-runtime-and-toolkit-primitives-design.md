@@ -8,15 +8,15 @@
 
 ## Problem
 
-`packages/toolkit/components/_base/` today ships a single class, `AosComponent`, that bundles three concerns in one mount call: panel chrome (header + drag), content rendering, and bridge wiring. Three components extend it: `inspector-panel`, `log-console`, `canvas-inspector`. Each gets a panel header it can't opt out of, a single bridge handler it can't share, and a launch path (one `launch.sh` per component) that runs an external event-relay subprocess to forward daemon events into the canvas.
+`packages/toolkit/components/_base/` today ships a single class, `AosComponent`, that bundles three concerns in one mount call: panel chrome (header + drag), content rendering, and bridge wiring. Three components extend it: `inspector-panel`, `log-console`, `surface-inspector`. Each gets a panel header it can't opt out of, a single bridge handler it can't share, and a launch path (one `launch.sh` per component) that runs an external event-relay subprocess to forward daemon events into the canvas.
 
 Three forces are pushing this model past its breaking point:
 
-1. **Composition needs.** Multiple tools want to coexist in one canvas (a tabbed workstation: inspector + log + canvas-inspector + Sigil control). Today's `AosComponent` assumes it owns the whole panel; embedding three of them means three competing headers and three bridge handlers fighting over `window.headsup.receive`.
+1. **Composition needs.** Multiple tools want to coexist in one canvas (a tabbed workstation: inspector + log + surface-inspector + Sigil control). Today's `AosComponent` assumes it owns the whole panel; embedding three of them means three competing headers and three bridge handlers fighting over `window.headsup.receive`.
 
 2. **Surface diversity.** Sigil has surfaces that aren't panels at all — the avatar renderer (full-display, transparent, click-through, Three.js scene) and the hit-area (tiny invisible gesture target). Both reimplement bridge plumbing, subscribe handshakes, and child-canvas spawning inline. Today's `_base/bridge.js` is *almost* what they need but lives under a panel framework they correctly skip. So they copy the boilerplate instead.
 
-3. **Daemon capabilities have outgrown the toolkit.** `canvas.create/update/remove` from JS shipped (2026-04-11). `subscribe`/`unsubscribe` shipped (2026-04-12 across `display_geometry`, `input_event`, and `wiki_page_changed`). The manifest convention (`{name, accepts, emits}`) shipped (2026-03-28). Toolkit components don't use any of it — `canvas-inspector/launch.sh` runs a Python subprocess piping `aos show listen` events into the canvas, when the canvas could just `subscribe` directly.
+3. **Daemon capabilities have outgrown the toolkit.** `canvas.create/update/remove` from JS shipped (2026-04-11). `subscribe`/`unsubscribe` shipped (2026-04-12 across `display_geometry`, `input_event`, and `wiki_page_changed`). The manifest convention (`{name, accepts, emits}`) shipped (2026-03-28). Toolkit components don't use any of it — `surface-inspector/launch.sh` runs a Python subprocess piping `aos show listen` events into the canvas, when the canvas could just `subscribe` directly.
 
 The fix isn't a smarter `AosComponent`. It's separating the concerns it conflates and giving each layer the narrowest surface that does its job.
 
@@ -59,7 +59,7 @@ Layer 1b    Panel primitives                                        (packages/to
               ↑ used by panels only
 
 Layer 2     Toolkit panel components                                (packages/toolkit/components/)
-              inspector-panel, log-console, canvas-inspector
+              inspector-panel, log-console, surface-inspector
               Each is a Content unit + Manifest, consumable by any host
 
 Layer 3     App-bespoke surfaces                                    (apps/<app>/)
@@ -211,7 +211,7 @@ mountPanel({ title: 'Log', layout: Single(LogContent) })
 import { mountPanel, Tabs } from 'aos://toolkit/panel/index.js'
 import Inspector from 'aos://toolkit/components/inspector-panel/index.js'
 import Log from 'aos://toolkit/components/log-console/index.js'
-import CanvasInsp from 'aos://toolkit/components/canvas-inspector/index.js'
+import CanvasInsp from 'aos://toolkit/components/surface-inspector/index.js'
 import SigilControl from 'aos://sigil/control/index.js'
 
 mountPanel({
@@ -260,7 +260,7 @@ Each as its own commit. The shape is roughly:
 - `index.html` calls `mountPanel({ title: '<>', layout: Single(<Content>) })` instead of instantiating the class.
 - `launch.sh` retires its event-relay Python subprocess; the content uses Layer 1a `subscribe` directly.
 
-Order: **canvas-inspector first** (most complex, validates subscribe + child-canvas patterns), **inspector-panel** second, **log-console** last.
+Order: **surface-inspector first** (most complex, validates subscribe + child-canvas patterns), **inspector-panel** second, **log-console** last.
 
 Verification per commit: launch the standalone, exercise its primary function, confirm parity. The `launch.sh` subprocess goes away; the components become smaller.
 
@@ -319,7 +319,7 @@ Per renderer-strangler's strangler-fig principles:
 
 - **Per-subsystem commits** — Layer 1a, Layer 1b, each component migration, each layout, each app surface migration.
 - **Smoke per commit** — daemon restart, launch the affected surface, verify primary function, grep daemon log for JS errors.
-- **Pilot before scaling** — Step 2's first migration (canvas-inspector) is the pilot for the Content + Single pattern. If it surfaces friction, defer Steps 2b/2c and revisit.
+- **Pilot before scaling** — Step 2's first migration (surface-inspector) is the pilot for the Content + Single pattern. If it surfaces friction, defer Steps 2b/2c and revisit.
 - **Bisection grain** — each commit small enough that a regression bisects to a focused diff.
 
 Automated tests for JS components are out of scope for this spec; visual smoke is the contract. A future testing harness (`apps/sigil/tests/` shows the seed of one) could grow into a real runner — separate concern.
@@ -347,7 +347,7 @@ Automated tests for JS components are out of scope for this spec; visual smoke i
 
 ### Code touchpoints (current)
 - `packages/toolkit/components/_base/{base.js,bridge.js,theme.css}` — what gets decomposed into Layer 1a / 1b.
-- `packages/toolkit/components/{inspector-panel,log-console,canvas-inspector}/` — Step-2 migration targets.
+- `packages/toolkit/components/{inspector-panel,log-console,surface-inspector}/` — Step-2 migration targets.
 - `src/daemon/unified.swift:31-188, 137-630` — the canvas mutation API and event subscription wiring this design consumes.
 - `src/display/canvas.swift:480-614` — the per-canvas onMessage handler whose contract Layer 1a wraps.
 

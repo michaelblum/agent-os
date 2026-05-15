@@ -73,7 +73,7 @@ workbench/              Layer 1c — workbench contracts
 
 components/             Layer 2 — reusable Content units
   _base/                  shared theme.css tokens/reset (legacy AosComponent retired)
-  canvas-inspector/       live canvas list + lifecycle subscription
+  surface-inspector/       live canvas list + lifecycle subscription
     styles.css              canonical component styles (link, don't copy)
   spatial-telemetry/      live coordinate grid + event log for display/canvas/mark debugging
     styles.css              canonical component styles (link, don't copy)

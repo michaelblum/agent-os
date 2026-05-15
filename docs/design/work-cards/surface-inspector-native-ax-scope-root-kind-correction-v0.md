@@ -66,7 +66,7 @@ Inspect:
   - `normalizePinRecord(...)`
   - `scopeFrameFromPin(...)`
   - `normalizeScopeFrame(...)`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
   - `nativeAxCandidateForAnnotation()`
   - `pinHoverCandidate(...)`
 
@@ -114,8 +114,8 @@ Run:
 
 ```bash
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
-node --test tests/toolkit/canvas-inspector-ax.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
+node --test tests/toolkit/surface-inspector-ax.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 git diff --check
 ./aos ready

@@ -89,7 +89,7 @@ ad-hoc permission repair.
   into grouped overlay render plans and already suppresses stale/blocked rects.
 - `packages/toolkit/workbench/surface-inspector-annotations.js` - owns Surface
   Inspector candidate, pin, scope, projection, reveal, and snapshot state.
-- `packages/toolkit/components/canvas-inspector/index.js` - subscribes to
+- `packages/toolkit/components/surface-inspector/index.js` - subscribes to
   display, lifecycle, semantic target, input, native window, and AX events;
   syncs annotation overlays and action controls.
 - `apps/sigil/renderer/live-modules/annotation-reticle.js` and
@@ -99,7 +99,7 @@ ad-hoc permission repair.
   projection status coverage.
 - `tests/toolkit/annotation-overlay-renderer.test.mjs` - deterministic overlay
   plan and stale/blocked rendering coverage.
-- `tests/toolkit/canvas-inspector.test.mjs` and
+- `tests/toolkit/surface-inspector.test.mjs` and
   `tests/toolkit/surface-inspector-annotations.test.mjs` - Surface Inspector
   annotation support and integration coverage.
 - `tests/renderer/annotation-reticle.test.mjs` - Sigil reticle regression
@@ -216,8 +216,8 @@ Run focused deterministic checks:
 node --check packages/toolkit/workbench/annotation-session.js
 node --check packages/toolkit/workbench/annotation-overlay-renderer.js
 node --check packages/toolkit/workbench/surface-inspector-annotations.js
-node --check packages/toolkit/components/canvas-inspector/index.js
-node --test tests/toolkit/annotation-session.test.mjs tests/toolkit/annotation-overlay-renderer.test.mjs tests/toolkit/surface-inspector-annotations.test.mjs tests/toolkit/canvas-inspector.test.mjs
+node --check packages/toolkit/components/surface-inspector/index.js
+node --test tests/toolkit/annotation-session.test.mjs tests/toolkit/annotation-overlay-renderer.test.mjs tests/toolkit/surface-inspector-annotations.test.mjs tests/toolkit/surface-inspector.test.mjs
 node --test tests/renderer/annotation-reticle.test.mjs
 git diff --check
 ```

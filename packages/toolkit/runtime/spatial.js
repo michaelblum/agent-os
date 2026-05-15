@@ -445,7 +445,7 @@ export function resolveCanvasFrames(list = []) {
 }
 
 export function computeMinimapLayout(displays, canvases, mapW, {
-  selfId = 'canvas-inspector',
+  selfId = 'surface-inspector',
   border = 1,
   inset = 2,
   maxH = Infinity,

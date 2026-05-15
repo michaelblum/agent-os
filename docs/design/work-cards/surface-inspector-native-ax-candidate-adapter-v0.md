@@ -73,16 +73,16 @@ human permission work, report the blocker and rely on deterministic tests.
   `element_focused` while the cursor moves.
 - `src/perceive/cursor.swift` and `src/perceive/models.swift` - one-shot cursor
   response with native window and AX element fields.
-- `packages/toolkit/components/canvas-inspector/index.js` - owns Surface
+- `packages/toolkit/components/surface-inspector/index.js` - owns Surface
   Inspector input subscriptions, annotation hit regions, hover candidates, and
   root/scope behavior.
 - `packages/toolkit/workbench/surface-inspector-annotations.js` - owns shared
   annotation candidate normalization, ranking, adapter priority, and default
   projection capabilities.
-- `tests/toolkit/canvas-inspector.test.mjs` and
+- `tests/toolkit/surface-inspector.test.mjs` and
   `tests/toolkit/surface-inspector-annotations.test.mjs` - focused deterministic
   tests for candidate selection, root filtering, and SI model behavior.
-- `tests/toolkit/canvas-inspector-ax.test.mjs` - accessibility semantics tests
+- `tests/toolkit/surface-inspector-ax.test.mjs` - accessibility semantics tests
   for the Surface Inspector component.
 
 ## Required Behavior
@@ -206,9 +206,9 @@ Likely implementation:
 Run deterministic tests:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
-node --test tests/toolkit/canvas-inspector-ax.test.mjs
+node --test tests/toolkit/surface-inspector-ax.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 git diff --check
 ```

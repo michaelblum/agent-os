@@ -110,11 +110,11 @@ Inspect before editing:
 
 - `packages/toolkit/workbench/browser-dom-element-picker.js`
 - `packages/toolkit/workbench/annotation-projection.js`
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/components/html-workbench-expression/index.js`
 - `scripts/browser-dom-element-picker-smoke.mjs`
 - `tests/toolkit/browser-dom-element-picker.test.mjs`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 
 Likely new or changed files:
 
@@ -131,7 +131,7 @@ Run focused tests:
 ```bash
 node --test tests/toolkit/browser-dom-element-picker.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs
 node --test tests/schemas/*.test.mjs
 bash tests/help-contract.sh

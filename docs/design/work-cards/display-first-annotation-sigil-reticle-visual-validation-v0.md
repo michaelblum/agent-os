@@ -114,7 +114,7 @@ directly.
 - `apps/sigil/renderer/live-modules/fast-travel.js` and
   `tests/renderer/fast-travel-preview.test.mjs` - own fast-travel gesture and
   preview state.
-- `src/daemon/canvas-inspector-bundle.swift` and `src/display/status-item.swift`
+- `src/daemon/surface-inspector-bundle.swift` and `src/display/status-item.swift`
   - existing Canvas Inspector annotation/snapshot entry precedents if Sigil
   needs a generic request path. Do not add Sigil-named daemon policy.
 
@@ -277,7 +277,7 @@ After reading the code, likely edits are:
   - add a reticle/camera glyph if the existing fallback glyphs are insufficient.
 - `packages/toolkit/workbench/annotation-session.js` or a new small helper only
   if Sigil needs shared session/placement behavior that belongs below the app.
-- `src/daemon/canvas-inspector-bundle.swift` or adjacent daemon canvas-message
+- `src/daemon/surface-inspector-bundle.swift` or adjacent daemon canvas-message
   handling only if a generic Canvas Inspector request bridge is required.
 
 ## Verification

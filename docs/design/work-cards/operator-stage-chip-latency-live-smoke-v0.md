@@ -70,8 +70,8 @@ for your report.
 
 ```bash
 ./aos show remove-all || true
-packages/toolkit/components/canvas-inspector/launch.sh
-./aos show wait --id surface-inspector --manifest canvas-inspector --timeout 5s
+packages/toolkit/components/surface-inspector/launch.sh
+./aos show wait --id surface-inspector --manifest surface-inspector --timeout 5s
 ```
 
 Before clicking minimize, check whether `aos-desktop-world-stage` has already

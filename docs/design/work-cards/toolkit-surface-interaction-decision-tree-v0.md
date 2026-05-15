@@ -75,7 +75,7 @@ deterministic verification.
 - `packages/toolkit/panel/chrome.js` - current minimized-chip client.
 - `packages/toolkit/panel/drag-transfer.js` - passive stage visual precedent.
 - `packages/toolkit/components/desktop-world-stage/` - passive stage renderer.
-- `packages/toolkit/components/canvas-inspector/` - diagnostic surface
+- `packages/toolkit/components/surface-inspector/` - diagnostic surface
   precedent and future visibility target.
 - `apps/sigil/` - second-client candidate; audit only, no migration.
 - `src/daemon/unified.swift` - daemon input-region and lifecycle routing.

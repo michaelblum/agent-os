@@ -149,7 +149,7 @@ function relatedNavigationFixtureState() {
             target_dialect: 'canvas',
             entry: {
               kind: 'aos-url',
-              value: 'aos://toolkit/components/canvas-inspector/index.html',
+              value: 'aos://toolkit/components/surface-inspector/index.html',
             },
           },
         ],

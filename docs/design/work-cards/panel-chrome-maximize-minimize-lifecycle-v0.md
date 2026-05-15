@@ -96,7 +96,7 @@ Inspect before editing:
 - `packages/toolkit/panel/placement.js`;
 - `packages/toolkit/runtime/canvas.js`;
 - `tests/toolkit/panel-chrome.test.mjs`;
-- `tests/toolkit/canvas-inspector.test.mjs`;
+- `tests/toolkit/surface-inspector.test.mjs`;
 - `tests/toolkit/markdown-workbench-layout.test.mjs`.
 
 Likely fixes:
@@ -115,7 +115,7 @@ Run focused tests:
 
 ```bash
 node --test tests/toolkit/panel-chrome.test.mjs
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/markdown-workbench-layout.test.mjs
 node --test tests/toolkit/surface-zoom-inspector.test.mjs
 bash tests/help-contract.sh

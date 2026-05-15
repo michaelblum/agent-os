@@ -10,7 +10,7 @@ for _ in $(seq 1 20); do
   fi
   sleep 0.2
 done
-bash packages/toolkit/components/canvas-inspector/launch.sh >/dev/null
+bash packages/toolkit/components/surface-inspector/launch.sh >/dev/null
 bash packages/toolkit/components/spatial-telemetry/launch.sh >/dev/null
 
 echo "Display debug battery launched:"

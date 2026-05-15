@@ -1,9 +1,9 @@
 import { esc } from '../../runtime/bridge.js';
 import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js';
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js';
-import { normalizeMarks } from '../canvas-inspector/marks/normalize.js';
-import { createMarksState, applySnapshot, evictCanvas } from '../canvas-inspector/marks/reconcile.js';
-import { createScheduler } from '../canvas-inspector/marks/scheduler.js';
+import { normalizeMarks } from '../surface-inspector/marks/normalize.js';
+import { createMarksState, applySnapshot, evictCanvas } from '../surface-inspector/marks/reconcile.js';
+import { createScheduler } from '../surface-inspector/marks/scheduler.js';
 import {
   buildSpatialTelemetrySnapshot,
   formatPoint,

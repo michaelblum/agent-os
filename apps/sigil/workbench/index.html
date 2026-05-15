@@ -57,7 +57,7 @@
   for (const href of [
     toolkitUrl('components/_base/theme.css'),
     toolkitUrl('panel/defaults.css'),
-    toolkitUrl('components/canvas-inspector/styles.css'),
+    toolkitUrl('components/surface-inspector/styles.css'),
     toolkitUrl('components/log-console/styles.css'),
     toolkitUrl('components/integration-hub/styles.css'),
     toolkitUrl('components/wiki-kb/styles.css'),
@@ -74,8 +74,8 @@
   const { evalCanvas, subscribe, wireBridge } = await import(toolkitSpecifier('runtime/index.js', {
     local: '../../../packages/toolkit/runtime/index.js',
   }))
-  const { default: CanvasInspector } = await import(toolkitSpecifier('components/canvas-inspector/index.js', {
-    local: '../../../packages/toolkit/components/canvas-inspector/index.js',
+  const { default: CanvasInspector } = await import(toolkitSpecifier('components/surface-inspector/index.js', {
+    local: '../../../packages/toolkit/components/surface-inspector/index.js',
   }))
   const { default: IntegrationHub } = await import(toolkitSpecifier('components/integration-hub/index.js', {
     local: '../../../packages/toolkit/components/integration-hub/index.js',

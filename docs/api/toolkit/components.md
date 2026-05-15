@@ -269,7 +269,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/inspector-panel/index.html` - AX element inspector fed by `aos inspect`
 - `aos://toolkit/components/log-console/index.html` - scrolling log console fed by `aos log`
 - `aos://toolkit/components/integration-hub/index.html` - provider-neutral chat integration dashboard backed by the local integration broker snapshot API
-- `aos://toolkit/components/canvas-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
+- `aos://toolkit/components/surface-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
@@ -540,8 +540,8 @@ When enabled, the graph controls can also expose:
 ### Surface Inspector — Annotation Layer And Object Marks
 
 The user-facing inspector surface is now **Surface Inspector**. The stable
-component id, manifest name, route, and bundle namespace still use the legacy
-`canvas-inspector` / `canvas_inspector_bundle` aliases for compatibility.
+component id, manifest name, and route use `surface-inspector`. The see-bundle
+configuration namespace remains `see.canvas_inspector_bundle.*`.
 
 Surface Inspector exposes an explicit Annotation Mode for ephemeral human
 annotations over controlled AOS surfaces. Normal inspector use shows the tree

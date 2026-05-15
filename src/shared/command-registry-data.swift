@@ -335,7 +335,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execReadOnly(daemon: true),
             output: outJSONFlag,
             examples: [
-                "aos show wait --id surface-inspector --manifest canvas-inspector",
+                "aos show wait --id surface-inspector --manifest surface-inspector",
                 "aos show wait --id sigil-workbench --js '!!document.querySelector(\".surface-frame\")'"
             ]),
         InvocationForm(id: "show-exists", usage: "aos show exists --id <name>",

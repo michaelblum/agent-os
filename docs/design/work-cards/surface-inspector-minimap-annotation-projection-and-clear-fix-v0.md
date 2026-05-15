@@ -28,7 +28,7 @@ Operator verified the scoped hit-layer repair mostly works:
 - minimap fit held in short/tall sizes;
 - root hit regions were top-level only;
 - hover on HTML Workbench Expression was stable;
-- `canvas-inspector-annotation-hit-layer` and action-control child canvases were
+- `surface-inspector-annotation-hit-layer` and action-control child canvases were
   present;
 - pinning pushed scope into immediate children;
 - active-edge rendering was perimeter-only;
@@ -41,7 +41,7 @@ Remaining defects:
   geometry when desktop-world coordinates include horizontal dead space around a
   display. The outline projection appears to use a different coordinate basis
   than the minimap display/canvas projection.
-- Confirming cleanup removed the `canvas-inspector` canvas, so final
+- Confirming cleanup removed the `surface-inspector` canvas, so final
   pin/comment counts could not be read after clear.
 
 ## Required Behavior
@@ -92,7 +92,7 @@ Required behavior:
   edge state, hover state, action-control child canvases, and hit-layer child
   canvas;
 - turning Annotation Mode off with confirmation performs the same runtime
-  cleanup and leaves `canvas-inspector` open;
+  cleanup and leaves `surface-inspector` open;
 - after cleanup, `window.__canvasInspectorState` remains readable and reports
   zero pins/comments, no hit-layer canvas, and no action-control canvases;
 - the normal Surface Inspector close button remains the only UI path that
@@ -102,17 +102,17 @@ Avoid:
 
 - `emit('canvas.remove', { id: SELF_ID })` from annotation cleanup paths;
 - relying on the inspector disappearing as a way to clean up child canvases;
-- leaving orphaned `canvas-inspector-annotation-*` canvases after cleanup.
+- leaving orphaned `surface-inspector-annotation-*` canvases after cleanup.
 
 ## Suggested Implementation Areas
 
 Inspect before editing:
 
-- `packages/toolkit/components/canvas-inspector/index.js`
+- `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/runtime/spatial.js`
 - `packages/toolkit/workbench/annotation-projection.js`
 - `packages/toolkit/workbench/surface-inspector-annotations.js`
-- `tests/toolkit/canvas-inspector.test.mjs`
+- `tests/toolkit/surface-inspector.test.mjs`
 - `tests/toolkit/surface-inspector-annotations.test.mjs`
 
 Likely fixes:
@@ -123,7 +123,7 @@ Likely fixes:
 - update projection metadata or conversion code so annotation minimap geometry
   is not fed in the wrong coordinate space;
 - remove inspector self-removal from annotation clear confirmation;
-- add a regression test that clear confirmation keeps `canvas-inspector` alive
+- add a regression test that clear confirmation keeps `surface-inspector` alive
   and explicitly removes only annotation child canvases/state.
 
 ## Verification
@@ -131,7 +131,7 @@ Likely fixes:
 Run focused tests:
 
 ```bash
-node --test tests/toolkit/canvas-inspector.test.mjs
+node --test tests/toolkit/surface-inspector.test.mjs
 node --test tests/toolkit/surface-inspector-annotations.test.mjs
 node --test tests/toolkit/annotation-projection.test.mjs
 node --test tests/toolkit/html-workbench-expression.test.mjs
