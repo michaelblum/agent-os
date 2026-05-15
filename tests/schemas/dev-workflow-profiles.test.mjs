@@ -77,11 +77,18 @@ test('canonical profiles preserve the expected built-in examples', async () => {
   const manifest = JSON.parse(await fs.readFile(canonicalPath, 'utf8'));
   const profiles = new Map(manifest.profiles.map((profile) => [profile.id, profile]));
 
-  assert.equal(manifest.active_profile, 'hybrid_trunk');
-  assert.equal(profiles.size, 3);
+  assert.equal(manifest.active_profile, 'agentic_relay');
+  assert.equal(profiles.size, 4);
+  assert.ok(profiles.has('agentic_relay'));
   assert.ok(profiles.has('hybrid_trunk'));
   assert.ok(profiles.has('github_flow'));
   assert.ok(profiles.has('gitflow'));
+  assert.equal(profiles.get('agentic_relay')?.direct_main_default, false);
+  assert.equal(profiles.get('agentic_relay')?.pull_request_required, false);
+  assert.equal(profiles.get('agentic_relay')?.default_work_surface, 'short-lived topic branch from main');
+  assert.equal(profiles.get('agentic_relay')?.commit_strategy, 'scoped commits on a gdi/<slug> branch; push branch to origin at completion');
+  assert.equal(profiles.get('agentic_relay')?.branch_naming_convention, 'gdi/<work-card-slug>');
+  assert.equal(profiles.get('agentic_relay')?.gdi_push_authority, true);
   assert.equal(profiles.get('hybrid_trunk')?.direct_main_default, true);
   assert.equal(profiles.get('hybrid_trunk')?.pull_request_required, false);
   assert.equal(profiles.get('github_flow')?.pull_request_required, true);
