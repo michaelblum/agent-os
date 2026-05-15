@@ -20,6 +20,12 @@ import {
 import { mountChrome } from '../../panel/chrome.js'
 import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js'
 import { renderButtonHtml, renderSelectHtml, renderToggleHtml } from '../../controls/index.js'
+import {
+  renderWorkbenchPaneHeader,
+  renderWorkbenchReadout,
+  renderWorkbenchToolbar,
+  renderWorkbenchToolbarSection,
+} from '../../shell/index.js'
 import { renderMarkdown } from '../../markdown/render.js'
 import { resolveMarkdownSourceUrl } from './source-resolution.js'
 
@@ -349,10 +355,12 @@ function renderToolbar(state) {
   const surface = selectedSurfaceNode(state)
   const mapZoom = Number.isFinite(Number(state.mapView?.zoom)) ? Number(state.mapView.zoom) : 1
   const preview = markdownPreviewViewModel(state)
-  return `
-    <div class="aos-workbench-toolbar surface-zoom-toolbar">
-      <section class="aos-workbench-toolbar-section">
-        <span class="toolbar-readout"><strong>Surface</strong> ${esc(surface?.label || 'none')}</span>
+  return renderWorkbenchToolbar({
+    className: 'surface-zoom-toolbar',
+    content: `
+      ${renderWorkbenchToolbarSection({
+        content: `
+        ${renderWorkbenchReadout({ label: 'Surface', value: surface?.label || 'none' })}
         ${renderToggleHtml({ label: 'Overlay', checked: state.overlayVisible, dataset: { action: 'toggle-overlay' } })}
         ${renderSelectHtml({
           label: 'Labels',
@@ -371,21 +379,28 @@ function renderToolbar(state) {
           disabled: !preview.markdown_backed,
           dataset: { action: 'map-display-mode' },
         })}
-      </section>
-      <section class="aos-workbench-toolbar-section" aria-label="Subject map zoom controls">
+        `,
+      })}
+      ${renderWorkbenchToolbarSection({
+        attributes: { 'aria-label': 'Subject map zoom controls' },
+        content: `
         ${renderButtonHtml({ label: 'Fit', dataset: { action: 'zoom-fit' } })}
         ${renderButtonHtml({ label: 'Zoom Out', dataset: { action: 'zoom-out' } })}
         ${renderButtonHtml({ label: 'Zoom In', dataset: { action: 'zoom-in' } })}
         ${renderButtonHtml({ label: 'Reset View', dataset: { action: 'zoom-reset' } })}
-        <span class="toolbar-readout"><strong>Map</strong> ${esc(Math.round(mapZoom * 100))}%</span>
-      </section>
-      <section class="aos-workbench-toolbar-section" data-align="end">
+        ${renderWorkbenchReadout({ label: 'Map', value: `${Math.round(mapZoom * 100)}%` })}
+        `,
+      })}
+      ${renderWorkbenchToolbarSection({
+        dataset: { align: 'end' },
+        content: `
         ${renderButtonHtml({ label: 'Reset Selection', dataset: { action: 'reset-selection' } })}
         ${renderButtonHtml({ label: 'Clear Drafts', dataset: { action: 'clear-drafts' } })}
-        <span class="toolbar-readout">${esc(inspectStatusText(state))}</span>
-      </section>
-    </div>
-  `
+        ${renderWorkbenchReadout({ content: esc(inspectStatusText(state)) })}
+        `,
+      })}
+    `,
+  })
 }
 
 function applyMarkdownPreview(root, state) {
@@ -439,7 +454,7 @@ function render(root, content, state) {
   `
   const inspectorPanel = `
     <aside class="surface-panel inspector-panel" aria-label="Inspector">
-      <header class="pane-header"><h2>Inspector</h2><span>Selected target details</span></header>
+      ${renderWorkbenchPaneHeader({ title: 'Inspector', subtitle: 'Selected target details' })}
       <div class="panel-scroll">
         ${renderDetails(state)}
       </div>
@@ -447,10 +462,11 @@ function render(root, content, state) {
   `
   const secondaryPanel = `
     <section class="surface-panel secondary-panel" aria-label="Secondary drawer">
-      <header class="pane-header secondary-header">
-        <h2>${secondaryTitle}</h2>
-        <div class="secondary-tabs" role="tablist" aria-label="Secondary drawer views">${renderSecondaryTabs(state)}</div>
-      </header>
+      ${renderWorkbenchPaneHeader({
+        title: secondaryTitle,
+        className: 'secondary-header',
+        actions: `<div class="secondary-tabs" role="tablist" aria-label="Secondary drawer views">${renderSecondaryTabs(state)}</div>`,
+      })}
       ${renderSecondaryView(state)}
     </section>
   `

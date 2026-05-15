@@ -2,6 +2,11 @@ import { esc } from '../../runtime/bridge.js';
 import { createTextarea } from '../../controls/textarea.js';
 import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js';
 import {
+  renderWorkbenchSectionTitle,
+  renderWorkbenchSummaryRows,
+  renderWorkbenchToolbar,
+} from '../../shell/index.js';
+import {
   applyWorkRecordPatchResult,
   buildWorkRecordPatchRequest,
   createWorkRecordWorkbenchState,
@@ -135,12 +140,17 @@ function renderVerifierReport(record = {}) {
   const diagnosticCount = arrayValue(check.diagnostics).length;
   return (
     '<div class="work-record-verifier-report">'
-      + `<div class="work-record-summary-row"><span>Report</span><strong>${esc(text(report.id))}</strong></div>`
-      + `<div class="work-record-summary-row"><span>Checker</span><strong>${esc(text(check.status, 'unknown'))}</strong></div>`
-      + `<div class="work-record-summary-row"><span>Diagnostics</span><strong>${esc(String(diagnosticCount))}</strong></div>`
-      + `<div class="work-record-summary-row"><span>Verified</span><strong>${esc(arrayValue(indexes.verified).join(', ') || 'none')}</strong></div>`
-      + `<div class="work-record-summary-row"><span>Failed</span><strong>${esc(arrayValue(indexes.failed).join(', ') || 'none')}</strong></div>`
-      + `<div class="work-record-summary-row"><span>Unverified</span><strong>${esc(arrayValue(indexes.unverified).join(', ') || 'none')}</strong></div>`
+      + renderWorkbenchSummaryRows({
+        rowClassName: 'work-record-summary-row',
+        rows: [
+          ['Report', text(report.id)],
+          ['Checker', text(check.status, 'unknown')],
+          ['Diagnostics', String(diagnosticCount)],
+          ['Verified', arrayValue(indexes.verified).join(', ') || 'none'],
+          ['Failed', arrayValue(indexes.failed).join(', ') || 'none'],
+          ['Unverified', arrayValue(indexes.unverified).join(', ') || 'none'],
+        ],
+      })
     + '</div>'
   );
 }
@@ -159,9 +169,7 @@ function renderSummary(record = {}) {
     ['Postconditions', String(diagnostics.postcondition_count)],
     ['Execution keys', diagnostics.execution_map_keys.join(', ') || 'none'],
   ];
-  return rows.map(([label, value]) => (
-    `<div class="work-record-summary-row"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`
-  )).join('');
+  return renderWorkbenchSummaryRows({ rowClassName: 'work-record-summary-row', rows });
 }
 
 export default function WorkRecordWorkbench(options = {}) {
@@ -274,7 +282,10 @@ export default function WorkRecordWorkbench(options = {}) {
   function render() {
     const root = el('div', 'work-record-root');
     root.innerHTML = `
-      <header class="work-record-toolbar">
+      ${renderWorkbenchToolbar({
+        tag: 'header',
+        className: 'work-record-toolbar',
+        content: `
         <div class="work-record-file">
           <strong data-role="record-id"></strong>
           <span data-role="record-type"></span>
@@ -285,7 +296,8 @@ export default function WorkRecordWorkbench(options = {}) {
           <button type="button" data-action="revert">Revert</button>
           <button type="button" data-action="save">Save</button>
         </div>
-      </header>
+        `,
+      })}
       <main class="work-record-main">
         <div class="work-record-editor-stack">
           <section class="work-record-intent" aria-label="Work record intent">
@@ -302,40 +314,40 @@ export default function WorkRecordWorkbench(options = {}) {
             </div>
           </section>
           <section class="work-record-json" aria-label="Execution map JSON">
-            <div class="work-record-section-title">Execution Map JSON</div>
+            ${renderWorkbenchSectionTitle({ title: 'Execution Map JSON', baseClassName: 'work-record-section-title' })}
           </section>
         </div>
         <aside class="work-record-inspector" aria-label="Work record health and evidence">
           <section>
-            <strong>Summary</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Summary', baseClassName: '' })}
             <div data-role="summary"></div>
           </section>
           <section>
-            <strong>Health</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Health', baseClassName: '' })}
             <div data-role="health"></div>
           </section>
           <section>
-            <strong>Postconditions</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Postconditions', baseClassName: '' })}
             <div data-role="postconditions"></div>
           </section>
           <section>
-            <strong>Evidence</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Evidence', baseClassName: '' })}
             <div data-role="evidence"></div>
           </section>
           <section>
-            <strong>Claims</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Claims', baseClassName: '' })}
             <div data-role="claims"></div>
           </section>
           <section>
-            <strong>Claim Results</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Claim Results', baseClassName: '' })}
             <div data-role="claim-results"></div>
           </section>
           <section>
-            <strong>Verifier Report</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Verifier Report', baseClassName: '' })}
             <div data-role="verifier-report"></div>
           </section>
           <section>
-            <strong>Status</strong>
+            ${renderWorkbenchSectionTitle({ tag: 'strong', title: 'Status', baseClassName: '' })}
             <p data-role="status"></p>
           </section>
         </aside>
