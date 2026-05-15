@@ -51,8 +51,14 @@ test('markdown workbench embeds wiki graph as the primary pane', async () => {
   assert.doesNotMatch(wikiJs, /wiki-kb-graph-stats/);
   assert.doesNotMatch(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-graph-view:has/);
   assert.match(wikiCss, /\.wiki-kb-floating-status\s*\{[\s\S]*top:\s*10px/);
-  assert.match(css, /\.markdown-workbench-main\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(0,\s*0fr\)/);
-  assert.match(css, /\.markdown-workbench-root\[data-split-open="true"\]\s+\.markdown-workbench-main/);
+  assert.match(js, /import \{ createSplitPane \} from '\.\.\/\.\.\/panel\/layouts\/split-pane\.js'/);
+  assert.match(js, /splitPane = createSplitPane\(\{/);
+  assert.match(js, /startPane:\s*root\.querySelector\('\.markdown-workbench-graph-pane'\)/);
+  assert.match(js, /endPane:\s*dom\.documentPane/);
+  assert.match(js, /splitPane\?\.openPane\('end'/);
+  assert.match(js, /splitPane\?\.closePane\('end'/);
+  assert.match(css, /\.markdown-workbench-main\s*\{[\s\S]*display:\s*flex/);
+  assert.doesNotMatch(css, /\.markdown-workbench-main\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*minmax\(0,\s*0fr\)/);
 });
 
 test('wiki graph controls reflow the graph stage through fixed sidebar primitive', async () => {

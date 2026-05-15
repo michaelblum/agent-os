@@ -86,15 +86,35 @@ select {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-  grid-template-rows: minmax(0, 1fr) minmax(150px, 0.42fr);
-  grid-template-areas:
-    "map inspector"
-    "secondary inspector";
-  gap: 1px;
+  display: flex;
   overflow: hidden;
   background: rgba(122, 241, 255, 0.14);
+}
+
+.surface-zoom-workbench > .aos-split-pane-divider,
+.surface-zoom-left-stack > .aos-split-pane-divider,
+.surface-zoom-lower-stack > .aos-split-pane-divider {
+  border: 0;
+  background: rgba(122, 241, 255, 0.14);
+}
+
+.surface-zoom-workbench > .aos-split-pane-divider::after,
+.surface-zoom-left-stack > .aos-split-pane-divider::after,
+.surface-zoom-lower-stack > .aos-split-pane-divider::after {
+  display: none;
+}
+
+.surface-zoom-workbench > .aos-fixed-sidebar-pane {
+  border-left: 0;
+}
+
+.surface-zoom-left-stack,
+.surface-zoom-lower-stack {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .surface-panel {
@@ -105,20 +125,17 @@ select {
 }
 
 .map-panel {
-  grid-area: map;
   display: flex;
   flex-direction: column;
   padding: 14px;
 }
 
 .inspector-panel {
-  grid-area: inspector;
   display: flex;
   flex-direction: column;
 }
 
 .secondary-panel {
-  grid-area: secondary;
   display: flex;
   flex-direction: column;
 }
@@ -727,15 +744,6 @@ pre {
 @media (max-width: 900px) {
   body {
     overflow: hidden;
-  }
-
-  .surface-zoom-workbench {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(300px, 0.9fr) minmax(240px, 0.7fr) minmax(240px, 0.7fr);
-    grid-template-areas:
-      "map"
-      "inspector"
-      "secondary";
   }
 
   .surface-zoom-toolbar [data-align="end"] {

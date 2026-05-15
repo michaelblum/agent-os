@@ -94,8 +94,25 @@
 .playbook-workbench-main {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(330px, 0.9fr) minmax(300px, 0.74fr) minmax(360px, 1fr);
+  display: flex;
+}
+
+.playbook-workbench-run-stack {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.playbook-workbench-main > .aos-split-pane-divider,
+.playbook-workbench-run-stack > .aos-split-pane-divider {
+  border: 0;
+  background: transparent;
+}
+
+.playbook-workbench-main > .aos-split-pane-divider::after,
+.playbook-workbench-run-stack > .aos-split-pane-divider::after {
+  display: none;
 }
 
 .playbook-workbench-pane {
@@ -221,11 +238,6 @@
   .playbook-workbench-gate-field {
     min-width: min(100%, 240px);
     flex: 1 1 200px;
-  }
-
-  .playbook-workbench-main {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(360px, 1fr) minmax(320px, 0.9fr) minmax(360px, 1fr);
   }
 
   .playbook-workbench-pane {

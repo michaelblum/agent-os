@@ -1,5 +1,6 @@
 import { renderMarkdown } from '../../markdown/render.js';
 import { createTextarea } from '../../controls/textarea.js';
+import { createSplitPane } from '../../panel/layouts/split-pane.js';
 import { buildAnnotationProjectionResult } from '../../workbench/annotation-projection.js';
 import {
   createMarkdownOpenRequestFromWikiSelection,
@@ -41,6 +42,7 @@ export default function MarkdownWorkbench(options = {}) {
   let graphWorkbench = null;
   let graphLoadTimer = null;
   let graphFitTimers = [];
+  let splitPane = null;
   let annotationLayerVisible = true;
   const expandedAnnotationIds = new Set();
   const state = createMarkdownWorkbenchState(options.document || {});
@@ -361,6 +363,8 @@ export default function MarkdownWorkbench(options = {}) {
 
   function syncSplit() {
     dom.root.dataset.splitOpen = String(splitOpen);
+    if (splitOpen) splitPane?.openPane('end', { notify: false, persist: false });
+    else splitPane?.closePane('end', { notify: false, persist: false });
     dom.documentPane.setAttribute('aria-hidden', String(!splitOpen));
     dom.closeContentButton.hidden = !splitOpen;
   }
@@ -734,6 +738,21 @@ export default function MarkdownWorkbench(options = {}) {
     dom.annotationPanel = root.querySelector('[data-role="annotation-panel"]');
     dom.annotationList = root.querySelector('[data-role="annotation-list"]');
     dom.annotationOverlay = root.querySelector('[data-role="annotation-overlay"]');
+
+    const narrowLayout = typeof window !== 'undefined'
+      && window.matchMedia?.('(max-width: 940px)')?.matches;
+    splitPane = createSplitPane({
+      root: root.querySelector('.markdown-workbench-main'),
+      startPane: root.querySelector('.markdown-workbench-graph-pane'),
+      endPane: dom.documentPane,
+      orientation: narrowLayout ? 'vertical' : 'horizontal',
+      initialRatio: 0.5,
+      minStart: narrowLayout ? 300 : 0,
+      minEnd: narrowLayout ? 320 : 420,
+      dividerSize: 0,
+      closedEndSize: 0,
+      ariaLabel: 'Resize wiki graph and document panes',
+    });
 
     graphWorkbench = WikiKB({ chrome: 'embedded', views: ['graph'] });
     graphHost = {
