@@ -6,7 +6,7 @@
   "axes": {
     "dock": "Durable agent role, authority boundary, handoff contract, stop conditions, and lifecycle hooks.",
     "entry_path": "Active capability layer for the current task, such as Agent harness, AOS developer, testing, visual diagnostics, or user-input diagnostics.",
-    "workflow_profile": "Development branch, commit, review, PR, and release posture."
+    "workflow_profile": "Development integration policy: branch, commit, review, PR, merge authority, and release posture."
   },
   "profiles": [
     {
@@ -14,17 +14,17 @@
       "name": "Agentic Relay",
       "shorthand": "agentic_relay",
       "intended_for": [
-        "single developer with a remote agentic relay partner",
-        "local GDI implementation agent coordinating with a remote review authority",
-        "workflows where the human and a remote agent share merge authority"
+        "single developer with an occasional remote Foreman-compatible relay",
+        "local GDI implementation agent coordinating with a GitHub-only review authority",
+        "workflows where a pushed branch is the durable handoff artifact between local and remote sessions"
       ],
       "default_work_surface": "short-lived topic branch from main",
-      "main_role": "stable integration target; nothing lands without relay review",
+      "main_role": "stable integration target; GDI never lands implementation work without a designated relay authority",
       "direct_main_default": false,
       "pull_request_required": false,
-      "review_default": "remote relay partner reads the branch and merges or flags; no local Foreman required",
+      "review_default": "designated relay authority reads the remote branch and merges or flags; the authority can be a remote relay, human, or local Foreman acting as relay",
       "commit_strategy": "scoped commits on a gdi/<slug> branch; push branch to origin at completion",
-      "branch_strategy": "one branch per work card; named gdi/<work-card-slug>; deleted after merge",
+      "branch_strategy": "one branch per work card; named gdi/<work-card-slug>; branch is the remote-visible relay artifact and is deleted after merge",
       "branch_required_for": [
         "every GDI implementation slice"
       ],
@@ -33,15 +33,16 @@
       ],
       "release_branching": false,
       "environment_branches": [],
-      "relay_merge_authority": "remote relay partner (e.g. Perplexity session or any session with GitHub API access)",
+      "relay_merge_authority": "designated Foreman-compatible relay authority with GitHub repository access; often remote and without local checkout",
       "branch_naming_convention": "gdi/<work-card-slug>",
       "gdi_push_authority": true,
       "agent_guidance": [
         "GDI creates a branch named gdi/<work-card-slug> from main before starting any implementation work.",
         "GDI commits verified work to that branch and pushes it to origin at completion.",
-        "GDI reports the branch name and HEAD SHA in the completion report. GDI does not merge to main.",
-        "The relay partner (remote agent or human) reads the branch, evaluates the work, and merges to main or requests changes.",
-        "There is no local Foreman dock in this profile. The relay partner fills the git stewardship role from remote.",
+        "GDI reports the branch name, HEAD SHA, verification, and local-only state in the completion report. GDI does not merge to main.",
+        "The relay authority reads the remote branch, evaluates the work, and merges to main or requests changes.",
+        "When the relay authority is remote, it performs the Foreman review/merge function through GitHub-visible evidence and may request local probes for facts it cannot observe.",
+        "A local Foreman session may act as the relay authority when the remote relay is absent, interrupted, or explicitly handed off.",
         "Work card Git sections should instruct GDI to push the branch and report branch name + SHA, not to push main."
       ]
     },

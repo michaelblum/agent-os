@@ -6,8 +6,11 @@ layers, package loops, schema tests, and local-contract delegation, but do not
 encode app-specific playbooks here.
 
 `workflow-profiles.json` is the source of truth for built-in example development
-workflow profiles: branch, commit, review, PR, and release postures for repo
-work without treating that posture as an immutable AOS primitive.
+workflow profiles: branch, commit, review, PR, merge-authority, and release
+postures for repo work without treating that posture as an immutable AOS
+primitive. `agentic_relay` is the GitHub-branch relay procedure for local GDI
+implementation reviewed by a designated Foreman-compatible relay authority; it
+does not create a separate product role.
 `active-profile.json` is the single repo-local selector for the active profile.
 
 `agent-capabilities.json` is the source of truth for typed developer

@@ -40,6 +40,12 @@ Read that block. It tells you:
 Do not hardcode profile names or git posture rules in your reasoning. The
 injected context is the source of truth for the current session.
 
+Under `agentic_relay`, the pushed branch is the remote-visible relay artifact.
+The relay authority may be a remote GitHub-only Foreman adapter, a human, or a
+local Foreman session acting as relay. GDI must therefore make the branch and
+completion report sufficient for review, and must explicitly report any
+local-only state the relay cannot see.
+
 ## Git Boundary
 
 The active workflow profile governs what git operations GDI may perform. Read
@@ -99,6 +105,7 @@ For all profiles, the git boundary is:
    - tests_passed: <n>/<n>
    - conflict_risk: <none|low|medium — list files if low or medium>
    - open_prs_on_same_files: <none|list PR numbers>
+   - local_only_state: <none|dirty files/untracked/generated artifacts/runtime blockers, and whether related>
    - relay_action_required: <merge|review|block>
    ```
 
@@ -106,8 +113,9 @@ For all profiles, the git boundary is:
 
 ### Profile-specific push authority
 
-- `agentic_relay` — GDI has push authority to `gdi/*` branches. Push at
-  completion. Do not merge to main.
+- `agentic_relay` — GDI has push authority to `gdi/*` branches so remote or
+  local relay authority can review GitHub-visible work. Push at completion.
+  Do not merge to main.
 - `hybrid_trunk` — GDI does not commit or push unless the work card explicitly
   includes a Git section with those instructions. Foreman is the default git
   steward.

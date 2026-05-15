@@ -15,7 +15,7 @@ cd "$REPO_ROOT"
 echo ""
 echo "## Relay Context (agentic_relay)"
 echo "profile=agentic_relay"
-echo "relay_merge_authority=remote relay partner (GitHub API access)"
+echo "relay_merge_authority=designated Foreman-compatible relay authority; often remote with GitHub access and no local checkout"
 
 if git rev-parse --verify origin/main >/dev/null 2>&1; then
   BASE_REF="origin/main"
@@ -36,10 +36,11 @@ branch_ref() {
 MAIN_SHA="$(git rev-parse "$BASE_REF" 2>/dev/null || echo 'unknown')"
 echo "origin/main=$MAIN_SHA"
 
-# Open gdi/* branches (local + remote)
+# Open remote gdi/* branches. These are the relay-visible artifacts; local-only
+# gdi branches are not treated as waiting relay work.
 echo ""
-echo "### Open gdi/* branches"
-GDI_BRANCHES="$(git for-each-ref --format='%(refname:short)' refs/heads/gdi refs/remotes/origin/gdi 2>/dev/null | sed 's|^origin/||' | sort -u || true)"
+echo "### Remote gdi/* branches"
+GDI_BRANCHES="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/gdi 2>/dev/null | sed 's|^origin/||' | sort -u || true)"
 if [[ -z "$GDI_BRANCHES" ]]; then
   echo "none"
 else
@@ -59,7 +60,22 @@ else
   done <<< "$GDI_BRANCHES"
 fi
 
-# Conflict risk: files on current branch (if gdi/*) that overlap with other open gdi/* branches
+LOCAL_GDI_BRANCHES="$(git for-each-ref --format='%(refname:short)' refs/heads/gdi 2>/dev/null | sort -u || true)"
+if [[ -n "$LOCAL_GDI_BRANCHES" ]]; then
+  echo ""
+  echo "### Local-only gdi/* branches"
+  while IFS= read -r branch; do
+    [[ -z "$branch" ]] && continue
+    if git rev-parse --verify "origin/$branch" >/dev/null 2>&1; then
+      continue
+    fi
+    BRANCH_SHA="$(git rev-parse "$branch" 2>/dev/null || echo 'unknown')"
+    echo "  branch=$branch sha=$BRANCH_SHA relay_visible=false"
+  done <<< "$LOCAL_GDI_BRANCHES"
+fi
+
+# Conflict risk: files on current branch (if gdi/*) that overlap with other
+# remote relay-visible gdi/* branches.
 CURRENT_BRANCH="$(git branch --show-current 2>/dev/null || echo '')"
 if [[ "$CURRENT_BRANCH" == gdi/* ]]; then
   echo ""
@@ -91,4 +107,5 @@ echo ""
 echo "### Sequencing rule"
 echo "If this work card touches files overlapping an open gdi/* branch, branch"
 echo "from that branch instead of main and note the dependency in your report."
-echo "Do not merge to main. Push branch and report to relay partner."
+echo "Do not merge to main. Push branch and report to relay authority."
+echo "Report local-only state so remote review knows what GitHub cannot show."

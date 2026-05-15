@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/dev-workflow-profiles.schema.json",
   "title": "AOS Dev Workflow Profiles",
-  "description": "Manifest contract for repo-selectable development workflow profiles.",
+  "description": "Manifest contract for repo-selectable development integration profiles.",
   "type": "object",
   "required": [
     "schema_version",

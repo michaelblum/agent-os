@@ -2,8 +2,8 @@
 # Relay profile hook: agentic_relay / session-start
 #
 # NOTE: This hook runs only in local relay sessions that have repo access.
-# Remote browser-based relay sessions (e.g. Perplexity) must perform the
-# equivalent steps manually using GitHub API tools.
+# Remote GitHub-only relay sessions must perform the equivalent steps manually
+# using their available GitHub API tools.
 #
 # Emits a relay orientation block: open gdi/* branches, open PRs and their
 # mergeable_state, and any branches awaiting merge.
@@ -15,7 +15,7 @@ cd "$REPO_ROOT"
 echo ""
 echo "## Relay Orientation (agentic_relay)"
 echo "profile=agentic_relay"
-echo "role=relay partner — merge authority, work card authorship, workstream continuity"
+echo "role=remote Foreman adapter — GitHub-visible review, merge authority, work card authorship, workstream continuity"
 
 if git rev-parse --verify origin/main >/dev/null 2>&1; then
   BASE_REF="origin/main"

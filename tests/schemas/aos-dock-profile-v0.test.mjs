@@ -14,6 +14,7 @@ const canonicalDockPaths = [
   path.join(repoRoot, '.docks/foreman/dock.json'),
   path.join(repoRoot, '.docks/gdi/dock.json'),
   path.join(repoRoot, '.docks/operator/dock.json'),
+  path.join(repoRoot, '.docks/relay/dock.json'),
 ];
 
 async function jsonFiles(dir) {
@@ -141,6 +142,12 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.equal(profiles.get('operator').default_entry_path, 'agent_harness');
   assert.ok(!profiles.get('operator').allowed_capability_classes.includes('external_write'));
   assert.ok(!profiles.get('operator').allowed_capability_classes.includes('host_write'));
+
+  assert.equal(profiles.get('relay').role, 'foreman');
+  assert.equal(profiles.get('relay').harness, 'remote-github');
+  assert.equal(profiles.get('relay').default_entry_path, 'agent_harness');
+  assert.ok(!profiles.get('relay').allowed_capability_classes.includes('repo_write'));
+  assert.ok(!profiles.get('relay').allowed_capability_classes.includes('host_write'));
 
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.test.schema_node'));
   assert.ok(profiles.get('gdi').allowed_capabilities.includes('dev.test.schema_node'));

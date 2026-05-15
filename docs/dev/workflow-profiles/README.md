@@ -23,21 +23,27 @@ publish externally, or perform a destructive operation.
 
 ### Agentic Relay (`agentic_relay`)
 
-Use this when a local GDI implementation agent works in tandem with a remote
-relay partner (a human, another agent session, or any session with GitHub API
-access) that owns merge authority.
+Use this when a local GDI implementation agent works in tandem with a designated
+relay authority that owns review and merge. The relay authority performs the
+Foreman merge/review function, but it may be running remotely with GitHub access
+and no local checkout, local hooks, `./aos`, or local dirty-state visibility.
 
 - GDI creates a `gdi/<work-card-slug>` branch from `main` before starting work.
 - GDI commits verified work to that branch and pushes it to origin at
   completion.
-- GDI reports the branch name and HEAD SHA in its completion report. GDI does
-  not merge to main.
-- The relay partner reads the branch remotely, evaluates the work, and merges
-  to main or requests changes — no local checkout required.
-- There is no local Foreman dock in this profile. The relay partner fills the
-  git stewardship role from remote.
+- GDI reports the branch name, HEAD SHA, verification, and local-only state in
+  its completion report. GDI does not merge to main.
+- The pushed branch is the remote-visible relay artifact. The relay authority
+  reads it through GitHub, evaluates the work, and merges to main or requests
+  changes.
+- A remote relay is not a fourth product role. It is a GitHub-only adapter for
+  Foreman responsibilities. A local Foreman session may also act as the relay
+  authority when the remote relay is absent, interrupted, or explicitly handed
+  off.
+- If the relay authority needs local-only facts, it requests a local probe
+  instead of pretending it can see local state.
 - Rollback, fix-forward, and revert are clean because main is never touched
-  until the relay partner explicitly merges.
+  until the relay authority explicitly merges.
 
 ### Hybrid Trunk (`hybrid_trunk`)
 
@@ -75,10 +81,10 @@ Use this for projects with multiple environments or formal release cycles.
 Prefer `agentic_relay` when:
 
 - a local GDI agent does bounded implementation work and a remote partner
-  (human or agent) owns the merge gate;
+  (human or agent) owns the merge gate through GitHub-visible branch state;
 - you want rollback/fix-forward safety without mandatory pull requests;
 - the remote partner can evaluate and merge via GitHub API without a local
-  checkout.
+  checkout, and can request local probes when local-only evidence matters.
 
 Prefer `hybrid_trunk` when:
 

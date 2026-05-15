@@ -159,6 +159,9 @@ Require the information Foreman needs next:
 - behavior changed;
 - tests run with exact result;
 - live smoke result or readiness blocker;
+- local-only state that remote reviewers cannot see, such as dirty files,
+  untracked/generated artifacts, local config, permissions, daemon state, or
+  runtime blockers;
 - draft evidence retained/amended/superseded/reverted;
 - remaining blockers or follow-up slices.
 
@@ -170,6 +173,11 @@ known unrelated dirty state, artifact paths for large proof payloads when
 applicable, and the remaining follow-up recommendation when the source card has
 one. Do not require this shape for tiny one-line fixes where it would add more
 noise than review value.
+
+For `agentic_relay` work, the pushed branch is the remote-visible code artifact.
+The completion report must also say whether any local-only state exists and
+whether it is related. Remote relay can request a bounded `LOCAL_PROBE_REQUEST`
+when GitHub-visible evidence is insufficient.
 
 ### Post-GDI Review Option
 

@@ -30,6 +30,12 @@ handoff explicitly assigns GitHub, CI, or comment work, use the shared
 docked-session GitHub control surface, `./aos dev gh`, and report the exact
 operation and result as part of the evidence.
 
+Remote relay or Foreman sessions may ask Operator for a bounded local probe
+when they need live, visual, or human-in-the-loop facts they cannot see through
+GitHub. Treat those as supervised handoffs: execute only the named probe,
+preserve stop conditions, and report concise `LOCAL_PROBE_RESULT` evidence
+instead of broadening into implementation or coordination work.
+
 ## Scope
 
 - Stay inside the reviewed plan, review pack, or capture plan assigned in the
