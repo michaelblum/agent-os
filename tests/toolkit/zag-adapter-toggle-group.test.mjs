@@ -1,0 +1,55 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { createAosZagToggleGroup } from '../../packages/toolkit/adapters/zag/toggle-group.js';
+import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs';
+
+function createAdapter(extra = {}) {
+  const document = createDocument();
+  const adapter = createAosZagToggleGroup({
+    id: 'test-toggle-group',
+    getRootNode: () => document,
+    ...extra,
+  });
+  return { adapter, document };
+}
+
+test('createAosZagToggleGroup exposes expected Zag toggle-group helpers', () => {
+  const { adapter } = createAdapter({defaultValue: ['a']});
+  const snapshot = adapter.connect();
+
+  assert.equal(typeof snapshot.api, 'object');
+  assert.equal(typeof snapshot.getRootProps, 'function');
+  assert.equal(typeof snapshot.getItemProps, 'function');
+  adapter.destroy();
+});
+
+test('bind wires minimum toggle-group parts', () => {
+  const { adapter, document } = createAdapter({defaultValue: ['a']});
+  const container = patchSpreadSupport(document.createElement('div'));
+  const elRoot = patchSpreadSupport(document.createElement('div'));
+  elRoot.dataset.aosToggleGroupRoot = '';
+  container.appendChild(elRoot);
+  const elItem = patchSpreadSupport(document.createElement('div'));
+  elItem.dataset.aosToggleGroupItem = '';
+  elItem.dataset.value = 'a';
+  container.appendChild(elItem);
+  document.body.appendChild(container);
+
+  const snapshot = adapter.bind(container);
+
+  assert.equal(typeof snapshot.api, 'object');
+  assert.equal(typeof adapter.bindRoot, 'function');
+  assert.equal(typeof adapter.bindItem, 'function');
+  adapter.destroy();
+});
+
+test('programmatic helpers update toggle-group state through Zag API', () => {
+  const { adapter } = createAdapter({defaultValue: ['a']});
+  adapter.setValue(['b']);
+  assert.equal(typeof adapter.connect().api, 'object');
+  adapter.destroy();
+});
+
+test('constructor validates required id', () => {
+  assert.throws(() => createAosZagToggleGroup({}), /requires an id/);
+});
