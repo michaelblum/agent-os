@@ -19,6 +19,7 @@ import {
 } from './model.js'
 import { mountChrome } from '../../panel/chrome.js'
 import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js'
+import { renderButtonHtml, renderSelectHtml, renderToggleHtml } from '../../controls/index.js'
 import { renderMarkdown } from '../../markdown/render.js'
 import { resolveMarkdownSourceUrl } from './source-resolution.js'
 
@@ -235,7 +236,7 @@ function renderDetails(state) {
         <strong>${esc(details.label)}</strong>
         <span>${esc(details.kind)}</span>
       </div>
-      <button class="aos-button primary" data-action="draft-node">Draft Annotation</button>
+      ${renderButtonHtml({ label: 'Draft Annotation', variant: 'primary', dataset: { action: 'draft-node' } })}
     </div>
     <dl class="detail-grid">
       <dt>Kind / role</dt><dd>${esc(details.kind)} / ${esc(details.role)}</dd>
@@ -352,33 +353,35 @@ function renderToolbar(state) {
     <div class="aos-workbench-toolbar surface-zoom-toolbar">
       <section class="aos-workbench-toolbar-section">
         <span class="toolbar-readout"><strong>Surface</strong> ${esc(surface?.label || 'none')}</span>
-        <label class="aos-toggle">
-          <input type="checkbox" data-action="toggle-overlay" ${state.overlayVisible ? 'checked' : ''}>
-          Overlay
-        </label>
-        <label class="aos-control-row">
-          <span class="aos-control-label">Labels</span>
-          <select class="aos-select" data-action="label-density">
-            ${LABEL_DENSITY_OPTIONS.map(([value, label]) => `<option value="${value}" ${state.labelDensity === value ? 'selected' : ''}>${label}</option>`).join('')}
-          </select>
-        </label>
-        <label class="aos-control-row">
-          <span class="aos-control-label">Map</span>
-          <select class="aos-select" data-action="map-display-mode" ${preview.markdown_backed ? '' : 'disabled'}>
-            ${DISPLAY_MODE_OPTIONS.map(([value, label]) => `<option value="${value}" ${state.mapDisplayMode === value ? 'selected' : ''}>${label}</option>`).join('')}
-          </select>
-        </label>
+        ${renderToggleHtml({ label: 'Overlay', checked: state.overlayVisible, dataset: { action: 'toggle-overlay' } })}
+        ${renderSelectHtml({
+          label: 'Labels',
+          value: state.labelDensity,
+          options: LABEL_DENSITY_OPTIONS.map(([value, label]) => ({ value, label })),
+          wrapperTag: 'label',
+          wrapperClassName: 'aos-control-row',
+          dataset: { action: 'label-density' },
+        })}
+        ${renderSelectHtml({
+          label: 'Map',
+          value: state.mapDisplayMode,
+          options: DISPLAY_MODE_OPTIONS.map(([value, label]) => ({ value, label })),
+          wrapperTag: 'label',
+          wrapperClassName: 'aos-control-row',
+          disabled: !preview.markdown_backed,
+          dataset: { action: 'map-display-mode' },
+        })}
       </section>
       <section class="aos-workbench-toolbar-section" aria-label="Subject map zoom controls">
-        <button class="aos-button" data-action="zoom-fit">Fit</button>
-        <button class="aos-button" data-action="zoom-out">Zoom Out</button>
-        <button class="aos-button" data-action="zoom-in">Zoom In</button>
-        <button class="aos-button" data-action="zoom-reset">Reset View</button>
+        ${renderButtonHtml({ label: 'Fit', dataset: { action: 'zoom-fit' } })}
+        ${renderButtonHtml({ label: 'Zoom Out', dataset: { action: 'zoom-out' } })}
+        ${renderButtonHtml({ label: 'Zoom In', dataset: { action: 'zoom-in' } })}
+        ${renderButtonHtml({ label: 'Reset View', dataset: { action: 'zoom-reset' } })}
         <span class="toolbar-readout"><strong>Map</strong> ${esc(Math.round(mapZoom * 100))}%</span>
       </section>
       <section class="aos-workbench-toolbar-section" data-align="end">
-        <button class="aos-button" data-action="reset-selection">Reset Selection</button>
-        <button class="aos-button" data-action="clear-drafts">Clear Drafts</button>
+        ${renderButtonHtml({ label: 'Reset Selection', dataset: { action: 'reset-selection' } })}
+        ${renderButtonHtml({ label: 'Clear Drafts', dataset: { action: 'clear-drafts' } })}
         <span class="toolbar-readout">${esc(inspectStatusText(state))}</span>
       </section>
     </div>
