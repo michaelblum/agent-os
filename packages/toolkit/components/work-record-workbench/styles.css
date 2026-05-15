@@ -91,8 +91,25 @@
 .work-record-main {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(320px, 0.95fr) minmax(360px, 1.1fr) minmax(240px, 0.55fr);
+  display: flex;
+}
+
+.work-record-editor-stack {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.work-record-main > .aos-split-pane-divider,
+.work-record-editor-stack > .aos-split-pane-divider {
+  border: 0;
+  background: transparent;
+}
+
+.work-record-main > .aos-split-pane-divider::after,
+.work-record-editor-stack > .aos-split-pane-divider::after {
+  display: none;
 }
 
 .work-record-intent,
@@ -292,11 +309,6 @@
 }
 
 @media (max-width: 980px) {
-  .work-record-main {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(320px, 1fr) minmax(320px, 1fr) minmax(220px, 0.65fr);
-  }
-
   .work-record-intent,
   .work-record-json {
     border-right: 0;

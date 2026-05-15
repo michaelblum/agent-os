@@ -18,6 +18,7 @@ import {
   targetNavigatorViewModel,
 } from './model.js'
 import { mountChrome } from '../../panel/chrome.js'
+import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js'
 import { renderMarkdown } from '../../markdown/render.js'
 import { resolveMarkdownSourceUrl } from './source-resolution.js'
 
@@ -425,27 +426,92 @@ function applyMarkdownPreview(root, state) {
 }
 
 function render(root, content, state) {
+  const narrowLayout = typeof window !== 'undefined'
+    && window.matchMedia?.('(max-width: 900px)')?.matches
+  const secondaryTitle = esc((state.activeSecondaryView || 'targets').replace(/^\w/, (value) => value.toUpperCase()))
+  const mapPanel = `
+    <section class="surface-panel map-panel" aria-label="Synthetic Subject Map work area">
+      ${renderMiniMap(state)}
+    </section>
+  `
+  const inspectorPanel = `
+    <aside class="surface-panel inspector-panel" aria-label="Inspector">
+      <header class="pane-header"><h2>Inspector</h2><span>Selected target details</span></header>
+      <div class="panel-scroll">
+        ${renderDetails(state)}
+      </div>
+    </aside>
+  `
+  const secondaryPanel = `
+    <section class="surface-panel secondary-panel" aria-label="Secondary drawer">
+      <header class="pane-header secondary-header">
+        <h2>${secondaryTitle}</h2>
+        <div class="secondary-tabs" role="tablist" aria-label="Secondary drawer views">${renderSecondaryTabs(state)}</div>
+      </header>
+      ${renderSecondaryView(state)}
+    </section>
+  `
   content.innerHTML = `
     ${renderToolbar(state)}
     <div class="surface-zoom-workbench">
-      <section class="surface-panel map-panel" aria-label="Synthetic Subject Map work area">
-        ${renderMiniMap(state)}
-      </section>
-      <aside class="surface-panel inspector-panel" aria-label="Inspector">
-        <header class="pane-header"><h2>Inspector</h2><span>Selected target details</span></header>
-        <div class="panel-scroll">
-          ${renderDetails(state)}
-        </div>
-      </aside>
-      <section class="surface-panel secondary-panel" aria-label="Secondary drawer">
-        <header class="pane-header secondary-header">
-          <h2>${esc((state.activeSecondaryView || 'targets').replace(/^\w/, (value) => value.toUpperCase()))}</h2>
-          <div class="secondary-tabs" role="tablist" aria-label="Secondary drawer views">${renderSecondaryTabs(state)}</div>
-        </header>
-        ${renderSecondaryView(state)}
-      </section>
+      ${narrowLayout
+        ? `${mapPanel}<div class="surface-zoom-lower-stack">${inspectorPanel}${secondaryPanel}</div>`
+        : `<div class="surface-zoom-left-stack">${mapPanel}${secondaryPanel}</div>${inspectorPanel}`}
     </div>
   `
+  const workbench = content.querySelector('.surface-zoom-workbench')
+  if (narrowLayout) {
+    const lowerStack = content.querySelector('.surface-zoom-lower-stack')
+    createSplitPane({
+      root: workbench,
+      startPane: content.querySelector('.map-panel'),
+      endPane: lowerStack,
+      orientation: 'vertical',
+      initialRatio: 0.43,
+      minStart: 300,
+      minEnd: 480,
+      dividerSize: 1,
+      ariaLabel: 'Resize subject map and lower panes',
+    })
+    createSplitPane({
+      root: lowerStack,
+      startPane: content.querySelector('.inspector-panel'),
+      endPane: content.querySelector('.secondary-panel'),
+      orientation: 'vertical',
+      initialRatio: 0.5,
+      minStart: 240,
+      minEnd: 240,
+      dividerSize: 1,
+      ariaLabel: 'Resize inspector and secondary panes',
+    })
+  } else {
+    const leftStack = content.querySelector('.surface-zoom-left-stack')
+    createFixedSidebarPane({
+      root: workbench,
+      mainPane: leftStack,
+      sidebarPane: content.querySelector('.inspector-panel'),
+      orientation: 'horizontal',
+      side: 'end',
+      openSize: 360,
+      closedSize: 0,
+      minMain: 300,
+      maxSidebar: 360,
+      dividerSize: 1,
+      initiallyOpen: true,
+      ariaLabel: 'Resize subject map and inspector panes',
+    })
+    createSplitPane({
+      root: leftStack,
+      startPane: content.querySelector('.map-panel'),
+      endPane: content.querySelector('.secondary-panel'),
+      orientation: 'vertical',
+      initialRatio: 0.7,
+      minStart: 220,
+      minEnd: 150,
+      dividerSize: 1,
+      ariaLabel: 'Resize subject map and secondary panes',
+    })
+  }
   applyMarkdownPreview(content, state)
   root.dataset.snapshot = JSON.stringify(surfaceZoomInspectorSnapshot(state))
 }

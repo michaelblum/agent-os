@@ -16,6 +16,7 @@ import {
   playbookWorkbenchAosRef,
   playbookWorkbenchSemanticRefs,
 } from './semantics.js';
+import { createSplitPane } from '../../panel/layouts/split-pane.js';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -316,24 +317,26 @@ export default function PlaybookWorkbench(options = {}) {
           <div class="playbook-workbench-pane-title">Descriptor JSON</div>
           <pre data-role="step-json" class="playbook-workbench-code"></pre>
         </section>
-        <section class="playbook-workbench-pane playbook-workbench-run-pane" aria-label="Gate and verifier status">
-          <div class="playbook-workbench-pane-title">Declared Gates</div>
-          <div data-role="gate-refs"></div>
-          <div class="playbook-workbench-pane-title">Gate Status</div>
-          <div data-role="gate-status" class="playbook-workbench-summary"></div>
-          <div class="playbook-workbench-pane-title">Verifier Status</div>
-          <div data-role="verifier-status" class="playbook-workbench-summary"></div>
-          <div class="playbook-workbench-pane-title">Diagnostics</div>
-          <div data-role="diagnostics"></div>
-        </section>
-        <section class="playbook-workbench-pane playbook-workbench-record-pane" aria-label="Emitted Work Record summary">
-          <div class="playbook-workbench-pane-title">Work Record Summary</div>
-          <div data-role="work-record-summary" class="playbook-workbench-summary"></div>
-          <div class="playbook-workbench-pane-title">Read-only Handoff</div>
-          <div data-role="handoff" class="playbook-workbench-summary"></div>
-          <div class="playbook-workbench-pane-title">Emitted Record JSON</div>
-          <pre data-role="work-record-json" class="playbook-workbench-code"></pre>
-        </section>
+        <div class="playbook-workbench-run-stack">
+          <section class="playbook-workbench-pane playbook-workbench-run-pane" aria-label="Gate and verifier status">
+            <div class="playbook-workbench-pane-title">Declared Gates</div>
+            <div data-role="gate-refs"></div>
+            <div class="playbook-workbench-pane-title">Gate Status</div>
+            <div data-role="gate-status" class="playbook-workbench-summary"></div>
+            <div class="playbook-workbench-pane-title">Verifier Status</div>
+            <div data-role="verifier-status" class="playbook-workbench-summary"></div>
+            <div class="playbook-workbench-pane-title">Diagnostics</div>
+            <div data-role="diagnostics"></div>
+          </section>
+          <section class="playbook-workbench-pane playbook-workbench-record-pane" aria-label="Emitted Work Record summary">
+            <div class="playbook-workbench-pane-title">Work Record Summary</div>
+            <div data-role="work-record-summary" class="playbook-workbench-summary"></div>
+            <div class="playbook-workbench-pane-title">Read-only Handoff</div>
+            <div data-role="handoff" class="playbook-workbench-summary"></div>
+            <div class="playbook-workbench-pane-title">Emitted Record JSON</div>
+            <pre data-role="work-record-json" class="playbook-workbench-code"></pre>
+          </section>
+        </div>
       </main>
     `;
 
@@ -352,6 +355,31 @@ export default function PlaybookWorkbench(options = {}) {
     dom.handoff = rootEl.querySelector('[data-role="handoff"]');
     dom.workRecordJson = rootEl.querySelector('[data-role="work-record-json"]');
     dom.openWorkRecord = rootEl.querySelector('[data-action="open-work-record"]');
+
+    const narrowLayout = typeof window !== 'undefined'
+      && window.matchMedia?.('(max-width: 1040px)')?.matches;
+    createSplitPane({
+      root: rootEl.querySelector('.playbook-workbench-main'),
+      startPane: rootEl.querySelector('.playbook-workbench-step-pane'),
+      endPane: rootEl.querySelector('.playbook-workbench-run-stack'),
+      orientation: narrowLayout ? 'vertical' : 'horizontal',
+      initialRatio: 0.34,
+      minStart: narrowLayout ? 360 : 330,
+      minEnd: narrowLayout ? 680 : 660,
+      dividerSize: 0,
+      ariaLabel: 'Resize playbook descriptor and report panes',
+    });
+    createSplitPane({
+      root: rootEl.querySelector('.playbook-workbench-run-stack'),
+      startPane: rootEl.querySelector('.playbook-workbench-run-pane'),
+      endPane: rootEl.querySelector('.playbook-workbench-record-pane'),
+      orientation: narrowLayout ? 'vertical' : 'horizontal',
+      initialRatio: 0.43,
+      minStart: narrowLayout ? 320 : 300,
+      minEnd: narrowLayout ? 360 : 360,
+      dividerSize: 0,
+      ariaLabel: 'Resize verifier and work record panes',
+    });
 
     applyRef(dom.stepDescriptor, { id: 'step-descriptor', name: 'Playbook step descriptor' });
     applyRef(dom.targetSummary, { id: 'target-summary', name: 'Playbook target and ref summary' });

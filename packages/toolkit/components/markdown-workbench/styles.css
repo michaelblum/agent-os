@@ -27,19 +27,23 @@
 .markdown-workbench-main {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0fr);
+  display: flex;
   transition: grid-template-columns 240ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.markdown-workbench-root[data-split-open="true"] .markdown-workbench-main {
-  grid-template-columns: minmax(0, 1fr) minmax(420px, 1fr);
 }
 
 .markdown-workbench-graph-pane,
 .markdown-workbench-document-pane {
   min-width: 0;
   min-height: 0;
+}
+
+.markdown-workbench-main > .aos-split-pane-divider {
+  border: 0;
+  background: transparent;
+}
+
+.markdown-workbench-main > .aos-split-pane-divider::after {
+  display: none;
 }
 
 .markdown-workbench-graph-pane {
@@ -458,16 +462,6 @@
 }
 
 @media (max-width: 940px) {
-  .markdown-workbench-main {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) minmax(0, 0fr);
-  }
-
-  .markdown-workbench-root[data-split-open="true"] .markdown-workbench-main {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(300px, 1fr) minmax(320px, 1fr);
-  }
-
   .markdown-workbench-document-pane {
     border-left: 0;
     border-top: 1px solid rgba(122, 241, 255, 0.18);

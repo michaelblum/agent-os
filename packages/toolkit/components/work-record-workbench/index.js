@@ -1,5 +1,6 @@
 import { esc } from '../../runtime/bridge.js';
 import { createTextarea } from '../../controls/textarea.js';
+import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js';
 import {
   applyWorkRecordPatchResult,
   buildWorkRecordPatchRequest,
@@ -286,22 +287,24 @@ export default function WorkRecordWorkbench(options = {}) {
         </div>
       </header>
       <main class="work-record-main">
-        <section class="work-record-intent" aria-label="Work record intent">
-          <label>
-            <span>Intent</span>
-          </label>
-          <div class="work-record-intent-grid">
+        <div class="work-record-editor-stack">
+          <section class="work-record-intent" aria-label="Work record intent">
             <label>
-              <span>Purpose</span>
+              <span>Intent</span>
             </label>
-            <label>
-              <span>Acceptance</span>
-            </label>
-          </div>
-        </section>
-        <section class="work-record-json" aria-label="Execution map JSON">
-          <div class="work-record-section-title">Execution Map JSON</div>
-        </section>
+            <div class="work-record-intent-grid">
+              <label>
+                <span>Purpose</span>
+              </label>
+              <label>
+                <span>Acceptance</span>
+              </label>
+            </div>
+          </section>
+          <section class="work-record-json" aria-label="Execution map JSON">
+            <div class="work-record-section-title">Execution Map JSON</div>
+          </section>
+        </div>
         <aside class="work-record-inspector" aria-label="Work record health and evidence">
           <section>
             <strong>Summary</strong>
@@ -379,6 +382,34 @@ export default function WorkRecordWorkbench(options = {}) {
     dom.applyJson = root.querySelector('[data-action="apply-json"]');
     dom.revert = root.querySelector('[data-action="revert"]');
     dom.save = root.querySelector('[data-action="save"]');
+
+    const narrowLayout = typeof window !== 'undefined'
+      && window.matchMedia?.('(max-width: 980px)')?.matches;
+    createFixedSidebarPane({
+      root: root.querySelector('.work-record-main'),
+      mainPane: root.querySelector('.work-record-editor-stack'),
+      sidebarPane: root.querySelector('.work-record-inspector'),
+      orientation: narrowLayout ? 'vertical' : 'horizontal',
+      side: 'end',
+      openSize: narrowLayout ? 220 : 280,
+      closedSize: 0,
+      minMain: narrowLayout ? 640 : 680,
+      maxSidebar: narrowLayout ? 280 : 360,
+      dividerSize: 0,
+      initiallyOpen: true,
+      ariaLabel: 'Resize work record editor and inspector panes',
+    });
+    createSplitPane({
+      root: root.querySelector('.work-record-editor-stack'),
+      startPane: root.querySelector('.work-record-intent'),
+      endPane: root.querySelector('.work-record-json'),
+      orientation: narrowLayout ? 'vertical' : 'horizontal',
+      initialRatio: 0.46,
+      minStart: 320,
+      minEnd: 360,
+      dividerSize: 0,
+      ariaLabel: 'Resize work record intent and JSON panes',
+    });
 
     for (const input of [dom.intentNl, dom.intentPurpose, dom.intentAcceptance]) {
       input.addEventListener('input', handleIntentInput);
