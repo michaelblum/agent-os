@@ -17,7 +17,13 @@ echo "## Relay Orientation (agentic_relay)"
 echo "profile=agentic_relay"
 echo "role=relay partner — merge authority, work card authorship, workstream continuity"
 
-MAIN_SHA="$(git rev-parse origin/main 2>/dev/null || git rev-parse main 2>/dev/null || echo 'unknown')"
+if git rev-parse --verify origin/main >/dev/null 2>&1; then
+  BASE_REF="origin/main"
+else
+  BASE_REF="main"
+fi
+
+MAIN_SHA="$(git rev-parse "$BASE_REF" 2>/dev/null || echo 'unknown')"
 echo "origin/main=$MAIN_SHA"
 
 echo ""
@@ -29,7 +35,7 @@ else
   while IFS= read -r branch; do
     [[ -z "$branch" ]] && continue
     SHA="$(git rev-parse "origin/$branch" 2>/dev/null || echo 'unknown')"
-    AHEAD="$(git rev-list --count "main..origin/$branch" 2>/dev/null || echo '?')"
+    AHEAD="$(git rev-list --count "$BASE_REF..origin/$branch" 2>/dev/null || echo '?')"
     echo "  $branch  sha=$SHA  ahead=$AHEAD"
   done <<< "$GDI_BRANCHES"
 fi

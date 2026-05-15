@@ -17,25 +17,44 @@ echo "## Relay Context (agentic_relay)"
 echo "profile=agentic_relay"
 echo "relay_merge_authority=remote relay partner (GitHub API access)"
 
+if git rev-parse --verify origin/main >/dev/null 2>&1; then
+  BASE_REF="origin/main"
+else
+  BASE_REF="main"
+fi
+
+branch_ref() {
+  local branch="$1"
+  if git rev-parse --verify "origin/$branch" >/dev/null 2>&1; then
+    printf 'origin/%s\n' "$branch"
+  elif git rev-parse --verify "$branch" >/dev/null 2>&1; then
+    printf '%s\n' "$branch"
+  fi
+}
+
 # Current main SHA
-MAIN_SHA="$(git rev-parse origin/main 2>/dev/null || git rev-parse main 2>/dev/null || echo 'unknown')"
+MAIN_SHA="$(git rev-parse "$BASE_REF" 2>/dev/null || echo 'unknown')"
 echo "origin/main=$MAIN_SHA"
 
 # Open gdi/* branches (local + remote)
 echo ""
 echo "### Open gdi/* branches"
-GDI_BRANCHES="$(git branch -a --format='%(refname:short)' 2>/dev/null | grep -E '(^|/)gdi/' | sed 's|remotes/origin/||' | sort -u || true)"
+GDI_BRANCHES="$(git for-each-ref --format='%(refname:short)' refs/heads/gdi refs/remotes/origin/gdi 2>/dev/null | sed 's|^origin/||' | sort -u || true)"
 if [[ -z "$GDI_BRANCHES" ]]; then
   echo "none"
 else
   while IFS= read -r branch; do
     [[ -z "$branch" ]] && continue
-    BRANCH_SHA="$(git rev-parse "origin/$branch" 2>/dev/null || git rev-parse "$branch" 2>/dev/null || echo 'unknown')"
+    REF="$(branch_ref "$branch" || true)"
+    if [[ -z "$REF" ]]; then
+      continue
+    fi
+    BRANCH_SHA="$(git rev-parse "$REF" 2>/dev/null || echo 'unknown')"
     # Count commits ahead of main
-    AHEAD="$(git rev-list --count "main..origin/$branch" 2>/dev/null || git rev-list --count "main..$branch" 2>/dev/null || echo '?')"
+    AHEAD="$(git rev-list --count "$BASE_REF..$REF" 2>/dev/null || echo '?')"
     # Files changed vs main (for conflict risk signal)
-    CHANGED_FILES="$(git diff --name-only "main" "origin/$branch" 2>/dev/null || git diff --name-only "main" "$branch" 2>/dev/null || true)"
-    FILE_COUNT="$(echo "$CHANGED_FILES" | grep -c . || echo 0)"
+    CHANGED_FILES="$(git diff --name-only "$BASE_REF...$REF" 2>/dev/null || true)"
+    FILE_COUNT="$(printf '%s\n' "$CHANGED_FILES" | awk 'NF { count++ } END { print count + 0 }')"
     echo "  branch=$branch sha=$BRANCH_SHA ahead=$AHEAD files_vs_main=$FILE_COUNT"
   done <<< "$GDI_BRANCHES"
 fi
@@ -45,11 +64,15 @@ CURRENT_BRANCH="$(git branch --show-current 2>/dev/null || echo '')"
 if [[ "$CURRENT_BRANCH" == gdi/* ]]; then
   echo ""
   echo "### Conflict risk for $CURRENT_BRANCH"
-  MY_FILES="$(git diff --name-only main 2>/dev/null || true)"
+  MY_FILES="$(git diff --name-only "$BASE_REF...HEAD" 2>/dev/null || true)"
   OVERLAP_FOUND=false
   while IFS= read -r other; do
     [[ -z "$other" || "$other" == "$CURRENT_BRANCH" ]] && continue
-    OTHER_FILES="$(git diff --name-only "main" "origin/$other" 2>/dev/null || git diff --name-only "main" "$other" 2>/dev/null || true)"
+    OTHER_REF="$(branch_ref "$other" || true)"
+    if [[ -z "$OTHER_REF" ]]; then
+      continue
+    fi
+    OTHER_FILES="$(git diff --name-only "$BASE_REF...$OTHER_REF" 2>/dev/null || true)"
     OVERLAP="$(comm -12 <(echo "$MY_FILES" | sort) <(echo "$OTHER_FILES" | sort) || true)"
     if [[ -n "$OVERLAP" ]]; then
       echo "  OVERLAP with $other:"

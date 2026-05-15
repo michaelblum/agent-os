@@ -139,18 +139,21 @@
       "summary": "Developer workflow router manifest or tests changed.",
       "patterns": [
         "docs/dev/workflow-rules.json",
+        "docs/dev/active-profile.json",
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
         "src/commands/dev.swift",
         "src/shared/command-registry-data.swift",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
+        "shared/schemas/dev-active-profile.schema.json",
         "shared/schemas/dev-workflow-profiles.md",
         "shared/schemas/dev-workflow-profiles.schema.json",
         "shared/schemas/fixtures/dev-workflow-profiles/**",
         "tests/dev-workflow-router.sh",
         "tests/dev-audit.sh",
         "tests/schemas/dev-workflow-rules.test.mjs",
+        "tests/schemas/dev-active-profile.test.mjs",
         "tests/schemas/dev-workflow-profiles.test.mjs"
       ],
       "classes": [
@@ -167,6 +170,11 @@
           "id": "dev-workflow-schema-test",
           "command": "node --test tests/schemas/dev-workflow-rules.test.mjs",
           "reason": "Validate the router manifest and fixtures against the schema."
+        },
+        {
+          "id": "dev-active-profile-schema-test",
+          "command": "node --test tests/schemas/dev-active-profile.test.mjs",
+          "reason": "Validate the active workflow profile selector and its referenced profile."
         },
         {
           "id": "dev-workflow-profile-schema-test",

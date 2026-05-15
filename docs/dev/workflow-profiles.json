@@ -2,7 +2,6 @@
   "$schema": "../../shared/schemas/dev-workflow-profiles.schema.json",
   "schema_version": 1,
   "summary": "Built-in example development workflow profiles for agent-os.",
-  "active_profile": "agentic_relay",
   "override_policy": "A direct user instruction for the current repo or session overrides the active profile unless it would discard work, publish externally, or perform a destructive operation.",
   "axes": {
     "dock": "Durable agent role, authority boundary, handoff contract, stop conditions, and lifecycle hooks.",

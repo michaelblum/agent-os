@@ -28,12 +28,12 @@ if [[ ! -f "$DOCK_CONFIG" ]]; then
 fi
 
 # Resolve active workflow profile from docs/dev/active-profile.json.
-# Falls back to workflow-profiles.json active_profile key, then to 'hybrid_trunk'.
+# Falls back to 'hybrid_trunk' only when the active profile file is absent.
 resolve_active_profile() {
-  python3 - "$ACTIVE_PROFILE_FILE" "$REPO_ROOT/docs/dev/workflow-profiles.json" <<'PY'
+  python3 - "$ACTIVE_PROFILE_FILE" <<'PY'
 import json, sys
 
-active_file, profiles_file = sys.argv[1], sys.argv[2]
+active_file = sys.argv[1]
 
 def load(path):
     try:
@@ -45,11 +45,6 @@ def load(path):
 active = load(active_file)
 if active.get("active_profile"):
     print(active["active_profile"])
-    raise SystemExit(0)
-
-profiles = load(profiles_file)
-if profiles.get("active_profile"):
-    print(profiles["active_profile"])
     raise SystemExit(0)
 
 print("hybrid_trunk")
@@ -152,7 +147,7 @@ run_optional_profile_hook() {
   local hook_phase="$2"
   local script="$DOCK_ROOT/hooks/profile/${profile}-${hook_phase}.sh"
   if [[ -x "$script" ]]; then
-    run_command_with_input "$HOOK_INPUT" "$script"
+    run_visible_command_with_input "$HOOK_INPUT" "$script"
   fi
 }
 
@@ -169,6 +164,16 @@ run_command_with_input() {
   payload_file="$(mktemp "${TMPDIR:-/tmp}/aos-dock-hook.XXXXXX")"
   printf '%s' "$payload" >"$payload_file"
   aos_run_hook_command_bounded "$hook_timeout" bash -c 'payload_file="$1"; shift; "$@" < "$payload_file"' bash "$payload_file" "$@" >/dev/null 2>&1 || true
+  rm -f "$payload_file"
+}
+
+run_visible_command_with_input() {
+  local payload="$1"
+  shift
+  local payload_file
+  payload_file="$(mktemp "${TMPDIR:-/tmp}/aos-dock-hook.XXXXXX")"
+  printf '%s' "$payload" >"$payload_file"
+  aos_run_hook_command_bounded "$hook_timeout" bash -c 'payload_file="$1"; shift; "$@" < "$payload_file"' bash "$payload_file" "$@" || true
   rm -f "$payload_file"
 }
 

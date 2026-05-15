@@ -58,7 +58,7 @@ bash -c '
   python3 - docs/dev/active-profile.json docs/dev/workflow-profiles.json <<PY
 import json, sys
 a = json.load(open(sys.argv[1]))
-assert a["active_profile"] == "agentic_relay", f"expected agentic_relay, got {a[\"active_profile\"]}"
+assert a["active_profile"] == "agentic_relay", f"expected agentic_relay, got {a['active_profile']}"
 print("active-profile.json: ok")
 PY
 '

@@ -1,7 +1,6 @@
 {
   "schema_version": 1,
   "summary": "Example development workflow profiles.",
-  "active_profile": "hybrid_trunk",
   "override_policy": "User instruction overrides the active profile unless unsafe.",
   "axes": {
     "dock": "Role boundary.",
