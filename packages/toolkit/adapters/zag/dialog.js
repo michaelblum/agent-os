@@ -1,0 +1,65 @@
+import { connect, machine } from '@zag-js/dialog';
+import { createZagAdapter, mergeProps } from './shared.js';
+
+export function createAosZagDialog(context = {}) {
+  return createZagAdapter({
+    name: 'Dialog',
+    machine,
+    connect,
+    props: (ctx) => ({
+      id: ctx.id,
+      ids: ctx.ids,
+      getRootNode: ctx.getRootNode,
+      open: ctx.open,
+      defaultOpen: ctx.defaultOpen,
+      modal: ctx.modal,
+      preventScroll: ctx.preventScroll,
+      closeOnEscape: ctx.closeOnEscape,
+      closeOnInteractOutside: ctx.closeOnInteractOutside,
+      initialFocusEl: ctx.initialFocusEl,
+      finalFocusEl: ctx.finalFocusEl,
+      onOpenChange: ctx.onOpenChange,
+      onEscapeKeyDown: ctx.onEscapeKeyDown,
+      onInteractOutside: ctx.onInteractOutside,
+      onPointerDownOutside: ctx.onPointerDownOutside,
+      onFocusOutside: ctx.onFocusOutside,
+    }),
+    selectors: {
+      trigger: '[data-aos-dialog-trigger]',
+      backdrop: '[data-aos-dialog-backdrop]',
+      positioner: '[data-aos-dialog-positioner]',
+      content: '[data-aos-dialog-content]',
+      title: '[data-aos-dialog-title]',
+      description: '[data-aos-dialog-description]',
+      closeTrigger: '[data-aos-dialog-close-trigger]',
+    },
+    snapshot: (api, service) => ({
+      api,
+      service: service.service,
+      open: api.open,
+      state: service.service.state.get(),
+      send: service.send,
+      getTriggerProps: (extra = {}) => mergeProps(api.getTriggerProps(), extra),
+      getBackdropProps: (extra = {}) => mergeProps(api.getBackdropProps(), extra),
+      getPositionerProps: (extra = {}) => mergeProps(api.getPositionerProps(), extra),
+      getContentProps: (extra = {}) => mergeProps(api.getContentProps(), extra),
+      getTitleProps: (extra = {}) => mergeProps(api.getTitleProps(), extra),
+      getDescriptionProps: (extra = {}) => mergeProps(api.getDescriptionProps(), extra),
+      getCloseTriggerProps: (extra = {}) => mergeProps(api.getCloseTriggerProps(), extra),
+      setOpen: api.setOpen,
+    }),
+    bindings: {
+      trigger: { alias: 'Trigger', getter: 'getTriggerProps' },
+      backdrop: { alias: 'Backdrop', getter: 'getBackdropProps' },
+      positioner: { alias: 'Positioner', getter: 'getPositionerProps' },
+      content: { alias: 'Content', getter: 'getContentProps' },
+      title: { alias: 'Title', getter: 'getTitleProps' },
+      description: { alias: 'Description', getter: 'getDescriptionProps' },
+      closeTrigger: { alias: 'CloseTrigger', getter: 'getCloseTriggerProps' },
+    },
+    actions: {
+      open: (api) => api.setOpen(true),
+      close: (api) => api.setOpen(false),
+    },
+  }, context);
+}
