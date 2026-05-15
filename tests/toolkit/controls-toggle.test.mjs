@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createToggle } from '../../packages/toolkit/controls/toggle.js';
+import { createToggle, renderToggleHtml } from '../../packages/toolkit/controls/toggle.js';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
 
 test('createToggle returns shape and tracks value', () => {
@@ -29,4 +29,19 @@ test('toggle change fires from underlying input', () => {
   input.dispatchEvent(new FakeEvent('change', { bubbles: true }));
 
   assert.equal(value, true);
+});
+
+test('renderToggleHtml renders checked input with raw attributes', () => {
+  const html = renderToggleHtml({
+    label: 'Overlay <on>',
+    checked: true,
+    disabled: true,
+    dataset: { action: 'toggleOverlay' },
+    rawAttributes: ['data-safe-fragment="ok"'],
+  });
+
+  assert.match(html, /^<label class="aos-toggle">/);
+  assert.match(html, /<input type="checkbox" class="aos-toggle-input" checked disabled data-action="toggleOverlay" data-safe-fragment="ok">/);
+  assert.match(html, /<span class="aos-toggle-switch"><span class="aos-toggle-thumb"><\/span><\/span>/);
+  assert.match(html, /<span>Overlay &lt;on&gt;<\/span>/);
 });

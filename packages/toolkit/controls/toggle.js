@@ -1,4 +1,27 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
+import { attributeParts, escapeHtml } from './_html.js';
+
+export function renderToggleHtml(config = {}) {
+  const wrapperClasses = ['aos-toggle'];
+  for (const name of String(config.className || '').split(/\s+/).filter(Boolean)) wrapperClasses.push(name);
+  const inputParts = [
+    'type="checkbox"',
+    'class="aos-toggle-input"',
+  ];
+  if (config.id) inputParts.push(`id="${escapeHtml(config.id)}"`);
+  if (config.name) inputParts.push(`name="${escapeHtml(config.name)}"`);
+  if (config.checked) inputParts.push('checked');
+  if (config.disabled) inputParts.push('disabled');
+  if (config.ariaLabel) inputParts.push(`aria-label="${escapeHtml(config.ariaLabel)}"`);
+  inputParts.push(...attributeParts(config));
+  return `
+    <label class="${escapeHtml(wrapperClasses.join(' '))}">
+      <input ${inputParts.join(' ')}>
+      <span class="aos-toggle-switch"><span class="aos-toggle-thumb"></span></span>
+      ${config.label ? `<span>${escapeHtml(config.label)}</span>` : ''}
+    </label>
+  `.trim();
+}
 
 export function createToggle(config = {}) {
   const doc = ownerDocument(config);

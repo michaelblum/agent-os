@@ -1,4 +1,36 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
+import { attributeParts, escapeHtml } from './_html.js';
+
+function renderOptionHtml(option = {}, selectedValue) {
+  const value = option.value ?? '';
+  const parts = [`value="${escapeHtml(value)}"`];
+  if (option.disabled) parts.push('disabled');
+  if (String(value) === String(selectedValue ?? '')) parts.push('selected');
+  parts.push(...attributeParts(option));
+  return `<option ${parts.join(' ')}>${escapeHtml(option.label ?? String(value))}</option>`;
+}
+
+export function renderSelectHtml(config = {}) {
+  const selectClasses = ['aos-select'];
+  for (const name of String(config.className || '').split(/\s+/).filter(Boolean)) selectClasses.push(name);
+  const selectParts = [`class="${escapeHtml(selectClasses.join(' '))}"`];
+  if (config.id) selectParts.push(`id="${escapeHtml(config.id)}"`);
+  if (config.name) selectParts.push(`name="${escapeHtml(config.name)}"`);
+  if (config.ariaLabel) selectParts.push(`aria-label="${escapeHtml(config.ariaLabel)}"`);
+  if (config.disabled) selectParts.push('disabled');
+  selectParts.push(...attributeParts(config));
+  const options = (Array.isArray(config.options) ? config.options : [])
+    .map((option) => renderOptionHtml(option, config.value))
+    .join('');
+  const select = `<select ${selectParts.join(' ')}>${options}</select>`;
+  if (!config.label) return select;
+
+  const wrapperTag = config.wrapperTag || 'div';
+  const wrapperClasses = config.wrapperClassName || 'aos-control-stack';
+  const labelTag = wrapperTag === 'label' ? 'span' : 'label';
+  const label = `<${labelTag} class="aos-control-label">${escapeHtml(config.label)}</${labelTag}>`;
+  return `<${wrapperTag} class="${escapeHtml(wrapperClasses)}">${label}${select}</${wrapperTag}>`;
+}
 
 export function createSelect(config = {}) {
   const doc = ownerDocument(config);
