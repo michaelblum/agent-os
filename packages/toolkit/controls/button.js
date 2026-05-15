@@ -4,7 +4,7 @@ import { attributeParts, escapeHtml } from './_html.js';
 const VARIANTS = new Set(['primary', 'secondary', 'danger', 'ghost']);
 
 function buttonClassName(config = {}) {
-  const classes = ['aos-button'];
+  const classes = config.includeBaseClass === false ? [] : ['aos-button'];
   const variant = config.variant || 'secondary';
   if (variant && variant !== 'secondary' && VARIANTS.has(variant)) classes.push(variant);
   for (const name of String(config.className || '').split(/\s+/).filter(Boolean)) classes.push(name);
@@ -16,6 +16,7 @@ export function renderButtonHtml(config = {}) {
     `class="${escapeHtml(buttonClassName(config))}"`,
     `type="${escapeHtml(config.type || 'button')}"`,
   ];
+  if (config.classFirst) parts.reverse();
   if (config.id) parts.push(`id="${escapeHtml(config.id)}"`);
   if (config.title) parts.push(`title="${escapeHtml(config.title)}"`);
   if (config.ariaLabel) parts.push(`aria-label="${escapeHtml(config.ariaLabel)}"`);
@@ -24,6 +25,7 @@ export function renderButtonHtml(config = {}) {
     parts.push('disabled');
     parts.push('aria-disabled="true"');
   }
+  if (config.pressed !== undefined) parts.push(`aria-pressed="${config.pressed ? 'true' : 'false'}"`);
   parts.push(...attributeParts(config));
   return `<button ${parts.join(' ')}>${escapeHtml(config.label ?? '')}</button>`;
 }

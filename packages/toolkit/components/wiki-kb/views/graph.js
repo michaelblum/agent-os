@@ -17,6 +17,7 @@ import {
   wikiKBAosRef,
 } from '../semantics.js'
 import { createFixedSidebarPane } from '../../../panel/layouts/split-pane.js'
+import { createButton, createButtonGroup, createTextField, createToggle } from '../../../controls/index.js'
 
 const COLORS = {
   edge: 'rgba(100, 100, 160, 0.35)',
@@ -265,6 +266,24 @@ export default function GraphView({ onSelectNode }) {
     })
   }
 
+  function addClassNames(el, className = '') {
+    for (const name of String(className || '').split(/\s+/).filter(Boolean)) {
+      el.classList.add(name)
+    }
+  }
+
+  function replaceButton(selector, { label, className = '', dataset = {} } = {}) {
+    const existing = rootEl.querySelector(selector)
+    if (!existing) return null
+    const control = createButton({ label })
+    addClassNames(control.el, className || existing.className)
+    for (const [key, value] of Object.entries(dataset)) {
+      if (value !== undefined && value !== null) control.el.dataset[key] = String(value)
+    }
+    existing.replaceWith(control.el)
+    return control.el
+  }
+
   function collectFocusNodes() {
     const selected = selectedNode()
     if (!selected) return []
@@ -421,13 +440,12 @@ export default function GraphView({ onSelectNode }) {
 
     const fragment = document.createDocumentFragment()
     for (const type of filteredGraph.availableTypes) {
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'wiki-kb-filter'
+      const control = createButton({ label: type })
+      const button = control.el
+      addClassNames(button, 'wiki-kb-filter')
       button.dataset.kind = 'type'
       button.dataset.value = type
       button.dataset.type = type
-      button.textContent = type
       const isActive = activeTypes.has(type)
       button.classList.toggle('active', isActive)
       applyGraphSemanticTarget(button, `type-filter-${type}`, {
@@ -448,12 +466,11 @@ export default function GraphView({ onSelectNode }) {
 
     const fragment = document.createDocumentFragment()
     for (const entry of filteredGraph.availableTags) {
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'wiki-kb-tag-filter'
+      const control = createButton({ label: `${entry.value} (${entry.count})` })
+      const button = control.el
+      addClassNames(button, 'wiki-kb-tag-filter')
       button.dataset.kind = 'tag'
       button.dataset.value = entry.value
-      button.textContent = `${entry.value} (${entry.count})`
       const isActive = activeTags.has(entry.value)
       button.classList.toggle('active', isActive)
       applyGraphSemanticTarget(button, `tag-filter-${entry.value}`, {
@@ -1149,6 +1166,110 @@ export default function GraphView({ onSelectNode }) {
           <div class="wiki-kb-hint">drag nodes · scroll to zoom · click to inspect</div>
         </div>
       `
+
+      const searchInput = rootEl.querySelector('.wiki-kb-search')
+      if (searchInput) {
+        const searchControl = createTextField({
+          placeholder: 'Search nodes, tags, or descriptions',
+        })
+        const sharedInput = searchControl.el.querySelector('input')
+        sharedInput.id = 'wiki-kb-search-input'
+        addClassNames(sharedInput, 'wiki-kb-search')
+        sharedInput.autocomplete = 'off'
+        sharedInput.spellcheck = false
+        searchInput.replaceWith(searchControl.el)
+      }
+
+      const scopeGroup = rootEl.querySelector('.wiki-kb-controls-section-scope .wiki-kb-segmented')
+      if (scopeGroup) {
+        const control = createButtonGroup({
+          value: mode,
+          options: [
+            { value: 'global', label: 'Global' },
+            { value: 'local', label: 'Local' },
+          ],
+        })
+        addClassNames(control.el, 'wiki-kb-segmented')
+        for (const button of control.el.querySelectorAll('button')) {
+          addClassNames(button, 'wiki-kb-scope-button')
+          button.dataset.mode = button.dataset.value
+        }
+        scopeGroup.replaceWith(control.el)
+      }
+
+      const labelGroup = rootEl.querySelector('.wiki-kb-controls-section-labels .wiki-kb-segmented')
+      if (labelGroup) {
+        const control = createButtonGroup({
+          value: labelMode,
+          options: [
+            { value: 'all', label: 'All' },
+            { value: 'selection', label: 'Selection' },
+            { value: 'hover', label: 'Hover' },
+          ],
+        })
+        addClassNames(control.el, 'wiki-kb-segmented')
+        for (const button of control.el.querySelectorAll('button')) {
+          addClassNames(button, 'wiki-kb-mini-action')
+          button.dataset.labelMode = button.dataset.value
+        }
+        labelGroup.replaceWith(control.el)
+      }
+
+      replaceButton('[data-action="types-all"]', {
+        label: 'All',
+        className: 'wiki-kb-mini-action',
+        dataset: { action: 'types-all' },
+      })
+      replaceButton('[data-action="tags-clear"]', {
+        label: 'Clear',
+        className: 'wiki-kb-mini-action',
+        dataset: { action: 'tags-clear' },
+      })
+      replaceButton('[data-action="set-path-start"]', {
+        label: 'Set Path Start',
+        className: 'wiki-kb-mini-action',
+        dataset: { action: 'set-path-start' },
+      })
+      replaceButton('[data-action="clear-path"]', {
+        label: 'Clear Path',
+        className: 'wiki-kb-mini-action',
+        dataset: { action: 'clear-path' },
+      })
+      replaceButton('[data-action="focus-selection"]', {
+        label: 'Focus Selection',
+        className: 'wiki-kb-action-button',
+        dataset: { action: 'focus-selection' },
+      })
+      replaceButton('[data-action="fit"]', {
+        label: 'Fit Graph',
+        className: 'wiki-kb-action-button',
+        dataset: { action: 'fit' },
+      })
+      replaceButton('[data-action="reset-view"]', {
+        label: 'Reset View',
+        className: 'wiki-kb-action-button',
+        dataset: { action: 'reset-view' },
+      })
+      replaceButton('[data-action="reset-filters"]', {
+        label: 'Reset Filters',
+        className: 'wiki-kb-action-button',
+        dataset: { action: 'reset-filters' },
+      })
+
+      for (const { selector, label, className } of [
+        { selector: '.wiki-kb-check-row-neighbors', label: 'Highlight neighbors', className: 'wiki-kb-check-row wiki-kb-check-row-neighbors' },
+        { selector: '.wiki-kb-check-row-isolated', label: 'Show isolated nodes', className: 'wiki-kb-check-row wiki-kb-check-row-isolated' },
+        { selector: '.wiki-kb-check-row-freeze', label: 'Freeze layout', className: 'wiki-kb-check-row wiki-kb-check-row-freeze' },
+      ]) {
+        const existing = rootEl.querySelector(selector)
+        if (!existing) continue
+        const input = existing.querySelector('input')
+        const control = createToggle({ label, checked: input?.checked })
+        addClassNames(control.el, className)
+        const sharedInput = control.el.querySelector('input')
+        if (input?.className) addClassNames(sharedInput, input.className)
+        existing.replaceWith(control.el)
+      }
 
       canvas = rootEl.querySelector('canvas')
       ctx = canvas.getContext('2d')

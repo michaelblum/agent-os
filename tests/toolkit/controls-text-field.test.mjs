@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createTextField } from '../../packages/toolkit/controls/text-field.js';
+import { createTextField, renderTextFieldHtml } from '../../packages/toolkit/controls/text-field.js';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
 
 test('createTextField returns shape and updates value', () => {
@@ -41,4 +41,25 @@ test('text field commits on Enter and blur', () => {
   input.dispatchEvent(new FakeEvent('blur'));
 
   assert.deepEqual(commits, ['x', 'x']);
+});
+
+test('renderTextFieldHtml escapes attributes and value', () => {
+  const html = renderTextFieldHtml({
+    type: 'search',
+    className: 'query-input',
+    value: '<term>',
+    placeholder: 'Find "subject"',
+    spellcheck: false,
+    dataset: { role: 'subject-search' },
+    attributes: { autocomplete: 'off' },
+  });
+
+  assert.match(html, /^<input /);
+  assert.match(html, /type="search"/);
+  assert.match(html, /class="aos-text-input query-input"/);
+  assert.match(html, /value="&lt;term&gt;"/);
+  assert.match(html, /placeholder="Find &quot;subject&quot;"/);
+  assert.match(html, /spellcheck="false"/);
+  assert.match(html, /data-role="subject-search"/);
+  assert.match(html, /autocomplete="off"/);
 });

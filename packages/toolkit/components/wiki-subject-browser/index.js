@@ -9,6 +9,7 @@ import {
   WIKI_SUBJECT_SELECTION_TYPE,
 } from '../../workbench/wiki-subject-opening.js';
 import MarkdownWorkbench from '../markdown-workbench/index.js';
+import { createButton, createSelect, createTextField } from '../../controls/index.js';
 import {
   SUBJECT_BROWSER_INDEX_FILTER_KEYS,
   applySubjectIndexFilter,
@@ -179,6 +180,30 @@ function subjectFilterName(filterKey = '') {
   if (filterKey === 'capability') return 'Capability';
   if (filterKey === 'health') return 'Health';
   return 'Filter';
+}
+
+function addClassNames(el, className = '') {
+  for (const name of String(className || '').split(/\s+/).filter(Boolean)) {
+    el.classList.add(name);
+  }
+}
+
+function createSharedButton({
+  label = '',
+  className = '',
+  disabled = false,
+  dataset = {},
+  semantic = null,
+  onClick = null,
+} = {}) {
+  const control = createButton({ label, disabled });
+  addClassNames(control.el, className);
+  for (const [key, value] of Object.entries(dataset)) {
+    if (value !== undefined && value !== null) control.el.dataset[key] = String(value);
+  }
+  if (semantic) applyWikiSubjectBrowserSemanticTarget(control.el, semantic);
+  if (onClick) control.el.addEventListener('click', onClick);
+  return control.el;
 }
 
 export default function WikiSubjectBrowser(options = {}) {
@@ -492,20 +517,19 @@ export default function WikiSubjectBrowser(options = {}) {
         const refs = entry.affordances?.reference_count || 0;
         meta.textContent = `${contracts} contracts · ${refs} refs`;
 
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.disabled = entry.affordances?.openable !== true;
-        button.dataset.subjectOpen = entry.id;
-        applyWikiSubjectBrowserSemanticTarget(button, {
-          id: `subject-catalog-open-${entry.key}`,
-          name: `Open ${entry.label}`,
-          role: 'AXButton',
-          action: 'open_subject',
-          enabled: !button.disabled,
-          aosRef: catalogEntryRef(entry, 'open'),
-        });
-        button.textContent = 'Open';
-        button.addEventListener('click', () => {
+        const button = createSharedButton({
+          label: 'Open',
+          disabled: entry.affordances?.openable !== true,
+          dataset: { subjectOpen: entry.id },
+          semantic: {
+            id: `subject-catalog-open-${entry.key}`,
+            name: `Open ${entry.label}`,
+            role: 'AXButton',
+            action: 'open_subject',
+            enabled: entry.affordances?.openable === true,
+            aosRef: catalogEntryRef(entry, 'open'),
+          },
+          onClick: () => {
           openCatalogEntry(entry.id).catch((error) => {
             const result = {
               type: SUBJECT_OPEN_RESULT_TYPE,
@@ -517,6 +541,7 @@ export default function WikiSubjectBrowser(options = {}) {
             applySubjectOpenResult(state, result);
             syncSnapshot();
           });
+          },
         });
 
         item.append(title, meta, button);
@@ -574,36 +599,36 @@ export default function WikiSubjectBrowser(options = {}) {
           const actions = document.createElement('div');
           actions.className = 'wiki-subject-browser-subject-actions';
 
-          const inspectButton = document.createElement('button');
-          inspectButton.type = 'button';
-          inspectButton.dataset.subjectIndexInspect = entry.key;
-          applyWikiSubjectBrowserSemanticTarget(inspectButton, {
-            id: `subject-index-inspect-${entry.key}`,
-            name: `Inspect ${entry.label}`,
-            role: 'AXButton',
-            action: 'inspect_subject',
-            current: focused ? 'true' : null,
-            aosRef: entry.inspect_ref,
-          });
-          inspectButton.textContent = 'Inspect';
-          inspectButton.addEventListener('click', () => {
+          const inspectButton = createSharedButton({
+            label: 'Inspect',
+            dataset: { subjectIndexInspect: entry.key },
+            semantic: {
+              id: `subject-index-inspect-${entry.key}`,
+              name: `Inspect ${entry.label}`,
+              role: 'AXButton',
+              action: 'inspect_subject',
+              current: focused ? 'true' : null,
+              aosRef: entry.inspect_ref,
+            },
+            onClick: () => {
             inspectSubjectIndexEntry(entry);
+            },
           });
 
-          const openButton = document.createElement('button');
-          openButton.type = 'button';
-          openButton.disabled = !indexEntryCanOpen(entry);
-          openButton.dataset.subjectIndexOpen = entry.key;
-          applyWikiSubjectBrowserSemanticTarget(openButton, {
-            id: `subject-index-open-${entry.key}`,
-            name: `Open ${entry.label}`,
-            role: 'AXButton',
-            action: 'open_subject',
-            enabled: !openButton.disabled,
-            aosRef: entry.open_ref,
-          });
-          openButton.textContent = 'Open';
-          openButton.addEventListener('click', () => {
+          const canOpen = indexEntryCanOpen(entry);
+          const openButton = createSharedButton({
+            label: 'Open',
+            disabled: !canOpen,
+            dataset: { subjectIndexOpen: entry.key },
+            semantic: {
+              id: `subject-index-open-${entry.key}`,
+              name: `Open ${entry.label}`,
+              role: 'AXButton',
+              action: 'open_subject',
+              enabled: canOpen,
+              aosRef: entry.open_ref,
+            },
+            onClick: () => {
             openSubjectIndexEntry(entry.key).catch((error) => {
               const result = {
                 type: SUBJECT_OPEN_RESULT_TYPE,
@@ -616,6 +641,7 @@ export default function WikiSubjectBrowser(options = {}) {
               applySubjectOpenResult(state, result);
               syncSnapshot();
             });
+            },
           });
 
           actions.append(inspectButton, openButton);
@@ -689,19 +715,19 @@ export default function WikiSubjectBrowser(options = {}) {
 
     const controls = document.createElement('div');
     controls.className = 'wiki-subject-browser-details-actions';
-    const clear = document.createElement('button');
-    clear.type = 'button';
-    applyWikiSubjectBrowserSemanticTarget(clear, {
-      id: 'subject-details-clear',
-      name: 'Clear focused Subject details',
-      role: 'AXButton',
-      action: 'clear_subject_focus',
-      aosRef: details.clear_ref,
-    });
-    clear.textContent = 'Clear';
-    clear.addEventListener('click', () => {
+    const clear = createSharedButton({
+      label: 'Clear',
+      semantic: {
+        id: 'subject-details-clear',
+        name: 'Clear focused Subject details',
+        role: 'AXButton',
+        action: 'clear_subject_focus',
+        aosRef: details.clear_ref,
+      },
+      onClick: () => {
       clearSubjectIndexFocus(state);
       syncSnapshot();
+      },
     });
     controls.appendChild(clear);
     subject.appendChild(controls);
@@ -748,19 +774,19 @@ export default function WikiSubjectBrowser(options = {}) {
       meta.className = 'wiki-subject-browser-details-meta';
       meta.textContent = relatedSubjectMetaText(target);
 
-      const openButton = document.createElement('button');
-      openButton.type = 'button';
-      openButton.disabled = !relatedSubjectCanOpen(target);
-      applyWikiSubjectBrowserSemanticTarget(openButton, {
-        id: `subject-details-related-open-${target.key || reference.id}`,
-        name: target.resolved ? `Open ${target.label}` : `Unresolved ${target.label}`,
-        role: 'AXButton',
-        action: 'open_subject',
-        enabled: !openButton.disabled,
-        aosRef: target.open_ref || wikiSubjectBrowserAosRef('subject-details', 'related', 'unresolved', target.key || reference.id),
-      });
-      openButton.textContent = target.resolved ? 'Open' : 'Unresolved';
-      openButton.addEventListener('click', () => {
+      const canOpen = relatedSubjectCanOpen(target);
+      const openButton = createSharedButton({
+        label: target.resolved ? 'Open' : 'Unresolved',
+        disabled: !canOpen,
+        semantic: {
+          id: `subject-details-related-open-${target.key || reference.id}`,
+          name: target.resolved ? `Open ${target.label}` : `Unresolved ${target.label}`,
+          role: 'AXButton',
+          action: 'open_subject',
+          enabled: canOpen,
+          aosRef: target.open_ref || wikiSubjectBrowserAosRef('subject-details', 'related', 'unresolved', target.key || reference.id),
+        },
+        onClick: () => {
         openRelatedSubject(target).catch((error) => {
           const result = {
             type: SUBJECT_OPEN_RESULT_TYPE,
@@ -772,6 +798,7 @@ export default function WikiSubjectBrowser(options = {}) {
           applySubjectOpenResult(state, result);
           syncSnapshot();
         });
+        },
       });
 
       item.append(title, meta, openButton);
@@ -855,17 +882,17 @@ export default function WikiSubjectBrowser(options = {}) {
 
     const latest = trail[trail.length - 1]?.entry_handle || '';
     for (const entry of [...trail].reverse()) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'wiki-subject-browser-trail-entry';
-      button.dataset.entryHandle = entry.entry_handle;
-      applyWikiSubjectBrowserSemanticTarget(button, {
-        id: `navigation-trail-open-${entry.key}`,
-        name: `Open ${entry.label}`,
-        role: 'AXButton',
-        action: 'open_subject',
-        current: entry.entry_handle === latest ? 'page' : null,
-        aosRef: entry.open_ref,
+      const button = createSharedButton({
+        className: 'wiki-subject-browser-trail-entry',
+        dataset: { entryHandle: entry.entry_handle },
+        semantic: {
+          id: `navigation-trail-open-${entry.key}`,
+          name: `Open ${entry.label}`,
+          role: 'AXButton',
+          action: 'open_subject',
+          current: entry.entry_handle === latest ? 'page' : null,
+          aosRef: entry.open_ref,
+        },
       });
       const label = document.createElement('span');
       label.textContent = entry.label;
@@ -1031,6 +1058,16 @@ export default function WikiSubjectBrowser(options = {}) {
       subjectIndexStatusEl = subjectIndexEl.querySelector('[data-role="subject-index-status"]');
       subjectIndexSummaryEl = subjectIndexEl.querySelector('[data-role="subject-index-summary"]');
       subjectSearchEl = subjectIndexEl.querySelector('[data-role="subject-search"]');
+      if (subjectSearchEl) {
+        const searchControl = createTextField();
+        const searchInput = searchControl.el.querySelector('input');
+        searchInput.type = 'search';
+        searchInput.autocomplete = 'off';
+        searchInput.spellcheck = false;
+        searchInput.dataset.role = 'subject-search';
+        subjectSearchEl.replaceWith(searchControl.el);
+        subjectSearchEl = searchInput;
+      }
       subjectFiltersEl = subjectIndexEl.querySelector('[data-role="subject-filters"]');
       subjectListStatusEl = subjectIndexEl.querySelector('[data-role="subject-list-status"]');
       subjectListEl = subjectIndexEl.querySelector('[data-role="subject-list"]');
@@ -1061,20 +1098,30 @@ export default function WikiSubjectBrowser(options = {}) {
       for (const filterKey of SUBJECT_BROWSER_INDEX_FILTER_KEYS) {
         const role = filterKey.replaceAll('_', '-');
         const select = subjectIndexEl.querySelector(`[data-role="subject-filter-${role}"]`);
-        subjectFilterEls.set(filterKey, select);
-        applyWikiSubjectBrowserSemanticTarget(select, {
+        const selectControl = createSelect();
+        const sharedSelect = selectControl.el.querySelector('select');
+        sharedSelect.dataset.role = `subject-filter-${role}`;
+        select?.replaceWith(selectControl.el);
+        subjectFilterEls.set(filterKey, sharedSelect);
+        applyWikiSubjectBrowserSemanticTarget(sharedSelect, {
           id: `subject-filter-${role}`,
           name: `${subjectFilterName(filterKey)} filter`,
           role: 'AXPopUpButton',
           action: 'filter_subjects',
           aosRef: wikiSubjectBrowserAosRef('subject-filter', role),
         });
-        select?.addEventListener('change', () => {
-          applySubjectIndexFilter(state, filterKey, select.value);
+        sharedSelect?.addEventListener('change', () => {
+          applySubjectIndexFilter(state, filterKey, sharedSelect.value);
           syncSnapshot();
         });
       }
       subjectFiltersResetEl = subjectIndexEl.querySelector('[data-role="subject-filters-reset"]');
+      if (subjectFiltersResetEl) {
+        const resetControl = createButton({ label: 'Reset' });
+        resetControl.el.dataset.role = 'subject-filters-reset';
+        subjectFiltersResetEl.replaceWith(resetControl.el);
+        subjectFiltersResetEl = resetControl.el;
+      }
       applyWikiSubjectBrowserSemanticTarget(subjectFiltersResetEl, {
         id: 'subject-filters-reset',
         name: 'Reset Subject index filters',

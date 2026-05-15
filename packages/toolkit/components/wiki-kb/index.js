@@ -19,6 +19,7 @@ import {
   createWikiSubjectSelectionPayload,
   WIKI_SUBJECT_SELECTION_TYPE,
 } from '../../workbench/wiki-subject-opening.js'
+import { createButton, createButtonGroup, createSelect } from '../../controls/index.js'
 
 const VIEW_DEFS = [
   { id: 'graph', label: 'Graph', factory: GraphView },
@@ -57,6 +58,12 @@ function buildRelatedNodes(state, nodeId) {
     }
   }
   return [...related.values()]
+}
+
+function addClassNames(el, className = '') {
+  for (const name of String(className || '').split(/\s+/).filter(Boolean)) {
+    el.classList.add(name)
+  }
 }
 
 export default function WikiKB(options = {}) {
@@ -147,9 +154,9 @@ export default function WikiKB(options = {}) {
 
     const fragment = document.createDocumentFragment()
     for (const relatedNode of related) {
-      const button = document.createElement('button')
-      button.type = 'button'
-      button.className = 'wiki-kb-related-link'
+      const control = createButton({ label: '' })
+      const button = control.el
+      addClassNames(button, 'wiki-kb-related-link')
       button.dataset.nodeId = relatedNode.id
       applyWikiKBSemanticTarget(button, {
         id: `related-${relatedNode.id}`,
@@ -395,26 +402,14 @@ export default function WikiKB(options = {}) {
             <div class="wiki-kb-compact-chrome" aria-label="Wiki graph view controls">
               <label class="wiki-kb-view-menu" title="Select graph view">
                 <span>View</span>
-                <select class="wiki-kb-view-select" aria-label="Wiki graph view">
-                  ${viewDefs.map((view) => `<option value="${view.id}">${view.label}</option>`).join('')}
-                </select>
+                <span data-role="wiki-kb-view-select"></span>
               </label>
               <span class="wiki-kb-status" role="status" aria-live="polite"></span>
             </div>
           ` : `<span class="wiki-kb-status wiki-kb-floating-status" role="status" aria-live="polite"></span>`}
         ` : `
           <div class="wiki-kb-tab-strip" role="tablist" aria-label="Wiki KB Views">
-            ${viewDefs.map((view, index) => `
-              <button
-                type="button"
-                id="wiki-kb-tab-${view.id}"
-                class="wiki-kb-view-tab${index === 0 ? ' active' : ''}"
-                data-view="${view.id}"
-                role="tab"
-                aria-selected="${index === 0 ? 'true' : 'false'}"
-                aria-controls="wiki-kb-panel-${view.id}"
-              >${view.label}</button>
-            `).join('')}
+            <span data-role="wiki-kb-view-tabs"></span>
             <div class="wiki-kb-tab-spacer"></div>
             <span class="wiki-kb-status" role="status" aria-live="polite"></span>
           </div>
@@ -425,13 +420,10 @@ export default function WikiKB(options = {}) {
             <div class="wiki-kb-sidebar-header">
               <span class="wiki-kb-sidebar-type" data-type="">unknown</span>
               <span class="wiki-kb-sidebar-name">No selection</span>
-              <button type="button" class="wiki-kb-sidebar-close" aria-label="Close details">x</button>
+              <span data-role="wiki-kb-sidebar-close"></span>
             </div>
             <div class="wiki-kb-sidebar-toggle">
-              <div class="wiki-kb-toggle-group">
-                <button type="button" class="wiki-kb-toggle-button active" data-mode="markdown" aria-pressed="true">Markdown</button>
-                <button type="button" class="wiki-kb-toggle-button" data-mode="raw" aria-pressed="false">Raw</button>
-              </div>
+              <span data-role="wiki-kb-sidebar-toggle"></span>
             </div>
             <div class="wiki-kb-sidebar-description"></div>
             <div class="wiki-kb-sidebar-tags"></div>
@@ -447,7 +439,36 @@ export default function WikiKB(options = {}) {
 
     contentEl = rootEl.querySelector('.wiki-kb-content')
     dom.statusEl = rootEl.querySelector('.wiki-kb-status')
-    dom.viewSelectEl = rootEl.querySelector('.wiki-kb-view-select')
+    const viewSelectSlot = rootEl.querySelector('[data-role="wiki-kb-view-select"]')
+    if (viewSelectSlot) {
+      const viewSelect = createSelect({
+        value: activeViewId,
+        options: viewDefs.map((view) => ({ value: view.id, label: view.label })),
+      })
+      dom.viewSelectEl = viewSelect.el.querySelector('select')
+      addClassNames(dom.viewSelectEl, 'wiki-kb-view-select')
+      dom.viewSelectEl.setAttribute('aria-label', 'Wiki graph view')
+      viewSelectSlot.replaceWith(viewSelect.el)
+    } else {
+      dom.viewSelectEl = null
+    }
+    const viewTabsSlot = rootEl.querySelector('[data-role="wiki-kb-view-tabs"]')
+    if (viewTabsSlot) {
+      const viewTabs = createButtonGroup({
+        value: activeViewId,
+        options: viewDefs.map((view) => ({ value: view.id, label: view.label })),
+      })
+      for (const [index, button] of [...viewTabs.el.querySelectorAll('button')].entries()) {
+        const view = viewDefs[index]
+        button.id = `wiki-kb-tab-${view.id}`
+        addClassNames(button, `wiki-kb-view-tab${index === 0 ? ' active' : ''}`)
+        button.dataset.view = view.id
+        button.setAttribute('role', 'tab')
+        button.setAttribute('aria-selected', index === 0 ? 'true' : 'false')
+        button.setAttribute('aria-controls', `wiki-kb-panel-${view.id}`)
+      }
+      viewTabsSlot.replaceWith(viewTabs.el)
+    }
     dom.sidebarEl = rootEl.querySelector('.wiki-kb-sidebar')
     dom.sidebarTypeEl = rootEl.querySelector('.wiki-kb-sidebar-type')
     dom.sidebarNameEl = rootEl.querySelector('.wiki-kb-sidebar-name')
@@ -456,6 +477,26 @@ export default function WikiKB(options = {}) {
     dom.sidebarBodyEl = rootEl.querySelector('.wiki-kb-sidebar-body')
     dom.relatedSectionEl = rootEl.querySelector('.wiki-kb-sidebar-related')
     dom.relatedListEl = rootEl.querySelector('.wiki-kb-related-list')
+
+    const sidebarCloseSlot = rootEl.querySelector('[data-role="wiki-kb-sidebar-close"]')
+    const closeControl = createButton({ label: 'x' })
+    addClassNames(closeControl.el, 'wiki-kb-sidebar-close')
+    closeControl.el.setAttribute('aria-label', 'Close details')
+    sidebarCloseSlot?.replaceWith(closeControl.el)
+    const sidebarToggleSlot = rootEl.querySelector('[data-role="wiki-kb-sidebar-toggle"]')
+    const sidebarToggle = createButtonGroup({
+      value: 'markdown',
+      options: [
+        { value: 'markdown', label: 'Markdown' },
+        { value: 'raw', label: 'Raw' },
+      ],
+    })
+    addClassNames(sidebarToggle.el, 'wiki-kb-toggle-group')
+    for (const button of sidebarToggle.el.querySelectorAll('button')) {
+      addClassNames(button, 'wiki-kb-toggle-button')
+      button.dataset.mode = button.dataset.value
+    }
+    sidebarToggleSlot?.replaceWith(sidebarToggle.el)
 
     applyWikiKBSemanticTarget(rootEl.querySelector('.wiki-kb-sidebar-close'), {
       id: 'sidebar-close',

@@ -1,5 +1,41 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function renderTextFieldHtml(config = {}) {
+  const classNames = ['aos-text-input'];
+  if (config.className) classNames.push(...String(config.className).split(/\s+/).filter(Boolean));
+  const parts = [
+    `type="${escapeHtml(config.type || 'text')}"`,
+    `class="${escapeHtml(classNames.join(' '))}"`,
+  ];
+  if (config.id) parts.push(`id="${escapeHtml(config.id)}"`);
+  if (config.name) parts.push(`name="${escapeHtml(config.name)}"`);
+  if (config.value !== undefined) parts.push(`value="${escapeHtml(config.value)}"`);
+  if (config.placeholder) parts.push(`placeholder="${escapeHtml(config.placeholder)}"`);
+  if (config.ariaLabel) parts.push(`aria-label="${escapeHtml(config.ariaLabel)}"`);
+  if (config.maxLength !== undefined) parts.push(`maxlength="${escapeHtml(Number(config.maxLength))}"`);
+  if (config.spellcheck !== undefined) parts.push(`spellcheck="${config.spellcheck ? 'true' : 'false'}"`);
+  for (const [name, value] of Object.entries(config.attributes || {})) {
+    if (value === undefined || value === null || value === false) continue;
+    parts.push(value === true ? escapeHtml(name) : `${escapeHtml(name)}="${escapeHtml(value)}"`);
+  }
+  if (config.rawAttributes) parts.push(String(config.rawAttributes));
+  for (const [name, value] of Object.entries(config.dataset || {})) {
+    if (value === undefined || value === null) continue;
+    const attrName = `data-${String(name).replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+    parts.push(`${escapeHtml(attrName)}="${escapeHtml(value)}"`);
+  }
+  return `<input ${parts.join(' ')}>`;
+}
+
 export function createTextField(config = {}) {
   const doc = ownerDocument(config);
   const hub = createEventHub();
