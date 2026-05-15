@@ -14,8 +14,10 @@ import {
   createCheckboxGroup,
   createSelect,
   createTextField,
+  createTextarea,
   createTimerBar,
   createToggle,
+  renderTextareaHtml,
   wireNumberFieldControls,
 } from 'aos://toolkit/controls/index.js'
 ```
@@ -32,6 +34,7 @@ control.
 | `createButtonGroup({ options, value, onChange })` | exclusive choice button row using `.aos-segmented` | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createToggle({ label, checked, onChange })` | boolean switch backed by an accessible hidden checkbox | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createTextField({ value, placeholder, label, maxLength, validate, onChange, onCommit })` | single-line text input with inline error state | `getValue`, `setValue`, `setError`, `on('change')`, `on('commit')`, `destroy` |
+| `createTextarea({ value, placeholder, rows, maxLength, spellcheck, readOnly, onChange, onCommit })` | native multi-line text area using shared textarea styling | `getValue`, `setValue`, `setReadOnly`, `on('change')`, `on('commit')`, `destroy` |
 | `createCheckboxGroup({ options, value, onChange })` | multi-choice checkbox column with select-all when there are at least three options | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createSelect({ options, value, label, onChange })` | native single-value select | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createTimerBar({ totalMs, direction, display, flashThresholdMs, flashIntervalMs, onExpire })` | cosmetic count-down/count-up timer with digital or pie display | `start`, `pause`, `resume`, `reset`, `getRemainingMs`, `destroy` |
@@ -42,11 +45,15 @@ stepping and returns `{ dispose() }`.
 
 ## Styling
 
+`renderTextareaHtml(config)` is the string-rendering companion for surfaces that
+render HTML templates before wiring controls; it accepts the same static
+textarea attributes and escapes values before placing them in markup.
+
 Stock visual classes live in `packages/toolkit/controls/defaults.css`. Consumers
 may use the classes directly or override the shared `--aos-control-*` tokens by
 cascade. V0 controls use `.aos-button`, `.aos-segmented`, `.aos-toggle-switch`,
-`.aos-text-input`, `.aos-checkbox`, `.aos-select`, `.aos-timer-bar`, and
-`.aos-field-error`.
+`.aos-text-input`, `.aos-textarea`, `.aos-checkbox`, `.aos-select`,
+`.aos-timer-bar`, and `.aos-field-error`.
 
 ## Form Harness
 

@@ -1,3 +1,4 @@
+import { renderTextareaHtml } from '../../controls/textarea.js';
 import {
   TEST_CONSOLE_SURFACE,
   TEST_CONSOLE_URL,
@@ -503,7 +504,12 @@ export function renderTestConsoleHtml(snapshot = {}) {
           </div>
           <p>${escapeHtml(snapshot.human_request?.prompt || 'Record a supervised-run response for this step.')}</p>
           <label for="test-console-note">Note</label>
-          <textarea id="test-console-note" rows="3" placeholder="Optional supervisor note">${escapeHtml(snapshot.note || '')}</textarea>
+          ${renderTextareaHtml({
+            id: 'test-console-note',
+            rows: 3,
+            placeholder: 'Optional supervisor note',
+            value: snapshot.note || '',
+          })}
           <div class="test-console-actions">
             <button type="button" data-action="confirm" ${loaded ? '' : 'disabled'}>Confirm</button>
             <button type="button" data-action="fail" ${loaded ? '' : 'disabled'}>Fail</button>

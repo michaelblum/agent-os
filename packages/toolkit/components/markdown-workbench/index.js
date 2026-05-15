@@ -1,4 +1,5 @@
 import { renderMarkdown } from '../../markdown/render.js';
+import { createTextarea } from '../../controls/textarea.js';
 import { buildAnnotationProjectionResult } from '../../workbench/annotation-projection.js';
 import {
   createMarkdownOpenRequestFromWikiSelection,
@@ -678,9 +679,7 @@ export default function MarkdownWorkbench(options = {}) {
             <button type="button" class="aos-window-button aos-window-close markdown-workbench-close-content" data-action="close-content" aria-label="Close content view" title="Close content view" data-aos-ref="markdown-workbench:content-close" data-aos-action="close_content" data-aos-surface="markdown-workbench" data-semantic-target-id="content-close">x</button>
           </header>
           <div class="markdown-workbench-document-body">
-            <section class="markdown-workbench-source" aria-label="Markdown source">
-              <textarea spellcheck="true" aria-label="Markdown source editor" data-aos-ref="markdown-workbench:source-editor" data-aos-action="edit_markdown" data-aos-surface="markdown-workbench" data-semantic-target-id="source-editor"></textarea>
-            </section>
+            <section class="markdown-workbench-source" aria-label="Markdown source"></section>
             <section class="markdown-workbench-preview-pane" aria-label="Rendered Markdown preview" data-aos-ref="markdown-workbench:preview-pane" data-aos-surface="markdown-workbench" data-semantic-target-id="preview-pane">
               <div class="aos-markdown-preview markdown-workbench-preview" data-aos-ref="markdown-workbench:preview" data-aos-surface="markdown-workbench" data-semantic-target-id="preview"></div>
             </section>
@@ -702,8 +701,20 @@ export default function MarkdownWorkbench(options = {}) {
         </section>
       </main>
     `;
+    const editorControl = createTextarea({
+      document,
+      spellcheck: true,
+      ariaLabel: 'Markdown source editor',
+      dataset: {
+        aosRef: 'markdown-workbench:source-editor',
+        aosAction: 'edit_markdown',
+        aosSurface: 'markdown-workbench',
+        semanticTargetId: 'source-editor',
+      },
+    });
+    root.querySelector('.markdown-workbench-source')?.appendChild(editorControl.el);
     dom.path = root.querySelector('[data-role="path"]');
-    dom.editor = root.querySelector('textarea');
+    dom.editor = editorControl.el;
     dom.sourcePane = root.querySelector('.markdown-workbench-source');
     dom.previewPane = root.querySelector('.markdown-workbench-preview-pane');
     dom.preview = root.querySelector('.markdown-workbench-preview');

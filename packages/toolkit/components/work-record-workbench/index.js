@@ -1,4 +1,5 @@
 import { esc } from '../../runtime/bridge.js';
+import { createTextarea } from '../../controls/textarea.js';
 import {
   applyWorkRecordPatchResult,
   buildWorkRecordPatchRequest,
@@ -19,6 +20,10 @@ function el(tag, className, textContent) {
   if (className) node.className = className;
   if (textContent !== undefined) node.textContent = textContent;
   return node;
+}
+
+function textareaEl(config = {}) {
+  return createTextarea({ document, ...config }).el;
 }
 
 function text(value, fallback = '') {
@@ -284,22 +289,18 @@ export default function WorkRecordWorkbench(options = {}) {
         <section class="work-record-intent" aria-label="Work record intent">
           <label>
             <span>Intent</span>
-            <textarea data-role="intent-nl" spellcheck="true" aria-label="Natural language intent"></textarea>
           </label>
           <div class="work-record-intent-grid">
             <label>
               <span>Purpose</span>
-              <textarea data-role="intent-purpose" spellcheck="true" aria-label="Intent purpose"></textarea>
             </label>
             <label>
               <span>Acceptance</span>
-              <textarea data-role="intent-acceptance" spellcheck="true" aria-label="Acceptance condition"></textarea>
             </label>
           </div>
         </section>
         <section class="work-record-json" aria-label="Execution map JSON">
           <div class="work-record-section-title">Execution Map JSON</div>
-          <textarea data-role="execution-map" spellcheck="false" aria-label="Execution map JSON editor"></textarea>
         </section>
         <aside class="work-record-inspector" aria-label="Work record health and evidence">
           <section>
@@ -337,6 +338,28 @@ export default function WorkRecordWorkbench(options = {}) {
         </aside>
       </main>
     `;
+
+    const intentLabels = root.querySelectorAll('.work-record-intent label');
+    intentLabels[0]?.appendChild(textareaEl({
+      spellcheck: true,
+      ariaLabel: 'Natural language intent',
+      dataset: { role: 'intent-nl' },
+    }));
+    intentLabels[1]?.appendChild(textareaEl({
+      spellcheck: true,
+      ariaLabel: 'Intent purpose',
+      dataset: { role: 'intent-purpose' },
+    }));
+    intentLabels[2]?.appendChild(textareaEl({
+      spellcheck: true,
+      ariaLabel: 'Acceptance condition',
+      dataset: { role: 'intent-acceptance' },
+    }));
+    root.querySelector('.work-record-json')?.appendChild(textareaEl({
+      spellcheck: false,
+      ariaLabel: 'Execution map JSON editor',
+      dataset: { role: 'execution-map' },
+    }));
 
     dom.recordId = root.querySelector('[data-role="record-id"]');
     dom.recordType = root.querySelector('[data-role="record-type"]');

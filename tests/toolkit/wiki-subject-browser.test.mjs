@@ -748,7 +748,8 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:wiki-graph"/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:content-pane"/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:content-close"/);
-  assert.match(markdownJs, /data-aos-ref="markdown-workbench:source-editor"/);
+  assert.match(markdownJs, /createTextarea\(\{/);
+  assert.match(markdownJs, /aosRef: 'markdown-workbench:source-editor'/);
   assert.match(markdownJs, /type\.startsWith\('wiki-kb\/'\)/);
 });
 
