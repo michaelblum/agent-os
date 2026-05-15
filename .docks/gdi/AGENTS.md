@@ -24,18 +24,31 @@ unless the handoff explicitly assigns that work. If the goal is ambiguous,
 requires human judgment, or is actually a routing/planning question, stop and
 handoff to Foreman instead of inventing scope.
 
+## Relay Context
+
+At session start, the active workflow profile is resolved from
+`docs/dev/active-profile.json` and injected into your context by the dock hook
+as `AOS_ACTIVE_WORKFLOW_PROFILE`. A relay context block is printed in your
+session snapshot under `## Relay Context`.
+
+Read that block. It tells you:
+- The active profile name
+- Current `origin/main` SHA
+- Open `gdi/*` branches and their distance from main
+- Conflict risk for your current branch vs other open branches
+
+Do not hardcode profile names or git posture rules in your reasoning. The
+injected context is the source of truth for the current session.
+
 ## Git Boundary
 
 The active workflow profile governs what git operations GDI may perform. Read
-`docs/dev/workflow-profiles.json` to determine the active profile before
-deciding whether to commit or push.
+`docs/dev/workflow-profiles.json` for the full profile definition. The
+profile name is in `docs/dev/active-profile.json`.
 
-### `agentic_relay` profile (active default)
+For all profiles, the git boundary is:
 
-When the active profile is `agentic_relay`, GDI has explicit git authority for
-the following operations at work card completion:
-
-#### Preconditions — run these before any implementation work
+### Preconditions — run before any implementation work
 
 1. **Sync** — fetch and hard-reset to origin/main before branching:
    ```
@@ -51,8 +64,9 @@ the following operations at work card completion:
    git checkout -b gdi/<work-card-slug>
    ```
    If the branch already exists on origin, check it out and rebase on main.
+   If the work card specifies `branch_from`, branch from that ref instead.
 
-#### Implementation
+### Implementation
 
 3. **Commit** — make scoped, atomic commits on the branch as work progresses.
    Follow the commit message convention in the work card if provided; otherwise
@@ -61,42 +75,44 @@ the following operations at work card completion:
    Stage only the explicit files you created or modified for this work card.
    Do not use `git add .` or `git add <directory>/`. Name every path explicitly.
 
-#### Completion — run these after all verification passes
+### Completion — run after all verification passes
 
-4. **Verify commit contents** — confirm your deliverables are actually in HEAD:
+4. **Verify commit contents** — confirm deliverables are in HEAD:
    ```
    git show --stat HEAD
    ```
-   Include the full output of this command in your completion report. Do not
-   report a HEAD SHA without first confirming the deliverables appear in
-   `git show --stat HEAD`.
+   Include the full output in your completion report.
 
 5. **Push** — `git push origin gdi/<work-card-slug>` after verification.
    Do not push until the work card verification block is green.
 
-6. **Report** — include in the completion report:
-   - Branch name
-   - HEAD SHA (`git rev-parse HEAD`)
-   - Full output of `git show --stat HEAD`
-   - Test results summary
-   - Any unrelated dirty state still present in the working tree
+6. **Completion report** — include all of the following, structured exactly
+   as shown so the relay partner can parse it:
+
+   ```
+   ## Completion Report
+   - profile: <value of AOS_ACTIVE_WORKFLOW_PROFILE>
+   - branch: gdi/<slug>
+   - head_sha: <git rev-parse HEAD>
+   - base_sha: <origin/main SHA at branch time>
+   - files_changed: <n>
+   - tests_passed: <n>/<n>
+   - conflict_risk: <none|low|medium — list files if low or medium>
+   - open_prs_on_same_files: <none|list PR numbers>
+   - relay_action_required: <merge|review|block>
+   ```
 
    Do not merge to main. The relay partner handles merge.
 
+### Profile-specific push authority
+
+- `agentic_relay` — GDI has push authority to `gdi/*` branches. Push at
+  completion. Do not merge to main.
+- `hybrid_trunk` — GDI does not commit or push unless the work card explicitly
+  includes a Git section with those instructions. Foreman is the default git
+  steward.
+- All other profiles — GDI does not commit, push, open PRs, close issues, or
+  rewrite branch history unless the assigned handoff explicitly requests it.
+
 GDI does not open PRs, merge branches, close issues, or rewrite branch history
 unless the work card explicitly assigns that operation.
-
-### `hybrid_trunk` profile
-
-When the active profile is `hybrid_trunk`, GDI does not commit or push unless
-the work card explicitly includes a Git section with those instructions.
-Foreman is the default git steward in this profile.
-
-### Other profiles
-
-For all other profiles, GDI does not commit, push, open PRs, close issues, or
-rewrite branch history unless the assigned handoff explicitly requests it.
-Foreman is the default git/GitHub steward. If a goal explicitly assigns GitHub,
-CI, or issue-comment work, use the shared docked-session GitHub control surface,
-`./aos dev gh`, and report the exact operation and result in the completion
-summary.
