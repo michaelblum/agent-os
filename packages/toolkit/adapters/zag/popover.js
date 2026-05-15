@@ -46,8 +46,6 @@ export function createAosZagPopover(context = {}) {
       getTitleProps: (extra = {}) => mergeProps(api.getTitleProps(), extra),
       getDescriptionProps: (extra = {}) => mergeProps(api.getDescriptionProps(), extra),
       getCloseTriggerProps: (extra = {}) => mergeProps(api.getCloseTriggerProps(), extra),
-
-      
     }),
     bindings: {
       trigger: { alias: 'Trigger', getter: 'getTriggerProps' },

@@ -30,14 +30,11 @@ export function createAosZagCollapsible(context = {}) {
       getRootProps: (extra = {}) => mergeProps(api.getRootProps(), extra),
       getTriggerProps: (extra = {}) => mergeProps(api.getTriggerProps(), extra),
       getContentProps: (extra = {}) => mergeProps(api.getContentProps(), extra),
-
-      
     }),
     bindings: {
       root: { alias: 'Root', getter: 'getRootProps' },
       trigger: { alias: 'Trigger', getter: 'getTriggerProps' },
       content: { alias: 'Content', getter: 'getContentProps' },
-
     },
     actions: {
       open: (api) => api.setOpen(true),

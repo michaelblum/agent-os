@@ -50,10 +50,18 @@ test('bind wires minimum slider parts', () => {
   elThumb.dataset.aosSliderThumb = '';
   elThumb.dataset.value = 'a';
   container.appendChild(elThumb);
+  const elIndexOnly = patchSpreadSupport(document.createElement('div'));
+  elIndexOnly.dataset.index = '0';
+  container.appendChild(elIndexOnly);
   const elOutput = patchSpreadSupport(document.createElement('div'));
   elOutput.dataset.aosSliderOutput = '';
   container.appendChild(elOutput);
   document.body.appendChild(container);
+
+  assert.equal(adapter.bindThumbs(container), 1);
+  assert.equal(elThumb.getAttribute('role'), 'slider');
+  assert.equal(elThumb.getAttribute('aria-valuenow'), '25');
+  assert.equal(elIndexOnly.getAttribute('role'), null);
 
   const snapshot = adapter.bind(container);
 

@@ -45,7 +45,15 @@ test('bind wires minimum tags-input parts', () => {
   elItem.dataset.aosTagsInputItem = '';
   elItem.dataset.value = 'a';
   container.appendChild(elItem);
+  const elValueOnly = patchSpreadSupport(document.createElement('div'));
+  elValueOnly.dataset.value = 'a';
+  container.appendChild(elValueOnly);
   document.body.appendChild(container);
+
+  assert.equal(adapter.bindItems(container), 1);
+  assert.equal(elItem.getAttribute('data-part'), 'item');
+  assert.equal(elItem.getAttribute('data-value'), 'a');
+  assert.equal(elValueOnly.getAttribute('data-part'), null);
 
   const snapshot = adapter.bind(container);
 

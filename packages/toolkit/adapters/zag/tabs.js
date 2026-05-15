@@ -25,7 +25,7 @@ export function createAosZagTabs(context = {}) {
     selectors: {
       root: '[data-aos-tabs-root]',
       list: '[data-aos-tabs-list]',
-      trigger: '[data-value]',
+      trigger: '[data-aos-tabs-trigger]',
       content: '[data-aos-tabs-content]',
     },
     snapshot: (api, service) => ({

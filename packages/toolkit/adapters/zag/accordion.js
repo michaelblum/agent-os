@@ -21,7 +21,7 @@ export function createAosZagAccordion(context = {}) {
     }),
     selectors: {
       root: '[data-aos-accordion-root]',
-      item: '[data-value]',
+      item: '[data-aos-accordion-item]',
       itemTrigger: '[data-aos-accordion-item-trigger]',
       itemContent: '[data-aos-accordion-item-content]',
     },

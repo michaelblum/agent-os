@@ -22,7 +22,7 @@ export function createAosZagToggleGroup(context = {}) {
     }),
     selectors: {
       root: '[data-aos-toggle-group-root]',
-      item: '[data-value]',
+      item: '[data-aos-toggle-group-item]',
     },
     snapshot: (api, service) => ({
       api,
@@ -30,7 +30,8 @@ export function createAosZagToggleGroup(context = {}) {
       value: api.value,
       state: service.service.state.get(),
       send: service.send,
-      getRootProps: (extra = {}) => mergeProps(api.getRootProps(), extra),      getItemProps: (props, extra = {}) => mergeProps(api.getItemProps(props), extra),
+      getRootProps: (extra = {}) => mergeProps(api.getRootProps(), extra),
+      getItemProps: (props, extra = {}) => mergeProps(api.getItemProps(props), extra),
       setValue: api.setValue,
     }),
     bindings: {

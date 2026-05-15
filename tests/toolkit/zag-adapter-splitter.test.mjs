@@ -34,11 +34,19 @@ test('bind wires minimum splitter parts', () => {
   elPanel.dataset.aosSplitterPanel = '';
   elPanel.dataset.value = 'a';
   container.appendChild(elPanel);
+  const elIdOnly = patchSpreadSupport(document.createElement('div'));
+  elIdOnly.dataset.id = 'a';
+  container.appendChild(elIdOnly);
   const elResizeTrigger = patchSpreadSupport(document.createElement('div'));
   elResizeTrigger.dataset.aosSplitterResizeTrigger = '';
   elResizeTrigger.dataset.value = 'a:b';
   container.appendChild(elResizeTrigger);
   document.body.appendChild(container);
+
+  assert.equal(adapter.bindPanels(container), 1);
+  assert.equal(elPanel.getAttribute('data-part'), 'panel');
+  assert.equal(elPanel.getAttribute('data-id'), 'a');
+  assert.equal(elIdOnly.getAttribute('data-part'), null);
 
   const snapshot = adapter.bind(container);
 

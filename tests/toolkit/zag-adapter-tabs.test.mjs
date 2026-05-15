@@ -44,6 +44,12 @@ test('bind wires minimum tabs parts', () => {
   container.appendChild(elContent);
   document.body.appendChild(container);
 
+  assert.equal(adapter.bindTriggers(container), 1);
+  assert.equal(adapter.bindContents(container), 1);
+  assert.equal(elTrigger.getAttribute('role'), 'tab');
+  assert.equal(elContent.getAttribute('role'), 'tabpanel');
+  assert.equal(elTrigger.getAttribute('aria-controls'), elContent.getAttribute('id'));
+
   const snapshot = adapter.bind(container);
 
   assert.equal(typeof snapshot.api, 'object');

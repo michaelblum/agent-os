@@ -49,6 +49,13 @@ test('bind wires minimum radio-group parts', () => {
   container.appendChild(elRadioControl);
   document.body.appendChild(container);
 
+  assert.equal(adapter.bindItems(container), 1);
+  assert.equal(adapter.bindRadios(container), 1);
+  assert.equal(adapter.bindRadioControls(container), 1);
+  assert.equal(elItem.getAttribute('data-part'), 'item');
+  assert.equal(elRadio.getAttribute('data-part'), 'item');
+  assert.equal(elRadioControl.getAttribute('data-part'), 'item-control');
+
   const snapshot = adapter.bind(container);
 
   assert.equal(typeof snapshot.api, 'object');

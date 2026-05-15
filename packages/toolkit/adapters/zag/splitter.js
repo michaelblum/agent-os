@@ -20,7 +20,7 @@ export function createAosZagSplitter(context = {}) {
     }),
     selectors: {
       root: '[data-aos-splitter-root]',
-      panel: '[data-id]',
+      panel: '[data-aos-splitter-panel]',
       resizeTrigger: '[data-aos-splitter-resize-trigger]',
     },
     snapshot: (api, service) => ({
@@ -34,7 +34,6 @@ export function createAosZagSplitter(context = {}) {
       getResizeTriggerProps: (props, extra = {}) => mergeProps(api.getResizeTriggerProps(props), extra),
       getSizes: api.getSizes,
       setSizes: api.setSizes,
-      
     }),
     bindings: {
       root: { alias: 'Root', getter: 'getRootProps' },

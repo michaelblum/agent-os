@@ -35,14 +35,11 @@ export function createAosZagTooltip(context = {}) {
       getTriggerProps: (extra = {}) => mergeProps(api.getTriggerProps(), extra),
       getPositionerProps: (extra = {}) => mergeProps(api.getPositionerProps(), extra),
       getContentProps: (extra = {}) => mergeProps(api.getContentProps(), extra),
-
-      
     }),
     bindings: {
       trigger: { alias: 'Trigger', getter: 'getTriggerProps' },
       positioner: { alias: 'Positioner', getter: 'getPositionerProps' },
       content: { alias: 'Content', getter: 'getContentProps' },
-
     },
     actions: {
       open: (api) => api.setOpen(true),

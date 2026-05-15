@@ -45,6 +45,13 @@ test('bind wires minimum accordion parts', () => {
   container.appendChild(elItemContent);
   document.body.appendChild(container);
 
+  assert.equal(adapter.bindItems(container), 1);
+  assert.equal(adapter.bindItemTriggers(container), 1);
+  assert.equal(adapter.bindItemContents(container), 1);
+  assert.equal(elItem.getAttribute('data-part'), 'item');
+  assert.equal(elItemTrigger.getAttribute('aria-controls'), elItemContent.getAttribute('id'));
+  assert.equal(elItemContent.getAttribute('role'), 'region');
+
   const snapshot = adapter.bind(container);
 
   assert.equal(typeof snapshot.api, 'object');

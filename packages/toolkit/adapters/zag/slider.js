@@ -34,7 +34,7 @@ export function createAosZagSlider(context = {}) {
       track: '[data-aos-slider-track]',
       range: '[data-aos-slider-range]',
       output: '[data-aos-slider-output]',
-      thumb: '[data-index]',
+      thumb: '[data-aos-slider-thumb]',
     },
     snapshot: (api, service) => ({
       api,

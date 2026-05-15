@@ -39,7 +39,7 @@ export function createAosZagTagsInput(context = {}) {
       label: '[data-aos-tags-input-label]',
       control: '[data-aos-tags-input-control]',
       input: '[data-aos-tags-input-input]',
-      item: '[data-value]',
+      item: '[data-aos-tags-input-item]',
     },
     snapshot: (api, service) => ({
       api,
@@ -50,8 +50,10 @@ export function createAosZagTagsInput(context = {}) {
       getRootProps: (extra = {}) => mergeProps(api.getRootProps(), extra),
       getLabelProps: (extra = {}) => mergeProps(api.getLabelProps(), extra),
       getControlProps: (extra = {}) => mergeProps(api.getControlProps(), extra),
-      getInputProps: (extra = {}) => mergeProps(api.getInputProps(), extra),      getItemProps: (props, extra = {}) => mergeProps(api.getItemProps(props), extra),
-      setValue: api.setValue, setInputValue: api.setInputValue,
+      getInputProps: (extra = {}) => mergeProps(api.getInputProps(), extra),
+      getItemProps: (props, extra = {}) => mergeProps(api.getItemProps(props), extra),
+      setValue: api.setValue,
+      setInputValue: api.setInputValue,
     }),
     bindings: {
       root: { alias: 'Root', getter: 'getRootProps' },

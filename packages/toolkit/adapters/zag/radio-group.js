@@ -25,7 +25,7 @@ export function createAosZagRadioGroup(context = {}) {
     selectors: {
       root: '[data-aos-radio-group-root]',
       label: '[data-aos-radio-group-label]',
-      item: '[data-value]',
+      item: '[data-aos-radio-group-item]',
       radio: '[data-aos-radio-group-radio]',
       radioControl: '[data-aos-radio-group-radio-control]',
     },
