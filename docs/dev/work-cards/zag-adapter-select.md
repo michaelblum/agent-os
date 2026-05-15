@@ -27,9 +27,14 @@ and controlled open/value state.
 
 ### Modify
 - `packages/toolkit/adapters/zag/index.js` — export `createAosZagSelect`
+- `packages/toolkit/package.json` and `packages/toolkit/package-lock.json` —
+  only if `@zag-js/select` is not already present
 
 ### Do not touch
 - `packages/toolkit/controls/select.js` — rendering layer, no changes
+- `packages/toolkit/controls/_html.js` and
+  `packages/toolkit/controls/button.js` — shared control cleanup belongs to the
+  retrofit sweep, not this adapter card
 - `packages/toolkit/adapters/zag/menu.js` — reference only
 - Any surface or component files — no surface adoption in this card
 - `bridge.js` or manifests
@@ -81,9 +86,10 @@ select.destroy()            // stop machine, clean up all bindings
 
 ## Implementation Notes
 
-- Use `@zag-js/select` — it is already in `packages/toolkit/package.json`.
-  Confirm with `grep '@zag-js/select' packages/toolkit/package.json` before
-  adding any install step.
+- Use `@zag-js/select`. Confirm with
+  `grep '@zag-js/select' packages/toolkit/package.json`. If it is
+  missing, add it at the same version family as the existing Zag dependencies
+  and update the toolkit lockfile, but do not make unrelated package changes.
 - Follow the `VanillaMachine` / `zagConnect` / `normalizeProps` pattern from
   `menu.js` exactly. Import from `./vendor/menu-runtime.mjs` only if select
   exports are bundled there; otherwise import directly from `@zag-js/select`.
@@ -114,6 +120,19 @@ git diff --check
 ```
 
 All checks must be green before pushing.
+
+## Relay Review Correction
+
+An existing `gdi/zag-adapter-select` branch at `6cbf927` was reviewed on
+2026-05-15 and is not merge-ready yet. The adapter tests pass, but the diff
+includes out-of-scope edits to `packages/toolkit/controls/_html.js` and
+`packages/toolkit/controls/button.js`. Rework the branch so those shared
+control changes are absent from this card. Keep package manifest or lockfile
+changes only if they are required for `@zag-js/select`.
+
+PR #324 (`gdi/retrofit-shared-controls-sweep`) is still open and touches
+`packages/toolkit/controls/button.js`. If it remains open when reporting
+completion, list it in `open_prs_on_same_files`.
 
 ## Git Section
 
