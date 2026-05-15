@@ -7,3 +7,7 @@ export {
 export {
   createAosZagSelect,
 } from './select.js';
+
+export {
+  createAosZagCombobox,
+} from './combobox.js';

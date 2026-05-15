@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@zag-js/combobox": "^1.40.0",
     "@zag-js/menu": "^1.40.0",
     "@zag-js/select": "^1.40.0",
     "@zag-js/vanilla": "^1.40.0"
