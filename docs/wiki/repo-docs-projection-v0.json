@@ -1,0 +1,116 @@
+{
+  "projection": "repo_docs_v0",
+  "description": "Curated deterministic projection of canonical repo docs into runtime wiki orientation pages.",
+  "entries": [
+    {
+      "source_path": "AGENTS.md",
+      "slug": "repo-doc-agents",
+      "type": "repo_doc",
+      "name": "Repo Agent Contract",
+      "description": "Repo-wide agent contract, entry paths, primitive ownership, and development methods.",
+      "tags": ["repo-docs", "agents", "entry-paths", "runtime-wiki"],
+      "concepts": ["runtime wiki", "daemon", "toolkit", "Sigil"],
+      "source_type": "markdown"
+    },
+    {
+      "source_path": "ARCHITECTURE.md",
+      "slug": "repo-doc-architecture",
+      "type": "repo_doc",
+      "name": "AOS Architecture",
+      "description": "Architecture reference for AOS primitives, daemon ownership, and platform layering.",
+      "tags": ["repo-docs", "architecture", "daemon", "toolkit"],
+      "concepts": ["daemon", "toolkit", "DesktopWorld stage", "runtime wiki"],
+      "source_type": "markdown"
+    },
+    {
+      "source_path": "docs/api/aos.md",
+      "slug": "repo-doc-api-aos",
+      "type": "repo_doc",
+      "name": "AOS CLI API",
+      "description": "Consumer-facing reference for the unified aos CLI and runtime command surfaces.",
+      "tags": ["repo-docs", "api", "cli", "daemon"],
+      "concepts": ["daemon", "runtime wiki", "Surface Inspector"],
+      "source_type": "api_doc"
+    },
+    {
+      "source_path": "docs/api/toolkit.md",
+      "slug": "repo-doc-api-toolkit",
+      "type": "repo_doc",
+      "name": "Toolkit API",
+      "description": "Top-level toolkit API map for reusable AOS display and interaction policy.",
+      "tags": ["repo-docs", "api", "toolkit"],
+      "concepts": ["toolkit", "DesktopWorld stage", "HTML Workbench Expression"],
+      "source_type": "api_doc"
+    },
+    {
+      "source_path": "docs/api/toolkit/runtime.md",
+      "slug": "repo-doc-api-toolkit-runtime",
+      "type": "repo_doc",
+      "name": "Toolkit Runtime API",
+      "description": "Runtime contracts for toolkit surfaces, resources, stages, and canvas behavior.",
+      "tags": ["repo-docs", "api", "toolkit", "runtime"],
+      "concepts": ["toolkit", "DesktopWorld stage", "input_region", "daemon"],
+      "source_type": "api_doc"
+    },
+    {
+      "source_path": "docs/api/toolkit/workbench.md",
+      "slug": "repo-doc-api-toolkit-workbench",
+      "type": "repo_doc",
+      "name": "Toolkit Workbench API",
+      "description": "Workbench contracts for subjects, annotation sessions, wiki subjects, and HTML Workbench Expression.",
+      "tags": ["repo-docs", "api", "toolkit", "workbench"],
+      "concepts": ["toolkit", "Surface Inspector", "Annotation Mode", "HTML Workbench Expression", "runtime wiki"],
+      "source_type": "api_doc"
+    },
+    {
+      "source_path": "docs/design/aos-canon-surface-boundary-alignment-plan.md",
+      "slug": "repo-doc-surface-boundary-alignment",
+      "type": "repo_doc",
+      "name": "Surface Boundary Alignment Plan",
+      "description": "Design plan for aligning daemon, toolkit, and app ownership across AOS surface systems.",
+      "tags": ["repo-docs", "design", "surface-system", "daemon", "toolkit"],
+      "concepts": ["daemon", "toolkit", "DesktopWorld stage", "Sigil", "Surface Inspector"],
+      "source_type": "markdown"
+    },
+    {
+      "source_path": "docs/design/aos-surface-system.md",
+      "slug": "repo-doc-surface-system",
+      "type": "repo_doc",
+      "name": "AOS Surface System",
+      "description": "Design reference for AOS surface system concepts and default toolkit windowing policy.",
+      "tags": ["repo-docs", "design", "surface-system", "toolkit"],
+      "concepts": ["toolkit", "DesktopWorld stage", "input_region", "Surface Inspector"],
+      "source_type": "markdown"
+    },
+    {
+      "source_path": "docs/design/display-first-annotation-mode-and-sigil-reticle.md",
+      "slug": "repo-doc-display-first-annotation-mode",
+      "type": "repo_doc",
+      "name": "Display-First Annotation Mode",
+      "description": "Design note for display-first Annotation Mode, Sigil reticle entry, and annotation overlays.",
+      "tags": ["repo-docs", "design", "annotation", "sigil"],
+      "concepts": ["Annotation Mode", "Sigil", "Surface Inspector", "DesktopWorld stage"],
+      "source_type": "markdown"
+    },
+    {
+      "source_path": "docs/design/aos-3d-object-graph-platform-contract.md",
+      "slug": "repo-doc-3d-object-graph-platform-contract",
+      "type": "repo_doc",
+      "name": "3D Object Graph Platform Contract",
+      "description": "Platform contract for 3D object graph surfaces, Sigil interactions, and object-level affordances.",
+      "tags": ["repo-docs", "design", "object-graph", "sigil"],
+      "concepts": ["Sigil", "DesktopWorld stage", "toolkit", "Surface Inspector"],
+      "source_type": "markdown"
+    },
+    {
+      "source_path": "docs/design/work-cards/repo-docs-runtime-wiki-projection-v0.md",
+      "slug": "repo-doc-work-card-runtime-wiki-projection-v0",
+      "type": "repo_doc",
+      "name": "Repo Docs Runtime Wiki Projection V0 Work Card",
+      "description": "Active work card defining the deterministic repo-docs to runtime wiki projection slice.",
+      "tags": ["repo-docs", "work-card", "runtime-wiki"],
+      "concepts": ["runtime wiki", "daemon", "toolkit", "HTML Workbench Expression"],
+      "source_type": "work_card"
+    }
+  ]
+}

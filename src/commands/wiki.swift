@@ -47,7 +47,7 @@ func wikiCommand(args: [String]) {
         exit(0)
     }
     guard let sub = args.first else {
-        exitError("wiki requires a subcommand. Usage: aos wiki <list|show|graph|add|rm|link|search|seed|reindex|lint|invoke|create-plugin|migrate-namespaces> ...",
+        exitError("wiki requires a subcommand. Usage: aos wiki <list|show|graph|add|rm|link|search|seed|project-docs|reindex|lint|invoke|create-plugin|migrate-namespaces> ...",
                   code: "MISSING_SUBCOMMAND")
     }
     let subArgs = Array(args.dropFirst())
@@ -76,6 +76,8 @@ func wikiCommand(args: [String]) {
         wikiInvokeCommand(args: subArgs)
     case "seed":
         wikiSeedCommand(args: subArgs)
+    case "project-docs":
+        wikiProjectDocsCommand(args: subArgs)
     case "migrate-namespaces":
         wikiMigrateNamespacesCommand(args: subArgs)
     default:

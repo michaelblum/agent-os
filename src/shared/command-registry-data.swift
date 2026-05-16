@@ -1521,6 +1521,15 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execMutating(),
             output: outJSONFlag,
             examples: ["aos wiki seed", "aos wiki seed --force --namespace sigil"]),
+        InvocationForm(id: "wiki-project-docs", usage: "aos wiki project-docs [--manifest path] [--dry-run] [--json]",
+            args: [
+                flag("manifest", "--manifest", "Projection manifest path"),
+                flag("dry-run", "--dry-run", "Plan projection without writing generated pages or reindexing", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execMutating(),
+            output: outJSONFlag,
+            examples: ["aos wiki project-docs --dry-run --json", "aos wiki project-docs --manifest docs/wiki/repo-docs-projection-v0.json"]),
         InvocationForm(id: "wiki-migrate-namespaces", usage: "aos wiki migrate-namespaces",
             args: [],
             stdin: nil, constraints: nil,

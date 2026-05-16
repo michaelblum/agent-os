@@ -181,6 +181,26 @@ helpers cover repo-specific repeated loops: `ci inspect` reads PR checks and
 fetches failed GitHub Actions logs when the check links to an Actions run, while
 `review-comments` uses `gh api graphql` to read review-thread resolution state.
 
+### Wiki Repo Docs Projection
+
+`aos wiki project-docs` projects a curated manifest of canonical Git docs into
+the runtime wiki as generated orientation pages:
+
+```bash
+./aos wiki project-docs --dry-run --json
+./aos wiki project-docs --manifest docs/wiki/repo-docs-projection-v0.json
+```
+
+The source-controlled V0 manifest lives at
+[`docs/wiki/repo-docs-projection-v0.json`](../wiki/repo-docs-projection-v0.json).
+Generated pages are written under `aos/concepts/repo-doc-*.md` so the existing
+wiki index, search, show, and graph surfaces can see them without adding a new
+namespace. Each page uses `type: repo_doc` and carries `generated: true`,
+`projection: repo_docs_v0`, `source_path`, `source_hash`, `source_type`, tags,
+and controlled concepts. The page body repeats that Git docs are canonical,
+records source metadata, includes deterministic concept links to related
+projected pages, and embeds the source Markdown content without summarization.
+
 ### 2. Create a Persistent Canvas
 
 ```bash
