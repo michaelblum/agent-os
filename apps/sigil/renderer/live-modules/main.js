@@ -63,8 +63,8 @@ import {
 import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
     applyRadialMenuObjectTransformPatch,
-    buildRadialMenuObjectRegistry,
 } from './radial-object-control.js';
+import { buildAvatarObjectRegistry } from './avatar-object-control.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
@@ -1687,8 +1687,10 @@ let _lastMarkEmitAt = 0;
 
 function emitRadialMenuObjectRegistry() {
     if (!isPrimarySurfaceSegment()) return;
-    const registry = buildRadialMenuObjectRegistry(state.radialGestureMenu, {
+    const registry = buildAvatarObjectRegistry(state, {
         canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+        avatarPos: liveJs.avatarPos,
+        avatarVisible: liveJs.avatarVisible,
     });
     host.post('canvas_object.registry', registry);
 }
