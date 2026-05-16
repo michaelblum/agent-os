@@ -214,6 +214,8 @@ private func renderProjectedRepoDocPage(entry: RepoDocsProjectionEntry, sourceCo
         .joined(separator: "\n")
     let relatedBlock = related.isEmpty ? "- No same-concept projected pages in this manifest." : related
 
+    let projectedSourceFence = markdownCodeFence(for: projectedSource)
+
     return """
     ---
     type: \(entry.type)
@@ -244,14 +246,28 @@ private func renderProjectedRepoDocPage(entry: RepoDocsProjectionEntry, sourceCo
 
     ## Projected Source
 
-    ```markdown
+    \(projectedSourceFence)markdown
     \(projectedSource)
-    ```
+    \(projectedSourceFence)
 
     ## Related Projected Pages
 
     \(relatedBlock)
     """
+}
+
+private func markdownCodeFence(for content: String) -> String {
+    var longestBacktickRun = 0
+    var currentRun = 0
+    for character in content {
+        if character == "`" {
+            currentRun += 1
+            longestBacktickRun = max(longestBacktickRun, currentRun)
+        } else {
+            currentRun = 0
+        }
+    }
+    return String(repeating: "`", count: max(3, longestBacktickRun + 1))
 }
 
 private func relatedProjectionEntries(for entry: RepoDocsProjectionEntry, entriesByConcept: [[String]: [RepoDocsProjectionEntry]]) -> [RepoDocsProjectionEntry] {

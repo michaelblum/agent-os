@@ -53,6 +53,13 @@ cat > "$TMP_REPO_DIR/source.md" <<'EOF'
 # Projection Fixture
 
 DesktopWorld stage and input_region are controlled concepts for this fixture.
+
+The projected source includes a normal fenced code block:
+
+```swift
+let stage = "DesktopWorld"
+let region = "input_region"
+```
 EOF
 
 cat > "$MANIFEST" <<EOF
@@ -83,6 +90,19 @@ test -f "$ROOT/repo/wiki/aos/concepts/repo-doc-test-projection.md" || { echo "FA
 RAW="$("$AOS" wiki show aos/concepts/repo-doc-test-projection.md --raw)"
 grep -q "Git is canonical" <<<"$RAW" || { echo "FAIL: canonical-source warning missing"; exit 1; }
 grep -q "source_hash: sha256:" <<<"$RAW" || { echo "FAIL: source hash missing"; exit 1; }
+grep -q '^````markdown$' <<<"$RAW" || { echo "FAIL: projected source wrapper did not grow beyond inner fence"; exit 1; }
+grep -q '^```swift$' <<<"$RAW" || { echo "FAIL: source fenced code block missing from projection"; exit 1; }
+grep -q '^````$' <<<"$RAW" || { echo "FAIL: projected source wrapper close fence missing"; exit 1; }
+python3 - "$ROOT/repo/wiki/aos/concepts/repo-doc-test-projection.md" <<'PY'
+import pathlib
+import sys
+content = pathlib.Path(sys.argv[1]).read_text()
+close = content.index("\n````\n\n## Related Projected Pages")
+source = content.index("\n````markdown\n")
+inner = content.index("\n```swift\n")
+if not source < inner < close:
+    raise SystemExit("FAIL: inner source fence was not contained by projected-source wrapper")
+PY
 HASH1="$(grep '^source_hash:' "$ROOT/repo/wiki/aos/concepts/repo-doc-test-projection.md")"
 
 OUTPUT="$("$AOS" wiki project-docs --manifest "$MANIFEST" --json)"
