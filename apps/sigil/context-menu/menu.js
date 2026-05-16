@@ -23,6 +23,9 @@ import {
     normalizeFastTravelEffect,
 } from '../renderer/transition-registry.js';
 import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/tesseron.js';
+import {
+    applyContextMenuDescriptorUpdate,
+} from './descriptors.js';
 
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
@@ -1148,14 +1151,44 @@ export function createSigilContextMenu({
     }
 
     function bindControls() {
+        const descriptorContext = () => ({
+            state,
+            liveJs,
+            updateGeometry,
+            updateOmegaGeometry,
+            updateAllColors,
+            updatePulsars,
+            updateGammaRays,
+            updateAccretion,
+            updateNeutrinos,
+            updateMagneticTentacleCount,
+            onAppearanceChange,
+            onAvatarWindowLevelChange,
+            setControlDisabled,
+            setControlValue,
+            computeBaseScale,
+        });
+        const routeDescriptorUpdate = (id, value) => {
+            const result = applyContextMenuDescriptorUpdate(id, value, descriptorContext());
+            if (result?.descriptor) recordTrace('descriptor-update', {
+                id,
+                descriptorId: result.descriptor.id,
+                route: result.route,
+                value: result.value,
+                persisted: result.persisted,
+            });
+            return result;
+        };
         const onRange = (id, setter) => {
             const el = layer.querySelector(`#${id}`);
             if (!el) return;
             el.addEventListener('input', () => {
                 const value = Number(el.value);
                 setValueLabel(id, value);
-                setter?.(value);
-                onAppearanceChange?.({ controlId: id, value });
+                if (!routeDescriptorUpdate(id, value)) {
+                    setter?.(value);
+                    onAppearanceChange?.({ controlId: id, value });
+                }
             });
         };
         const onCheckbox = (id, setter) => {
@@ -1163,8 +1196,10 @@ export function createSigilContextMenu({
             if (!el) return;
             el.addEventListener('change', () => {
                 const value = !!el.checked;
-                setter?.(value);
-                onAppearanceChange?.({ controlId: id, value });
+                if (!routeDescriptorUpdate(id, value)) {
+                    setter?.(value);
+                    onAppearanceChange?.({ controlId: id, value });
+                }
             });
         };
         const onSelect = (id, setter) => {
@@ -1172,26 +1207,32 @@ export function createSigilContextMenu({
             if (!el) return;
             el.addEventListener('change', () => {
                 const value = Number(el.value);
-                setter?.(value);
-                onAppearanceChange?.({ controlId: id, value });
+                if (!routeDescriptorUpdate(id, value)) {
+                    setter?.(value);
+                    onAppearanceChange?.({ controlId: id, value });
+                }
             });
         };
         const onChoice = (id, setter) => {
             const el = layer.querySelector(`#${id}`);
             if (!el) return;
             el.addEventListener('change', () => {
-                setter?.(el.value);
-                onAppearanceChange?.({ controlId: id, value: el.value });
+                if (!routeDescriptorUpdate(id, el.value)) {
+                    setter?.(el.value);
+                    onAppearanceChange?.({ controlId: id, value: el.value });
+                }
             });
         };
         const onColor = (id, colorKey, index) => {
             const el = layer.querySelector(`#${id}`);
             if (!el) return;
             el.addEventListener('input', () => {
-                if (!state.colors[colorKey]) state.colors[colorKey] = ['#ffffff', '#ffffff'];
-                state.colors[colorKey][index] = el.value;
-                updateAllColors?.();
-                onAppearanceChange?.({ controlId: id, value: el.value });
+                if (!routeDescriptorUpdate(id, el.value)) {
+                    if (!state.colors[colorKey]) state.colors[colorKey] = ['#ffffff', '#ffffff'];
+                    state.colors[colorKey][index] = el.value;
+                    updateAllColors?.();
+                    onAppearanceChange?.({ controlId: id, value: el.value });
+                }
             });
         };
         const onAction = (action, handler) => {
@@ -1200,6 +1241,12 @@ export function createSigilContextMenu({
             el.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                const routed = applyContextMenuDescriptorUpdate(action, action, descriptorContext());
+                if (routed?.descriptor) recordTrace('descriptor-action', {
+                    id: action,
+                    actionId: routed.actionId,
+                    route: routed.route,
+                });
                 handler?.();
             });
         };
@@ -1304,9 +1351,8 @@ export function createSigilContextMenu({
                 event.preventDefault();
                 event.stopPropagation();
                 const value = button.dataset.sigilLineTrailMode || 'fade';
-                state.fastTravelLineTrailMode = value;
+                routeDescriptorUpdate('sigil-menu-line-trail-mode', value);
                 setSegmentedChoice('[data-sigil-line-trail-mode]', value);
-                onAppearanceChange?.({ controlId: 'sigil-menu-line-trail-mode', value });
                 syncSnapshot();
             });
         });
@@ -1315,9 +1361,8 @@ export function createSigilContextMenu({
                 event.preventDefault();
                 event.stopPropagation();
                 const value = normalizeFastTravelEffect(button.dataset.sigilFastTravelEffect, DEFAULT_FAST_TRAVEL_EFFECT);
-                state.transitionFastTravelEffect = value;
+                routeDescriptorUpdate('sigil-menu-fast-travel-effect', value);
                 setSegmentedChoice('[data-sigil-fast-travel-effect]', value);
-                onAppearanceChange?.({ controlId: 'sigil-menu-fast-travel-effect', value });
                 syncSnapshot();
             });
         });
@@ -1464,6 +1509,12 @@ export function createSigilContextMenu({
                 event.preventDefault();
                 event.stopPropagation();
                 const action = button.dataset.sigilAvatarAction;
+                const routed = applyContextMenuDescriptorUpdate(action, action, descriptorContext());
+                if (routed?.descriptor) recordTrace('descriptor-action', {
+                    id: action,
+                    actionId: routed.actionId,
+                    route: routed.route,
+                });
                 Promise.resolve(onAvatarAction?.(action)).then((changed) => {
                     if (changed) {
                         syncFromState();

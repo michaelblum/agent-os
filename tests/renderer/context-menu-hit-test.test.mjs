@@ -5,6 +5,11 @@ import {
   menuMarkup,
   resolveContextMenuOrigin,
 } from '../../apps/sigil/context-menu/menu.js'
+import {
+  applyContextMenuDescriptorUpdate,
+  contextMenuControlDescriptors,
+  getContextMenuControlDescriptor,
+} from '../../apps/sigil/context-menu/descriptors.js'
 
 function fakeElement(id, rect, selector = '*') {
   return {
@@ -179,4 +184,109 @@ test('context menu markup exposes standard accessibility structure', () => {
   assert.match(html, /role="radiogroup"[^>]*aria-labelledby="sigil-menu-line-trail-effect-label"/)
   assert.match(html, /role="radio"[^>]*aria-checked="false"[^>]*data-sigil-line-trail-mode="shrink"/)
   assert.match(html, /data-sigil-action="toggle-render-performance">Render Performance<\/button>/)
+})
+
+test('context menu descriptors cover rendered controls and Sigil-owned actions', () => {
+  const html = menuMarkup()
+  const ids = [...html.matchAll(/id="([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter((id) => id.startsWith('sigil-menu-'))
+    .filter((id) => !id.startsWith('sigil-menu-tab-'))
+    .filter((id) => !id.endsWith('-value'))
+    .filter((id) => !id.endsWith('-label'))
+    .filter((id) => ![
+      'sigil-menu-root',
+      'sigil-menu-shape',
+      'sigil-menu-look',
+      'sigil-menu-effects',
+      'sigil-menu-world',
+      'sigil-menu-core-colors',
+      'sigil-menu-effect-colors',
+      'sigil-menu-lightning-card',
+      'sigil-menu-magnetic-card',
+      'sigil-menu-line-card',
+      'sigil-menu-wormhole-card',
+      'sigil-menu-path-card',
+    ].includes(id))
+
+  assert.equal(contextMenuControlDescriptors.length > 0, true)
+  assert.deepEqual(ids.filter((id) => !getContextMenuControlDescriptor(id)), [])
+  for (const action of ['toggle-inspector', 'toggle-trace', 'toggle-render-performance', 'toggle-log', 'copy', 'save', 'import']) {
+    const descriptor = getContextMenuControlDescriptor(action)
+    assert.equal(descriptor?.type, 'action')
+    assert.equal(descriptor?.route, 'sigil.action')
+  }
+})
+
+test('descriptor routing applies a shape control through geometry sync', () => {
+  const calls = []
+  const state = { currentGeometryType: 4, currentType: 4, tesseron: { enabled: false } }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-shape-select', '8', {
+    state,
+    updateGeometry(value) { calls.push(['geometry', value]) },
+    onAppearanceChange(event) { calls.push(['persist', event.controlId, event.value]) },
+    setControlDisabled(id, value) { calls.push(['disabled', id, value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.currentGeometryType, 8)
+  assert.equal(state.currentType, 8)
+  assert.deepEqual(calls.filter(([kind]) => kind === 'geometry'), [['geometry', 8]])
+  assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-menu-shape-select', 8]])
+})
+
+test('descriptor routing applies a tesseron control and preserves child overrides', () => {
+  const state = {
+    currentGeometryType: 4,
+    currentType: 4,
+    currentOpacity: 0.4,
+    currentEdgeOpacity: 0.7,
+    isMaskEnabled: true,
+    isInteriorEdgesEnabled: false,
+    isSpecularEnabled: true,
+    tesseron: { enabled: true, proportion: 0.5, matchMother: true, child: {} },
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-tesseron-match', false, { state })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.tesseron.matchMother, false)
+  assert.equal(state.tesseron.child.opacity, 0.4)
+  assert.equal(state.tesseron.child.edgeOpacity, 0.7)
+  assert.equal(state.tesseron.child.maskEnabled, true)
+  assert.equal(state.tesseron.child.specular, true)
+})
+
+test('descriptor routing applies an effect control through effect patch sync', () => {
+  const calls = []
+  const state = { isPulsarEnabled: false, pulsarRayCount: 0 }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-pulsar', true, {
+    state,
+    updatePulsars(count) { calls.push(count) },
+  })
+
+  assert.equal(result.route, 'canvas_object.effects.patch')
+  assert.equal(state.isPulsarEnabled, true)
+  assert.equal(state.pulsarRayCount, 1)
+  assert.deepEqual(calls, [1])
+})
+
+test('descriptor routing applies a world/window control without turning it into an object patch', () => {
+  const calls = []
+  const state = { avatarWindowLevel: 'status_bar' }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-avatar-above-menu', true, {
+    state,
+    onAvatarWindowLevelChange(level) { calls.push(level) },
+  })
+
+  assert.equal(result.route, 'world-context.patch')
+  assert.equal(state.avatarWindowLevel, 'screen_saver')
+  assert.deepEqual(calls, ['screen_saver'])
+})
+
+test('descriptor routing identifies product actions as Sigil actions', () => {
+  const result = applyContextMenuDescriptorUpdate('toggle-render-performance', 'toggle-render-performance', {})
+
+  assert.equal(result.route, 'sigil.action')
+  assert.equal(result.persisted, false)
+  assert.equal(result.actionId, 'render-performance')
 })
