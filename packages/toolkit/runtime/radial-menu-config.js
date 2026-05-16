@@ -102,6 +102,32 @@ function normalizeHoverTransform(item = {}, menuDefaults = {}) {
   };
 }
 
+function normalizeGeometry(item = {}, menu = {}) {
+  const geometry = item.geometry;
+  if (!isPlainObject(geometry)) return geometry;
+  const modelDefaults = menu.defaults?.three?.model || {};
+  const partDefaults = menu.defaults?.three?.part || {};
+  const next = mergeRadialMenuConfig(modelDefaults, geometry);
+  if (Array.isArray(next.parts)) {
+    next.parts = next.parts.map((part) => (
+      isPlainObject(part)
+        ? mergeRadialMenuConfig(partDefaults, part)
+        : cloneRadialMenuConfig(part)
+    ));
+  }
+  return next;
+}
+
+function normalizeEffects(item = {}, menu = {}) {
+  if (!Array.isArray(item.effects)) return item.effects;
+  const effectDefaults = menu.defaults?.three?.effect || {};
+  return item.effects.map((effect) => (
+    isPlainObject(effect)
+      ? mergeRadialMenuConfig(effectDefaults, effect)
+      : cloneRadialMenuConfig(effect)
+  ));
+}
+
 function normalizeItem(item = {}, menu = {}) {
   const itemDefaults = menu.defaults?.item || {};
   const threeItemDefaults = menu.defaults?.three?.item || {};
@@ -110,6 +136,8 @@ function normalizeItem(item = {}, menu = {}) {
     { item: threeItemDefaults },
     base.three || {}
   );
+  base.geometry = normalizeGeometry(base, menu);
+  base.effects = normalizeEffects(base, menu);
   base.three.item.hover = normalizeHoverTransform(base, menu.defaults || {});
   const children = (Array.isArray(base.children) ? base.children : [])
     .filter((child) => isPlainObject(child))

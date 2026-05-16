@@ -1,5 +1,6 @@
 import { addEdges, edgeMaterial, material } from '../item-helpers.js';
 
+
 function brainLobe(x, y, z, sx, sy, sz, color) {
     const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 0), material(color, 0.76));
     mesh.position.set(x, y, z);
@@ -68,11 +69,11 @@ export function createWikiBrainEffectHost(group, item = {}, helpers = {}) {
     composite.name = `${item.id || 'radial-item'}-effect-composite`;
     helpers.applyObjectTransform(composite, helpers.resolveRadialItemModelTransform(item), helpers.DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
     composite.visible = helpers.resolveRadialItemModelVisibility(item);
-    const fiberEffect = helpers.createNestedNeuralTreeEffect();
+    const fiberEffect = helpers.createFiberTree();
     fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
     const fiberStemEffect = fiberEffect.userData.stem;
     const fiberBloomEffect = fiberEffect.userData.bloom;
-    const fractalTreeEffect = helpers.createFractalBrainTreeEffect(effect.fractalPulse);
+    const fractalTreeEffect = helpers.createFractalTree(effect.fractalPulse);
     fractalTreeEffect.name = `${item.id || 'radial-item'}-fractal-tree`;
     helpers.applyNestedShellTransform(modelHost, effect.shellTransform);
     helpers.applyObjectTransform(fiberEffect, effect.fiberOpticsTransform, helpers.DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
@@ -118,6 +119,164 @@ export function syncWikiBrainEffectConfig(glyph, item = {}, helpers = {}) {
     glyph.userData.radialEffectVisibility = effect.visibility;
 }
 
+function finite(value, fallback) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+}
+
+function lerp(a, b, t) {
+    return a + ((b - a) * t);
+}
+
+function forEachMaterial(material, visit) {
+    if (Array.isArray(material)) {
+        material.forEach((mat) => mat && visit(mat));
+    } else if (material) {
+        visit(material);
+    }
+}
+
+function setManagedShellOpacity(glyph, opacity, display = 1) {
+    const shellOpacity = clamp01(opacity);
+    const displayOpacity = clamp01(display);
+    const modelHost = glyph.userData.modelHost || glyph;
+    modelHost.traverse((child) => {
+        forEachMaterial(child.material, (mat) => {
+            if (mat.userData?.radialShell) {
+                mat.opacity = shellOpacity;
+            } else if (mat.userData?.radialShellRim) {
+                const minOpacity = finite(mat.userData.radialShellMinOpacity, 0.12) * displayOpacity;
+                const opacityScale = finite(mat.userData.radialShellOpacityScale, 0.35);
+                mat.opacity = Math.max(minOpacity, shellOpacity * opacityScale);
+            }
+        });
+    });
+}
+
+export function updateWikiBrainEffect(glyph, item, {
+    active,
+    visualRadial,
+    progress,
+    dt,
+} = {}, helpers = {}) {
+    const config = glyph.userData.radialEffectConfig;
+    const state = glyph.userData.radialEffectState;
+    const modelHost = glyph.userData.modelHost;
+    const tree = glyph.userData.radialEffectTree;
+    const fiberStem = glyph.userData.radialEffectFiberStem;
+    const fiberBloom = glyph.userData.radialEffectFiberBloom;
+    const fractalTree = glyph.userData.radialEffectFractalTree;
+    const composite = glyph.userData.radialEffectComposite;
+    if (!config || !state || !tree) return null;
+
+    const metrics = visualRadial ? helpers.radialItemPointerMetrics(visualRadial, item) : null;
+    const relation = metrics?.relation || null;
+    const effectActive = !!active || relation === 'inside';
+    const smoothing = effectActive ? 0.24 : 0.16;
+    state.activation += ((effectActive ? 1 : 0) - state.activation) * smoothing;
+    if (effectActive) {
+        state.heldProgress = Math.max(state.heldProgress, state.activation);
+    }
+
+    const holding = !!(
+        visualRadial
+        && !effectActive
+        && relation === config.holdExitDirection
+        && state.heldProgress > 0.05
+    );
+    if (!visualRadial) state.heldProgress = 0;
+
+    const treeTarget = holding
+        ? Math.max(state.treeProgress, state.heldProgress)
+        : effectActive
+            ? state.activation
+            : 0;
+    state.treeProgress += (treeTarget - state.treeProgress) * (treeTarget >= state.treeProgress ? 0.18 : 0.12);
+
+    const restOpacity = finite(config.shellOpacity?.rest, 0.75);
+    const activeOpacity = finite(config.shellOpacity?.active, 0.26);
+    const heldOpacity = finite(config.shellOpacity?.held, 0.75);
+    const shellTarget = holding
+        ? heldOpacity
+        : effectActive
+            ? lerp(restOpacity, activeOpacity, clamp01(state.activation))
+            : restOpacity;
+    state.shellOpacity += (shellTarget - state.shellOpacity) * 0.2;
+
+    const display = clamp01(progress);
+    const visibility = glyph.userData.radialEffectVisibility || config.visibility || helpers.DEFAULT_NESTED_TREE_EFFECT.visibility;
+    if (composite) {
+        helpers.applyObjectTransform(
+            composite,
+            glyph.userData.radialItemModelTransform,
+            helpers.DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM
+        );
+        composite.visible = glyph.userData.radialItemModelVisible !== false;
+    }
+    helpers.applyNestedShellTransform(modelHost, glyph.userData.radialEffectShellTransform || config.shellTransform);
+    if (modelHost) modelHost.visible = visibility.shell !== false;
+    setManagedShellOpacity(glyph, state.shellOpacity * display, display);
+    helpers.applyObjectTransform(
+        tree,
+        glyph.userData.radialEffectFiberOpticsTransform || config.fiberOpticsTransform,
+        helpers.DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM
+    );
+    helpers.updateFiberTree(
+        tree,
+        state.treeProgress * display,
+        dt,
+        glyph.userData.radialEffectFiberPulse || config.fiberPulse
+    );
+    tree.visible = visibility.fiberOptics !== false && tree.visible;
+    if (fiberStem) {
+        helpers.applyNestedFiberStemTransform(
+            fiberStem,
+            glyph.userData.radialEffectFiberStemTransform || config.fiberStemTransform
+        );
+        fiberStem.visible = visibility.fiberOptics !== false && visibility.fiberStem !== false && fiberStem.visible;
+    }
+    if (fiberBloom) {
+        helpers.applyNestedFiberBloomTransform(
+            fiberBloom,
+            glyph.userData.radialEffectFiberBloomTransform || config.fiberBloomTransform
+        );
+        fiberBloom.visible = visibility.fiberOptics !== false && visibility.fiberBloom !== false && fiberBloom.visible;
+    }
+    if (fractalTree) {
+        state.fractalTreeProgress += (treeTarget - state.fractalTreeProgress) * (
+            treeTarget >= state.fractalTreeProgress ? 0.14 : 0.1
+        );
+        helpers.updateFractalTree(
+            fractalTree,
+            state.fractalTreeProgress * display,
+            dt,
+            glyph.userData.radialEffectFractalPulse || config.fractalPulse
+        );
+        fractalTree.visible = visibility.fractalTree !== false && fractalTree.visible;
+        helpers.applyNestedFractalTreeTransform(
+            fractalTree,
+            glyph.userData.radialEffectFractalTreeTransform || config.fractalTreeTransform
+        );
+    }
+    state.relation = relation;
+    state.holding = holding;
+
+    return {
+        kind: config.kind,
+        activation: state.activation,
+        treeProgress: state.treeProgress,
+        fiberProgress: state.treeProgress,
+        fractalTreeProgress: state.fractalTreeProgress,
+        shellOpacity: state.shellOpacity,
+        relation,
+        holding,
+    };
+}
+
 export const wikiBrainRadialItemModule = {
     ref: 'sigil.radial.geometry.wiki-brain',
     itemIds: ['wiki-graph'],
@@ -125,4 +284,5 @@ export const wikiBrainRadialItemModule = {
     createGlyph: createWikiGraphGlyph,
     createEffectHost: createWikiBrainEffectHost,
     syncEffectConfig: syncWikiBrainEffectConfig,
+    updateEffect: updateWikiBrainEffect,
 };

@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 
 class Vector3 {
   constructor(x = 0, y = 0, z = 0) {
@@ -329,6 +330,80 @@ test('Sigil radial item modules own fallback glyph creation hooks', async () => 
 
   assert.equal(moduleDef.ref, 'sigil.radial.geometry.context-menu')
   assert.ok(glyph.children.length >= 3)
+})
+
+test('wiki brain item module owns effect update hook', async () => {
+  const { resolveSigilRadialItemModule } = await import('../../apps/sigil/renderer/radial-menu/item-registry.js')
+  const moduleDef = resolveSigilRadialItemModule({ id: 'wiki-graph' })
+  const calls = []
+  const makeObject = () => ({
+    visible: true,
+    position: { set() {} },
+    scale: { set() {} },
+    rotation: { set() {} },
+    traverse() {},
+  })
+  const glyph = {
+    userData: {
+      modelHost: makeObject(),
+      radialEffectConfig: {
+        kind: 'nested-neural-tree',
+        holdExitDirection: 'outward',
+        shellOpacity: { rest: 0.75, active: 0.26, held: 0.75 },
+        visibility: {},
+      },
+      radialEffectState: {
+        activation: 0,
+        treeProgress: 0,
+        fractalTreeProgress: 0,
+        heldProgress: 0,
+        shellOpacity: 0.75,
+      },
+      radialEffectTree: makeObject(),
+      radialEffectComposite: makeObject(),
+      radialEffectFiberStem: makeObject(),
+      radialEffectFiberBloom: makeObject(),
+      radialEffectFractalTree: makeObject(),
+    },
+  }
+  const helpers = {
+    DEFAULT_NESTED_TREE_EFFECT: { visibility: {} },
+    DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM: {},
+    applyObjectTransform() {},
+    applyNestedShellTransform() {},
+    applyNestedFiberStemTransform() {},
+    applyNestedFiberBloomTransform() {},
+    applyNestedFractalTreeTransform() {},
+    radialItemPointerMetrics: () => ({ relation: 'inside' }),
+    updateFiberTree: (...args) => calls.push(['fiber', args[1]]),
+    updateFractalTree: (...args) => calls.push(['fractal', args[1]]),
+  }
+
+  const state = moduleDef.updateEffect(glyph, { id: 'wiki-graph' }, {
+    active: false,
+    visualRadial: { pointer: { x: 0, y: 0 } },
+    progress: 1,
+    dt: 0.016,
+  }, helpers)
+
+  assert.equal(moduleDef.ref, 'sigil.radial.geometry.wiki-brain')
+  assert.equal(state.kind, 'nested-neural-tree')
+  assert.ok(state.activation > 0)
+  assert.deepEqual(calls.map(([kind]) => kind), ['fiber', 'fractal'])
+})
+
+test('radial visuals does not own wiki brain effect implementation names', async () => {
+  const source = await readFile('apps/sigil/renderer/live-modules/radial-gesture-visuals.js', 'utf8')
+  for (const name of [
+    'createNestedNeuralTreeEffect',
+    'updateNestedNeuralTreeEffect',
+    'createFractalBrainTreeEffect',
+    'updateFractalBrainTreeEffect',
+    'fractalPulseSparkPosition',
+    'spawnFractalPulse',
+  ]) {
+    assert.equal(source.includes(name), false, `${name} should stay item-owned`)
+  }
 })
 
 test('default radial geometry derives from resolved Sigil JSON', async () => {

@@ -75,6 +75,45 @@ test('radial menu resolver merges item overrides by id without replacing default
   assert.equal(context.geometry.radiusScale, 3)
 })
 
+test('radial menu resolver cascades model, part, and effect defaults into items', () => {
+  const resolved = resolveRadialMenuConfig({
+    kind: 'aos.radial_menu_3d',
+    schema_version: '2026-05-16',
+    id: 'test.radial.defaults',
+    extends: 'aos://toolkit/runtime/radial-menu/default-3d.json',
+    items: [
+      {
+        id: 'model-item',
+        label: 'Model Item',
+        geometry: {
+          type: 'gltf',
+          src: 'aos://example/model.glb',
+          parts: [
+            { id: 'defaulted-part' },
+            { id: 'hidden-part', visible: false },
+          ],
+        },
+        effects: [
+          { ref: 'test.effect.defaulted' },
+          { ref: 'test.effect.disabled', enabled: false },
+        ],
+      },
+    ],
+  }, {
+    allowExtends: {
+      'aos://toolkit/runtime/radial-menu/default-3d.json': default3d,
+    },
+  })
+
+  const item = resolved.items[0]
+  assert.equal(item.geometry.radiusScale, 1)
+  assert.equal(item.geometry.normalizedRadius, 0.28)
+  assert.equal(item.geometry.parts[0].visible, true)
+  assert.equal(item.geometry.parts[1].visible, false)
+  assert.equal(item.effects[0].enabled, true)
+  assert.equal(item.effects[1].enabled, false)
+})
+
 test('radial menu resolver preserves nested menu children in logical projection', () => {
   const resolved = resolveRadialMenuConfig({
     kind: 'aos.radial_menu_3d',
