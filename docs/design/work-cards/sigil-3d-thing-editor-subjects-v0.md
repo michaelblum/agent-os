@@ -9,6 +9,12 @@ The editor shell should become reusable toolkit-facing policy, while Sigil
 modules remain responsible for concrete Three.js creation, update, validation,
 and persistence.
 
+## Fresh Context Contract
+
+GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+canvas, issue, or prior implementation state. Read and rediscover before
+editing.
+
 ## Read First
 
 - `AGENTS.md`
@@ -24,6 +30,20 @@ and persistence.
 - `apps/sigil/renderer/live-modules/avatar-object-control.js`
 - `tests/renderer/radial-item-editor.test.mjs`
 - `tests/renderer/radial-object-control.test.mjs`
+
+## Rediscover State
+
+Run:
+
+```bash
+git status --short --branch
+git log --oneline -5 --decorate
+./aos dev recommend --json
+rg -n "buildRadialItemWorkbenchSubject|canvas_object|subject_type|lock_in|preview|applyEditorObjectPatch|applyEditorEffectsPatch|avatar-object-control|radial-item-editor" apps/sigil tests/renderer docs/design
+```
+
+Run `./aos ready` only if the implementation changes live editor launch,
+canvas subscription, or panel behavior beyond deterministic model tests.
 
 ## Scope
 
