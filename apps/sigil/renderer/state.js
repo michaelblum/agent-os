@@ -1,4 +1,4 @@
-import { DEFAULT_SIGIL_RADIAL_ITEMS } from './radial-menu-defaults.js';
+import { normalizeSigilRadialGestureMenu } from './radial-menu-defaults.js';
 
 const defaults = {
     // Three.js object references (set during init)
@@ -161,19 +161,7 @@ const defaults = {
     dragCancelRadius: 40,
     gotoRingRadius: 60,
     menuRingRadius: 120,
-    radialGestureMenu: {
-        deadZoneRadius: 0.6,
-        itemRadius: 4.15,
-        itemHitRadius: 0.64,
-        itemVisualRadius: 0.62,
-        menuRadius: 2.65,
-        handoffRadius: 4.75,
-        reentryRadius: 3.95,
-        spreadDegrees: 112,
-        startAngle: -90,
-        orientation: 'fixed',
-        items: DEFAULT_SIGIL_RADIAL_ITEMS,
-    },
+    radialGestureMenu: normalizeSigilRadialGestureMenu(),
     avatarWindowLevel: 'status_bar',
 
     // Visibility transitions

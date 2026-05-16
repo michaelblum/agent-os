@@ -74,3 +74,47 @@ test('radial menu resolver merges item overrides by id without replacing default
   assert.equal(context.geometry.type, 'gltf')
   assert.equal(context.geometry.radiusScale, 3)
 })
+
+test('radial menu resolver preserves nested menu children in logical projection', () => {
+  const resolved = resolveRadialMenuConfig({
+    kind: 'aos.radial_menu_3d',
+    schema_version: '2026-05-16',
+    id: 'test.radial.children',
+    items: [
+      {
+        id: 'parent',
+        label: 'Parent',
+        action: 'openParent',
+        children: [
+          {
+            id: 'child',
+            label: 'Child Action',
+            action: 'runChild',
+            shortcut: 'C',
+          },
+        ],
+      },
+    ],
+  })
+
+  assert.equal(resolved.items[0].children[0].logical.id, 'child')
+  assert.deepEqual(resolved.logical_items[0].children, [
+    {
+      id: 'child',
+      label: 'Child Action',
+      action: 'runChild',
+      disabled: false,
+      hidden: false,
+      checked: false,
+      current: false,
+      role: 'menuitem',
+      shortcut: 'C',
+      typeahead: 'Child Action',
+      close_on_select: true,
+      target_surface: null,
+      action_payload: null,
+      submenu_ref: null,
+      children: [],
+    },
+  ])
+})

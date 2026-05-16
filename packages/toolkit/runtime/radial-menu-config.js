@@ -111,6 +111,11 @@ function normalizeItem(item = {}, menu = {}) {
     base.three || {}
   );
   base.three.item.hover = normalizeHoverTransform(base, menu.defaults || {});
+  const children = (Array.isArray(base.children) ? base.children : [])
+    .filter((child) => isPlainObject(child))
+    .map((child) => normalizeItem(child, menu));
+  if (children.length > 0) base.children = children;
+
   base.logical = {
     id: base.id,
     label: base.label,
@@ -126,6 +131,7 @@ function normalizeItem(item = {}, menu = {}) {
     target_surface: cloneRadialMenuConfig(base.target_surface || null),
     action_payload: cloneRadialMenuConfig(base.action_payload || null),
     submenu_ref: base.submenu_ref || null,
+    children: children.map((child) => cloneRadialMenuConfig(child.logical)),
   };
   return base;
 }

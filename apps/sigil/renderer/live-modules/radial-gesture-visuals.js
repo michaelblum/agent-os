@@ -4,6 +4,7 @@ import {
     resolveSigilRadialItemEffectRefs,
     resolveSigilRadialItemModule,
 } from '../radial-menu/item-registry.js';
+import { addEdges, material } from '../radial-menu/item-helpers.js';
 import {
     DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
     DEFAULT_NESTED_TREE_EFFECT,
@@ -150,90 +151,6 @@ function applyNestedShellTransform(shell, transform = {}) {
     applyObjectTransform(shell, transform, DEFAULT_NESTED_TREE_EFFECT.shellTransform);
 }
 
-function material(color, opacity = 0.75) {
-    return new THREE.MeshPhongMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity,
-        shininess: 55,
-        specular: new THREE.Color(0x444444),
-        depthWrite: false,
-    });
-}
-
-function edgeMaterial(color, opacity = 0.9) {
-    return new THREE.LineBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity,
-        depthWrite: false,
-    });
-}
-
-function addEdges(group, mesh, color = '#ffffff', opacity = 0.55) {
-    const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(mesh.geometry),
-        edgeMaterial(color, opacity)
-    );
-    edges.scale.copy(mesh.scale);
-    edges.position.copy(mesh.position);
-    edges.rotation.copy(mesh.rotation);
-    group.add(edges);
-}
-
-function createContextMenuGlyph() {
-    const group = new THREE.Group();
-    const core = material('#7df8d7', 0.68);
-    const accent = material('#d8fff5', 0.82);
-
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.035, 6, 16), core);
-    group.add(ring);
-    addEdges(group, ring, '#eaffff', 0.5);
-
-    const toothGeometry = new THREE.BoxGeometry(0.075, 0.032, 0.055);
-    for (let i = 0; i < 8; i += 1) {
-        const angle = (i / 8) * Math.PI * 2;
-        const tooth = new THREE.Mesh(toothGeometry, i % 2 === 0 ? accent : core);
-        tooth.position.set(Math.cos(angle) * 0.23, Math.sin(angle) * 0.23, 0);
-        tooth.rotation.z = angle;
-        group.add(tooth);
-    }
-
-    const hub = new THREE.Mesh(new THREE.OctahedronGeometry(0.075, 0), accent);
-    group.add(hub);
-    return group;
-}
-
-function brainLobe(x, y, z, sx, sy, sz, color) {
-    const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13, 0), material(color, 0.76));
-    mesh.position.set(x, y, z);
-    mesh.scale.set(sx, sy, sz);
-    return mesh;
-}
-
-function createWikiGraphGlyph() {
-    const group = new THREE.Group();
-    const lobes = [
-        brainLobe(-0.09, 0.05, 0, 1.05, 0.78, 0.65, '#ba8cff'),
-        brainLobe(0.09, 0.05, 0, 1.05, 0.78, 0.65, '#78d8ff'),
-        brainLobe(-0.07, -0.08, 0, 0.92, 0.72, 0.58, '#9ac8ff'),
-        brainLobe(0.07, -0.08, 0, 0.92, 0.72, 0.58, '#d18cff'),
-    ];
-    for (const lobe of lobes) {
-        group.add(lobe);
-        addEdges(group, lobe, '#ffffff', 0.42);
-    }
-
-    const groove = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0.18, 0.03),
-        new THREE.Vector3(-0.025, 0.06, 0.04),
-        new THREE.Vector3(0.018, -0.03, 0.04),
-        new THREE.Vector3(-0.012, -0.18, 0.03),
-    ]);
-    group.add(new THREE.Line(groove, edgeMaterial('#0b1730', 0.7)));
-    return group;
-}
-
 function createLoadingGlyph() {
     const group = new THREE.Group();
     const shell = new THREE.Mesh(
@@ -253,60 +170,6 @@ function createFallbackGlyph() {
     group.add(mesh);
     addEdges(group, mesh, '#ffffff', 0.45);
     return group;
-}
-
-function createAnnotationReticleGlyph() {
-    const group = new THREE.Group();
-    const gold = material('#f4c542', 0.72);
-    const bright = edgeMaterial('#fff3b0', 0.9);
-
-    const outer = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.012, 8, 40), gold);
-    const inner = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.008, 8, 32), material('#ffe48a', 0.52));
-    group.add(outer);
-    group.add(inner);
-
-    const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(-0.24, 0, 0.01),
-        new THREE.Vector3(-0.095, 0, 0.01),
-        new THREE.Vector3(0.095, 0, 0.01),
-        new THREE.Vector3(0.24, 0, 0.01),
-        new THREE.Vector3(0, -0.24, 0.01),
-        new THREE.Vector3(0, -0.095, 0.01),
-        new THREE.Vector3(0, 0.095, 0.01),
-        new THREE.Vector3(0, 0.24, 0.01),
-    ]);
-    const marks = new THREE.LineSegments(lineGeometry, bright);
-    group.add(marks);
-
-    const center = new THREE.Mesh(new THREE.OctahedronGeometry(0.025, 0), material('#fff8d5', 0.86));
-    group.add(center);
-    return group;
-}
-
-function createAnnotationCameraGlyph() {
-    const group = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.16, 0.07), material('#f4c542', 0.66));
-    body.position.y = -0.015;
-    group.add(body);
-    addEdges(group, body, '#fff3b0', 0.56);
-
-    const lens = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 8, 28), material('#ffe48a', 0.78));
-    lens.position.z = 0.043;
-    lens.position.y = -0.015;
-    group.add(lens);
-
-    const prism = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.04, 0.06), material('#fff2a0', 0.7));
-    prism.position.set(-0.055, 0.09, 0);
-    group.add(prism);
-    return group;
-}
-
-function createFallbackForItem(item = {}) {
-    if (item.action === 'contextMenu' || item.id === 'context-menu') return createContextMenuGlyph();
-    if (item.action === 'wikiGraph' || item.id === 'wiki-graph') return createWikiGraphGlyph();
-    if (item.action === 'annotationMode' || item.id === 'annotation-mode') return createAnnotationReticleGlyph();
-    if (item.action === 'annotationSnapshot' || item.id === 'annotation-camera') return createAnnotationCameraGlyph();
-    return createFallbackGlyph();
 }
 
 const FRACTAL_TREE_LOBES = [
@@ -342,29 +205,6 @@ function randomUnitVector(rand) {
     );
     if (v.lengthSq() < 0.000001) return new THREE.Vector3(0, 1, 0);
     return v.normalize();
-}
-
-function effectConfig(item = {}) {
-    const effect = item.geometry?.radialEffect;
-    if (!effect || typeof effect !== 'object') return null;
-    if (effect.kind !== 'nested-neural-tree') return null;
-    const merged = {
-        ...DEFAULT_NESTED_TREE_EFFECT,
-        ...effect,
-        shellOpacity: {
-            ...DEFAULT_NESTED_TREE_EFFECT.shellOpacity,
-            ...(effect.shellOpacity || {}),
-        },
-    };
-    merged.visibility = resolveNestedVisibility(merged);
-    merged.shellTransform = resolveNestedShellTransform(merged);
-    merged.fiberOpticsTransform = resolveNestedFiberOpticsTransform(merged);
-    merged.fiberStemTransform = resolveNestedFiberStemTransform(merged);
-    merged.fiberBloomTransform = resolveNestedFiberBloomTransform(merged);
-    merged.fractalTreeTransform = resolveNestedFractalTreeTransform(merged);
-    merged.fiberPulse = resolveNestedFiberPulse(merged);
-    merged.fractalPulse = resolveNestedFractalPulse(merged);
-    return merged;
 }
 
 function brainTreePoint(rand, depth = 1) {
@@ -1576,6 +1416,30 @@ function createRadialItemPartHosts(item = {}) {
     return hosts;
 }
 
+function radialEffectHelpers() {
+    return {
+        DEFAULT_NESTED_TREE_EFFECT,
+        DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
+        applyNestedFiberBloomTransform,
+        applyNestedFiberStemTransform,
+        applyNestedFractalTreeTransform,
+        applyNestedShellTransform,
+        applyObjectTransform,
+        createFractalBrainTreeEffect,
+        createNestedNeuralTreeEffect,
+        resolveNestedFiberBloomTransform,
+        resolveNestedFiberOpticsTransform,
+        resolveNestedFiberPulse,
+        resolveNestedFiberStemTransform,
+        resolveNestedFractalPulse,
+        resolveNestedFractalTreeTransform,
+        resolveNestedShellTransform,
+        resolveNestedVisibility,
+        resolveRadialItemModelTransform,
+        resolveRadialItemModelVisibility,
+    };
+}
+
 function syncRadialItemPartConfig(glyph, item = {}) {
     if (!glyph?.userData?.radialItemPartHosts) return;
     const parts = new Map(radialItemParts(item).map((part) => [part.id, part]));
@@ -1603,8 +1467,11 @@ function createRadialEffectHost(group, item = {}) {
     group.userData.radialItemModelTransform = resolveRadialItemModelTransform(item);
     group.userData.radialItemModelVisible = resolveRadialItemModelVisibility(item);
 
-    const effect = effectConfig(item);
-    if (!effect) {
+    const moduleDef = resolveSigilRadialItemModule(item);
+    const moduleModelHost = moduleDef?.createEffectHost?.(group, item, radialEffectHelpers());
+    if (moduleModelHost) return moduleModelHost;
+
+    if (!moduleDef?.createEffectHost) {
         applyObjectTransform(modelHost, group.userData.radialItemModelTransform, DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
         modelHost.visible = group.userData.radialItemModelVisible;
         group.add(modelHost);
@@ -1614,66 +1481,13 @@ function createRadialEffectHost(group, item = {}) {
         syncRadialItemPartConfig(group, item);
         return modelHost;
     }
-
-    const composite = new THREE.Group();
-    composite.name = `${item.id || 'radial-item'}-effect-composite`;
-    applyObjectTransform(composite, resolveRadialItemModelTransform(item), DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
-    composite.visible = resolveRadialItemModelVisibility(item);
-    const fiberEffect = createNestedNeuralTreeEffect();
-    fiberEffect.name = `${item.id || 'radial-item'}-fiber-optics`;
-    const fiberStemEffect = fiberEffect.userData.stem;
-    const fiberBloomEffect = fiberEffect.userData.bloom;
-    const fractalTreeEffect = createFractalBrainTreeEffect(effect.fractalPulse);
-    fractalTreeEffect.name = `${item.id || 'radial-item'}-fractal-tree`;
-    applyNestedShellTransform(modelHost, effect.shellTransform);
-    applyObjectTransform(fiberEffect, effect.fiberOpticsTransform, DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM);
-    applyNestedFiberStemTransform(fiberStemEffect, effect.fiberStemTransform);
-    applyNestedFiberBloomTransform(fiberBloomEffect, effect.fiberBloomTransform);
-    applyNestedFractalTreeTransform(fractalTreeEffect, effect.fractalTreeTransform);
-    composite.add(modelHost, fiberEffect, fractalTreeEffect);
-    group.add(composite);
-    group.userData.radialEffectConfig = effect;
-    group.userData.radialEffectComposite = composite;
-    group.userData.radialEffectTree = fiberEffect;
-    group.userData.radialEffectFiber = fiberEffect;
-    group.userData.radialEffectFiberStem = fiberStemEffect;
-    group.userData.radialEffectFiberBloom = fiberBloomEffect;
-    group.userData.radialEffectFractalTree = fractalTreeEffect;
-    group.userData.radialEffectShellTransform = effect.shellTransform;
-    group.userData.radialEffectFiberOpticsTransform = effect.fiberOpticsTransform;
-    group.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
-    group.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
-    group.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
-    group.userData.radialEffectFiberPulse = effect.fiberPulse;
-    group.userData.radialEffectFractalPulse = effect.fractalPulse;
-    group.userData.radialEffectVisibility = effect.visibility;
-    group.userData.radialEffectState = {
-        activation: 0,
-        treeProgress: 0,
-        fractalTreeProgress: 0,
-        heldProgress: 0,
-        shellOpacity: effect.shellOpacity.rest,
-        relation: null,
-        holding: false,
-    };
     return modelHost;
 }
 
 function syncRadialEffectConfig(glyph, item = {}) {
     if (!glyph?.userData?.radialEffectTree) return;
-    const effect = effectConfig(item);
-    if (!effect) return;
-    glyph.userData.radialEffectConfig = effect;
-    glyph.userData.radialItemModelTransform = resolveRadialItemModelTransform(item);
-    glyph.userData.radialItemModelVisible = resolveRadialItemModelVisibility(item);
-    glyph.userData.radialEffectShellTransform = effect.shellTransform;
-    glyph.userData.radialEffectFiberOpticsTransform = effect.fiberOpticsTransform;
-    glyph.userData.radialEffectFiberStemTransform = effect.fiberStemTransform;
-    glyph.userData.radialEffectFiberBloomTransform = effect.fiberBloomTransform;
-    glyph.userData.radialEffectFractalTreeTransform = effect.fractalTreeTransform;
-    glyph.userData.radialEffectFiberPulse = effect.fiberPulse;
-    glyph.userData.radialEffectFractalPulse = effect.fractalPulse;
-    glyph.userData.radialEffectVisibility = effect.visibility;
+    const moduleDef = resolveSigilRadialItemModule(item);
+    moduleDef?.syncEffectConfig?.(glyph, item, radialEffectHelpers());
 }
 
 function syncRadialItemModelConfig(glyph, item = {}) {
@@ -1752,11 +1566,13 @@ function createGlyph(item = {}) {
         glyph.userData.itemModuleRef = moduleDef?.ref || item.geometry?.module_ref || null;
         return glyph;
     }
-    const fallbackGlyph = moduleDef?.fallbackGlyph;
-    if (fallbackGlyph === 'context-menu' || item.action === 'contextMenu' || item.id === 'context-menu') return createContextMenuGlyph();
-    if (item.action === 'wikiGraph' || item.id === 'wiki-graph') return createWikiGraphGlyph();
-    if (fallbackGlyph === 'annotation-reticle' || item.action === 'annotationMode' || item.id === 'annotation-mode') return createAnnotationReticleGlyph();
-    if (fallbackGlyph === 'annotation-camera' || item.action === 'annotationSnapshot' || item.id === 'annotation-camera') return createAnnotationCameraGlyph();
+    if (typeof moduleDef?.createGlyph === 'function') {
+        const glyph = moduleDef.createGlyph({ item, THREE });
+        if (glyph) {
+            glyph.userData.itemModuleRef = moduleDef.ref || item.geometry?.module_ref || null;
+            return glyph;
+        }
+    }
     return createFallbackGlyph();
 }
 

@@ -149,6 +149,33 @@ function resolveMenuConfig(menu, base) {
         const next = mergeConfig(itemDefaults, item);
         next.three = mergeConfig({ item: threeItemDefaults }, next.three || {});
         next.three.item.hover = normalizeHover(next, merged.defaults || {});
+        const children = (Array.isArray(next.children) ? next.children : [])
+            .filter((child) => isPlainObject(child))
+            .map((child) => {
+                const childDefaults = merged.defaults?.item || {};
+                const childNext = mergeConfig(childDefaults, child);
+                childNext.three = mergeConfig({ item: merged.defaults?.three?.item || {} }, childNext.three || {});
+                childNext.three.item.hover = normalizeHover(childNext, merged.defaults || {});
+                childNext.logical = {
+                    id: childNext.id,
+                    label: childNext.label,
+                    action: childNext.action ?? null,
+                    disabled: !!childNext.disabled,
+                    hidden: !!childNext.hidden,
+                    checked: !!childNext.checked,
+                    current: !!childNext.current,
+                    role: childNext.role || 'menuitem',
+                    shortcut: childNext.shortcut || null,
+                    typeahead: childNext.typeahead || childNext.label || childNext.id,
+                    close_on_select: childNext.close_on_select !== false,
+                    target_surface: cloneConfig(childNext.target_surface || null),
+                    action_payload: cloneConfig(childNext.action_payload || null),
+                    submenu_ref: childNext.submenu_ref || null,
+                    children: [],
+                };
+                return childNext;
+            });
+        if (children.length > 0) next.children = children;
         next.logical = {
             id: next.id,
             label: next.label,
@@ -164,6 +191,7 @@ function resolveMenuConfig(menu, base) {
             target_surface: cloneConfig(next.target_surface || null),
             action_payload: cloneConfig(next.action_payload || null),
             submenu_ref: next.submenu_ref || null,
+            children: children.map((child) => cloneConfig(child.logical)),
         };
         return next;
     });

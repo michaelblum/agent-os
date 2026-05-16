@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../shared/schemas/radial-menu-3d.schema.json",
+  "$schema": "../../../../shared/schemas/radial-menu-3d.schema.json",
   "kind": "aos.radial_menu_3d",
   "schema_version": "2026-05-16",
   "id": "aos.radial.default-3d",
