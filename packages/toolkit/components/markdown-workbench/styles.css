@@ -74,6 +74,8 @@
 }
 
 .markdown-workbench-document-pane {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   border-left: 1px solid rgba(122, 241, 255, 0.18);
@@ -85,6 +87,11 @@
     opacity 180ms ease,
     visibility 180ms ease,
     border-color 180ms ease;
+}
+
+.markdown-workbench-graph-pane {
+  position: relative;
+  z-index: 1;
 }
 
 .markdown-workbench-root[data-split-open="true"] .markdown-workbench-document-pane {

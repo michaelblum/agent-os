@@ -121,6 +121,8 @@ test('Sigil live child input path does not reintroduce private hit-target flags'
     readFile(new URL('../../apps/sigil/context-menu/menu.js', import.meta.url), 'utf8'),
   ])
 
+  assert.match(main, /hitTarget\.ensureCreated\(\)\s*\n\s*\.then\(\(\) => \{\s*\n\s*syncHitTargetToAvatar\(\);/s)
+  assert.match(main, /radialTargetSurface\.ensureCreated\(\)\s*\n\s*\.then\(\(\) => \{\s*\n\s*syncRadialTargetSurface\(\);/s)
   assert.doesNotMatch(main, /fromHitTarget/)
   assert.doesNotMatch(menu, /assumeInside/)
 })

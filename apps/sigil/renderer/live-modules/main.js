@@ -2626,12 +2626,22 @@ function startPrimarySurfaceServices() {
     host.subscribe(['display_geometry', 'input_event', 'canvas_message', 'canvas_lifecycle'], { snapshot: true });
     startMarkHeartbeat();
     emitRadialMenuObjectRegistry();
-    void hitTarget.ensureCreated().catch((error) => {
-        console.error('[sigil] avatar hit target create failed:', error);
-    });
-    void radialTargetSurface.ensureCreated().catch((error) => {
-        console.error('[sigil] radial menu target surface create failed:', error);
-    });
+    void hitTarget.ensureCreated()
+        .then(() => {
+            syncHitTargetToAvatar();
+            scheduleRenderFrame();
+        })
+        .catch((error) => {
+            console.error('[sigil] avatar hit target create failed:', error);
+        });
+    void radialTargetSurface.ensureCreated()
+        .then(() => {
+            syncRadialTargetSurface();
+            scheduleRenderFrame();
+        })
+        .catch((error) => {
+            console.error('[sigil] radial menu target surface create failed:', error);
+        });
 }
 
 async function setupHostSurface() {

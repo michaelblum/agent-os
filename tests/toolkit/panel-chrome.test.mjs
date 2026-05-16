@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   clampFrameToWorkArea,
   chipFrameFromWindow,
@@ -23,6 +24,17 @@ import {
   restoredPanelFrameForChip,
   workAreaForPoint,
 } from '../../packages/toolkit/panel/placement.js';
+
+test('stock panel defaults make hosted documents fill the WebView viewport', async () => {
+  const css = await readFile(new URL('../../packages/toolkit/panel/defaults.css', import.meta.url), 'utf8');
+  const documentRule = css.match(/html,\s*\nbody\s*\{[^}]*\}/s)?.[0] || '';
+
+  assert.match(documentRule, /width:\s*100%/);
+  assert.match(documentRule, /height:\s*100%/);
+  assert.match(documentRule, /min-height:\s*0/);
+  assert.match(documentRule, /margin:\s*0/);
+  assert.match(documentRule, /overflow:\s*hidden/);
+});
 
 class FakeNode {}
 

@@ -508,6 +508,7 @@ test('Surface Inspector consumes toolkit panel chrome and split-pane footer prim
   assert.match(source, /closedSize: LIST_PANE_CLOSED_HEIGHT/);
   assert.match(source, /maxMain: MINIMAP_PANE_MAX_HEIGHT/);
   assert.match(source, /maxSidebar: Infinity/);
+  assert.match(source, /let listCollapsed = false/);
   assert.doesNotMatch(source, /request_resize/);
   assert.doesNotMatch(source, /MIN_EXPANDED_LIST_HEIGHT/);
   assert.match(styles, /\.surface-inspector-split/);

@@ -925,7 +925,7 @@ export default function CanvasInspector() {
   let lastTintError = null
   let dynamicAnimationFrame = 0
   let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
-  let listCollapsed = true
+  let listCollapsed = false
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,

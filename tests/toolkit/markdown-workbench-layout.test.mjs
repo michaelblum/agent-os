@@ -88,6 +88,7 @@ test('wiki graph controls reflow the graph stage through fixed sidebar primitive
 
 test('markdown workbench toggles source and preview in the content pane', async () => {
   const js = await repoText('packages/toolkit/components/markdown-workbench/index.js');
+  const css = await repoText('packages/toolkit/components/markdown-workbench/styles.css');
 
   const documentPane = js.match(/<section class="aos-workbench-controls-pane markdown-workbench-document-pane"[\s\S]*?<\/section>\s*<\/main>/)?.[0] || '';
 
@@ -107,6 +108,8 @@ test('markdown workbench toggles source and preview in the content pane', async 
   assert.match(js, /syncViewMode/);
   assert.match(js, /dom\.previewPane\.hidden = !previewActive/);
   assert.match(js, /dom\.sourcePane\.hidden = previewActive/);
+  assert.match(css, /\.markdown-workbench-document-pane\s*\{[^}]*position:\s*relative[^}]*z-index:\s*2/s);
+  assert.match(css, /\.markdown-workbench-graph-pane\s*\{[^}]*position:\s*relative[^}]*z-index:\s*1/s);
   assert.doesNotMatch(js, /markdown-workbench-toolbar/);
   assert.doesNotMatch(js, /markdown-workbench-pane-toolbar/);
 });
