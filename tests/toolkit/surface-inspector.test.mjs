@@ -498,6 +498,7 @@ test('Surface Inspector consumes toolkit panel chrome and split-pane footer prim
   assert.match(html, /maximize:\s*true/);
   assert.match(html, /resizable:\s*true/);
   assert.match(html, /minWidth:\s*300/);
+  assert.match(source, /defaultSize:\s*\{\s*w:\s*360,\s*h:\s*520\s*\}/);
   assert.match(source, /createFixedSidebarPane/);
   assert.match(source, /resizeFrameFromTopLeft/);
   assert.match(source, /mutateSelf\(\{ frame: nextFrame \}\)/);
@@ -516,6 +517,18 @@ test('Surface Inspector consumes toolkit panel chrome and split-pane footer prim
   assert.match(source, /canvas-list-region aos-sidebar-rail-content/);
   assert.match(styles, /overflow-x:\s*hidden/);
   assert.match(styles, /text-overflow:\s*ellipsis/);
+});
+
+test('Surface Inspector launch defaults leave room for minimap and first controls', () => {
+  const launch = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/launch.sh'), 'utf8');
+  const harness = readFileSync(path.join(repoRoot, 'tests/lib/visual-harness.sh'), 'utf8');
+
+  assert.match(launch, /AOS_SURFACE_INSPECTOR_W:-\$\{AOS_CANVAS_INSPECTOR_W:-360\}/);
+  assert.match(launch, /AOS_SURFACE_INSPECTOR_H:-\$\{AOS_CANVAS_INSPECTOR_H:-520\}/);
+  assert.match(launch, /--timeout 10s/);
+  assert.match(harness, /AOS_SURFACE_INSPECTOR_W:-\$\{AOS_CANVAS_INSPECTOR_W:-360\}/);
+  assert.match(harness, /AOS_SURFACE_INSPECTOR_H:-\$\{AOS_CANVAS_INSPECTOR_H:-520\}/);
+  assert.match(harness, /--timeout 10s/);
 });
 
 test('Surface Inspector exposes Annotation Mode controls and snapshot state', () => {

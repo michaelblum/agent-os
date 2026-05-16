@@ -30,6 +30,7 @@ import { renderMarkdown } from '../../markdown/render.js'
 import { createSelect } from '../../controls/select.js'
 import { createToggle } from '../../controls/toggle.js'
 import { resolveMarkdownSourceUrl } from './source-resolution.js'
+import { declareManifest, emitReady } from '../../runtime/manifest.js'
 
 const DEFAULT_TREE_URL = new URL('../../../../docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json', import.meta.url).href
 const LABEL_DENSITY_OPTIONS = [
@@ -638,6 +639,14 @@ async function main() {
       snapshot: () => surfaceZoomInspectorSnapshot(state),
     }
     render(root, chrome.contentEl, state)
+    declareManifest({
+      name: 'surface-zoom-inspector',
+      title: 'Surface-Zoom Inspector',
+      accepts: [],
+      emits: [],
+      defaultSize: { w: 1180, h: 720 },
+    })
+    window.setTimeout(() => emitReady(), 100)
     void loadSelectedMarkdownPreview()
     root.addEventListener('click', (event) => {
       const surfaceButton = event.target.closest('[data-surface-id]')

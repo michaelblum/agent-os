@@ -40,8 +40,8 @@ export function createButton(config = {}) {
   const doc = ownerDocument(config);
   const hub = createEventHub();
   const el = doc.createElement('button');
-  el.type = 'button';
-  el.classList.add('aos-button');
+  el.type = config.type || 'button';
+  el.setAttribute('class', buttonClassName(config));
 
   const applyVariant = (variant) => {
     for (const name of VARIANTS) el.classList.remove(name);
@@ -57,7 +57,13 @@ export function createButton(config = {}) {
   const setDisabled = (disabled = false) => {
     const next = !!disabled;
     el.disabled = next;
-    el.setAttribute('aria-disabled', String(next));
+    if (next) {
+      el.setAttribute('aria-disabled', 'true');
+    } else {
+      el.removeAttribute?.('aria-disabled');
+      if (!el.removeAttribute && el.attributes?.delete) el.attributes.delete('aria-disabled');
+      if (!el.removeAttribute && Object.prototype.hasOwnProperty.call(el, 'aria-disabled')) delete el['aria-disabled'];
+    }
   };
 
   const click = (event) => {
@@ -65,6 +71,21 @@ export function createButton(config = {}) {
     config.onClick?.(event);
     hub.emit('click', event);
   };
+
+  if (config.id) el.id = String(config.id);
+  if (config.title) el.setAttribute('title', String(config.title));
+  if (config.ariaLabel) el.setAttribute('aria-label', String(config.ariaLabel));
+  if (config.ariaPressed !== undefined) el.setAttribute('aria-pressed', config.ariaPressed ? 'true' : 'false');
+  if (config.pressed !== undefined) el.setAttribute('aria-pressed', config.pressed ? 'true' : 'false');
+  for (const [key, value] of Object.entries(config.dataset || {})) {
+    if (value === undefined || value === null || value === false) continue;
+    el.dataset[key] = String(value);
+  }
+  for (const [key, value] of Object.entries(config.attributes || {})) {
+    if (value === undefined || value === null || value === false) continue;
+    if (value === true) el.setAttribute(key, '');
+    else el.setAttribute(key, String(value));
+  }
 
   applyVariant(config.variant || 'secondary');
   setLabel(config.label ?? '');

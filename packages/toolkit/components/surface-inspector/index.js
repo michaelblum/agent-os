@@ -2690,7 +2690,7 @@ export default function CanvasInspector() {
       emits: ['canvas.send'],
       channelPrefix: 'surface-inspector',
       requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks', 'canvas_object.registry', 'input_region'],
-      defaultSize: { w: 320, h: 480 },
+      defaultSize: { w: 360, h: 520 },
     },
 
     render(host) {

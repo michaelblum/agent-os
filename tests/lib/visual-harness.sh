@@ -215,8 +215,8 @@ aos_visual_launch_canvas_inspector() {
   local inspector_id="${1:-surface-inspector}"
   local aos_bin panel_w panel_h display_json x y
   aos_bin="$(aos_visual_aos)"
-  panel_w="${AOS_CANVAS_INSPECTOR_W:-320}"
-  panel_h="${AOS_CANVAS_INSPECTOR_H:-480}"
+  panel_w="${AOS_SURFACE_INSPECTOR_W:-${AOS_CANVAS_INSPECTOR_W:-360}}"
+  panel_h="${AOS_SURFACE_INSPECTOR_H:-${AOS_CANVAS_INSPECTOR_H:-520}}"
 
   aos_visual_remove_canvas "$inspector_id" 5
   "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
@@ -252,7 +252,7 @@ EOF
     --id "$inspector_id" \
     --manifest surface-inspector \
     --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
-    --timeout 5s >/dev/null
+    --timeout 10s >/dev/null
 }
 
 aos_visual_launch_sigil_avatar() {

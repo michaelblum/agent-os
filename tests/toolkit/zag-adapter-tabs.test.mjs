@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createAosZagTabs } from '../../packages/toolkit/adapters/zag/tabs.js';
 import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs';
 
@@ -23,6 +24,27 @@ test('createAosZagTabs exposes expected Zag tabs helpers', () => {
   assert.equal(typeof snapshot.getTriggerProps, 'function');
   assert.equal(typeof snapshot.getContentProps, 'function');
   adapter.destroy();
+});
+
+test('tabs adapter remains browser-safe for aos:// hosted components', async () => {
+  const source = await readFile(new URL('../../packages/toolkit/adapters/zag/tabs.js', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(source, /from ['"]@zag-js\//);
+});
+
+test('live tab adopters do not import bare Zag modules into aos:// pages', async () => {
+  const paths = [
+    '../../packages/toolkit/adapters/zag/tabs.js',
+    '../../packages/toolkit/components/integration-hub/index.js',
+    '../../packages/toolkit/components/wiki-kb/index.js',
+    '../../packages/toolkit/components/markdown-workbench/index.js',
+  ];
+
+  for (const path of paths) {
+    const source = await readFile(new URL(path, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /from ['"]@zag-js\//, path);
+    assert.doesNotMatch(source, /import\(['"]@zag-js\//, path);
+  }
 });
 
 test('bind wires minimum tabs parts', () => {

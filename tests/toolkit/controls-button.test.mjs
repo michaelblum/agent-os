@@ -35,6 +35,39 @@ test('createButton toggles disabled attribute and click listeners', () => {
   button.destroy();
 });
 
+test('createButton stamps DOM metadata used by component render paths', () => {
+  const document = createFakeDocument();
+  const button = createButton({
+    document,
+    id: 'save-button',
+    title: 'Save changes',
+    ariaLabel: 'Save work record',
+    className: 'wide compact',
+    variant: 'primary',
+    dataset: { action: 'save', semanticTargetId: 'work-record-save' },
+    attributes: { 'aria-controls': 'work-record-json', 'data-extra': 'ok' },
+    disabled: true,
+  });
+
+  assert.equal(button.el.id, 'save-button');
+  assert.equal(button.el.getAttribute('title'), 'Save changes');
+  assert.equal(button.el.getAttribute('aria-label'), 'Save work record');
+  assert.equal(button.el.classList.contains('aos-button'), true);
+  assert.equal(button.el.classList.contains('primary'), true);
+  assert.equal(button.el.classList.contains('wide'), true);
+  assert.equal(button.el.classList.contains('compact'), true);
+  assert.equal(button.el.dataset.action, 'save');
+  assert.equal(button.el.dataset.semanticTargetId, 'work-record-save');
+  assert.equal(button.el.getAttribute('aria-controls'), 'work-record-json');
+  assert.equal(button.el.getAttribute('data-extra'), 'ok');
+  assert.equal(button.el.disabled, true);
+  assert.equal(button.el.getAttribute('aria-disabled'), 'true');
+
+  button.setDisabled(false);
+  assert.equal(button.el.disabled, false);
+  assert.equal(button.el.getAttribute('aria-disabled'), null);
+});
+
 test('renderButtonHtml escapes labels and supports raw attributes', () => {
   const html = renderButtonHtml({
     label: 'Run <now>',

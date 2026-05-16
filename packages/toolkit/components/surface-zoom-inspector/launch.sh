@@ -27,6 +27,8 @@ aos_ensure_content_roots_live "$AOS" \
   --scope global \
   --url "aos://$TOOLKIT_CONTENT_ROOT/components/surface-zoom-inspector/index.html?tree=$TREE_URL"
 
+"$AOS" show wait --id "$CANVAS_ID" --manifest surface-zoom-inspector --timeout 5s >/dev/null
+
 for _ in $(seq 1 25); do
   if "$AOS" show eval \
     --id "$CANVAS_ID" \

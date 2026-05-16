@@ -196,12 +196,11 @@ Verify:
 
 ### Decision Gate
 
-Launch a bounded local gate prompt through the CLI if the available command help
-shows a dry-run or local prompt mode. If no safe local command shape is obvious,
-open the hosted component directly instead:
+Launch a bounded local gate prompt with the toolkit helper. It creates a
+local-only request payload and does not submit an external decision:
 
 ```bash
-./aos show create --id decision-gate-live-sweep --at 160,120,760,460 --interactive --focus --url aos://toolkit/components/decision-gate/index.html
+packages/toolkit/components/decision-gate/launch.sh
 ./aos show wait --id decision-gate-live-sweep --manifest decision-gate --timeout 5s
 ```
 

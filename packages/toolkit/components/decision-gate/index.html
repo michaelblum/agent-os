@@ -11,8 +11,18 @@
   <div id="gate-root"></div>
   <script type="module">
     import { createDecisionGate } from './index.js';
+    import { declareManifest, emitReady } from '../../runtime/manifest.js';
+    import { wireBridge } from '../../runtime/bridge.js';
 
     window.__gateResult = undefined;
+    wireBridge();
+    declareManifest({
+      name: 'decision-gate',
+      title: 'Decision Gate',
+      accepts: [],
+      emits: [],
+      defaultSize: { w: 520, h: 360 },
+    });
 
     const params = new URLSearchParams(location.search);
     let request = null;
@@ -28,6 +38,7 @@
 
     if (request) {
       createDecisionGate(document.getElementById('gate-root'), { request });
+      window.setTimeout(() => emitReady(), 100);
     } else if (window.__gateResult === undefined) {
       window.__gateResult = JSON.stringify({ result: null, status: 'dismissed' });
     }

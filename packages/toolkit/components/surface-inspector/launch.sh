@@ -11,8 +11,8 @@ source "$ROOT/scripts/aos-content-scope.sh"
 
 AOS="${AOS:-$ROOT/aos}"
 CANVAS_ID="${AOS_SURFACE_INSPECTOR_ID:-surface-inspector}"
-PANEL_W="${AOS_CANVAS_INSPECTOR_W:-320}"
-PANEL_H="${AOS_CANVAS_INSPECTOR_H:-480}"
+PANEL_W="${AOS_SURFACE_INSPECTOR_W:-${AOS_CANVAS_INSPECTOR_W:-360}}"
+PANEL_H="${AOS_SURFACE_INSPECTOR_H:-${AOS_CANVAS_INSPECTOR_H:-520}}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 
 $AOS show remove --id "$CANVAS_ID" 2>/dev/null || true
@@ -53,7 +53,7 @@ $AOS show wait \
   --id "$CANVAS_ID" \
   --manifest surface-inspector \
   --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
-  --timeout 5s >/dev/null
+  --timeout 10s >/dev/null
 
 echo "Surface Inspector launched at ${X},${Y} (${PANEL_W}x${PANEL_H}) flush bottom-right of the main display's visible bounds for operator convenience only"
 echo "Live lifecycle + display geometry updates flow via in-canvas subscribe snapshots — no manual bootstrap needed."
