@@ -1,5 +1,17 @@
 # Work Card: Sigil 3D Thing Editor Subjects V0
 
+## Tracker
+
+- Continue from branch: `gdi/sigil-avatar-object-graph-adapter-v0`
+- Accepted prerequisite adapter head:
+  `1e4c44c9d34de3ae8d84481c0fe1a88a127c105f`
+- Accepted prerequisite context-menu descriptor head:
+  `1baf0be1ede3f7adb819ef4366239b46ee256665`
+- Foreman review note on 2026-05-16: deterministic checks passed, but
+  repo-mode live verification was blocked by `./aos ready` reporting
+  `diagnosis=input_tap_not_active`. Keep this slice deterministic unless the
+  implementation changes editor launch, canvas subscription, or panel behavior.
+
 ## Goal
 
 Generalize the radial item editor subject loader/stage so it can load both
