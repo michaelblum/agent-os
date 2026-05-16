@@ -1,5 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/radial-menu-defaults.js'
 import {
   AGENT_TERMINAL_MODEL_OBJECT_ID,
@@ -50,6 +53,40 @@ import {
   subjectFacets,
   subjectHosts,
 } from '../../packages/toolkit/workbench/subject.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(__dirname, '../..')
+const canvasObjectControlSchemaPath = path.join(repoRoot, 'shared/schemas/canvas-object-control.schema.json')
+
+function assertValidCanvasObjectControlMessage(message) {
+  const result = spawnSync(
+    'python3',
+    [
+      '-c',
+      `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+
+schema = json.loads(Path(sys.argv[1]).read_text())
+instance = json.loads(sys.stdin.read())
+Draft202012Validator.check_schema(schema)
+validator = Draft202012Validator(schema)
+errors = sorted(validator.iter_errors(instance), key=lambda error: list(error.path))
+if errors:
+    for error in errors[:8]:
+        print(error.message)
+    sys.exit(1)
+`,
+      canvasObjectControlSchemaPath,
+    ],
+    {
+      input: JSON.stringify(message),
+      encoding: 'utf8',
+    },
+  )
+  assert.equal(result.status, 0, `expected canonical canvas object control message\n${result.stdout}${result.stderr}`)
+}
 
 test('editableRadialItems exposes the current glTF radial item subjects', () => {
   assert.deepEqual(editableRadialItems(DEFAULT_SIGIL_RADIAL_ITEMS).map((item) => item.id), [
@@ -348,15 +385,22 @@ test('3D thing editor loader builds an avatar subject descriptor from the avatar
   assert.ok(registry.objects.find((object) => object.object_id === AVATAR_OMEGA_OBJECT_ID))
 
   const workbenchSubject = buildThingEditorWorkbenchSubject(subject)
+  const objectControlsFacet = subjectFacets(workbenchSubject).find((facet) => facet.key === 'object-controls')
   assert.equal(workbenchSubject.type, 'aos.workbench.subject')
   assert.equal(workbenchSubject.subject_type, AVATAR_SUBJECT_TYPE)
   assert.ok(subjectContracts(workbenchSubject).includes('canvas_object.registry'))
   assert.ok(subjectContracts(workbenchSubject).includes('canvas_object.effects.patch'))
+  assert.ok(!subjectContracts(workbenchSubject).includes('canvas_object.visibility.patch'))
   assert.deepEqual(subjectFacets(workbenchSubject).map((facet) => facet.key), [
     'object-registry',
     'object-controls',
     'preview',
     'owner-actions',
+  ])
+  assert.deepEqual(objectControlsFacet.contracts, [
+    'canvas_object.transform.patch',
+    'canvas_object.effects.patch',
+    'sigil.avatar.action',
   ])
   assert.equal(buildThingEditorPreview(subject).status, 'owner-managed')
   assert.equal(exportThingEditorSubject(subject).status, 'owner-managed')
@@ -394,9 +438,16 @@ test('avatar subject patch facets return owner-managed results without mutating 
 
   assert.equal(transform.type, 'canvas_object.transform.result')
   assert.equal(transform.status, 'rejected')
-  assert.equal(transform.error.code, 'unsupported_subject_operation')
+  assert.equal(transform.reason, 'unsupported_capability')
+  assert.match(transform.message, /owner-managed/)
+  assert.equal('error' in transform, false)
+  assertValidCanvasObjectControlMessage(transform)
   assert.equal(effects.type, 'canvas_object.effects.result')
   assert.equal(effects.status, 'rejected')
+  assert.equal(effects.reason, 'unsupported_capability')
+  assert.match(effects.message, /owner-managed/)
+  assert.equal('error' in effects, false)
+  assertValidCanvasObjectControlMessage(effects)
   assert.equal(rendererState.currentGeometryType, 6)
 })
 

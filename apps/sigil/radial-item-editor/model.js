@@ -76,7 +76,7 @@ function subjectResult({
     requestId,
     target = {},
     status = 'rejected',
-    code = 'unsupported_subject_operation',
+    reason = 'unsupported_capability',
     message = 'Subject does not support this editor operation.',
 } = {}) {
     return {
@@ -85,7 +85,8 @@ function subjectResult({
         request_id: text(requestId, 'editor-subject-request'),
         target: cloneConfig(target),
         status,
-        error: { code, message },
+        reason,
+        message,
     };
 }
 
@@ -409,7 +410,7 @@ export function buildThingEditorWorkbenchSubject(subjectInput = {}) {
                 contracts: [
                     'canvas_object.transform.patch',
                     'canvas_object.effects.patch',
-                    'canvas_object.visibility.patch',
+                    ...(isRadialSubject ? ['canvas_object.visibility.patch'] : []),
                     actionContract,
                 ],
                 hosts: [
