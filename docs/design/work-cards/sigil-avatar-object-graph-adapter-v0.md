@@ -1,0 +1,86 @@
+# Work Card: Sigil Avatar Object Graph Adapter V0
+
+## Goal
+
+Expose the live Sigil avatar as an object graph / `canvas_object` subject
+without changing context menu behavior. This is an adapter slice, not a UI
+rewrite.
+
+## Read First
+
+- `AGENTS.md`
+- `apps/sigil/AGENTS.md`
+- `packages/toolkit/AGENTS.md`
+- `shared/schemas/canvas-object-control.schema.json`
+- `shared/schemas/canvas-object-control.md`
+- `docs/design/aos-3d-object-graph-platform-contract.md`
+- `apps/sigil/renderer/state.js`
+- `apps/sigil/renderer/appearance.js`
+- `apps/sigil/renderer/live-modules/main.js`
+- `apps/sigil/renderer/geometry.js`
+- `apps/sigil/renderer/phenomena.js`
+- `apps/sigil/renderer/tesseron.js`
+- `apps/sigil/renderer/live-modules/radial-object-control.js`
+- `tests/renderer/radial-object-control.test.mjs`
+
+## Scope
+
+Create a Sigil-owned avatar object graph adapter that can build and publish a
+`canvas_object.registry` snapshot for `avatar-main`. Include primary avatar,
+primary tesseron child/link objects when enabled/supported, aura/effect groups,
+omega secondary shape, omega tesseron objects when enabled/supported, and major
+travel/trail effect groups as renderer-neutral nodes.
+
+The adapter should describe controls and capabilities but does not need to make
+every field editable in this slice. Prefer read-only registry coverage first,
+then add patch support only for the smallest safe set if it is needed by tests.
+
+## Hard Boundaries
+
+- Do not change context menu markup or behavior.
+- Do not move Three.js rendering out of Sigil.
+- Do not add Sigil/avatar branches to the daemon.
+- Do not change avatar defaults, persisted appearance shape, or seed docs.
+- Do not make `apps/sigil/studio/` the new implementation path.
+
+## Acceptance Criteria
+
+- `avatar-main` can publish a valid `canvas_object.registry` for the avatar
+  subject using current `state.js` / `appearance.js` state.
+- Registry nodes have stable ids, labels, parent ids where applicable, kind,
+  visibility, capabilities, transform or effect descriptors, and source refs.
+- The adapter distinguishes object/effect controls from Sigil app actions and
+  world/window context.
+- Existing radial item object control behavior is unchanged.
+- Focused tests cover registry shape and at least one state-to-registry mapping
+  for primary avatar, tesseron, phenomena, and omega.
+
+## Suggested Implementation Areas
+
+- Add an adapter near `apps/sigil/renderer/live-modules/avatar-object-control.js`
+  or another Sigil renderer-local module.
+- Reuse naming and result conventions from
+  `apps/sigil/renderer/live-modules/radial-object-control.js`.
+- Attach publish/refresh wiring from `apps/sigil/renderer/live-modules/main.js`
+  only after boot has initialized enough renderer state.
+- Add focused tests under `tests/renderer/`.
+
+## Verification
+
+Run:
+
+```bash
+git diff --check
+node --test tests/renderer/radial-object-control.test.mjs
+node --test tests/renderer/radial-item-editor.test.mjs
+node --test tests/renderer/context-menu-hit-test.test.mjs
+```
+
+If live registry fan-out is changed, also run the smallest relevant
+`canvas_object` shell test or explain why live daemon evidence is not needed.
+
+## Completion Report
+
+Report files changed, the adapter's registry node inventory, tests run with
+exact results, whether context menu behavior was untouched, local-only state,
+and the next owner/slice.
