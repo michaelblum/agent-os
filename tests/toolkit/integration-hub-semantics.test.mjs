@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import IntegrationHub from '../../packages/toolkit/components/integration-hub/index.js'
 import {
   applyIntegrationHubSemanticTarget,
@@ -324,6 +325,22 @@ test('surface tabs receive tab state and AOS metadata without label changes', ()
   assert.equal(activityTab.textContent, 'Activity')
 })
 
+test('default integration hub surface contract uses Providers, Workflows, and Jobs', async () => {
+  const source = await readFile(new URL('../../packages/toolkit/components/integration-hub/index.js', import.meta.url), 'utf8')
+  const css = await readFile(new URL('../../packages/toolkit/components/integration-hub/styles.css', import.meta.url), 'utf8')
+
+  assert.match(source, /activeSurface: 'providers'/)
+  assert.match(source, /const DEFAULT_SURFACES = Object\.freeze\(\[[\s\S]*\{ id: 'providers', label: 'Providers' \}/)
+  assert.match(source, /surface\.id === 'integrations' \? 'providers' : surface\.id/)
+  assert.match(source, /if \(id === 'activity'\) return null/)
+  assert.match(source, /<label>providers<\/label>/)
+  assert.doesNotMatch(source, /\{ id: 'integrations', label: 'Integrations' \}/)
+  assert.doesNotMatch(source, /activeSurface: 'activity'/)
+  assert.match(css, /html,\nbody\s*\{[^}]*background:/s)
+  assert.match(css, /\.integration-hub-root\s*\{[^}]*background:/s)
+  assert.match(css, /\.integration-hub-grid\s*\{[^}]*background:/s)
+})
+
 test('rendered integration hub stamps actionable controls with semantic metadata', async (t) => {
   const previousDocument = globalThis.document
   const previousWindow = globalThis.window
@@ -359,15 +376,15 @@ test('rendered integration hub stamps actionable controls with semantic metadata
   })
 
   hub = IntegrationHub({ pollMs: 60000 })
-  hub.restore({ activeSurface: 'activity', simulateText: 'status' })
+  hub.restore({ activeSurface: 'providers', simulateText: 'status' })
   const titles = []
   const root = hub.render({ setTitle: (title) => titles.push(title) })
 
   const input = root.querySelector('#integration-hub-command')
   const send = root.querySelector('.integration-hub-action')
   const refresh = root.querySelector('.integration-hub-refresh')
-  const activityTab = root.querySelectorAll('.integration-hub-surface-tab')
-    .find((button) => button.dataset.surface === 'activity')
+  const providersTab = root.querySelectorAll('.integration-hub-surface-tab')
+    .find((button) => button.dataset.surface === 'providers')
   const jobsTab = root.querySelectorAll('.integration-hub-surface-tab')
     .find((button) => button.dataset.surface === 'jobs')
 
@@ -377,11 +394,11 @@ test('rendered integration hub stamps actionable controls with semantic metadata
   assert.equal(send.getAttribute('aria-label'), 'Send command')
   assert.equal(send.dataset.aosRef, 'integration-hub:command-send')
   assert.equal(refresh.dataset.aosAction, 'refresh_snapshot')
-  assert.equal(activityTab.getAttribute('role'), 'tab')
-  assert.equal(activityTab.getAttribute('aria-selected'), 'true')
-  assert.equal(activityTab.dataset.aosTabsTrigger, '')
-  assert.equal(activityTab.dataset.aosAction, 'select_surface')
-  assert.equal(activityTab.dataset.aosRef, 'integration-hub:surface-tab-activity')
+  assert.equal(providersTab.getAttribute('role'), 'tab')
+  assert.equal(providersTab.getAttribute('aria-selected'), 'true')
+  assert.equal(providersTab.dataset.aosTabsTrigger, '')
+  assert.equal(providersTab.dataset.aosAction, 'select_surface')
+  assert.equal(providersTab.dataset.aosRef, 'integration-hub:surface-tab-providers')
   assert.equal(jobsTab.dataset.aosTabsTrigger, '')
   assert.equal(jobsTab.dataset.aosAction, 'select_surface')
   assert.equal(jobsTab.dataset.aosRef, 'integration-hub:surface-tab-jobs')

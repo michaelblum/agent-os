@@ -183,9 +183,11 @@ Launch Integration Hub:
 
 Verify:
 
-- Wiki KB graph/detail/mind-map tabs switch with real pointer and keyboard.
-- Wiki KB graph controls, sidebar/details toggles, refresh, markdown/raw
-  toggles, and breadcrumbs remain visible and usable after tab switches.
+- Wiki KB Graph and Mind Map tabs switch with real pointer and keyboard.
+- Wiki KB selected-node details remain in the synchronized sidebar, not a
+  separate Detail tab. Graph controls, sidebar/details toggles, refresh,
+  markdown/raw toggles, and breadcrumbs remain visible and usable after tab
+  switches.
 - Integration Hub tabs switch between Providers, Workflows, and Jobs with
   correct active/selected state, visible content, and no stale selected panel.
 - Integration Hub Refresh and Send controls behave sensibly. If the local

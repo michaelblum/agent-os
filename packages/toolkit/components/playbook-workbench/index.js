@@ -3,6 +3,7 @@ import { renderButtonHtml } from '../../controls/button.js';
 import { renderTextFieldHtml } from '../../controls/text-field.js';
 import {
   PLAYBOOK_WORKBENCH_MESSAGE_TYPES,
+  PLAYBOOK_WORKBENCH_MANIFEST,
   PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
   PLAYBOOK_WORKBENCH_SURFACE,
   PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID,
@@ -424,7 +425,7 @@ export default function PlaybookWorkbench(options = {}) {
 
   return {
     manifest: {
-      name: PLAYBOOK_WORKBENCH_SURFACE,
+      name: PLAYBOOK_WORKBENCH_MANIFEST,
       title: 'Playbook Workbench V0',
       accepts: [
         PLAYBOOK_WORKBENCH_MESSAGE_TYPES.load,

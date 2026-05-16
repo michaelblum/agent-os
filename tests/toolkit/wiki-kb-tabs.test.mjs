@@ -35,3 +35,10 @@ test('Wiki KB tab semantics remain on triggers while embedded chrome stays on se
   assert.match(source, /addClassNames\(dom\.viewSelectEl, 'wiki-kb-view-select'\)/)
   assert.doesNotMatch(source, /dom\.viewSelectEl[\s\S]{0,200}aosTabs/)
 })
+
+test('Wiki KB details remain a synchronized sidebar instead of a duplicate detail tab', () => {
+  assert.match(source, /const VIEW_DEFS = \[[\s\S]*\{ id: 'graph', label: 'Graph'[\s\S]*\{ id: 'mindmap', label: 'Mind Map'/)
+  assert.doesNotMatch(source, /id: 'detail'/)
+  assert.match(source, /<aside class="wiki-kb-sidebar" aria-label="Selected node details">/)
+  assert.match(source, /function setSelection\(node, options = \{\}\) \{[\s\S]*renderSidebar\(selectedNode\)[\s\S]*focusActiveViewOnSelection\(\)/)
+})

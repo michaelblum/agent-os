@@ -37,6 +37,42 @@ function statusTone(status) {
   }
 }
 
+const DEFAULT_SURFACES = Object.freeze([
+  { id: 'providers', label: 'Providers' },
+  { id: 'workflows', label: 'Workflows' },
+  { id: 'jobs', label: 'Jobs' },
+])
+
+function normalizeSurface(surface = {}) {
+  const id = surface.id === 'integrations' ? 'providers' : surface.id
+  if (id === 'activity') return null
+  if (!['providers', 'workflows', 'jobs'].includes(id)) return null
+  return {
+    ...surface,
+    id,
+    label: id === 'providers' ? 'Providers' : (surface.label || id),
+    description: id === 'providers'
+      ? (surface.description || 'Provider adapters, configuration state, and transport-specific capabilities.')
+      : surface.description,
+  }
+}
+
+function normalizeSnapshot(snapshot = {}) {
+  const seen = new Set()
+  const surfaces = (Array.isArray(snapshot.surfaces) ? snapshot.surfaces : DEFAULT_SURFACES)
+    .map(normalizeSurface)
+    .filter(Boolean)
+    .filter((surface) => {
+      if (seen.has(surface.id)) return false
+      seen.add(surface.id)
+      return true
+    })
+  return {
+    ...snapshot,
+    surfaces: surfaces.length > 0 ? surfaces : [...DEFAULT_SURFACES],
+  }
+}
+
 export default function IntegrationHub(options = {}) {
   const brokerUrl = options.brokerUrl || window.__AOS_INTEGRATION_BROKER_URL__ || DEFAULT_BROKER_URL
   const pollMs = options.pollMs || 5000
@@ -50,7 +86,7 @@ export default function IntegrationHub(options = {}) {
     loading: true,
     error: null,
     snapshot: null,
-    activeSurface: 'jobs',
+    activeSurface: 'providers',
     simulateText: 'status',
     simulateReply: null,
     sending: false,
@@ -73,10 +109,10 @@ export default function IntegrationHub(options = {}) {
     try {
       const res = await fetch(`${state.brokerUrl}/api/integrations/snapshot?limit=12`)
       if (!res.ok) throw new Error(`snapshot request failed: ${res.status}`)
-      const snapshot = await res.json()
+      const snapshot = normalizeSnapshot(await res.json())
       const nextSurface = snapshot.surfaces?.some((surface) => surface.id === state.activeSurface)
         ? state.activeSurface
-        : (snapshot.surfaces?.[0]?.id || 'jobs')
+        : (snapshot.surfaces?.[0]?.id || 'providers')
       setState({
         loading: false,
         error: null,
@@ -112,7 +148,7 @@ export default function IntegrationHub(options = {}) {
       setState({
         sending: false,
         simulateReply: reply,
-        activeSurface: 'activity',
+        activeSurface: 'jobs',
       })
       await loadSnapshot()
     } catch (error) {
@@ -213,6 +249,7 @@ export default function IntegrationHub(options = {}) {
 
   function renderSurfaces() {
     switch (state.activeSurface) {
+      case 'providers':
       case 'integrations':
         return renderProviders()
       case 'workflows':
@@ -271,12 +308,7 @@ export default function IntegrationHub(options = {}) {
 
   function renderState() {
     if (!rootEl) return
-    const surfaces = state.snapshot?.surfaces || [
-      { id: 'jobs', label: 'Jobs' },
-      { id: 'workflows', label: 'Workflows' },
-      { id: 'integrations', label: 'Integrations' },
-      { id: 'activity', label: 'Activity' },
-    ]
+    const surfaces = state.snapshot?.surfaces || DEFAULT_SURFACES
     const providerCount = state.snapshot?.providers?.length || 0
     const workflowCount = state.snapshot?.workflows?.length || 0
     const jobCount = state.snapshot?.jobs?.length || 0
@@ -290,7 +322,7 @@ export default function IntegrationHub(options = {}) {
             <p>Provider adapters stay outside toolkit and Sigil. The browser only consumes the shared broker snapshot: providers, workflows, jobs, and activity.</p>
           </div>
           <div class="integration-hub-hero-stats">
-            <div><span>${providerCount}</span><label>integrations</label></div>
+            <div><span>${providerCount}</span><label>providers</label></div>
             <div><span>${workflowCount}</span><label>workflows</label></div>
             <div><span>${jobCount}</span><label>jobs</label></div>
           </div>
@@ -301,6 +333,8 @@ export default function IntegrationHub(options = {}) {
           <div class="integration-hub-status ${state.error ? 'has-error' : ''}">
             ${state.loading ? 'loading snapshot…' : (state.error ? esc(state.error) : `updated ${esc(prettyAge(state.snapshot?.generated_at))}`)}
           </div>
+          ${renderTextFieldHtml({ id: 'integration-hub-command', className: 'integration-hub-input integration-hub-toolbar-input', value: state.simulateText, placeholder: 'status', ariaLabel: 'Integration command' })}
+          ${renderButtonHtml({ includeBaseClass: false, className: 'integration-hub-action', label: state.sending ? 'Sending...' : 'Send' })}
           ${renderButtonHtml({ includeBaseClass: false, className: 'integration-hub-refresh', label: 'Refresh' })}
         </section>
 

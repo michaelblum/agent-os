@@ -1,6 +1,7 @@
 import { applySemanticTargetAttributes } from '../../runtime/semantic-targets.js';
 
 export const PLAYBOOK_WORKBENCH_SURFACE = 'playbook-workbench-v0';
+export const PLAYBOOK_WORKBENCH_MANIFEST = 'playbook-workbench';
 export const PLAYBOOK_WORKBENCH_URL = 'aos://toolkit/components/playbook-workbench/index.html';
 
 const REF_IDS = Object.freeze({

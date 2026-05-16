@@ -97,7 +97,8 @@ test('markdown workbench toggles source and preview in the content pane', async 
   assert.match(js, /aria-label="Edit" title="Edit"/);
   assert.match(js, /markdown-workbench-mode-icon/);
   assert.match(js, /markdown-workbench-code-icon/);
-  assert.match(js, /class="markdown-workbench-icon-button" data-action="toggle-outline" aria-label="Index" title="Index"/);
+  assert.match(js, /className: 'markdown-workbench-icon-button', label: '#', ariaLabel: 'Index', title: 'Index'/);
+  assert.match(js, /className: 'markdown-workbench-icon-button', label: '!', ariaLabel: 'Annotations', title: 'Annotations'/);
   assert.match(documentPane, /data-role="path"/);
   assert.doesNotMatch(documentPane, /data-role="dirty"/);
   assert.match(js, /dom\.saveButton\.disabled = !state\.dirty/);

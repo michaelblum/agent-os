@@ -7,6 +7,7 @@ import test from 'node:test';
 import PlaybookWorkbench from '../../packages/toolkit/components/playbook-workbench/index.js';
 import {
   PLAYBOOK_WORKBENCH_MESSAGE_TYPES,
+  PLAYBOOK_WORKBENCH_MANIFEST,
   PLAYBOOK_WORKBENCH_SURFACE,
   PLAYBOOK_WORKBENCH_URL,
   PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID,
@@ -207,7 +208,7 @@ test('Playbook Workbench V0 exposes stable semantic refs and no replay/repair/ma
   const indexJs = await repoText('packages/toolkit/components/playbook-workbench/index.js');
   const launch = await repoText('packages/toolkit/components/playbook-workbench/launch.sh');
 
-  assert.equal(shell.manifest.name, PLAYBOOK_WORKBENCH_SURFACE);
+  assert.equal(shell.manifest.name, PLAYBOOK_WORKBENCH_MANIFEST);
   assert.equal(refs.root, playbookWorkbenchAosRef('root'));
   assert.equal(refs.gateRef, playbookWorkbenchAosRef('gate-ref'));
   assert.equal(refs.gateToken, playbookWorkbenchAosRef('gate-token'));
@@ -225,7 +226,7 @@ test('Playbook Workbench V0 exposes stable semantic refs and no replay/repair/ma
   assert.match(indexJs, /frame: \[80, 92, 1180, 720\]/);
   assert.match(indexJs, /if \(result === expectedRecordId\) return true;/);
   assert.doesNotMatch(indexJs, /result !== 'false'/);
-  assert.match(launch, /--manifest playbook-workbench-v0/);
+  assert.match(launch, /--manifest playbook-workbench/);
   assert.match(launch, /playbook_workbench\.load/);
   assert.doesNotMatch(indexJs, /data-action="[^"]*(replay|repair|macro)[^"]*"/i);
 });

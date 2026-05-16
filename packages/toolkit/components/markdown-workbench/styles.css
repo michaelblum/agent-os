@@ -165,6 +165,9 @@
   min-width: 30px;
   padding: 0;
   justify-content: center;
+  overflow: hidden;
+  font: 760 12px/1 var(--font-mono);
+  letter-spacing: 0;
 }
 
 .markdown-workbench-icon-button svg {

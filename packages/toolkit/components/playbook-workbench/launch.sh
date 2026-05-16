@@ -68,7 +68,7 @@ read -r X Y W H <<<"$GEOMETRY"
 
 "$AOS" show wait \
   --id "$CANVAS_ID" \
-  --manifest playbook-workbench-v0 \
+  --manifest playbook-workbench \
   --js 'typeof window.__playbookWorkbenchState === "object" && document.querySelector("[data-aos-ref=\"playbook-workbench-v0:root\"]")' \
   --timeout 5s >/dev/null
 
@@ -93,7 +93,7 @@ print(json.dumps({
 
 "$AOS" show wait \
   --id "$CANVAS_ID" \
-  --manifest playbook-workbench-v0 \
+  --manifest playbook-workbench \
   --js 'window.__playbookWorkbenchState?.fixture_loaded === true && window.__playbookWorkbenchState?.step_summary?.id === "playbook-step:browser-click-status"' \
   --timeout 5s >/dev/null
 

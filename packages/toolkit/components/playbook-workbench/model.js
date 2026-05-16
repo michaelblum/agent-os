@@ -18,11 +18,12 @@ import {
 } from '../work-record-workbench/model.js';
 import {
   PLAYBOOK_WORKBENCH_SURFACE,
+  PLAYBOOK_WORKBENCH_MANIFEST,
   PLAYBOOK_WORKBENCH_URL,
   playbookWorkbenchSemanticRefs,
 } from './semantics.js';
 
-export { PLAYBOOK_WORKBENCH_SURFACE, PLAYBOOK_WORKBENCH_URL };
+export { PLAYBOOK_WORKBENCH_SURFACE, PLAYBOOK_WORKBENCH_MANIFEST, PLAYBOOK_WORKBENCH_URL };
 
 export const PLAYBOOK_WORKBENCH_SCHEMA_VERSION = '2026-05-06-playbook-workbench-v0';
 export const PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID = 'playbook-workbench-v0-work-record';
