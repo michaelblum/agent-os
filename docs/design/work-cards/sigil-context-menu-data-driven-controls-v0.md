@@ -9,6 +9,12 @@ This card follows the avatar object graph adapter. It should make the context
 menu easier to align with `canvas_object` / object-graph patches, but it should
 not redesign the product surface.
 
+## Fresh Context Contract
+
+GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+canvas, issue, or prior implementation state. Read and rediscover before
+editing.
+
 ## Read First
 
 - `AGENTS.md`
@@ -23,6 +29,20 @@ not redesign the product surface.
 - `apps/sigil/renderer/tesseron.js`
 - `apps/sigil/renderer/transition-registry.js`
 - `tests/renderer/context-menu-hit-test.test.mjs`
+
+## Rediscover State
+
+Run:
+
+```bash
+git status --short --branch
+git log --oneline -5 --decorate
+./aos dev recommend --json
+rg -n "bindControls|syncFromState|state\\.|onAppearanceChange|updateGeometry|tesseron|phenomena|createDesktopWorldRangeDrag|createStackMenu|data-action|context-menu" apps/sigil/context-menu apps/sigil/renderer tests/renderer
+```
+
+Run `./aos ready` only if pointer routing or live menu behavior is changed in a
+way deterministic tests cannot cover.
 
 ## Scope
 

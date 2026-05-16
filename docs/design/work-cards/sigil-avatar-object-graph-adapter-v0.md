@@ -6,6 +6,12 @@ Expose the live Sigil avatar as an object graph / `canvas_object` subject
 without changing context menu behavior. This is an adapter slice, not a UI
 rewrite.
 
+## Fresh Context Contract
+
+GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+canvas, issue, or prior implementation state. Read and rediscover before
+editing.
+
 ## Read First
 
 - `AGENTS.md`
@@ -22,6 +28,20 @@ rewrite.
 - `apps/sigil/renderer/tesseron.js`
 - `apps/sigil/renderer/live-modules/radial-object-control.js`
 - `tests/renderer/radial-object-control.test.mjs`
+
+## Rediscover State
+
+Run:
+
+```bash
+git status --short --branch
+git log --oneline -5 --decorate
+./aos dev recommend --json
+rg -n "canvas_object|avatar|tesseron|phenomena|omega|wormhole|trail|appearance|updateGeometry|applyAppearance|snapshotAppearance" apps/sigil shared/schemas docs tests
+```
+
+Run `./aos ready` only if live registry fan-out or live canvas evidence becomes
+part of the implementation proof. Prefer deterministic adapter tests first.
 
 ## Scope
 
