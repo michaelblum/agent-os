@@ -1,5 +1,14 @@
 # Work Card: Sigil Context Menu Data-Driven Controls V0
 
+## Tracker
+
+- Continue from branch: `gdi/sigil-avatar-object-graph-adapter-v0`
+- Accepted prerequisite adapter head:
+  `1e4c44c9d34de3ae8d84481c0fe1a88a127c105f`
+- This card follows the read-only avatar object graph adapter. Keep that
+  adapter behavior intact while routing context menu controls through
+  descriptors/actions.
+
 ## Goal
 
 Refactor Sigil context menu control definitions and update routing to consume
