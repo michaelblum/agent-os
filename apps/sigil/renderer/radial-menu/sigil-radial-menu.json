@@ -1,0 +1,265 @@
+{
+  "$schema": "../../../../shared/schemas/radial-menu-3d.schema.json",
+  "kind": "aos.radial_menu_3d",
+  "schema_version": "2026-05-16",
+  "id": "sigil.radial.main",
+  "label": "Sigil Radial Menu",
+  "extends": "aos://toolkit/runtime/radial-menu/default-3d.json",
+  "role": "menu",
+  "preferred_initial_item": "context-menu",
+  "close_on_select": true,
+  "typeahead": true,
+  "defaults": {
+    "three": {
+      "item": {
+        "hover": {
+          "transform": {
+            "scale": {
+              "from": 1,
+              "to": 2
+            }
+          }
+        }
+      }
+    }
+  },
+  "geometry": {
+    "radiusBasis": 40,
+    "deadZoneRadius": 0.6,
+    "itemRadius": 1.55,
+    "itemHitRadius": 0.42,
+    "itemVisualRadius": 0.28,
+    "menuRadius": 1.8,
+    "handoffRadius": 2.25,
+    "reentryRadius": 1.85,
+    "spreadDegrees": 88,
+    "startAngle": -90,
+    "orientation": "fixed"
+  },
+  "items": [
+    {
+      "id": "context-menu",
+      "label": "Context Menu",
+      "action": "contextMenu",
+      "target_surface": {
+        "kind": "sigil.context_menu"
+      },
+      "geometry": {
+        "type": "gltf",
+        "src": "../assets/models/cog/scene.gltf",
+        "module_ref": "sigil.radial.geometry.context-menu",
+        "modelUid": "158a1e27214841589dce6d7361f1a422",
+        "title": "Cog",
+        "radiusScale": 1.02,
+        "material": "sigil-hologram",
+        "rotationDegrees": { "x": 90, "y": 0, "z": 0 },
+        "attribution": {
+          "title": "Cog",
+          "titleUrl": "https://sketchfab.com/3d-models/cog-158a1e27214841589dce6d7361f1a422",
+          "author": "Jiri Kuba",
+          "authorUrl": "https://sketchfab.com/kuba.jirka",
+          "source": "Sketchfab",
+          "license": "CC-BY-4.0",
+          "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+        }
+      },
+      "three": {
+        "item": {
+          "hover": {
+            "transform": {
+              "rotate": {
+                "spin": {
+                  "axis": "z",
+                  "rate": 1.45
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "agent-terminal",
+      "label": "Agent Terminal",
+      "action": "agentTerminal",
+      "target_surface": {
+        "kind": "sigil.agent_terminal"
+      },
+      "geometry": {
+        "type": "gltf",
+        "src": "../assets/models/low-poly-sci-fi-tablet/scene.gltf",
+        "module_ref": "sigil.radial.geometry.agent-terminal",
+        "modelUid": "ee1fde7ec1514fd5a61790809ebd46a6",
+        "title": "Low Poly Sci-Fi Tablet",
+        "radiusScale": 1.18,
+        "normalizedRadius": 0.3,
+        "rotationDegrees": { "x": 90, "y": 0, "z": 0 },
+        "hiddenMaterials": ["MAT_OpacityText"],
+        "parts": [
+          {
+            "id": "screen",
+            "name": "Terminal Screen",
+            "kind": "plane",
+            "module_ref": "sigil.radial.part.terminal-screen",
+            "transform": {
+              "position": { "x": 0, "y": 0.078, "z": 0.041 },
+              "scale": { "x": 0.38, "y": 0.2, "z": 1 },
+              "rotationDegrees": { "x": 0, "y": 180, "z": 0 }
+            },
+            "visible": true,
+            "material": {
+              "kind": "terminal-screen",
+              "title": "AGENT TERM",
+              "lines": [
+                "> attach provider",
+                "> route session",
+                "> resume stream",
+                "> surface ready"
+              ],
+              "color": "#071318",
+              "accent": "#68f7ff",
+              "opacity": 0.94
+            }
+          }
+        ],
+        "attribution": {
+          "title": "Low Poly Sci-Fi Tablet",
+          "titleUrl": "https://sketchfab.com/3d-models/low-poly-sci-fi-tablet-ee1fde7ec1514fd5a61790809ebd46a6",
+          "author": "Snooze",
+          "authorUrl": "https://sketchfab.com/Snooze",
+          "source": "Sketchfab",
+          "license": "CC-BY-4.0",
+          "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+        }
+      }
+    },
+    {
+      "id": "annotation-mode",
+      "label": "Annotate",
+      "action": "annotationMode",
+      "geometry": {
+        "type": "glyph",
+        "glyph": "annotation-reticle",
+        "module_ref": "sigil.radial.geometry.annotation-reticle",
+        "title": "Annotation Reticle",
+        "material": "sigil-gold-reticle",
+        "normalizedRadius": 0.3,
+        "radiusScale": 1,
+        "itemMotion": {
+          "shapeHoverSpinSpeed": 0.35
+        }
+      },
+      "three": {
+        "item": {
+          "hover": {
+            "transform": {
+              "rotate": {
+                "spin": {
+                  "axis": "z",
+                  "rate": 0.35
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "annotation-camera",
+      "label": "Snapshot",
+      "action": "annotationSnapshot",
+      "requiresLiveAnnotationAnchors": true,
+      "geometry": {
+        "type": "glyph",
+        "glyph": "annotation-camera",
+        "module_ref": "sigil.radial.geometry.annotation-camera",
+        "title": "Annotation Snapshot Camera",
+        "material": "sigil-gold-camera",
+        "normalizedRadius": 0.3,
+        "radiusScale": 1,
+        "itemMotion": {
+          "shapeHoverSpinSpeed": 0.2
+        }
+      }
+    },
+    {
+      "id": "wiki-graph",
+      "label": "Wiki Graph",
+      "action": "wikiGraph",
+      "target_surface": {
+        "kind": "sigil.wiki_graph"
+      },
+      "geometry": {
+        "type": "gltf",
+        "src": "../assets/models/human-brain/scene.gltf",
+        "module_ref": "sigil.radial.geometry.wiki-brain",
+        "modelUid": "49bcdf19c1904c76a456b31838b0d7ac",
+        "title": "Human Brain",
+        "radiusScale": 1.1502,
+        "normalizedRadius": 0.28,
+        "material": "translucent-brain-shell",
+        "radialEffect": {
+          "kind": "nested-neural-tree",
+          "holdExitDirection": "outward",
+          "shellOpacity": {
+            "rest": 0.75,
+            "active": 0.26,
+            "held": 0.75
+          },
+          "fractalPulse": {
+            "intensity": 1
+          }
+        },
+        "attribution": {
+          "title": "Human Brain",
+          "titleUrl": "https://sketchfab.com/3d-models/human-brain-49bcdf19c1904c76a456b31838b0d7ac",
+          "author": "Versal",
+          "authorUrl": "https://sketchfab.com/versal",
+          "source": "Sketchfab",
+          "license": "CC-BY-4.0",
+          "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+        }
+      },
+      "effects": [
+        {
+          "ref": "sigil.radial.effect.nested-neural-tree",
+          "config": {
+            "holdExitDirection": "outward"
+          }
+        }
+      ],
+      "activationTransition": {
+        "preset": "wiki-brain-zoom-dissolve",
+        "item": {
+          "focus": {
+            "mode": "fill-camera",
+            "zoom": "fill-camera",
+            "scale": 1
+          },
+          "dissolve": true,
+          "duration_ms": 460,
+          "easing": "ease-in-out"
+        },
+        "menu": {
+          "dissolve": true,
+          "fade": {
+            "from": 1,
+            "to": 0
+          },
+          "duration_ms": 320,
+          "easing": "ease-in-out"
+        },
+        "surface": {
+          "fade": "in",
+          "starts": "with-item",
+          "opacity": {
+            "from": 0,
+            "to": 1
+          },
+          "duration_ms": 320,
+          "easing": "ease-in-out"
+        }
+      }
+    }
+  ]
+}

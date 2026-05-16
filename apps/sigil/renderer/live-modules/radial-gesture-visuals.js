@@ -1,6 +1,10 @@
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import { currentSigilRoot } from './content-roots.js';
 import {
+    resolveSigilRadialItemEffectRefs,
+    resolveSigilRadialItemModule,
+} from '../radial-menu/item-registry.js';
+import {
     DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM,
     DEFAULT_NESTED_TREE_EFFECT,
     radialItemParts,
@@ -79,6 +83,41 @@ export function resolveRadialItemMotion(item = {}, { nativeGeometry = false, ite
 
 export function resolveRadialHoverSpinSpeed(item = {}, options = {}) {
     return resolveRadialItemMotion(item, options).hoverSpinSpeed;
+}
+
+export function resolveRadialHoverConfig(item = {}) {
+    return item?.three?.item?.hover || {};
+}
+
+export function resolveRadialHoverProgressFactor(item = {}) {
+    return Math.max(0, finite(resolveRadialHoverConfig(item).progress?.factor, 0.22));
+}
+
+export function resolveRadialHoverScale(item = {}) {
+    const scale = resolveRadialHoverConfig(item).transform?.scale || {};
+    return {
+        from: finite(scale.from, 1),
+        to: finite(scale.to, 1.08),
+    };
+}
+
+export function resolveRadialHoverSpin(item = {}, options = {}) {
+    const spin = resolveRadialHoverConfig(item).transform?.rotate?.spin;
+    if (spin === false) return { axis: 'none', rate: 0 };
+    const fallbackRate = resolveRadialHoverSpinSpeed(item, options);
+    return {
+        axis: String(spin?.axis || 'y').toLowerCase(),
+        rate: Math.max(0, finite(spin?.rate, fallbackRate)),
+    };
+}
+
+export function resolveRadialHoverRotationDegrees(item = {}) {
+    const degrees = resolveRadialHoverConfig(item).transform?.rotate?.degrees || {};
+    return {
+        x: finite(degrees.x, 0.12),
+        y: finite(degrees.y, 0),
+        z: finite(degrees.z, 0.055),
+    };
 }
 
 function applyObjectTransform(object, transform = {}, defaults = {}) {
@@ -1706,12 +1745,18 @@ function createGltfGlyph(item = {}) {
 }
 
 function createGlyph(item = {}) {
+    const moduleDef = resolveSigilRadialItemModule(item);
     const kind = geometryKind(item);
-    if (kind === 'gltf' || kind === 'glb') return createGltfGlyph(item);
-    if (item.action === 'contextMenu' || item.id === 'context-menu') return createContextMenuGlyph();
+    if (kind === 'gltf' || kind === 'glb') {
+        const glyph = createGltfGlyph(item);
+        glyph.userData.itemModuleRef = moduleDef?.ref || item.geometry?.module_ref || null;
+        return glyph;
+    }
+    const fallbackGlyph = moduleDef?.fallbackGlyph;
+    if (fallbackGlyph === 'context-menu' || item.action === 'contextMenu' || item.id === 'context-menu') return createContextMenuGlyph();
     if (item.action === 'wikiGraph' || item.id === 'wiki-graph') return createWikiGraphGlyph();
-    if (item.action === 'annotationMode' || item.id === 'annotation-mode') return createAnnotationReticleGlyph();
-    if (item.action === 'annotationSnapshot' || item.id === 'annotation-camera') return createAnnotationCameraGlyph();
+    if (fallbackGlyph === 'annotation-reticle' || item.action === 'annotationMode' || item.id === 'annotation-mode') return createAnnotationReticleGlyph();
+    if (fallbackGlyph === 'annotation-camera' || item.action === 'annotationSnapshot' || item.id === 'annotation-camera') return createAnnotationCameraGlyph();
     return createFallbackGlyph();
 }
 
@@ -2025,7 +2070,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             if (!projected) continue;
             const activation = radialGlyphActivationState({ visualRadial, activeRadial, source, item });
             const active = activation.active;
-            glyph.userData.hoverProgress += ((active ? 1 : 0) - glyph.userData.hoverProgress) * 0.22;
+            glyph.userData.hoverProgress += ((active ? 1 : 0) - glyph.userData.hoverProgress) * resolveRadialHoverProgressFactor(item);
             const hoverProgress = glyph.userData.hoverProgress;
             glyph.position.copy(projected);
             glyph.traverse((child) => {
@@ -2035,7 +2080,9 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             const sceneRadius = projectRadius?.(item.center, itemRadius) ?? 0.24;
             const baseRadius = finite(glyph.userData.baseRadius, 0.25);
             const radiusScale = finite(item.geometry?.radiusScale ?? item.radiusScale, 1);
-            let targetScale = (sceneRadius / Math.max(0.01, baseRadius)) * radiusScale * (1 + hoverProgress * 0.08) * progress;
+            const hoverScale = resolveRadialHoverScale(item);
+            const hoverScaleMultiplier = lerp(hoverScale.from, hoverScale.to, hoverProgress);
+            let targetScale = (sceneRadius / Math.max(0.01, baseRadius)) * radiusScale * hoverScaleMultiplier * progress;
             const activationDisplay = activationDisplayForItem(activationTransition, item.id || 'item');
             if (activationDisplay?.active && activationDisplay.focusMode === 'fill-camera') {
                 const viewportWidth = finite(globalThis.window?.innerWidth, 800);
@@ -2065,18 +2112,23 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
                     url: glyph.userData.geometryUrl || null,
                     error: glyph.userData.geometryError || null,
                     size: glyph.userData.geometrySize || null,
+                    moduleRef: glyph.userData.itemModuleRef || item.geometry?.module_ref || null,
+                    effectRefs: resolveSigilRadialItemEffectRefs(item),
                 };
             }
-            const hoverSpinSpeed = resolveRadialHoverSpinSpeed(item, {
+            const hoverSpin = resolveRadialHoverSpin(item, {
                 nativeGeometry,
                 itemMotion: sourceItemMotion,
             });
-            glyph.userData.hoverSpin = hoverSpinSpeed > 0
-                ? finite(glyph.userData.hoverSpin, 0) + (dt * hoverProgress * hoverSpinSpeed)
+            glyph.userData.hoverSpin = hoverSpin.rate > 0
+                ? finite(glyph.userData.hoverSpin, 0) + (dt * hoverProgress * hoverSpin.rate)
                 : 0;
-            glyph.rotation.x = nativeGeometry ? hoverProgress * 0.12 : 0.08 + (hoverProgress * 0.04);
-            glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + glyph.userData.hoverSpin;
-            glyph.rotation.z = hoverProgress * 0.055;
+            const hoverRotation = resolveRadialHoverRotationDegrees(item);
+            glyph.rotation.x = nativeGeometry ? hoverProgress * hoverRotation.x : 0.08 + (hoverProgress * 0.04);
+            glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + (hoverSpin.axis === 'y' ? glyph.userData.hoverSpin : 0) + (hoverProgress * hoverRotation.y);
+            glyph.rotation.z = (hoverProgress * hoverRotation.z) + (hoverSpin.axis === 'z' ? glyph.userData.hoverSpin : 0);
+            glyph.userData.hoverSpinAxis = hoverSpin.axis;
+            glyph.userData.hoverScaleMultiplier = hoverScaleMultiplier;
             if (activationDisplay) {
                 applyGlyphDisplayOpacity(glyph, activationDisplay.opacity);
             }

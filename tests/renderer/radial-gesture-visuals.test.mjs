@@ -93,7 +93,10 @@ const {
   resolveNestedTreeTransform,
   resolveRadialItemModelTransform,
   resolveRadialItemModelVisibility,
+  resolveRadialHoverScale,
+  resolveRadialHoverSpin,
   resolveRadialHoverSpinSpeed,
+  resolveRadialHoverRotationDegrees,
   resolveRadialItemMotion,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
 
@@ -234,6 +237,19 @@ test('resolveRadialItemMotion allows menu-level defaults and item-level override
     }),
     { hoverSpinSpeed: 0.4 }
   )
+})
+
+test('resolveRadialHoverConfig reads data-driven scale and wheel spin axes', async () => {
+  const { DEFAULT_SIGIL_RADIAL_ITEMS } = await import('../../apps/sigil/renderer/radial-menu-defaults.js')
+  const context = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
+  const reticle = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-mode')
+  const terminal = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
+
+  assert.deepEqual(resolveRadialHoverScale(context), { from: 1, to: 2 })
+  assert.deepEqual(resolveRadialHoverScale(terminal), { from: 1, to: 2 })
+  assert.deepEqual(resolveRadialHoverSpin(context, { nativeGeometry: true }), { axis: 'z', rate: 1.45 })
+  assert.deepEqual(resolveRadialHoverSpin(reticle, { nativeGeometry: false }), { axis: 'z', rate: 0.35 })
+  assert.deepEqual(resolveRadialHoverRotationDegrees(context), { x: 0.12, y: 0, z: 0.055 })
 })
 
 test('normalizeModelScene centers models with geometry far from their origin', () => {

@@ -205,6 +205,32 @@ mixing transition state into static geometry tuning data. Use
 `resolveRadialItemActivationTransition(item)` before attaching the result to a
 menu activation request.
 
+### 3D Radial Menu Config
+
+`packages/toolkit/runtime/radial-menu/default-3d.json` is the V0 data contract
+for a renderer-neutral 3D radial menu expression. The JSON keeps ordinary menu
+fundamentals (`id`, labels, actions, disabled/hidden/current/checked state,
+typeahead text, shortcut labels, children or submenu refs, semantic roles, and
+target-surface/action payload descriptors) separate from the optional 3D
+expression layer (`geometry`, model refs, item hover transforms, activation
+transitions, materials, and effect/module refs).
+
+`packages/toolkit/runtime/radial-menu-config.js` provides the data-only
+resolver. It can clone and merge plain JSON, resolve an `extends` definition
+from an allowlisted map, merge items by stable `id`, validate required V0
+fields, and produce both `items` for renderers and `logical_items` for DOM/AX,
+keyboard, test, or future menu-stack projections. Arrays replace by default;
+menu items are the V0 keyed-merge exception. The resolver intentionally imports
+no Three.js, DOM, app actions, Zag, or dynamic module code.
+
+Hover defaults cascade from toolkit menu defaults to app/menu overrides and
+then item overrides under `three.item.hover`. The default hover transform uses
+exponential progress with `factor: 0.22`, scale `1 -> 1.08`, and y-axis spin.
+Apps can override those values in JSON; Sigil's
+`apps/sigil/renderer/radial-menu/sigil-radial-menu.json` sets item hover scale
+to `1 -> 2` for every item and changes the cog and annotation reticle to
+z-axis wheel spin.
+
 ### `wireBridge(handler)`
 
 Installs an inbound message handler for daemon-to-canvas messages.

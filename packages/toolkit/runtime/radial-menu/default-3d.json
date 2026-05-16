@@ -1,0 +1,78 @@
+{
+  "$schema": "../../../shared/schemas/radial-menu-3d.schema.json",
+  "kind": "aos.radial_menu_3d",
+  "schema_version": "2026-05-16",
+  "id": "aos.radial.default-3d",
+  "label": "AOS Radial Menu",
+  "role": "menu",
+  "preferred_initial_item": null,
+  "close_on_select": true,
+  "typeahead": true,
+  "defaults": {
+    "item": {
+      "role": "menuitem",
+      "disabled": false,
+      "hidden": false,
+      "checked": false,
+      "current": false,
+      "close_on_select": true
+    },
+    "three": {
+      "item": {
+        "geometry": {
+          "type": "glyph",
+          "module_ref": "aos.radial.geometry.fallback"
+        },
+        "hover": {
+          "progress": {
+            "approach": "exponential",
+            "factor": 0.22
+          },
+          "transform": {
+            "scale": {
+              "from": 1,
+              "to": 1.08
+            },
+            "rotate": {
+              "spin": {
+                "axis": "y",
+                "rate": 1.45
+              },
+              "degrees": {
+                "x": 0.12,
+                "z": 0.055
+              }
+            }
+          }
+        },
+        "activation": {
+          "transition": {
+            "preset": "radial-3d-vanilla"
+          }
+        }
+      },
+      "model": {
+        "radiusScale": 1,
+        "normalizedRadius": 0.28
+      },
+      "part": {
+        "visible": true
+      },
+      "effect": {
+        "enabled": true
+      }
+    }
+  },
+  "geometry": {
+    "itemRadius": 1.55,
+    "itemHitRadius": 0.42,
+    "itemVisualRadius": 0.28,
+    "menuRadius": 1.8,
+    "handoffRadius": 2.25,
+    "reentryRadius": 1.85,
+    "spreadDegrees": 88,
+    "startAngle": -90,
+    "orientation": "fixed"
+  },
+  "items": []
+}

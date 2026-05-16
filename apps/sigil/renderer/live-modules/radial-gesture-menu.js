@@ -31,6 +31,7 @@ function configFromState(state) {
         ? state.radialGestureMenu
         : {};
     const radial = normalizeSigilRadialGestureMenu(source);
+    const sourceHasRadiusBasis = Object.prototype.hasOwnProperty.call(source, 'radiusBasis');
     const cameraAvailable = state.annotationReticle?.camera_available
         || state.annotationReticle?.cameraAvailable
         || state.annotationReticle?.live_anchor_count > 0;
@@ -42,7 +43,9 @@ function configFromState(state) {
         ...DEFAULT_CONFIG,
         ...radial,
         items,
-        radiusBasis: numberOr(radial.radiusBasis, numberOr(state.avatarHitRadius, DEFAULT_CONFIG.radiusBasis)),
+        radiusBasis: sourceHasRadiusBasis
+            ? numberOr(radial.radiusBasis, DEFAULT_CONFIG.radiusBasis)
+            : numberOr(state.avatarHitRadius, numberOr(radial.radiusBasis, DEFAULT_CONFIG.radiusBasis)),
     };
 }
 

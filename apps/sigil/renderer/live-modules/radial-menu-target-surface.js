@@ -45,6 +45,19 @@ export function radialMenuTargetsFromSnapshot(snapshot, options = {}) {
             const id = String(item.id);
             const label = labelForItem(item);
             const action = actionForItem(item);
+            const logical = item.logical && typeof item.logical === 'object'
+                ? item.logical
+                : {
+                    id,
+                    label,
+                    action,
+                    role: item.role || 'menuitem',
+                    disabled: !!item.disabled,
+                    hidden: !!item.hidden,
+                    checked: !!item.checked,
+                    current: snapshot.activeItemId === item.id,
+                    close_on_select: item.close_on_select !== false,
+                };
             const semantic = normalizeSemanticTarget({
                 id,
                 role: 'AXButton',
@@ -69,6 +82,7 @@ export function radialMenuTargetsFromSnapshot(snapshot, options = {}) {
                 angle: finite(item.angle, 0),
                 size,
                 radius: size / 2,
+                logical,
             };
         })
         .filter(Boolean);

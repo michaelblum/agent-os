@@ -86,6 +86,16 @@ export {
   resolveRadialItemActivationTransition,
 } from './radial-item-transition.js'
 export {
+  RADIAL_MENU_3D_KIND,
+  RADIAL_MENU_3D_SCHEMA_VERSION,
+  cloneRadialMenuConfig,
+  mergeRadialMenuConfig,
+  mergeRadialMenuDefinitions,
+  radialMenuGeometryConfig,
+  resolveRadialMenuConfig,
+  validateRadialMenuDefinition,
+} from './radial-menu-config.js'
+export {
   createStackMenu,
   createStackMenuModel,
   applyStackMenuState,
