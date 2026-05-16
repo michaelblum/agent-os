@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/radial-menu-3d.schema.json",
+  "title": "AOS 3D Radial Menu",
+  "type": "object",
+  "required": ["kind", "schema_version", "id", "items"],
+  "properties": {
+    "kind": { "const": "aos.radial_menu_3d" },
+    "schema_version": { "type": "string" },
+    "id": { "type": "string", "minLength": 1 },
+    "label": { "type": "string" },
+    "extends": { "type": "string" },
+    "parent_id": { "type": ["string", "null"] },
+    "root_id": { "type": ["string", "null"] },
+    "role": { "type": "string" },
+    "preferred_initial_item": { "type": ["string", "null"] },
+    "close_on_select": { "type": "boolean" },
+    "typeahead": { "type": "boolean" },
+    "defaults": { "$ref": "#/$defs/object" },
+    "geometry": { "$ref": "#/$defs/object" },
+    "items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/menuItem" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "object": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "menuItem": {
+      "type": "object",
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "action": { "type": ["string", "object", "null"] },
+        "disabled": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "checked": { "type": "boolean" },
+        "current": { "type": "boolean" },
+        "role": { "type": "string" },
+        "shortcut": { "type": "string" },
+        "typeahead": { "type": "string" },
+        "close_on_select": { "type": "boolean" },
+        "target_surface": { "$ref": "#/$defs/object" },
+        "action_payload": {},
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/menuItem" }
+        },
+        "submenu_ref": { "type": "string" },
+        "geometry": { "$ref": "#/$defs/object" },
+        "three": { "$ref": "#/$defs/object" },
+        "effects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/object" }
+        },
+        "activationTransition": { "$ref": "#/$defs/object" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -22,8 +22,16 @@ const radialSnapshot = {
     {
       id: 'wiki-graph',
       label: 'Wiki Graph',
+    action: 'wikiGraph',
+    logical: {
+      id: 'wiki-graph',
+      label: 'Wiki Graph',
       action: 'wikiGraph',
-      center: { x: 180, y: 80 },
+      role: 'menuitem',
+      current: true,
+      close_on_select: true,
+    },
+    center: { x: 180, y: 80 },
       hitRadius: 12,
       visualRadius: 10,
     },
@@ -41,6 +49,14 @@ test('radial menu targets enforce AOS-sized hit surfaces', () => {
   assert.equal(targets[0].aosRef, 'sigil-radial-item-context-menu')
   assert.equal(targets[0].size, 56)
   assert.equal(targets[1].active, true)
+  assert.deepEqual(targets[1].logical, {
+    id: 'wiki-graph',
+    label: 'Wiki Graph',
+    action: 'wikiGraph',
+    role: 'menuitem',
+    current: true,
+    close_on_select: true,
+  })
 })
 
 test('radial menu surface keeps labels in AX attributes, not visible text', async () => {

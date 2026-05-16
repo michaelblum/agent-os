@@ -1,0 +1,159 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import default3d from '../../packages/toolkit/runtime/radial-menu/default-3d.json' with { type: 'json' }
+import sigilMenu from '../../apps/sigil/renderer/radial-menu/sigil-radial-menu.json' with { type: 'json' }
+import {
+  resolveRadialMenuConfig,
+  validateRadialMenuDefinition,
+} from '../../packages/toolkit/runtime/radial-menu-config.js'
+
+test('radial menu resolver validates the default toolkit 3D menu contract', () => {
+  const validation = validateRadialMenuDefinition(default3d)
+  assert.equal(validation.ok, true)
+})
+
+test('radial menu resolver cascades toolkit defaults into Sigil override data', () => {
+  const resolved = resolveRadialMenuConfig(sigilMenu, {
+    allowExtends: {
+      'aos://toolkit/runtime/radial-menu/default-3d.json': default3d,
+    },
+  })
+
+  assert.equal(resolved.kind, 'aos.radial_menu_3d')
+  assert.equal(resolved.id, 'sigil.radial.main')
+  assert.equal(resolved.items.length, 5)
+  assert.equal(resolved.logical_items.length, 5)
+  assert.deepEqual(
+    resolved.logical_items.map((item) => [item.id, item.label, item.action]),
+    [
+      ['context-menu', 'Context Menu', 'contextMenu'],
+      ['agent-terminal', 'Agent Terminal', 'agentTerminal'],
+      ['annotation-mode', 'Annotate', 'annotationMode'],
+      ['annotation-camera', 'Snapshot', 'annotationSnapshot'],
+      ['wiki-graph', 'Wiki Graph', 'wikiGraph'],
+    ]
+  )
+
+  for (const item of resolved.items) {
+    assert.deepEqual(item.three.item.hover.transform.scale, { from: 1, to: 2 })
+    assert.equal(item.logical.role, 'menuitem')
+    assert.equal(item.logical.close_on_select, true)
+  }
+
+  const context = resolved.items.find((item) => item.id === 'context-menu')
+  const reticle = resolved.items.find((item) => item.id === 'annotation-mode')
+  const wiki = resolved.items.find((item) => item.id === 'wiki-graph')
+
+  assert.deepEqual(context.three.item.hover.transform.rotate.spin, { axis: 'z', rate: 1.45 })
+  assert.deepEqual(reticle.three.item.hover.transform.rotate.spin, { axis: 'z', rate: 0.35 })
+  assert.equal(wiki.geometry.module_ref, 'sigil.radial.geometry.wiki-brain')
+  assert.equal(wiki.effects[0].ref, 'sigil.radial.effect.nested-neural-tree')
+  assert.equal(wiki.activationTransition.preset, 'wiki-brain-zoom-dissolve')
+})
+
+test('radial menu resolver merges item overrides by id without replacing defaults wholesale', () => {
+  const resolved = resolveRadialMenuConfig({
+    kind: 'aos.radial_menu_3d',
+    schema_version: '2026-05-16',
+    id: 'test.radial',
+    extends: 'aos://toolkit/runtime/radial-menu/default-3d.json',
+    items: [
+      {
+        id: 'context-menu',
+        label: 'Context Menu',
+        geometry: {
+          radiusScale: 3,
+        },
+      },
+    ],
+  }, {
+    base: sigilMenu,
+  })
+  const context = resolved.items.find((item) => item.id === 'context-menu')
+  assert.equal(context.action, 'contextMenu')
+  assert.equal(context.geometry.type, 'gltf')
+  assert.equal(context.geometry.radiusScale, 3)
+})
+
+test('radial menu resolver cascades model, part, and effect defaults into items', () => {
+  const resolved = resolveRadialMenuConfig({
+    kind: 'aos.radial_menu_3d',
+    schema_version: '2026-05-16',
+    id: 'test.radial.defaults',
+    extends: 'aos://toolkit/runtime/radial-menu/default-3d.json',
+    items: [
+      {
+        id: 'model-item',
+        label: 'Model Item',
+        geometry: {
+          type: 'gltf',
+          src: 'aos://example/model.glb',
+          parts: [
+            { id: 'defaulted-part' },
+            { id: 'hidden-part', visible: false },
+          ],
+        },
+        effects: [
+          { ref: 'test.effect.defaulted' },
+          { ref: 'test.effect.disabled', enabled: false },
+        ],
+      },
+    ],
+  }, {
+    allowExtends: {
+      'aos://toolkit/runtime/radial-menu/default-3d.json': default3d,
+    },
+  })
+
+  const item = resolved.items[0]
+  assert.equal(item.geometry.radiusScale, 1)
+  assert.equal(item.geometry.normalizedRadius, 0.28)
+  assert.equal(item.geometry.parts[0].visible, true)
+  assert.equal(item.geometry.parts[1].visible, false)
+  assert.equal(item.effects[0].enabled, true)
+  assert.equal(item.effects[1].enabled, false)
+})
+
+test('radial menu resolver preserves nested menu children in logical projection', () => {
+  const resolved = resolveRadialMenuConfig({
+    kind: 'aos.radial_menu_3d',
+    schema_version: '2026-05-16',
+    id: 'test.radial.children',
+    items: [
+      {
+        id: 'parent',
+        label: 'Parent',
+        action: 'openParent',
+        children: [
+          {
+            id: 'child',
+            label: 'Child Action',
+            action: 'runChild',
+            shortcut: 'C',
+          },
+        ],
+      },
+    ],
+  })
+
+  assert.equal(resolved.items[0].children[0].logical.id, 'child')
+  assert.deepEqual(resolved.logical_items[0].children, [
+    {
+      id: 'child',
+      label: 'Child Action',
+      action: 'runChild',
+      disabled: false,
+      hidden: false,
+      checked: false,
+      current: false,
+      role: 'menuitem',
+      shortcut: 'C',
+      typeahead: 'Child Action',
+      close_on_select: true,
+      target_surface: null,
+      action_payload: null,
+      submenu_ref: null,
+      children: [],
+    },
+  ])
+})

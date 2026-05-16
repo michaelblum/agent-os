@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 
 class Vector3 {
   constructor(x = 0, y = 0, z = 0) {
@@ -19,6 +20,20 @@ class Vector3 {
     this.x *= value
     this.y *= value
     this.z *= value
+    return this
+  }
+
+  copy(value) {
+    this.x = value.x
+    this.y = value.y
+    this.z = value.z
+    return this
+  }
+
+  set(x, y, z) {
+    this.x = x
+    this.y = y
+    this.z = z
     return this
   }
 
@@ -80,7 +95,63 @@ class Color {
   }
 }
 
-globalThis.THREE = { Box3, Color, Vector3 }
+class Object3D {
+  constructor() {
+    this.children = []
+    this.position = new Vector3()
+    this.scale = new Vector3(1, 1, 1)
+    this.rotation = {
+      x: 0,
+      y: 0,
+      z: 0,
+      copy(value) { this.x = value.x; this.y = value.y; this.z = value.z; return this },
+      set(x, y, z) { this.x = x; this.y = y; this.z = z },
+    }
+  }
+
+  add(...children) {
+    this.children.push(...children)
+  }
+}
+
+class Geometry {}
+class Material {}
+class BufferGeometry extends Geometry {
+  setFromPoints(points) {
+    this.points = points
+    return this
+  }
+}
+class LineBasicMaterial extends Material {}
+class MeshPhongMaterial extends Material {}
+class Mesh extends Object3D {
+  constructor(geometry, material) {
+    super()
+    this.geometry = geometry
+    this.material = material
+  }
+}
+class Line extends Mesh {}
+class LineSegments extends Mesh {}
+
+globalThis.THREE = {
+  Box3,
+  BoxGeometry: Geometry,
+  BufferGeometry,
+  Color,
+  DodecahedronGeometry: Geometry,
+  EdgesGeometry: Geometry,
+  Group: Object3D,
+  IcosahedronGeometry: Geometry,
+  Line,
+  LineBasicMaterial,
+  LineSegments,
+  Mesh,
+  MeshPhongMaterial,
+  OctahedronGeometry: Geometry,
+  TorusGeometry: Geometry,
+  Vector3,
+}
 
 const {
   DEFAULT_RADIAL_ITEM_MOTION,
@@ -93,7 +164,10 @@ const {
   resolveNestedTreeTransform,
   resolveRadialItemModelTransform,
   resolveRadialItemModelVisibility,
+  resolveRadialHoverScale,
+  resolveRadialHoverSpin,
   resolveRadialHoverSpinSpeed,
+  resolveRadialHoverRotationDegrees,
   resolveRadialItemMotion,
 } = await import('../../apps/sigil/renderer/live-modules/radial-gesture-visuals.js')
 
@@ -234,6 +308,114 @@ test('resolveRadialItemMotion allows menu-level defaults and item-level override
     }),
     { hoverSpinSpeed: 0.4 }
   )
+})
+
+test('resolveRadialHoverConfig reads data-driven scale and wheel spin axes', async () => {
+  const { DEFAULT_SIGIL_RADIAL_ITEMS } = await import('../../apps/sigil/renderer/radial-menu-defaults.js')
+  const context = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
+  const reticle = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-mode')
+  const terminal = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
+
+  assert.deepEqual(resolveRadialHoverScale(context), { from: 1, to: 2 })
+  assert.deepEqual(resolveRadialHoverScale(terminal), { from: 1, to: 2 })
+  assert.deepEqual(resolveRadialHoverSpin(context, { nativeGeometry: true }), { axis: 'z', rate: 1.45 })
+  assert.deepEqual(resolveRadialHoverSpin(reticle, { nativeGeometry: false }), { axis: 'z', rate: 0.35 })
+  assert.deepEqual(resolveRadialHoverRotationDegrees(context), { x: 0.12, y: 0, z: 0.055 })
+})
+
+test('Sigil radial item modules own fallback glyph creation hooks', async () => {
+  const { resolveSigilRadialItemModule } = await import('../../apps/sigil/renderer/radial-menu/item-registry.js')
+  const moduleDef = resolveSigilRadialItemModule({ id: 'context-menu' })
+  const glyph = moduleDef.createGlyph()
+
+  assert.equal(moduleDef.ref, 'sigil.radial.geometry.context-menu')
+  assert.ok(glyph.children.length >= 3)
+})
+
+test('wiki brain item module owns effect update hook', async () => {
+  const { resolveSigilRadialItemModule } = await import('../../apps/sigil/renderer/radial-menu/item-registry.js')
+  const moduleDef = resolveSigilRadialItemModule({ id: 'wiki-graph' })
+  const calls = []
+  const makeObject = () => ({
+    visible: true,
+    position: { set() {} },
+    scale: { set() {} },
+    rotation: { set() {} },
+    traverse() {},
+  })
+  const glyph = {
+    userData: {
+      modelHost: makeObject(),
+      radialEffectConfig: {
+        kind: 'nested-neural-tree',
+        holdExitDirection: 'outward',
+        shellOpacity: { rest: 0.75, active: 0.26, held: 0.75 },
+        visibility: {},
+      },
+      radialEffectState: {
+        activation: 0,
+        treeProgress: 0,
+        fractalTreeProgress: 0,
+        heldProgress: 0,
+        shellOpacity: 0.75,
+      },
+      radialEffectTree: makeObject(),
+      radialEffectComposite: makeObject(),
+      radialEffectFiberStem: makeObject(),
+      radialEffectFiberBloom: makeObject(),
+      radialEffectFractalTree: makeObject(),
+    },
+  }
+  const helpers = {
+    DEFAULT_NESTED_TREE_EFFECT: { visibility: {} },
+    DEFAULT_RADIAL_ITEM_MODEL_TRANSFORM: {},
+    applyObjectTransform() {},
+    applyNestedShellTransform() {},
+    applyNestedFiberStemTransform() {},
+    applyNestedFiberBloomTransform() {},
+    applyNestedFractalTreeTransform() {},
+    radialItemPointerMetrics: () => ({ relation: 'inside' }),
+    updateFiberTree: (...args) => calls.push(['fiber', args[1]]),
+    updateFractalTree: (...args) => calls.push(['fractal', args[1]]),
+  }
+
+  const state = moduleDef.updateEffect(glyph, { id: 'wiki-graph' }, {
+    active: false,
+    visualRadial: { pointer: { x: 0, y: 0 } },
+    progress: 1,
+    dt: 0.016,
+  }, helpers)
+
+  assert.equal(moduleDef.ref, 'sigil.radial.geometry.wiki-brain')
+  assert.equal(state.kind, 'nested-neural-tree')
+  assert.ok(state.activation > 0)
+  assert.deepEqual(calls.map(([kind]) => kind), ['fiber', 'fractal'])
+})
+
+test('radial visuals does not own wiki brain effect implementation names', async () => {
+  const source = await readFile('apps/sigil/renderer/live-modules/radial-gesture-visuals.js', 'utf8')
+  for (const name of [
+    'createNestedNeuralTreeEffect',
+    'updateNestedNeuralTreeEffect',
+    'createFractalBrainTreeEffect',
+    'updateFractalBrainTreeEffect',
+    'fractalPulseSparkPosition',
+    'spawnFractalPulse',
+  ]) {
+    assert.equal(source.includes(name), false, `${name} should stay item-owned`)
+  }
+})
+
+test('default radial geometry derives from resolved Sigil JSON', async () => {
+  const state = (await import('../../apps/sigil/renderer/state.js')).default
+  const { DEFAULT_APPEARANCE } = await import('../../apps/sigil/renderer/appearance.js')
+  const { RESOLVED_SIGIL_RADIAL_MENU, normalizeSigilRadialGestureMenu } = await import('../../apps/sigil/renderer/radial-menu-defaults.js')
+  const keys = ['deadZoneRadius', 'itemRadius', 'itemHitRadius', 'itemVisualRadius', 'menuRadius', 'handoffRadius', 'reentryRadius', 'spreadDegrees', 'startAngle', 'orientation']
+  const expected = Object.fromEntries(keys.map((key) => [key, RESOLVED_SIGIL_RADIAL_MENU.geometry[key]]))
+
+  assert.deepEqual(Object.fromEntries(keys.map((key) => [key, state.radialGestureMenu[key]])), expected)
+  assert.deepEqual(Object.fromEntries(keys.map((key) => [key, DEFAULT_APPEARANCE.interaction.radialGestureMenu[key]])), expected)
+  assert.equal(normalizeSigilRadialGestureMenu({ itemRadius: 9 }).itemRadius, 9)
 })
 
 test('normalizeModelScene centers models with geometry far from their origin', () => {
