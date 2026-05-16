@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos.gate.record.v1.json",
+  "title": "AOS Gate Record",
+  "description": "Durable metadata record for one terminal aos.gate.request.v1 lifecycle outcome.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "gate_id",
+    "request_schema_version",
+    "prompt_title",
+    "source",
+    "receptor",
+    "ui_variant",
+    "field_kinds",
+    "timeout_ms",
+    "created_at",
+    "presented_at",
+    "resolved_at",
+    "elapsed_ms",
+    "resolution",
+    "status",
+    "response_stored"
+  ],
+  "properties": {
+    "schema_version": { "const": "aos.gate.record.v1" },
+    "gate_id": { "type": "string", "minLength": 1 },
+    "request_schema_version": { "const": "aos.gate.request.v1" },
+    "prompt_title": { "type": ["string", "null"] },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "surface": { "type": ["string", "null"] },
+        "session_id": { "type": ["string", "null"] },
+        "agent": { "type": ["string", "null"] }
+      }
+    },
+    "receptor": { "type": ["string", "null"] },
+    "ui_variant": {
+      "type": ["string", "null"],
+      "enum": ["yes_no_with_escape", "approve_deny", "single_choice", "multi_choice", "freetext", null]
+    },
+    "field_kinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["boolean", "exclusive_choice", "multi_choice", "text", "number"]
+      }
+    },
+    "timeout_ms": { "type": "number" },
+    "created_at": { "type": ["string", "null"], "format": "date-time" },
+    "presented_at": { "type": ["string", "null"], "format": "date-time" },
+    "resolved_at": { "type": "string", "format": "date-time" },
+    "elapsed_ms": { "type": "number", "minimum": 0 },
+    "resolution": { "type": "string", "enum": ["answered", "dismissed", "timeout", "error"] },
+    "status": { "type": ["string", "null"], "enum": ["dismissed", "timeout", null] },
+    "error_code": { "type": "string" },
+    "error_message": { "type": "string" },
+    "response_stored": { "type": "boolean" },
+    "response": {}
+  }
+}

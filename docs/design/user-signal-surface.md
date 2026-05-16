@@ -408,9 +408,25 @@ Timeout is service-authoritative. The service deadline fires at `timeout_ms` and
 
 # Inline JSON
 ./aos gate ask --json '{"prompt":{"title":"Delete files?"},"ui":{"variant":"approve_deny"},"timeout_ms":20000}'
+
+# Deliberately persist the resolved answer payload in the audit record
+./aos gate ask --store-response --preset freetext --title "Why?"
 ```
 
 Stdout is always JSON: either the typed answer value or a no-answer envelope. Operational failures exit non-zero and print a machine-readable code in stderr.
+
+Each terminal `aos.gate.request.v1` outcome also appends one runtime-scoped durable record to JSONL at `~/.config/aos/{repo|installed}/gate/records.jsonl`, or `$AOS_STATE_ROOT/{repo|installed}/gate/records.jsonl` when an explicit state root is set. The CLI-owned service writes these records for answered, dismissed, timeout, and receptor/infrastructure error outcomes, so callers through shell, dock sessions, or `user_signal_surface` share the same audit path. Gateway remains a thin adapter and does not own this state.
+
+The record schema is `aos.gate.record.v1`. Records include `gate_id`, request schema version, prompt title, source `surface`/`session_id`/`agent`, receptor, UI variant, field kinds, timeout, created/presented/resolved timestamps, elapsed milliseconds, resolution, no-answer status when applicable, and operational error code/message when applicable. Answer payloads and prompt bodies are redacted by default; `response_stored` is `false` unless the request carries `metadata.record_response: true` or the CLI is invoked with `--store-response`.
+
+Readback is intentionally local and JSON-only:
+
+```bash
+./aos gate records --json
+./aos gate records --limit 20 --json
+./aos gate records --id gate-abc123 --json
+./aos gate records --status answered --json
+```
 
 ### MCP Tool: `user_signal_surface`
 
@@ -573,6 +589,7 @@ Resolution values: `"answered"` | `"timeout"` | `"dismissed"` | `"error"`. Respo
 - [x] `LocalCanvasReceptor`
 - [x] `aos.gate.request.v1` schema definition and field validation
 - [x] `./aos gate ask` CLI verb (`--preset`, `--title`, `--timeout`, `--json`, `--request`)
+- [x] Durable gate records — runtime-scoped JSONL audit records plus `./aos gate records --json` readback
 
 ### Toolkit — Controls (`controls/`)
 - [x] `text-field.js`
@@ -596,6 +613,7 @@ Resolution values: `"answered"` | `"timeout"` | `"dismissed"` | `"error"`. Respo
 
 ### Deferred
 - [ ] Promote CLI-owned gate service into the long-running daemon primitive
+- [ ] Move gate records from JSONL into an AOS-owned SQLite store if/when a daemon-owned store becomes available
 
 ---
 
@@ -603,7 +621,6 @@ Resolution values: `"answered"` | `"timeout"` | `"dismissed"` | `"error"`. Respo
 
 - **Author-supplied receptors** — document the `GateReceptor` interface so third-party AOS panel authors can register their own receptor shapes.
 - **Receptor selection policy** — per-session or per-request receptor hint; fallback chain if primary receptor unavailable (e.g., no display → queued / deferred).
-- **Durable gate records** — persist request + resolution to `db.ts` SQLite store (`gate_decisions` table). Enables audit trail, replay, and inspection.
 - **Async non-blocking variant** — `./aos gate queue` returns a `gate_id` immediately; agent polls `./aos gate result <gate_id>` asynchronously.
 - **`point2d` / `point3d` field kinds** — coordinate collection controls and surface rendering.
 - **`user_signal_sequence`** — wizard-style chained gate requests returning a structured aggregate.

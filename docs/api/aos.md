@@ -94,6 +94,7 @@ The current top-level commands are:
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
 | `aos focus` | Focus-channel management |
+| `aos gate` | Human input gates and local gate record readback |
 | `aos graph` | Display/window graph queries |
 | `aos introspect` | Session self-review over recent `./aos` usage |
 | `aos help` | Registry and command-specific help |
@@ -134,6 +135,32 @@ Typical consumer loop:
 2. Decide externally.
 3. Use `aos do` or `aos show`.
 4. Re-perceive if needed.
+
+### 2. Ask For Bounded Human Input
+
+`aos gate ask` presents a bounded structured decision through the gate service and writes the terminal result to stdout as JSON.
+
+```bash
+aos gate ask "Continue?"
+aos gate ask --preset approve_deny --title "Run disruptive test?" --timeout 30
+aos gate ask --request gate-request.json
+aos gate ask --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"yes_no_with_escape"}}'
+```
+
+The request contract is `aos.gate.request.v1`. A successful answer returns the typed response object. A human dismissal returns `{ "result": null, "status": "dismissed" }`; a deadline returns `{ "result": null, "status": "timeout" }`. Operational failures exit non-zero with a machine-readable gate error code on stderr.
+
+Every terminal outcome appends one `aos.gate.record.v1` metadata record under the active runtime state root: `~/.config/aos/{repo|installed}/gate/records.jsonl`, or `$AOS_STATE_ROOT/{repo|installed}/gate/records.jsonl` when that override is set. Records include gate id, prompt title, source metadata, receptor, field kinds, timeout, lifecycle timestamps, elapsed time, resolution/status, and operational error details when present. Prompt bodies and answer payloads are redacted by default; callers must opt in with `--store-response` or `metadata.record_response: true` to persist the answer payload.
+
+Read records without presenting a gate:
+
+```bash
+aos gate records --json
+aos gate records --limit 20 --json
+aos gate records --id gate-abc123 --json
+aos gate records --status answered --json
+```
+
+The readback payload is `aos.gate.records.readback.v1` and includes the JSONL path, count, and matching records.
 
 ### Repo Development Workflow
 

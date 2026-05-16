@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 import { createGateService, normalizeGateRequest } from '../../daemon/gate/index.js';
+import { createDefaultGateRecordStore } from '../../daemon/gate/records.js';
 
 function usage() {
   return `Usage:
   aos gate ask "Prompt title"
-  aos gate ask --preset approve_deny --title "Run test?" --timeout 30
+  aos gate ask --preset approve_deny --title "Run test?" --timeout 30 [--store-response]
+  aos gate ask --store-response --preset freetext --title "Why?"
   aos gate ask --request gate-request.json
   aos gate ask --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"yes_no_with_escape"}}'
 
@@ -30,6 +32,7 @@ function parseArgs(argv) {
     timeoutSeconds: null,
     requestFile: null,
     json: null,
+    storeResponse: false,
   };
   const positional = [];
 
@@ -49,6 +52,8 @@ function parseArgs(argv) {
       parsed.message = argv[++index];
     } else if (arg === '--timeout') {
       parsed.timeoutSeconds = Number(argv[++index]);
+    } else if (arg === '--store-response') {
+      parsed.storeResponse = true;
     } else if (arg.startsWith('--')) {
       throw new Error(`unknown option: ${arg}`);
     } else {
@@ -61,28 +66,39 @@ function parseArgs(argv) {
 }
 
 async function requestFromArgs(args) {
-  if (args.requestFile) return JSON.parse(await readFile(args.requestFile, 'utf8'));
-  if (args.json) return JSON.parse(args.json);
+  if (args.requestFile) return withStoreResponse(JSON.parse(await readFile(args.requestFile, 'utf8')), args);
+  if (args.json) return withStoreResponse(JSON.parse(args.json), args);
 
   if (!args.title && !process.stdin.isTTY) {
     const stdin = (await readStdin()).trim();
-    if (stdin) return JSON.parse(stdin);
+    if (stdin) return withStoreResponse(JSON.parse(stdin), args);
   }
 
   if (!args.title) throw new Error('prompt title is required');
-  return {
+  return withStoreResponse({
     schema_version: 'aos.gate.request.v1',
     prompt: { title: args.title, body: args.message ?? null },
     ui: { variant: args.preset || 'yes_no_with_escape' },
     timeout_ms: Number.isFinite(args.timeoutSeconds) ? args.timeoutSeconds * 1000 : 20000,
     source: { surface: 'aos-cli' },
+  }, args);
+}
+
+function withStoreResponse(request, args) {
+  if (!args.storeResponse) return request;
+  return {
+    ...request,
+    metadata: {
+      ...(request.metadata ?? {}),
+      record_response: true,
+    },
   };
 }
 
 export async function runGateAsk(argv = process.argv.slice(2), {
   stdout = process.stdout,
   stderr = process.stderr,
-  service = createGateService(),
+  service = createGateService({ recordStore: createDefaultGateRecordStore() }),
 } = {}) {
   try {
     const args = parseArgs(argv);

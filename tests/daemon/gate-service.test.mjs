@@ -1,7 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { GateReceptor } from '../../packages/daemon/gate/GateReceptor.js';
 import { createGateService, normalizeGateRequest } from '../../packages/daemon/gate/index.js';
+import { GateRecordStore } from '../../packages/daemon/gate/records.js';
 
 function request(id, overrides = {}) {
   return {
@@ -172,4 +176,109 @@ test('ask rejects when receptor reports an error', async () => {
   );
   assert.equal(service.pending.size, 0);
   assert.deepEqual(receptor.dismissed, ['gate-error']);
+});
+
+test('gate records persist answered, dismissed, timeout, and error outcomes with redacted payloads by default', async () => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-gate-records-'));
+  const path = join(stateRoot, 'repo', 'gate', 'records.jsonl');
+  const store = new GateRecordStore({ path });
+  const harness = timeoutHarness();
+  const receptors = [];
+  const service = createGateService({
+    receptorFactory(callbacks) {
+      const receptor = new ManualReceptor(callbacks);
+      receptors.push(receptor);
+      return receptor;
+    },
+    recordStore: store,
+    ...harness,
+  });
+
+  const answered = service.ask(request('gate-record-answer', {
+    prompt: { title: 'Answer me', body: 'do not persist body' },
+    source: { surface: 'test', session_id: 'session-1', agent: 'gdi', ignored: 'nope' },
+  }));
+  await new Promise((resolve) => setImmediate(resolve));
+  receptors[0].resolve('gate-record-answer', { decision: true, notes: 'private' });
+  assert.deepEqual(await answered, { decision: true, notes: 'private' });
+
+  const dismissed = service.ask(request('gate-record-dismiss'));
+  await new Promise((resolve) => setImmediate(resolve));
+  receptors[1].resolve('gate-record-dismiss', null);
+  assert.deepEqual(await dismissed, { result: null, status: 'dismissed' });
+
+  const timedOut = service.ask(request('gate-record-timeout', { timeout_ms: 9000 }));
+  await new Promise((resolve) => setImmediate(resolve));
+  harness.timers[2].callback();
+  assert.deepEqual(await timedOut, { result: null, status: 'timeout' });
+
+  const errored = service.ask(request('gate-record-error'));
+  await new Promise((resolve) => setImmediate(resolve));
+  receptors[3].reject('gate-record-error', new Error('surface failed'));
+  await assert.rejects(() => errored, /surface failed/);
+
+  const lines = (await readFile(path, 'utf8')).trim().split('\n');
+  assert.equal(lines.length, 4);
+  const records = lines.map((line) => JSON.parse(line));
+  assert.deepEqual(records.map((record) => record.resolution), ['answered', 'dismissed', 'timeout', 'error']);
+  assert.equal(records[0].schema_version, 'aos.gate.record.v1');
+  assert.equal(records[0].gate_id, 'gate-record-answer');
+  assert.equal(records[0].request_schema_version, 'aos.gate.request.v1');
+  assert.equal(records[0].prompt_title, 'Answer me');
+  assert.deepEqual(records[0].source, { surface: 'test', session_id: 'session-1', agent: 'gdi' });
+  assert.equal(records[0].receptor, 'ManualReceptor');
+  assert.deepEqual(records[0].field_kinds, ['boolean']);
+  assert.equal(records[0].response_stored, false);
+  assert.equal('response' in records[0], false);
+  assert.equal('body' in records[0], false);
+  assert.equal(records[1].status, 'dismissed');
+  assert.equal(records[2].status, 'timeout');
+  assert.equal(records[3].error_code, 'AOS_GATE_RECEPTOR_ERROR');
+  assert.match(records[3].error_message, /surface failed/);
+});
+
+test('gate records can deliberately store answer payloads by request opt-in', async () => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-gate-records-opt-in-'));
+  const store = new GateRecordStore({ path: join(stateRoot, 'repo', 'gate', 'records.jsonl') });
+  const harness = timeoutHarness();
+  let receptor;
+  const service = createGateService({
+    receptorFactory(callbacks) {
+      receptor = new ManualReceptor(callbacks);
+      return receptor;
+    },
+    recordStore: store,
+    ...harness,
+  });
+
+  const promise = service.ask(request('gate-record-store-response', {
+    metadata: { record_response: true },
+  }));
+  await new Promise((resolve) => setImmediate(resolve));
+  receptor.resolve('gate-record-store-response', { decision: true });
+  await promise;
+
+  const records = await store.list({ limit: 10 });
+  assert.equal(records[0].response_stored, true);
+  assert.deepEqual(records[0].response, { decision: true });
+});
+
+test('gate records persist unsupported receptor field errors after request normalization', async () => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-gate-records-unsupported-'));
+  const store = new GateRecordStore({ path: join(stateRoot, 'repo', 'gate', 'records.jsonl') });
+  const receptor = new ManualReceptor({});
+  receptor.supports = () => false;
+  const service = createGateService({ receptor, recordStore: store, ...timeoutHarness() });
+
+  await assert.rejects(
+    () => service.ask(request('gate-record-unsupported')),
+    (error) => error.code === 'AOS_GATE_UNSUPPORTED_FIELD',
+  );
+
+  const records = await store.list({ limit: 10 });
+  assert.equal(records.length, 1);
+  assert.equal(records[0].gate_id, 'gate-record-unsupported');
+  assert.equal(records[0].resolution, 'error');
+  assert.equal(records[0].error_code, 'AOS_GATE_UNSUPPORTED_FIELD');
+  assert.equal(records[0].response_stored, false);
 });

@@ -11,15 +11,25 @@ func gateCommand(args: [String]) {
     switch subcommand {
     case "ask":
         runGateAsk(args: subArgs)
+    case "records":
+        runGateRecords(args: subArgs)
     default:
         exitError("Unknown gate subcommand: \(subcommand)", code: "UNKNOWN_SUBCOMMAND")
     }
 }
 
 private func runGateAsk(args: [String]) {
-    let verb = aosRepoPath("packages/cli/verbs/gate-ask.js")
+    runGateVerb(name: "ask", path: "packages/cli/verbs/gate-ask.js", args: args)
+}
+
+private func runGateRecords(args: [String]) {
+    runGateVerb(name: "records", path: "packages/cli/verbs/gate-records.js", args: args)
+}
+
+private func runGateVerb(name: String, path: String, args: [String]) {
+    let verb = aosRepoPath(path)
     guard FileManager.default.fileExists(atPath: verb) else {
-        exitError("gate ask verb not found at \(verb)", code: "GATE_VERB_MISSING")
+        exitError("gate \(name) verb not found at \(verb)", code: "GATE_VERB_MISSING")
     }
 
     let task = Process()
@@ -32,7 +42,7 @@ private func runGateAsk(args: [String]) {
     do {
         try task.run()
     } catch {
-        exitError("failed to spawn gate ask verb: \(error.localizedDescription)", code: "SPAWN_FAILED")
+        exitError("failed to spawn gate \(name) verb: \(error.localizedDescription)", code: "SPAWN_FAILED")
     }
     task.waitUntilExit()
     exit(task.terminationStatus)

@@ -9,6 +9,7 @@ import {
 } from '../../../shared/gate/presets.mjs';
 import { GATE_ERROR_CODES, createGateError, ensureGateError } from '../../../shared/gate/errors.mjs';
 import { LocalCanvasReceptor } from './LocalCanvasReceptor.js';
+import { createGateRecord } from './records.js';
 
 const NO_ANSWER_STATUSES = new Set(['dismissed', 'timeout']);
 
@@ -68,6 +69,7 @@ export function normalizeGateRequest(input, { source = { surface: 'aos-cli' } } 
     ...input,
     schema_version: GATE_SCHEMA_VERSION,
     id: typeof input.id === 'string' && input.id.length > 0 ? input.id : `gate-${randomUUID()}`,
+    created_at: typeof input.created_at === 'string' ? input.created_at : new Date().toISOString(),
     prompt: {
       title: prompt.title,
       body: prompt.body ?? null,
@@ -93,6 +95,7 @@ export function createGateService({
   setTimeoutFn = setTimeout,
   clearTimeoutFn = clearTimeout,
   logger = null,
+  recordStore = null,
 } = {}) {
   const pending = new Map();
 
@@ -105,10 +108,35 @@ export function createGateService({
     if (!entry) return;
     pending.delete(id);
     clearTimeoutFn(entry.timer);
+    const resolvedAt = new Date();
+    const elapsedMs = Date.now() - entry.startedAt;
     try {
       await entry.receptor.dismiss(entry.handle);
     } finally {
-      log('gate.resolved', { gate_id: id, resolution, elapsed_ms: Date.now() - entry.startedAt });
+      log('gate.resolved', { gate_id: id, resolution, elapsed_ms: elapsedMs });
+      if (recordStore) {
+        try {
+          await recordStore.append(createGateRecord({
+            request: entry.request,
+            receptorName: entry.receptor.constructor?.name ?? null,
+            presentedAt: entry.presentedAt,
+            resolvedAt,
+            elapsedMs,
+            resolution,
+            value,
+            error: rejectError,
+          }));
+        } catch (error) {
+          const recordError = createGateError(
+            GATE_ERROR_CODES.recordWriteFailed,
+            `failed to write gate record: ${error.message}`,
+            { cause: error },
+          );
+          if (rejectError) entry.reject(rejectError);
+          else entry.reject(recordError);
+          return;
+        }
+      }
       if (rejectError) entry.reject(rejectError);
       else entry.resolve(value);
     }
@@ -129,7 +157,19 @@ export function createGateService({
     const selectedReceptor = receptor || (receptorFactory ? receptorFactory(callbacks) : new LocalCanvasReceptor(callbacks));
     for (const field of request.fields) {
       if (!selectedReceptor.supports(field.kind)) {
-        throw createGateError(GATE_ERROR_CODES.unsupportedField, `no receptor support for field kind: ${field.kind}`);
+        const error = createGateError(GATE_ERROR_CODES.unsupportedField, `no receptor support for field kind: ${field.kind}`);
+        if (recordStore) {
+          await recordStore.append(createGateRecord({
+            request,
+            receptorName: selectedReceptor.constructor?.name ?? null,
+            presentedAt: null,
+            resolvedAt: new Date(),
+            elapsedMs: 0,
+            resolution: 'error',
+            error,
+          }));
+        }
+        throw error;
       }
     }
 
@@ -147,6 +187,7 @@ export function createGateService({
         resolve,
         reject,
         startedAt: Date.now(),
+        presentedAt: null,
         timer: setTimeoutFn(() => {
           settle(request.id, 'timeout', noAnswer('timeout'));
         }, request.timeout_ms),
@@ -160,6 +201,7 @@ export function createGateService({
             return;
           }
           entry.handle = handle;
+          entry.presentedAt = new Date();
           log('gate.presented', { gate_id: request.id, receptor: selectedReceptor.constructor.name });
         })
         .catch((error) => {

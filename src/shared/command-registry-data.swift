@@ -715,7 +715,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
 
     // ── gate ──────────────────────────────────────────────
     reg.append(CommandDescriptor(path: ["gate"], summary: "Request a bounded structured human decision", forms: [
-        InvocationForm(id: "gate-ask", usage: "aos gate ask [prompt] [--preset name] [--title text] [--timeout seconds] [--json request] [--request file]",
+        InvocationForm(id: "gate-ask", usage: "aos gate ask [prompt] [--preset name] [--title text] [--timeout seconds] [--json request] [--request file] [--store-response]",
             args: [
                 pos("prompt", "Prompt title", required: false, variadic: true),
                 flag("preset", "--preset", "Gate preset",
@@ -730,7 +730,8 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("message", "--message", "Prompt body"),
                 flag("timeout", "--timeout", "Timeout in seconds", type: .float),
                 flag("json", "--json", "Inline aos.gate.request.v1 JSON"),
-                flag("request", "--request", "Path to aos.gate.request.v1 JSON file")
+                flag("request", "--request", "Path to aos.gate.request.v1 JSON file"),
+                flag("store-response", "--store-response", "Persist the resolved answer payload in the gate record", type: .bool)
             ],
             stdin: StdinDescriptor(supported: true, usedWhen: "no prompt, --json, or --request", contentType: "aos.gate.request.v1 JSON"),
             constraints: ConstraintSet(requires: nil, conflicts: [["json", "request"]], oneOf: nil, implies: nil),
@@ -740,6 +741,29 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos gate ask \"Continue?\"",
                 "aos gate ask --preset approve_deny --title \"Run disruptive test?\" --timeout 30",
                 "aos gate ask --request gate-request.json"
+            ]),
+        InvocationForm(id: "gate-records", usage: "aos gate records [--limit N] [--id gate_id] [--status status] --json",
+            args: [
+                flag("limit", "--limit", "Maximum recent records to return", type: .int, default: .int(20)),
+                flag("id", "--id", "Filter by gate id"),
+                flag("status", "--status", "Filter by resolution or no-answer status",
+                     type: .enumeration([
+                        EnumValue(value: "answered", summary: "Answered gates"),
+                        EnumValue(value: "dismissed", summary: "Dismissed gates"),
+                        EnumValue(value: "timeout", summary: "Timed-out gates"),
+                        EnumValue(value: "error", summary: "Operational failures")
+                     ])),
+                flag("json", "--json", "Emit JSON", type: .bool, required: true)
+            ],
+            stdin: nil,
+            constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: [
+                "aos gate records --json",
+                "aos gate records --limit 20 --json",
+                "aos gate records --id gate-abc123 --json",
+                "aos gate records --status answered --json"
             ])
     ]))
 

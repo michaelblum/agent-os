@@ -7,6 +7,7 @@ export const GATE_ERROR_CODES = Object.freeze({
   processTimeout: 'AOS_GATE_PROCESS_TIMEOUT',
   emptyStdout: 'AOS_GATE_EMPTY_STDOUT',
   malformedStdout: 'AOS_GATE_MALFORMED_STDOUT',
+  recordWriteFailed: 'AOS_GATE_RECORD_WRITE_FAILED',
 });
 
 export function createGateError(code, message, options = {}) {
