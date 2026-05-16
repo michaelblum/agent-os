@@ -27,8 +27,10 @@ function setAttrs(element, props = {}) {
     previous.set(attr, element.getAttribute?.(attr));
     if (value === false || value === undefined || value === null) {
       element.removeAttribute?.(attr);
+      if (value === false && attr in element) element[attr] = false;
     } else if (value === true) {
       element.setAttribute?.(attr, '');
+      if (attr in element) element[attr] = true;
     } else {
       element.setAttribute?.(attr, String(value));
     }
@@ -44,6 +46,10 @@ function setAttrs(element, props = {}) {
 
 function compactProps(props = {}) {
   return Object.fromEntries(Object.entries(props).filter(([, value]) => value !== undefined));
+}
+
+function stateProps(props = {}) {
+  return Object.fromEntries(Object.entries(props).filter(([key]) => !key.startsWith('on')));
 }
 
 export function createAosZagTabs(context = {}) {
@@ -62,6 +68,8 @@ export function createAosZagTabs(context = {}) {
   let value = currentProps.value ?? currentProps.defaultValue ?? null;
   let focusedValue = value;
   const cleanups = new Set();
+  const boundTriggers = new Map();
+  const boundContents = new Map();
 
   function notifyValue(nextValue) {
     currentProps.onValueChange?.({ value: nextValue });
@@ -76,6 +84,7 @@ export function createAosZagTabs(context = {}) {
     value = nextValue;
     focusedValue = nextValue;
     if (!options.silent) notifyValue(nextValue);
+    syncBoundParts();
     return connect();
   }
 
@@ -84,6 +93,7 @@ export function createAosZagTabs(context = {}) {
     focusedValue = nextValue;
     notifyFocus(nextValue);
     if ((currentProps.activationMode || 'automatic') === 'automatic') setValue(nextValue);
+    else syncBoundParts();
     return connect();
   }
 
@@ -146,6 +156,22 @@ export function createAosZagTabs(context = {}) {
     return Array.from(root?.querySelectorAll?.(TRIGGER_SELECTOR) || []).map((el, index) => valueForElement(el, index));
   }
 
+  function triggerForValue(tabValue) {
+    if (boundTriggers.has(tabValue)) return boundTriggers.get(tabValue);
+    const root = currentRoot || context.getRootNode?.() || globalThis.document;
+    return Array.from(root?.querySelectorAll?.(TRIGGER_SELECTOR) || [])
+      .find((element, index) => valueForElement(element, index) === tabValue) || null;
+  }
+
+  function syncBoundParts() {
+    for (const [tabValue, element] of boundTriggers) {
+      setAttrs(element, stateProps(getTriggerProps({ value: tabValue })));
+    }
+    for (const [tabValue, element] of boundContents) {
+      setAttrs(element, stateProps(getContentProps({ value: tabValue })));
+    }
+  }
+
   function handleTriggerKeydown(event, tabValue) {
     const keys = currentProps.orientation === 'vertical'
       ? ['ArrowUp', 'ArrowDown', 'Home', 'End']
@@ -161,12 +187,16 @@ export function createAosZagTabs(context = {}) {
     else if (event.key === 'End') nextIndex = last;
     else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = index <= 0 ? (currentProps.loopFocus ? last : 0) : index - 1;
     else nextIndex = index >= last ? (currentProps.loopFocus ? 0 : last) : index + 1;
-    setFocusedValue(values[nextIndex]);
+    const nextValue = values[nextIndex];
+    setFocusedValue(nextValue);
+    triggerForValue(nextValue)?.focus?.();
   }
 
   function cleanupBindings() {
     for (const cleanup of cleanups) cleanup();
     cleanups.clear();
+    boundTriggers.clear();
+    boundContents.clear();
   }
 
   let currentRoot = null;
@@ -186,6 +216,7 @@ export function createAosZagTabs(context = {}) {
   function bindTrigger(element, extraProps = {}, index = 0) {
     const tabValue = extraProps.value || valueForElement(element, index);
     const cleanup = setAttrs(element, getTriggerProps({ value: tabValue }, extraProps.extra || {}));
+    boundTriggers.set(tabValue, element);
     cleanups.add(cleanup);
     return cleanup;
   }
@@ -193,6 +224,7 @@ export function createAosZagTabs(context = {}) {
   function bindContent(element, extraProps = {}, index = 0) {
     const tabValue = extraProps.value || valueForElement(element, index, 'content');
     const cleanup = setAttrs(element, getContentProps({ value: tabValue }, extraProps.extra || {}));
+    boundContents.set(tabValue, element);
     cleanups.add(cleanup);
     return cleanup;
   }
@@ -269,6 +301,7 @@ export function createAosZagTabs(context = {}) {
         value = nextContext.value;
         focusedValue = nextContext.value;
       }
+      syncBoundParts();
       return connect();
     },
     setValue,

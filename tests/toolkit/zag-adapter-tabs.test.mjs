@@ -14,6 +14,42 @@ function createAdapter(extra = {}) {
   return { adapter, document };
 }
 
+function createBoundTabs(extra = {}) {
+  const { adapter, document } = createAdapter({ defaultValue: 'a', ...extra });
+  const container = patchSpreadSupport(document.createElement('div'));
+  const list = patchSpreadSupport(document.createElement('div'));
+  list.dataset.aosTabsList = '';
+  container.appendChild(list);
+
+  const triggers = {};
+  const contents = {};
+  for (const value of ['a', 'b']) {
+    const trigger = patchSpreadSupport(document.createElement('button'));
+    trigger.dataset.aosTabsTrigger = '';
+    trigger.dataset.value = value;
+    list.appendChild(trigger);
+    triggers[value] = trigger;
+
+    const content = patchSpreadSupport(document.createElement('section'));
+    content.dataset.aosTabsContent = '';
+    content.dataset.value = value;
+    container.appendChild(content);
+    contents[value] = content;
+  }
+
+  document.body.appendChild(container);
+  adapter.bind(container);
+  return { adapter, document, triggers, contents };
+}
+
+function keydown(document, element, key) {
+  element.dispatchEvent(new document.defaultView.Event('keydown', { key }));
+}
+
+function click(document, element) {
+  element.dispatchEvent(new document.defaultView.Event('click'));
+}
+
 test('createAosZagTabs exposes expected Zag tabs helpers', () => {
   const { adapter } = createAdapter({defaultValue: 'a'});
   const snapshot = adapter.connect();
@@ -79,6 +115,77 @@ test('bind wires minimum tabs parts', () => {
   assert.equal(typeof adapter.bindList, 'function');
   assert.equal(typeof adapter.bindTrigger, 'function');
   assert.equal(typeof adapter.bindContent, 'function');
+  adapter.destroy();
+});
+
+test('ArrowRight moves focus, selects next tab, and updates bound content in automatic mode', () => {
+  const { adapter, document, triggers, contents } = createBoundTabs();
+
+  triggers.a.focus();
+  keydown(document, triggers.a, 'ArrowRight');
+
+  assert.equal(document.activeElement, triggers.b);
+  assert.equal(adapter.connect().value, 'b');
+  assert.equal(triggers.a.getAttribute('aria-selected'), 'false');
+  assert.equal(triggers.a.getAttribute('tabindex'), '-1');
+  assert.equal(triggers.b.getAttribute('aria-selected'), 'true');
+  assert.equal(triggers.b.getAttribute('tabindex'), '0');
+  assert.equal(contents.a.getAttribute('hidden'), '');
+  assert.equal(contents.b.getAttribute('hidden'), null);
+  assert.equal(contents.b.getAttribute('aria-labelledby'), triggers.b.getAttribute('id'));
+
+  adapter.destroy();
+});
+
+test('ArrowLeft wraps to the last trigger when loopFocus is true', () => {
+  const { adapter, document, triggers } = createBoundTabs();
+
+  triggers.a.focus();
+  keydown(document, triggers.a, 'ArrowLeft');
+
+  assert.equal(document.activeElement, triggers.b);
+  assert.equal(adapter.connect().value, 'b');
+  assert.equal(triggers.b.getAttribute('aria-selected'), 'true');
+
+  adapter.destroy();
+});
+
+test('loopFocus false clamps keyboard focus at the boundary', () => {
+  const { adapter, document, triggers } = createBoundTabs({ loopFocus: false });
+
+  triggers.a.focus();
+  keydown(document, triggers.a, 'ArrowLeft');
+
+  assert.equal(document.activeElement, triggers.a);
+  assert.equal(adapter.connect().value, 'a');
+  assert.equal(triggers.a.getAttribute('aria-selected'), 'true');
+  assert.equal(triggers.b.getAttribute('aria-selected'), 'false');
+
+  adapter.destroy();
+});
+
+test('manual activation moves keyboard focus without selecting until activation', () => {
+  const { adapter, document, triggers, contents } = createBoundTabs({ activationMode: 'manual' });
+
+  triggers.a.focus();
+  keydown(document, triggers.a, 'ArrowRight');
+
+  assert.equal(document.activeElement, triggers.b);
+  assert.equal(adapter.connect().value, 'a');
+  assert.equal(adapter.connect().focusedValue, 'b');
+  assert.equal(triggers.a.getAttribute('aria-selected'), 'true');
+  assert.equal(triggers.b.getAttribute('aria-selected'), 'false');
+  assert.equal(contents.a.getAttribute('hidden'), null);
+  assert.equal(contents.b.getAttribute('hidden'), '');
+
+  click(document, triggers.b);
+
+  assert.equal(adapter.connect().value, 'b');
+  assert.equal(triggers.a.getAttribute('aria-selected'), 'false');
+  assert.equal(triggers.b.getAttribute('aria-selected'), 'true');
+  assert.equal(contents.a.getAttribute('hidden'), '');
+  assert.equal(contents.b.getAttribute('hidden'), null);
+
   adapter.destroy();
 });
 
