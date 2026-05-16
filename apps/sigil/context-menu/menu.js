@@ -458,6 +458,16 @@ export function menuMarkup() {
     </div>`;
 }
 
+export function contextMenuContentProps(open) {
+    const isOpen = !!open;
+    return {
+        'aria-label': 'Sigil avatar context menu',
+        'aria-hidden': isOpen ? 'false' : 'true',
+        'data-state': isOpen ? 'open' : 'closed',
+        class: `ctx-anchor sigil-context-menu${isOpen ? ' visible' : ''}`,
+    };
+}
+
 export function createSigilContextMenu({
     state,
     liveJs,
@@ -566,10 +576,7 @@ export function createSigilContextMenu({
         syncAccessibilityState();
         zagMenu.bind(anchor, {
             content: anchor,
-            contentProps: {
-                'aria-label': 'Sigil avatar context menu',
-                class: 'ctx-anchor sigil-context-menu',
-            },
+            contentProps: contextMenuContentProps(menuState.open),
             getItemProps(element) {
                 return {
                     extra: {

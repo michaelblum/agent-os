@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  contextMenuContentProps,
   findContextMenuElementAt,
   menuMarkup,
   resolveContextMenuOrigin,
@@ -184,6 +185,24 @@ test('context menu markup exposes standard accessibility structure', () => {
   assert.match(html, /role="radiogroup"[^>]*aria-labelledby="sigil-menu-line-trail-effect-label"/)
   assert.match(html, /role="radio"[^>]*aria-checked="false"[^>]*data-sigil-line-trail-mode="shrink"/)
   assert.match(html, /data-sigil-action="toggle-render-performance">Render Performance<\/button>/)
+})
+
+test('context menu content props preserve visible open state through Zag binding', () => {
+  assert.deepEqual(contextMenuContentProps(true), {
+    'aria-label': 'Sigil avatar context menu',
+    'aria-hidden': 'false',
+    'data-state': 'open',
+    class: 'ctx-anchor sigil-context-menu visible',
+  })
+})
+
+test('context menu content props clear visible state when closed', () => {
+  assert.deepEqual(contextMenuContentProps(false), {
+    'aria-label': 'Sigil avatar context menu',
+    'aria-hidden': 'true',
+    'data-state': 'closed',
+    class: 'ctx-anchor sigil-context-menu',
+  })
 })
 
 test('context menu descriptors cover rendered controls and Sigil-owned actions', () => {
