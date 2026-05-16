@@ -131,6 +131,42 @@ Update `docs/api/toolkit/runtime.md` with the consumer-facing contract when the
 shape is settled. Because this is a cross-tool data contract, add or update the
 schema under `shared/schemas/`.
 
+## Menu Fundamentals And Render Expressions
+
+Treat a 3D radial menu as a richer expression of a lower-level menu
+representation, not as a separate product-only data type. The base menu data
+should carry ordinary menu fundamentals that can be rendered as a DOM/AX menu
+stack, a 2D command palette, or a 3D radial menu:
+
+- stable menu id and optional parent/root id;
+- ordered items with stable ids, labels, actions, disabled/hidden state, and
+  optional checked/current state;
+- nested children or submenu references, with enough structure to represent a
+  stack path;
+- keyboard/focus metadata where relevant, such as preferred initial item,
+  typeahead text, shortcut labels, and close-on-select behavior;
+- semantic role hints for ARIA/AX projection, without making ARIA the only
+  runtime representation;
+- action payload and target-surface descriptors for activation routing.
+
+The 3D radial contract should be an expression layer on top of that base menu
+model. It may add radial geometry, orbital placement, handoff/reentry behavior,
+Three.js geometry refs, hover transforms, activation transitions, materials,
+and item-owned effect modules. It should not duplicate label/action/disabled
+state in a second incompatible shape.
+
+This means the resolved menu should support two concurrent projections:
+
+1. a visual Three.js radial renderer for the human-facing Sigil menu;
+2. a DOM/AX menu-stack projection for agents, accessibility, keyboard, tests,
+   and future non-3D surfaces.
+
+For V0, the DOM/AX projection can be minimal: the existing radial child target
+surface or a future semantic adapter should receive the same resolved logical
+items and stack metadata that the Three.js renderer receives. Do not build a
+full visual DOM duplicate of the radial menu unless that is the narrowest way to
+make the semantics inspectable.
+
 ## Cascading Override Shape
 
 Support granular cascading at these levels:
@@ -335,7 +371,9 @@ Add Sigil hover overrides through JSON:
 
 ## Toolkit Menu Stack And Zag Feasibility
 
-Do not stack the 3D radial renderer directly on Zag in this V0.
+Do not stack the 3D radial renderer directly on Zag in this V0, but do preserve
+the design direction that radial menu is a rich projection of a basic menu
+stack.
 
 Zag is useful for DOM and accessibility semantics: keyboard navigation,
 typeahead, roving focus, nested popover menus, and ARIA state. It is not a good
@@ -345,20 +383,27 @@ better home for radial pointer math.
 
 Practical V0 decision:
 
+- define or preserve the base menu representation underneath the 3D radial
+  expression;
 - keep `radial-gesture.js` as the radial pointer/phase model;
 - keep Three.js rendering in Sigil item modules;
 - use the JSON contract and toolkit resolver as the reusable menu-data layer;
 - keep `createAosZagMenu()` available for DOM menu stacks such as Sigil context
   menu and future toolkit stack menus;
-- optionally expose the resolved radial menu's logical items to the child
-  semantic surface or future AX layer, but do not put Zag in the render hot path.
+- expose the resolved radial menu's logical items to the child semantic surface
+  or future AX adapter, so the 3D menu can be inspected and operated as a menu
+  even though its visible expression is Three.js;
+- do not put Zag in the visual render hot path.
 
 Potential future benefit:
 
-- a toolkit "menu stack" can use Zag for ordinary nested DOM menus while using
-  the same JSON item/action/default vocabulary as 3D radial menus;
-- a future radial menu accessibility adapter can map logical items into a
-  Zag-like DOM/AX representation without coupling visual animation to Zag.
+- a toolkit "menu stack" can use Zag for ordinary nested DOM menus and share
+  the same base item/action/default vocabulary as 3D radial menus;
+- a future radial menu accessibility adapter can map the same resolved logical
+  menu into Zag-backed DOM/AX semantics without coupling visual animation to
+  Zag;
+- a future 2D menu, command palette, context menu, and 3D radial menu can all be
+  different render expressions of the same lower-level menu data.
 
 ## Scope
 
@@ -418,9 +463,12 @@ git diff --check
 Add focused tests for:
 
 - JSON config loading and cascading merge order;
+- base menu fields surviving resolution into the 3D radial expression;
 - item-id keyed overrides;
 - hover scale resolving to 2x for Sigil items;
 - `context-menu` and `annotation-mode` resolving hover spin to the wheel axis;
+- resolved logical items being available for DOM/AX or radial child-surface
+  projection without importing Three.js;
 - current stale saved config normalization still merging with current defaults;
 - renderer snapshots still include item geometry/effects metadata expected by
   existing tests and diagnostics.
