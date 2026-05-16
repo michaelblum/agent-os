@@ -32,6 +32,13 @@ The editor publishes `canvas_object.registry` snapshots for the selected item.
 Generic glTF items expose one model host object. The wiki brain exposes its
 shell, fiber stem, fiber bloom, and fractal tree objects.
 
+The model now exposes a small 3D thing editor subject loader. The radial item
+adapter preserves the existing `sigil.radial_menu.item_3d` subject, preview,
+patch, and lock-in behavior. The avatar adapter consumes Sigil's
+`buildAvatarObjectRegistry()` output as a `sigil.avatar.3d` subject while
+leaving concrete renderer updates and persistence owner-managed by
+`apps/sigil/renderer/`.
+
 The toolkit object transform panel sends `canvas_object.transform.patch`
 messages back to the editor. The editor mutates only its in-memory copy of the
 radial item config, then emits `canvas_object.transform.result` and a refreshed

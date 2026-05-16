@@ -1,5 +1,9 @@
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../renderer/radial-menu-defaults.js';
 import {
+    buildAvatarObjectRegistry,
+    AVATAR_ROOT_OBJECT_ID,
+} from '../renderer/live-modules/avatar-object-control.js';
+import {
     applyRadialMenuObjectEffectsPatch,
     applyRadialMenuObjectTransformPatch,
     buildRadialMenuObjectRegistry,
@@ -12,11 +16,19 @@ export const DEFAULT_EDITOR_ITEM_ID = 'wiki-graph';
 export const RADIAL_ITEM_EDITOR_LOCK_IN_TYPE = 'sigil.radial_item_editor.lock_in';
 export const RADIAL_ITEM_EDITOR_LOCK_IN_SCHEMA_VERSION = '2026-05-03';
 export const WORKBENCH_SUBJECT_SCHEMA_VERSION = '2026-05-03';
+export const RADIAL_ITEM_SUBJECT_TYPE = 'sigil.radial_menu.item_3d';
+export const AVATAR_SUBJECT_TYPE = 'sigil.avatar.3d';
 export const RADIAL_ITEM_SOURCE = Object.freeze({
     kind: 'sigil.radial_menu.default_items',
     path: 'apps/sigil/renderer/radial-menu-defaults.js',
     export: 'DEFAULT_SIGIL_RADIAL_ITEMS',
     operation: 'replace_item_by_id',
+});
+export const AVATAR_SUBJECT_SOURCE = Object.freeze({
+    kind: 'sigil.avatar.object_graph',
+    path: 'apps/sigil/renderer/live-modules/avatar-object-control.js',
+    export: 'buildAvatarObjectRegistry',
+    operation: 'owner_managed',
 });
 
 function isPlainObject(value) {
@@ -52,6 +64,28 @@ function radialEditorCanvasHost(canvasId = DEFAULT_EDITOR_CANVAS_ID, { preferred
             ...(facet ? { facet } : {}),
         },
         ...(preferred ? { preferred: true } : {}),
+    };
+}
+
+function subjectCanvasHost(canvasId = DEFAULT_EDITOR_CANVAS_ID, { preferred = false, facet = '' } = {}) {
+    return radialEditorCanvasHost(canvasId, { preferred, facet });
+}
+
+function subjectResult({
+    type,
+    requestId,
+    target = {},
+    status = 'rejected',
+    code = 'unsupported_subject_operation',
+    message = 'Subject does not support this editor operation.',
+} = {}) {
+    return {
+        type,
+        schema_version: RADIAL_ITEM_EDITOR_LOCK_IN_SCHEMA_VERSION,
+        request_id: text(requestId, 'editor-subject-request'),
+        target: cloneConfig(target),
+        status,
+        error: { code, message },
     };
 }
 
@@ -157,6 +191,164 @@ export function buildEditorObjectRegistry(state = {}) {
     });
 }
 
+function radialSubjectDescriptor(state = {}) {
+    const item = selectedRadialItem(state);
+    const canvasId = text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID);
+    return {
+        kind: 'subject-descriptor',
+        adapter: 'sigil.radial-item-editor.radial-subject',
+        subject_id: item ? `sigil.radial_menu.item:${item.id}` : 'sigil.radial_menu.item:none',
+        subject_type: RADIAL_ITEM_SUBJECT_TYPE,
+        label: item ? text(item.label, item.id) : 'No radial item',
+        owner: 'sigil.radial-item-editor',
+        canvas_id: canvasId,
+        source: cloneConfig(RADIAL_ITEM_SOURCE),
+        capabilities: ['inspectable', 'editable', 'exportable'],
+        contracts: [
+            'canvas_object.registry',
+            'canvas_object.transform.patch',
+            'canvas_object.effects.patch',
+            'canvas_object.visibility.patch',
+            RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,
+            'sigil.radial_item.preview',
+        ],
+        persistence: {
+            kind: 'agent_handoff',
+            request: RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,
+            result: 'source.patch.result',
+        },
+        metadata: {
+            action: text(item?.action),
+            geometry_kind: geometryKind(item || {}),
+        },
+        state: {
+            item_id: item?.id || null,
+            canvas_id: canvasId,
+        },
+        registry: () => buildEditorObjectRegistry(state),
+        preview: (options = {}) => buildEditorRadialSnapshot(state, options),
+        applyTransformPatch: (message = {}) => applyEditorObjectPatch(state, message),
+        applyEffectsPatch: (message = {}) => applyEditorEffectsPatch(state, message),
+        exportAction: (options = {}) => exportSelectedRadialItemDefinition(state, options),
+    };
+}
+
+function avatarSubjectDescriptor({
+    rendererState = {},
+    canvasId = 'avatar-main',
+    sourceId = 'sigil.avatar-object-control',
+    avatarVisible = true,
+    avatarPos,
+} = {}) {
+    const normalizedCanvasId = text(canvasId, 'avatar-main');
+    const registryOptions = {
+        canvasId: normalizedCanvasId,
+        sourceId,
+        avatarVisible,
+        ...(avatarPos ? { avatarPos } : {}),
+    };
+    return {
+        kind: 'subject-descriptor',
+        adapter: 'sigil.radial-item-editor.avatar-subject',
+        subject_id: 'sigil.avatar:avatar-main',
+        subject_type: AVATAR_SUBJECT_TYPE,
+        label: 'Sigil Avatar',
+        owner: 'sigil',
+        canvas_id: normalizedCanvasId,
+        source: cloneConfig(AVATAR_SUBJECT_SOURCE),
+        capabilities: ['inspectable', 'editable'],
+        contracts: [
+            'canvas_object.registry',
+            'canvas_object.transform.patch',
+            'canvas_object.effects.patch',
+            'sigil.avatar.action',
+        ],
+        persistence: {
+            kind: 'app_owned',
+            request: 'sigil.avatar.action',
+            result: 'canvas_object.effects.result',
+        },
+        metadata: {
+            root_object_id: AVATAR_ROOT_OBJECT_ID,
+            renderer_owner: 'apps/sigil/renderer',
+            persistence_owner: 'apps/sigil/renderer/appearance.js',
+        },
+        state: {
+            canvas_id: normalizedCanvasId,
+            item_id: null,
+        },
+        registry: () => buildAvatarObjectRegistry(rendererState, registryOptions),
+        preview: () => ({
+            type: 'sigil.avatar.preview',
+            status: 'owner-managed',
+            canvas_id: normalizedCanvasId,
+            root_object_id: AVATAR_ROOT_OBJECT_ID,
+        }),
+        applyTransformPatch: (message = {}) => subjectResult({
+            type: 'canvas_object.transform.result',
+            requestId: message.request_id,
+            target: message.target,
+            message: 'Avatar transform patches are owner-managed by the live Sigil renderer in this slice.',
+        }),
+        applyEffectsPatch: (message = {}) => subjectResult({
+            type: 'canvas_object.effects.result',
+            requestId: message.request_id,
+            target: message.target,
+            message: 'Avatar effects patches are owner-managed by the live Sigil renderer in this slice.',
+        }),
+        exportAction: () => ({
+            type: 'sigil.avatar.action',
+            action: 'owner-managed-export',
+            status: 'owner-managed',
+            source: cloneConfig(AVATAR_SUBJECT_SOURCE),
+        }),
+    };
+}
+
+export function loadThingEditorSubject(input = {}, options = {}) {
+    if (input?.kind === 'subject-descriptor') return input;
+    const subjectType = text(input.subject_type || input.subjectType || input.type || input.kind, RADIAL_ITEM_SUBJECT_TYPE);
+    if (subjectType === RADIAL_ITEM_SUBJECT_TYPE || subjectType === 'radial' || subjectType === 'sigil.radial_menu.item') {
+        const state = input.state || input.editorState || createRadialItemEditorState({
+            items: input.items,
+            itemId: input.itemId,
+            canvasId: input.canvasId,
+        });
+        return radialSubjectDescriptor(state);
+    }
+    if (subjectType === AVATAR_SUBJECT_TYPE || subjectType === 'avatar' || subjectType === 'sigil.avatar') {
+        return avatarSubjectDescriptor({
+            rendererState: input.rendererState || input.state || {},
+            canvasId: input.canvasId,
+            sourceId: input.sourceId,
+            avatarVisible: input.avatarVisible,
+            avatarPos: input.avatarPos,
+            ...options,
+        });
+    }
+    throw new TypeError(`Unsupported 3D thing editor subject: ${subjectType}`);
+}
+
+export function buildThingEditorObjectRegistry(subjectInput = {}) {
+    return loadThingEditorSubject(subjectInput).registry();
+}
+
+export function buildThingEditorPreview(subjectInput = {}, options = {}) {
+    return loadThingEditorSubject(subjectInput).preview(options);
+}
+
+export function applyThingEditorObjectPatch(subjectInput = {}, message = {}) {
+    return loadThingEditorSubject(subjectInput).applyTransformPatch(message);
+}
+
+export function applyThingEditorEffectsPatch(subjectInput = {}, message = {}) {
+    return loadThingEditorSubject(subjectInput).applyEffectsPatch(message);
+}
+
+export function exportThingEditorSubject(subjectInput = {}, options = {}) {
+    return loadThingEditorSubject(subjectInput).exportAction(options);
+}
+
 export function exportSelectedRadialItemDefinition(state = {}, {
     generatedAt = new Date().toISOString(),
 } = {}) {
@@ -174,39 +366,39 @@ export function exportSelectedRadialItemDefinition(state = {}, {
 }
 
 export function buildRadialItemWorkbenchSubject(state = {}) {
-    const item = selectedRadialItem(state);
-    const registry = buildEditorObjectRegistry(state);
+    return buildThingEditorWorkbenchSubject(radialSubjectDescriptor(state));
+}
+
+export function buildThingEditorWorkbenchSubject(subjectInput = {}) {
+    const descriptor = loadThingEditorSubject(subjectInput);
+    const registry = descriptor.registry();
+    const isRadialSubject = descriptor.subject_type === RADIAL_ITEM_SUBJECT_TYPE;
+    const previewContract = descriptor.subject_type === RADIAL_ITEM_SUBJECT_TYPE
+        ? 'sigil.radial_item.preview'
+        : 'sigil.avatar.preview';
+    const actionContract = descriptor.subject_type === RADIAL_ITEM_SUBJECT_TYPE
+        ? RADIAL_ITEM_EDITOR_LOCK_IN_TYPE
+        : 'sigil.avatar.action';
     return {
         type: 'aos.workbench.subject',
         schema_version: WORKBENCH_SUBJECT_SCHEMA_VERSION,
-        id: item ? `sigil.radial_menu.item:${item.id}` : 'sigil.radial_menu.item:none',
-        subject_type: 'sigil.radial_menu.item_3d',
-        label: item ? text(item.label, item.id) : 'No radial item',
-        owner: 'sigil.radial-item-editor',
-        source: cloneConfig(RADIAL_ITEM_SOURCE),
-        capabilities: [
-            'inspectable',
-            'editable',
-            'exportable',
-        ],
-        contracts: [
-            'canvas_object.registry',
-            'canvas_object.transform.patch',
-            'canvas_object.effects.patch',
-            'canvas_object.visibility.patch',
-            'sigil.radial_item_editor.lock_in',
-            'sigil.radial_item.preview',
-        ],
+        id: descriptor.subject_id,
+        subject_type: descriptor.subject_type,
+        label: descriptor.label,
+        owner: descriptor.owner,
+        source: cloneConfig(descriptor.source),
+        capabilities: cloneConfig(descriptor.capabilities),
+        contracts: cloneConfig(descriptor.contracts),
         facets: [
             {
                 key: 'object-registry',
                 layer: 'descriptor',
                 label: 'Object Registry',
-                source: cloneConfig(RADIAL_ITEM_SOURCE),
+                source: cloneConfig(descriptor.source),
                 capabilities: ['inspectable'],
                 contracts: ['canvas_object.registry'],
                 hosts: [
-                    radialEditorCanvasHost(state.canvasId, { preferred: true, facet: 'object-registry' }),
+                    subjectCanvasHost(descriptor.canvas_id, { preferred: true, facet: 'object-registry' }),
                 ],
             },
             {
@@ -218,38 +410,40 @@ export function buildRadialItemWorkbenchSubject(state = {}) {
                     'canvas_object.transform.patch',
                     'canvas_object.effects.patch',
                     'canvas_object.visibility.patch',
-                    'sigil.radial_item_editor.lock_in',
+                    actionContract,
                 ],
                 hosts: [
-                    radialEditorCanvasHost(state.canvasId, { facet: 'object-controls' }),
+                    subjectCanvasHost(descriptor.canvas_id, { facet: 'object-controls' }),
                 ],
             },
             {
-                key: 'radial-preview',
+                key: isRadialSubject ? 'radial-preview' : 'preview',
                 layer: 'artifacts',
-                label: 'Radial Preview',
+                label: isRadialSubject ? 'Radial Preview' : 'Preview',
                 capabilities: ['inspectable'],
-                contracts: ['sigil.radial_item.preview'],
+                contracts: [previewContract],
                 hosts: [
-                    radialEditorCanvasHost(state.canvasId, { facet: 'radial-preview' }),
+                    subjectCanvasHost(descriptor.canvas_id, { facet: isRadialSubject ? 'radial-preview' : 'preview' }),
                 ],
             },
+            ...(isRadialSubject ? [] : [{
+                key: 'owner-actions',
+                layer: 'actions',
+                label: 'Owner Actions',
+                capabilities: descriptor.capabilities.includes('exportable') ? ['exportable'] : [],
+                contracts: [actionContract],
+                hosts: [
+                    subjectCanvasHost(descriptor.canvas_id, { facet: 'owner-actions' }),
+                ],
+            }]),
         ],
-        persistence: {
-            kind: 'agent_handoff',
-            request: RADIAL_ITEM_EDITOR_LOCK_IN_TYPE,
-            result: 'source.patch.result',
-        },
+        persistence: cloneConfig(descriptor.persistence),
         state: {
-            item_id: item?.id || null,
-            canvas_id: text(state.canvasId, DEFAULT_EDITOR_CANVAS_ID),
+            ...cloneConfig(descriptor.state),
             object_count: registry.objects.length,
             dirty: true,
         },
-        metadata: {
-            action: text(item?.action),
-            geometry_kind: geometryKind(item || {}),
-        },
+        metadata: cloneConfig(descriptor.metadata),
     };
 }
 

@@ -12,14 +12,30 @@ import {
   WIKI_BRAIN_SHELL_OBJECT_ID,
 } from '../../apps/sigil/renderer/live-modules/radial-object-control.js'
 import {
+  AVATAR_AURA_OBJECT_ID,
+  AVATAR_OMEGA_OBJECT_ID,
+  AVATAR_PRIMARY_OBJECT_ID,
+  AVATAR_PRIMARY_TESSERON_OBJECT_ID,
+  AVATAR_ROOT_OBJECT_ID,
+} from '../../apps/sigil/renderer/live-modules/avatar-object-control.js'
+import {
+  AVATAR_SUBJECT_TYPE,
   applyEditorEffectsPatch,
   applyEditorObjectPatch,
+  applyThingEditorEffectsPatch,
+  applyThingEditorObjectPatch,
+  buildThingEditorObjectRegistry,
+  buildThingEditorPreview,
+  buildThingEditorWorkbenchSubject,
   buildRadialItemWorkbenchSubject,
   buildEditorObjectRegistry,
   buildEditorRadialSnapshot,
   createRadialItemEditorState,
   editableRadialItems,
   exportSelectedRadialItemDefinition,
+  exportThingEditorSubject,
+  loadThingEditorSubject,
+  RADIAL_ITEM_SUBJECT_TYPE,
   selectRadialItem,
   selectedItemFractalPulse,
   selectedRadialItem,
@@ -262,6 +278,126 @@ test('radial item editor exposes an AOS workbench subject descriptor', () => {
   assert.equal(subjectHosts(subject)[0].entry.value, 'preview')
   assert.equal('views' in subject, false)
   assert.equal('controls' in subject, false)
+})
+
+test('3D thing editor loader preserves radial subject registry, preview, patches, and lock-in action', () => {
+  const state = createRadialItemEditorState({
+    itemId: 'agent-terminal',
+    canvasId: 'preview',
+  })
+  const subject = loadThingEditorSubject({
+    subject_type: RADIAL_ITEM_SUBJECT_TYPE,
+    state,
+  })
+
+  assert.equal(subject.subject_id, 'sigil.radial_menu.item:agent-terminal')
+  assert.equal(subject.subject_type, 'sigil.radial_menu.item_3d')
+  assert.equal(buildThingEditorObjectRegistry(subject).objects[0].object_id, AGENT_TERMINAL_MODEL_OBJECT_ID)
+  assert.equal(buildThingEditorPreview(subject, { width: 640, height: 480 }).activeItemId, 'agent-terminal')
+
+  const result = applyThingEditorObjectPatch(subject, {
+    type: 'canvas_object.transform.patch',
+    schema_version: '2026-05-03',
+    request_id: 'req-loader-radial',
+    target: {
+      canvas_id: 'preview',
+      object_id: AGENT_TERMINAL_MODEL_OBJECT_ID,
+    },
+    patch: {
+      scale: { z: 1.4 },
+    },
+  })
+
+  assert.equal(result.status, 'applied')
+  assert.deepEqual(selectedRadialItem(state).geometry.modelTransform.scale, { x: 1, y: 1, z: 1.4 })
+  assert.equal(exportThingEditorSubject(subject, { generatedAt: '2026-05-03T12:00:00.000Z' }).type, 'sigil.radial_item_editor.lock_in')
+})
+
+test('3D thing editor loader builds an avatar subject descriptor from the avatar object graph adapter', () => {
+  const subject = loadThingEditorSubject({
+    subject_type: AVATAR_SUBJECT_TYPE,
+    canvasId: 'avatar-main',
+    rendererState: {
+      currentGeometryType: 12,
+      stellationFactor: 0.3,
+      currentOpacity: 0.42,
+      currentEdgeOpacity: 0.88,
+      z_depth: 1.2,
+      appScale: 1.5,
+      tesseron: { enabled: true, proportion: 0.44, matchMother: false },
+      isAuraEnabled: true,
+      auraIntensity: 1.7,
+      auraReach: 2.1,
+      isOmegaEnabled: true,
+      omegaGeometryType: 8,
+      omegaScale: 2.2,
+      radialGestureMenu: { items: [] },
+    },
+    avatarPos: { x: 10, y: 20, z: 0 },
+  })
+  const registry = buildThingEditorObjectRegistry(subject)
+
+  assert.equal(subject.subject_id, 'sigil.avatar:avatar-main')
+  assert.equal(subject.subject_type, AVATAR_SUBJECT_TYPE)
+  assert.equal(registry.type, 'canvas_object.registry')
+  assert.equal(registry.canvas_id, 'avatar-main')
+  assert.ok(registry.objects.find((object) => object.object_id === AVATAR_ROOT_OBJECT_ID))
+  assert.ok(registry.objects.find((object) => object.object_id === AVATAR_PRIMARY_OBJECT_ID))
+  assert.ok(registry.objects.find((object) => object.object_id === AVATAR_PRIMARY_TESSERON_OBJECT_ID))
+  assert.ok(registry.objects.find((object) => object.object_id === AVATAR_AURA_OBJECT_ID))
+  assert.ok(registry.objects.find((object) => object.object_id === AVATAR_OMEGA_OBJECT_ID))
+
+  const workbenchSubject = buildThingEditorWorkbenchSubject(subject)
+  assert.equal(workbenchSubject.type, 'aos.workbench.subject')
+  assert.equal(workbenchSubject.subject_type, AVATAR_SUBJECT_TYPE)
+  assert.ok(subjectContracts(workbenchSubject).includes('canvas_object.registry'))
+  assert.ok(subjectContracts(workbenchSubject).includes('canvas_object.effects.patch'))
+  assert.deepEqual(subjectFacets(workbenchSubject).map((facet) => facet.key), [
+    'object-registry',
+    'object-controls',
+    'preview',
+    'owner-actions',
+  ])
+  assert.equal(buildThingEditorPreview(subject).status, 'owner-managed')
+  assert.equal(exportThingEditorSubject(subject).status, 'owner-managed')
+})
+
+test('avatar subject patch facets return owner-managed results without mutating renderer state', () => {
+  const rendererState = {
+    currentGeometryType: 6,
+    radialGestureMenu: { items: [] },
+  }
+  const subject = loadThingEditorSubject({
+    subject_type: 'avatar',
+    canvasId: 'avatar-main',
+    rendererState,
+  })
+
+  const transform = applyThingEditorObjectPatch(subject, {
+    type: 'canvas_object.transform.patch',
+    request_id: 'req-avatar-transform',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: AVATAR_PRIMARY_OBJECT_ID,
+    },
+    patch: { scale: { x: 2 } },
+  })
+  const effects = applyThingEditorEffectsPatch(subject, {
+    type: 'canvas_object.effects.patch',
+    request_id: 'req-avatar-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: AVATAR_AURA_OBJECT_ID,
+    },
+    patch: { controls: { 'aura.intensity': 2 } },
+  })
+
+  assert.equal(transform.type, 'canvas_object.transform.result')
+  assert.equal(transform.status, 'rejected')
+  assert.equal(transform.error.code, 'unsupported_subject_operation')
+  assert.equal(effects.type, 'canvas_object.effects.result')
+  assert.equal(effects.status, 'rejected')
+  assert.equal(rendererState.currentGeometryType, 6)
 })
 
 test('radial item editor lock-in payload is detached from later state mutation', () => {
