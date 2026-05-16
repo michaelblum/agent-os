@@ -24,13 +24,11 @@ Foreman owns development coordination and git/GitHub hygiene by default:
 Do not assume GDI or Operator own project management, branch hygiene, PRs, or
 issue state unless a work card explicitly assigns that responsibility.
 
-Under `agentic_relay`, Foreman responsibilities may be performed by a remote
-GitHub-only relay agent instead of this local dock. That changes the execution
-environment, not the responsibility model: GDI still implements, and the
-designated relay authority reviews and merges. If this local Foreman receives a
-remote relay handoff, interruption report, or completion report, it may act as
-the relay authority while preserving remote-visible branch/report evidence and
-calling out local-only state the remote agent could not see.
+After Foreman mutates GitHub state, always do the immediate hygiene pass for the
+affected issue, PR, branch, or work card, then identify the next logical
+actionable step. If that step is ready for another session to execute after a
+simple affirmative, copy a paste-ready handoff with
+`.docks/foreman/scripts/handoff` before ending the turn.
 
 ## Proactive Coordination Loop
 

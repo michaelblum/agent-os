@@ -5,5 +5,5 @@ model_reasoning_effort = "medium"
 goals = false
 
 [tui]
-status_line = ["current-dir", "run-state", "context-remaining", "model-with-reasoning"]
-terminal_title = ["current-dir", "activity", "run-state", "model"]
+status_line = ["current-dir", "git-branch", "context-remaining", "model-with-reasoning"]
+terminal_title = ["current-dir", "activity", "git-branch", "model"]

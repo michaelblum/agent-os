@@ -24,27 +24,11 @@ unless the handoff explicitly assigns that work. If the goal is ambiguous,
 requires human judgment, or is actually a routing/planning question, stop and
 handoff to Foreman instead of inventing scope.
 
-## Relay Context
-
-At session start, the active workflow profile is resolved from
-`docs/dev/active-profile.json` and injected into your context by the dock hook
-as `AOS_ACTIVE_WORKFLOW_PROFILE`. A relay context block is printed in your
-session snapshot under `## Relay Context`.
-
-Read that block. It tells you:
-- The active profile name
-- Current `origin/main` SHA
-- Open `gdi/*` branches and their distance from main
-- Conflict risk for your current branch vs other open branches
-
-Do not hardcode profile names or git posture rules in your reasoning. The
-injected context is the source of truth for the current session.
-
-Under `agentic_relay`, the pushed branch is the remote-visible relay artifact.
-The relay authority may be a remote GitHub-only Foreman adapter, a human, or a
-local Foreman session acting as relay. GDI must therefore make the branch and
-completion report sufficient for review, and must explicitly report any
-local-only state the relay cannot see.
+When a handoff explicitly assigns GDI a GitHub or external coordination action,
+complete the requested mutation, report the resulting hygiene needs, and name
+the next concrete action. If the next action is ready for another session after
+a simple affirmative, use `scripts/dock-handoff-clipboard --target-dock <dock>`
+to place a concise paste-ready handoff on the clipboard.
 
 ## Git Boundary
 
@@ -93,11 +77,11 @@ For all profiles, the git boundary is:
    Do not push until the work card verification block is green.
 
 6. **Completion report** — include all of the following, structured exactly
-   as shown so the relay partner can parse it:
+   as shown so Foreman can review it:
 
    ```
    ## Completion Report
-   - profile: <value of AOS_ACTIVE_WORKFLOW_PROFILE>
+   - profile: <profile from the work card or docs/dev/active-profile.json>
    - branch: gdi/<slug>
    - head_sha: <git rev-parse HEAD>
    - base_sha: <origin/main SHA at branch time>
@@ -106,16 +90,15 @@ For all profiles, the git boundary is:
    - conflict_risk: <none|low|medium — list files if low or medium>
    - open_prs_on_same_files: <none|list PR numbers>
    - local_only_state: <none|dirty files/untracked/generated artifacts/runtime blockers, and whether related>
-   - relay_action_required: <merge|review|block>
+   - action_required: <review|block>
    ```
 
-   Do not merge to main. The relay partner handles merge.
+   Do not merge to main. Foreman handles merge or publication decisions.
 
 ### Profile-specific push authority
 
-- `agentic_relay` — GDI has push authority to `gdi/*` branches so remote or
-  local relay authority can review GitHub-visible work. Push at completion.
-  Do not merge to main.
+- `agentic_relay` — GDI has push authority to `gdi/*` branches when a work card
+  uses that profile. Push at completion. Do not merge to main.
 - `hybrid_trunk` — GDI does not commit or push unless the work card explicitly
   includes a Git section with those instructions. Foreman is the default git
   steward.
