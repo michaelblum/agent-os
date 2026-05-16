@@ -1,9 +1,9 @@
 model = "gpt-5.5"
-model_reasoning_effort = "medium"
+model_reasoning_effort = "low"
 
 [features]
 goals = true
 
 [tui]
-status_line = ["current-dir", "task-progress", "context-remaining", "model-with-reasoning"]
-terminal_title = ["current-dir", "model"]
+status_line = ["current-dir", "git-branch", "context-remaining", "model-with-reasoning"]
+terminal_title = ["current-dir", "activity", "git-branch", "model"]

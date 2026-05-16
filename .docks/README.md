@@ -31,11 +31,11 @@ then the role-local `<dock>/AGENTS.md`. Keep common docked-session behavior in
 `.docks/AGENTS.md` and keep each role file focused on that role's authority,
 handoff contract, and stop conditions.
 
-Each dock owns its own hook scripts under `<dock>/hooks/`. Those scripts are
-thin wrappers around `.docks/harness/dock-hook-runner.sh`, with dock identity
-and policy in `<dock>/dock.json`. Do not route dock hooks through a shared
-`.docks/hooks/` script; role behavior should stay local to the dock metadata
-and optional pre/post scripts that install it.
+Each dock keeps a small Stop hook that delegates to
+`.docks/harness/dock-hook-runner.sh`. The runner reads dock identity and voice
+policy from `<dock>/dock.json`. Do not add startup hooks for git posture,
+session registration, or context snapshots; those facts go stale inside long
+Codex sessions.
 
 `<dock>/dock.json` is validated as an AOS Dock Profile. It declares the dock's
 durable role, default entry path, allowed entry paths, capability manifest, and
@@ -51,10 +51,9 @@ This profile is descriptive, not an executor. It keeps the portable dock
 metaphor inspectable while leaving task judgment and command failures with the
 active agent.
 
-Dock-local bespoke behavior belongs in executable scripts named
-`pre-session-start.sh`, `post-session-start.sh`, `pre-stop.sh`, or
-`post-stop.sh` under the dock's `hooks/` directory. The shared harness invokes
-those scripts if present and still emits Codex hook success JSON.
+Dock-local bespoke Stop behavior belongs in executable scripts named
+`pre-stop.sh` or `post-stop.sh` under the dock's `hooks/` directory. The shared
+runner invokes those scripts if present and still emits Codex hook success JSON.
 
 Dock voice policy cascades from `.docks/dock-defaults.json` into each
 `<dock>/dock.json`. The shared default enables voice and filters dock speech to
@@ -63,13 +62,11 @@ dock-specific metadata such as `voice.voice_slot`, explicit non-default
 `voice.gender`, and the fixed `stop_notice`.
 
 `voice.voice_slot` is a 1-based ordinal over the final filtered speakable AOS
-voice bucket. The shared harness uses it for bounded Stop-hook notices with
+voice bucket. The shared runner uses it for bounded Stop-hook notices with
 `aos say --voice-slot <n> --language en --quality-tier premium --quality-tier
-enhanced`. Session-start registration may still bind a voice for true session
-speech, but Stop hooks should not call `aos voice bind` or
-`aos voice final-response` for their fixed notices. Stop notices do not require
-a resolved session id; the timeout budget should leave enough room for macOS
-speech synthesis to return.
+enhanced`. Stop hooks do not call `aos voice bind` or `aos voice final-response`
+for their fixed notices. Stop notices do not require a resolved session id; the
+timeout budget should leave enough room for macOS speech synthesis to return.
 
 ## Config Split
 

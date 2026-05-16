@@ -103,3 +103,24 @@ addressee ceremony.
 wrapper for dock-targeted handoffs. Individual docks may add thin local wrappers
 or hooks for their own default payload construction, but clipboard writes and
 chat demarcation should still go through `scripts/agent-handoff`.
+
+## Momentum After External Changes
+
+When any dock changes GitHub state or another external coordination surface,
+finish with hygiene and a concrete next step:
+
+- briefly state what changed externally;
+- identify any issue, PR, branch, or work-card hygiene that now follows;
+- name the next logical actionable step.
+
+If the next step can be accepted with a simple affirmative by another session,
+proactively place a concise handoff on the clipboard with the dock handoff
+wrapper: `.docks/foreman/scripts/handoff` for Foreman-originated handoffs, or
+`scripts/dock-handoff-clipboard --target-dock <dock>` for generic dock-targeted
+handoffs. Those wrappers delegate to `scripts/agent-handoff` for the rich
+clipboard and chat-visible block. The payload should be paste-ready plain
+instructions, not a status essay. Use the printed chat-visible handoff block in
+the final response so the human can recover it if the clipboard is overwritten.
+
+Do not create clipboard handoffs for vague optional ideas. Use this only when
+there is a clear next action that advances the current workstream.
