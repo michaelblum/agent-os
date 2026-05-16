@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://agent-os.local/schemas/aos.gate.request.v1.json",
   "title": "AOS Gate Request",
-  "description": "Envelope for bounded structured human-input gate requests.",
+  "description": "Canonical envelope for bounded structured human-input gate requests after adapter normalization.",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "prompt", "timeout_ms"],
+  "required": ["schema_version", "prompt", "fields", "timeout_ms"],
   "properties": {
     "schema_version": {
       "const": "aos.gate.request.v1"
@@ -29,13 +29,15 @@
       }
     },
     "response_schema": {
-      "type": "object"
+      "type": "object",
+      "description": "Reserved for future response validation. V1 validates field requiredness only."
     },
     "fields": {
       "$ref": "#/$defs/fields"
     },
     "ui": {
       "type": "object",
+      "description": "Presentation hints only. Canonical fields live at the top-level fields property.",
       "additionalProperties": true,
       "properties": {
         "variant": {
@@ -48,9 +50,6 @@
             "freetext",
             null
           ]
-        },
-        "fields": {
-          "$ref": "#/$defs/fields"
         },
         "timer": {
           "type": "object",

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { GATE_ERROR_CODES, createGateError } from '../../../shared/gate/errors.mjs';
 import { GateReceptor } from './GateReceptor.js';
 
 const DEFAULT_POLL_MS = 400;
@@ -41,7 +42,9 @@ function parseGateResult(raw) {
   const text = String(raw).trim();
   if (!text || text === 'undefined') return undefined;
   const parsed = JSON.parse(text);
-  if (parsed && typeof parsed === 'object' && 'result' in parsed) return parseGateResult(parsed.result);
+  if (parsed && typeof parsed === 'object' && 'result' in parsed && !('status' in parsed)) {
+    return parseGateResult(parsed.result);
+  }
   return typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
 }
 
@@ -61,7 +64,16 @@ export class LocalCanvasReceptor extends GateReceptor {
   }
 
   async present(gateRequest) {
-    const canvasId = await this.canvasClient.createCanvas(gateRequest);
+    let canvasId;
+    try {
+      canvasId = await this.canvasClient.createCanvas(gateRequest);
+    } catch (error) {
+      throw createGateError(
+        GATE_ERROR_CODES.presentFailed,
+        error instanceof Error ? error.message : 'failed to present gate surface',
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
     const handle = { id: gateRequest.id, canvasId, poller: null, closed: false };
     const expression = 'window.__gateResult';
 
@@ -80,7 +92,14 @@ export class LocalCanvasReceptor extends GateReceptor {
         handle.closed = true;
         this.clearIntervalFn(handle.poller);
         handle.poller = null;
-        this.reject(gateRequest.id, error);
+        this.reject(
+          gateRequest.id,
+          createGateError(
+            GATE_ERROR_CODES.receptorError,
+            error instanceof Error ? error.message : 'gate receptor failed',
+            { cause: error instanceof Error ? error : undefined },
+          ),
+        );
       }
     };
 

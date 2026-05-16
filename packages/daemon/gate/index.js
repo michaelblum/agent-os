@@ -1,91 +1,72 @@
 import { randomUUID } from 'node:crypto';
+import {
+  GATE_FIELD_KIND_SET,
+  GATE_PRESET_SET,
+  GATE_SCHEMA_VERSION,
+  clampGateTimeout,
+  expandGatePresetFields,
+  stripUiFields,
+} from '../../../shared/gate/presets.mjs';
+import { GATE_ERROR_CODES, createGateError, ensureGateError } from '../../../shared/gate/errors.mjs';
 import { LocalCanvasReceptor } from './LocalCanvasReceptor.js';
 
-const MIN_TIMEOUT_MS = 5000;
-const MAX_TIMEOUT_MS = 120000;
-const PRESETS = new Set([
-  'yes_no_with_escape',
-  'approve_deny',
-  'single_choice',
-  'multi_choice',
-  'freetext',
-]);
-const FIELD_KINDS = new Set(['boolean', 'exclusive_choice', 'multi_choice', 'text', 'number']);
+const NO_ANSWER_STATUSES = new Set(['dismissed', 'timeout']);
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function clampTimeout(timeoutMs) {
-  const numeric = Number(timeoutMs);
-  if (!Number.isFinite(numeric)) return 20000;
-  return Math.min(MAX_TIMEOUT_MS, Math.max(MIN_TIMEOUT_MS, numeric));
-}
-
-function presetFields(variant, request = {}) {
-  const choices = Array.isArray(request.choices)
-    ? request.choices
-    : Array.isArray(request.ui?.options)
-      ? request.ui.options
-      : [];
-
-  if (variant === 'yes_no_with_escape') {
-    return [
-      { id: 'decision', kind: 'exclusive_choice', style: 'buttons', options: [
-        { value: 'yes', label: 'Yes' },
-        { value: 'no', label: 'No' },
-        { value: 'other', label: 'Something else' },
-      ] },
-      { id: 'other_text', kind: 'text', placeholder: 'Something else...', visible_when: { field: 'decision', equals: 'other' } },
-    ];
-  }
-  if (variant === 'approve_deny') {
-    return [
-      { id: 'decision', kind: 'exclusive_choice', style: 'buttons', options: [
-        { value: 'approve', label: 'Approve' },
-        { value: 'deny', label: 'Deny', danger: true },
-      ] },
-      { id: 'other_text', kind: 'text', placeholder: 'Reason...', visible_when: { field: 'decision', equals: 'deny' } },
-    ];
-  }
-  if (variant === 'single_choice') return [{ id: 'decision', kind: 'exclusive_choice', style: 'buttons', options: choices }];
-  if (variant === 'multi_choice') return [{ id: 'decisions', kind: 'multi_choice', options: choices }];
-  return [{ id: 'text', kind: 'text', placeholder: 'Your response...' }];
-}
-
 function validateFields(fields, { path = 'fields' } = {}) {
-  if (!Array.isArray(fields) || fields.length === 0) throw new Error(`${path} must be a non-empty array`);
+  if (!Array.isArray(fields) || fields.length === 0) {
+    throw createGateError(GATE_ERROR_CODES.invalidRequest, `${path} must be a non-empty array`);
+  }
   for (const [index, field] of fields.entries()) {
-    if (!isObject(field)) throw new Error(`${path}[${index}] must be an object`);
-    if (typeof field.id !== 'string' || field.id.length === 0) throw new Error(`${path}[${index}].id is required`);
-    if (!FIELD_KINDS.has(field.kind)) throw new Error(`${path}[${index}].kind is unsupported`);
+    if (!isObject(field)) throw createGateError(GATE_ERROR_CODES.invalidRequest, `${path}[${index}] must be an object`);
+    if (typeof field.id !== 'string' || field.id.length === 0) {
+      throw createGateError(GATE_ERROR_CODES.invalidRequest, `${path}[${index}].id is required`);
+    }
+    if (!GATE_FIELD_KIND_SET.has(field.kind)) {
+      throw createGateError(GATE_ERROR_CODES.unsupportedField, `${path}[${index}].kind is unsupported`);
+    }
     if ((field.kind === 'exclusive_choice' || field.kind === 'multi_choice') && (!Array.isArray(field.options) || field.options.length === 0)) {
-      throw new Error(`${path}[${index}].options must be non-empty`);
+      throw createGateError(GATE_ERROR_CODES.invalidRequest, `${path}[${index}].options must be non-empty`);
     }
   }
 }
 
+function noAnswer(status) {
+  return { result: null, status };
+}
+
+function resolvedValue(values) {
+  if (isObject(values) && values.result === null && NO_ANSWER_STATUSES.has(values.status)) {
+    return { resolution: values.status, value: noAnswer(values.status) };
+  }
+  if (values === null) return { resolution: 'dismissed', value: noAnswer('dismissed') };
+  return { resolution: 'answered', value: values };
+}
+
 export function normalizeGateRequest(input, { source = { surface: 'aos-cli' } } = {}) {
-  if (!isObject(input)) throw new Error('gate request must be an object');
+  if (!isObject(input)) throw createGateError(GATE_ERROR_CODES.invalidRequest, 'gate request must be an object');
   const prompt = isObject(input.prompt) ? input.prompt : null;
   if (!prompt || typeof prompt.title !== 'string' || prompt.title.length === 0) {
-    throw new Error('prompt.title is required');
+    throw createGateError(GATE_ERROR_CODES.invalidRequest, 'prompt.title is required');
   }
 
-  const ui = isObject(input.ui) ? { ...input.ui } : {};
+  const ui = stripUiFields(input.ui);
   const variant = ui.variant ?? (Array.isArray(input.fields) ? null : 'freetext');
-  if (variant !== null && variant !== undefined && !PRESETS.has(variant)) throw new Error(`unsupported ui.variant: ${variant}`);
+  if (variant !== null && variant !== undefined && !GATE_PRESET_SET.has(variant)) {
+    throw createGateError(GATE_ERROR_CODES.invalidRequest, `unsupported ui.variant: ${variant}`);
+  }
 
   const fields = Array.isArray(input.fields)
     ? input.fields
-    : Array.isArray(ui.fields)
-      ? ui.fields
-      : presetFields(variant || 'freetext', input);
+    : expandGatePresetFields(variant || 'freetext', { ...input, ui });
   validateFields(fields);
 
   return {
     ...input,
-    schema_version: 'aos.gate.request.v1',
+    schema_version: GATE_SCHEMA_VERSION,
     id: typeof input.id === 'string' && input.id.length > 0 ? input.id : `gate-${randomUUID()}`,
     prompt: {
       title: prompt.title,
@@ -95,9 +76,8 @@ export function normalizeGateRequest(input, { source = { surface: 'aos-cli' } } 
     ui: {
       ...ui,
       variant,
-      fields,
     },
-    timeout_ms: clampTimeout(input.timeout_ms),
+    timeout_ms: clampGateTimeout(input.timeout_ms),
     source: isObject(input.source) ? input.source : source,
   };
 }
@@ -136,10 +116,11 @@ export function createGateService({
 
   const callbacks = {
     onResolve(id, values) {
-      settle(id, values === null ? 'dismiss' : 'user', values);
+      const result = resolvedValue(values);
+      settle(id, result.resolution, result.value);
     },
     onReject(id, reason) {
-      settle(id, 'error', null, reason instanceof Error ? reason : new Error(String(reason || 'gate rejected')));
+      settle(id, 'error', null, ensureGateError(reason));
     },
   };
 
@@ -147,7 +128,9 @@ export function createGateService({
     const request = normalizeGateRequest(gateRequest);
     const selectedReceptor = receptor || (receptorFactory ? receptorFactory(callbacks) : new LocalCanvasReceptor(callbacks));
     for (const field of request.fields) {
-      if (!selectedReceptor.supports(field.kind)) throw new Error(`no receptor support for field kind: ${field.kind}`);
+      if (!selectedReceptor.supports(field.kind)) {
+        throw createGateError(GATE_ERROR_CODES.unsupportedField, `no receptor support for field kind: ${field.kind}`);
+      }
     }
 
     log('gate.requested', {
@@ -165,7 +148,7 @@ export function createGateService({
         reject,
         startedAt: Date.now(),
         timer: setTimeoutFn(() => {
-          settle(request.id, 'timeout', null);
+          settle(request.id, 'timeout', noAnswer('timeout'));
         }, request.timeout_ms),
       };
       pending.set(request.id, entry);
@@ -180,7 +163,7 @@ export function createGateService({
           log('gate.presented', { gate_id: request.id, receptor: selectedReceptor.constructor.name });
         })
         .catch((error) => {
-          settle(request.id, 'error', null, error);
+          settle(request.id, 'error', null, ensureGateError(error));
         });
     });
   }
@@ -189,10 +172,11 @@ export function createGateService({
     pending,
     ask,
     resolve(id, values) {
-      return settle(id, values === null ? 'dismiss' : 'user', values);
+      const result = resolvedValue(values);
+      return settle(id, result.resolution, result.value);
     },
     reject(id, reason) {
-      return settle(id, 'error', null, reason instanceof Error ? reason : new Error(String(reason || 'gate rejected')));
+      return settle(id, 'error', null, ensureGateError(reason));
     },
   };
 }

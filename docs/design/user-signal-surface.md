@@ -8,14 +8,14 @@
 
 ## Overview
 
-The **Human Input Gate** is the canonical AOS primitive for collecting bounded, structured human decisions during an agent turn. The daemon owns the gate lifecycle — request intake, deadline enforcement, result resolution, and cleanup. A **receptor** interface decouples surface delivery from the gate contract so any author can supply their own collection surface without touching the daemon.
+The **Human Input Gate** is the canonical AOS contract for collecting bounded, structured human decisions during an agent turn. In v1 the lifecycle is owned by the `./aos gate ask` CLI process: it normalizes the request, starts the service, enforces the deadline, resolves the result, and cleans up. Promoting that lifecycle into the long-running daemon remains the intended daemon primitive, but it is deferred rather than missing from v1.
 
 The native receptor in v1 is the **LocalCanvas receptor**: it spawns an interactive canvas on the user's display, mounts a `DecisionGate` panel built from toolkit primitives, and reports the result back. The result reaches the agent through two thin shells:
 
 - `./aos gate ask` — CLI verb, works from dock sessions, scripts, and agent shell-outs
 - `user_signal_surface` — MCP tool on `aos-gateway`, one `execFile` call to the CLI verb
 
-From any agent's perspective the call is: post a structured request, receive a typed value or `null`. How the surface is rendered is a receptor detail the agent never sees.
+From any agent's perspective the call is: post a structured request, receive either a typed answer value or a no-answer envelope. How the surface is rendered is a receptor detail the agent never sees.
 
 ---
 
@@ -33,13 +33,13 @@ Agent runtimes (Claude Code, Codex CLI, etc.) are steered by system instructions
 
 ## Design Principles
 
-1. **Daemon owns time, receptor owns surface.** The daemon holds the deadline and resolves the gate. Receptors only present UI and report back. The clock is never in the receptor.
+1. **The gate service owns time, receptor owns surface.** In v1 the gate service runs inside the `./aos gate ask` CLI process. It holds the deadline and resolves the gate. Receptors only present UI and report back. Moving the same service behind the long-running daemon is deferred.
 
-2. **One agent-facing contract, many receptors.** `./aos gate ask` and `user_signal_surface` both shell into the daemon gate service. Adding a new receptor never changes what agents call.
+2. **One agent-facing contract, many receptors.** `./aos gate ask` is canonical. `user_signal_surface` is the MCP adapter surface for that verb and shells into it. Adding a new receptor never changes what agents call.
 
 3. **Receptor shape is open.** Any author can implement a receptor. The native form is a toolkit panel with form primitives. Other valid receptors: a raw HTML canvas, a third-party surface, a remote relay. The shape contract is minimal — `present(request)` → `CollectionHandle`, `dismiss(handle)`, `supports(kind)`.
 
-4. **`null` is a first-class terminal outcome.** Timeout, dismissal, and empty escape-hatch all resolve to `null`. `null` means "no decision — end this agent turn cleanly." It is not an error.
+4. **No-answer is explicit.** Human dismissal resolves to `{ "result": null, "status": "dismissed" }`; human timeout resolves to `{ "result": null, "status": "timeout" }`. These are not MCP errors. Infrastructure failures that prevent presentation, such as no display or receptor failure, are errors with machine-readable codes.
 
 5. **Toolkit grows to support this.** The gate is the first concrete use case that demands a general form primitive layer in toolkit. That work is in scope and described below.
 
@@ -49,11 +49,14 @@ Agent runtimes (Claude Code, Codex CLI, etc.) are steered by system instructions
 
 ```
 Inside AOS authority
-  aos daemon
-  gate lifecycle: create / deadline / resolve / dismiss
-  LocalCanvas receptor
+  ./aos gate ask CLI-owned service in v1
+  gate lifecycle: normalize / create / deadline / resolve / dismiss
+  LocalCanvas receptor shelling through AOS show primitives
   toolkit form primitives and DecisionGate panel
   ./aos CLI
+
+Deferred AOS authority
+  long-running daemon-owned gate lifecycle primitive
 
 Outside AOS authority
   connected agent runtimes (Claude Code, Codex, etc.)
@@ -61,7 +64,7 @@ Outside AOS authority
   any third-party receptor surface
 ```
 
-Gateway is outside AOS authority. It is a passthrough adapter for MCP clients. It does not hold polling loops, own canvas state, or enforce deadlines.
+Gateway is outside AOS authority. It is a passthrough adapter for MCP clients. It accepts ergonomic MCP shorthand or a full v1 request, normalizes to `aos.gate.request.v1`, writes the request to a tempfile, and shells to `./aos gate ask`. It does not hold polling loops, own canvas state, or enforce deadlines.
 
 ---
 
@@ -72,7 +75,7 @@ Agent (any runtime)
   │  ./aos gate ask <request>         ← shell path
   │  user_signal_surface MCP tool     ← thin shell to ./aos gate ask
   ▼
-Daemon Gate Service
+CLI-owned Gate Service (v1)
   │  assigns gate_id
   │  validates request
   │  selects receptor
@@ -89,7 +92,7 @@ Receptor  (interface — swappable)
   ▼
 User interacts with surface
   ▼
-Daemon resolves gate: typed value or null
+Gate service resolves: typed value or no-answer envelope
   ▼
 Agent receives result and resumes turn
 ```
@@ -109,7 +112,7 @@ interface GateReceptor {
 }
 ```
 
-The daemon calls `receptor.present()`, starts the deadline clock, and waits. On any resolution path — user answer, timeout, dismiss, or receptor error — the daemon calls `receptor.dismiss()` and returns the result to the caller. The receptor never owns the clock.
+The v1 gate service calls `receptor.present()`, starts the deadline clock, and waits. On any terminal user path — answer, timeout, or dismiss — it calls `receptor.dismiss()` and returns the result to the caller. On infrastructure failure it still attempts cleanup, then returns an error with a machine-readable code. The receptor never owns the authoritative clock.
 
 ### MCP Tool as Thin Shell
 
@@ -118,23 +121,24 @@ The daemon calls `receptor.present()`, starts the deadline clock, and waits. On 
 import { execFile } from 'node:child_process';
 
 export async function userSignalSurface(req: UserSignalRequest): Promise<unknown> {
-  const requestJson = JSON.stringify(buildGateRequest(req));
-  return new Promise((resolve) => {
+  const request = normalizeToGateRequestV1(req); // expands presets and top-level fields
+  const requestJson = JSON.stringify(request);
+  return new Promise((resolve, reject) => {
     execFile(
       'aos',
       ['gate', 'ask', '--json', requestJson],
       { timeout: ((req.timeout_seconds ?? 20) + 5) * 1000 },
-      (err, stdout) => {
-        if (err) { resolve(null); return; }
+      (err, stdout, stderr) => {
+        if (err) { reject(parseGateError(err, stderr)); return; }
         const s = stdout.trim();
-        resolve(s === 'null' ? null : JSON.parse(s));
+        resolve(JSON.parse(s));
       }
     );
   });
 }
 ```
 
-No canvas management. No polling loop. No gateway-owned deadline. Twelve lines.
+No canvas management. No polling loop. No gateway-owned deadline. Operational failures stay errors.
 
 ---
 
@@ -151,7 +155,7 @@ Version: `aos.gate.request.v1`
     "body": null              // optional — markdown body text
   },
 
-  // What value the agent expects back. Standard JSON Schema.
+  // Reserved for future response validation. V1 validates field requiredness only.
   "response_schema": {
     "type": "object",
     "required": ["decision"],
@@ -161,29 +165,31 @@ Version: `aos.gate.request.v1`
     }
   },
 
-  // How the receptor should collect it.
-  // Absent = receptor picks defaults for its surface type.
-  "ui": {
-    "variant": "yes_no_with_escape",   // named preset (expands fields below)
+  // Canonical field definitions. Adapters expand presets into top-level fields
+  // before forwarding to the service.
+  "fields": [
+    {
+      "id": "decision",
+      "kind": "exclusive_choice",
+      "style": "buttons",
+      "options": [
+        { "value": "yes",   "label": "Yes" },
+        { "value": "no",    "label": "No" },
+        { "value": "other", "label": "Something else" }
+      ]
+    },
+    {
+      "id": "other_text",
+      "kind": "text",
+      "placeholder": "Something else...",
+      "visible_when": { "field": "decision", "equals": "other" }
+    }
+  ],
 
-    "fields": [
-      {
-        "id": "decision",
-        "kind": "exclusive_choice",
-        "style": "buttons",
-        "options": [
-          { "value": "yes",   "label": "Yes" },
-          { "value": "no",    "label": "No" },
-          { "value": "other", "label": "Something else" }
-        ]
-      },
-      {
-        "id": "other_text",
-        "kind": "text",
-        "placeholder": "Something else...",
-        "visible_when": { "field": "decision", "equals": "other" }
-      }
-    ],
+  // Presentation hints only. ui.fields is accepted by adapters as legacy
+  // input and normalized into top-level fields before service handoff.
+  "ui": {
+    "variant": "yes_no_with_escape",
 
     "timer": {
       "visible": true,
@@ -222,26 +228,30 @@ The escape hatch is a composable pattern, not a special field type. A `text` fie
 
 ## Response Contract
 
-The gate always produces:
+The gate produces one of three outcomes:
 
-1. **User answer** — JSON conforming to `response_schema`.
-2. **`null`** — timeout, dismissal, or empty escape-hatch submission.
+1. **User answer** — the typed JSON value assembled from visible fields.
+2. **No answer** — `{ "result": null, "status": "dismissed" }` when the human dismissed the gate.
+3. **Timeout** — `{ "result": null, "status": "timeout" }` when the presented gate timed out.
 
-`null` is terminal. The agent must handle it explicitly and must not continue the guarded action.
+No-answer envelopes are terminal. The agent must handle them explicitly and must not continue the guarded action. Infrastructure failures that prevent presentation are errors, not `null`.
 
 ```bash
 # CLI stdout — user answered
 {"decision":"yes","other_text":null}
 
-# CLI stdout — timeout or dismiss
-null
+# CLI stdout — timeout
+{"result":null,"status":"timeout"}
+
+# CLI stdout — dismiss
+{"result":null,"status":"dismissed"}
 ```
 
 ---
 
 ## Presets
 
-Presets are named `ui.variant` values that expand to a full `fields` + `response_schema`. They are the ergonomic layer — agents and scripts use preset names; the daemon and toolkit work with the expanded field config.
+Presets are named `ui.variant` values that expand to top-level `fields`. They are the ergonomic layer for CLI and MCP adapters. The expansion function lives in `shared/gate/presets.mjs`; the service and adapters call that shared function rather than owning private preset tables. Browser-loaded toolkit components consume canonical top-level `fields` so they do not depend on a cross-root import from `aos://toolkit`.
 
 | Preset | Description | Return shape |
 |---|---|---|
@@ -251,7 +261,7 @@ Presets are named `ui.variant` values that expand to a full `fields` + `response
 | `multi_choice` | Labeled checkbox set, pick many | `{ decisions: string[] }` |
 | `freetext` | Text input only | `{ text: string }` |
 
-Custom forms omit `ui.variant` and specify `ui.fields` directly.
+Custom forms omit `ui.variant` and specify top-level `fields` directly. Adapters may accept old `ui.fields` input, but must normalize it into top-level `fields` before forwarding.
 
 ---
 
@@ -307,7 +317,7 @@ The form harness is the reusable piece that makes any panel interactive. The gat
 
 ### Gate component (`components/decision-gate/`)
 
-Built on the form harness. A Content unit that accepts a `GateRequest`, mounts inside a `Single` panel layout, and sets `window.__gateResult` on submit or dismiss.
+Built on the form harness. A Content unit that accepts a canonical `GateRequest` with top-level `fields`, mounts inside a `Single` panel layout, and sets `window.__gateResult` on submit, dismiss, or visual timer expiry.
 
 ```
 components/decision-gate/
@@ -315,7 +325,8 @@ components/decision-gate/
                             accepts GateRequest via channel message or URL param
                             mounts: GateHeader, form harness, GateActions, TimerBar
                             on submit: validates, sets window.__gateResult, emits
-                            on dismiss / escape hatch empty: sets window.__gateResult = null
+                            on dismiss: sets {"result":null,"status":"dismissed"}
+                            on timer expiry: sets {"result":null,"status":"timeout"}
   index.html              mountPanel({ title, layout: Single(DecisionGate) })
   styles.css              gate chrome: backdrop, surface elevation, action row spacing
 ```
@@ -340,43 +351,44 @@ Each layer is independently useful. `panel/form.js` and the new controls have va
 
 ## LocalCanvas Receptor
 
-The v1 native receptor. Lives in the daemon package.
+The v1 native receptor. It lives in the daemon package namespace today, but is invoked by the CLI-owned v1 service.
 
 ```
-packages/daemon/src/receptors/
-  local-canvas.ts          LocalCanvasReceptor implements GateReceptor
+packages/daemon/gate/
+  LocalCanvasReceptor.js   LocalCanvasReceptor implements GateReceptor
                              present(): createCanvas(interactive:true) → launch decision-gate component
                              poll:      evalCanvas(id, 'window.__gateResult ...')
                              dismiss(): removeCanvas(id)
   index.ts                 re-exports
 ```
 
-The receptor is entirely local — no network, no relay. The daemon controls the canvas lifecycle through `aos-proxy.ts` calls exactly as other canvas operations do.
+The receptor is entirely local — no network, no relay. It controls the canvas lifecycle by shelling to `./aos show` just like other CLI-owned surface operations.
 
 ### Signal protocol
 
-The canvas reports resolution by setting `window.__gateResult` to a JSON-stringified value (or the string `"null"` for no-response). The receptor polls at 400ms via `evalCanvas`. On detection, it calls back into the gate service, which resolves the request, dismisses the surface, and returns the value to the caller.
+The canvas reports resolution by setting `window.__gateResult` to a JSON-stringified answer value or no-answer envelope. The receptor polls at 400ms via `evalCanvas`. On detection, it calls back into the gate service, which resolves the request, dismisses the surface, and returns the value or envelope to the caller.
 
 This is a receptor-internal detail. The gate service contract is identical regardless of how any receptor communicates back.
 
 ---
 
-## Daemon Gate Service
+## Gate Service
 
 Responsibilities:
 
-- Accept gate requests from CLI (`./aos gate ask`) and any internal caller
+- Accept canonical gate requests from CLI (`./aos gate ask`) and any internal caller
 - Assign a unique `gate_id`
 - Validate the request against `aos.gate.request.v1`
 - Select a receptor (v1: always `LocalCanvasReceptor`)
 - Start the deadline clock
-- Resolve the gate on any terminal event (user answer / timeout / dismiss / receptor error)
-- Call `receptor.dismiss()` on all resolution paths
+- Resolve the gate on terminal user events: answer, timeout, or dismiss
+- Return machine-coded errors for operational failures such as receptor errors
+- Call `receptor.dismiss()` on terminal and error cleanup paths
 - Log gate lifecycle events
 
 ### Timeout enforcement
 
-Timeout is daemon-authoritative. The `TimerBar` in the canvas is cosmetic feedback only. The daemon's deadline fires at `timeout_ms` and resolves to `null` regardless of canvas state.
+Timeout is service-authoritative. The service deadline fires at `timeout_ms` and resolves to `{ "result": null, "status": "timeout" }`. The `TimerBar` in the canvas mirrors the same deadline for feedback and may also report a timeout envelope if it expires first.
 
 ---
 
@@ -398,21 +410,21 @@ Timeout is daemon-authoritative. The `TimerBar` in the canvas is cosmetic feedba
 ./aos gate ask --json '{"prompt":{"title":"Delete files?"},"ui":{"variant":"approve_deny"},"timeout_ms":20000}'
 ```
 
-Stdout is always the response value or the bare string `null`. Callers parse stdout as JSON, treating `null` as the no-response terminal case.
+Stdout is always JSON: either the typed answer value or a no-answer envelope. Operational failures exit non-zero and print a machine-readable code in stderr.
 
 ### MCP Tool: `user_signal_surface`
 
-Registered on `aos-gateway`. One `execFile` to `./aos gate ask --json <request>`. No gateway-owned state. See implementation in Architecture section above.
+Registered on `aos-gateway`. It accepts ergonomic shorthand or a full request, normalizes to canonical `aos.gate.request.v1`, writes a tempfile, and runs one `execFile` to `./aos gate ask --request <file>`. No gateway-owned state. See implementation in Architecture section above.
 
 **Tool definition:**
 
 ```typescript
 {
   name: 'user_signal_surface',
-  description:
-    'Request a bounded structured human decision via a transient AOS surface. ' +
-    'Always returns a typed value or null. null = no response — end the current ' +
-    'agent turn cleanly. Do not continue a guarded action until this returns.',
+	description:
+	  'Request a bounded structured human decision via a transient AOS surface. ' +
+	  'Returns a typed value, or { result: null, status: "dismissed"|"timeout" }. ' +
+	  'Operational failures are tool errors with machine-readable codes.',
   inputSchema: {
     type: 'object' as const,
     properties: {
@@ -425,7 +437,7 @@ Registered on `aos-gateway`. One `execFile` to `./aos gate ask --json <request>`
       request:         { type: 'object',
                          description: 'Full aos.gate.request.v1 object. Overrides all other params.' },
     },
-    required: ['title'],
+    required: [],
   },
 }
 ```
@@ -438,7 +450,7 @@ Registered on `aos-gateway`. One `execFile` to `./aos gate ask --json <request>`
 
 ```bash
 result=$(./aos gate ask --preset approve_deny --title "Delete 47 files in ~/Downloads/old-project?")
-if [ "$result" = "null" ] || [ "$(echo $result | jq -r .decision)" = "deny" ]; then
+if [ "$(echo "$result" | jq -r '.status // empty')" != "" ] || [ "$(echo "$result" | jq -r .decision)" = "deny" ]; then
   echo "aborted"; exit 0
 fi
 ```
@@ -451,7 +463,7 @@ const result = await callTool('user_signal_surface', {
   preset: 'approve_deny',
   timeout_seconds: 20,
 });
-if (result === null || result.decision === 'deny') return { aborted: true };
+if (result?.result === null || result.decision === 'deny') return { aborted: true };
 ```
 
 ### Strategy Selection
@@ -468,7 +480,7 @@ const result = await callTool('user_signal_surface', {
   ],
   timeout_seconds: 30,
 });
-if (result === null) return;
+if (result?.result === null) return;
 ```
 
 ### Custom Form Request
@@ -488,14 +500,14 @@ const result = await callTool('user_signal_surface', {
         notes:   { type: ['string', 'null'] },
       },
     },
+    fields: [
+      { id: 'env',     kind: 'exclusive_choice', style: 'buttons',
+        options: [{ value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production', danger: true }] },
+      { id: 'dry_run', kind: 'boolean', label: 'Dry run only' },
+      { id: 'notes',   kind: 'text', placeholder: 'Optional notes...' },
+    ],
     ui: {
       variant: null,
-      fields: [
-        { id: 'env',     kind: 'exclusive_choice', style: 'buttons',
-          options: [{ value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production', danger: true }] },
-        { id: 'dry_run', kind: 'boolean', label: 'Dry run only' },
-        { id: 'notes',   kind: 'text', placeholder: 'Optional notes...' },
-      ],
       timer: { visible: true, display: 'digital', direction: 'countDown', flash_threshold_ms: 5000 },
     },
     timeout_ms: 45000,
@@ -509,20 +521,20 @@ const result = await callTool('user_signal_surface', {
 
 ```
 REQUESTED
-  │  daemon assigns gate_id, validates, selects receptor
+  │  service assigns gate_id, validates, selects receptor
   ▼
 PRESENTING
   │  receptor.present() called; deadline clock starts
   ├─ user submits value ────────────────────────────────────────► RESOLVED (answer)
-  ├─ user dismisses / escape hatch empty ──────────────────────► RESOLVED (null)
-  ├─ deadline fires ───────────────────────────────────────────► RESOLVED (null)
-  └─ receptor error ───────────────────────────────────────────► RESOLVED (null)
+  ├─ user dismisses ───────────────────────────────────────────► RESOLVED ({result:null,status:"dismissed"})
+  ├─ deadline fires ───────────────────────────────────────────► RESOLVED ({result:null,status:"timeout"})
+  └─ receptor error ───────────────────────────────────────────► ERROR (machine code)
                                                                         │
                                                          receptor.dismiss() called
                                                          result returned to caller
 ```
 
-All paths call `receptor.dismiss()`. `null` is never an error — it is the designed terminal outcome for all non-answer paths.
+Terminal and error cleanup paths call `receptor.dismiss()` when a handle exists. Bare `null` is not a service result in v1; no-answer states are explicit envelopes.
 
 ---
 
@@ -531,10 +543,10 @@ All paths call `receptor.dismiss()`. `null` is never an error — it is the desi
 ```json
 { "event": "gate.requested", "gate_id": "gate-abc123", "session_id": "...", "variant": "approve_deny", "timeout_ms": 20000 }
 { "event": "gate.presented", "gate_id": "gate-abc123", "receptor": "LocalCanvasReceptor" }
-{ "event": "gate.resolved",  "gate_id": "gate-abc123", "resolution": "user", "elapsed_ms": 7430 }
+{ "event": "gate.resolved",  "gate_id": "gate-abc123", "resolution": "answered", "elapsed_ms": 7430 }
 ```
 
-Resolution values: `"user"` | `"timeout"` | `"dismiss"` | `"error"`. Response value is not logged in v1.
+Resolution values: `"answered"` | `"timeout"` | `"dismissed"` | `"error"`. Response value is not logged in v1.
 
 ---
 
@@ -544,43 +556,46 @@ Resolution values: `"user"` | `"timeout"` | `"dismiss"` | `"error"`. Response va
 |---|---|
 | `timeout_ms` < 5000 | Clamped to 5000 |
 | `timeout_ms` > 120000 | Clamped to 120000 |
-| No display available | `LocalCanvasReceptor` fails; daemon resolves `null`; logs `resolution: error` |
-| Canvas window force-closed | Receptor poll throws; daemon resolves `null` |
-| Daemon restarts during active gate | Canvas orphaned; MCP call errors; caller treats as `null` |
-| `single_choice` with empty `choices` | Daemon rejects; returns `null`; logs warning |
-| `response_schema` validation fails on submit | Surface shows inline error; does not dismiss; user corrects or timeout fires |
-| Multiple concurrent gate requests | Each has unique `gate_id` and independent surface; daemon manages concurrently |
+| No display available | `LocalCanvasReceptor` fails with `AOS_GATE_PRESENT_FAILED`; caller receives an operational error |
+| Canvas window force-closed | Receptor poll throws `AOS_GATE_RECEPTOR_ERROR` |
+| CLI subprocess times out in MCP adapter | Adapter raises `AOS_GATE_PROCESS_TIMEOUT` |
+| `single_choice` with empty `choices` | Service rejects with `AOS_GATE_INVALID_REQUEST` |
+| `response_schema` present | Preserved as reserved metadata; not enforced in v1 |
+| Multiple concurrent gate requests | Each has unique `gate_id` and independent surface; service manages concurrently |
 
 ---
 
 ## V1 Scope
 
-### Daemon
-- [ ] Gate service — intake, receptor dispatch, deadline clock, resolution, logging
-- [ ] `GateReceptor` interface
-- [ ] `LocalCanvasReceptor`
-- [ ] `aos.gate.request.v1` schema definition and validation
-- [ ] `./aos gate ask` CLI verb (`--preset`, `--title`, `--timeout`, `--json`, `--request`)
+### CLI-Owned Service
+- [x] Gate service — intake, receptor dispatch, deadline clock, resolution, logging
+- [x] `GateReceptor` interface
+- [x] `LocalCanvasReceptor`
+- [x] `aos.gate.request.v1` schema definition and field validation
+- [x] `./aos gate ask` CLI verb (`--preset`, `--title`, `--timeout`, `--json`, `--request`)
 
 ### Toolkit — Controls (`controls/`)
-- [ ] `text-field.js`
-- [ ] `toggle.js`
-- [ ] `button.js`
-- [ ] `button-group.js`
-- [ ] `checkbox-group.js`
-- [ ] `timer-bar.js` (digital + pie variants, countDown/countUp, flash threshold, colors)
-- [ ] `controls/defaults.css` — extend with form control tokens
+- [x] `text-field.js`
+- [x] `toggle.js`
+- [x] `button.js`
+- [x] `button-group.js`
+- [x] `checkbox-group.js`
+- [x] `timer-bar.js` (digital + pie variants, countDown/countUp, flash threshold, colors)
+- [x] `controls/defaults.css` — extend with form control tokens
 
 ### Toolkit — Panel layer (`panel/`)
-- [ ] `form.js` — field-schema → DOM form, `visible_when` reactivity, `getValues()`, `isValid()`
+- [x] `form.js` — field-schema → DOM form, `visible_when` reactivity, `getValues()`, `isValid()`
 
 ### Toolkit — Component (`components/decision-gate/`)
-- [ ] `index.js` — DecisionGate Content factory
-- [ ] `index.html` — mountPanel entry point
-- [ ] `styles.css` — gate chrome
+- [x] `index.js` — DecisionGate Content factory
+- [x] `index.html` — standalone entry point
+- [x] `styles.css` — gate chrome
 
 ### Gateway
-- [ ] `user_signal_surface` MCP tool — thin shell to `./aos gate ask`
+- [x] `user_signal_surface` MCP tool — thin shell to `./aos gate ask`
+
+### Deferred
+- [ ] Promote CLI-owned gate service into the long-running daemon primitive
 
 ---
 

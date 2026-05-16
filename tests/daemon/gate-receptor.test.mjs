@@ -106,19 +106,20 @@ test('LocalCanvasReceptor rejects when canvas polling fails', async () => {
     },
     clearIntervalFn() {},
     onResolve: (id, values) => events.push(['resolve', id, values]),
-    onReject: (id, reason) => events.push(['reject', id, reason.message]),
+    onReject: (id, reason) => events.push(['reject', id, reason.code, reason.message]),
   });
 
   await receptor.receive(request());
   await new Promise((resolve) => setImmediate(resolve));
 
-  assert.deepEqual(events, [['reject', 'gate-test', 'canvas closed']]);
+  assert.deepEqual(events, [['reject', 'gate-test', 'AOS_GATE_RECEPTOR_ERROR', 'canvas closed']]);
 });
 
 test('parseGateResult handles canvas string protocol', () => {
   assert.equal(parseGateResult(undefined), undefined);
   assert.equal(parseGateResult('undefined'), undefined);
   assert.equal(parseGateResult('null'), null);
+  assert.deepEqual(parseGateResult('{"result":null,"status":"dismissed"}'), { result: null, status: 'dismissed' });
   assert.deepEqual(parseGateResult('{"decision":"yes"}'), { decision: 'yes' });
   assert.deepEqual(parseGateResult(JSON.stringify(JSON.stringify({ decision: 'yes' }))), { decision: 'yes' });
 });

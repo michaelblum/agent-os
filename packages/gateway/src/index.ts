@@ -106,7 +106,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const result = await handler(args ?? {});
     return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
   } catch (err: any) {
-    return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }] };
+    return { isError: true, content: [{ type: 'text', text: JSON.stringify({ error: err.message, code: err.code }) }] };
   }
 });
 

@@ -1,10 +1,4 @@
-const SUPPORTED_FIELD_KINDS = new Set([
-  'boolean',
-  'exclusive_choice',
-  'multi_choice',
-  'text',
-  'number',
-]);
+import { GATE_FIELD_KIND_SET } from '../../../shared/gate/presets.mjs';
 
 export class GateReceptor {
   constructor({ onResolve = null, onReject = null } = {}) {
@@ -24,7 +18,7 @@ export class GateReceptor {
   }
 
   supports(kind) {
-    return SUPPORTED_FIELD_KINDS.has(kind);
+    return GATE_FIELD_KIND_SET.has(kind);
   }
 
   resolve(id, values) {
@@ -38,4 +32,4 @@ export class GateReceptor {
   }
 }
 
-export { SUPPORTED_FIELD_KINDS };
+export { GATE_FIELD_KIND_SET as SUPPORTED_FIELD_KINDS };

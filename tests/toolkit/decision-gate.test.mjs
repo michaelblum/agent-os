@@ -1,16 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDecisionGate } from '../../packages/toolkit/components/decision-gate/index.js';
+import { expandGatePresetFields } from '../../shared/gate/presets.mjs';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
 
 function baseRequest(overrides = {}) {
-  return {
+  const request = {
     schema_version: 'aos.gate.request.v1',
     prompt: { title: 'Continue?', body: null },
     ui: { variant: 'freetext' },
     timeout_ms: 20000,
     ...overrides,
   };
+  if (!Array.isArray(request.fields)) {
+    request.fields = expandGatePresetFields(request.ui?.variant || 'freetext', request);
+  }
+  return request;
 }
 
 function mount(request) {
@@ -54,7 +59,7 @@ test('body omitted when null', () => {
   assert.equal(container.querySelector('.aos-gate-body'), null);
 });
 
-test('preset expansion: yes_no_with_escape renders three options and hides text initially', () => {
+test('canonical yes_no_with_escape fields render three options and hide text initially', () => {
   const { container } = mount(baseRequest({ ui: { variant: 'yes_no_with_escape' } }));
 
   assert.equal(container.querySelectorAll('.aos-segmented button').length, 3);
@@ -93,20 +98,20 @@ test('Enter on a text field submits', () => {
   assert.equal(document.defaultView.__gateResult, JSON.stringify({ text: 'keyboard' }));
 });
 
-test('dismiss resolves null', () => {
+test('dismiss resolves no-answer envelope', () => {
   const { container, document } = mount(baseRequest());
 
   container.querySelector('.aos-gate-dismiss').dispatchEvent(new FakeEvent('click', { bubbles: true }));
 
-  assert.equal(document.defaultView.__gateResult, JSON.stringify(null));
+  assert.equal(document.defaultView.__gateResult, JSON.stringify({ result: null, status: 'dismissed' }));
 });
 
-test('Escape resolves null', () => {
+test('Escape resolves no-answer envelope', () => {
   const { document } = mount(baseRequest());
 
   document.dispatchEvent(new FakeEvent('keydown', { key: 'Escape' }));
 
-  assert.equal(document.defaultView.__gateResult, JSON.stringify(null));
+  assert.equal(document.defaultView.__gateResult, JSON.stringify({ result: null, status: 'dismissed' }));
 });
 
 test('Tab cycles through fields and action buttons', () => {
@@ -145,7 +150,7 @@ test('invalid submit does not resolve', () => {
   assert.equal(document.defaultView.__gateResult, undefined);
 });
 
-test('timer expiry resolves null', () => {
+test('timer expiry resolves timeout envelope', () => {
   const harness = timerHarness();
   const container = harness.document.createElement('section');
   harness.document.body.appendChild(container);
@@ -158,7 +163,7 @@ test('timer expiry resolves null', () => {
 
   harness.tick(60);
 
-  assert.equal(harness.document.defaultView.__gateResult, JSON.stringify(null));
+  assert.equal(harness.document.defaultView.__gateResult, JSON.stringify({ result: null, status: 'timeout' }));
 });
 
 test('approve/deny preset renders deny as danger', () => {

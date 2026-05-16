@@ -3,102 +3,7 @@ import { createForm } from '../../panel/form.js';
 
 const DEFAULT_TIMEOUT_MS = 20000;
 
-function optionsFromRequest(request) {
-  return Array.isArray(request?.ui?.options)
-    ? request.ui.options
-    : Array.isArray(request?.options)
-      ? request.options
-      : [];
-}
-
-const presetBuilders = {
-  yes_no_with_escape(request) {
-    return {
-      submitLabel: 'Submit',
-      fields: [
-        {
-          id: 'decision',
-          kind: 'exclusive_choice',
-          style: 'buttons',
-          options: [
-            { value: 'yes', label: 'Yes' },
-            { value: 'no', label: 'No' },
-            { value: 'other', label: 'Something else' },
-          ],
-        },
-        {
-          id: 'other_text',
-          kind: 'text',
-          placeholder: 'Something else...',
-          visible_when: { field: 'decision', equals: 'other' },
-        },
-      ],
-    };
-  },
-
-  approve_deny() {
-    return {
-      submitLabel: 'Submit',
-      fields: [
-        {
-          id: 'decision',
-          kind: 'exclusive_choice',
-          style: 'buttons',
-          options: [
-            { value: 'approve', label: 'Approve' },
-            { value: 'deny', label: 'Deny', danger: true },
-          ],
-        },
-        {
-          id: 'other_text',
-          kind: 'text',
-          placeholder: 'Reason...',
-          visible_when: { field: 'decision', equals: 'deny' },
-        },
-      ],
-    };
-  },
-
-  single_choice(request) {
-    return {
-      submitLabel: 'Select',
-      fields: [
-        {
-          id: 'decision',
-          kind: 'exclusive_choice',
-          style: 'buttons',
-          options: optionsFromRequest(request),
-        },
-      ],
-    };
-  },
-
-  multi_choice(request) {
-    return {
-      submitLabel: 'Confirm',
-      fields: [
-        {
-          id: 'decisions',
-          kind: 'multi_choice',
-          options: optionsFromRequest(request),
-        },
-      ],
-    };
-  },
-
-  freetext() {
-    return {
-      submitLabel: 'Submit',
-      fields: [
-        {
-          id: 'text',
-          kind: 'text',
-          placeholder: 'Your response...',
-        },
-      ],
-    };
-  },
-};
+const FALLBACK_FIELDS = [{ id: 'text', kind: 'text', placeholder: 'Your response...' }];
 
 function decodeBase64Json(value) {
   const decode = typeof atob === 'function'
@@ -119,17 +24,14 @@ function requestFromLocation(win) {
 function normalizeRequest(input) {
   const request = input && typeof input === 'object' ? input : {};
   const ui = request.ui && typeof request.ui === 'object' ? request.ui : {};
-  const explicitFields = Array.isArray(ui.fields) ? ui.fields : null;
-  const presetName = explicitFields ? null : ui.variant;
-  const preset = presetBuilders[presetName]?.(request)
-    || (explicitFields ? { fields: explicitFields, submitLabel: ui.submit_label || ui.submitLabel || 'Submit' } : presetBuilders.freetext(request));
+  const fields = Array.isArray(request.fields) && request.fields.length ? request.fields : FALLBACK_FIELDS;
 
   return {
     request,
     title: String(request.prompt?.title || 'Decision required'),
     body: request.prompt?.body ?? null,
-    fields: explicitFields || preset.fields,
-    submitLabel: ui.submit_label || ui.submitLabel || preset.submitLabel || 'Submit',
+    fields,
+    submitLabel: ui.submit_label || ui.submitLabel || 'Submit',
     timer: ui.timer || {},
     timeoutMs: Number.isFinite(Number(request.timeout_ms)) ? Number(request.timeout_ms) : DEFAULT_TIMEOUT_MS,
   };
@@ -234,6 +136,8 @@ export function createDecisionGate(container, options = {}) {
     doc.dispatchEvent?.(new win.CustomEvent('gate:resolved', { detail: { value } }));
   };
 
+  const resolveNoAnswer = (status) => resolve({ result: null, status });
+
   const submitGate = () => {
     if (resolved) return;
     if (!form.isValid()) {
@@ -247,7 +151,7 @@ export function createDecisionGate(container, options = {}) {
     if (resolved) return;
     if (event.key === 'Escape') {
       event.preventDefault?.();
-      resolve(null);
+      resolveNoAnswer('dismissed');
       return;
     }
     if (event.key === 'Tab') {
@@ -271,7 +175,7 @@ export function createDecisionGate(container, options = {}) {
 
   form = createForm(formRegion, config.fields, { document: doc });
   submit.addEventListener('click', submitGate);
-  dismiss.addEventListener('click', () => resolve(null));
+  dismiss.addEventListener('click', () => resolveNoAnswer('dismissed'));
   doc.addEventListener?.('keydown', keydown);
   form.focus();
 
@@ -283,7 +187,7 @@ export function createDecisionGate(container, options = {}) {
       direction: config.timer.direction,
       flashThresholdMs: config.timer.flash_threshold_ms ?? config.timer.flashThresholdMs,
       flashIntervalMs: config.timer.flash_interval_ms ?? config.timer.flashIntervalMs,
-      onExpire: () => resolve(null),
+      onExpire: () => resolveNoAnswer('timeout'),
     });
     timerRegion.appendChild(timer.el);
     timer.start();

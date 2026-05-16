@@ -23,13 +23,13 @@
         request = JSON.parse(decodeURIComponent(params.get('request')));
       }
     } catch (e) {
-      window.__gateResult = JSON.stringify(null);
+      window.__gateResult = JSON.stringify({ result: null, status: 'dismissed' });
     }
 
     if (request) {
       createDecisionGate(document.getElementById('gate-root'), { request });
     } else if (window.__gateResult === undefined) {
-      window.__gateResult = JSON.stringify(null);
+      window.__gateResult = JSON.stringify({ result: null, status: 'dismissed' });
     }
   </script>
 </body>

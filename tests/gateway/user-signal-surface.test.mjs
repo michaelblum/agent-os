@@ -13,40 +13,64 @@ function execMock(callback) {
   return fn;
 }
 
-test('user_signal_surface resolves parsed stdout from aos gate ask', async () => {
+test('user_signal_surface normalizes shorthand and resolves parsed stdout from aos gate ask', async () => {
   const execFile = execMock(({ command, args, options, done }) => {
     assert.equal(command, './aos');
     assert.deepEqual(args.slice(0, 3), ['gate', 'ask', '--request']);
     assert.equal(options.cwd.endsWith('/agent-os'), true);
     const request = JSON.parse(readFileSync(args[3], 'utf8'));
     assert.equal(request.schema_version, 'aos.gate.request.v1');
-    assert.deepEqual(request.prompt, { title: 'Proceed?' });
-    assert.deepEqual(request.fields, [{ id: 'decision', kind: 'exclusive_choice' }]);
+    assert.deepEqual(request.prompt, { title: 'Proceed?', body: 'Check this.' });
+    assert.equal(request.fields.length, 2);
+    assert.equal(request.fields[0].id, 'decision');
+    assert.equal('fields' in request.ui, false);
     assert.equal(request.source.surface, 'aos-gateway-mcp');
     done(null, '{"decision":"approve"}\n', '');
   });
 
   const result = await userSignalSurface({
-    prompt: { title: 'Proceed?' },
-    fields: [{ id: 'decision', kind: 'exclusive_choice' }],
-    timeout_ms: 1234,
+    title: 'Proceed?',
+    message: 'Check this.',
+    preset: 'approve_deny',
+    timeout_seconds: 3,
   }, { execFile });
 
   assert.deepEqual(result, { decision: 'approve' });
+  assert.equal(execFile.calls[0].options.timeout, 4000);
+});
+
+test('user_signal_surface normalizes full request ui.fields to top-level fields', async () => {
+  const execFile = execMock(({ args, done }) => {
+    const request = JSON.parse(readFileSync(args[3], 'utf8'));
+    assert.deepEqual(request.fields, [{ id: 'confirmed', kind: 'boolean' }]);
+    assert.equal('fields' in request.ui, false);
+    done(null, '{"confirmed":true}\n', '');
+  });
+
+  const result = await userSignalSurface({
+    request: {
+      prompt: { title: 'Proceed?' },
+      ui: { variant: null, fields: [{ id: 'confirmed', kind: 'boolean' }] },
+      timeout_ms: 1234,
+    },
+  }, { execFile });
+
+  assert.deepEqual(result, { confirmed: true });
   assert.equal(execFile.calls[0].options.timeout, 2234);
 });
 
-test('user_signal_surface rejects on non-zero aos gate ask exit', async () => {
+test('user_signal_surface rejects with machine code on non-zero aos gate ask exit', async () => {
   const execFile = execMock(({ done }) => {
     const error = new Error('Command failed');
     error.code = 1;
-    done(error, '', 'human rejected');
+    done(error, '', 'aos gate ask: AOS_GATE_PRESENT_FAILED: no display');
   });
 
-  await assert.rejects(
-    () => userSignalSurface({ prompt: { title: 'Proceed?' } }, { execFile }),
-    /human rejected/,
-  );
+  await assert.rejects(() => userSignalSurface({ prompt: { title: 'Proceed?' } }, { execFile }), (error) => {
+    assert.equal(error.code, 'AOS_GATE_PRESENT_FAILED');
+    assert.equal(error.message, 'no display');
+    return true;
+  });
 });
 
 test('user_signal_surface rejects on subprocess timeout', async () => {
@@ -59,7 +83,7 @@ test('user_signal_surface rejects on subprocess timeout', async () => {
 
   await assert.rejects(
     () => userSignalSurface({ prompt: { title: 'Proceed?' }, timeout_ms: 5 }, { execFile }),
-    /Command timed out/,
+    (error) => error.code === 'AOS_GATE_PROCESS_TIMEOUT' && /Command timed out/.test(error.message),
   );
 });
 
@@ -70,6 +94,6 @@ test('user_signal_surface rejects malformed stdout', async () => {
 
   await assert.rejects(
     () => userSignalSurface({ prompt: { title: 'Proceed?' } }, { execFile }),
-    /malformed JSON/,
+    (error) => error.code === 'AOS_GATE_MALFORMED_STDOUT' && /malformed JSON/.test(error.message),
   );
 });

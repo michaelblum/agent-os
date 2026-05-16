@@ -60,7 +60,7 @@ test('normalizeGateRequest assigns id, source, fields, and clamps timeout', () =
   assert.equal(normalized.timeout_ms, 5000);
   assert.equal(normalized.source.surface, 'aos-cli');
   assert.equal(normalized.fields.length, 2);
-  assert.equal(normalized.ui.fields, normalized.fields);
+  assert.equal('fields' in normalized.ui, false);
 });
 
 test('ask resolves with user values and cleans up pending gate', async () => {
@@ -84,7 +84,7 @@ test('ask resolves with user values and cleans up pending gate', async () => {
   assert.equal(harness.timers[0].cleared, true);
 });
 
-test('ask resolves null on daemon-authoritative timeout', async () => {
+test('ask resolves no-answer envelope on service timeout', async () => {
   const harness = timeoutHarness();
   let receptor;
   const service = createGateService({
@@ -100,9 +100,29 @@ test('ask resolves null on daemon-authoritative timeout', async () => {
   assert.equal(harness.timers[0].ms, 9000);
   harness.timers[0].callback();
 
-  assert.equal(await promise, null);
+  assert.deepEqual(await promise, { result: null, status: 'timeout' });
   assert.equal(service.pending.size, 0);
   assert.deepEqual(receptor.dismissed, ['gate-timeout']);
+});
+
+test('ask resolves no-answer envelope on human dismissal', async () => {
+  const harness = timeoutHarness();
+  let receptor;
+  const service = createGateService({
+    receptorFactory(callbacks) {
+      receptor = new ManualReceptor(callbacks);
+      return receptor;
+    },
+    ...harness,
+  });
+
+  const promise = service.ask(request('gate-dismiss'));
+  await new Promise((resolve) => setImmediate(resolve));
+  receptor.resolve('gate-dismiss', null);
+
+  assert.deepEqual(await promise, { result: null, status: 'dismissed' });
+  assert.equal(service.pending.size, 0);
+  assert.deepEqual(receptor.dismissed, ['gate-dismiss']);
 });
 
 test('ask handles concurrent gates independently', async () => {
@@ -146,7 +166,10 @@ test('ask rejects when receptor reports an error', async () => {
   await new Promise((resolve) => setImmediate(resolve));
   receptor.reject('gate-error', new Error('surface failed'));
 
-  await assert.rejects(() => promise, /surface failed/);
+  await assert.rejects(
+    () => promise,
+    (error) => error.code === 'AOS_GATE_RECEPTOR_ERROR' && /surface failed/.test(error.message),
+  );
   assert.equal(service.pending.size, 0);
   assert.deepEqual(receptor.dismissed, ['gate-error']);
 });

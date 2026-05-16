@@ -9,7 +9,7 @@ function usage() {
   aos gate ask --request gate-request.json
   aos gate ask --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"yes_no_with_escape"}}'
 
-Writes a JSON value or null to stdout.`;
+	Writes an answered JSON value, or a no-answer envelope with status "dismissed" or "timeout", to stdout.`;
 }
 
 function readStdin() {
@@ -96,7 +96,8 @@ export async function runGateAsk(argv = process.argv.slice(2), {
     stdout.write(`${JSON.stringify(result)}\n`);
     return 0;
   } catch (error) {
-    stderr.write(`aos gate ask: ${error.message}\n`);
+    const code = error.code ? `${error.code}: ` : '';
+    stderr.write(`aos gate ask: ${code}${error.message}\n`);
     return 1;
   }
 }
