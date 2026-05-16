@@ -6,10 +6,15 @@
   `docs/design/work-cards/sigil-radial-menu-data-driven-3d-config-v0.md`
 - Review target branch:
   `gdi/sigil-radial-menu-data-driven-3d-config-v0`
-- Reviewed head:
-  `9b9850ac6166cb87cddcbffc273953f03b5eff8a`
-- Review outcome: not accepted yet. Deterministic tests pass, but the
-  implementation misses core data-source and item-ownership requirements.
+- Reviewed heads:
+  - `9b9850ac6166cb87cddcbffc273953f03b5eff8a`
+  - `bc55b76255bc2a6f3f92ac9cf40a230ef80a93dc`
+- Review outcome: not accepted yet. At `bc55b76255bc2a6f3f92ac9cf40a230ef80a93dc`,
+  deterministic tests and the real-input radial smoke pass, and the Sigil
+  baseline geometry/source-of-truth drift is fixed. Two contract gaps remain:
+  concrete wiki-brain effect implementation still lives in the renderer
+  orchestrator, and toolkit model/part/effect defaults are declared but not
+  cascaded into resolved items.
 
 ## Fresh Context Contract
 
@@ -88,6 +93,66 @@ At reviewed head this reports JSON/state mismatches for `itemRadius`,
 `reentryRadius`, and `spreadDegrees`.
 
 ## Findings To Fix
+
+The two "Remaining Findings" entries are the current correction target for
+`bc55b76255bc2a6f3f92ac9cf40a230ef80a93dc`. The numbered findings below them
+are preserved as first-review context and regression guards; do not redo already
+fixed work unless rediscovery shows it has drifted again.
+
+### Remaining Findings At `bc55b76255bc2a6f3f92ac9cf40a230ef80a93dc`
+
+#### A. Wiki-Brain Effect Implementation Is Still Renderer-Owned
+
+`apps/sigil/renderer/radial-menu/items/wiki-brain.js` now owns the wiki item
+effect config, host creation, and sync hooks, but the concrete nested neural
+tree and fractal brain effect implementation is still in
+`apps/sigil/renderer/live-modules/radial-gesture-visuals.js`. The renderer still
+defines the nested/fractal special routines and shader/material machinery,
+including `createNestedNeuralTreeEffect()`, `updateNestedNeuralTreeEffect()`,
+`createFractalBrainTreeEffect()`, `updateFractalBrainTreeEffect()`, fractal
+pulse path spawning, and the wiki-specific `updateRadialEffect()` state machine.
+
+Required correction:
+
+- Move the concrete nested neural tree and fractal brain tree creation/update
+  logic out of `radial-gesture-visuals.js` and into the wiki item module or a
+  wiki-owned sibling helper under `apps/sigil/renderer/radial-menu/`.
+- Add an item-module `updateEffect` hook, or equivalent, so
+  `radial-gesture-visuals.js` only dispatches generic renderer state into item
+  module hooks. The renderer may keep generic placement, hover transform,
+  glTF loading, material helpers, and activation orchestration; it should not
+  contain wiki-brain-specific nested tree, fractal pulse, or shell/fiber/fractal
+  update code.
+- Add a focused regression check that fails if
+  `radial-gesture-visuals.js` reintroduces the wiki-specific effect
+  implementation names, plus a direct test that exercises the wiki item
+  module's effect creation/update hook.
+
+#### B. Toolkit Model/Part/Effect Defaults Do Not Cascade Into Resolved Items
+
+`packages/toolkit/runtime/radial-menu/default-3d.json` declares reusable
+`defaults.three.model`, `defaults.three.part`, and `defaults.three.effect`
+defaults. However, `packages/toolkit/runtime/radial-menu-config.js` only applies
+`defaults.item` and `defaults.three.item` in `normalizeItem()`. A resolved item
+with `geometry: { "type": "gltf" }` does not receive the default
+`radiusScale`/`normalizedRadius`, and an item effect does not receive
+`enabled: true`.
+
+Required correction:
+
+- Extend the toolkit resolver so model, part, and effect defaults cascade into
+  the resolved item shape without importing Three.js, DOM, Sigil modules, or
+  app behavior.
+- Preserve array replacement semantics unless a field is explicitly keyed.
+  Existing `geometry.parts` entries may receive part defaults per entry, and
+  existing `effects` entries may receive effect defaults per entry.
+- Add resolver tests that prove default model radius, part visibility, and
+  effect enabled values survive into resolved items while item overrides still
+  win.
+- If Sigil keeps a browser-local resolver facade in
+  `apps/sigil/renderer/radial-menu-defaults.js`, update it or add an equivalence
+  test so it cannot drift from the toolkit resolver contract for the Sigil
+  menu.
 
 ### 1. JSON Is Not Yet The Source Of Truth For Sigil's Actual Geometry
 
@@ -257,6 +322,32 @@ If `./aos ready` passes, rerun the live radial smoke:
 ```bash
 AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh
 ```
+
+## Foreman Review Evidence At `bc55b76255bc2a6f3f92ac9cf40a230ef80a93dc`
+
+Passed locally on 2026-05-16:
+
+```bash
+node --check apps/sigil/renderer/radial-menu-defaults.js
+node --check apps/sigil/renderer/live-modules/radial-gesture-menu.js
+node --check apps/sigil/renderer/live-modules/radial-gesture-visuals.js
+node --check packages/toolkit/runtime/radial-menu-config.js
+git diff --check ae66ccffd96c1c853454471f3a79f18b50abac9f..bc55b76255bc2a6f3f92ac9cf40a230ef80a93dc
+node --test tests/toolkit/runtime-radial-menu-config.test.mjs
+node --test tests/renderer/radial-gesture-menu.test.mjs
+node --test tests/renderer/radial-gesture-visuals.test.mjs
+node --test tests/renderer/radial-menu-target-surface.test.mjs
+node --test tests/renderer/radial-object-control.test.mjs
+node --test tests/renderer/radial-item-editor.test.mjs
+node --test tests/schemas/*.test.mjs
+bash tests/help-contract.sh
+./aos ready
+AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh
+```
+
+The live smoke passed with `openedDestinationSurface=sigil-wiki-workbench`,
+`radialSurfaceId=sigil-radial-menu-avatar-main`, and semantic target ids
+`agent-terminal`, `annotation-mode`, `context-menu`, and `wiki-graph`.
 
 If readiness is blocked, report the exact blocker and do not claim live visual
 acceptance.
