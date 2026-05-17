@@ -21,6 +21,15 @@ such as `capture.png`, `capture.json`, `display-geometry.json`,
 `canvas-list.json`, and `inspector-state.json`. Image data must stay external;
 JSON payloads must not embed image binary or base64 strings.
 
+## Shared Session Boundary
+
+The artifact includes a `session` object derived from the display-first
+`aos_annotation_session` boundary. It records the entry source, active root,
+committed scope stack, preview scope stack, hover candidate as preview evidence
+only, live anchors with optional `comment_text`, projection status, stale or
+blocker reasons, and `snapshot_count`. The session object is point-in-time
+evidence; it is not a persistent live annotation database.
+
 ## Annotation State
 
 The artifact includes `annotation_mode`, `empty_state`, selected edge/frame

@@ -308,7 +308,7 @@ export function surfaceInspectorAnnotationStateToSession(state = {}, options = {
     preview_scope_stack: hover ? [...committed, hover] : committed,
     hover_candidate: hover,
     anchors,
-    snapshot_count: Number.isFinite(Number(state.snapshot_version)) ? Number(state.snapshot_version) : 0,
+    snapshot_count: Number.isFinite(Number(state.snapshot_count)) ? Number(state.snapshot_count) : 0,
     updated_at: options.updated_at || Date.now(),
   })
 }

@@ -1,3 +1,5 @@
+import { surfaceInspectorAnnotationStateToSession } from './annotation-overlay-renderer.js'
+
 export const SURFACE_INSPECTOR_ANNOTATION_SCHEMA = 'surface_inspector_annotation_state'
 export const SURFACE_INSPECTOR_ANNOTATION_VERSION = '0.1.0'
 export const SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_SCHEMA = 'surface_inspector_annotation_snapshot'
@@ -513,6 +515,8 @@ export function createSurfaceInspectorAnnotationState(input = {}) {
     editor: input.editor ? clone(input.editor) : null,
     projection_refresh: normalizeProjectionRefreshState(input.projection_refresh),
     snapshot_version: Number.isFinite(Number(input.snapshot_version)) ? Number(input.snapshot_version) : 0,
+    snapshot_count: Number.isFinite(Number(input.snapshot_count)) ? Number(input.snapshot_count) : 0,
+    last_snapshot_evidence: input.last_snapshot_evidence ? clone(input.last_snapshot_evidence) : null,
   }
   reconcileActiveFrame(state)
   return state
@@ -725,6 +729,18 @@ export function setSurfaceInspectorAnnotationMode(state, active, options = {}) {
 export function hasSurfaceInspectorAnnotations(state) {
   const normalized = createSurfaceInspectorAnnotationState(state)
   return activePins(normalized).length > 0 || activeComments(normalized).length > 0
+}
+
+export function recordSurfaceInspectorAnnotationSnapshotSuccess(state, options = {}) {
+  const next = createSurfaceInspectorAnnotationState(state)
+  next.snapshot_count += 1
+  next.last_snapshot_evidence = {
+    trigger: text(options.trigger, 'manual'),
+    bundle_path: text(options.bundle_path),
+    bundle_json_path: text(options.bundle_json_path),
+    captured_at: isoNow(options.captured_at || options.at || Date.now()),
+  }
+  return next
 }
 
 export function pinSurfaceInspectorFrame(state, node = {}, options = {}) {
@@ -1212,6 +1228,8 @@ export function buildSurfaceInspectorSnapshotPayload(state) {
     last_projection_blocker: clone(normalized.last_projection_blocker),
     projection_refresh: clone(normalized.projection_refresh),
     snapshot_version: normalized.snapshot_version,
+    snapshot_count: normalized.snapshot_count,
+    last_snapshot_evidence: clone(normalized.last_snapshot_evidence || null),
   }
 }
 
@@ -1312,6 +1330,61 @@ function snapshotComment(comment = {}, pinsById = new Map()) {
   }
 }
 
+function snapshotSessionSubject(subject = null) {
+  if (!subject) return null
+  return {
+    address: text(subject.address),
+    adapter_id: text(subject.adapter_id),
+    root: clone(subject.root || null),
+    subject: clone(subject.subject || null),
+    role: text(subject.role),
+    label: text(subject.label),
+    value: subject.value ?? '',
+    text_excerpt: text(subject.text_excerpt),
+    source_metadata: clone(subject.source_metadata || {}),
+    fallback_evidence: clone(subject.fallback_evidence || {}),
+    projection: subject.projection ? snapshotProjectionProof(subject.projection) : null,
+    status: text(subject.status, 'live'),
+  }
+}
+
+function snapshotSessionAnchor(anchor = {}) {
+  return {
+    id: text(anchor.id),
+    address: text(anchor.address),
+    subject: snapshotSessionSubject(anchor.subject),
+    scope_path: Array.isArray(anchor.scope_path) ? [...anchor.scope_path] : [],
+    comment_text: text(anchor.comment_text),
+    projection: anchor.projection ? snapshotProjectionProof(anchor.projection) : null,
+    actor: clone(anchor.actor || {}),
+    created_at: text(anchor.created_at),
+    updated_at: text(anchor.updated_at),
+    status: text(anchor.status, 'live'),
+  }
+}
+
+function snapshotSessionBoundary(session = {}) {
+  return {
+    schema: session.schema,
+    version: session.version,
+    active: Boolean(session.active),
+    entry_source: text(session.entry_source, 'surface_inspector'),
+    root: snapshotSessionSubject(session.root),
+    committed_scope_stack: Array.isArray(session.committed_scope_stack)
+      ? session.committed_scope_stack.map(snapshotSessionSubject).filter(Boolean)
+      : [],
+    preview_scope_stack: Array.isArray(session.preview_scope_stack)
+      ? session.preview_scope_stack.map(snapshotSessionSubject).filter(Boolean)
+      : [],
+    hover_candidate: snapshotSessionSubject(session.hover_candidate),
+    anchors: Array.isArray(session.anchors)
+      ? session.anchors.map(snapshotSessionAnchor)
+      : [],
+    snapshot_count: Number.isFinite(Number(session.snapshot_count)) ? Number(session.snapshot_count) : 0,
+    updated_at: text(session.updated_at),
+  }
+}
+
 function isSuspiciousImageDataPath(path = []) {
   return path.some((part) => /^(assets|base64|image_data|binary)$/i.test(String(part)))
 }
@@ -1330,6 +1403,11 @@ function noEmbeddedImageData(value, path = []) {
 
 export function buildSurfaceInspectorAnnotationSnapshotArtifact(state, options = {}) {
   const normalized = createSurfaceInspectorAnnotationState(state)
+  const capturedAt = isoNow(options.captured_at || Date.now())
+  const session = surfaceInspectorAnnotationStateToSession(normalized, {
+    entry_source: options.entry_source || 'surface_inspector',
+    updated_at: capturedAt,
+  })
   const pins = normalized.pins.map(snapshotPin)
   const pinsById = new Map(normalized.pins.map((pin) => [pin.id, pin]))
   const activeEdge = computeSurfaceInspectorActiveEdge(normalized)
@@ -1337,12 +1415,13 @@ export function buildSurfaceInspectorAnnotationSnapshotArtifact(state, options =
     schema: SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_SCHEMA,
     version: SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_VERSION,
     capture: {
-      captured_at: isoNow(options.captured_at || Date.now()),
+      captured_at: capturedAt,
       trigger: text(options.trigger, 'manual'),
       source_canvas_id: text(options.source_canvas_id || options.canvas_id || 'surface-inspector'),
       surface_inspector_frame: clone(options.surface_inspector_frame || null),
       assets: clone(options.assets || {}),
     },
+    session: snapshotSessionBoundary(session),
     active_context: activeAnnotationRootContext(normalized),
     selection: {
       active_edge_id: normalized.active_edge_id,
@@ -1381,6 +1460,7 @@ export function buildSurfaceInspectorAnnotationSnapshotArtifact(state, options =
       schema: normalized.schema,
       version: normalized.version,
       snapshot_version: normalized.snapshot_version,
+      snapshot_count: normalized.snapshot_count,
     },
   }
   if (!noEmbeddedImageData(artifact)) {

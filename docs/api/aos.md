@@ -776,8 +776,12 @@ under the `see.canvas_inspector_bundle.*` namespace, including the export
 hotkey and bundle artifact include toggles. The default-on
 `see.canvas_inspector_bundle.include.annotation_snapshot` toggle controls the
 public `annotation-snapshot.json` artifact recorded in
-`bundle.json.files.annotation_snapshot_json`. `aos set <key> <value>` remains
-supported as the shorthand write form.
+`bundle.json.files.annotation_snapshot_json`. The artifact keeps the shared
+display-first annotation session boundary as point-in-time evidence, including
+root/scope stacks, hover preview evidence, anchors/comments, projection
+stale/blocker status, and successful snapshot count; it does not persist live
+annotations for later reuse. `aos set <key> <value>` remains supported as the
+shorthand write form.
 
 Failed CLI invocations now append local JSONL records to
 `~/.config/aos/{mode}/cli-errors.jsonl`, which makes it easier to review

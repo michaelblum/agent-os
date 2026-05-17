@@ -8,6 +8,7 @@
     "schema",
     "version",
     "capture",
+    "session",
     "active_context",
     "selection",
     "annotation_mode",
@@ -27,6 +28,7 @@
     "schema": { "const": "surface_inspector_annotation_snapshot" },
     "version": { "const": "0.1.0" },
     "capture": { "$ref": "#/$defs/Capture" },
+    "session": { "$ref": "#/$defs/AnnotationSession" },
     "active_context": { "$ref": "#/$defs/ActiveContext" },
     "selection": { "$ref": "#/$defs/Selection" },
     "annotation_mode": {
@@ -190,6 +192,100 @@
         "active_frame_id": { "type": "string" },
         "current_scope_id": { "type": "string" },
         "frame_path_pin_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "AnnotationSessionSubject": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["address", "adapter_id", "root", "subject", "role", "label", "value", "text_excerpt", "source_metadata", "fallback_evidence", "projection", "status"],
+          "additionalProperties": false,
+          "properties": {
+            "address": { "type": "string" },
+            "adapter_id": { "type": "string" },
+            "root": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                { "type": "null" }
+              ]
+            },
+            "subject": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                },
+                { "type": "null" }
+              ]
+            },
+            "role": { "type": "string" },
+            "label": { "type": "string" },
+            "value": { "type": ["string", "number", "boolean", "null"] },
+            "text_excerpt": { "type": "string" },
+            "source_metadata": { "$ref": "#/$defs/Metadata" },
+            "fallback_evidence": { "$ref": "#/$defs/Metadata" },
+            "projection": {
+              "anyOf": [
+                { "$ref": "#/$defs/Projection" },
+                { "type": "null" }
+              ]
+            },
+            "status": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "AnnotationSessionAnchor": {
+      "type": "object",
+      "required": ["id", "address", "subject", "scope_path", "comment_text", "projection", "actor", "created_at", "updated_at", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "address": { "type": "string" },
+        "subject": { "$ref": "#/$defs/AnnotationSessionSubject" },
+        "scope_path": { "type": "array", "items": { "type": "string" } },
+        "comment_text": { "type": "string" },
+        "projection": {
+          "anyOf": [
+            { "$ref": "#/$defs/Projection" },
+            { "type": "null" }
+          ]
+        },
+        "actor": { "type": "object", "additionalProperties": true },
+        "created_at": { "type": "string" },
+        "updated_at": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "AnnotationSession": {
+      "type": "object",
+      "required": ["schema", "version", "active", "entry_source", "root", "committed_scope_stack", "preview_scope_stack", "hover_candidate", "anchors", "snapshot_count", "updated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "const": "aos_annotation_session" },
+        "version": { "const": "0.1.0" },
+        "active": { "type": "boolean" },
+        "entry_source": { "type": "string" },
+        "root": { "$ref": "#/$defs/AnnotationSessionSubject" },
+        "committed_scope_stack": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AnnotationSessionSubject" }
+        },
+        "preview_scope_stack": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AnnotationSessionSubject" }
+        },
+        "hover_candidate": { "$ref": "#/$defs/AnnotationSessionSubject" },
+        "anchors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/AnnotationSessionAnchor" }
+        },
+        "snapshot_count": { "type": "integer", "minimum": 0 },
+        "updated_at": { "type": "string" }
       }
     },
     "Subject": {

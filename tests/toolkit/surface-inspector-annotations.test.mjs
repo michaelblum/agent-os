@@ -22,6 +22,7 @@ import {
   pinSurfaceInspectorFrame,
   popSurfaceInspectorAnnotationScope,
   refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
+  recordSurfaceInspectorAnnotationSnapshotSuccess,
   refreshSurfaceInspectorPinProjection,
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
@@ -98,6 +99,18 @@ test('Surface Inspector annotation snapshot artifact exposes stable bundle contr
   assert.equal(artifact.schema, 'surface_inspector_annotation_snapshot')
   assert.equal(artifact.version, '0.1.0')
   assert.equal(artifact.capture.trigger, 'test')
+  assert.equal(artifact.session.schema, 'aos_annotation_session')
+  assert.equal(artifact.session.entry_source, 'surface_inspector')
+  assert.equal(artifact.session.root.address, 'subject:aos-toolkit-semantic-target:main:main:semantic:cta:semantic-cta')
+  assert.deepEqual(artifact.session.committed_scope_stack.map((subject) => subject.address), [
+    'subject:aos-toolkit-semantic-target:main:main:semantic:cta:semantic-cta',
+  ])
+  assert.deepEqual(artifact.session.preview_scope_stack.map((subject) => subject.address), [
+    'subject:aos-toolkit-semantic-target:main:main:semantic:cta:semantic-cta',
+  ])
+  assert.equal(artifact.session.anchors[0].comment_text, 'CTA note')
+  assert.equal(artifact.session.anchors[0].projection.current_render_status, 'visible')
+  assert.equal(artifact.session.snapshot_count, 0)
   assert.equal(artifact.empty_state, false)
   assert.equal(artifact.selection.active_frame_id, 'pin-semantic-cta')
   assert.equal(artifact.active_context.current_scope_id, 'semantic-cta')
@@ -106,6 +119,41 @@ test('Surface Inspector annotation snapshot artifact exposes stable bundle contr
   assert.equal(artifact.comments[0].text, 'CTA note')
   assert.equal(artifact.adapter_capability_summary.find((item) => item.adapter_id === 'aos-toolkit-semantic-target').can_reveal, true)
   assert.deepEqual(artifact.capture.assets, { capture_image: 'capture.png' })
+})
+
+test('Surface Inspector annotation snapshot artifact preserves preview-only hover and successful snapshot count', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('window', ['main', 'window']), { id: 'pin-window' })
+  state = setSurfaceInspectorHoverCandidate(state, node('hover-child', ['main', 'window', 'hover-child']))
+  state = recordSurfaceInspectorAnnotationSnapshotSuccess(state, {
+    trigger: 'manual',
+    bundle_path: '/tmp/aos-bundle',
+    captured_at: '2026-05-13T03:50:00.000Z',
+  })
+
+  const artifact = buildSurfaceInspectorAnnotationSnapshotArtifact(state, {
+    captured_at: '2026-05-13T03:51:00.000Z',
+  })
+
+  assert.equal(artifact.session.snapshot_count, 1)
+  assert.equal(artifact.source_state.snapshot_count, 1)
+  assert.equal(artifact.session.hover_candidate.subject.id, 'hover-child')
+  assert.deepEqual(artifact.session.preview_scope_stack.map((subject) => subject.subject.id), ['window', 'hover-child'])
+  assert.deepEqual(artifact.session.anchors.map((anchor) => anchor.subject.subject.id), ['window'])
+})
+
+test('Surface Inspector annotation snapshot artifact records stale evidence without live display rect truth', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('target'), { id: 'pin-target' })
+  state = markSurfaceInspectorAnnotationProjectionsStale(state, 'display_geometry_changed', {
+    now: '2026-05-13T04:00:00.000Z',
+  })
+
+  const artifact = buildSurfaceInspectorAnnotationSnapshotArtifact(state)
+  assert.equal(artifact.session.anchors[0].status, 'stale')
+  assert.equal(artifact.session.anchors[0].projection.current_render_status, 'stale')
+  assert.equal(artifact.session.anchors[0].projection.display_space_rect, null)
+  assert.equal(artifact.blockers.unsupported_stale_absent[0].blocker_reason, 'display_geometry_changed')
 })
 
 test('Surface Inspector annotation snapshot artifact keeps empty state explicit and rejects embedded images', () => {

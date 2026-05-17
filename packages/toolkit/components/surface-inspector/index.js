@@ -49,6 +49,7 @@ import {
   pinSurfaceInspectorFrame,
   popSurfaceInspectorAnnotationScope,
   refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
+  recordSurfaceInspectorAnnotationSnapshotSuccess,
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
   setSurfaceInspectorHoverCandidate,
@@ -955,6 +956,7 @@ export default function CanvasInspector() {
   let annotationHoverUpdateReason = ''
   let annotationHoverStats = { create: 0, update: 0, remove: 0 }
   let annotationOverlayStats = { create: 0, update: 0, clear: 0 }
+  let lastCountedBundleKey = ''
 
   function semanticTargetId(target = {}) {
     return semanticTargetIdentifier(target)
@@ -2787,6 +2789,16 @@ export default function CanvasInspector() {
       }
       if (msg.type === 'canvas_inspector.see_bundle_status') {
         const payload = msg.payload || msg
+        const bundleKey = payload.bundle_path || payload.bundle_json_path || `${payload.status || ''}:${payload.at || ''}:${payload.trigger || ''}`
+        if (payload.status === 'success' && bundleKey && bundleKey !== lastCountedBundleKey) {
+          annotationState = recordSurfaceInspectorAnnotationSnapshotSuccess(annotationState, {
+            trigger: payload.trigger || bundleCapture.trigger || 'manual',
+            bundle_path: payload.bundle_path || '',
+            bundle_json_path: payload.bundle_json_path || '',
+            at: payload.at || Date.now(),
+          })
+          lastCountedBundleKey = bundleKey
+        }
         bundleHotkeyLabel = payload.shortcut || bundleHotkeyLabel
         bundleCapture = {
           status: payload.status || 'idle',

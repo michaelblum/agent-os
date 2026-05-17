@@ -124,6 +124,14 @@ committing preview creates or updates anchors for the selected scope chain.
 Clearing or exiting resets live session state and preserves `snapshot_count`;
 snapshots remain explicit point-in-time artifacts.
 
+Surface Inspector see-bundle snapshots use
+`surfaceInspectorAnnotationStateToSession(state)` as their compatibility
+adapter into this shared boundary. The public `annotation-snapshot.json`
+artifact embeds that session-derived root, committed and preview scopes, hover
+candidate, anchors, comments, projection states, stale/blocker evidence, and
+`snapshot_count` without making the snapshot artifact the source of truth for
+future live annotations.
+
 The display-first opacity helper is:
 
 ```js

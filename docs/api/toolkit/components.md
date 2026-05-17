@@ -591,10 +591,13 @@ instead.
 `ctrl+opt+c` see bundles include a first-class public
 `annotation-snapshot.json` artifact using
 `schema: "surface_inspector_annotation_snapshot"` and `version: "0.1.0"`.
-The artifact is distinct from the raw debug state and records capture metadata,
-active root/scope context, selected edge/frame ids, frame pins, comments,
-projection and reveal proof, adapter capability summaries, explicit blockers,
-and bundle-relative asset references. It is written even when Annotation Mode is
+The artifact is distinct from the raw debug state and is derived through the
+shared display-first `aos_annotation_session` boundary. It records capture
+metadata, entry source, active root/scope context, committed and preview scope
+stacks, hover candidate as preview evidence only, live frame anchors with
+optional comments, projection and reveal proof, stale/blocker evidence, adapter
+capability summaries, explicit blockers, successful snapshot count, and
+bundle-relative asset references. It is written even when Annotation Mode is
 inactive or empty, with `empty_state=true`. Image data is not embedded in
 annotation JSON.
 
