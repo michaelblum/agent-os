@@ -75,7 +75,7 @@ function normalizeActor(actor = DEFAULT_ACTOR) {
 
 export function normalizeAnnotationProjectionEvidence(input = null) {
   if (!input || typeof input !== 'object') return null
-  const projection = normalizeAnnotationProjectionStatus(input)
+  const projection = normalizeAnnotationProjectionStatus(input, { default_status: 'visible' })
   return {
     adapter_id: text(input.adapter_id || input.adapter),
     subject_id: text(input.subject_id || input.id),

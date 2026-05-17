@@ -140,7 +140,7 @@ export function normalizeAnnotationCandidate(candidate = {}, options = {}) {
   const projection = normalizeAnnotationProjectionStatus(candidate.projection || {
     ...candidate,
     display_space_rect: candidate.display_space_rect || candidate.visible_display_rect || candidate.rect,
-  })
+  }, { default_status: 'visible' })
   const rect = candidateVisibleRect({ ...candidate, projection }) || projection.visible_display_rect || projection.display_space_rect
   const rootId = text(candidate.root_id || candidate.projection?.root_id || candidate.canvas_id || candidate.window_id || options.root_id, 'main')
   const rootLabel = text(candidate.root_label || candidate.projection?.root_label || candidate.display_label || rootId, rootId)

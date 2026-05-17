@@ -63,6 +63,19 @@ test('annotation subjects normalize stable address, adapter, root, subject, evid
   assert.deepEqual(normalized.fallback_evidence.path, ['display:1', 'window:1', 'button'])
 })
 
+test('annotation subjects keep sparse projection evidence live but unprojectable', () => {
+  const normalized = normalizeAnnotationSubjectAddress({
+    adapter_id: 'a',
+    root_id: 'r',
+    subject_id: 's',
+  })
+
+  assert.equal(normalized.projection.current_render_status, 'visible')
+  assert.equal(normalized.projection.can_project_display_overlay, false)
+  assert.equal(normalized.projection.display_space_rect, null)
+  assert.equal(normalized.status, 'live')
+})
+
 test('session entry keeps committed and preview stacks separate from hover-only preview state', () => {
   let session = enterAnnotationSession(createAnnotationSession(), {
     entry_source: 'hotkey',

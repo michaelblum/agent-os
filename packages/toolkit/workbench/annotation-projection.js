@@ -238,16 +238,17 @@ function normalizeSourceTreeNodeMetadata(metadata = {}) {
   return cloneJson(metadata, {});
 }
 
-export function normalizeAnnotationProjectionStatus(input = {}) {
+export function normalizeAnnotationProjectionStatus(input = {}, options = {}) {
   const statusInput = input.current_render_status || input.render_status || input.status || input.projection_status;
   const aliasedStatus = statusInput === 'projectable'
     ? 'visible'
     : (statusInput === 'out_of_viewport' || statusInput === 'resolved_offscreen' ? 'offscreen_scrollable' : statusInput);
   const displayRect = normalizeAnnotationRectLike(input.display_space_rect || input.display_rect || input.visible_display_rect);
   const localRect = normalizeAnnotationRectLike(input.local_space_rect || input.local_rect || input.bounds);
+  const defaultStatus = ENTITY_RENDER_STATUSES.has(options.default_status) ? options.default_status : 'unsupported';
   const currentRenderStatus = ENTITY_RENDER_STATUSES.has(aliasedStatus)
     ? aliasedStatus
-    : (displayRect ? 'visible' : 'unsupported');
+    : (displayRect ? 'visible' : defaultStatus);
   const projectable = input.projectable ?? input.can_project_display_overlay ?? (currentRenderStatus === 'visible');
   const canReveal = Boolean(input.can_reveal);
   const blockerReason = text(input.blocker_reason || input.reason || input.blocker?.reason);
@@ -310,15 +311,16 @@ export function normalizeAnnotationProjectionAdapterResult(input = {}) {
   };
 }
 
-export function normalizeRevealResult(input = {}) {
+export function normalizeRevealResult(input = {}, options = {}) {
   const status = REVEAL_RESULT_STATUSES.has(input.status) ? input.status : 'unsupported';
+  const now = text(options.now || options.now_iso || new Date().toISOString());
   return {
     status,
     pin_id: text(input.pin_id),
     adapter_id: text(input.adapter_id || input.adapter, ''),
     subject_id: text(input.subject_id || input.id || input.ref, ''),
-    requested_at: text(input.requested_at || input.at || new Date(0).toISOString()),
-    completed_at: text(input.completed_at || input.at || new Date(0).toISOString()),
+    requested_at: text(input.requested_at || input.at || now),
+    completed_at: text(input.completed_at || input.at || now),
     blocker_reason: text(input.blocker_reason || input.reason || input.error),
     projection: input.projection ? normalizeAnnotationProjectionStatus(input.projection) : null,
   };

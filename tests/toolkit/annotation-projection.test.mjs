@@ -127,6 +127,18 @@ test('projection adapter contract normalizes reachability and reveal capability 
   assert.equal(result.blocker_reason, 'below_current_viewport');
 });
 
+test('projection adapter contract keeps sparse adapter results unsupported', () => {
+  const result = normalizeAnnotationProjectionAdapterResult({
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'workbench',
+    subject_id: 'sparse-target',
+  });
+
+  assert.equal(result.current_render_status, 'unsupported');
+  assert.equal(result.can_project_display_overlay, false);
+  assert.equal(result.display_space_rect, null);
+});
+
 test('canonical projection status normalizes legacy aliases and preserves blocker evidence', () => {
   const projectable = normalizeAnnotationProjectionStatus({
     status: 'projectable',
@@ -183,6 +195,20 @@ test('canonical reveal result keeps pin context and normalizes projection status
   assert.equal(reveal.projection.current_render_status, 'offscreen_scrollable');
   assert.equal(reveal.projection.can_project_display_overlay, false);
   assert.equal(reveal.projection.blocker_reason, 'target_below_viewport');
+});
+
+test('canonical reveal result uses current-time fallback for live missing timestamps', () => {
+  const reveal = normalizeRevealResult({
+    status: 'revealed',
+    pin_id: 'pin-child',
+    adapter_id: 'aos-toolkit-semantic-target',
+    subject_id: 'child',
+  }, {
+    now: '2026-05-17T12:00:00.000Z',
+  });
+
+  assert.equal(reveal.requested_at, '2026-05-17T12:00:00.000Z');
+  assert.equal(reveal.completed_at, '2026-05-17T12:00:00.000Z');
 });
 
 test('semantic target adapter projects visible structured bounds and revealable scrolled targets', () => {
