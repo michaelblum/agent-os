@@ -9,7 +9,6 @@ import {
   buildSurfaceInspectorAnnotationTreeRows,
   buildSurfaceInspectorFrameAddress,
   buildSurfaceInspectorSnapshotPayload,
-  chooseSurfaceInspectorAnnotationCandidate,
   clearSurfaceInspectorAnnotationScope,
   computeSurfaceInspectorActiveEdge,
   computeSurfaceInspectorOpacityLadder,
@@ -18,7 +17,6 @@ import {
   jumpSurfaceInspectorAnnotationScope,
   hasSurfaceInspectorAnnotations,
   markSurfaceInspectorAnnotationProjectionsStale,
-  normalizeSurfaceInspectorAnnotationCandidate,
   pinSurfaceInspectorFrame,
   popSurfaceInspectorAnnotationScope,
   refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
@@ -217,9 +215,6 @@ test('annotation candidate selection prefers specific visible child frames and s
   }
   semantic.projection.visible_display_rect = { x: 220, y: 240, w: 80, h: 32 }
 
-  assert.equal(chooseSurfaceInspectorAnnotationCandidate([root], { x: 150, y: 150 }), null)
-  assert.equal(chooseSurfaceInspectorAnnotationCandidate([root, workbench], { x: 150, y: 150 }).id, 'html-workbench-expression')
-  assert.equal(chooseSurfaceInspectorAnnotationCandidate([root, workbench, semantic], { x: 230, y: 250 }).id, 'cta-button')
   assert.equal(chooseAnnotationCandidate([root], { x: 150, y: 150 }), null)
   assert.equal(chooseAnnotationCandidate([root, workbench], { x: 150, y: 150 }).id, 'html-workbench-expression')
   assert.equal(chooseAnnotationCandidate([root, workbench, semantic], { x: 230, y: 250 }).id, 'cta-button')
@@ -257,7 +252,7 @@ test('annotation candidates normalize shared adapter fields, capabilities, and s
   assert.equal(candidate.state_id, 'see_123')
   assert.equal(candidate.confidence, 0.88)
   assert.deepEqual(candidate.source_metadata.context_path, ['Settings', 'OK'])
-  assert.deepEqual(normalizeSurfaceInspectorAnnotationCandidate(candidate), candidate)
+  assert.deepEqual(normalizeAnnotationCandidate(candidate), candidate)
 })
 
 test('native window payload becomes a bounded macOS AX root candidate', () => {
@@ -409,7 +404,7 @@ test('native AX candidates reject stale or root-mismatched cursor context explic
 })
 
 test('adapter-result-shaped annotation candidates preserve projection adapter id', () => {
-  const candidate = normalizeSurfaceInspectorAnnotationCandidate({
+  const candidate = normalizeAnnotationCandidate({
     id: 'ax-submit',
     projection: {
       adapter_id: 'macos-ax',
@@ -448,7 +443,7 @@ test('candidate ranking prefers actionable labeled targets over passive containe
   button.capabilities = ['press']
   button.projection.visible_display_rect = { x: 160, y: 150, w: 96, h: 32 }
 
-  assert.equal(chooseSurfaceInspectorAnnotationCandidate([container, blocked, button], { x: 170, y: 160 }).id, 'save-button')
+  assert.equal(chooseAnnotationCandidate([container, blocked, button], { x: 170, y: 160 }).id, 'save-button')
 })
 
 test('browser-class adapter capability keeps live page DOM/CDP deferred explicitly', () => {

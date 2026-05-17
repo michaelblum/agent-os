@@ -1,6 +1,5 @@
 import { surfaceInspectorAnnotationStateToSession } from './annotation-overlay-renderer.js'
 import {
-  chooseAnnotationCandidate,
   isImplicitAnnotationRootCandidate,
   normalizeAnnotationCandidate,
   normalizeAnnotationProjectionStatus,
@@ -19,10 +18,6 @@ const REVEAL_STATUSES = new Set(['already_visible', 'revealed', 'blocked', 'virt
 const REPROJECTION_MISSING_SOURCE_REASON = 'projection_refresh_source_missing'
 const normalizeRectLike = normalizeAnnotationRectLike
 const normalizeProjectionStatus = normalizeAnnotationProjectionStatus
-
-export const isImplicitSurfaceInspectorRootCandidate = isImplicitAnnotationRootCandidate
-export const normalizeSurfaceInspectorAnnotationCandidate = normalizeAnnotationCandidate
-export const chooseSurfaceInspectorAnnotationCandidate = chooseAnnotationCandidate
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value))
@@ -122,7 +117,7 @@ export function buildNativeWindowSurfaceInspectorCandidate(input = {}, options =
         blocker_reason: 'native_window_bounds_unavailable',
         refreshed_at: text(options.refreshed_at || input.ts, new Date(0).toISOString()),
       }
-  return normalizeSurfaceInspectorAnnotationCandidate({
+  return normalizeAnnotationCandidate({
     id: rootId,
     adapter_id: 'macos-ax',
     root_id: rootId,
@@ -217,7 +212,7 @@ export function buildNativeAxElementSurfaceInspectorCandidate(input = {}, option
     blocker_reason: blockerReason,
     refreshed_at: text(options.refreshed_at || input.ts, new Date(0).toISOString()),
   }
-  return normalizeSurfaceInspectorAnnotationCandidate({
+  return normalizeAnnotationCandidate({
     id: subjectId,
     adapter_id: 'macos-ax',
     root_id: projection.root_id,
@@ -672,7 +667,7 @@ export function refreshSurfaceInspectorAnnotationProjectionsFromEvidence(state, 
   const next = createSurfaceInspectorAnnotationState(state)
   const reason = text(options.reason, 'settled_projection_refresh')
   const candidates = (Array.isArray(evidence) ? evidence : [evidence])
-    .map((candidate) => normalizeSurfaceInspectorAnnotationCandidate(candidate))
+    .map((candidate) => normalizeAnnotationCandidate(candidate))
     .filter(Boolean)
   const refreshedPinIds = []
   const missingPinIds = []
@@ -1258,8 +1253,8 @@ export function buildSurfaceInspectorAnnotationSnapshotArtifact(state, options =
 
 export function setSurfaceInspectorHoverCandidate(state, candidate = null, blocker = null) {
   const next = createSurfaceInspectorAnnotationState(state)
-  next.last_hover_candidate = candidate && !isImplicitSurfaceInspectorRootCandidate(candidate)
-    ? normalizeSurfaceInspectorAnnotationCandidate(candidate)
+  next.last_hover_candidate = candidate && !isImplicitAnnotationRootCandidate(candidate)
+    ? normalizeAnnotationCandidate(candidate)
     : null
   next.last_projection_blocker = blocker ? clone(blocker) : null
   return next

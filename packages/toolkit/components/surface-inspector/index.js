@@ -30,6 +30,7 @@ import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.
 import { createScheduler } from './marks/scheduler.js'
 import { renderMinimapMark } from './marks/render.js'
 import { canvasActionAttrs, inspectorControlAttrs } from './semantics.js'
+import { chooseAnnotationCandidate } from '../../workbench/annotation-candidates.js'
 import {
   addSurfaceInspectorComment,
   applySurfaceInspectorRevealResult,
@@ -38,7 +39,6 @@ import {
   buildSurfaceInspectorAnnotationSnapshotArtifact,
   buildSurfaceInspectorAnnotationTreeRows,
   buildSurfaceInspectorSnapshotPayload,
-  chooseSurfaceInspectorAnnotationCandidate,
   computeSurfaceInspectorActiveEdge,
   createSurfaceInspectorAnnotationState,
   deleteSurfaceInspectorComment,
@@ -1519,7 +1519,7 @@ export default function CanvasInspector() {
     if (annotationState.last_hover_candidate && annotationActionControlsForHover().some((control) => rectContainsPoint(rectFromAt(control.frame), hitPoint))) {
       return annotationState.last_hover_candidate
     }
-    return chooseSurfaceInspectorAnnotationCandidate(regions.map((region) => region.candidate), hitPoint)
+    return chooseAnnotationCandidate(regions.map((region) => region.candidate), hitPoint)
   }
 
   function rectContainsPoint(rect, point) {
