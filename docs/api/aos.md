@@ -215,6 +215,23 @@ aos gate continuations --status pending --json
 The readback payload is `aos.gate.continuations.readback.v1` and includes the
 continuation directory, count, and matching records.
 
+Guided user-signal sessions extend deferred gates for visual "show me what you
+mean" checkpoints. The durable record is
+`aos.guided-user-signal.session.v1`, stored under
+`$AOS_STATE_ROOT/{repo|installed}/guided-user-signal/sessions/` by toolkit
+helpers. A record links the source operation, source surface, guidance media,
+one daemon-owned click/point/region/annotation capture, optional gate record or
+continuation id, optional resume event id/path, lifecycle state, runtime mode,
+and redaction policy. V0 does not add a separate CLI command; AOS-hosted
+surfaces use toolkit workbench helpers for visual policy and the existing
+`gate.submit` bridge when a gate question is attached.
+
+Full-screen or live desktop mouse ownership is a daemon/native input primitive,
+not a WebView policy. V0 records name `input_region` as the concrete daemon
+primitive when bounded regions are enough and reserve
+`daemon_native_full_screen_input_capture` as the authoritative future primitive
+for full-screen capture.
+
 ### Repo Development Workflow
 
 `aos dev` is the developer workflow router for this repo. `classify` and

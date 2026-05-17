@@ -42,6 +42,24 @@ submit response and resume event metadata. The stock deferred DecisionGate
 surface is launched with `./aos gate defer --show --json` and submits through
 the toolkit runtime helper rather than polling `window.__gateResult`.
 
+V0.3 adds a provider-neutral Guided User Signal Session for visual
+human-in-the-loop capture. It is not another DecisionGate variant. A guided
+session records the paused source operation, source surface, guidance media
+(`callout`, `highlight`, `arrow`, `label`, or `overlay`), one requested human
+signal (`click`, `point`, `region`, or `annotation`), one optional capture
+result, optional gate/continuation/resume-event links, lifecycle state, and
+redaction policy. The public record is
+`aos.guided-user-signal.session.v1`.
+
+The ownership boundary is explicit: toolkit owns reusable visual/session policy
+for guidance overlays and one-response collection; daemon/native input owns
+mouse capture and routing through `input_region` today or a future
+`daemon_native_full_screen_input_capture` primitive for full-screen capture.
+Apps own product copy, theming, and domain interpretation. If a guided session
+includes a gate question, it reuses the existing `gate.submit` bridge and
+`submitGateContinuation()` helper rather than adding a second WebView submit
+path.
+
 ---
 
 ## Problem

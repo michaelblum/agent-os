@@ -197,6 +197,55 @@ Canvas Inspector exposes `projection_refresh` in annotation snapshots and debug
 state so support surfaces can show pending settle reason, refresh generation,
 and the last refresh result.
 
+### Guided User Signal Session V0
+
+`packages/toolkit/workbench/guided-user-signal-session.js` defines the first
+provider-neutral Guided User Signal Session record and a small reusable shell
+plan for "show me what you mean" checkpoints. The contract is
+`aos.guided-user-signal.session.v1` and the canonical schema is
+[`shared/schemas/aos.guided-user-signal.session.v1.json`](../../../shared/schemas/aos.guided-user-signal.session.v1.json).
+
+A session record links one paused source operation to one live subject, a set of
+simple guidance descriptors (`callout`, `highlight`, `arrow`, `label`, or
+`overlay`), one capture request (`click`, `point`, `region`, or `annotation`),
+one optional capture result, optional gate/continuation/resume-event links,
+lifecycle state, runtime-mode storage, and explicit redaction policy for prompt
+bodies, free text, and answer payloads. Prompt bodies and answer payloads are
+redacted by default.
+
+The toolkit owns reusable presentation policy only. `buildGuidedUserSignalShellPlan`
+turns a durable record into a render/capture plan that can draw guidance and
+collect one response. Native mouse capture remains daemon-owned through
+`input_region` or future `daemon_native_full_screen_input_capture`; the shell
+plan records that boundary as `input_boundary.authoritative_input_owner:
+"daemon"`. A toolkit surface must pair visual overlays with daemon input
+regions or native input streams rather than making a full-screen WebView the
+input owner.
+
+When a guided session includes a gate question, the toolkit plan carries the
+deferred continuation id and points callers at the runtime
+`submitGateContinuation()` helper. Guided sessions must not duplicate
+`gate.submit` logic and must not give WebView content arbitrary command
+execution.
+
+Use:
+
+```js
+import {
+  GuidedUserSignalSessionStore,
+  buildGuidedUserSignalShellPlan,
+  completeGuidedUserSignalSession,
+  createGuidedUserSignalSession,
+} from '../workbench/guided-user-signal-session.js'
+```
+
+`GuidedUserSignalSessionStore` writes records under
+`$AOS_STATE_ROOT/{repo|installed}/guided-user-signal/sessions/` or
+`~/.config/aos/{repo|installed}/guided-user-signal/sessions/` when no override
+is set. Terminal completion is idempotent: after a session reaches `captured`,
+`gate_submitted`, `dismissed`, `cancelled`, `expired`, or `error`, later
+completion attempts return the existing terminal record unchanged.
+
 ### HTML Workbench Expression V0
 
 `packages/toolkit/workbench/html-workbench-expression.js` builds the V0 rich

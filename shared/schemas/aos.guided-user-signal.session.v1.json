@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos.guided-user-signal.session.v1.json",
+  "title": "AOS Guided User Signal Session",
+  "description": "Provider-neutral durable record for one guided human signal over a live subject, including visual guidance, one capture result, optional gate links, and redaction policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "source_operation",
+    "subject",
+    "guidance",
+    "capture_request",
+    "capture_result",
+    "linked_artifacts",
+    "lifecycle",
+    "redaction",
+    "storage"
+  ],
+  "properties": {
+    "schema_version": { "const": "aos.guided-user-signal.session.v1" },
+    "session_id": { "type": "string", "pattern": "^guided-signal-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+    "source_operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation_id", "operation_kind", "session_id", "harness", "agent"],
+      "properties": {
+        "operation_id": { "type": "string", "minLength": 1 },
+        "operation_kind": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string" },
+        "harness": { "type": "string" },
+        "agent": { "type": "string" }
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reference", "kind", "surface", "source_identity", "projection"],
+      "properties": {
+        "reference": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "surface": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "kind", "runtime_mode"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "type": "string", "minLength": 1 },
+            "runtime_mode": { "type": "string" }
+          }
+        },
+        "source_identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["canvas_id", "display_id", "window_id", "url", "path"],
+          "properties": {
+            "canvas_id": { "type": "string" },
+            "display_id": { "type": "string" },
+            "window_id": { "type": "string" },
+            "url": { "type": "string" },
+            "path": { "type": "string" }
+          }
+        },
+        "projection": { "type": ["object", "null"] }
+      }
+    },
+    "guidance": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/GuidanceItem" }
+    },
+    "capture_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "prompt", "required", "coordinate_space", "input_authority"],
+      "properties": {
+        "kind": { "enum": ["click", "point", "region", "annotation"] },
+        "prompt": { "type": "string" },
+        "required": { "type": "boolean" },
+        "coordinate_space": { "type": "string", "minLength": 1 },
+        "input_authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["owner", "primitive", "scope", "future_full_screen_primitive"],
+          "properties": {
+            "owner": { "const": "daemon" },
+            "primitive": { "enum": ["input_region", "native_input_stream", "daemon_native_full_screen_input_capture"] },
+            "scope": { "enum": ["point", "region", "display", "desktop"] },
+            "future_full_screen_primitive": { "const": "daemon_native_full_screen_input_capture" }
+          }
+        }
+      }
+    },
+    "capture_result": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "captured_at", "point", "region", "input_event", "annotation", "free_text"],
+          "properties": {
+            "kind": { "enum": ["click", "point", "region", "annotation"] },
+            "captured_at": { "type": "string", "format": "date-time" },
+            "point": { "oneOf": [{ "$ref": "#/$defs/Point" }, { "type": "null" }] },
+            "region": { "oneOf": [{ "$ref": "#/$defs/Rect" }, { "type": "null" }] },
+            "input_event": { "type": ["object", "null"] },
+            "annotation": { "type": ["object", "null"] },
+            "free_text": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "linked_artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate_record_id", "continuation_id", "resume_event_id", "resume_event_path"],
+      "properties": {
+        "gate_record_id": { "type": "string" },
+        "continuation_id": { "type": "string" },
+        "resume_event_id": { "type": "string" },
+        "resume_event_path": { "type": "string" }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "created_at", "updated_at", "terminal_at", "terminal_outcome"],
+      "properties": {
+        "state": { "enum": ["pending", "captured", "gate_submitted", "dismissed", "cancelled", "expired", "error"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "terminal_at": { "type": ["string", "null"], "format": "date-time" },
+        "terminal_outcome": { "type": ["string", "null"] }
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt_bodies", "free_text_answers", "answer_payloads"],
+      "properties": {
+        "prompt_bodies": { "enum": ["redact", "store"] },
+        "free_text_answers": { "enum": ["redact", "store"] },
+        "answer_payloads": { "enum": ["redact", "store"] }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime_mode", "state_root", "session_path"],
+      "properties": {
+        "runtime_mode": { "enum": ["repo", "installed"] },
+        "state_root": { "type": "string", "minLength": 1 },
+        "session_path": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "Point": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" }
+      }
+    },
+    "Rect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number", "minimum": 0 },
+        "height": { "type": "number", "minimum": 0 }
+      }
+    },
+    "GuidanceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "text", "target_ref", "rect", "point", "style", "overlay"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["callout", "highlight", "arrow", "label", "overlay"] },
+        "text": { "type": "string" },
+        "target_ref": { "type": "string" },
+        "rect": { "oneOf": [{ "$ref": "#/$defs/Rect" }, { "type": "null" }] },
+        "point": { "oneOf": [{ "$ref": "#/$defs/Point" }, { "type": "null" }] },
+        "style": { "type": "object" },
+        "overlay": { "type": "object" }
+      }
+    }
+  }
+}
