@@ -27,6 +27,7 @@ export const ENTITY_RENDER_STATUSES = new Set([
   'hidden',
   'absent',
   'stale',
+  'blocked',
   'unsupported',
 ]);
 
@@ -70,6 +71,13 @@ function normalizeRect(rect = null) {
   const height = numberOrNull(rect.height ?? rect.h);
   if ([x, y, width, height].some((value) => value === null)) return null;
   return { x, y, width, height };
+}
+
+export function normalizeAnnotationRectLike(rect = null) {
+  const normalized = normalizeRect(rect);
+  return normalized
+    ? { x: normalized.x, y: normalized.y, w: normalized.width, h: normalized.height }
+    : null;
 }
 
 function normalizeRects(rects = []) {
@@ -230,17 +238,50 @@ function normalizeSourceTreeNodeMetadata(metadata = {}) {
   return cloneJson(metadata, {});
 }
 
-export function normalizeAnnotationProjectionAdapterResult(input = {}) {
-  const statusInput = input.current_render_status || input.render_status || input.status;
-  const displayRect = normalizeRect(input.display_space_rect || input.display_rect || input.visible_display_rect);
-  const localRect = normalizeRect(input.local_space_rect || input.local_rect || input.bounds);
-  const currentRenderStatus = ENTITY_RENDER_STATUSES.has(statusInput)
-    ? statusInput
+export function normalizeAnnotationProjectionStatus(input = {}) {
+  const statusInput = input.current_render_status || input.render_status || input.status || input.projection_status;
+  const aliasedStatus = statusInput === 'projectable'
+    ? 'visible'
+    : (statusInput === 'out_of_viewport' || statusInput === 'resolved_offscreen' ? 'offscreen_scrollable' : statusInput);
+  const displayRect = normalizeAnnotationRectLike(input.display_space_rect || input.display_rect || input.visible_display_rect);
+  const localRect = normalizeAnnotationRectLike(input.local_space_rect || input.local_rect || input.bounds);
+  const currentRenderStatus = ENTITY_RENDER_STATUSES.has(aliasedStatus)
+    ? aliasedStatus
     : (displayRect ? 'visible' : 'unsupported');
-  const canProject = Boolean(input.can_project_display_overlay ?? (currentRenderStatus === 'visible' && displayRect));
+  const projectable = input.projectable ?? input.can_project_display_overlay ?? (currentRenderStatus === 'visible');
   const canReveal = Boolean(input.can_reveal);
   const blockerReason = text(input.blocker_reason || input.reason || input.blocker?.reason);
   const refreshedAt = input.refreshed_at || new Date(0).toISOString();
+
+  return {
+    status: currentRenderStatus,
+    current_render_status: currentRenderStatus,
+    projectable: Boolean(projectable) && currentRenderStatus === 'visible',
+    can_project_display_overlay: Boolean(projectable) && currentRenderStatus === 'visible' && Boolean(displayRect),
+    can_reveal: canReveal,
+    visible_display_rect: displayRect ? cloneJson(displayRect) : null,
+    display_space_rect: currentRenderStatus === 'visible' && displayRect ? cloneJson(displayRect) : null,
+    coordinate_space: text(input.coordinate_space || input.rect_coordinate_space || input.display_rect_coordinate_space, 'native_display'),
+    local_space_rect: localRect,
+    minimap_rect: input.minimap_rect ? cloneJson(input.minimap_rect) : null,
+    ancestor_viewport_clip_chain: normalizeChain(input.ancestor_viewport_clip_chain || input.clip_chain),
+    scrollable_ancestor_chain: normalizeChain(input.scrollable_ancestor_chain || input.scroll_chain),
+    z_order_evidence: cloneJson(input.z_order_evidence || input.hit_priority_evidence, null),
+    blocker_reason: blockerReason,
+    blocker: input.blocker ? cloneJson(input.blocker) : (blockerReason ? { reason: blockerReason } : null),
+    adapter_result: input.adapter_result ? cloneJson(input.adapter_result) : null,
+    refreshed_at: text(refreshedAt, new Date(0).toISOString()),
+    provenance_source_payload_id: text(input.provenance_source_payload_id || input.payload_id || input.source_payload_id),
+  };
+}
+
+function rectLikeToRect(rect = null) {
+  if (!rect) return null;
+  return normalizeRect(rect);
+}
+
+export function normalizeAnnotationProjectionAdapterResult(input = {}) {
+  const projection = normalizeAnnotationProjectionStatus(input);
 
   return {
     adapter_id: text(input.adapter_id || input.adapter || input.id, 'unsupported-adapter'),
@@ -254,18 +295,18 @@ export function normalizeAnnotationProjectionAdapterResult(input = {}) {
       : text(input.root_path, '').split('/').filter(Boolean),
     subject_kind: text(input.subject_kind || input.kind || input.role, 'unknown'),
     source_tree_node_metadata: normalizeSourceTreeNodeMetadata(input.source_tree_node_metadata || input.node || input.metadata),
-    current_render_status: currentRenderStatus,
-    can_project_display_overlay: canProject && currentRenderStatus === 'visible',
-    can_reveal: canReveal,
-    display_space_rect: currentRenderStatus === 'visible' ? displayRect : null,
-    coordinate_space: text(input.coordinate_space || input.rect_coordinate_space || input.display_rect_coordinate_space, 'native_display'),
-    local_space_rect: localRect,
-    ancestor_viewport_clip_chain: normalizeChain(input.ancestor_viewport_clip_chain || input.clip_chain),
-    scrollable_ancestor_chain: normalizeChain(input.scrollable_ancestor_chain || input.scroll_chain),
-    z_order_evidence: cloneJson(input.z_order_evidence || input.hit_priority_evidence, null),
-    blocker_reason: blockerReason,
-    refreshed_at: text(refreshedAt, new Date(0).toISOString()),
-    provenance_source_payload_id: text(input.provenance_source_payload_id || input.payload_id || input.source_payload_id),
+    current_render_status: projection.current_render_status,
+    can_project_display_overlay: projection.can_project_display_overlay,
+    can_reveal: projection.can_reveal,
+    display_space_rect: rectLikeToRect(projection.display_space_rect),
+    coordinate_space: projection.coordinate_space,
+    local_space_rect: rectLikeToRect(projection.local_space_rect),
+    ancestor_viewport_clip_chain: projection.ancestor_viewport_clip_chain,
+    scrollable_ancestor_chain: projection.scrollable_ancestor_chain,
+    z_order_evidence: projection.z_order_evidence,
+    blocker_reason: projection.blocker_reason,
+    refreshed_at: projection.refreshed_at,
+    provenance_source_payload_id: projection.provenance_source_payload_id,
   };
 }
 
@@ -273,12 +314,13 @@ export function normalizeRevealResult(input = {}) {
   const status = REVEAL_RESULT_STATUSES.has(input.status) ? input.status : 'unsupported';
   return {
     status,
+    pin_id: text(input.pin_id),
     adapter_id: text(input.adapter_id || input.adapter, ''),
     subject_id: text(input.subject_id || input.id || input.ref, ''),
     requested_at: text(input.requested_at || input.at || new Date(0).toISOString()),
     completed_at: text(input.completed_at || input.at || new Date(0).toISOString()),
     blocker_reason: text(input.blocker_reason || input.reason || input.error),
-    projection: input.projection ? normalizeAnnotationProjectionAdapterResult(input.projection) : null,
+    projection: input.projection ? normalizeAnnotationProjectionStatus(input.projection) : null,
   };
 }
 

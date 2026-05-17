@@ -2,9 +2,12 @@ import { surfaceInspectorAnnotationStateToSession } from './annotation-overlay-r
 import {
   isImplicitAnnotationRootCandidate,
   normalizeAnnotationCandidate,
+} from './annotation-candidates.js'
+import {
   normalizeAnnotationProjectionStatus,
   normalizeAnnotationRectLike,
-} from './annotation-candidates.js'
+  normalizeRevealResult,
+} from './annotation-projection.js'
 
 export const SURFACE_INSPECTOR_ANNOTATION_SCHEMA = 'surface_inspector_annotation_state'
 export const SURFACE_INSPECTOR_ANNOTATION_VERSION = '0.1.0'
@@ -14,7 +17,6 @@ export const SURFACE_INSPECTOR_ANNOTATION_SNAPSHOT_VERSION = '0.1.0'
 const FRAME_PIN_KIND = 'frame_pin'
 const COMMENT_KIND = 'comment'
 const DEFAULT_ACTOR = Object.freeze({ role: 'operator', id: 'human' })
-const REVEAL_STATUSES = new Set(['already_visible', 'revealed', 'blocked', 'virtualized', 'unsupported', 'target_absent', 'adapter_error'])
 const REPROJECTION_MISSING_SOURCE_REASON = 'projection_refresh_source_missing'
 const normalizeRectLike = normalizeAnnotationRectLike
 const normalizeProjectionStatus = normalizeAnnotationProjectionStatus
@@ -253,21 +255,6 @@ export function buildNativeAxElementSurfaceInspectorCandidate(input = {}, option
   })
 }
 
-function normalizeRevealResult(input = null) {
-  if (!input) return null
-  const status = REVEAL_STATUSES.has(input.status) ? input.status : 'unsupported'
-  return {
-    status,
-    pin_id: text(input.pin_id),
-    adapter_id: text(input.adapter_id),
-    subject_id: text(input.subject_id),
-    requested_at: isoNow(input.requested_at || input.at || Date.now()),
-    completed_at: isoNow(input.completed_at || input.at || Date.now()),
-    blocker_reason: text(input.blocker_reason || input.reason || input.error),
-    projection: input.projection ? normalizeProjectionStatus(input.projection) : null,
-  }
-}
-
 function normalizeProjectionRefreshState(input = {}) {
   return {
     generation: Number.isFinite(Number(input.generation)) ? Number(input.generation) : 0,
@@ -289,7 +276,7 @@ export function createSurfaceInspectorAnnotationState(input = {}) {
     projection_capabilities: normalizeProjectionCapabilities(input.projection_capabilities),
     adapter_capability_summary: normalizeAdapterCapabilitySummary(input.adapter_capability_summary || input.projection_capabilities),
     last_reveal_request: input.last_reveal_request ? clone(input.last_reveal_request) : null,
-    last_reveal_result: normalizeRevealResult(input.last_reveal_result),
+    last_reveal_result: input.last_reveal_result ? normalizeRevealResult(input.last_reveal_result) : null,
     last_hover_candidate: input.last_hover_candidate ? clone(input.last_hover_candidate) : null,
     annotation_scope_stack: Array.isArray(input.annotation_scope_stack) ? input.annotation_scope_stack.map(normalizeScopeFrame).filter(Boolean) : [],
     last_projection_blocker: input.last_projection_blocker ? clone(input.last_projection_blocker) : null,

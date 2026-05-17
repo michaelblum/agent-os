@@ -9,6 +9,8 @@ import {
   clipAnnotationDisplayRectToVisibleChain,
   normalizeAnnotationProjectionAdapterResult,
   normalizeAnnotationProjectionRequest,
+  normalizeAnnotationProjectionStatus,
+  normalizeRevealResult,
 } from '../../packages/toolkit/workbench/annotation-projection.js';
 
 const annotation = {
@@ -123,6 +125,64 @@ test('projection adapter contract normalizes reachability and reveal capability 
   assert.equal(result.can_reveal, true);
   assert.equal(result.scrollable_ancestor_chain[0].id, 'preview-scroll');
   assert.equal(result.blocker_reason, 'below_current_viewport');
+});
+
+test('canonical projection status normalizes legacy aliases and preserves blocker evidence', () => {
+  const projectable = normalizeAnnotationProjectionStatus({
+    status: 'projectable',
+    projectable: true,
+    visible_display_rect: { left: 10, top: 20, width: 30, height: 40 },
+    local_space_rect: { x: 1, y: 2, width: 3, height: 4 },
+    coordinate_space: 'native_display',
+    provenance_source_payload_id: 'payload-1',
+  });
+
+  assert.equal(projectable.current_render_status, 'visible');
+  assert.equal(projectable.can_project_display_overlay, true);
+  assert.deepEqual(projectable.visible_display_rect, { x: 10, y: 20, w: 30, h: 40 });
+  assert.deepEqual(projectable.display_space_rect, { x: 10, y: 20, w: 30, h: 40 });
+  assert.deepEqual(projectable.local_space_rect, { x: 1, y: 2, w: 3, h: 4 });
+  assert.equal(projectable.provenance_source_payload_id, 'payload-1');
+
+  const offscreen = normalizeAnnotationProjectionStatus({
+    status: 'resolved_offscreen',
+    can_reveal: true,
+    blocker: { reason: 'target_below_viewport' },
+    visible_display_rect: { x: 10, y: 900, w: 30, h: 40 },
+    scrollable_ancestor_chain: [{ id: 'scroll', kind: 'region', scroll_y: 100 }],
+  });
+
+  assert.equal(offscreen.current_render_status, 'offscreen_scrollable');
+  assert.equal(offscreen.can_project_display_overlay, false);
+  assert.equal(offscreen.can_reveal, true);
+  assert.equal(offscreen.display_space_rect, null);
+  assert.equal(offscreen.blocker_reason, 'target_below_viewport');
+  assert.equal(offscreen.scrollable_ancestor_chain[0].id, 'scroll');
+});
+
+test('canonical reveal result keeps pin context and normalizes projection status', () => {
+  const reveal = normalizeRevealResult({
+    status: 'revealed',
+    pin_id: 'pin-child',
+    adapter_id: 'aos-toolkit-semantic-target',
+    subject_id: 'child',
+    requested_at: '2026-05-10T00:00:00.000Z',
+    completed_at: '2026-05-10T00:00:01.000Z',
+    projection: {
+      status: 'out_of_viewport',
+      can_reveal: true,
+      blocker_reason: 'target_below_viewport',
+      visible_display_rect: { x: 10, y: 900, width: 30, height: 40 },
+    },
+  });
+
+  assert.equal(reveal.status, 'revealed');
+  assert.equal(reveal.pin_id, 'pin-child');
+  assert.equal(reveal.adapter_id, 'aos-toolkit-semantic-target');
+  assert.equal(reveal.subject_id, 'child');
+  assert.equal(reveal.projection.current_render_status, 'offscreen_scrollable');
+  assert.equal(reveal.projection.can_project_display_overlay, false);
+  assert.equal(reveal.projection.blocker_reason, 'target_below_viewport');
 });
 
 test('semantic target adapter projects visible structured bounds and revealable scrolled targets', () => {

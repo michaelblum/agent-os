@@ -1,3 +1,5 @@
+import { normalizeAnnotationProjectionStatus } from './annotation-projection.js'
+
 export const ANNOTATION_SESSION_SCHEMA = 'aos_annotation_session'
 export const ANNOTATION_SESSION_VERSION = '0.1.0'
 
@@ -71,32 +73,21 @@ function normalizeActor(actor = DEFAULT_ACTOR) {
   }
 }
 
-function normalizeRect(rect = null) {
-  if (!rect || typeof rect !== 'object') return null
-  const x = Number(rect.x ?? rect.left)
-  const y = Number(rect.y ?? rect.top)
-  const width = Number(rect.width ?? rect.w)
-  const height = Number(rect.height ?? rect.h)
-  if (![x, y, width, height].every(Number.isFinite)) return null
-  return { x, y, width, height }
-}
-
 export function normalizeAnnotationProjectionEvidence(input = null) {
   if (!input || typeof input !== 'object') return null
-  const status = text(input.current_render_status || input.render_status || input.status, 'visible')
-  const displayRect = normalizeRect(input.display_space_rect || input.display_rect || input.visible_display_rect)
+  const projection = normalizeAnnotationProjectionStatus(input)
   return {
     adapter_id: text(input.adapter_id || input.adapter),
     subject_id: text(input.subject_id || input.id),
     subject_kind: text(input.subject_kind || input.kind || input.role),
-    current_render_status: status,
-    can_project_display_overlay: status === 'visible' && Boolean(input.can_project_display_overlay ?? input.projectable ?? displayRect),
-    can_reveal: Boolean(input.can_reveal),
-    display_space_rect: status === 'visible' && displayRect ? displayRect : null,
-    visible_display_rect: displayRect,
-    coordinate_space: text(input.coordinate_space || input.rect_coordinate_space, 'native_display'),
-    blocker_reason: text(input.blocker_reason || input.reason || input.blocker?.reason),
-    refreshed_at: text(input.refreshed_at, new Date(0).toISOString()),
+    current_render_status: projection.current_render_status,
+    can_project_display_overlay: projection.can_project_display_overlay,
+    can_reveal: projection.can_reveal,
+    display_space_rect: projection.display_space_rect,
+    visible_display_rect: projection.visible_display_rect,
+    coordinate_space: projection.coordinate_space,
+    blocker_reason: projection.blocker_reason,
+    refreshed_at: projection.refreshed_at,
     source_metadata: clone(input.source_metadata || input.source_tree_node_metadata || input.metadata || {}),
   }
 }

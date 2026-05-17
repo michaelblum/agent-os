@@ -1,4 +1,8 @@
-const RENDER_STATUSES = new Set(['visible', 'clipped', 'offscreen_scrollable', 'virtualized', 'hidden', 'absent', 'stale', 'blocked', 'unsupported'])
+import {
+  normalizeAnnotationProjectionStatus,
+  normalizeAnnotationRectLike,
+} from './annotation-projection.js'
+
 const CANDIDATE_ADAPTER_PRIORITY = new Map([
   ['aos-toolkit-semantic-target', 80],
   ['aos-browser-dom-element-picker', 72],
@@ -43,16 +47,6 @@ function subjectPathFromNode(node = {}) {
   if (node.subject_path) return text(node.subject_path).split('/').filter(Boolean)
   if (node.path) return text(node.path).split('/').filter(Boolean)
   return [text(node.id || node.subject_id || node.label, 'unknown')]
-}
-
-export function normalizeAnnotationRectLike(rect = null) {
-  if (!rect || typeof rect !== 'object') return null
-  const x = Number(rect.x ?? rect.left)
-  const y = Number(rect.y ?? rect.top)
-  const w = Number(rect.w ?? rect.width)
-  const h = Number(rect.h ?? rect.height)
-  if (![x, y, w, h].every(Number.isFinite)) return null
-  return { x, y, w, h }
 }
 
 function rectArea(rect = null) {
@@ -139,37 +133,6 @@ function candidateKindPenalty(candidate = {}) {
   const kind = text(candidate.subject_kind || candidate.kind || candidate.role || candidate.type).toLowerCase()
   if (!kind) return 0
   return NOISY_SUBJECT_KINDS.has(kind) ? 8 : 0
-}
-
-export function normalizeAnnotationProjectionStatus(input = {}) {
-  const rawStatus = text(input.current_render_status || input.render_status || input.status || input.projection_status, 'visible')
-  const normalizedStatus = rawStatus === 'projectable'
-    ? 'visible'
-    : (rawStatus === 'out_of_viewport' || rawStatus === 'resolved_offscreen' ? 'offscreen_scrollable' : rawStatus)
-  const status = RENDER_STATUSES.has(normalizedStatus) ? normalizedStatus : 'unsupported'
-  const displayRect = normalizeAnnotationRectLike(input.display_space_rect || input.display_rect || input.visible_display_rect)
-  const projectable = input.projectable ?? input.can_project_display_overlay ?? status === 'visible'
-  const blockerReason = text(input.blocker_reason || input.blocker?.reason || input.reason)
-  return {
-    status,
-    current_render_status: status,
-    projectable: Boolean(projectable) && status === 'visible',
-    can_project_display_overlay: Boolean(projectable) && status === 'visible' && Boolean(displayRect),
-    can_reveal: Boolean(input.can_reveal),
-    visible_display_rect: displayRect ? clone(displayRect) : null,
-    display_space_rect: status === 'visible' && displayRect ? clone(displayRect) : null,
-    coordinate_space: text(input.coordinate_space || input.rect_coordinate_space || input.display_rect_coordinate_space, 'native_display'),
-    local_space_rect: normalizeAnnotationRectLike(input.local_space_rect),
-    minimap_rect: input.minimap_rect ? clone(input.minimap_rect) : null,
-    ancestor_viewport_clip_chain: Array.isArray(input.ancestor_viewport_clip_chain) ? clone(input.ancestor_viewport_clip_chain) : [],
-    scrollable_ancestor_chain: Array.isArray(input.scrollable_ancestor_chain) ? clone(input.scrollable_ancestor_chain) : [],
-    z_order_evidence: input.z_order_evidence ? clone(input.z_order_evidence) : null,
-    blocker_reason: blockerReason,
-    blocker: input.blocker ? clone(input.blocker) : (blockerReason ? { reason: blockerReason } : null),
-    adapter_result: input.adapter_result ? clone(input.adapter_result) : null,
-    refreshed_at: text(input.refreshed_at, new Date(0).toISOString()),
-    provenance_source_payload_id: text(input.provenance_source_payload_id),
-  }
 }
 
 export function normalizeAnnotationCandidate(candidate = {}, options = {}) {
