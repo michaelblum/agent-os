@@ -515,6 +515,21 @@ export function createSigilContextMenu({
             content: 'sigil-context-menu',
         },
         getRootNode: () => document,
+        itemSelector: [
+            '.ctx-trigger[data-ctx-open]',
+            '[data-ctx-back]',
+            '[data-sigil-action]',
+            '[data-sigil-avatar-action]',
+        ].join(', '),
+        getItemValue(element, index = 0) {
+            return element?.dataset?.ctxOpen
+                || element?.dataset?.sigilAction
+                || element?.dataset?.sigilAvatarAction
+                || element?.dataset?.sigilFastTravelEffect
+                || element?.dataset?.sigilLineTrailMode
+                || element?.id
+                || `item-${index}`;
+        },
         closeOnSelect: false,
         composite: true,
         loopFocus: true,

@@ -49,6 +49,7 @@ export function createZagAdapter(config, context = {}) {
     bindings,
     snapshot = defaultSnapshot,
     actions = {},
+    transientProps = [],
     validate,
   } = config;
   const { id } = context;
@@ -90,6 +91,7 @@ export function createZagAdapter(config, context = {}) {
     });
     delete currentProps.onStateChange;
     for (const key of Object.keys(selectors)) delete currentProps[key];
+    for (const key of transientProps) delete currentProps[key];
     service.updateProps(() => currentProps);
     return getSnapshot();
   }
@@ -174,4 +176,4 @@ export function createZagAdapter(config, context = {}) {
   return publicApi;
 }
 
-export { mergeProps, normalizeProps };
+export { mergeProps, normalizeProps, VanillaMachine };

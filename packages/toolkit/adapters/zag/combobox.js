@@ -1,29 +1,20 @@
 import {
-  VanillaMachine,
   mergeProps,
-  normalizeProps,
-  spreadProps as zagSpreadProps,
 } from './vendor/menu-runtime.mjs';
 import {
   connect as zagConnect,
   machine as zagComboboxMachine,
 } from '@zag-js/combobox';
+import {
+  applyProps,
+  compactProps,
+  normalizeProps,
+  setDatasetFlag,
+  valueForElement,
+  VanillaMachine,
+} from './shared.js';
 
 const DEFAULT_ITEM_SELECTOR = '[data-value]';
-
-function compactProps(props = {}) {
-  return Object.fromEntries(
-    Object.entries(props).filter(([, value]) => value !== undefined)
-  );
-}
-
-function valueForElement(element, index = 0) {
-  return element?.dataset?.value
-    || element?.getAttribute?.('data-value')
-    || element?.value
-    || element?.id
-    || `item-${index}`;
-}
 
 function itemText(element, item, value) {
   return element?.getAttribute?.('aria-label')
@@ -32,17 +23,6 @@ function itemText(element, item, value) {
     || item?.label
     || item?.name
     || value;
-}
-
-function setDatasetFlag(element, name, enabled) {
-  if (!element?.dataset) return;
-  if (enabled) element.dataset[name] = '';
-  else delete element.dataset[name];
-}
-
-function applyProps(element, props, machineId) {
-  if (!element) return () => {};
-  return zagSpreadProps(element, props, machineId);
 }
 
 export function createAosZagCombobox(context = {}) {
