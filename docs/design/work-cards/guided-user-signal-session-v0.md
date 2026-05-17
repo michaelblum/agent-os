@@ -254,6 +254,41 @@ If `./aos ready` passes, run one bounded live smoke:
 If live readiness fails, report the exact blocker and do not claim live UI
 completion.
 
+## Foreman Review Correction - 2026-05-17
+
+The first GDI implementation on `gdi/guided-user-signal-session-v0` is close but
+not accepted yet. It documents and defaults to redaction for guided-session
+prompt bodies, free text, and answer payloads, but
+`packages/toolkit/workbench/guided-user-signal-session.js` currently persists
+`capture_request.prompt` and `capture_result.free_text` unchanged even when the
+record says:
+
+```json
+{
+  "prompt_bodies": "redact",
+  "free_text_answers": "redact",
+  "answer_payloads": "redact"
+}
+```
+
+Correct the guided-session normalizer/store so the durable record honors its
+redaction policy by default, matching the gate record behavior. Raw prompt text,
+free-text answers, and optional gate/answer payloads should be stored only when
+the corresponding policy is `store`. Keep safe summaries if useful, but do not
+silently persist private text under a `redact` policy.
+
+Add focused tests that fail on the current behavior and pass after the fix:
+
+- default redaction does not persist `capture_request.prompt`;
+- default redaction does not persist `capture_result.free_text`;
+- explicit `redaction.prompt_bodies = "store"` and
+  `redaction.free_text_answers = "store"` preserve those values;
+- schema validation still passes for both redacted and stored records.
+
+Preserve the existing layer boundary: toolkit owns the normalizer/store and
+shell plan, daemon owns input capture authority, and optional gate questions
+continue to route through the existing `gate.submit` bridge.
+
 ## Completion Report
 
 Report:

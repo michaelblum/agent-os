@@ -39,6 +39,7 @@ function input() {
     ],
     capture_request: {
       kind: 'click',
+      prompt: 'Click the account settings control.',
       coordinate_space: 'native_display',
       input_authority: { primitive: 'input_region', scope: 'point' },
     },
@@ -60,7 +61,47 @@ test('guided user signal session normalizes provider-neutral contract and daemon
   assert.equal(session.capture_request.input_authority.primitive, 'input_region');
   assert.equal(session.capture_request.input_authority.future_full_screen_primitive, 'daemon_native_full_screen_input_capture');
   assert.equal(session.redaction.prompt_bodies, 'redact');
+  assert.equal(session.capture_request.prompt, '');
   assert.equal(session.storage.session_path, path.join('/tmp/aos-guided-test', 'repo', 'guided-user-signal', 'sessions', `${FIXED_ID}.json`));
+});
+
+test('guided user signal session redacts prompt bodies and free text by default', () => {
+  const session = createGuidedUserSignalSession({
+    ...input(),
+    capture_result: {
+      kind: 'annotation',
+      captured_at: CAPTURED_AT,
+      annotation: { address: 'subject:browser:hero-cta', comment_text: 'Private locator note' },
+      free_text: 'Private typed explanation',
+    },
+  }, { now: CREATED_AT });
+
+  assert.equal(session.redaction.prompt_bodies, 'redact');
+  assert.equal(session.redaction.free_text_answers, 'redact');
+  assert.equal(session.capture_request.prompt, '');
+  assert.equal(session.capture_result.free_text, '');
+});
+
+test('guided user signal session stores prompt bodies and free text only when policy opts in', () => {
+  const session = createGuidedUserSignalSession({
+    ...input(),
+    capture_result: {
+      kind: 'annotation',
+      captured_at: CAPTURED_AT,
+      annotation: { address: 'subject:browser:hero-cta', comment_text: 'Stored locator note' },
+      free_text: 'Stored typed explanation',
+    },
+    redaction: {
+      prompt_bodies: 'store',
+      free_text_answers: 'store',
+    },
+  }, { now: CREATED_AT });
+
+  assert.equal(session.redaction.prompt_bodies, 'store');
+  assert.equal(session.redaction.free_text_answers, 'store');
+  assert.equal(session.redaction.answer_payloads, 'redact');
+  assert.equal(session.capture_request.prompt, 'Click the account settings control.');
+  assert.equal(session.capture_result.free_text, 'Stored typed explanation');
 });
 
 test('guided user signal shell plan keeps toolkit policy separate from daemon capture', () => {

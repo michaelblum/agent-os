@@ -115,14 +115,14 @@ function normalizeGuidanceItem(item = {}, index = 0) {
   };
 }
 
-function normalizeCaptureRequest(request = {}) {
+function normalizeCaptureRequest(request = {}, redaction = normalizeRedaction()) {
   const input = object(request);
   const kind = GUIDED_USER_SIGNAL_CAPTURE_KINDS.has(input.kind) ? input.kind : 'click';
   const primitive = text(input.input_authority?.primitive || input.primitive, 'input_region');
   const scope = text(input.input_authority?.scope || input.scope, kind === 'region' ? 'region' : 'point');
   return {
     kind,
-    prompt: text(input.prompt),
+    prompt: redaction.prompt_bodies === 'store' ? text(input.prompt) : '',
     required: input.required !== false,
     coordinate_space: text(input.coordinate_space, 'native_display'),
     input_authority: {
@@ -137,7 +137,7 @@ function normalizeCaptureRequest(request = {}) {
   };
 }
 
-function normalizeCaptureResult(result = null) {
+function normalizeCaptureResult(result = null, redaction = normalizeRedaction()) {
   if (!result) return null;
   const input = object(result);
   const kind = GUIDED_USER_SIGNAL_CAPTURE_KINDS.has(input.kind) ? input.kind : 'click';
@@ -148,7 +148,7 @@ function normalizeCaptureResult(result = null) {
     region: normalizeRect(input.region || input.rect || input.bounds),
     input_event: clone(input.input_event || null),
     annotation: input.annotation ? normalizeAnnotationAnchor(input.annotation) : null,
-    free_text: text(input.free_text || input.note),
+    free_text: redaction.free_text_answers === 'store' ? text(input.free_text || input.note) : '',
   };
   return output;
 }
@@ -200,14 +200,15 @@ export function createGuidedUserSignalSession(input = {}, options = {}) {
   const state = GUIDED_USER_SIGNAL_TERMINAL_STATES.has(input.lifecycle?.state)
     ? input.lifecycle.state
     : 'pending';
+  const redaction = normalizeRedaction(input.redaction);
   return {
     schema_version: GUIDED_USER_SIGNAL_SESSION_SCHEMA_VERSION,
     session_id: sessionId,
     source_operation: normalizeSourceOperation(input.source_operation || input.operation || input.source),
     subject: normalizeSubject(input.subject),
     guidance: (Array.isArray(input.guidance) ? input.guidance : []).map(normalizeGuidanceItem),
-    capture_request: normalizeCaptureRequest(input.capture_request || input.capture),
-    capture_result: normalizeCaptureResult(input.capture_result || input.result),
+    capture_request: normalizeCaptureRequest(input.capture_request || input.capture, redaction),
+    capture_result: normalizeCaptureResult(input.capture_result || input.result, redaction),
     linked_artifacts: normalizeLinks(input.linked_artifacts || input.links),
     lifecycle: {
       state,
@@ -216,7 +217,7 @@ export function createGuidedUserSignalSession(input = {}, options = {}) {
       terminal_at: input.lifecycle?.terminal_at || (GUIDED_USER_SIGNAL_TERMINAL_STATES.has(state) ? now : null),
       terminal_outcome: input.lifecycle?.terminal_outcome || (GUIDED_USER_SIGNAL_TERMINAL_STATES.has(state) ? state : null),
     },
-    redaction: normalizeRedaction(input.redaction),
+    redaction,
     storage: storageFor(sessionId, options),
   };
 }

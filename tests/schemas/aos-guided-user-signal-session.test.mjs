@@ -61,3 +61,43 @@ test('guided user signal session record matches public schema', async () => {
   const result = validate(instancePath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
+
+test('guided user signal session schema accepts redacted and explicitly stored text records', async () => {
+  const stateRoot = await mkdtemp(path.join(tmpdir(), 'aos-guided-user-signal-schema-redaction-'));
+  const base = {
+    source_operation: { operation_id: 'op-1', operation_kind: 'repair', session_id: 's-1', harness: 'codex', agent: 'gdi' },
+    subject: { reference: 'subject:button', kind: 'browser_element', surface_id: 'canvas-1', surface_kind: 'browser_page' },
+    guidance: [{ kind: 'label', text: 'This control', rect: { x: 1, y: 2, width: 3, height: 4 } }],
+    capture_request: { kind: 'annotation', prompt: 'Private prompt body' },
+    capture_result: {
+      kind: 'annotation',
+      captured_at: '2026-05-17T02:40:00.000Z',
+      annotation: { address: 'subject:button', comment_text: 'This one' },
+      free_text: 'Private answer text',
+    },
+    lifecycle: { state: 'captured', terminal_outcome: 'captured' },
+  };
+  const records = [
+    createGuidedUserSignalSession({
+      ...base,
+      session_id: 'guided-signal-11111111-2222-3333-4444-555555555555',
+    }, { now: '2026-05-17T02:39:00.000Z', env: { AOS_STATE_ROOT: stateRoot, AOS_RUNTIME_MODE: 'repo' } }),
+    createGuidedUserSignalSession({
+      ...base,
+      session_id: 'guided-signal-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      redaction: { prompt_bodies: 'store', free_text_answers: 'store' },
+    }, { now: '2026-05-17T02:39:00.000Z', env: { AOS_STATE_ROOT: stateRoot, AOS_RUNTIME_MODE: 'repo' } }),
+  ];
+
+  assert.equal(records[0].capture_request.prompt, '');
+  assert.equal(records[0].capture_result.free_text, '');
+  assert.equal(records[1].capture_request.prompt, 'Private prompt body');
+  assert.equal(records[1].capture_result.free_text, 'Private answer text');
+
+  for (const [index, record] of records.entries()) {
+    const instancePath = path.join(stateRoot, `guided-session-${index}.json`);
+    await writeFile(instancePath, JSON.stringify(record), 'utf8');
+    const result = validate(instancePath);
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  }
+});
