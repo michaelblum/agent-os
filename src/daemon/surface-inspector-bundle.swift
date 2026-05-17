@@ -126,11 +126,29 @@ extension UnifiedDaemon {
     }
 
     func triggerCanvasInspectorSeeBundle(sourceCanvasID: String, trigger: String) {
-        guard canvasInspectorBundleCanvasIDs.contains(sourceCanvasID),
-              canvasExists(sourceCanvasID) else {
+        guard canvasExists(sourceCanvasID) else {
             return
         }
         let runtimeConfig = resolvedCanvasInspectorBundleConfig()
+        guard let bundleOwnerCanvasID = currentCanvasInspectorBundleCanvasID() else {
+            let error: [String: Any] = [
+                "phase": "bundle_request_authorization",
+                "code": "bundle_request_owner_unavailable",
+                "message": "No active canvas inspector bundle owner is available",
+                "source_canvas_id": sourceCanvasID,
+            ]
+            postCanvasInspectorSeeBundleStatus(
+                canvasID: sourceCanvasID,
+                status: "error",
+                message: "see bundle unavailable: no active bundle owner",
+                error: error,
+                trigger: trigger,
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: nil
+            )
+            return
+        }
 
         let startResult = beginCanvasInspectorBundleCapture()
         switch startResult {
@@ -142,7 +160,9 @@ extension UnifiedDaemon {
                 status: "pending",
                 message: "see bundle already in flight",
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: bundleOwnerCanvasID
             )
             return
         case .started:
@@ -151,13 +171,27 @@ extension UnifiedDaemon {
                 status: "pending",
                 message: "capturing see bundle...",
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: bundleOwnerCanvasID
             )
+            if sourceCanvasID != bundleOwnerCanvasID {
+                postCanvasInspectorSeeBundleStatus(
+                    canvasID: bundleOwnerCanvasID,
+                    status: "pending",
+                    message: "capturing see bundle...",
+                    trigger: trigger,
+                    runtimeConfig: runtimeConfig,
+                    sourceCanvasID: sourceCanvasID,
+                    bundleOwnerCanvasID: bundleOwnerCanvasID
+                )
+            }
         }
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             self?.performCanvasInspectorSeeBundleExport(
-                canvasID: sourceCanvasID,
+                canvasID: bundleOwnerCanvasID,
+                sourceCanvasID: sourceCanvasID,
                 trigger: trigger,
                 runtimeConfig: runtimeConfig
             )
@@ -212,6 +246,7 @@ extension UnifiedDaemon {
 
     private func performCanvasInspectorSeeBundleExport(
         canvasID: String,
+        sourceCanvasID: String,
         trigger: String,
         runtimeConfig: CanvasInspectorBundleRuntimeConfig
     ) {
@@ -221,6 +256,7 @@ extension UnifiedDaemon {
         if runtimeConfig.copiesClipboardPayload {
             performCanvasInspectorSeeBundleClipboardPayloadExport(
                 canvasID: canvasID,
+                sourceCanvasID: sourceCanvasID,
                 trigger: trigger,
                 runtimeConfig: runtimeConfig,
                 createdAt: createdAt
@@ -324,6 +360,7 @@ extension UnifiedDaemon {
                 "trigger": trigger,
                 "shortcut": runtimeConfig.shortcutLabel,
                 "canvas_id": canvasID,
+                "source_canvas_id": sourceCanvasID,
                 "canvas_at": canvasInfo.at,
                 "bundle_path": bundleDir.path,
                 "bundle_json_path": bundleJSONURL.path,
@@ -352,8 +389,23 @@ extension UnifiedDaemon {
                 bundlePath: bundleDir.path,
                 bundleJSONPath: bundleJSONURL.path,
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: canvasID
             )
+            if sourceCanvasID != canvasID {
+                postCanvasInspectorSeeBundleStatus(
+                    canvasID: sourceCanvasID,
+                    status: "success",
+                    message: "see bundle copied to clipboard",
+                    bundlePath: bundleDir.path,
+                    bundleJSONPath: bundleJSONURL.path,
+                    trigger: trigger,
+                    runtimeConfig: runtimeConfig,
+                    sourceCanvasID: sourceCanvasID,
+                    bundleOwnerCanvasID: canvasID
+                )
+            }
         } catch {
             let bundleError: [String: Any]
             let message: String
@@ -380,6 +432,7 @@ extension UnifiedDaemon {
                     "trigger": trigger,
                     "shortcut": runtimeConfig.shortcutLabel,
                     "canvas_id": canvasID,
+                    "source_canvas_id": sourceCanvasID,
                     "bundle_path": bundleDir.path,
                     "bundle_json_path": bundleJSONURL.path,
                     "config": [
@@ -408,13 +461,30 @@ extension UnifiedDaemon {
                 bundleJSONPath: bundleJSONPath,
                 error: bundleError,
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: canvasID
             )
+            if sourceCanvasID != canvasID {
+                postCanvasInspectorSeeBundleStatus(
+                    canvasID: sourceCanvasID,
+                    status: "error",
+                    message: message,
+                    bundlePath: bundlePath,
+                    bundleJSONPath: bundleJSONPath,
+                    error: bundleError,
+                    trigger: trigger,
+                    runtimeConfig: runtimeConfig,
+                    sourceCanvasID: sourceCanvasID,
+                    bundleOwnerCanvasID: canvasID
+                )
+            }
         }
     }
 
     private func performCanvasInspectorSeeBundleClipboardPayloadExport(
         canvasID: String,
+        sourceCanvasID: String,
         trigger: String,
         runtimeConfig: CanvasInspectorBundleRuntimeConfig,
         createdAt: String
@@ -432,8 +502,22 @@ extension UnifiedDaemon {
                 message: "see bundle clipboard payload failed: Canvas '\(canvasID)' not found",
                 error: error,
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: canvasID
             )
+            if sourceCanvasID != canvasID {
+                postCanvasInspectorSeeBundleStatus(
+                    canvasID: sourceCanvasID,
+                    status: "error",
+                    message: "see bundle clipboard payload failed: Canvas '\(canvasID)' not found",
+                    error: error,
+                    trigger: trigger,
+                    runtimeConfig: runtimeConfig,
+                    sourceCanvasID: sourceCanvasID,
+                    bundleOwnerCanvasID: canvasID
+                )
+            }
             return
         }
 
@@ -443,7 +527,8 @@ extension UnifiedDaemon {
             "created_at": createdAt,
             "trigger": trigger,
             "shortcut": runtimeConfig.shortcutLabel,
-            "source_canvas_id": canvasID,
+            "canvas_id": canvasID,
+            "source_canvas_id": sourceCanvasID,
             "canvas_at": canvasInfo.at,
             "config": [
                 "hotkey": runtimeConfig.hotkey as Any? ?? NSNull(),
@@ -499,8 +584,21 @@ extension UnifiedDaemon {
                 status: "success",
                 message: "see bundle JSON copied to clipboard",
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: canvasID
             )
+            if sourceCanvasID != canvasID {
+                postCanvasInspectorSeeBundleStatus(
+                    canvasID: sourceCanvasID,
+                    status: "success",
+                    message: "see bundle JSON copied to clipboard",
+                    trigger: trigger,
+                    runtimeConfig: runtimeConfig,
+                    sourceCanvasID: sourceCanvasID,
+                    bundleOwnerCanvasID: canvasID
+                )
+            }
         } catch {
             let bundleError: [String: Any] = [
                 "phase": "clipboard_payload_export",
@@ -513,8 +611,22 @@ extension UnifiedDaemon {
                 message: "see bundle clipboard payload failed: \(error)",
                 error: bundleError,
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                sourceCanvasID: sourceCanvasID,
+                bundleOwnerCanvasID: canvasID
             )
+            if sourceCanvasID != canvasID {
+                postCanvasInspectorSeeBundleStatus(
+                    canvasID: sourceCanvasID,
+                    status: "error",
+                    message: "see bundle clipboard payload failed: \(error)",
+                    error: bundleError,
+                    trigger: trigger,
+                    runtimeConfig: runtimeConfig,
+                    sourceCanvasID: sourceCanvasID,
+                    bundleOwnerCanvasID: canvasID
+                )
+            }
         }
     }
 
@@ -824,7 +936,9 @@ extension UnifiedDaemon {
         bundleJSONPath: String? = nil,
         error: [String: Any]? = nil,
         trigger: String,
-        runtimeConfig: CanvasInspectorBundleRuntimeConfig
+        runtimeConfig: CanvasInspectorBundleRuntimeConfig,
+        sourceCanvasID: String? = nil,
+        bundleOwnerCanvasID: String? = nil
     ) {
         var inner: [String: Any] = [
             "status": status,
@@ -848,6 +962,12 @@ extension UnifiedDaemon {
         }
         if let error {
             inner["error"] = error
+        }
+        if let sourceCanvasID {
+            inner["source_canvas_id"] = sourceCanvasID
+        }
+        if let bundleOwnerCanvasID {
+            inner["bundle_owner_canvas_id"] = bundleOwnerCanvasID
         }
         let payload: [String: Any] = [
             "type": "canvas_inspector.see_bundle_status",
