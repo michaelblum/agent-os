@@ -134,7 +134,8 @@ export function createZagAdapter(config, context = {}) {
     cleanupBindings();
     for (const [part, binding] of Object.entries(bindings)) {
       if (binding.many || typeof binding === 'function') {
-        bindMany(root, part, options[`${part}Selector`] || selectors[part], options[`get${binding.alias || part}Props`] || null);
+        const suffix = binding.alias || part[0].toUpperCase() + part.slice(1);
+        bindMany(root, part, options[`${part}Selector`] || selectors[part], options[`get${suffix}Props`] || null);
         continue;
       }
       const element = options[part]

@@ -59,6 +59,31 @@ test('consumer supplied selector and value mapping bind product-owned attributes
   adapter.destroy();
 });
 
+test('bind applies consumer getItemProps extras to function-backed items', () => {
+  const { adapter, document } = createMenuAdapter();
+  const root = patchSpreadSupport(document.createElement('div'));
+  const action = appendMenuItem(document, root, { 'data-value': 'toggle-log' }, 'Toggle Log');
+  const clicks = [];
+  document.body.appendChild(root);
+
+  adapter.bind(root, {
+    getItemProps(element) {
+      return {
+        extra: {
+          onClick() {
+            clicks.push(element.dataset.value);
+          },
+        },
+      };
+    },
+  });
+
+  action.dispatchEvent(new document.defaultView.Event('click', { bubbles: true }));
+  assert.deepEqual(clicks, ['toggle-log']);
+
+  adapter.destroy();
+});
+
 test('binding cleanup clears item markers on destroy and rebind', () => {
   const { adapter, document } = createMenuAdapter();
   const firstRoot = patchSpreadSupport(document.createElement('div'));
