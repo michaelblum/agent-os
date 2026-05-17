@@ -40,6 +40,22 @@ private struct CanvasInspectorBundleRuntimeConfig {
     }
 }
 
+private struct CanvasInspectorBundleCaptureFailure: Error {
+    let phase: String
+    let code: String
+    let message: String
+    let exitCode: Int32
+
+    var asDictionary: [String: Any] {
+        [
+            "phase": phase,
+            "code": code,
+            "message": message,
+            "exit_code": Int(exitCode),
+        ]
+    }
+}
+
 extension UnifiedDaemon {
     func maybeHandleCanvasInspectorAnnotationHotkey(event: String, data: [String: Any]) -> Bool {
         guard event == "key_down", canvasInspectorAnnotationHotkeyMatches(data) else {
@@ -323,6 +339,19 @@ extension UnifiedDaemon {
                 runtimeConfig: runtimeConfig
             )
         } catch {
+            let bundleError: [String: Any]
+            let message: String
+            if let captureFailure = error as? CanvasInspectorBundleCaptureFailure {
+                bundleError = captureFailure.asDictionary
+                message = "see bundle failed during \(captureFailure.phase): \(captureFailure.message)"
+            } else {
+                bundleError = [
+                    "phase": "bundle_export",
+                    "code": "BUNDLE_EXPORT_FAILED",
+                    "message": String(describing: error),
+                ]
+                message = "see bundle failed: \(error)"
+            }
             var bundlePath: String? = nil
             var bundleJSONPath: String? = nil
             if FileManager.default.fileExists(atPath: bundleDir.path) {
@@ -340,7 +369,7 @@ extension UnifiedDaemon {
                     "config": [
                         "include": runtimeConfig.include.asDictionary,
                     ],
-                    "error": String(describing: error),
+                    "error": bundleError,
                 ]
                 var finalErrorManifest = errorManifest
                 if var config = finalErrorManifest["config"] as? [String: Any] {
@@ -357,9 +386,10 @@ extension UnifiedDaemon {
             postCanvasInspectorSeeBundleStatus(
                 canvasID: canvasID,
                 status: "error",
-                message: "see bundle failed: \(error)",
+                message: message,
                 bundlePath: bundlePath,
                 bundleJSONPath: bundleJSONPath,
+                error: bundleError,
                 trigger: trigger,
                 runtimeConfig: runtimeConfig
             )
@@ -568,19 +598,18 @@ extension UnifiedDaemon {
             arguments.insert("--xray", at: arguments.count - 2)
         }
         let process = runProcess(
-            aosExecutablePath(),
-            arguments: arguments
+            aosExpectedBinaryPath(program: "aos", mode: aosCurrentRuntimeMode()),
+            arguments: arguments,
+            environment: canvasInspectorSeeCaptureEnvironment()
         )
 
         guard process.exitCode == 0 else {
-            throw NSError(
-                domain: "AOSCanvasInspectorBundle",
-                code: Int(process.exitCode),
-                userInfo: [
-                    NSLocalizedDescriptionKey: process.stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? "see capture exited with code \(process.exitCode)"
-                        : process.stderr.trimmingCharacters(in: .whitespacesAndNewlines),
-                ]
+            let parsed = parseCanvasInspectorSeeCaptureError(process.stderr)
+            throw CanvasInspectorBundleCaptureFailure(
+                phase: parsed.phase,
+                code: parsed.code,
+                message: parsed.message.isEmpty ? "see capture exited with code \(process.exitCode)" : parsed.message,
+                exitCode: process.exitCode
             )
         }
 
@@ -596,12 +625,52 @@ extension UnifiedDaemon {
         return dict
     }
 
+    private func canvasInspectorSeeCaptureEnvironment() -> [String: String] {
+        var environment: [String: String] = [
+            "AOS_RUNTIME_MODE": aosCurrentRuntimeMode().rawValue,
+            // This child is launched by an already-ready daemon-owned capture
+            // request. Skip only the CLI onboarding marker gate so actual
+            // ScreenCaptureKit permission remains checked by captureCommand().
+            "AOS_BYPASS_PERMISSIONS_SETUP": "1",
+        ]
+        if aosHasExplicitStateRootOverride() {
+            environment["AOS_STATE_ROOT"] = aosStateRoot()
+        }
+        return environment
+    }
+
+    private func parseCanvasInspectorSeeCaptureError(_ stderr: String) -> (phase: String, code: String, message: String) {
+        let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = trimmed.isEmpty ? "see capture failed" : trimmed
+        guard let data = trimmed.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data, options: []),
+              let dict = parsed as? [String: Any] else {
+            return ("capture_process", "SEE_CAPTURE_FAILED", fallback)
+        }
+
+        let code = dict["code"] as? String ?? "SEE_CAPTURE_FAILED"
+        let message = dict["error"] as? String ?? fallback
+        let phase: String
+        switch code {
+        case "PERMISSIONS_SETUP_REQUIRED":
+            phase = "child_cli_permissions_setup_preflight"
+        case "PERMISSION_DENIED":
+            phase = "screen_capture_permission"
+        case "CAPTURE_BUSY":
+            phase = "screen_capture_lock"
+        default:
+            phase = "capture_process"
+        }
+        return (phase, code, message)
+    }
+
     private func postCanvasInspectorSeeBundleStatus(
         canvasID: String,
         status: String,
         message: String,
         bundlePath: String? = nil,
         bundleJSONPath: String? = nil,
+        error: [String: Any]? = nil,
         trigger: String,
         runtimeConfig: CanvasInspectorBundleRuntimeConfig
     ) {
@@ -623,6 +692,9 @@ extension UnifiedDaemon {
         }
         if let bundleJSONPath {
             inner["bundle_json_path"] = bundleJSONPath
+        }
+        if let error {
+            inner["error"] = error
         }
         let payload: [String: Any] = [
             "type": "canvas_inspector.see_bundle_status",

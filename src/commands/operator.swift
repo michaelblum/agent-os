@@ -1065,13 +1065,7 @@ private func permissionsCheckCommand(args: [String], usage: String) {
     let mode = aosCurrentRuntimeMode()
     let daemonView: DaemonViewBlock
     var daemonHealth: DaemonHealthView? = nil
-    if let response = sendEnvelopeRequest(
-        service: "system",
-        action: "ping",
-        data: [:],
-        socketPath: aosSocketPath(for: mode),
-        timeoutMs: 250
-    ), let view = parseDaemonHealthView(from: response) {
+    if let view = fetchDaemonHealth(socketPath: aosSocketPath(for: mode), budgetMs: 1000)?.asView {
         daemonHealth = view
         daemonView = DaemonViewBlock(
             reachable: true,
@@ -1917,23 +1911,33 @@ private func launchdProcessID(label: String) -> Int? {
     return nil
 }
 
-private func fetchDaemonHealth(socketPath: String) -> DaemonHealthState? {
-    guard let response = sendEnvelopeRequest(service: "system", action: "ping", data: [:], socketPath: socketPath, timeoutMs: 250) else {
+private func fetchDaemonHealthResponse(socketPath: String, budgetMs: Int = 250) -> [String: Any]? {
+    let deadline = Date().addingTimeInterval(Double(budgetMs) / 1000.0)
+    repeat {
+        if let response = sendEnvelopeRequest(service: "system", action: "ping", data: [:], socketPath: socketPath, timeoutMs: 250),
+           parseDaemonHealthView(from: response) != nil {
+            return response
+        }
+        usleep(50_000)
+    } while Date() < deadline
+    return nil
+}
+
+private func fetchDaemonHealth(socketPath: String, budgetMs: Int = 250) -> DaemonHealthState? {
+    guard let response = fetchDaemonHealthResponse(socketPath: socketPath, budgetMs: budgetMs),
+          let view = parseDaemonHealthView(from: response) else {
         return nil
     }
     let payload = (response["data"] as? [String: Any]) ?? response
-    // parseDaemonHealthView already accepts both the structured `input_tap`
-    // block and the legacy flat `input_tap_status`/`input_tap_attempts` shape.
-    let view = parseDaemonHealthView(from: response)
     return DaemonHealthState(
         servingPID: payload["pid"] as? Int,
         uptime: payload["uptime"] as? Double,
-        inputTapStatus: view?.inputTap.status,
-        inputTapAttempts: view?.inputTap.attempts,
-        inputTapListenAccess: view?.inputTap.listenAccess,
-        inputTapPostAccess: view?.inputTap.postAccess,
-        inputTapLastErrorAt: view?.inputTap.lastErrorAt,
-        daemonAccessibility: view?.permissions.accessibility
+        inputTapStatus: view.inputTap.status,
+        inputTapAttempts: view.inputTap.attempts,
+        inputTapListenAccess: view.inputTap.listenAccess,
+        inputTapPostAccess: view.inputTap.postAccess,
+        inputTapLastErrorAt: view.inputTap.lastErrorAt,
+        daemonAccessibility: view.permissions.accessibility
     )
 }
 
