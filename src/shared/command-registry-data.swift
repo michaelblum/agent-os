@@ -751,7 +751,8 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("dock", "--dock", "Dock or role name when known"),
                 flag("cwd", "--cwd", "Working directory to capture in session metadata"),
                 flag("resume-policy", "--resume-policy", "Resume handling policy", default: .string("manual")),
-                flag("adapter-hint", "--adapter-hint", "Provider adapter hint", default: .string("codex_exec"))
+                flag("adapter-hint", "--adapter-hint", "Provider adapter hint", default: .string("codex_exec")),
+                flag("entrypoint", "--entrypoint", "Resume adapter identifier metadata, not an executable path", default: .string("codex_exec_adapter"))
             ],
             stdin: nil,
             constraints: nil,

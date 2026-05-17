@@ -87,11 +87,21 @@
     "resume": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "policy", "adapter_hint", "event_id", "event_path"],
+      "required": ["mode", "policy", "adapter_hint", "entrypoint", "auto_resume", "event_id", "event_path"],
       "properties": {
         "mode": { "type": "string", "enum": ["new_agent_turn"] },
         "policy": { "type": "string", "enum": ["manual", "queue", "auto"] },
         "adapter_hint": { "type": ["string", "null"] },
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Harness-specific resume adapter identifier, such as codex_exec_adapter. This is metadata for a future resume coordinator, not an executable path; the daemon does not invoke it directly."
+        },
+        "auto_resume": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, a configured resume adapter (e.g. codex_exec_adapter) may start a new agent turn automatically on submit. Default false. V0 implementations must treat this as false regardless of value."
+        },
         "event_id": { "type": ["string", "null"] },
         "event_path": { "type": ["string", "null"] }
       }

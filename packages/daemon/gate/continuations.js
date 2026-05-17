@@ -160,9 +160,22 @@ export class GateContinuationStore {
     return join(this.resumeEventDir, `${id}.json`);
   }
 
-  async create({ request, sessionId, harness, dock = null, cwd = process.cwd(), resumePolicy = 'manual', adapterHint = 'codex_exec' } = {}) {
+  async create({
+    request,
+    sessionId,
+    harness,
+    dock = null,
+    cwd = process.cwd(),
+    resumePolicy = 'manual',
+    adapterHint = 'codex_exec',
+    entrypoint = 'codex_exec_adapter',
+  } = {}) {
     if (!sessionId) throw new Error('--session-id is required');
     if (!harness) throw new Error('--harness is required');
+    if (typeof entrypoint !== 'string' || entrypoint.trim() === '') {
+      throw new Error('--entrypoint must be a non-empty resume adapter identifier');
+    }
+    const resumeEntrypoint = entrypoint.trim();
     const normalized = normalizeGateRequest(request);
     const continuationId = `gate-cont-${randomUUID()}`;
     const now = new Date().toISOString();
@@ -188,6 +201,8 @@ export class GateContinuationStore {
         mode: 'new_agent_turn',
         policy: resumePolicy,
         adapter_hint: adapterHint,
+        entrypoint: resumeEntrypoint,
+        auto_resume: false,
         event_id: null,
         event_path: null,
       },

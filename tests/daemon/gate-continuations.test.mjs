@@ -54,9 +54,15 @@ test('defer returns immediately and writes one pending continuation with redacte
   assert.equal('body' in record, false);
   assert.equal(record.response_stored, false);
   assert.equal('response' in record, false);
+  assert.equal(record.resume.mode, 'new_agent_turn');
+  assert.equal(record.resume.adapter_hint, 'codex_exec');
+  assert.equal(record.resume.entrypoint, 'codex_exec_adapter');
+  assert.equal(record.resume.auto_resume, false);
 
   const stored = JSON.parse(await readFile(join(stateRoot, 'repo', 'gate', 'continuations', `${record.continuation_id}.json`), 'utf8'));
   assert.equal(stored.continuation_id, record.continuation_id);
+  assert.equal(stored.resume.entrypoint, 'codex_exec_adapter');
+  assert.equal(stored.resume.auto_resume, false);
 });
 
 test('continuation storage is runtime-mode scoped', async () => {
@@ -70,6 +76,29 @@ test('continuation storage is runtime-mode scoped', async () => {
   assert.equal((await installedStore.list()).length, 1);
   assert.equal((await repoStore.list())[0].continuation_id, repo.continuation_id);
   assert.equal((await installedStore.list())[0].continuation_id, installed.continuation_id);
+});
+
+test('continuation resume entrypoint is configurable metadata and auto_resume remains false', async () => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-entrypoint-'));
+  const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
+  const continuation = await store.create({
+    request: request('gate-entrypoint'),
+    sessionId: 'session-entrypoint',
+    harness: 'codex',
+    entrypoint: 'custom_resume_adapter',
+  });
+
+  assert.equal(continuation.resume.entrypoint, 'custom_resume_adapter');
+  assert.equal(continuation.resume.auto_resume, false);
+  await assert.rejects(
+    () => store.create({
+      request: request('gate-entrypoint-invalid'),
+      sessionId: 'session-entrypoint-invalid',
+      harness: 'codex',
+      entrypoint: '',
+    }),
+    /--entrypoint must be a non-empty resume adapter identifier/,
+  );
 });
 
 test('readback filters continuations by id and status', async () => {

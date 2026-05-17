@@ -117,8 +117,12 @@ Tests must not mutate canonical `~/.config/aos/repo` state.
   as `canvas.create`, `canvas.eval`, `input_region.register`, and lifecycle
   events. Add the new trusted `gate.submit` bridge handler here or in a nearby
   daemon helper.
-- `src/display/canvas.swift` - receives `window.webkit.messageHandlers.headsup`
-  messages and forwards typed payloads to the daemon callback.
+- `src/display/canvas.swift`, `src/display/desktop-world-surface.swift`, and
+  `src/daemon/unified.swift` - rediscover the registered
+  `WKScriptMessageHandler` name(s) and canvas-to-daemon relay path before
+  writing bridge dispatch code. Current observation in this repo is `headsup`,
+  but GDI must verify the live symbols and report any discrepancy instead of
+  assuming bridge names.
 - `packages/toolkit/runtime/bridge.js` - exposes `emit(type, payload)` from
   canvas content to daemon.
 - `packages/toolkit/runtime/canvas.js` - shows request/ack patterns for bridge
@@ -346,3 +350,12 @@ Report:
 - branch name and final commit SHA;
 - recommended next slice, especially whether overlay/callout/full-screen input
   capture can now build on this bridge.
+
+## Next Slice
+
+**Guided User Signal Session V0** - after this bridge is stable, the next slice
+defines the contract for a paused operation that can project overlays/callouts
+onto live desktop/app/browser content, capture one click/region/annotation,
+optionally ask a gate question, and write one durable record linking all of it.
+Full-screen mouse input ownership belongs in the daemon/native input layer, not
+in a WebView panel.

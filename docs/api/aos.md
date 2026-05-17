@@ -177,8 +177,11 @@ active runtime state root and returns immediately with
 `$AOS_STATE_ROOT/{repo|installed}/gate/continuations/<continuation_id>.json`
 when a state-root override is set. The record captures the gate id, prompt
 title, redacted source metadata, session id, harness/provider hint, dock, cwd,
-branch, HEAD SHA, dirty summary, lifecycle state, and resume policy. Prompt
-bodies and submitted answer payloads are not persisted by default.
+branch, HEAD SHA, dirty summary, lifecycle state, resume policy, resume
+entrypoint metadata, and `auto_resume=false`. The entrypoint is an adapter
+identifier such as `codex_exec_adapter`, not an executable path; the V0 daemon
+does not invoke it directly. Prompt bodies and submitted answer payloads are
+not persisted by default.
 
 Submit a deferred gate from a local bridge or future UI receptor:
 
@@ -193,9 +196,11 @@ one terminal `aos.gate.record.v1` record, and writes one human-authored
 `~/.config/aos/{repo|installed}/gate/resume-events/<event_id>.json`. Duplicate
 submits are idempotent and return the existing resume event rather than creating
 another one. The resume event is provider-neutral: Codex is represented only by
-the `harness`/`provider` values and the `codex_exec` adapter hint. Use
-`--store-response` only when the answer payload should be persisted in the
-continuation, resume event, and terminal gate record.
+the `harness`/`provider` values, `codex_exec` adapter hint, and
+`codex_exec_adapter` continuation entrypoint metadata. V0 implementations must
+treat `resume.auto_resume` as false regardless of value. Use `--store-response`
+only when the answer payload should be persisted in the continuation, resume
+event, and terminal gate record.
 
 Read continuations without changing them:
 

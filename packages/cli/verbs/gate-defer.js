@@ -4,7 +4,7 @@ import { GateContinuationStore, createDeferResponse } from '../../daemon/gate/co
 
 function usage() {
   return `Usage:
-  aos gate defer --request gate-request.json --session-id <id> --harness codex --json
+  aos gate defer --request gate-request.json --session-id <id> --harness codex [--entrypoint codex_exec_adapter] --json
   aos gate defer --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"approve_deny"}}' --session-id <id> --harness codex
 
 	Creates a durable pending user-signal continuation and returns immediately.`;
@@ -21,6 +21,7 @@ function parseArgs(argv) {
     cwd: process.cwd(),
     resumePolicy: 'manual',
     adapterHint: 'codex_exec',
+    entrypoint: 'codex_exec_adapter',
     help: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -37,6 +38,7 @@ function parseArgs(argv) {
     else if (arg === '--cwd') parsed.cwd = argv[++index];
     else if (arg === '--resume-policy') parsed.resumePolicy = argv[++index];
     else if (arg === '--adapter-hint') parsed.adapterHint = argv[++index];
+    else if (arg === '--entrypoint') parsed.entrypoint = argv[++index];
     else throw new Error(`unknown option: ${arg}`);
   }
   if (parsed.requestFile && parsed.requestJson) throw new Error('--request and inline --json conflict');
@@ -69,6 +71,7 @@ export async function runGateDefer(argv = process.argv.slice(2), {
       cwd: args.cwd,
       resumePolicy: args.resumePolicy,
       adapterHint: args.adapterHint,
+      entrypoint: args.entrypoint,
     });
     stdout.write(`${JSON.stringify(createDeferResponse(record))}\n`);
     return 0;

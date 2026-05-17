@@ -25,8 +25,11 @@ bridge calls `./aos gate submit --continuation-id ...`, which marks the
 continuation terminal exactly once and writes one human-authored
 `aos.gate.resume-event.v1` for the original session. The resume event carries
 the session id, harness/provider hint, continuation id, gate id, submitted
-status, redacted answer summary, and adapter hint such as `codex_exec`; AOS core
-does not auto-run provider-specific resume commands.
+status, redacted answer summary, and adapter hint such as `codex_exec`. The
+continuation record also carries resume entrypoint metadata such as
+`codex_exec_adapter` plus `auto_resume=false`; AOS core does not auto-run
+provider-specific resume commands, and V0 treats auto-resume as disabled even if
+a future caller sets the field.
 
 ---
 

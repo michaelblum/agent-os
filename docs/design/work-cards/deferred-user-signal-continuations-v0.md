@@ -199,6 +199,10 @@ The record should include at least:
   - mode, such as `new_agent_turn`;
   - policy, such as `manual`, `queue`, or `auto`;
   - adapter hint, such as `codex_exec`;
+  - entrypoint metadata, such as `codex_exec_adapter`, identifying a future
+    resume adapter rather than an executable path;
+  - `auto_resume`, defaulting to false and treated as false by V0 regardless of
+    value;
   - generated human-authored message/event id or path after submit.
 
 Do not persist prompt bodies or free-text answer payloads by default.
