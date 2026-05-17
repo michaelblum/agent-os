@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { homedir, userInfo } from 'node:os';
+import { readFile, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { userInfo } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { normalizeGateRequest } from './index.js';
 import { createGateRecord, shouldStoreGateResponse } from './records.js';
+import {
+  publicUserSignalSource,
+  runtimeStatePath,
+  writeJsonAtomic,
+  writeJsonExclusive,
+} from '../../../shared/user-signal/service-policy.mjs';
 
 export const GATE_CONTINUATION_SCHEMA_VERSION = 'aos.gate.continuation.v1';
 export const GATE_RESUME_EVENT_SCHEMA_VERSION = 'aos.gate.resume-event.v1';
@@ -16,25 +22,16 @@ const TERMINAL_STATES = new Set(['submitted', 'cancelled', 'expired']);
 const CONTINUATION_ID_RE = /^gate-cont-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const RESUME_EVENT_ID_RE = /^gate-resume-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-function runtimeMode(env = process.env) {
-  const mode = String(env.AOS_RUNTIME_MODE || '').toLowerCase();
-  return mode === 'installed' ? 'installed' : 'repo';
-}
-
-function stateRoot(env = process.env) {
-  return env.AOS_STATE_ROOT || join(homedir(), '.config', 'aos');
-}
-
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 export function gateContinuationDir({ env = process.env, root = null } = {}) {
-  return join(root || stateRoot(env), runtimeMode(env), 'gate', 'continuations');
+  return runtimeStatePath(['gate', 'continuations'], { env, root });
 }
 
 export function gateResumeEventDir({ env = process.env, root = null } = {}) {
-  return join(root || stateRoot(env), runtimeMode(env), 'gate', 'resume-events');
+  return runtimeStatePath(['gate', 'resume-events'], { env, root });
 }
 
 export function gateContinuationPath(id, options = {}) {
@@ -45,18 +42,6 @@ export function gateContinuationPath(id, options = {}) {
 export function gateResumeEventPath(id, options = {}) {
   assertResumeEventId(id);
   return join(gateResumeEventDir(options), `${id}.json`);
-}
-
-async function writeJsonAtomic(path, value) {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  await rename(tmp, path);
-}
-
-async function writeJsonExclusive(path, value) {
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
 }
 
 function assertContinuationId(id) {
@@ -74,15 +59,6 @@ function assertResumeEventId(id) {
 function resumeEventIdFor(continuationId) {
   assertContinuationId(continuationId);
   return `gate-resume-${continuationId.slice('gate-cont-'.length)}`;
-}
-
-function publicSource(source) {
-  if (!isObject(source)) return {};
-  const output = {};
-  for (const key of ['surface', 'session_id', 'agent']) {
-    if (source[key] !== undefined) output[key] = source[key];
-  }
-  return output;
 }
 
 function gitValue(args, { cwd }) {
@@ -185,7 +161,7 @@ export class GateContinuationStore {
       gate_id: normalized.id,
       request_schema_version: normalized.schema_version,
       prompt_title: normalized.prompt?.title ?? null,
-      source: publicSource(normalized.source),
+      source: publicUserSignalSource(normalized.source),
       session: defaultSessionMetadata({ sessionId, harness, dock, cwd, env: this.env }),
       lifecycle: {
         state: 'pending',

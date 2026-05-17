@@ -1,8 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { homedir } from 'node:os';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { normalizeAnnotationAnchor } from './annotation-session.js';
+import {
+  normalizeUserSignalRedaction,
+  runtimeMode,
+  stateRoot,
+  runtimeStatePath,
+  writeJsonAtomic,
+} from '../../../shared/user-signal/service-policy.mjs';
 
 export const GUIDED_USER_SIGNAL_SESSION_SCHEMA_VERSION = 'aos.guided-user-signal.session.v1';
 export const GUIDED_USER_SIGNAL_STORE_READBACK_SCHEMA_VERSION = 'aos.guided-user-signal.sessions.readback.v1';
@@ -39,15 +45,6 @@ function isoNow(now = Date.now()) {
   if (typeof now === 'string') return now;
   const date = now instanceof Date ? now : new Date(now);
   return Number.isNaN(date.getTime()) ? new Date(0).toISOString() : date.toISOString();
-}
-
-function runtimeMode(env = process.env) {
-  const mode = String(env.AOS_RUNTIME_MODE || '').toLowerCase();
-  return mode === 'installed' ? 'installed' : 'repo';
-}
-
-function stateRoot(env = process.env) {
-  return env.AOS_STATE_ROOT || join(homedir(), '.config', 'aos');
 }
 
 function normalizeRect(rect = null) {
@@ -168,27 +165,20 @@ function normalizeLinks(links = {}) {
 }
 
 function normalizeRedaction(redaction = {}) {
-  const input = object(redaction);
-  return {
-    prompt_bodies: input.prompt_bodies === 'store' ? 'store' : 'redact',
-    free_text_answers: input.free_text_answers === 'store' ? 'store' : 'redact',
-    answer_payloads: input.answer_payloads === 'store' ? 'store' : 'redact',
-  };
+  return normalizeUserSignalRedaction(redaction);
 }
 
 function storageFor(sessionId, { env = process.env, root = null } = {}) {
   const mode = runtimeMode(env);
-  const base = root || stateRoot(env);
   return {
     runtime_mode: mode,
-    state_root: base,
-    session_path: join(base, mode, 'guided-user-signal', 'sessions', `${sessionId}.json`),
+    state_root: root || stateRoot(env),
+    session_path: runtimeStatePath(['guided-user-signal', 'sessions', `${sessionId}.json`], { env, root }),
   };
 }
 
 export function guidedUserSignalSessionDir({ env = process.env, root = null } = {}) {
-  const mode = runtimeMode(env);
-  return join(root || stateRoot(env), mode, 'guided-user-signal', 'sessions');
+  return runtimeStatePath(['guided-user-signal', 'sessions'], { env, root });
 }
 
 export function assertGuidedUserSignalSessionId(id) {
@@ -283,13 +273,6 @@ export function buildGuidedUserSignalShellPlan(session = {}, options = {}) {
       ? { submit_helper: 'submitGateContinuation', continuation_id: record.linked_artifacts.continuation_id }
       : null,
   };
-}
-
-async function writeJsonAtomic(path, value) {
-  await mkdir(dirname(path), { recursive: true });
-  const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  await rename(tmp, path);
 }
 
 export class GuidedUserSignalSessionStore {
