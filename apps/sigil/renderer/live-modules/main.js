@@ -74,9 +74,9 @@ import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
 
 const {
-    buildNativeAxElementSurfaceInspectorCandidate,
-    buildNativeWindowSurfaceInspectorCandidate,
-} = await import(toolkitSpecifier('workbench/surface-inspector-annotations.js'));
+    buildNativeAxElementAnnotationCandidate,
+    buildNativeWindowAnnotationCandidate,
+} = await import(toolkitSpecifier('workbench/annotation-candidates.js'));
 const {
     buildSemanticTargetProjectionAdapterResult,
 } = await import(toolkitSpecifier('workbench/annotation-projection.js'));
@@ -1606,7 +1606,7 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
 
 function annotationReticleHandleNativeWindow(payload = {}) {
     liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent = payload;
-    annotationReticleUpsertCandidate(buildNativeWindowSurfaceInspectorCandidate(payload, {
+    annotationReticleUpsertCandidate(buildNativeWindowAnnotationCandidate(payload, {
         refreshed_at: payload.ts || new Date().toISOString(),
         source_event_id: payload.ref || payload.id || '',
     }));
@@ -1615,10 +1615,10 @@ function annotationReticleHandleNativeWindow(payload = {}) {
 function annotationReticleHandleNativeAxElement(payload = {}) {
     liveJs.annotationReticleTargetEvidence.latestNativeAxElementEvent = payload;
     const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent;
-    const windowCandidate = buildNativeWindowSurfaceInspectorCandidate(windowEvent || {}, {
+    const windowCandidate = buildNativeWindowAnnotationCandidate(windowEvent || {}, {
         refreshed_at: windowEvent?.ts || new Date().toISOString(),
     });
-    annotationReticleUpsertCandidate(buildNativeAxElementSurfaceInspectorCandidate(payload, {
+    annotationReticleUpsertCandidate(buildNativeAxElementAnnotationCandidate(payload, {
         selected_root: windowCandidate,
         window: windowEvent,
         refreshed_at: payload.ts || new Date().toISOString(),

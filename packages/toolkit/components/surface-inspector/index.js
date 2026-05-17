@@ -30,12 +30,14 @@ import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.
 import { createScheduler } from './marks/scheduler.js'
 import { renderMinimapMark } from './marks/render.js'
 import { canvasActionAttrs, inspectorControlAttrs } from './semantics.js'
-import { chooseAnnotationCandidate } from '../../workbench/annotation-candidates.js'
+import {
+  buildNativeAxElementAnnotationCandidate,
+  buildNativeWindowAnnotationCandidate,
+  chooseAnnotationCandidate,
+} from '../../workbench/annotation-candidates.js'
 import {
   addSurfaceInspectorComment,
   applySurfaceInspectorRevealResult,
-  buildNativeAxElementSurfaceInspectorCandidate,
-  buildNativeWindowSurfaceInspectorCandidate,
   buildSurfaceInspectorAnnotationSnapshotArtifact,
   buildSurfaceInspectorAnnotationTreeRows,
   buildSurfaceInspectorSnapshotPayload,
@@ -1145,13 +1147,13 @@ export default function CanvasInspector() {
   }
 
   function nativeWindowCandidateForAnnotation() {
-    return buildNativeWindowSurfaceInspectorCandidate(latestNativeWindowEvent)
+    return buildNativeWindowAnnotationCandidate(latestNativeWindowEvent)
   }
 
   function nativeAxCandidateForAnnotation() {
     const scope = annotationCurrentScope()
     if (scope?.adapter_id !== 'macos-ax' || scope.root_kind !== 'native_window') return null
-    return buildNativeAxElementSurfaceInspectorCandidate(latestNativeAxElementEvent, {
+    return buildNativeAxElementAnnotationCandidate(latestNativeAxElementEvent, {
       selected_root: scope,
       window: latestNativeWindowEvent,
     })

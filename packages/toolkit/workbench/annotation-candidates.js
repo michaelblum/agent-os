@@ -49,6 +49,58 @@ function subjectPathFromNode(node = {}) {
   return [text(node.id || node.subject_id || node.label, 'unknown')]
 }
 
+function normalizeNativeWindowPayload(input = {}) {
+  if (!input || typeof input !== 'object') return null
+  const payload = input.data && typeof input.data === 'object' ? input.data : input
+  const windowId = text(payload.window_id || payload.windowID || payload.id)
+  const pid = payload.pid ?? payload.app_pid ?? payload.owner_pid
+  const appName = text(payload.app || payload.app_name || payload.owner_name || payload.name)
+  const bounds = normalizeAnnotationRectLike(payload.bounds || payload.frame || payload.rect)
+  if (!windowId && !pid && !appName) return null
+  return {
+    window_id: windowId,
+    app_name: appName,
+    pid: Number.isFinite(Number(pid)) ? Number(pid) : null,
+    bundle_id: text(payload.bundle_id || payload.bundleID),
+    title: text(payload.title || payload.window_title),
+    bounds,
+  }
+}
+
+function nativeWindowRootId(window = {}) {
+  return stableId('native-window', [window.window_id || window.pid, window.app_name])
+}
+
+function selectedNativeRootEvidence(root = {}) {
+  const rawMetadata = root.source_metadata || root.source_tree_node_metadata || root.metadata || {}
+  const metadata = rawMetadata.source_metadata || rawMetadata.source_tree_node_metadata?.source_metadata || rawMetadata
+  return {
+    root_id: text(root.root_id || root.subject_id || root.id),
+    subject_id: text(root.subject_id || root.id),
+    window_id: text(metadata.window_id || root.window_id),
+    pid: Number.isFinite(Number(metadata.pid ?? root.pid)) ? Number(metadata.pid ?? root.pid) : null,
+    app_name: text(metadata.app_name || metadata.app || root.app_name || root.app),
+    bundle_id: text(metadata.bundle_id || root.bundle_id),
+  }
+}
+
+function nativeRootMatchesWindow(rootEvidence = {}, window = null) {
+  if (!window) return { ok: false, reason: 'native_ax_stale_cursor_context' }
+  if (rootEvidence.window_id && window.window_id && rootEvidence.window_id !== window.window_id) {
+    return { ok: false, reason: 'native_ax_root_mismatch' }
+  }
+  if (rootEvidence.pid !== null && window.pid !== null && rootEvidence.pid !== window.pid) {
+    return { ok: false, reason: 'native_ax_root_mismatch' }
+  }
+  if (rootEvidence.bundle_id && window.bundle_id && rootEvidence.bundle_id !== window.bundle_id) {
+    return { ok: false, reason: 'native_ax_root_mismatch' }
+  }
+  if (rootEvidence.app_name && window.app_name && rootEvidence.app_name !== window.app_name) {
+    return { ok: false, reason: 'native_ax_root_mismatch' }
+  }
+  return { ok: true, reason: '' }
+}
+
 function rectArea(rect = null) {
   const normalized = normalizeAnnotationRectLike(rect)
   return normalized ? Math.max(0, normalized.w) * Math.max(0, normalized.h) : Infinity
@@ -214,4 +266,171 @@ export function chooseAnnotationCandidate(candidates = [], point = null) {
       return text(a.candidate.id).localeCompare(text(b.candidate.id))
     })
   return ranked[0]?.candidate || null
+}
+
+export function buildNativeWindowAnnotationCandidate(input = {}, options = {}) {
+  const window = normalizeNativeWindowPayload(input)
+  if (!window) return null
+  const rect = window.bounds
+  const rootId = text(options.root_id, nativeWindowRootId(window))
+  const rootLabel = text(options.root_label || window.title || window.app_name || rootId, rootId)
+  const projection = rect
+    ? {
+        adapter_id: 'macos-ax',
+        root_id: rootId,
+        subject_id: rootId,
+        subject_kind: 'native_window',
+        status: 'visible',
+        projectable: true,
+        can_project_display_overlay: true,
+        can_reveal: false,
+        reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+        display_space_rect: rect,
+        visible_display_rect: rect,
+        coordinate_space: 'native_display',
+        refreshed_at: text(options.refreshed_at || input.ts, new Date(0).toISOString()),
+      }
+    : {
+        adapter_id: 'macos-ax',
+        root_id: rootId,
+        subject_id: rootId,
+        subject_kind: 'native_window',
+        status: 'unsupported',
+        projectable: false,
+        can_project_display_overlay: false,
+        can_reveal: false,
+        reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+        blocker_reason: 'native_window_bounds_unavailable',
+        refreshed_at: text(options.refreshed_at || input.ts, new Date(0).toISOString()),
+      }
+  return normalizeAnnotationCandidate({
+    id: rootId,
+    adapter_id: 'macos-ax',
+    root_id: rootId,
+    root_label: rootLabel,
+    root_kind: 'native_window',
+    subject_id: rootId,
+    subject_path: ['native_window', rootId],
+    subject_kind: 'native_window',
+    role: 'native_window',
+    label: rootLabel,
+    display_space_rect: rect,
+    projection,
+    blocker_reason: projection.blocker_reason,
+    source_metadata: {
+      adapter_scope: 'current_cursor_window',
+      window_id: window.window_id,
+      app_name: window.app_name,
+      pid: window.pid,
+      bundle_id: window.bundle_id,
+      title: window.title,
+      bounds: rect,
+      source_event_id: text(input.ref || input.id || options.source_event_id),
+      reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+    },
+  })
+}
+
+export function buildNativeAxElementAnnotationCandidate(input = {}, options = {}) {
+  if (!input || typeof input !== 'object') return null
+  const payload = input.data && typeof input.data === 'object' ? input.data : input
+  const selectedRoot = options.selected_root || options.scope || null
+  const rootEvidence = selectedNativeRootEvidence(selectedRoot || {})
+  const window = normalizeNativeWindowPayload(options.window || options.cursor_window || payload.window || {})
+  const rootMatch = nativeRootMatchesWindow(rootEvidence, window)
+  const bounds = normalizeAnnotationRectLike(payload.bounds || payload.frame || payload.rect)
+  const role = text(payload.role || payload.ax_role || payload.kind, 'ax_element')
+  const label = text(payload.label || payload.title || payload.value || role, role)
+  const contextPath = Array.isArray(payload.context_path) ? payload.context_path.map((part) => text(part)).filter(Boolean) : []
+  const subjectId = text(payload.subject_id || payload.id, stableId('ax-element', [
+    rootEvidence.root_id || rootEvidence.subject_id || window?.window_id,
+    role,
+    label,
+    ...contextPath,
+  ]))
+  const blockerReason = !rootMatch.ok
+    ? rootMatch.reason
+    : (!bounds ? 'bounded_ax_projection_unavailable' : text(payload.blocker_reason || payload.reason))
+  const status = !rootMatch.ok ? 'stale' : (blockerReason ? 'unsupported' : 'visible')
+  const projection = {
+    adapter_id: 'macos-ax',
+    root_id: rootEvidence.root_id || rootEvidence.subject_id || nativeWindowRootId(window || {}),
+    subject_id: subjectId,
+    subject_kind: role,
+    status,
+    projectable: status === 'visible' && Boolean(bounds),
+    can_project_display_overlay: status === 'visible' && Boolean(bounds),
+    can_reveal: false,
+    reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+    display_space_rect: status === 'visible' ? bounds : null,
+    visible_display_rect: status === 'visible' ? bounds : null,
+    coordinate_space: 'native_display',
+    blocker_reason: blockerReason,
+    refreshed_at: text(options.refreshed_at || input.ts, new Date(0).toISOString()),
+  }
+  return normalizeAnnotationCandidate({
+    id: subjectId,
+    adapter_id: 'macos-ax',
+    root_id: projection.root_id,
+    root_label: text(selectedRoot?.root_label || selectedRoot?.label || window?.title || window?.app_name || projection.root_id, projection.root_id),
+    root_kind: 'native_window',
+    subject_id: subjectId,
+    subject_path: ['native_window', projection.root_id, 'ax_element', ...contextPath, subjectId],
+    subject_kind: role,
+    role,
+    title: payload.title,
+    label,
+    value: payload.value,
+    enabled: payload.enabled,
+    display_space_rect: status === 'visible' ? bounds : null,
+    local_space_rect: normalizeAnnotationRectLike(payload.local_space_rect),
+    action_names: payload.action_names || payload.actions || payload.ax_actions || [],
+    capabilities: payload.capabilities || payload.normalized_capabilities || [],
+    projection,
+    blocker_reason: blockerReason,
+    source_metadata: {
+      adapter_scope: 'current_cursor_ax_element',
+      role,
+      title: text(payload.title),
+      label: text(payload.label),
+      value: text(payload.value),
+      enabled: payload.enabled,
+      bounds,
+      context_path: contextPath,
+      action_names: Array.isArray(payload.action_names) ? [...payload.action_names] : [],
+      capabilities: Array.isArray(payload.capabilities) ? [...payload.capabilities] : [],
+      window_id: window?.window_id || '',
+      app_name: window?.app_name || '',
+      pid: window?.pid ?? null,
+      bundle_id: window?.bundle_id || '',
+      source_event_id: text(input.ref || input.id || options.source_event_id),
+      reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+    },
+  })
+}
+
+export function normalizeAnnotationProjectionCapabilities(input = []) {
+  const defaults = [
+    { adapter_id: 'aos-canvas-window', status: 'visible', display_overlay: true, minimap: true, tree: true, can_reveal: true },
+    { adapter_id: 'aos-toolkit-semantic-target', status: 'visible', display_overlay: true, minimap: true, tree: true, can_reveal: true },
+    { adapter_id: 'aos-object-registry', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'object_registry_no_display_projection' },
+    { adapter_id: 'macos-ax', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'bounded_ax_reveal_unavailable' },
+    { adapter_id: 'chrome-seam', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'browser_dom_cdp_deferred' },
+    { adapter_id: 'generic-dom', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false },
+    { adapter_id: 'three-canvas', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false },
+  ]
+  const overrides = new Map((Array.isArray(input) ? input : []).map((item) => [text(item.adapter_id || item.id), item]))
+  return defaults.map((item) => ({ ...item, ...(overrides.get(item.adapter_id) || {}) }))
+}
+
+export function normalizeAnnotationAdapterCapabilitySummary(input = []) {
+  return normalizeAnnotationProjectionCapabilities(input).map((item) => ({
+    adapter_id: text(item.adapter_id || item.id),
+    status: text(item.status, 'unsupported'),
+    can_project_display_overlay: Boolean(item.can_project_display_overlay ?? item.display_overlay),
+    can_reveal: Boolean(item.can_reveal),
+    tree: item.tree !== false,
+    minimap: item.minimap !== false,
+    blocker_reason: text(item.blocker_reason || item.reason),
+  }))
 }

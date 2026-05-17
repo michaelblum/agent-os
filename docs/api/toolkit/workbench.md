@@ -178,6 +178,31 @@ only for anchors with non-empty `comment_text`.
 the current Surface Inspector support path; future entry paths should produce
 the shared session model directly.
 
+### Annotation Candidate Helpers V0
+
+`packages/toolkit/workbench/annotation-candidates.js` owns neutral annotation
+candidate construction, normalization, and ranking for toolkit and app
+consumers:
+
+```js
+import {
+  buildNativeAxElementAnnotationCandidate,
+  buildNativeWindowAnnotationCandidate,
+  chooseAnnotationCandidate,
+  normalizeAnnotationAdapterCapabilitySummary,
+  normalizeAnnotationCandidate,
+  normalizeAnnotationProjectionCapabilities,
+} from '../workbench/annotation-candidates.js'
+```
+
+`chooseAnnotationCandidate(candidates, point)` ranks visible, projectable
+candidates and filters implicit desktop/display roots. It prefers specific
+semantic or actionable subjects over broad passive containers. Native macOS AX
+candidate builders emit `macos-ax` annotation candidates using native window
+roots, keep bounded AX elements scoped to the selected native window root, and
+preserve stale or unsupported blocker reasons when cursor evidence no longer
+matches or bounded projection is unavailable.
+
 ### Annotation Settled Reprojection V0
 
 `packages/toolkit/workbench/surface-inspector-annotations.js` provides the first

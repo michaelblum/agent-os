@@ -160,6 +160,16 @@ test('annotation reticle imports neutral annotation candidate helpers', () => {
   assert.match(source, /normalizeAnnotationCandidate/)
 })
 
+test('Sigil main imports native reticle candidate builders from neutral workbench module', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+
+  assert.match(source, /workbench\/annotation-candidates\.js/)
+  assert.doesNotMatch(source, /buildNative(Window|AxElement)SurfaceInspectorCandidate/)
+  assert.doesNotMatch(source, /workbench\/surface-inspector-annotations\.js/)
+  assert.match(source, /buildNativeWindowAnnotationCandidate/)
+  assert.match(source, /buildNativeAxElementAnnotationCandidate/)
+})
+
 test('annotation reticle candidate bridge records explicit fallback blocker metadata', () => {
   const resolved = resolveSigilAnnotationReticleTarget({
     candidates: [{
