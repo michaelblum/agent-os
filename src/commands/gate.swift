@@ -35,6 +35,9 @@ private func runGateVerb(name: String, path: String, args: [String]) {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
     task.arguments = ["node", verb] + args
+    var environment = ProcessInfo.processInfo.environment
+    environment["AOS_RUNTIME_MODE"] = aosCurrentRuntimeMode().rawValue
+    task.environment = environment
     task.standardInput = FileHandle.standardInput
     task.standardOutput = FileHandle.standardOutput
     task.standardError = FileHandle.standardError
