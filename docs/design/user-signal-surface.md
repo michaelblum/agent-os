@@ -31,6 +31,17 @@ continuation record also carries resume entrypoint metadata such as
 provider-specific resume commands, and V0 treats auto-resume as disabled even if
 a future caller sets the field.
 
+V0.2 adds the first durable local UI submit bridge for those deferred
+continuations. A trusted AOS canvas can emit `gate.submit` through the existing
+`headsup` WebView bridge with a `request_id`, `continuation_id`, response
+payload, submitted-by metadata, and explicit `store_response` flag. The daemon
+validates the continuation id before storage access, invokes the same
+continuation submit semantics as `./aos gate submit` through an explicit
+Process/temp-file path, and returns a `canvas.response` ack containing the
+submit response and resume event metadata. The stock deferred DecisionGate
+surface is launched with `./aos gate defer --show --json` and submits through
+the toolkit runtime helper rather than polling `window.__gateResult`.
+
 ---
 
 ## Problem

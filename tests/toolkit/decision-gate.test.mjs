@@ -87,6 +87,49 @@ test('submit resolves with values', () => {
   assert.equal(document.defaultView.__gateResult, JSON.stringify({ text: 'ship it' }));
 });
 
+test('custom async submit disables repeated submits and reports terminal success', async () => {
+  const { container, document } = mount(baseRequest({ ui: { variant: 'freetext' } }));
+  const submitted = [];
+  container.replaceChildren();
+  createDecisionGate(container, {
+    request: baseRequest({ ui: { variant: 'freetext' } }),
+    onSubmit: async (value) => {
+      submitted.push(value);
+      return { state: 'submitted', duplicate: false };
+    },
+  });
+  const input = container.querySelector('.aos-text-input');
+  input.value = 'bridge';
+  input.dispatchEvent(new FakeEvent('input', { bubbles: true }));
+  const button = container.querySelector('.aos-gate-submit');
+
+  button.dispatchEvent(new FakeEvent('click', { bubbles: true }));
+  button.dispatchEvent(new FakeEvent('click', { bubbles: true }));
+  await Promise.resolve();
+
+  assert.deepEqual(submitted, [{ text: 'bridge' }]);
+  assert.equal(button.disabled, true);
+  assert.equal(container.querySelector('.aos-gate-status').textContent, 'Submitted.');
+  assert.equal(document.defaultView.__gateResult, JSON.stringify({ text: 'bridge' }));
+});
+
+test('custom async duplicate submit reports already submitted terminal state', async () => {
+  const { container } = mount(baseRequest({ ui: { variant: 'freetext' } }));
+  container.replaceChildren();
+  createDecisionGate(container, {
+    request: baseRequest({ ui: { variant: 'freetext' } }),
+    onSubmit: async () => ({ state: 'submitted', duplicate: true }),
+  });
+  const input = container.querySelector('.aos-text-input');
+  input.value = 'bridge';
+  input.dispatchEvent(new FakeEvent('input', { bubbles: true }));
+
+  container.querySelector('.aos-gate-submit').dispatchEvent(new FakeEvent('click', { bubbles: true }));
+  await Promise.resolve();
+
+  assert.equal(container.querySelector('.aos-gate-status').textContent, 'Already submitted.');
+});
+
 test('Enter on a text field submits', () => {
   const { container, document } = mount(baseRequest({ ui: { variant: 'freetext' } }));
   const input = container.querySelector('.aos-text-input');

@@ -167,6 +167,7 @@ responds:
 
 ```bash
 aos gate defer --request gate-request.json --session-id codex-123 --harness codex --json
+aos gate defer --request gate-request.json --session-id codex-123 --harness codex --show --json
 aos gate defer --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"approve_deny"}}' --session-id codex-123 --harness codex
 ```
 

@@ -275,6 +275,9 @@ class UnifiedDaemon {
                 case "input_region.remove":
                     self.handleInputRegionRemove(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "gate.submit":
+                    self.handleGateSubmit(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "lifecycle.ready":
                     self.recordCanvasReadyManifest(canvasID: canvasID, payload: inner)
                     DispatchQueue.main.async { [weak self] in
@@ -1440,6 +1443,108 @@ class UnifiedDaemon {
             publishInputRegionStateEvent(action: "removed", region: removed)
         }
         dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok")
+    }
+
+    private func isValidGateContinuationID(_ id: String) -> Bool {
+        let pattern = #"^gate-cont-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#
+        return id.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private func handleGateSubmit(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        guard let continuationID = (payload["continuation_id"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_CONTINUATION_ID",
+                message: "gate.submit requires continuation_id")
+            return
+        }
+        guard isValidGateContinuationID(continuationID) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_CONTINUATION_ID",
+                message: "gate.submit received an invalid continuation_id")
+            return
+        }
+
+        let submission: [String: Any] = [
+            "response": payload["response"] ?? NSNull(),
+            "submitted_by": payload["submitted_by"] ?? NSNull(),
+        ]
+        guard JSONSerialization.isValidJSONObject(submission),
+              let submissionData = try? JSONSerialization.data(withJSONObject: submission, options: []) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "INVALID_SUBMISSION",
+                message: "gate.submit response must be JSON-serializable")
+            return
+        }
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("aos-gate-submit-\(UUID().uuidString).json")
+        do {
+            try submissionData.write(to: tempURL, options: .atomic)
+        } catch {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "SUBMISSION_WRITE_FAILED",
+                message: "failed to prepare gate.submit submission")
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            defer { try? FileManager.default.removeItem(at: tempURL) }
+
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            var args = [
+                "node",
+                aosRepoPath("packages/cli/verbs/gate-submit.js"),
+                "--continuation-id",
+                continuationID,
+                "--request",
+                tempURL.path,
+                "--json",
+            ]
+            if (payload["store_response"] as? Bool) == true {
+                args.append("--store-response")
+            }
+            task.arguments = args
+            var environment = ProcessInfo.processInfo.environment
+            environment["AOS_RUNTIME_MODE"] = aosCurrentRuntimeMode().rawValue
+            task.environment = environment
+
+            let stdout = Pipe()
+            let stderr = Pipe()
+            task.standardOutput = stdout
+            task.standardError = stderr
+
+            do {
+                try task.run()
+            } catch {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "SPAWN_FAILED",
+                    message: "failed to run gate submit handler: \(error.localizedDescription)")
+                return
+            }
+            task.waitUntilExit()
+
+            let stdoutData = stdout.fileHandleForReading.readDataToEndOfFile()
+            let stderrData = stderr.fileHandleForReading.readDataToEndOfFile()
+            let stderrText = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard task.terminationStatus == 0 else {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "GATE_SUBMIT_FAILED",
+                    message: stderrText?.isEmpty == false ? stderrText : "gate submit failed")
+                return
+            }
+            do {
+                let obj = try JSONSerialization.jsonObject(with: stdoutData, options: []) as? [String: Any]
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "ok", extra: ["gate_submit": obj ?? [:]])
+            } catch {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "INVALID_GATE_SUBMIT_RESPONSE",
+                    message: "gate submit handler returned invalid JSON")
+            }
+        }
     }
 
     private func handleCanvasSuspend(callerID: String, payload: [String: Any]) {

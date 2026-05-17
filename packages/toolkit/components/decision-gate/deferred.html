@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deferred Decision Gate</title>
+  <link rel="stylesheet" href="../../controls/defaults.css">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="gate-root"></div>
+  <script type="module">
+    import { createDecisionGate } from './index.js';
+    import { declareManifest, emitReady } from '../../runtime/manifest.js';
+    import { wireBridge } from '../../runtime/bridge.js';
+    import { submitGateContinuation } from '../../runtime/gate.js';
+
+    wireBridge();
+    declareManifest({
+      name: 'deferred-decision-gate',
+      title: 'Deferred Decision Gate',
+      accepts: ['aos.gate.continuation.v1'],
+      emits: ['gate.submit'],
+      defaultSize: { w: 520, h: 360 },
+    });
+
+    function decodeJson(value) {
+      return JSON.parse(atob(value));
+    }
+
+    const root = document.getElementById('gate-root');
+    const params = new URLSearchParams(location.search);
+    const continuationId = params.get('continuation_id') || params.get('continuationId');
+    let request = null;
+    try {
+      if (params.has('requestB64')) request = decodeJson(params.get('requestB64'));
+      else if (params.has('request')) request = JSON.parse(decodeURIComponent(params.get('request')));
+    } catch (error) {
+      root.textContent = 'Unable to load deferred gate request.';
+    }
+
+    if (!continuationId || !request) {
+      if (!root.textContent) root.textContent = 'This deferred gate cannot be submitted.';
+      window.setTimeout(() => emitReady(), 100);
+    } else {
+      createDecisionGate(root, {
+        request,
+        pendingStatus: 'Submitting...',
+        async onSubmit(response) {
+          return submitGateContinuation({
+            continuationId,
+            response,
+            submittedBy: { role: 'human', user: 'local-user' },
+            storeResponse: request.metadata?.record_response === true,
+          });
+        },
+      });
+      window.setTimeout(() => emitReady(), 100);
+    }
+  </script>
+</body>
+</html>

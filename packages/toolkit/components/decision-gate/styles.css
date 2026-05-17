@@ -79,6 +79,17 @@ body {
   padding-top: 4px;
 }
 
+.aos-gate-status {
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--aos-control-text-muted);
+}
+
+.aos-gate[data-terminal="true"] .aos-gate-status {
+  color: var(--aos-control-text-primary);
+}
+
 @keyframes gate-shake {
   0%,
   100% {

@@ -77,6 +77,7 @@ export function createDecisionGate(container, options = {}) {
 
   const config = normalizeRequest(request);
   let resolved = false;
+  let submitting = false;
   let form = null;
   let timer = null;
 
@@ -87,6 +88,7 @@ export function createDecisionGate(container, options = {}) {
   const formRegion = doc.createElement('div');
   const actions = doc.createElement('div');
   const submit = doc.createElement('button');
+  const status = doc.createElement('div');
   let body = null;
   let timerRegion = null;
 
@@ -97,6 +99,7 @@ export function createDecisionGate(container, options = {}) {
   formRegion.classList.add('aos-gate-form');
   actions.classList.add('aos-gate-actions');
   submit.classList.add('aos-button', 'primary', 'aos-gate-submit');
+  status.classList.add('aos-gate-status');
 
   title.textContent = config.title;
   dismiss.type = 'button';
@@ -104,6 +107,8 @@ export function createDecisionGate(container, options = {}) {
   dismiss.appendChild(makeDismissIcon(doc));
   submit.type = 'button';
   submit.textContent = config.submitLabel;
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
 
   header.append(title, dismiss);
   root.appendChild(header);
@@ -118,6 +123,7 @@ export function createDecisionGate(container, options = {}) {
   root.appendChild(formRegion);
   actions.appendChild(submit);
   root.appendChild(actions);
+  root.appendChild(status);
 
   if (config.timer?.visible) {
     timerRegion = doc.createElement('div');
@@ -127,6 +133,17 @@ export function createDecisionGate(container, options = {}) {
 
   container.replaceChildren?.();
   container.appendChild(root);
+
+  const setStatus = (text, terminal = false) => {
+    status.textContent = text ? String(text) : '';
+    if (terminal) root.dataset.terminal = 'true';
+  };
+
+  const setControlsDisabled = (disabled) => {
+    submit.disabled = disabled;
+    dismiss.disabled = disabled;
+    form?.setDisabled?.(disabled);
+  };
 
   const resolve = (value) => {
     if (resolved) return;
@@ -138,13 +155,33 @@ export function createDecisionGate(container, options = {}) {
 
   const resolveNoAnswer = (status) => resolve({ result: null, status });
 
-  const submitGate = () => {
-    if (resolved) return;
+  const submitGate = async () => {
+    if (resolved || submitting) return;
     if (!form.isValid()) {
       shake(submit, win);
       return;
     }
-    resolve(form.getValues());
+    const values = form.getValues();
+    if (typeof options.onSubmit !== 'function') {
+      resolve(values);
+      return;
+    }
+    submitting = true;
+    setControlsDisabled(true);
+    setStatus(options.pendingStatus || 'Submitting...');
+    try {
+      const result = await options.onSubmit(values);
+      resolved = true;
+      timer?.destroy?.();
+      win.__gateResult = JSON.stringify(values);
+      setStatus(result?.duplicate ? 'Already submitted.' : 'Submitted.', true);
+      doc.dispatchEvent?.(new win.CustomEvent('gate:resolved', { detail: { value: values, result } }));
+    } catch (error) {
+      submitting = false;
+      setControlsDisabled(false);
+      setStatus(error?.message || 'Unable to submit.');
+      doc.dispatchEvent?.(new win.CustomEvent('gate:error', { detail: { error } }));
+    }
   };
 
   const keydown = (event) => {
@@ -197,6 +234,7 @@ export function createDecisionGate(container, options = {}) {
     el: root,
     form,
     resolve,
+    setStatus,
     destroy() {
       timer?.destroy?.();
       form?.destroy?.();

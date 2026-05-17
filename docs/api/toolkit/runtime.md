@@ -160,11 +160,32 @@ import {
   emitReady,
   emitLifecycleComplete,
   onReady,
+  submitGateContinuation,
   MENU_ACTIVATION_PHASES,
   createMenuActivationRequest,
   advanceMenuActivation,
 } from 'aos://toolkit/runtime/index.js'
 ```
+
+### Deferred Gate Submission
+
+`packages/toolkit/runtime/gate.js` provides `submitGateContinuation()` for
+AOS-hosted canvases that need to submit a durable deferred gate continuation
+through the daemon bridge:
+
+```js
+await submitGateContinuation({
+  continuationId: 'gate-cont-...',
+  response: { decision: 'approve' },
+  submittedBy: { role: 'human', user: 'local-user' },
+  storeResponse: false,
+})
+```
+
+The helper emits `gate.submit` with a generated `request_id`, resolves when the
+daemon returns a `canvas.response` success ack, and rejects on daemon error or
+timeout. The WebView does not run shell commands; the daemon owns the trusted
+submit path and uses the active runtime mode and state root.
 
 ### Menu Activation Model
 

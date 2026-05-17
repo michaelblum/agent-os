@@ -742,7 +742,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos gate ask --preset approve_deny --title \"Run disruptive test?\" --timeout 30",
                 "aos gate ask --request gate-request.json"
             ]),
-        InvocationForm(id: "gate-defer", usage: "aos gate defer (--request file|--json request) --session-id id --harness name --json",
+        InvocationForm(id: "gate-defer", usage: "aos gate defer (--request file|--json request) --session-id id --harness name [--show] --json",
             args: [
                 flag("request", "--request", "Path to aos.gate.request.v1 JSON file"),
                 flag("json", "--json", "Emit JSON, or provide inline aos.gate.request.v1 JSON"),
@@ -752,14 +752,15 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("cwd", "--cwd", "Working directory to capture in session metadata"),
                 flag("resume-policy", "--resume-policy", "Resume handling policy", default: .string("manual")),
                 flag("adapter-hint", "--adapter-hint", "Provider adapter hint", default: .string("codex_exec")),
-                flag("entrypoint", "--entrypoint", "Resume adapter identifier metadata, not an executable path", default: .string("codex_exec_adapter"))
+                flag("entrypoint", "--entrypoint", "Resume adapter identifier metadata, not an executable path", default: .string("codex_exec_adapter")),
+                flag("show", "--show", "Open a deferred DecisionGate surface that can submit after this command exits", type: .bool)
             ],
             stdin: nil,
             constraints: nil,
             execution: execMutating(),
             output: outJSON,
             examples: [
-                "aos gate defer --request gate-request.json --session-id codex-123 --harness codex --json",
+                "aos gate defer --request gate-request.json --session-id codex-123 --harness codex --show --json",
                 "aos gate defer --json '{\"prompt\":{\"title\":\"Continue?\"},\"ui\":{\"variant\":\"approve_deny\"}}' --session-id codex-123 --harness codex"
             ]),
         InvocationForm(id: "gate-submit", usage: "aos gate submit --continuation-id id (--request file|--json submission) --json [--store-response]",

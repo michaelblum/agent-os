@@ -77,6 +77,19 @@ type scale, heading/list spacing, code blocks, rules, and links. Workbenches
 keep their own artifact chrome, panes, toolbars, loading states, semantic refs,
 and edit/save affordances.
 
+## Decision Gate
+
+`aos://toolkit/components/decision-gate/index.html` is the blocking gate
+surface used by `aos gate ask`. It resolves through `window.__gateResult` while
+the creating process is alive.
+
+`aos://toolkit/components/decision-gate/deferred.html` is the deferred
+continuation surface. It accepts `continuation_id` plus `requestB64` query
+parameters, renders the same `DecisionGate` controls, submits with the toolkit
+`submitGateContinuation()` bridge helper, disables repeated submits while
+pending, and leaves accessible terminal status text after success or duplicate
+success.
+
 ## Surface-Zoom And Test Console Components
 
 ## Surface Inspector
