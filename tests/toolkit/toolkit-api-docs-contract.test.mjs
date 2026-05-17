@@ -112,6 +112,30 @@ test('surface interaction decision tree remains discoverable from toolkit API do
   }
 });
 
+test('generated artifact lifecycle policy is discoverable from workbench docs', async () => {
+  const policyPath = 'docs/design/generated-artifact-lifecycle-policy.md';
+  const [workbench, audit, recipe, policy] = await Promise.all([
+    text('docs/api/toolkit/workbench.md'),
+    text('docs/design/html-workbench-expression-adoption-audit-2026-05-13.md'),
+    text('docs/recipes/layered-subject-expressions.md'),
+    text(policyPath),
+  ]);
+
+  assert.match(workbench, escaped(policyPath));
+  assert.match(audit, escaped(policyPath));
+  assert.match(recipe, escaped(policyPath));
+  for (const phrase of [
+    'HTML Workbench Expressions',
+    'Runtime wiki repo-doc projections',
+    'User-signal gate records',
+    'Producer Requirements',
+    'source hash/provenance',
+    'Surviving structured result',
+  ]) {
+    assert.match(policy, escaped(phrase));
+  }
+});
+
 test('canvas_object.marks documents fixed minimap and DesktopWorld-projected sizes', async () => {
   const doc = await text('docs/api/toolkit/components.md');
   const compact = doc.replace(/\s+/g, ' ');

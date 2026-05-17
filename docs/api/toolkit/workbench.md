@@ -259,6 +259,14 @@ stamps target elements with `data-aos-ref`, `data-aos-surface`,
 `data-semantic-target-id`, source path, and source line metadata, and emits a
 metadata payload next to the HTML.
 
+Generated workbench expressions follow the repo-wide generated-artifact
+lifecycle policy in
+[`docs/design/generated-artifact-lifecycle-policy.md`](../../design/generated-artifact-lifecycle-policy.md).
+New producers must define the canonical source, generated output locator,
+source hash/provenance, human-facing target map, cleanup/archive policy,
+privacy/redaction policy, and the structured sidecar/result that survives if
+the projection is deleted.
+
 Canonical metadata schema:
 [`shared/schemas/aos-html-workbench-expression-v0.schema.json`](../../../shared/schemas/aos-html-workbench-expression-v0.schema.json)
 
