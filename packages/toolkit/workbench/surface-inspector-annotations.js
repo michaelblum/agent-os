@@ -1,4 +1,8 @@
-import { surfaceInspectorAnnotationStateToSession } from './annotation-overlay-renderer.js'
+import {
+  createAnnotationSession,
+  normalizeAnnotationAnchor,
+  normalizeAnnotationSubjectAddress,
+} from './annotation-session.js'
 import {
   isImplicitAnnotationRootCandidate,
   normalizeAnnotationCandidate,
@@ -32,6 +36,11 @@ function text(value, fallback = '') {
   return String(value)
 }
 
+function trimmedText(value, fallback = '') {
+  const normalized = text(value).trim()
+  return normalized || fallback
+}
+
 function isoNow(now = Date.now()) {
   if (typeof now === 'string') return now
   const date = now instanceof Date ? now : new Date(now)
@@ -62,6 +71,89 @@ function normalizeActor(actor = DEFAULT_ACTOR) {
     role: text(actor.role, DEFAULT_ACTOR.role),
     id: text(actor.id, DEFAULT_ACTOR.id),
   }
+}
+
+export function surfaceInspectorPinToAnnotationAnchor(pin = {}, options = {}) {
+  const subject = normalizeAnnotationSubjectAddress({
+    address: pin.address,
+    adapter_id: pin.adapter_id,
+    root_id: pin.root_id,
+    root_label: pin.root_label,
+    root_kind: pin.root_kind,
+    subject_id: pin.subject_id,
+    subject_path: pin.subject_path,
+    subject_kind: pin.subject_kind || pin.kind,
+    role: pin.role,
+    label: pin.label,
+    value: pin.value,
+    text_excerpt: pin.text_excerpt,
+    source_metadata: pin.source_tree_node_metadata || pin.source_metadata,
+    projection: pin.projection,
+    status: pin.status,
+  })
+  return normalizeAnnotationAnchor({
+    id: options.id || (pin.id ? `anchor:${pin.id}` : ''),
+    address: subject?.address,
+    subject,
+    scope_path: options.scope_path || pin.scope_path || [subject?.address],
+    comment_text: options.comment_text ?? pin.comment_text ?? '',
+    projection: pin.projection,
+    actor: pin.actor || options.actor,
+    created_at: pin.created_at,
+    updated_at: pin.updated_at,
+    status: pin.projection?.current_render_status || pin.projection?.status || pin.status,
+  }, options)
+}
+
+function activeSurfaceInspectorPins(state = {}) {
+  return (Array.isArray(state.pins) ? state.pins : []).filter((pin) => pin.status !== 'removed')
+}
+
+function activeSurfaceInspectorComments(state = {}) {
+  return (Array.isArray(state.comments) ? state.comments : []).filter((comment) => comment.status !== 'removed' && trimmedText(comment.text))
+}
+
+function activeSurfaceInspectorFramePath(state = {}) {
+  const pinsById = new Map(activeSurfaceInspectorPins(state).map((pin) => [pin.id, pin]))
+  let cursor = pinsById.get(state.active_frame_id)
+  const path = []
+  while (cursor) {
+    path.unshift(cursor)
+    cursor = cursor.parent_pin_id ? pinsById.get(cursor.parent_pin_id) : null
+  }
+  return path
+}
+
+export function surfaceInspectorAnnotationStateToSession(state = {}, options = {}) {
+  const pins = activeSurfaceInspectorPins(state)
+  const comments = activeSurfaceInspectorComments(state)
+  const commentsByPin = new Map()
+  for (const comment of comments) {
+    if (!commentsByPin.has(comment.pin_id)) commentsByPin.set(comment.pin_id, [])
+    commentsByPin.get(comment.pin_id).push(comment)
+  }
+  const committedPins = activeSurfaceInspectorFramePath(state)
+  const committed = committedPins.map((pin) => surfaceInspectorPinToAnnotationAnchor(pin).subject).filter(Boolean)
+  const hover = state.last_hover_candidate
+    ? normalizeAnnotationSubjectAddress(state.last_hover_candidate)
+    : null
+  const anchors = pins.map((pin) => {
+    const pinComments = commentsByPin.get(pin.id) || []
+    return surfaceInspectorPinToAnnotationAnchor(pin, {
+      comment_text: pinComments.map((comment) => comment.text).join('\n\n'),
+    })
+  })
+  return createAnnotationSession({
+    active: Boolean(state.annotation_mode?.active),
+    entry_source: options.entry_source || 'surface_inspector',
+    root: committed[0] || hover || anchors[0]?.subject || null,
+    committed_scope_stack: committed,
+    preview_scope_stack: hover ? [...committed, hover] : committed,
+    hover_candidate: hover,
+    anchors,
+    snapshot_count: Number.isFinite(Number(state.snapshot_count)) ? Number(state.snapshot_count) : 0,
+    updated_at: options.updated_at || Date.now(),
+  })
 }
 
 function normalizeProjectionRefreshState(input = {}) {

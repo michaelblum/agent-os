@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   addAnnotationCommentText,
   clearAnnotationSession,
@@ -12,9 +13,10 @@ import {
   refreshAnnotationAnchorStatus,
   setAnnotationHoverCandidate,
   setAnnotationPreviewStack,
-  surfaceInspectorPinToAnnotationAnchor,
   upsertAnnotationAnchor,
 } from '../../packages/toolkit/workbench/annotation-session.js'
+
+const annotationSessionSource = readFileSync(new URL('../../packages/toolkit/workbench/annotation-session.js', import.meta.url), 'utf8')
 
 const subject = (id, path = ['display:1', id], extra = {}) => ({
   adapter_id: extra.adapter_id || 'aos-toolkit-semantic-target',
@@ -61,6 +63,12 @@ test('annotation subjects normalize stable address, adapter, root, subject, evid
   assert.equal(normalized.projection.current_render_status, 'visible')
   assert.equal(normalized.status, 'live')
   assert.deepEqual(normalized.fallback_evidence.path, ['display:1', 'window:1', 'button'])
+})
+
+test('neutral annotation session source does not export Surface Inspector adapters', () => {
+  assert.doesNotMatch(annotationSessionSource, /surfaceInspector/)
+  assert.doesNotMatch(annotationSessionSource, /SurfaceInspector/)
+  assert.doesNotMatch(annotationSessionSource, /pinToAnnotationAnchor/)
 })
 
 test('annotation subjects keep sparse projection evidence live but unprojectable', () => {
@@ -235,30 +243,6 @@ test('absent and stale subjects update anchor live status without treating old p
 
   assert.equal(session.anchors[0].status, 'stale')
   assert.equal(session.anchors[0].projection.can_project_display_overlay, false)
-})
-
-test('Surface Inspector pin records can become neutral session anchors', () => {
-  const anchor = surfaceInspectorPinToAnnotationAnchor({
-    id: 'pin-save',
-    root_id: 'display:1',
-    root_label: 'Built-in Display',
-    root_kind: 'display',
-    adapter_id: 'aos-canvas-window',
-    subject_id: 'save',
-    subject_path: ['display:1', 'window', 'save'],
-    source_tree_node_metadata: { source: 'surface-inspector' },
-    projection: {
-      current_render_status: 'visible',
-      visible_display_rect: { x: 1, y: 2, w: 3, h: 4 },
-    },
-    created_at: '2026-05-13T00:00:00.000Z',
-  })
-
-  assert.equal(anchor.id, 'anchor:pin-save')
-  assert.equal(anchor.address, 'subject:aos-canvas-window:display:1:display:1:window:save:save')
-  assert.equal(anchor.comment_text, '')
-  assert.equal(anchor.status, 'live')
-  assert.equal(anchor.subject.source_metadata.source, 'surface-inspector')
 })
 
 test('opacity helper uses display-first root floor through current frame', () => {

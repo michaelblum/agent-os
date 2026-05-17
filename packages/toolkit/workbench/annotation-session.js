@@ -415,38 +415,6 @@ export function refreshAnnotationAnchorStatus(session = {}, addressOrSubject = {
   })
 }
 
-export function surfaceInspectorPinToAnnotationAnchor(pin = {}, options = {}) {
-  const subject = normalizeAnnotationSubjectAddress({
-    address: pin.address,
-    adapter_id: pin.adapter_id,
-    root_id: pin.root_id,
-    root_label: pin.root_label,
-    root_kind: pin.root_kind,
-    subject_id: pin.subject_id,
-    subject_path: pin.subject_path,
-    subject_kind: pin.subject_kind || pin.kind,
-    role: pin.role,
-    label: pin.label,
-    value: pin.value,
-    text_excerpt: pin.text_excerpt,
-    source_metadata: pin.source_tree_node_metadata || pin.source_metadata,
-    projection: pin.projection,
-    status: pin.status,
-  })
-  return normalizeAnnotationAnchor({
-    id: options.id || (pin.id ? `anchor:${pin.id}` : ''),
-    address: subject?.address,
-    subject,
-    scope_path: options.scope_path || pin.scope_path || [subject?.address],
-    comment_text: options.comment_text ?? pin.comment_text ?? '',
-    projection: pin.projection,
-    actor: pin.actor || options.actor,
-    created_at: pin.created_at,
-    updated_at: pin.updated_at,
-    status: pin.projection?.current_render_status || pin.projection?.status || pin.status,
-  }, options)
-}
-
 export function opacityForDepth(index, count, floor = 0.75) {
   const n = Number(count)
   if (!Number.isFinite(n) || n <= 1) return 1

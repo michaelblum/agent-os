@@ -55,6 +55,7 @@ import {
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
   setSurfaceInspectorHoverCandidate,
+  surfaceInspectorAnnotationStateToSession,
   unpinSurfaceInspectorFrame,
   updateSurfaceInspectorComment,
 } from '../../workbench/surface-inspector-annotations.js'
@@ -76,10 +77,7 @@ import {
   removeSurfaceResourcesForCanvas,
 } from './surface-resources.js'
 import { buildSemanticTargetProjectionAdapterResult } from '../../workbench/annotation-projection.js'
-import {
-  buildAnnotationOverlayRenderPlan,
-  surfaceInspectorAnnotationStateToSession,
-} from '../../workbench/annotation-overlay-renderer.js'
+import { buildAnnotationOverlayRenderPlan } from '../../workbench/annotation-overlay-renderer.js'
 import {
   BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
   buildBrowserDomProjectionAdapterResult,

@@ -23,9 +23,12 @@ import {
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
   setSurfaceInspectorHoverCandidate,
+  surfaceInspectorAnnotationStateToSession,
+  surfaceInspectorPinToAnnotationAnchor,
   unpinSurfaceInspectorFrame,
   updateSurfaceInspectorComment,
 } from '../../packages/toolkit/workbench/surface-inspector-annotations.js'
+import { buildAnnotationOverlayRenderPlan } from '../../packages/toolkit/workbench/annotation-overlay-renderer.js'
 import { buildNativeWindowAnnotationCandidate } from '../../packages/toolkit/workbench/annotation-candidates.js'
 
 const node = (id, path = ['main', id], extra = {}) => ({
@@ -151,6 +154,62 @@ test('Surface Inspector annotation snapshot artifact records stale evidence with
   assert.equal(artifact.session.anchors[0].projection.current_render_status, 'stale')
   assert.equal(artifact.session.anchors[0].projection.display_space_rect, null)
   assert.equal(artifact.blockers.unsupported_stale_absent[0].blocker_reason, 'display_geometry_changed')
+})
+
+test('Surface Inspector pin records can become neutral session anchors', () => {
+  const anchor = surfaceInspectorPinToAnnotationAnchor({
+    id: 'pin-save',
+    root_id: 'display:1',
+    root_label: 'Built-in Display',
+    root_kind: 'display',
+    adapter_id: 'aos-canvas-window',
+    subject_id: 'save',
+    subject_path: ['display:1', 'window', 'save'],
+    source_tree_node_metadata: { source: 'surface-inspector' },
+    projection: {
+      current_render_status: 'visible',
+      visible_display_rect: { x: 1, y: 2, w: 3, h: 4 },
+    },
+    created_at: '2026-05-13T00:00:00.000Z',
+  })
+
+  assert.equal(anchor.id, 'anchor:pin-save')
+  assert.equal(anchor.address, 'subject:aos-canvas-window:display:1:display:1:window:save:save')
+  assert.equal(anchor.comment_text, '')
+  assert.equal(anchor.status, 'live')
+  assert.equal(anchor.subject.source_metadata.source, 'surface-inspector')
+})
+
+test('Surface Inspector compatibility adapter maps pins comments and hover into a session', () => {
+  let state = createSurfaceInspectorAnnotationState()
+  state = setSurfaceInspectorAnnotationMode(state, true, { confirmed: true })
+  state = pinSurfaceInspectorFrame(state, node('canvas-a', ['canvas-a'], {
+    adapter_id: 'aos-canvas-window',
+    root_id: 'main',
+    source_metadata: { id: 'canvas-a' },
+  }), {
+    id: 'pin-canvas-a',
+  })
+  state = addSurfaceInspectorComment(state, 'pin-canvas-a', 'Keep this frame visible', {
+    id: 'comment-1',
+  })
+  state = setSurfaceInspectorHoverCandidate(state, node('child', ['canvas-a', 'child']))
+
+  const session = surfaceInspectorAnnotationStateToSession(state, {
+    updated_at: '2026-05-13T00:00:00.000Z',
+  })
+  const plan = buildAnnotationOverlayRenderPlan(session)
+  const commentGroup = plan.groups.find((item) => item.target.id === 'canvas-a')
+  const hoverGroup = plan.groups.find((item) => item.hover_candidate)
+
+  assert.equal(session.entry_source, 'surface_inspector')
+  assert.equal(session.anchors.length, 1)
+  assert.equal(session.anchors[0].comment_text, 'Keep this frame visible')
+  assert.equal(session.hover_candidate.subject.id, 'child')
+  assert.ok(commentGroup)
+  assert.equal(commentGroup.comment_chips.length, 1)
+  assert.ok(hoverGroup)
+  assert.equal(hoverGroup.hover_candidate.layer, 'hover')
 })
 
 test('Surface Inspector annotation snapshot artifact keeps empty state explicit and rejects embedded images', () => {

@@ -124,14 +124,6 @@ committing preview creates or updates anchors for the selected scope chain.
 Clearing or exiting resets live session state and preserves `snapshot_count`;
 snapshots remain explicit point-in-time artifacts.
 
-Surface Inspector see-bundle snapshots use
-`surfaceInspectorAnnotationStateToSession(state)` as their compatibility
-adapter into this shared boundary. The public `annotation-snapshot.json`
-artifact embeds that session-derived root, committed and preview scopes, hover
-candidate, anchors, comments, projection states, stale/blocker evidence, and
-`snapshot_count` without making the snapshot artifact the source of truth for
-future live annotations.
-
 The display-first opacity helper is:
 
 ```js
@@ -164,19 +156,13 @@ be treated as live overlay truth.
 Use:
 
 ```js
-import {
-  buildAnnotationOverlayRenderPlan,
-  surfaceInspectorAnnotationStateToSession,
-} from '../workbench/annotation-overlay-renderer.js'
+import { buildAnnotationOverlayRenderPlan } from '../workbench/annotation-overlay-renderer.js'
 ```
 
 `buildAnnotationOverlayRenderPlan(session)` applies the display-first opacity
 ladder from `annotation-session.js`, keeps committed, preview, and hover frames
 distinguishable, renders commentless anchors as frames, and emits comment chips
 only for anchors with non-empty `comment_text`.
-`surfaceInspectorAnnotationStateToSession(state)` is a compatibility adapter for
-the current Surface Inspector support path; future entry paths should produce
-the shared session model directly.
 
 ### Annotation Candidate Helpers V0
 
@@ -203,17 +189,30 @@ roots, keep bounded AX elements scoped to the selected native window root, and
 preserve stale or unsupported blocker reasons when cursor evidence no longer
 matches or bounded projection is unavailable.
 
-### Annotation Settled Reprojection V0
+### Surface Inspector Annotation Support V0
 
-`packages/toolkit/workbench/surface-inspector-annotations.js` provides the first
-Surface Inspector support helpers for settled reprojection:
+`packages/toolkit/workbench/surface-inspector-annotations.js` owns Surface
+Inspector annotation compatibility and support helpers. It converts current
+Surface Inspector pin/comment state into the neutral `aos_annotation_session`
+boundary, builds snapshot artifacts, and handles settled reprojection:
 
 ```js
 import {
+  surfaceInspectorAnnotationStateToSession,
   markSurfaceInspectorAnnotationProjectionsStale,
   refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
 } from '../workbench/surface-inspector-annotations.js'
 ```
+
+`surfaceInspectorAnnotationStateToSession(state)` is the compatibility adapter
+for the current Surface Inspector support path. Surface Inspector see-bundle
+snapshots use it to embed the session-derived root, committed and preview
+scopes, hover candidate, anchors, comments, projection states, stale/blocker
+evidence, and `snapshot_count` in the public `annotation-snapshot.json`
+artifact without making the snapshot artifact the source of truth for future
+live annotations. Future entry paths should produce the shared session model
+directly instead of adding more product-specific adapters to the neutral
+session or renderer modules.
 
 `markSurfaceInspectorAnnotationProjectionsStale(state, reason)` marks saved frame
 anchors, committed scope entries, preview/hover evidence, and support diagnostics

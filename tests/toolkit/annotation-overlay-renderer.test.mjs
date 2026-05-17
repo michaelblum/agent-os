@@ -1,9 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  buildAnnotationOverlayRenderPlan,
-  surfaceInspectorAnnotationStateToSession,
-} from '../../packages/toolkit/workbench/annotation-overlay-renderer.js'
+import { readFileSync } from 'node:fs'
+import { buildAnnotationOverlayRenderPlan } from '../../packages/toolkit/workbench/annotation-overlay-renderer.js'
 import {
   addAnnotationCommentText,
   commitAnnotationPreview,
@@ -14,13 +12,8 @@ import {
   setAnnotationPreviewStack,
   upsertAnnotationAnchor,
 } from '../../packages/toolkit/workbench/annotation-session.js'
-import {
-  addSurfaceInspectorComment,
-  createSurfaceInspectorAnnotationState,
-  pinSurfaceInspectorFrame,
-  setSurfaceInspectorAnnotationMode,
-  setSurfaceInspectorHoverCandidate,
-} from '../../packages/toolkit/workbench/surface-inspector-annotations.js'
+
+const annotationOverlayRendererSource = readFileSync(new URL('../../packages/toolkit/workbench/annotation-overlay-renderer.js', import.meta.url), 'utf8')
 
 const projection = (id, rect = { x: 10, y: 20, width: 100, height: 40 }, extra = {}) => ({
   adapter_id: extra.adapter_id || 'aos-toolkit-semantic-target',
@@ -83,6 +76,12 @@ test('renderer groups committed and preview ancestry with display-first opacity'
   assert.equal(plan.groups[0].committed_frames.at(-1).status, 'live')
   assert.ok(plan.groups[0].active_comment_input)
   assert.equal(plan.groups[0].active_comment_input.placeholder, 'Leave comment (optional)')
+})
+
+test('neutral annotation overlay renderer source does not export Surface Inspector adapters', () => {
+  assert.doesNotMatch(annotationOverlayRendererSource, /surfaceInspector/)
+  assert.doesNotMatch(annotationOverlayRendererSource, /SurfaceInspector/)
+  assert.doesNotMatch(annotationOverlayRendererSource, /pinToAnnotationAnchor/)
 })
 
 test('commentless anchors render as frames while comment text renders optional chips', () => {
@@ -208,36 +207,4 @@ test('stable signatures ignore unchanged hover and projection state', () => {
 
   assert.equal(first.signature, second.signature)
   assert.notEqual(first.signature, changed.signature)
-})
-
-test('Surface Inspector compatibility adapter maps pins comments and hover into a session', () => {
-  let state = createSurfaceInspectorAnnotationState()
-  state = setSurfaceInspectorAnnotationMode(state, true, { confirmed: true })
-  state = pinSurfaceInspectorFrame(state, subject('canvas-a', ['canvas-a'], {
-    adapter_id: 'aos-canvas-window',
-    root_id: 'main',
-    source_metadata: { id: 'canvas-a' },
-  }), {
-    id: 'pin-canvas-a',
-  })
-  state = addSurfaceInspectorComment(state, 'pin-canvas-a', 'Keep this frame visible', {
-    id: 'comment-1',
-  })
-  state = setSurfaceInspectorHoverCandidate(state, subject('child', ['canvas-a', 'child']))
-
-  const session = surfaceInspectorAnnotationStateToSession(state, {
-    updated_at: '2026-05-13T00:00:00.000Z',
-  })
-  const plan = buildAnnotationOverlayRenderPlan(session)
-  const commentGroup = plan.groups.find((item) => item.target.id === 'canvas-a')
-  const hoverGroup = plan.groups.find((item) => item.hover_candidate)
-
-  assert.equal(session.entry_source, 'surface_inspector')
-  assert.equal(session.anchors.length, 1)
-  assert.equal(session.anchors[0].comment_text, 'Keep this frame visible')
-  assert.equal(session.hover_candidate.subject.id, 'child')
-  assert.ok(commentGroup)
-  assert.equal(commentGroup.comment_chips.length, 1)
-  assert.ok(hoverGroup)
-  assert.equal(hoverGroup.hover_candidate.layer, 'hover')
 })

@@ -2,7 +2,6 @@ import {
   createAnnotationSession,
   normalizeAnnotationSubjectAddress,
   opacityForDepth,
-  surfaceInspectorPinToAnnotationAnchor,
 } from './annotation-session.js'
 
 export const ANNOTATION_OVERLAY_RENDER_PLAN_SCHEMA = 'aos_annotation_overlay_render_plan'
@@ -260,55 +259,4 @@ export function buildAnnotationOverlayRenderPlan(input = {}, options = {}) {
     ...plan,
     signature: stableSignatureForPlan(plan),
   }
-}
-
-function activeSurfaceInspectorPins(state = {}) {
-  return (Array.isArray(state.pins) ? state.pins : []).filter((pin) => pin.status !== 'removed')
-}
-
-function activeSurfaceInspectorComments(state = {}) {
-  return (Array.isArray(state.comments) ? state.comments : []).filter((comment) => comment.status !== 'removed' && text(comment.text))
-}
-
-function activeSurfaceInspectorFramePath(state = {}) {
-  const pinsById = new Map(activeSurfaceInspectorPins(state).map((pin) => [pin.id, pin]))
-  let cursor = pinsById.get(state.active_frame_id)
-  const path = []
-  while (cursor) {
-    path.unshift(cursor)
-    cursor = cursor.parent_pin_id ? pinsById.get(cursor.parent_pin_id) : null
-  }
-  return path
-}
-
-export function surfaceInspectorAnnotationStateToSession(state = {}, options = {}) {
-  const pins = activeSurfaceInspectorPins(state)
-  const comments = activeSurfaceInspectorComments(state)
-  const commentsByPin = new Map()
-  for (const comment of comments) {
-    if (!commentsByPin.has(comment.pin_id)) commentsByPin.set(comment.pin_id, [])
-    commentsByPin.get(comment.pin_id).push(comment)
-  }
-  const committedPins = activeSurfaceInspectorFramePath(state)
-  const committed = committedPins.map((pin) => surfaceInspectorPinToAnnotationAnchor(pin).subject).filter(Boolean)
-  const hover = state.last_hover_candidate
-    ? normalizeAnnotationSubjectAddress(state.last_hover_candidate)
-    : null
-  const anchors = pins.map((pin) => {
-    const pinComments = commentsByPin.get(pin.id) || []
-    return surfaceInspectorPinToAnnotationAnchor(pin, {
-      comment_text: pinComments.map((comment) => comment.text).join('\n\n'),
-    })
-  })
-  return createAnnotationSession({
-    active: Boolean(state.annotation_mode?.active),
-    entry_source: options.entry_source || 'surface_inspector',
-    root: committed[0] || hover || anchors[0]?.subject || null,
-    committed_scope_stack: committed,
-    preview_scope_stack: hover ? [...committed, hover] : committed,
-    hover_candidate: hover,
-    anchors,
-    snapshot_count: Number.isFinite(Number(state.snapshot_count)) ? Number(state.snapshot_count) : 0,
-    updated_at: options.updated_at || Date.now(),
-  })
 }
