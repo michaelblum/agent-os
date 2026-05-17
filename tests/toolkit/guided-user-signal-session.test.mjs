@@ -80,6 +80,7 @@ test('guided user signal session redacts prompt bodies and free text by default'
   assert.equal(session.redaction.free_text_answers, 'redact');
   assert.equal(session.capture_request.prompt, '');
   assert.equal(session.capture_result.free_text, '');
+  assert.equal(session.capture_result.annotation.comment_text, '');
 });
 
 test('guided user signal session stores prompt bodies and free text only when policy opts in', () => {
@@ -102,6 +103,30 @@ test('guided user signal session stores prompt bodies and free text only when po
   assert.equal(session.redaction.answer_payloads, 'redact');
   assert.equal(session.capture_request.prompt, 'Click the account settings control.');
   assert.equal(session.capture_result.free_text, 'Stored typed explanation');
+  assert.equal(session.capture_result.annotation.comment_text, 'Stored locator note');
+});
+
+test('guided user signal session treats annotation text and note as free text answers', () => {
+  const fromText = createGuidedUserSignalSession({
+    ...input(),
+    capture_result: {
+      kind: 'annotation',
+      captured_at: CAPTURED_AT,
+      annotation: { address: 'subject:browser:hero-cta', text: 'Private text alias' },
+    },
+  }, { now: CREATED_AT });
+  const fromNote = createGuidedUserSignalSession({
+    ...input(),
+    capture_result: {
+      kind: 'annotation',
+      captured_at: CAPTURED_AT,
+      annotation: { address: 'subject:browser:hero-cta', note: 'Stored note alias' },
+    },
+    redaction: { free_text_answers: 'store' },
+  }, { now: CREATED_AT });
+
+  assert.equal(fromText.capture_result.annotation.comment_text, '');
+  assert.equal(fromNote.capture_result.annotation.comment_text, 'Stored note alias');
 });
 
 test('guided user signal shell plan keeps toolkit policy separate from daemon capture', () => {

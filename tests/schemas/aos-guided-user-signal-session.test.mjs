@@ -91,8 +91,10 @@ test('guided user signal session schema accepts redacted and explicitly stored t
 
   assert.equal(records[0].capture_request.prompt, '');
   assert.equal(records[0].capture_result.free_text, '');
+  assert.equal(records[0].capture_result.annotation.comment_text, '');
   assert.equal(records[1].capture_request.prompt, 'Private prompt body');
   assert.equal(records[1].capture_result.free_text, 'Private answer text');
+  assert.equal(records[1].capture_result.annotation.comment_text, 'This one');
 
   for (const [index, record] of records.entries()) {
     const instancePath = path.join(stateRoot, `guided-session-${index}.json`);

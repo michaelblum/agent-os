@@ -289,6 +289,59 @@ Preserve the existing layer boundary: toolkit owns the normalizer/store and
 shell plan, daemon owns input capture authority, and optional gate questions
 continue to route through the existing `gate.submit` bridge.
 
+## Foreman Review Correction 2 - 2026-05-17
+
+The redaction correction fixed the direct `capture_request.prompt` and
+`capture_result.free_text` fields, but the same private text can still persist
+through annotation captures. With the default policy:
+
+```json
+{
+  "prompt_bodies": "redact",
+  "free_text_answers": "redact",
+  "answer_payloads": "redact"
+}
+```
+
+this probe still stores the human-authored annotation comment:
+
+```js
+createGuidedUserSignalSession({
+  session_id: "guided-signal-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  capture_result: {
+    kind: "annotation",
+    annotation: {
+      address: "subject:button",
+      comment_text: "private annotation text"
+    },
+    free_text: "private free text"
+  }
+})
+```
+
+Observed output:
+
+```json
+{
+  "free_text": "",
+  "annotation_comment": "private annotation text"
+}
+```
+
+Treat annotation `comment_text`/`text`/`note` as human free-text answer content
+for this guided-session record. Preserve the shared annotation subject/address
+shape and do not invent a second annotation model, but do not persist
+human-authored annotation comments unless the relevant redaction policy opts in
+to storing free text. Add focused tests that fail on the current behavior and
+pass after the fix:
+
+- default redaction keeps `capture_result.annotation` as structured evidence but
+  clears its `comment_text`;
+- explicit `redaction.free_text_answers = "store"` preserves annotation
+  comment text;
+- schema validation still passes for both default-redacted and stored annotation
+  records.
+
 ## Completion Report
 
 Report:

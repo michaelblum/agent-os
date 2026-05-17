@@ -141,13 +141,17 @@ function normalizeCaptureResult(result = null, redaction = normalizeRedaction())
   if (!result) return null;
   const input = object(result);
   const kind = GUIDED_USER_SIGNAL_CAPTURE_KINDS.has(input.kind) ? input.kind : 'click';
+  const annotation = input.annotation ? normalizeAnnotationAnchor(input.annotation) : null;
+  if (annotation && redaction.free_text_answers !== 'store') {
+    annotation.comment_text = '';
+  }
   const output = {
     kind,
     captured_at: isoNow(input.captured_at || input.updated_at || Date.now()),
     point: normalizePoint(input.point || input.native),
     region: normalizeRect(input.region || input.rect || input.bounds),
     input_event: clone(input.input_event || null),
-    annotation: input.annotation ? normalizeAnnotationAnchor(input.annotation) : null,
+    annotation,
     free_text: redaction.free_text_answers === 'store' ? text(input.free_text || input.note) : '',
   };
   return output;
