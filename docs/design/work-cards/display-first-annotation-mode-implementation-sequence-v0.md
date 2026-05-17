@@ -139,6 +139,9 @@ Repair the post-reprojection regressions before continuing:
 
 ### 7. Snapshot Continuity
 
+Work card:
+`docs/design/work-cards/display-first-annotation-snapshot-continuity-v0.md`
+
 Integrate explicit snapshots with the shared session model. Snapshot artifacts
 remain point-in-time evidence and must not become a hidden persistent live
 annotation database.
