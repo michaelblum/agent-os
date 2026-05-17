@@ -7,8 +7,12 @@ import {
   annotationReticleReleaseDisposition,
   buildAnnotationReticleOverlayModel,
   chooseAnnotationTravelPlacement,
+  clearAnnotationReticleSemanticCandidatesForCanvas,
   createAnnotationReticleAcquisitionState,
+  createAnnotationReticleTargetEvidenceCache,
   createSigilAnnotationReticleController,
+  recordAnnotationReticleSemanticCandidateIds,
+  resolveSigilAnnotationReticleTarget,
   reticleOuterMarginExit,
   SIGIL_ANNOTATION_ENTRY_SOURCE,
 } from '../../apps/sigil/renderer/live-modules/annotation-reticle.js'
@@ -88,6 +92,130 @@ test('annotation reticle session enters with sigil radial source and commits bou
   assert.equal(snapshot.camera_available, true)
   assert.equal(snapshot.live_anchor_count, committed.session.anchors.length)
   assert.equal(snapshot.last_committed_event.placement.placement_status, committed.placement.placement_status)
+})
+
+test('annotation reticle preview and release prefer shared projectable annotation candidates', () => {
+  let now = Date.parse('2026-05-13T12:00:00.000Z')
+  const semanticCandidate = {
+    id: 'semantic-cta',
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'html-workbench-expression',
+    root_label: 'HTML Workbench',
+    root_kind: 'canvas',
+    subject_id: 'semantic-cta',
+    subject_path: ['canvas', 'html-workbench-expression', 'semantic', 'semantic-cta'],
+    subject_kind: 'button',
+    role: 'button',
+    label: 'Approve',
+    projection: {
+      adapter_id: 'aos-toolkit-semantic-target',
+      root_id: 'html-workbench-expression',
+      subject_id: 'semantic-cta',
+      subject_kind: 'button',
+      status: 'visible',
+      current_render_status: 'visible',
+      projectable: true,
+      can_project_display_overlay: true,
+      can_reveal: true,
+      visible_display_rect: { x: 200, y: 120, w: 60, h: 40 },
+      display_space_rect: { x: 200, y: 120, w: 60, h: 40 },
+      coordinate_space: 'desktop_world',
+    },
+    source_metadata: {
+      source: 'test_cached_semantic_targets',
+    },
+  }
+  const controller = createSigilAnnotationReticleController({
+    getDisplays: () => [display],
+    getAvatarPos: () => ({ x: 80, y: 80, valid: true }),
+    getAvatarHitRadius: () => 20,
+    getAnnotationCandidates: () => [semanticCandidate],
+    now: () => now,
+  })
+
+  controller.enter({ x: 120, y: 120, valid: true })
+  now += 1000
+  const preview = controller.updatePreview({ x: 220, y: 140, valid: true })
+  assert.equal(preview.preview_target.adapter_id, 'aos-toolkit-semantic-target')
+  assert.equal(preview.preview_target.address, 'subject:aos-toolkit-semantic-target:html-workbench-expression:canvas:html-workbench-expression:semantic:semantic-cta:semantic-cta')
+  assert.equal(preview.preview_target.source_metadata.sigil_fallback, false)
+  assert.equal(preview.preview_target.projection.can_reveal, true)
+
+  now += 1000
+  const committed = controller.commitRelease({ x: 220, y: 140, valid: true })
+  assert.equal(committed.preview_target.adapter_id, 'aos-toolkit-semantic-target')
+  assert.equal(committed.target_limitation, '')
+  assert.equal(committed.fallback, false)
+  assert.equal(committed.blocker_reason, '')
+  assert.deepEqual(committed.placement.point, { x: 164, y: 84, valid: true })
+  assert.equal(committed.session.anchors.some((anchor) => anchor.subject.adapter_id === 'aos-toolkit-semantic-target'), true)
+})
+
+test('annotation reticle candidate bridge records explicit fallback blocker metadata', () => {
+  const resolved = resolveSigilAnnotationReticleTarget({
+    candidates: [{
+      id: 'blocked',
+      adapter_id: 'macos-ax',
+      projection: {
+        adapter_id: 'macos-ax',
+        subject_id: 'blocked',
+        subject_kind: 'AXButton',
+        status: 'unsupported',
+        can_project_display_overlay: false,
+        blocker_reason: 'bounded_ax_projection_unavailable',
+      },
+    }],
+    display,
+    pointer: { x: 12, y: 18, valid: true },
+    role: 'pointer-preview',
+  })
+
+  assert.equal(resolved.fallback, true)
+  assert.equal(resolved.blocker_reason, 'no_projectable_candidate_under_pointer')
+  assert.equal(resolved.target_limitation, 'display_under_release_pointer_v0')
+  assert.equal(resolved.subject.adapter_id, 'sigil-display-reticle-v0')
+  assert.equal(resolved.subject.source_metadata.sigil_fallback, true)
+  assert.equal(resolved.subject.source_metadata.candidate_source_count, 1)
+})
+
+test('annotation reticle semantic target evidence clears canvas-owned flat candidates on replacement and removal', () => {
+  const evidence = createAnnotationReticleTargetEvidenceCache()
+  evidence.candidates.set('canvas-a', { id: 'canvas-a', adapter_id: 'aos-canvas-window' })
+  evidence.candidates.set('old-primary', { id: 'old-primary', adapter_id: 'aos-toolkit-semantic-target' })
+  evidence.candidates.set('old-secondary', { id: 'old-secondary', adapter_id: 'aos-toolkit-semantic-target' })
+  evidence.candidates.set('foreign', { id: 'foreign', adapter_id: 'aos-toolkit-semantic-target' })
+  recordAnnotationReticleSemanticCandidateIds(evidence, 'canvas-a', ['old-primary', 'old-secondary'])
+  recordAnnotationReticleSemanticCandidateIds(evidence, 'canvas-b', ['foreign'])
+
+  assert.deepEqual(
+    clearAnnotationReticleSemanticCandidatesForCanvas(evidence, 'canvas-a').sort(),
+    ['old-primary', 'old-secondary'],
+  )
+  assert.equal(evidence.candidates.has('old-primary'), false)
+  assert.equal(evidence.candidates.has('old-secondary'), false)
+  assert.equal(evidence.candidates.has('foreign'), true)
+  assert.equal(evidence.candidates.has('canvas-a'), true)
+  assert.equal(evidence.semanticTargetsByCanvas.has('canvas-a'), false)
+
+  evidence.candidates.set('new-primary', { id: 'new-primary', adapter_id: 'aos-toolkit-semantic-target' })
+  recordAnnotationReticleSemanticCandidateIds(evidence, 'canvas-a', ['new-primary'])
+  assert.deepEqual(clearAnnotationReticleSemanticCandidatesForCanvas(evidence, 'canvas-a'), ['new-primary'])
+  assert.equal(evidence.candidates.has('new-primary'), false)
+  assert.equal(evidence.candidates.has('foreign'), true)
+})
+
+test('Sigil clears stale semantic reticle candidates before replacement or empty payloads', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const semanticStart = source.indexOf('function annotationReticleHandleSemanticTargets')
+  const nativeStart = source.indexOf('function annotationReticleHandleNativeWindow', semanticStart)
+  const semanticBlock = source.slice(semanticStart, nativeStart)
+  const removeStart = source.indexOf('function annotationReticleRemoveCandidate')
+  const listStart = source.indexOf('function annotationReticleCandidateList', removeStart)
+  const removeBlock = source.slice(removeStart, listStart)
+
+  assert.match(removeBlock, /clearAnnotationReticleSemanticCandidatesForCanvas\(liveJs\.annotationReticleTargetEvidence, id\)/)
+  assert.match(semanticBlock, /clearAnnotationReticleSemanticCandidatesForCanvas\(liveJs\.annotationReticleTargetEvidence, canvasId\)[\s\S]*if \(!targets\.length\) return/)
+  assert.match(semanticBlock, /recordAnnotationReticleSemanticCandidateIds\(liveJs\.annotationReticleTargetEvidence, canvasId, candidateIds\)/)
 })
 
 test('annotation reticle stays unresolved instead of crashing when displays are absent', () => {

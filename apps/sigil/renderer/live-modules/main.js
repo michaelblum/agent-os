@@ -44,9 +44,12 @@ import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import {
     annotationReticleReleaseDisposition,
     buildAnnotationReticleOverlayModel,
+    clearAnnotationReticleSemanticCandidatesForCanvas,
     createAnnotationReticleAcquisitionState,
+    createAnnotationReticleTargetEvidenceCache,
     CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
     createSigilAnnotationReticleController,
+    recordAnnotationReticleSemanticCandidateIds,
     reticleOuterMarginExit,
     SIGIL_ANNOTATION_CAMERA_ITEM_ID,
     SIGIL_ANNOTATION_RETICLE_ITEM_ID,
@@ -57,6 +60,7 @@ import {
     currentSigilRoot,
     currentToolkitRoot,
     sigilUrl,
+    toolkitSpecifier,
     toolkitUrl,
     withQuery,
 } from './content-roots.js';
@@ -68,6 +72,14 @@ import { buildAvatarObjectRegistry } from './avatar-object-control.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
+
+const {
+    buildNativeAxElementSurfaceInspectorCandidate,
+    buildNativeWindowSurfaceInspectorCandidate,
+} = await import(toolkitSpecifier('workbench/surface-inspector-annotations.js'));
+const {
+    buildSemanticTargetProjectionAdapterResult,
+} = await import(toolkitSpecifier('workbench/annotation-projection.js'));
 
 const host = createHostRuntime();
 const interactionTrace = createInteractionTrace({
@@ -126,6 +138,7 @@ const liveJs = {
     sessionVitality: null,
     lastRadialActivation: null,
     annotationReticle: null,
+    annotationReticleTargetEvidence: createAnnotationReticleTargetEvidenceCache(),
     annotationReticleEvents: [],
     appearanceVersion: 0,
     appliedAppearanceVersion: null,
@@ -1358,6 +1371,7 @@ const annotationReticle = createSigilAnnotationReticleController({
     getDisplays: () => liveJs.displays,
     getAvatarPos: () => liveJs.avatarPos,
     getAvatarHitRadius: () => liveJs.avatarHitRadius,
+    getAnnotationCandidates: () => annotationReticleCandidateList(),
 });
 const annotationReticleAcquisition = createAnnotationReticleAcquisitionState();
 let radialTargetSurfaceDragActive = false;
@@ -1473,6 +1487,143 @@ function queueFastTravel(x, y) {
     if (desktopWorldSurface?.isPrimary) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(liveJs.avatarPos));
     }
+}
+
+function annotationReticleRectFromAt(at = null) {
+    const parts = Array.isArray(at) ? at : [];
+    const [x, y, w, h] = parts.map((value) => Number(value));
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+    return { x, y, w, h };
+}
+
+function annotationReticleUpsertCandidate(candidate = null) {
+    if (!candidate?.id && !candidate?.subject_id) return;
+    const key = String(candidate.id || candidate.subject_id);
+    liveJs.annotationReticleTargetEvidence.candidates.set(key, candidate);
+}
+
+function annotationReticleRemoveCandidate(id = '') {
+    if (!id) return;
+    clearAnnotationReticleSemanticCandidatesForCanvas(liveJs.annotationReticleTargetEvidence, id);
+    liveJs.annotationReticleTargetEvidence.candidates.delete(String(id));
+    liveJs.annotationReticleTargetEvidence.canvases.delete(String(id));
+}
+
+function annotationReticleCandidateList() {
+    return [...liveJs.annotationReticleTargetEvidence.candidates.values()];
+}
+
+function annotationReticleCanvasCandidate(canvas = null) {
+    const id = String(canvas?.id || '').trim();
+    if (!id || id === 'avatar-main' || id === hitTarget.hit.id || id === radialTargetSurface.id) return null;
+    if (canvas?.suspended === true) return null;
+    const rect = annotationReticleRectFromAt(canvas.atResolved || canvas.at);
+    if (!rect) return null;
+    return {
+        id,
+        subject_id: id,
+        subject_path: ['canvas', id],
+        root_id: id,
+        root_label: canvas.title || canvas.name || id,
+        root_kind: 'canvas',
+        subject_kind: 'canvas_window',
+        label: canvas.title || canvas.name || id,
+        adapter_id: 'aos-canvas-window',
+        projection: {
+            adapter_id: 'aos-canvas-window',
+            root_id: id,
+            subject_id: id,
+            subject_kind: 'canvas_window',
+            status: 'visible',
+            projectable: true,
+            can_project_display_overlay: true,
+            can_reveal: true,
+            visible_display_rect: rect,
+            display_space_rect: rect,
+            coordinate_space: 'desktop_world',
+            refreshed_at: new Date().toISOString(),
+        },
+        source_metadata: {
+            adapter_scope: 'sigil_cached_canvas_lifecycle',
+            canvas_id: id,
+            parent: canvas.parent || null,
+            track: canvas.track || null,
+        },
+    };
+}
+
+function annotationReticleHandleCanvasLifecycle(msg = {}) {
+    const canvas = msg.canvas && typeof msg.canvas === 'object'
+        ? { ...msg.canvas, id: msg.canvas_id || msg.canvas.id, at: msg.at || msg.canvas.at }
+        : { id: msg.canvas_id || msg.id, at: msg.at, suspended: msg.suspended };
+    const id = String(canvas.id || '').trim();
+    if (!id) return;
+    if (msg.action === 'removed') {
+        annotationReticleRemoveCandidate(id);
+        return;
+    }
+    liveJs.annotationReticleTargetEvidence.canvases.set(id, canvas);
+    annotationReticleUpsertCandidate(annotationReticleCanvasCandidate(canvas));
+}
+
+function annotationReticleHandleSemanticTargets(payload = {}) {
+    const canvasId = String(payload.canvas_id || payload.surface_id || payload.id || payload.source_canvas_id || '').trim();
+    const targets = Array.isArray(payload.semantic_targets)
+        ? payload.semantic_targets
+        : (Array.isArray(payload.targets) ? payload.targets : []);
+    if (!canvasId) return;
+    clearAnnotationReticleSemanticCandidatesForCanvas(liveJs.annotationReticleTargetEvidence, canvasId);
+    if (!targets.length) return;
+    const candidateIds = [];
+    for (const target of targets) {
+        const projection = buildSemanticTargetProjectionAdapterResult(target, {
+            canvas_id: canvasId,
+            refreshed_at: target.refreshed_at || payload.refreshed_at || new Date().toISOString(),
+            provenance_source_payload_id: target.payload_id || payload.payload_id,
+        });
+        const candidate = {
+            id: projection.subject_id,
+            subject_id: projection.subject_id,
+            subject_path: projection.subject_path,
+            root_id: projection.root_id,
+            root_label: canvasId,
+            root_kind: 'canvas',
+            subject_kind: projection.subject_kind,
+            label: target.name || target.label || target.role || projection.subject_id,
+            adapter_id: 'aos-toolkit-semantic-target',
+            projection,
+            source_metadata: {
+                ...target,
+                adapter_scope: 'sigil_cached_semantic_targets',
+                canvas_id: canvasId,
+            },
+        };
+        annotationReticleUpsertCandidate(candidate);
+        candidateIds.push(candidate.id);
+    }
+    recordAnnotationReticleSemanticCandidateIds(liveJs.annotationReticleTargetEvidence, canvasId, candidateIds);
+}
+
+function annotationReticleHandleNativeWindow(payload = {}) {
+    liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent = payload;
+    annotationReticleUpsertCandidate(buildNativeWindowSurfaceInspectorCandidate(payload, {
+        refreshed_at: payload.ts || new Date().toISOString(),
+        source_event_id: payload.ref || payload.id || '',
+    }));
+}
+
+function annotationReticleHandleNativeAxElement(payload = {}) {
+    liveJs.annotationReticleTargetEvidence.latestNativeAxElementEvent = payload;
+    const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent;
+    const windowCandidate = buildNativeWindowSurfaceInspectorCandidate(windowEvent || {}, {
+        refreshed_at: windowEvent?.ts || new Date().toISOString(),
+    });
+    annotationReticleUpsertCandidate(buildNativeAxElementSurfaceInspectorCandidate(payload, {
+        selected_root: windowCandidate,
+        window: windowEvent,
+        refreshed_at: payload.ts || new Date().toISOString(),
+        source_event_id: payload.ref || payload.id || '',
+    }));
 }
 
 function syncAnnotationReticleSnapshot() {
@@ -2426,6 +2577,7 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'canvas_lifecycle') {
+        annotationReticleHandleCanvasLifecycle(msg);
         const canvasId = msg.canvas_id || msg.canvas?.id;
         if (UTILITY_CANVAS_IDS.has(canvasId)) {
             if (msg.action === 'removed') {
@@ -2572,6 +2724,36 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (msg.type === 'bootstrap') {
+        const payload = msg.payload || msg;
+        if (Array.isArray(payload.canvases)) {
+            for (const canvas of payload.canvases) {
+                annotationReticleHandleCanvasLifecycle({ action: 'snapshot', canvas, canvas_id: canvas.id, at: canvas.atResolved || canvas.at });
+            }
+        }
+        if (payload.semantic_targets || payload.targets) annotationReticleHandleSemanticTargets(payload);
+        if (payload.window) annotationReticleHandleNativeWindow({ ...payload.window, ts: payload.ts || Date.now(), ref: payload.ref || '' });
+        if (payload.element) annotationReticleHandleNativeAxElement({ ...payload.element, ts: payload.ts || Date.now(), ref: payload.ref || '' });
+        return;
+    }
+
+    if (msg.type === 'canvas_inspector.semantic_targets') {
+        annotationReticleHandleSemanticTargets(msg.payload || msg);
+        return;
+    }
+
+    if (msg.type === 'window_entered' || msg.event === 'window_entered') {
+        const payload = msg.payload || msg.data || msg;
+        annotationReticleHandleNativeWindow({ ...payload, ts: msg.ts || payload.ts || Date.now(), ref: msg.ref || payload.ref || '' });
+        return;
+    }
+
+    if (msg.type === 'element_focused' || msg.event === 'element_focused') {
+        const payload = msg.payload || msg.data || msg;
+        annotationReticleHandleNativeAxElement({ ...payload, ts: msg.ts || payload.ts || Date.now(), ref: msg.ref || payload.ref || '' });
+        return;
+    }
+
     if (msg.type === 'canvas_message' && isAgentTerminalCanvasId(msg.id)) {
         if (msg.payload?.type === 'agent_terminal.avatar_toggle'
             || msg.payload?.type === 'codex_terminal.avatar_toggle') {
@@ -2625,7 +2807,15 @@ let primarySurfaceServicesStarted = false;
 function startPrimarySurfaceServices() {
     if (primarySurfaceServicesStarted) return;
     primarySurfaceServicesStarted = true;
-    host.subscribe(['display_geometry', 'input_event', 'canvas_message', 'canvas_lifecycle'], { snapshot: true });
+    host.subscribe([
+        'display_geometry',
+        'input_event',
+        'canvas_message',
+        'canvas_lifecycle',
+        'window_entered',
+        'element_focused',
+        'canvas_inspector.semantic_targets',
+    ], { snapshot: true });
     startMarkHeartbeat();
     emitRadialMenuObjectRegistry();
     void hitTarget.ensureCreated()
