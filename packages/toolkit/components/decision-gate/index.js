@@ -153,7 +153,10 @@ export function createDecisionGate(container, options = {}) {
     doc.dispatchEvent?.(new win.CustomEvent('gate:resolved', { detail: { value } }));
   };
 
-  const resolveNoAnswer = (status) => resolve({ result: null, status });
+  const resolveNoAnswer = (status) => {
+    if (submitting) return;
+    resolve({ result: null, status });
+  };
 
   const submitGate = async () => {
     if (resolved || submitting) return;
@@ -171,6 +174,7 @@ export function createDecisionGate(container, options = {}) {
     setStatus(options.pendingStatus || 'Submitting...');
     try {
       const result = await options.onSubmit(values);
+      if (resolved) return;
       resolved = true;
       timer?.destroy?.();
       win.__gateResult = JSON.stringify(values);

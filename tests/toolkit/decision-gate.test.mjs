@@ -47,6 +47,10 @@ function timerHarness() {
   };
 }
 
+function flushAsyncSubmit() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 test('renders title', () => {
   const { container } = mount(baseRequest({ prompt: { title: 'Pick a path', body: null } }));
 
@@ -128,6 +132,57 @@ test('custom async duplicate submit reports already submitted terminal state', a
   await Promise.resolve();
 
   assert.equal(container.querySelector('.aos-gate-status').textContent, 'Already submitted.');
+});
+
+test('pending async submit ignores Escape and resolves with submit result', async () => {
+  const document = createFakeDocument();
+  const container = document.createElement('section');
+  document.body.appendChild(container);
+  let finishSubmit;
+  createDecisionGate(container, {
+    request: baseRequest({ ui: { variant: 'freetext' } }),
+    onSubmit: async () => new Promise((resolve) => {
+      finishSubmit = () => resolve({ state: 'submitted' });
+    }),
+  });
+  const input = container.querySelector('.aos-text-input');
+  input.value = 'bridge';
+  input.dispatchEvent(new FakeEvent('input', { bubbles: true }));
+
+  container.querySelector('.aos-gate-submit').dispatchEvent(new FakeEvent('click', { bubbles: true }));
+  document.dispatchEvent(new FakeEvent('keydown', { key: 'Escape' }));
+  finishSubmit();
+  await flushAsyncSubmit();
+
+  assert.equal(document.defaultView.__gateResult, JSON.stringify({ text: 'bridge' }));
+  assert.equal(container.querySelector('.aos-gate-status').textContent, 'Submitted.');
+});
+
+test('pending async submit ignores timer expiry and resolves with submit result', async () => {
+  const harness = timerHarness();
+  const container = harness.document.createElement('section');
+  harness.document.body.appendChild(container);
+  let finishSubmit;
+  createDecisionGate(container, {
+    request: baseRequest({
+      timeout_ms: 50,
+      ui: { variant: 'freetext', timer: { visible: true } },
+    }),
+    onSubmit: async () => new Promise((resolve) => {
+      finishSubmit = () => resolve({ state: 'submitted' });
+    }),
+  });
+  const input = container.querySelector('.aos-text-input');
+  input.value = 'bridge';
+  input.dispatchEvent(new FakeEvent('input', { bubbles: true }));
+
+  container.querySelector('.aos-gate-submit').dispatchEvent(new FakeEvent('click', { bubbles: true }));
+  harness.tick(60);
+  finishSubmit();
+  await flushAsyncSubmit();
+
+  assert.equal(harness.document.defaultView.__gateResult, JSON.stringify({ text: 'bridge' }));
+  assert.equal(container.querySelector('.aos-gate-status').textContent, 'Submitted.');
 });
 
 test('Enter on a text field submits', () => {
