@@ -7,6 +7,10 @@ const {
     setAnnotationHoverCandidate,
     commitAnnotationPreview,
 } = await import(toolkitSpecifier('workbench/annotation-session.js'));
+const {
+    chooseSurfaceInspectorAnnotationCandidate,
+    normalizeSurfaceInspectorAnnotationCandidate,
+} = await import(toolkitSpecifier('workbench/surface-inspector-annotations.js'));
 
 export const SIGIL_ANNOTATION_RETICLE_ITEM_ID = 'annotation-mode';
 export const SIGIL_ANNOTATION_CAMERA_ITEM_ID = 'annotation-camera';
@@ -125,6 +129,85 @@ export function createPointerAnnotationSubject(display = null, point = {}) {
     };
 }
 
+function rectToTravelRect(rect = null) {
+    if (!rect || typeof rect !== 'object') return null;
+    const x = finite(rect.x ?? rect.left, NaN);
+    const y = finite(rect.y ?? rect.top, NaN);
+    const w = finite(rect.w ?? rect.width, NaN);
+    const h = finite(rect.h ?? rect.height, NaN);
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+    return { x, y, w, h };
+}
+
+function subjectProjectionRect(subject = null) {
+    const projection = objectOrEmpty(subject?.projection);
+    return rectToTravelRect(projection.visible_display_rect || projection.display_space_rect || subject?.display_space_rect);
+}
+
+function bridgeMetadata(reason, point = null, sourceCount = 0) {
+    return {
+        bridge: 'sigil_reticle_annotation_candidate_bridge_v0',
+        reason,
+        candidate_source_count: sourceCount,
+        pointer: point ? { x: finite(point.x), y: finite(point.y) } : null,
+    };
+}
+
+export function resolveSigilAnnotationReticleTarget({
+    candidates = [],
+    display = null,
+    pointer = null,
+    role = 'pointer-preview',
+} = {}) {
+    const sourceCandidates = Array.isArray(candidates) ? candidates : [];
+    const chosen = chooseSurfaceInspectorAnnotationCandidate(sourceCandidates, pointer);
+    if (chosen) {
+        const normalized = normalizeSurfaceInspectorAnnotationCandidate({
+            ...chosen,
+            source_metadata: {
+                ...objectOrEmpty(chosen.source_metadata || chosen.source_tree_node_metadata || chosen.metadata),
+                ...bridgeMetadata('projectable_candidate_under_pointer', pointer, sourceCandidates.length),
+                sigil_fallback: false,
+            },
+        });
+        return {
+            subject: normalized,
+            fallback: false,
+            blocker_reason: '',
+            target_limitation: '',
+        };
+    }
+    const fallback = role === 'release-target'
+        ? createDisplayAnnotationSubject(display, pointer, { role })
+        : createPointerAnnotationSubject(display, pointer);
+    const blockerReason = sourceCandidates.length
+        ? 'no_projectable_candidate_under_pointer'
+        : 'annotation_candidate_cache_empty';
+    return {
+        subject: {
+            ...fallback,
+            source_metadata: {
+                ...objectOrEmpty(fallback.source_metadata),
+                ...bridgeMetadata(blockerReason, pointer, sourceCandidates.length),
+                sigil_fallback: true,
+            },
+            projection: {
+                ...objectOrEmpty(fallback.projection),
+                source_metadata: {
+                    ...objectOrEmpty(fallback.projection?.source_metadata),
+                    ...bridgeMetadata(blockerReason, pointer, sourceCandidates.length),
+                    sigil_fallback: true,
+                },
+            },
+            blocker_reason: blockerReason,
+            blocker: { reason: blockerReason },
+        },
+        fallback: true,
+        blocker_reason: blockerReason,
+        target_limitation: 'display_under_release_pointer_v0',
+    };
+}
+
 function distance(a, b) {
     return Math.hypot(finite(a.x) - finite(b.x), finite(a.y) - finite(b.y));
 }
@@ -203,6 +286,7 @@ export function createSigilAnnotationReticleController({
     getDisplays = () => [],
     getAvatarPos = () => null,
     getAvatarHitRadius = () => 40,
+    getAnnotationCandidates = () => [],
     now = () => Date.now(),
 } = {}) {
     let session = createAnnotationSession({ entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE });
@@ -234,7 +318,13 @@ export function createSigilAnnotationReticleController({
         if (!active || !pointer) return snapshot();
         const displays = getDisplays();
         const display = findDisplay(displays, pointer);
-        const hover = createPointerAnnotationSubject(display, pointer);
+        const resolved = resolveSigilAnnotationReticleTarget({
+            candidates: getAnnotationCandidates(pointer),
+            display,
+            pointer,
+            role: 'pointer-preview',
+        });
+        const hover = resolved.subject;
         previewPointer = { x: finite(pointer.x), y: finite(pointer.y), valid: true };
         session = setAnnotationHoverCandidate(session, hover, { now: now() });
         return snapshot();
@@ -261,11 +351,18 @@ export function createSigilAnnotationReticleController({
         const display = findDisplay(displays, pointer || previewPointer);
         const displayRect = rectFromDisplay(display);
         const releasePoint = pointer ? { x: finite(pointer.x), y: finite(pointer.y), valid: true } : previewPointer;
-        const target = createDisplayAnnotationSubject(display, releasePoint, { role: 'release-target' });
+        const resolved = resolveSigilAnnotationReticleTarget({
+            candidates: getAnnotationCandidates(releasePoint),
+            display,
+            pointer: releasePoint,
+            role: 'release-target',
+        });
+        const target = resolved.subject;
         session = setAnnotationHoverCandidate(session, target, { now: now() });
         session = commitAnnotationPreview(session, { now: now(), actor: { role: 'sigil', id: 'radial-reticle' } });
+        const targetRect = subjectProjectionRect(target) || displayRect;
         const placement = chooseAnnotationTravelPlacement({
-            targetRect: displayRect,
+            targetRect,
             displayRect,
             releasePoint,
             avatarHitRadius: getAvatarHitRadius(),
@@ -286,7 +383,9 @@ export function createSigilAnnotationReticleController({
             root_evidence: rootEvidence,
             release_point: releasePoint,
             preview_target: target,
-            target_limitation: 'display_under_release_pointer_v0',
+            target_limitation: resolved.target_limitation,
+            fallback: resolved.fallback,
+            blocker_reason: resolved.blocker_reason,
             placement,
             session,
         };
