@@ -7,8 +7,11 @@ import {
   annotationReticleReleaseDisposition,
   buildAnnotationReticleOverlayModel,
   chooseAnnotationTravelPlacement,
+  clearAnnotationReticleSemanticCandidatesForCanvas,
   createAnnotationReticleAcquisitionState,
+  createAnnotationReticleTargetEvidenceCache,
   createSigilAnnotationReticleController,
+  recordAnnotationReticleSemanticCandidateIds,
   resolveSigilAnnotationReticleTarget,
   reticleOuterMarginExit,
   SIGIL_ANNOTATION_ENTRY_SOURCE,
@@ -173,6 +176,46 @@ test('annotation reticle candidate bridge records explicit fallback blocker meta
   assert.equal(resolved.subject.adapter_id, 'sigil-display-reticle-v0')
   assert.equal(resolved.subject.source_metadata.sigil_fallback, true)
   assert.equal(resolved.subject.source_metadata.candidate_source_count, 1)
+})
+
+test('annotation reticle semantic target evidence clears canvas-owned flat candidates on replacement and removal', () => {
+  const evidence = createAnnotationReticleTargetEvidenceCache()
+  evidence.candidates.set('canvas-a', { id: 'canvas-a', adapter_id: 'aos-canvas-window' })
+  evidence.candidates.set('old-primary', { id: 'old-primary', adapter_id: 'aos-toolkit-semantic-target' })
+  evidence.candidates.set('old-secondary', { id: 'old-secondary', adapter_id: 'aos-toolkit-semantic-target' })
+  evidence.candidates.set('foreign', { id: 'foreign', adapter_id: 'aos-toolkit-semantic-target' })
+  recordAnnotationReticleSemanticCandidateIds(evidence, 'canvas-a', ['old-primary', 'old-secondary'])
+  recordAnnotationReticleSemanticCandidateIds(evidence, 'canvas-b', ['foreign'])
+
+  assert.deepEqual(
+    clearAnnotationReticleSemanticCandidatesForCanvas(evidence, 'canvas-a').sort(),
+    ['old-primary', 'old-secondary'],
+  )
+  assert.equal(evidence.candidates.has('old-primary'), false)
+  assert.equal(evidence.candidates.has('old-secondary'), false)
+  assert.equal(evidence.candidates.has('foreign'), true)
+  assert.equal(evidence.candidates.has('canvas-a'), true)
+  assert.equal(evidence.semanticTargetsByCanvas.has('canvas-a'), false)
+
+  evidence.candidates.set('new-primary', { id: 'new-primary', adapter_id: 'aos-toolkit-semantic-target' })
+  recordAnnotationReticleSemanticCandidateIds(evidence, 'canvas-a', ['new-primary'])
+  assert.deepEqual(clearAnnotationReticleSemanticCandidatesForCanvas(evidence, 'canvas-a'), ['new-primary'])
+  assert.equal(evidence.candidates.has('new-primary'), false)
+  assert.equal(evidence.candidates.has('foreign'), true)
+})
+
+test('Sigil clears stale semantic reticle candidates before replacement or empty payloads', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const semanticStart = source.indexOf('function annotationReticleHandleSemanticTargets')
+  const nativeStart = source.indexOf('function annotationReticleHandleNativeWindow', semanticStart)
+  const semanticBlock = source.slice(semanticStart, nativeStart)
+  const removeStart = source.indexOf('function annotationReticleRemoveCandidate')
+  const listStart = source.indexOf('function annotationReticleCandidateList', removeStart)
+  const removeBlock = source.slice(removeStart, listStart)
+
+  assert.match(removeBlock, /clearAnnotationReticleSemanticCandidatesForCanvas\(liveJs\.annotationReticleTargetEvidence, id\)/)
+  assert.match(semanticBlock, /clearAnnotationReticleSemanticCandidatesForCanvas\(liveJs\.annotationReticleTargetEvidence, canvasId\)[\s\S]*if \(!targets\.length\) return/)
+  assert.match(semanticBlock, /recordAnnotationReticleSemanticCandidateIds\(liveJs\.annotationReticleTargetEvidence, canvasId, candidateIds\)/)
 })
 
 test('annotation reticle stays unresolved instead of crashing when displays are absent', () => {

@@ -208,6 +208,51 @@ export function resolveSigilAnnotationReticleTarget({
     };
 }
 
+function semanticCandidateKey(candidate = null) {
+    const key = candidate?.id || candidate?.subject_id || candidate;
+    return key ? String(key) : '';
+}
+
+export function createAnnotationReticleTargetEvidenceCache() {
+    return {
+        candidates: new Map(),
+        canvases: new Map(),
+        semanticTargetsByCanvas: new Map(),
+        latestNativeWindowEvent: null,
+        latestNativeAxElementEvent: null,
+    };
+}
+
+export function clearAnnotationReticleSemanticCandidatesForCanvas(evidence = null, canvasId = '') {
+    const id = String(canvasId || '').trim();
+    if (!evidence || !id) return [];
+    const owned = evidence.semanticTargetsByCanvas?.get(id);
+    const ownedIds = owned instanceof Set
+        ? [...owned]
+        : (Array.isArray(owned) ? owned.map(semanticCandidateKey) : []);
+    const removed = [];
+    for (const candidateId of ownedIds) {
+        if (!candidateId) continue;
+        if (evidence.candidates?.delete(String(candidateId))) removed.push(String(candidateId));
+    }
+    evidence.semanticTargetsByCanvas?.delete(id);
+    return removed;
+}
+
+export function recordAnnotationReticleSemanticCandidateIds(evidence = null, canvasId = '', candidateIds = []) {
+    const id = String(canvasId || '').trim();
+    if (!evidence || !id) return [];
+    const ids = [...new Set((Array.isArray(candidateIds) ? candidateIds : [])
+        .map((candidateId) => String(candidateId || '').trim())
+        .filter(Boolean))];
+    if (ids.length) {
+        evidence.semanticTargetsByCanvas?.set(id, new Set(ids));
+    } else {
+        evidence.semanticTargetsByCanvas?.delete(id);
+    }
+    return ids;
+}
+
 function distance(a, b) {
     return Math.hypot(finite(a.x) - finite(b.x), finite(a.y) - finite(b.y));
 }

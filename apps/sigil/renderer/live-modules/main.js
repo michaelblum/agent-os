@@ -44,9 +44,12 @@ import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
 import {
     annotationReticleReleaseDisposition,
     buildAnnotationReticleOverlayModel,
+    clearAnnotationReticleSemanticCandidatesForCanvas,
     createAnnotationReticleAcquisitionState,
+    createAnnotationReticleTargetEvidenceCache,
     CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
     createSigilAnnotationReticleController,
+    recordAnnotationReticleSemanticCandidateIds,
     reticleOuterMarginExit,
     SIGIL_ANNOTATION_CAMERA_ITEM_ID,
     SIGIL_ANNOTATION_RETICLE_ITEM_ID,
@@ -135,13 +138,7 @@ const liveJs = {
     sessionVitality: null,
     lastRadialActivation: null,
     annotationReticle: null,
-    annotationReticleTargetEvidence: {
-        candidates: new Map(),
-        canvases: new Map(),
-        semanticTargetsByCanvas: new Map(),
-        latestNativeWindowEvent: null,
-        latestNativeAxElementEvent: null,
-    },
+    annotationReticleTargetEvidence: createAnnotationReticleTargetEvidenceCache(),
     annotationReticleEvents: [],
     appearanceVersion: 0,
     appliedAppearanceVersion: null,
@@ -1507,9 +1504,9 @@ function annotationReticleUpsertCandidate(candidate = null) {
 
 function annotationReticleRemoveCandidate(id = '') {
     if (!id) return;
+    clearAnnotationReticleSemanticCandidatesForCanvas(liveJs.annotationReticleTargetEvidence, id);
     liveJs.annotationReticleTargetEvidence.candidates.delete(String(id));
     liveJs.annotationReticleTargetEvidence.canvases.delete(String(id));
-    liveJs.annotationReticleTargetEvidence.semanticTargetsByCanvas.delete(String(id));
 }
 
 function annotationReticleCandidateList() {
@@ -1574,15 +1571,17 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
     const targets = Array.isArray(payload.semantic_targets)
         ? payload.semantic_targets
         : (Array.isArray(payload.targets) ? payload.targets : []);
-    if (!canvasId || !targets.length) return;
-    liveJs.annotationReticleTargetEvidence.semanticTargetsByCanvas.set(canvasId, targets);
+    if (!canvasId) return;
+    clearAnnotationReticleSemanticCandidatesForCanvas(liveJs.annotationReticleTargetEvidence, canvasId);
+    if (!targets.length) return;
+    const candidateIds = [];
     for (const target of targets) {
         const projection = buildSemanticTargetProjectionAdapterResult(target, {
             canvas_id: canvasId,
             refreshed_at: target.refreshed_at || payload.refreshed_at || new Date().toISOString(),
             provenance_source_payload_id: target.payload_id || payload.payload_id,
         });
-        annotationReticleUpsertCandidate({
+        const candidate = {
             id: projection.subject_id,
             subject_id: projection.subject_id,
             subject_path: projection.subject_path,
@@ -1598,8 +1597,11 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
                 adapter_scope: 'sigil_cached_semantic_targets',
                 canvas_id: canvasId,
             },
-        });
+        };
+        annotationReticleUpsertCandidate(candidate);
+        candidateIds.push(candidate.id);
     }
+    recordAnnotationReticleSemanticCandidateIds(liveJs.annotationReticleTargetEvidence, canvasId, candidateIds);
 }
 
 function annotationReticleHandleNativeWindow(payload = {}) {
