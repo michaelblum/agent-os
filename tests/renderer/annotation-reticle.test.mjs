@@ -151,6 +151,15 @@ test('annotation reticle preview and release prefer shared projectable annotatio
   assert.equal(committed.session.anchors.some((anchor) => anchor.subject.adapter_id === 'aos-toolkit-semantic-target'), true)
 })
 
+test('annotation reticle imports neutral annotation candidate helpers', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/annotation-reticle.js'), 'utf8')
+
+  assert.match(source, /workbench\/annotation-candidates\.js/)
+  assert.doesNotMatch(source, /workbench\/surface-inspector-annotations\.js/)
+  assert.match(source, /chooseAnnotationCandidate/)
+  assert.match(source, /normalizeAnnotationCandidate/)
+})
+
 test('annotation reticle candidate bridge records explicit fallback blocker metadata', () => {
   const resolved = resolveSigilAnnotationReticleTarget({
     candidates: [{

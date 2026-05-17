@@ -2,6 +2,7 @@ export * from './subject.js';
 export * from './human-checkpoint.js';
 export * from './html-workbench-expression.js';
 export * from './guided-user-signal-session.js';
+export * from './annotation-candidates.js';
 export * from './annotation-projection.js';
 export * from './surface-inspector-annotations.js';
 export * from './spatial-subject-tree.js';

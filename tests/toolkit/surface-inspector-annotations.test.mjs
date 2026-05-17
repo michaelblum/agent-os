@@ -30,6 +30,10 @@ import {
   unpinSurfaceInspectorFrame,
   updateSurfaceInspectorComment,
 } from '../../packages/toolkit/workbench/surface-inspector-annotations.js'
+import {
+  chooseAnnotationCandidate,
+  normalizeAnnotationCandidate,
+} from '../../packages/toolkit/workbench/annotation-candidates.js'
 
 const node = (id, path = ['main', id], extra = {}) => ({
   id,
@@ -216,10 +220,13 @@ test('annotation candidate selection prefers specific visible child frames and s
   assert.equal(chooseSurfaceInspectorAnnotationCandidate([root], { x: 150, y: 150 }), null)
   assert.equal(chooseSurfaceInspectorAnnotationCandidate([root, workbench], { x: 150, y: 150 }).id, 'html-workbench-expression')
   assert.equal(chooseSurfaceInspectorAnnotationCandidate([root, workbench, semantic], { x: 230, y: 250 }).id, 'cta-button')
+  assert.equal(chooseAnnotationCandidate([root], { x: 150, y: 150 }), null)
+  assert.equal(chooseAnnotationCandidate([root, workbench], { x: 150, y: 150 }).id, 'html-workbench-expression')
+  assert.equal(chooseAnnotationCandidate([root, workbench, semantic], { x: 230, y: 250 }).id, 'cta-button')
 })
 
 test('annotation candidates normalize shared adapter fields, capabilities, and source metadata', () => {
-  const candidate = normalizeSurfaceInspectorAnnotationCandidate({
+  const candidate = normalizeAnnotationCandidate({
     id: 'native-ok',
     adapter_id: 'macos-ax',
     root_id: 'window-1',
@@ -250,6 +257,7 @@ test('annotation candidates normalize shared adapter fields, capabilities, and s
   assert.equal(candidate.state_id, 'see_123')
   assert.equal(candidate.confidence, 0.88)
   assert.deepEqual(candidate.source_metadata.context_path, ['Settings', 'OK'])
+  assert.deepEqual(normalizeSurfaceInspectorAnnotationCandidate(candidate), candidate)
 })
 
 test('native window payload becomes a bounded macOS AX root candidate', () => {

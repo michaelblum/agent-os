@@ -8,9 +8,9 @@ const {
     commitAnnotationPreview,
 } = await import(toolkitSpecifier('workbench/annotation-session.js'));
 const {
-    chooseSurfaceInspectorAnnotationCandidate,
-    normalizeSurfaceInspectorAnnotationCandidate,
-} = await import(toolkitSpecifier('workbench/surface-inspector-annotations.js'));
+    chooseAnnotationCandidate,
+    normalizeAnnotationCandidate,
+} = await import(toolkitSpecifier('workbench/annotation-candidates.js'));
 
 export const SIGIL_ANNOTATION_RETICLE_ITEM_ID = 'annotation-mode';
 export const SIGIL_ANNOTATION_CAMERA_ITEM_ID = 'annotation-camera';
@@ -160,9 +160,9 @@ export function resolveSigilAnnotationReticleTarget({
     role = 'pointer-preview',
 } = {}) {
     const sourceCandidates = Array.isArray(candidates) ? candidates : [];
-    const chosen = chooseSurfaceInspectorAnnotationCandidate(sourceCandidates, pointer);
+    const chosen = chooseAnnotationCandidate(sourceCandidates, pointer);
     if (chosen) {
-        const normalized = normalizeSurfaceInspectorAnnotationCandidate({
+        const normalized = normalizeAnnotationCandidate({
             ...chosen,
             source_metadata: {
                 ...objectOrEmpty(chosen.source_metadata || chosen.source_tree_node_metadata || chosen.metadata),
