@@ -114,6 +114,12 @@ explicit as the source-vs-projection rule. Without a lifecycle rule, the system
 can regress into artifact sprawl: useful visual outputs with unclear ownership,
 cleanup, archival, or surviving structured result.
 
+The V0 lifecycle answer is now `docs/design/generated-artifact-lifecycle-policy.md`.
+Future HTML Workbench Expression kinds should treat that note as the minimum
+producer contract for source hashes, output locators, cleanup/archive policy,
+privacy/redaction policy, and the structured result that survives if generated
+HTML is deleted.
+
 The fifth tension is Design Operator history. Issue #140 remains open as a
 design-operator context tracker, but its comments already warn that older
 `docs/superpowers` path guidance is stale and that artifact/workspace ideas now
@@ -161,3 +167,7 @@ lifecycle decision for generated projection artifacts:
 4. Define cleanup expectations for one-off generated HTML and report outputs.
 5. Add the lifecycle rule to the relevant toolkit workbench docs before adding
    more artifact kinds.
+
+The initial decision is captured in
+`docs/design/generated-artifact-lifecycle-policy.md`; remaining work should
+apply it to new producers rather than inventing ad hoc artifact rules.

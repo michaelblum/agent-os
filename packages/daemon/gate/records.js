@@ -1,26 +1,14 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { homedir } from 'node:os';
+import {
+  publicUserSignalSource,
+  runtimeStatePath,
+} from '../../../shared/user-signal/service-policy.mjs';
 
 export const GATE_RECORD_SCHEMA_VERSION = 'aos.gate.record.v1';
 
-function runtimeMode(env = process.env) {
-  const mode = String(env.AOS_RUNTIME_MODE || '').toLowerCase();
-  return mode === 'installed' ? 'installed' : 'repo';
-}
-
 export function gateRecordPath({ env = process.env, stateRoot = null } = {}) {
-  const root = stateRoot || env.AOS_STATE_ROOT || join(homedir(), '.config', 'aos');
-  return join(root, runtimeMode(env), 'gate', 'records.jsonl');
-}
-
-function publicSource(source) {
-  if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
-  const output = {};
-  for (const key of ['surface', 'session_id', 'agent']) {
-    if (source[key] !== undefined) output[key] = source[key];
-  }
-  return output;
+  return runtimeStatePath(['gate', 'records.jsonl'], { env, root: stateRoot });
 }
 
 function statusFor(resolution, value) {
@@ -59,7 +47,7 @@ export function createGateRecord({
     gate_id: request.id,
     request_schema_version: request.schema_version,
     prompt_title: request.prompt?.title ?? null,
-    source: publicSource(request.source),
+    source: publicUserSignalSource(request.source),
     receptor: receptorName ?? null,
     ui_variant: request.ui?.variant ?? null,
     field_kinds: Array.isArray(request.fields) ? request.fields.map((field) => field.kind) : [],

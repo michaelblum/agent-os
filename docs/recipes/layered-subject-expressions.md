@@ -46,6 +46,10 @@ or verification logic.
 6. Identify health, validation, or verifier status.
 7. Reuse toolkit/workbench primitives for chrome, panes, controls, patching,
    and persistence instead of duplicating private panel logic.
+8. Classify generated outputs with
+   `docs/design/generated-artifact-lifecycle-policy.md`: name the lifecycle
+   class, storage location, cleanup/archive trigger, privacy policy, source
+   hash/provenance, and surviving structured result before adding a producer.
 
 ## Source Notes
 
