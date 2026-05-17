@@ -754,8 +754,8 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("adapter-hint", "--adapter-hint", "Provider adapter hint", default: .string("codex_exec"))
             ],
             stdin: nil,
-            constraints: ConstraintSet(requires: nil, conflicts: [["json", "request"]], oneOf: nil, implies: nil),
-            execution: execReadOnly(),
+            constraints: nil,
+            execution: execMutating(),
             output: outJSON,
             examples: [
                 "aos gate defer --request gate-request.json --session-id codex-123 --harness codex --json",
@@ -769,8 +769,8 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("store-response", "--store-response", "Persist the submitted answer payload in the continuation, resume event, and gate record", type: .bool)
             ],
             stdin: nil,
-            constraints: ConstraintSet(requires: nil, conflicts: [["json", "request"]], oneOf: nil, implies: nil),
-            execution: execReadOnly(),
+            constraints: nil,
+            execution: execMutating(),
             output: outJSON,
             examples: [
                 "aos gate submit --continuation-id gate-cont-123 --request submission.json --json",

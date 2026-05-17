@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { GateRecordStore } from '../../packages/daemon/gate/records.js';
@@ -132,6 +132,16 @@ test('duplicate submit is idempotent and does not create duplicate resume events
   assert.equal(second.duplicate, true);
   assert.equal(second.event.event_id, first.event.event_id);
   assert.deepEqual(second.event.answer_summary, first.event.answer_summary);
+  const eventFiles = await readdir(join(stateRoot, 'repo', 'gate', 'resume-events'));
+  assert.equal(eventFiles.length, 1);
+});
+
+test('continuation ids are constrained before filesystem access', async () => {
+  const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-id-guard-'));
+  const store = new GateContinuationStore({ root: stateRoot, env: { AOS_RUNTIME_MODE: 'repo' } });
+
+  await assert.rejects(() => store.read('../escape'), /invalid continuation id/);
+  await assert.rejects(() => store.submit({ continuationId: '../escape', response: { decision: 'approve' } }), /invalid continuation id/);
 });
 
 test('cancelled and expired continuations cannot be submitted', async () => {

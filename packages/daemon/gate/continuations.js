@@ -13,6 +13,8 @@ export const GATE_DEFER_CREATE_RESPONSE_SCHEMA_VERSION = 'aos.gate.defer.create-
 export const GATE_SUBMIT_RESPONSE_SCHEMA_VERSION = 'aos.gate.submit.response.v1';
 
 const TERMINAL_STATES = new Set(['submitted', 'cancelled', 'expired']);
+const CONTINUATION_ID_RE = /^gate-cont-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const RESUME_EVENT_ID_RE = /^gate-resume-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function runtimeMode(env = process.env) {
   const mode = String(env.AOS_RUNTIME_MODE || '').toLowerCase();
@@ -36,10 +38,12 @@ export function gateResumeEventDir({ env = process.env, root = null } = {}) {
 }
 
 export function gateContinuationPath(id, options = {}) {
+  assertContinuationId(id);
   return join(gateContinuationDir(options), `${id}.json`);
 }
 
 export function gateResumeEventPath(id, options = {}) {
+  assertResumeEventId(id);
   return join(gateResumeEventDir(options), `${id}.json`);
 }
 
@@ -48,6 +52,28 @@ async function writeJsonAtomic(path, value) {
   const tmp = `${path}.${process.pid}.${Date.now()}.tmp`;
   await writeFile(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
   await rename(tmp, path);
+}
+
+async function writeJsonExclusive(path, value) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+}
+
+function assertContinuationId(id) {
+  if (typeof id !== 'string' || !CONTINUATION_ID_RE.test(id)) {
+    throw new Error(`invalid continuation id: ${id}`);
+  }
+}
+
+function assertResumeEventId(id) {
+  if (typeof id !== 'string' || !RESUME_EVENT_ID_RE.test(id)) {
+    throw new Error(`invalid resume event id: ${id}`);
+  }
+}
+
+function resumeEventIdFor(continuationId) {
+  assertContinuationId(continuationId);
+  return `gate-resume-${continuationId.slice('gate-cont-'.length)}`;
 }
 
 function publicSource(source) {
@@ -125,10 +151,12 @@ export class GateContinuationStore {
   }
 
   continuationPath(id) {
+    assertContinuationId(id);
     return join(this.continuationDir, `${id}.json`);
   }
 
   resumeEventPath(id) {
+    assertResumeEventId(id);
     return join(this.resumeEventDir, `${id}.json`);
   }
 
@@ -169,6 +197,7 @@ export class GateContinuationStore {
   }
 
   async read(id) {
+    assertContinuationId(id);
     return JSON.parse(await readFile(this.continuationPath(id), 'utf8'));
   }
 
@@ -212,7 +241,7 @@ export class GateContinuationStore {
     }
 
     const now = new Date().toISOString();
-    const eventId = `gate-resume-${randomUUID()}`;
+    const eventId = resumeEventIdFor(record.continuation_id);
     const eventPath = this.resumeEventPath(eventId);
     const responseStored = storeResponse === true;
     const resolution = resolutionFor(response);
@@ -257,7 +286,16 @@ export class GateContinuationStore {
     };
     if (responseStored) nextRecord.response = response;
 
-    await writeJsonAtomic(eventPath, event);
+    try {
+      await writeJsonExclusive(eventPath, event);
+    } catch (error) {
+      if (error.code === 'EEXIST') {
+        const existingEvent = JSON.parse(await readFile(eventPath, 'utf8'));
+        const latest = await this.read(continuationId);
+        return { record: latest, event: existingEvent, duplicate: true };
+      }
+      throw error;
+    }
     await writeJsonAtomic(this.continuationPath(continuationId), nextRecord);
 
     if (this.recordStore) {
