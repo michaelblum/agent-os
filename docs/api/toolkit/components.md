@@ -907,10 +907,25 @@ Sigil or toolkit-local settings:
 ```bash
 aos config get see.canvas_inspector_bundle --json
 aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
+aos config set see.canvas_inspector_bundle.output.mode clipboard_payload
 aos config set see.canvas_inspector_bundle.include.annotation_snapshot false
 aos config set see.canvas_inspector_bundle.include.canvas_list false
 aos config set see.canvas_inspector_bundle.include.xray true
 ```
+
+`see.canvas_inspector_bundle.output.mode` defaults to `bundle_path`. In that
+mode the daemon preserves the existing temp bundle directory contract and copies
+the directory path to the system clipboard. The alternate `clipboard_payload`
+mode does not create a temp bundle directory for the export; it copies a JSON
+payload with `kind: "canvas_inspector_see_bundle_clipboard_payload"`, status,
+timestamp, trigger, shortcut, source canvas id, resolved include toggles,
+inline inspector/display/canvas-list data when those toggles are enabled, and
+the public `surface_inspector_annotation_snapshot` payload when
+`include.annotation_snapshot=true`. Capture image, capture metadata, and xray
+artifacts are represented as skipped or disabled evidence in clipboard mode
+instead of embedding image binary, base64, or `data:image/...` values in JSON.
+The status bar shows whether the shortcut will copy a bundle path or JSON
+payload.
 
 Supported include toggles today:
 

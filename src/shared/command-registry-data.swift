@@ -931,7 +931,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos config"]),
         InvocationForm(id: "config-get", usage: "aos config get <key> [--json]",
             args: [
-                pos("key", "Config key (for example: voice.enabled, content.port, see.canvas_inspector_bundle.hotkey)"),
+                pos("key", "Config key (for example: voice.enabled, content.port, see.canvas_inspector_bundle.output.mode)"),
                 flag("json", "--json", "Emit JSON for the value", type: .bool)
             ],
             stdin: nil, constraints: nil,
@@ -944,7 +944,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ]),
         InvocationForm(id: "config-set", usage: "aos config set <key> <value>",
             args: [
-                pos("key", "Config key (for example: voice.enabled, perception.default_depth, see.canvas_inspector_bundle.hotkey)"),
+                pos("key", "Config key (for example: voice.enabled, perception.default_depth, see.canvas_inspector_bundle.output.mode)"),
                 pos("value", "New value")
             ],
             stdin: nil, constraints: nil,
@@ -953,14 +953,15 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: [
                 "aos config set voice.enabled true",
                 "aos config set perception.default_depth 2",
-                "aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x"
+                "aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x",
+                "aos config set see.canvas_inspector_bundle.output.mode clipboard_payload"
             ])
     ]))
 
     reg.append(CommandDescriptor(path: ["set"], summary: "Configure autonomic settings", forms: [
         InvocationForm(id: "set-value", usage: "aos set <key> <value>",
             args: [
-                pos("key", "Config key (e.g. voice.enabled, perception.default_depth, see.canvas_inspector_bundle.include.xray)"),
+                pos("key", "Config key (e.g. voice.enabled, perception.default_depth, see.canvas_inspector_bundle.output.mode)"),
                 pos("value", "New value")
             ],
             stdin: nil, constraints: nil,
@@ -969,7 +970,8 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: [
                 "aos set voice.enabled true",
                 "aos set perception.default_depth 2",
-                "aos set see.canvas_inspector_bundle.include.xray true"
+                "aos set see.canvas_inspector_bundle.include.xray true",
+                "aos set see.canvas_inspector_bundle.output.mode bundle_path"
             ]),
         InvocationForm(id: "set-dump", usage: "aos set",
             args: [],

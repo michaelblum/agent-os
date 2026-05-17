@@ -926,6 +926,7 @@ export default function CanvasInspector() {
   let lastTintError = null
   let dynamicAnimationFrame = 0
   let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
+  let bundleOutputMode = 'bundle_path'
   let listCollapsed = false
   let bundleCapture = {
     status: 'idle',
@@ -983,6 +984,7 @@ export default function CanvasInspector() {
       inputSubscriptionActive,
       lastTintError,
       bundleHotkeyLabel,
+      bundleOutputMode,
       bundleCapture,
       annotation: buildSurfaceInspectorSnapshotPayload(annotationState),
       annotation_snapshot_artifact: annotationSnapshotArtifact,
@@ -1712,6 +1714,7 @@ export default function CanvasInspector() {
       message: 'capturing see bundle...',
       bundlePath: bundleCapture.bundlePath,
       bundleJSONPath: bundleCapture.bundleJSONPath,
+      outputMode: bundleOutputMode,
       trigger,
       at: Date.now(),
     }
@@ -2414,15 +2417,19 @@ export default function CanvasInspector() {
   function renderStatusBar() {
     let detail = bundleHotkeyLabel === 'disabled'
       ? 'bundle hotkey disabled'
-      : `bundle ${bundleHotkeyLabel}`
+      : `bundle ${bundleHotkeyLabel} -> ${bundleOutputMode === 'clipboard_payload' ? 'JSON payload' : 'path'}`
     if (lastTintError) {
       detail = `${lastTintError.action === 'stats' ? 'stats' : 'tint'} error: ${esc(lastTintError.id)}`
     } else if (bundleCapture?.status === 'pending') {
       detail = bundleCapture.message || 'capturing see bundle...'
     } else if (bundleCapture?.status === 'success') {
-      const target = bundleCapture.bundlePath || bundleCapture.bundleJSONPath || 'bundle ready'
-      const leaf = target.split('/').filter(Boolean).pop() || target
-      detail = `bundle copied: ${esc(leaf)}`
+      if (bundleCapture.outputMode === 'clipboard_payload') {
+        detail = 'bundle JSON copied'
+      } else {
+        const target = bundleCapture.bundlePath || bundleCapture.bundleJSONPath || 'bundle ready'
+        const leaf = target.split('/').filter(Boolean).pop() || target
+        detail = `bundle copied: ${esc(leaf)}`
+      }
     } else if (bundleCapture?.status === 'error') {
       detail = bundleCapture.message || 'bundle failed'
     }
@@ -2800,11 +2807,13 @@ export default function CanvasInspector() {
           lastCountedBundleKey = bundleKey
         }
         bundleHotkeyLabel = payload.shortcut || bundleHotkeyLabel
+        bundleOutputMode = payload.output_mode || bundleOutputMode
         bundleCapture = {
           status: payload.status || 'idle',
           message: payload.message || (bundleHotkeyLabel === 'disabled' ? 'bundle hotkey disabled' : `bundle ${bundleHotkeyLabel}`),
           bundlePath: payload.bundle_path || null,
           bundleJSONPath: payload.bundle_json_path || null,
+          outputMode: payload.output_mode || bundleOutputMode,
           trigger: payload.trigger || null,
           at: payload.at || Date.now(),
         }

@@ -62,12 +62,18 @@ private func lookupConfigValue(key: String, config: AosConfig) -> ConfigLookupRe
             "xray": include?.xray ?? false,
         ]
         let hotkey: Any = bundle.hotkey ?? NSNull()
+        let outputMode: Any = bundle.output?.mode ?? "bundle_path"
         return .found([
             "hotkey": hotkey,
+            "output": [
+                "mode": outputMode,
+            ],
             "include": includeDict,
         ])
     case "see.canvas_inspector_bundle.hotkey":
         return .found(effectiveCanvasInspectorBundleConfig(config).hotkey)
+    case "see.canvas_inspector_bundle.output.mode":
+        return .found(effectiveCanvasInspectorBundleConfig(config).output?.mode ?? "bundle_path")
     case "see.canvas_inspector_bundle.include.capture_image":
         return .found(effectiveCanvasInspectorBundleConfig(config).include?.capture_image)
     case "see.canvas_inspector_bundle.include.capture_metadata":

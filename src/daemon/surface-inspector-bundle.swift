@@ -33,10 +33,15 @@ private struct CanvasInspectorBundleResolvedInclude {
 
 private struct CanvasInspectorBundleRuntimeConfig {
     let hotkey: String?
+    let outputMode: String
     let include: CanvasInspectorBundleResolvedInclude
 
     var shortcutLabel: String {
         hotkey ?? "disabled"
+    }
+
+    var copiesClipboardPayload: Bool {
+        outputMode == "clipboard_payload"
     }
 }
 
@@ -213,6 +218,16 @@ extension UnifiedDaemon {
         defer { finishCanvasInspectorBundleCapture() }
 
         let createdAt = iso8601Now()
+        if runtimeConfig.copiesClipboardPayload {
+            performCanvasInspectorSeeBundleClipboardPayloadExport(
+                canvasID: canvasID,
+                trigger: trigger,
+                runtimeConfig: runtimeConfig,
+                createdAt: createdAt
+            )
+            return
+        }
+
         let bundleDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("aos-surface-inspector-see-bundle-\(UUID().uuidString)")
         let captureImageURL = bundleDir.appendingPathComponent("capture.png")
@@ -313,6 +328,7 @@ extension UnifiedDaemon {
                 "bundle_path": bundleDir.path,
                 "bundle_json_path": bundleJSONURL.path,
                 "config": [
+                    "output": ["mode": runtimeConfig.outputMode],
                     "include": runtimeConfig.include.asDictionary,
                 ],
                 "files": files,
@@ -367,6 +383,7 @@ extension UnifiedDaemon {
                     "bundle_path": bundleDir.path,
                     "bundle_json_path": bundleJSONURL.path,
                     "config": [
+                        "output": ["mode": runtimeConfig.outputMode],
                         "include": runtimeConfig.include.asDictionary,
                     ],
                     "error": bundleError,
@@ -394,6 +411,141 @@ extension UnifiedDaemon {
                 runtimeConfig: runtimeConfig
             )
         }
+    }
+
+    private func performCanvasInspectorSeeBundleClipboardPayloadExport(
+        canvasID: String,
+        trigger: String,
+        runtimeConfig: CanvasInspectorBundleRuntimeConfig,
+        createdAt: String
+    ) {
+        let canvasList = snapshotCanvasList()
+        guard let canvasInfo = canvasList.first(where: { $0.id == canvasID }) else {
+            let error: [String: Any] = [
+                "phase": "clipboard_payload_export",
+                "code": "CANVAS_NOT_FOUND",
+                "message": "Canvas '\(canvasID)' not found",
+            ]
+            postCanvasInspectorSeeBundleStatus(
+                canvasID: canvasID,
+                status: "error",
+                message: "see bundle clipboard payload failed: Canvas '\(canvasID)' not found",
+                error: error,
+                trigger: trigger,
+                runtimeConfig: runtimeConfig
+            )
+            return
+        }
+
+        var payload: [String: Any] = [
+            "kind": "canvas_inspector_see_bundle_clipboard_payload",
+            "status": "success",
+            "created_at": createdAt,
+            "trigger": trigger,
+            "shortcut": runtimeConfig.shortcutLabel,
+            "source_canvas_id": canvasID,
+            "canvas_at": canvasInfo.at,
+            "config": [
+                "hotkey": runtimeConfig.hotkey as Any? ?? NSNull(),
+                "output": ["mode": runtimeConfig.outputMode],
+                "include": runtimeConfig.include.asDictionary,
+            ],
+            "artifacts": [
+                "capture_image": skippedClipboardArtifact("capture_image", enabled: runtimeConfig.include.captureImage),
+                "capture_metadata": skippedClipboardArtifact("capture_metadata", enabled: runtimeConfig.include.captureMetadata),
+                "xray": skippedClipboardArtifact("xray", enabled: runtimeConfig.include.xray),
+            ],
+        ]
+
+        if runtimeConfig.include.inspectorState {
+            payload["inspector_state"] = snapshotCanvasInspectorState(canvasID: canvasID)
+        }
+        if runtimeConfig.include.displayGeometry {
+            payload["display_geometry"] = snapshotDisplayGeometryForBundle()
+        }
+        if runtimeConfig.include.canvasList {
+            payload["canvas_list"] = canvasList.map { canvasInfoDictionary($0) }
+        }
+        if runtimeConfig.include.annotationSnapshot {
+            let assets: [String: Any] = [
+                "capture_json": NSNull(),
+                "capture_image": NSNull(),
+                "display_geometry_json": NSNull(),
+                "canvas_list_json": NSNull(),
+                "inspector_state_json": NSNull(),
+                "clipboard_payload": true,
+            ]
+            payload["surface_inspector_annotation_snapshot"] = snapshotCanvasInspectorAnnotationSnapshot(
+                canvasID: canvasID,
+                trigger: trigger,
+                capturedAt: createdAt,
+                canvasAt: canvasInfo.at,
+                assets: assets
+            )
+        }
+
+        do {
+            let payloadText = try jsonPayloadString(payload)
+            guard !containsEmbeddedImageData(payloadText) else {
+                throw NSError(
+                    domain: "AOSCanvasInspectorBundle",
+                    code: 5,
+                    userInfo: [NSLocalizedDescriptionKey: "Clipboard payload contains embedded image data"]
+                )
+            }
+            copyStringToClipboard(payloadText)
+            postCanvasInspectorSeeBundleStatus(
+                canvasID: canvasID,
+                status: "success",
+                message: "see bundle JSON copied to clipboard",
+                trigger: trigger,
+                runtimeConfig: runtimeConfig
+            )
+        } catch {
+            let bundleError: [String: Any] = [
+                "phase": "clipboard_payload_export",
+                "code": "CLIPBOARD_PAYLOAD_EXPORT_FAILED",
+                "message": String(describing: error),
+            ]
+            postCanvasInspectorSeeBundleStatus(
+                canvasID: canvasID,
+                status: "error",
+                message: "see bundle clipboard payload failed: \(error)",
+                error: bundleError,
+                trigger: trigger,
+                runtimeConfig: runtimeConfig
+            )
+        }
+    }
+
+    private func skippedClipboardArtifact(_ name: String, enabled: Bool) -> [String: Any] {
+        [
+            "status": enabled ? "skipped" : "disabled",
+            "reason": enabled
+                ? "\(name) requires disk-backed capture files and is not embedded in clipboard payload mode"
+                : "disabled by include config",
+        ]
+    }
+
+    private func canvasInfoDictionary(_ canvas: CanvasInfo) -> [String: Any] {
+        [
+            "id": canvas.id,
+            "at": canvas.at,
+            "anchor_window": canvas.anchorWindow ?? NSNull(),
+            "anchor_channel": canvas.anchorChannel ?? NSNull(),
+            "offset": canvas.offset ?? NSNull(),
+            "interactive": canvas.interactive,
+            "window_level": canvas.windowLevel ?? NSNull(),
+            "ttl": canvas.ttl ?? NSNull(),
+            "scope": canvas.scope ?? NSNull(),
+            "auto_project": canvas.autoProject ?? NSNull(),
+            "track": canvas.track ?? NSNull(),
+            "parent": canvas.parent ?? NSNull(),
+            "cascade": canvas.cascade ?? NSNull(),
+            "suspended": canvas.suspended ?? NSNull(),
+            "lifecycle_state": canvas.lifecycleState ?? NSNull(),
+            "window_numbers": canvas.windowNumbers ?? NSNull(),
+        ]
     }
 
     private func snapshotCanvasInspectorState(canvasID: String) -> [String: Any] {
@@ -680,6 +832,7 @@ extension UnifiedDaemon {
             "trigger": trigger,
             "at": iso8601Now(),
             "shortcut": runtimeConfig.shortcutLabel,
+            "output_mode": runtimeConfig.outputMode,
             "include": runtimeConfig.include.asDictionary,
         ]
         if let hotkey = runtimeConfig.hotkey {
@@ -728,6 +881,29 @@ extension UnifiedDaemon {
         }
         let data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: url)
+    }
+
+    private func jsonPayloadString(_ value: Any) throws -> String {
+        guard JSONSerialization.isValidJSONObject(value) else {
+            throw NSError(
+                domain: "AOSCanvasInspectorBundle",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid JSON clipboard payload"]
+            )
+        }
+        let data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys])
+        guard let text = String(data: data, encoding: .utf8) else {
+            throw NSError(
+                domain: "AOSCanvasInspectorBundle",
+                code: 6,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to encode JSON clipboard payload"]
+            )
+        }
+        return text
+    }
+
+    private func containsEmbeddedImageData(_ text: String) -> Bool {
+        text.range(of: "data:image/", options: [.caseInsensitive]) != nil
     }
 
     private func writeEncodableJSON<T: Encodable>(_ value: T, to url: URL) throws {
@@ -781,6 +957,7 @@ extension UnifiedDaemon {
         let include = config.include
         return CanvasInspectorBundleRuntimeConfig(
             hotkey: config.hotkey,
+            outputMode: config.output?.mode ?? "bundle_path",
             include: CanvasInspectorBundleResolvedInclude(
                 captureImage: include?.capture_image ?? true,
                 captureMetadata: include?.capture_metadata ?? true,

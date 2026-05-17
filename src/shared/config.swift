@@ -21,7 +21,12 @@ struct AosConfig: Codable {
 
     struct CanvasInspectorBundleConfig: Codable {
         var hotkey: String?
+        var output: CanvasInspectorBundleOutputConfig?
         var include: CanvasInspectorBundleIncludeConfig?
+    }
+
+    struct CanvasInspectorBundleOutputConfig: Codable {
+        var mode: String?
     }
 
     struct CanvasInspectorBundleIncludeConfig: Codable {
@@ -116,6 +121,7 @@ struct AosConfig: Codable {
         see: SeeConfig(
             canvas_inspector_bundle: CanvasInspectorBundleConfig(
                 hotkey: "ctrl+opt+c",
+                output: CanvasInspectorBundleOutputConfig(mode: "bundle_path"),
                 include: CanvasInspectorBundleIncludeConfig(
                     capture_image: true,
                     capture_metadata: true,
@@ -136,6 +142,7 @@ private func canvasInspectorBundleDefaults() -> AosConfig.CanvasInspectorBundleC
     AosConfig.defaults.see?.canvas_inspector_bundle
         ?? AosConfig.CanvasInspectorBundleConfig(
             hotkey: "ctrl+opt+c",
+            output: AosConfig.CanvasInspectorBundleOutputConfig(mode: "bundle_path"),
             include: AosConfig.CanvasInspectorBundleIncludeConfig(
                 capture_image: true,
                 capture_metadata: true,
@@ -161,6 +168,9 @@ func effectiveCanvasInspectorBundleConfig(_ config: AosConfig) -> AosConfig.Canv
     let configuredInclude = configured?.include
     return AosConfig.CanvasInspectorBundleConfig(
         hotkey: configured?.hotkey ?? defaults.hotkey,
+        output: AosConfig.CanvasInspectorBundleOutputConfig(
+            mode: configured?.output?.mode ?? defaults.output?.mode ?? "bundle_path"
+        ),
         include: AosConfig.CanvasInspectorBundleIncludeConfig(
             capture_image: configuredInclude?.capture_image ?? defaultInclude?.capture_image,
             capture_metadata: configuredInclude?.capture_metadata ?? defaultInclude?.capture_metadata,
@@ -182,6 +192,9 @@ private func ensureCanvasInspectorBundleConfig(_ config: inout AosConfig) {
     }
     if config.see?.canvas_inspector_bundle?.include == nil {
         config.see?.canvas_inspector_bundle?.include = canvasInspectorBundleDefaults().include
+    }
+    if config.see?.canvas_inspector_bundle?.output == nil {
+        config.see?.canvas_inspector_bundle?.output = canvasInspectorBundleDefaults().output
     }
 }
 
@@ -397,6 +410,14 @@ func setConfigValue(key: String, value: String) {
             exitError("see.canvas_inspector_bundle.hotkey must be a supported key combo like 'ctrl+opt+c' or 'none'", code: "INVALID_VALUE")
         }
         config.see?.canvas_inspector_bundle?.hotkey = normalized
+    case "see.canvas_inspector_bundle.output.mode":
+        ensureCanvasInspectorBundleConfig(&config)
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let allowed = ["bundle_path", "clipboard_payload"]
+        guard allowed.contains(normalized) else {
+            exitError("see.canvas_inspector_bundle.output.mode must be one of \(allowed.joined(separator: ", "))", code: "INVALID_VALUE")
+        }
+        config.see?.canvas_inspector_bundle?.output?.mode = normalized
     case "see.canvas_inspector_bundle.include.capture_image":
         ensureCanvasInspectorBundleConfig(&config)
         config.see?.canvas_inspector_bundle?.include?.capture_image = (value == "true" || value == "1")

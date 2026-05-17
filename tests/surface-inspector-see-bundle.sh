@@ -103,6 +103,8 @@ if manifest.get("status") != "success":
     raise SystemExit(f"FAIL: bundle manifest is not success: {manifest}")
 if manifest.get("trigger") != "test":
     raise SystemExit(f"FAIL: expected trigger 'test', got: {manifest.get('trigger')}")
+if manifest.get("config", {}).get("output", {}).get("mode") != "bundle_path":
+    raise SystemExit(f"FAIL: default output mode should be bundle_path: {manifest.get('config')}")
 if manifest.get("files", {}).get("annotation_snapshot_json") != "annotation-snapshot.json":
     raise SystemExit(f"FAIL: bundle manifest missing annotation snapshot entry: {manifest.get('files')}")
 

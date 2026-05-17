@@ -37,6 +37,11 @@ if [[ "$HOTKEY" != "cmd+shift+x" ]]; then
   echo "FAIL: expected configured hotkey cmd+shift+x, got $HOTKEY"
   exit 1
 fi
+OUTPUT_MODE="$(./aos config get see.canvas_inspector_bundle.output.mode)"
+if [[ "$OUTPUT_MODE" != "bundle_path" ]]; then
+  echo "FAIL: expected default output mode bundle_path, got $OUTPUT_MODE"
+  exit 1
+fi
 
 ./aos permissions setup --once >/dev/null
 aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
@@ -97,6 +102,8 @@ config = manifest.get("config") or {}
 include = config.get("include") or {}
 if config.get("hotkey") != "cmd+shift+x":
     raise SystemExit(f"FAIL: expected manifest hotkey cmd+shift+x, got {config.get('hotkey')!r}")
+if config.get("output", {}).get("mode") != "bundle_path":
+    raise SystemExit(f"FAIL: expected manifest output mode bundle_path, got {config!r}")
 if include.get("canvas_list") is not False:
     raise SystemExit(f"FAIL: expected canvas_list include false, got {include}")
 if include.get("annotation_snapshot") is not True:
@@ -114,5 +121,84 @@ clipboard = subprocess.check_output(["/usr/bin/pbpaste"], text=True).strip()
 if clipboard != str(bundle):
     raise SystemExit(f"FAIL: clipboard mismatch: expected {bundle}, got {clipboard!r}")
 PY
+
+rm -rf "$BUNDLE_PATH"
+BUNDLE_PATH=""
+
+./aos set see.canvas_inspector_bundle.output.mode clipboard_payload >/dev/null
+
+./aos show wait \
+  --id "$INSPECTOR_ID" \
+  --js 'window.__canvasInspectorState?.bundleOutputMode === "clipboard_payload"' \
+  --timeout 5s >/dev/null
+
+./aos show eval --id "$INSPECTOR_ID" --js '
+(() => {
+  window.__canvasInspectorDebug.requestSeeBundle("clipboard-payload-test")
+  return "ok"
+})()
+' >/dev/null
+
+python3 <<'PY'
+import json, subprocess, time
+
+deadline = time.time() + 15
+while time.time() < deadline:
+    payload = json.loads(subprocess.check_output([
+        "./aos", "show", "eval", "--id", "surface-inspector", "--js",
+        'JSON.stringify(window.__canvasInspectorState?.bundleCapture || null)'
+    ], text=True))
+    result = payload.get("result")
+    state = json.loads(result) if result else None
+    if not state:
+        time.sleep(0.2)
+        continue
+    status = state.get("status")
+    if status == "success":
+        if state.get("outputMode") != "clipboard_payload":
+            raise SystemExit(f"FAIL: expected clipboard_payload status, got {state}")
+        if state.get("bundlePath") or state.get("bundleJSONPath"):
+            raise SystemExit(f"FAIL: clipboard payload mode should not report bundle paths: {state}")
+        raise SystemExit(0)
+    if status == "error":
+        raise SystemExit(f"FAIL: clipboard payload see bundle export failed: {state}")
+    time.sleep(0.2)
+
+raise SystemExit("FAIL: clipboard payload see bundle export did not finish")
+PY
+
+python3 <<'PY'
+import json, subprocess
+
+raw = subprocess.check_output(["/usr/bin/pbpaste"], text=True)
+payload = json.loads(raw)
+if payload.get("kind") != "canvas_inspector_see_bundle_clipboard_payload":
+    raise SystemExit(f"FAIL: unexpected clipboard payload kind: {payload.get('kind')}")
+if payload.get("status") != "success":
+    raise SystemExit(f"FAIL: clipboard payload status is not success: {payload}")
+if payload.get("trigger") != "clipboard-payload-test":
+    raise SystemExit(f"FAIL: unexpected clipboard payload trigger: {payload.get('trigger')}")
+config = payload.get("config") or {}
+if config.get("output", {}).get("mode") != "clipboard_payload":
+    raise SystemExit(f"FAIL: clipboard payload missing output mode: {config}")
+include = config.get("include") or {}
+if include.get("canvas_list") is not False:
+    raise SystemExit(f"FAIL: expected canvas_list include false in clipboard payload: {include}")
+annotation = payload.get("surface_inspector_annotation_snapshot")
+if annotation is None:
+    raise SystemExit("FAIL: clipboard payload missing annotation snapshot")
+if annotation.get("schema") != "surface_inspector_annotation_snapshot" or annotation.get("version") != "0.1.0":
+    raise SystemExit(f"FAIL: unexpected annotation snapshot identity: {annotation}")
+artifacts = payload.get("artifacts") or {}
+for name in ["capture_image", "capture_metadata", "xray"]:
+    if artifacts.get(name, {}).get("status") not in ["skipped", "disabled"]:
+        raise SystemExit(f"FAIL: expected {name} to be skipped or disabled: {artifacts}")
+if payload.get("canvas_list") is not None:
+    raise SystemExit("FAIL: canvas_list should be omitted when include.canvas_list=false")
+if "data:image/" in raw:
+    raise SystemExit("FAIL: clipboard payload embedded image data")
+PY
+
+./aos set see.canvas_inspector_bundle.output.mode bundle_path >/dev/null
 
 echo "PASS: Surface Inspector see bundle config"

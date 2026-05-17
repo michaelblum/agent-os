@@ -766,6 +766,7 @@ aos config set voice.enabled true
 aos config set voice.filter.language en
 aos config set voice.filter.tiers premium,enhanced
 aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
+aos config set see.canvas_inspector_bundle.output.mode clipboard_payload
 aos config set see.canvas_inspector_bundle.include.annotation_snapshot false
 ```
 
@@ -773,7 +774,12 @@ aos config set see.canvas_inspector_bundle.include.annotation_snapshot false
 to shell-friendly scalar text and accepts `--json` when you want JSON output.
 Discoverable config subtrees include the Surface Inspector see-bundle surface
 under the `see.canvas_inspector_bundle.*` namespace, including the export
-hotkey and bundle artifact include toggles. The default-on
+hotkey, output mode, and bundle artifact include toggles.
+`see.canvas_inspector_bundle.output.mode` defaults to `bundle_path`, which writes
+the temp bundle directory and copies its path to the clipboard. Set it to
+`clipboard_payload` to skip the temp bundle directory and copy a JSON handoff
+payload with inline metadata and explicit skipped capture-file evidence instead.
+The default-on
 `see.canvas_inspector_bundle.include.annotation_snapshot` toggle controls the
 public `annotation-snapshot.json` artifact recorded in
 `bundle.json.files.annotation_snapshot_json`. The artifact keeps the shared
