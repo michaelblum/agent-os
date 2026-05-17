@@ -17,6 +17,17 @@ The native receptor in v1 is the **LocalCanvas receptor**: it spawns an interact
 
 From any agent's perspective the call is: post a structured request, receive either a typed answer value or a no-answer envelope. How the surface is rendered is a receptor detail the agent never sees.
 
+V0.1 adds a deferred path for cases where the agent turn should end before the
+human responds. `./aos gate defer` normalizes the same `aos.gate.request.v1`
+request, writes a durable `aos.gate.continuation.v1` record, captures
+provider-neutral session metadata, and returns immediately. A later local submit
+bridge calls `./aos gate submit --continuation-id ...`, which marks the
+continuation terminal exactly once and writes one human-authored
+`aos.gate.resume-event.v1` for the original session. The resume event carries
+the session id, harness/provider hint, continuation id, gate id, submitted
+status, redacted answer summary, and adapter hint such as `codex_exec`; AOS core
+does not auto-run provider-specific resume commands.
+
 ---
 
 ## Problem
@@ -66,6 +77,12 @@ Outside AOS authority
 
 Gateway is outside AOS authority. It is a passthrough adapter for MCP clients. It accepts ergonomic MCP shorthand or a full v1 request, normalizes to `aos.gate.request.v1`, writes the request to a tempfile, and shells to `./aos gate ask`. It does not hold polling loops, own canvas state, or enforce deadlines.
 
+Deferred continuation state is also inside AOS authority, not gateway authority.
+Continuation JSON files live under the active runtime state root at
+`gate/continuations/`, and resume events live at `gate/resume-events/`. The
+gateway may create or submit through the CLI later, but it must not own a
+separate continuation database.
+
 ---
 
 ## Architecture
@@ -96,6 +113,36 @@ Gate service resolves: typed value or no-answer envelope
   ▼
 Agent receives result and resumes turn
 ```
+
+Deferred flow:
+
+```text
+Agent (any runtime)
+  │  ./aos gate defer --request ... --session-id ... --harness ...
+  ▼
+AOS continuation store
+  │  writes aos.gate.continuation.v1 with lifecycle.state=pending
+  ▼
+Agent turn ends
+  ▼
+Human submits through a local bridge or CLI
+  │  ./aos gate submit --continuation-id ...
+  ▼
+AOS continuation store
+  │  marks submitted exactly once
+  │  appends terminal aos.gate.record.v1
+  │  writes aos.gate.resume-event.v1
+  ▼
+Provider adapter
+  │  reads the provider-neutral event and chooses an opt-in resume backend
+```
+
+The current `DecisionGate` LocalCanvas receptor is intentionally still the
+blocking receptor. It works by polling `window.__gateResult` from the creating
+`./aos gate ask` process and removing the canvas on resolution. That is not a
+safe durable bridge after the creator exits. UI-driven deferred submit should be
+added as a later receptor/input-bridge primitive that can call back into AOS
+without WebView shell execution or brittle polling.
 
 ### Receptor Interface
 

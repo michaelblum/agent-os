@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos.gate.continuation.v1.json",
+  "title": "AOS Gate Continuation",
+  "description": "Durable deferred user-signal continuation for a gate request and provider session.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "continuation_id",
+    "gate_id",
+    "request_schema_version",
+    "prompt_title",
+    "source",
+    "session",
+    "lifecycle",
+    "storage",
+    "response_stored",
+    "resume"
+  ],
+  "properties": {
+    "schema_version": { "const": "aos.gate.continuation.v1" },
+    "continuation_id": { "type": "string", "minLength": 1 },
+    "gate_id": { "type": "string", "minLength": 1 },
+    "request_schema_version": { "const": "aos.gate.request.v1" },
+    "prompt_title": { "type": ["string", "null"] },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "surface": { "type": ["string", "null"] },
+        "session_id": { "type": ["string", "null"] },
+        "agent": { "type": ["string", "null"] }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "harness", "provider", "dock", "cwd", "branch", "head_sha", "dirty_summary"],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "harness": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "dock": { "type": ["string", "null"] },
+        "cwd": { "type": "string", "minLength": 1 },
+        "branch": { "type": ["string", "null"] },
+        "head_sha": { "type": ["string", "null"] },
+        "dirty_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dirty", "line_count"],
+          "properties": {
+            "dirty": { "type": "boolean" },
+            "line_count": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["state", "created_at", "submitted_at", "submitted_by"],
+      "properties": {
+        "state": { "type": "string", "enum": ["pending", "submitted", "cancelled", "expired"] },
+        "created_at": { "type": "string", "format": "date-time" },
+        "submitted_at": { "type": ["string", "null"], "format": "date-time" },
+        "submitted_by": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "properties": {
+            "role": { "type": "string" },
+            "user": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["continuation_path"],
+      "properties": {
+        "continuation_path": { "type": "string", "minLength": 1 }
+      }
+    },
+    "response_stored": { "type": "boolean" },
+    "response": {},
+    "resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "policy", "adapter_hint", "event_id", "event_path"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["new_agent_turn"] },
+        "policy": { "type": "string", "enum": ["manual", "queue", "auto"] },
+        "adapter_hint": { "type": ["string", "null"] },
+        "event_id": { "type": ["string", "null"] },
+        "event_path": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

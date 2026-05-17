@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos.gate.resume-event.v1.json",
+  "title": "AOS Gate Resume Event",
+  "description": "Provider-neutral human-authored resume event created by submitting a deferred gate continuation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "continuation_id",
+    "gate_id",
+    "session_id",
+    "harness",
+    "provider",
+    "authored_by",
+    "authored_role",
+    "created_at",
+    "resolution",
+    "status",
+    "answer_summary",
+    "response_stored",
+    "adapter"
+  ],
+  "properties": {
+    "schema_version": { "const": "aos.gate.resume-event.v1" },
+    "event_id": { "type": "string", "minLength": 1 },
+    "continuation_id": { "type": "string", "minLength": 1 },
+    "gate_id": { "type": "string", "minLength": 1 },
+    "session_id": { "type": "string", "minLength": 1 },
+    "harness": { "type": "string", "minLength": 1 },
+    "provider": { "type": "string", "minLength": 1 },
+    "authored_by": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["role"],
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "user": { "type": ["string", "null"] }
+      }
+    },
+    "authored_role": { "const": "human" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "resolution": { "type": "string", "enum": ["answered", "dismissed", "timeout"] },
+    "status": { "type": ["string", "null"], "enum": ["dismissed", "timeout", null] },
+    "answer_summary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind"]
+    },
+    "response_stored": { "type": "boolean" },
+    "response": {},
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hint", "suggested_command"],
+      "properties": {
+        "hint": { "type": ["string", "null"] },
+        "suggested_command": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

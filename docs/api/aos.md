@@ -162,6 +162,53 @@ aos gate records --status answered --json
 
 The readback payload is `aos.gate.records.readback.v1` and includes the JSONL path, count, and matching records.
 
+Create a deferred gate when the current agent turn should end before the human
+responds:
+
+```bash
+aos gate defer --request gate-request.json --session-id codex-123 --harness codex --json
+aos gate defer --json '{"prompt":{"title":"Continue?"},"ui":{"variant":"approve_deny"}}' --session-id codex-123 --harness codex
+```
+
+`aos gate defer` writes one `aos.gate.continuation.v1` JSON file under the
+active runtime state root and returns immediately with
+`aos.gate.defer.create-response.v1`. Deferred continuations are stored at
+`~/.config/aos/{repo|installed}/gate/continuations/<continuation_id>.json`, or
+`$AOS_STATE_ROOT/{repo|installed}/gate/continuations/<continuation_id>.json`
+when a state-root override is set. The record captures the gate id, prompt
+title, redacted source metadata, session id, harness/provider hint, dock, cwd,
+branch, HEAD SHA, dirty summary, lifecycle state, and resume policy. Prompt
+bodies and submitted answer payloads are not persisted by default.
+
+Submit a deferred gate from a local bridge or future UI receptor:
+
+```bash
+aos gate submit --continuation-id gate-cont-abc123 --request submission.json --json
+aos gate submit --continuation-id gate-cont-abc123 --json '{"decision":"approve"}'
+```
+
+Submit loads the pending continuation, marks it `submitted` exactly once, appends
+one terminal `aos.gate.record.v1` record, and writes one human-authored
+`aos.gate.resume-event.v1` under
+`~/.config/aos/{repo|installed}/gate/resume-events/<event_id>.json`. Duplicate
+submits are idempotent and return the existing resume event rather than creating
+another one. The resume event is provider-neutral: Codex is represented only by
+the `harness`/`provider` values and the `codex_exec` adapter hint. Use
+`--store-response` only when the answer payload should be persisted in the
+continuation, resume event, and terminal gate record.
+
+Read continuations without changing them:
+
+```bash
+aos gate continuations --json
+aos gate continuations --limit 50 --json
+aos gate continuations --id gate-cont-abc123 --json
+aos gate continuations --status pending --json
+```
+
+The readback payload is `aos.gate.continuations.readback.v1` and includes the
+continuation directory, count, and matching records.
+
 ### Repo Development Workflow
 
 `aos dev` is the developer workflow router for this repo. `classify` and

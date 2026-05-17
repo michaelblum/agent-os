@@ -163,7 +163,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
         InvocationForm(id: "zone-list", usage: "aos see zone list",
             args: [],
             stdin: nil, constraints: nil,
-            execution: execReadOnly(),
+            execution: execMutating(),
             output: outJSON,
             examples: ["aos see zone list"]),
         InvocationForm(id: "zone-delete", usage: "aos see zone delete <name>",
@@ -298,7 +298,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ],
             stdin: StdinDescriptor(supported: true, usedWhen: "no --html provided", contentType: "html"),
             constraints: nil,
-            execution: execReadOnly(),
+            execution: execMutating(),
             output: outFile,
             examples: ["aos show render --html \"<h1>Hi</h1>\" --out /tmp/test.png"]),
         InvocationForm(id: "show-eval", usage: "aos show eval --id <name> --js <javascript>",
@@ -741,6 +741,62 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos gate ask \"Continue?\"",
                 "aos gate ask --preset approve_deny --title \"Run disruptive test?\" --timeout 30",
                 "aos gate ask --request gate-request.json"
+            ]),
+        InvocationForm(id: "gate-defer", usage: "aos gate defer (--request file|--json request) --session-id id --harness name --json",
+            args: [
+                flag("request", "--request", "Path to aos.gate.request.v1 JSON file"),
+                flag("json", "--json", "Emit JSON, or provide inline aos.gate.request.v1 JSON"),
+                flag("session-id", "--session-id", "Original provider session id", required: true),
+                flag("harness", "--harness", "Harness/provider hint, such as codex", required: true),
+                flag("dock", "--dock", "Dock or role name when known"),
+                flag("cwd", "--cwd", "Working directory to capture in session metadata"),
+                flag("resume-policy", "--resume-policy", "Resume handling policy", default: .string("manual")),
+                flag("adapter-hint", "--adapter-hint", "Provider adapter hint", default: .string("codex_exec"))
+            ],
+            stdin: nil,
+            constraints: ConstraintSet(requires: nil, conflicts: [["json", "request"]], oneOf: nil, implies: nil),
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: [
+                "aos gate defer --request gate-request.json --session-id codex-123 --harness codex --json",
+                "aos gate defer --json '{\"prompt\":{\"title\":\"Continue?\"},\"ui\":{\"variant\":\"approve_deny\"}}' --session-id codex-123 --harness codex"
+            ]),
+        InvocationForm(id: "gate-submit", usage: "aos gate submit --continuation-id id (--request file|--json submission) --json [--store-response]",
+            args: [
+                flag("continuation-id", "--continuation-id", "Continuation id to submit", required: true),
+                flag("request", "--request", "Path to submission JSON"),
+                flag("json", "--json", "Emit JSON, or provide inline submission JSON"),
+                flag("store-response", "--store-response", "Persist the submitted answer payload in the continuation, resume event, and gate record", type: .bool)
+            ],
+            stdin: nil,
+            constraints: ConstraintSet(requires: nil, conflicts: [["json", "request"]], oneOf: nil, implies: nil),
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: [
+                "aos gate submit --continuation-id gate-cont-123 --request submission.json --json",
+                "aos gate submit --continuation-id gate-cont-123 --json '{\"decision\":\"approve\"}'"
+            ]),
+        InvocationForm(id: "gate-continuations", usage: "aos gate continuations [--limit N] [--id continuation_id] [--status status] --json",
+            args: [
+                flag("limit", "--limit", "Maximum recent continuations to return", type: .int, default: .int(50)),
+                flag("id", "--id", "Filter by continuation id"),
+                flag("status", "--status", "Filter by lifecycle state",
+                     type: .enumeration([
+                        EnumValue(value: "pending", summary: "Pending continuations"),
+                        EnumValue(value: "submitted", summary: "Submitted continuations"),
+                        EnumValue(value: "cancelled", summary: "Cancelled continuations"),
+                        EnumValue(value: "expired", summary: "Expired continuations")
+                     ])),
+                flag("json", "--json", "Emit JSON", type: .bool, required: true)
+            ],
+            stdin: nil,
+            constraints: nil,
+            execution: execReadOnly(),
+            output: outJSON,
+            examples: [
+                "aos gate continuations --json",
+                "aos gate continuations --status pending --json",
+                "aos gate continuations --id gate-cont-abc123 --json"
             ]),
         InvocationForm(id: "gate-records", usage: "aos gate records [--limit N] [--id gate_id] [--status status] --json",
             args: [

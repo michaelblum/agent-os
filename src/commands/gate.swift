@@ -11,6 +11,12 @@ func gateCommand(args: [String]) {
     switch subcommand {
     case "ask":
         runGateAsk(args: subArgs)
+    case "defer":
+        runGateDefer(args: subArgs)
+    case "submit":
+        runGateSubmit(args: subArgs)
+    case "continuations":
+        runGateContinuations(args: subArgs)
     case "records":
         runGateRecords(args: subArgs)
     default:
@@ -20,6 +26,18 @@ func gateCommand(args: [String]) {
 
 private func runGateAsk(args: [String]) {
     runGateVerb(name: "ask", path: "packages/cli/verbs/gate-ask.js", args: args)
+}
+
+private func runGateDefer(args: [String]) {
+    runGateVerb(name: "defer", path: "packages/cli/verbs/gate-defer.js", args: args)
+}
+
+private func runGateSubmit(args: [String]) {
+    runGateVerb(name: "submit", path: "packages/cli/verbs/gate-submit.js", args: args)
+}
+
+private func runGateContinuations(args: [String]) {
+    runGateVerb(name: "continuations", path: "packages/cli/verbs/gate-continuations.js", args: args)
 }
 
 private func runGateRecords(args: [String]) {
