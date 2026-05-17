@@ -1,36 +1,43 @@
 ---
 name: foreman-session-handoff
-description: Prepare a concise successor handoff for a fresh Foreman session before compaction, thread switch, or end-of-session transfer.
+description: Prepare a compact Foreman successor handoff before compaction, thread switch, or end-of-session transfer, especially for agent-os work involving GitHub issues/PRs, GDI or Operator routing, work cards, branch hygiene, verification evidence, and next-slice ownership.
 argument-hint: "What should the next Foreman session focus on?"
 ---
 
-Write a handoff that lets a fresh Foreman session continue without rediscovering
-the whole thread. Prefer a compact chat-ready handoff unless the user explicitly
-asks for a file artifact.
+Write a handoff document for the next Foreman session. Save it to a path from
+`mktemp -t handoff-XXXXXX.md`; read the new file before writing to it. If the
+user explicitly asks for chat-only output, return the handoff in chat instead.
 
-Use Foreman's lens: coordination state matters more than narrative history. Work from `/Users/Michael/Code/agent-os`, not `.docks/`, when gathering repo state.
+Optimize for successor efficiency. Use state already known from the predecessor
+session. Do not run repo/GitHub/runtime discovery commands just to fill a
+template; call tools only when a fact is unknown, stale, externally mutable, or
+important enough that uncertainty would change the next action.
 
-Include only the information a successor needs to decide the next move:
+If the user passed arguments, treat them as the successor's focus and tailor the
+handoff to that focus. Label inherited or side-conversation history as
+reference-only unless it is still an active instruction.
 
-- Current active user request and any explicit boundary conditions, especially whether inherited history is reference-only.
-- Active workstream status: accepted slices, pending GDI or Operator work, human-only blockers, and the single best next action if one is implied.
-- Repo/GitHub hygiene: branch/worktree state, dirty or untracked groups, issue/PR disposition recommendations, and anything that must not be staged or cleaned casually.
-- Verification state: commands already run, live smoke status, `./aos ready` or TCC/input-tap blockers, and exact follow-up checks that remain.
-- Pointers to durable artifacts by path or URL: work cards, ADRs, ledgers, plans, issues, commits, diffs, logs, or screenshots. Do not duplicate their content.
-- Skills, docs, or AGENTS files the next session should consult, but only when they materially affect the next step.
+Include only what Foreman needs to choose and execute the next reversible step:
 
-Keep the handoff compact and operational. Prefer bullets with file paths and
-exact commands over prose. Call out uncertainty plainly instead of smoothing it
-over.
+- Active focus, hard boundaries, and current owner: Foreman, GDI, Operator, or
+  human.
+- Workstream state: accepted slices, pending correction/review, human-only
+  blockers, and the single best next action.
+- Git/GitHub hygiene: current branch/base/head if known, dirty or untracked
+  state if relevant, issue/PR state, branch cleanup, and paths not to touch.
+- Verification/runtime evidence already gathered: commands and results, live
+  smoke artifacts, `./aos ready` state, TCC/input blockers, and exact remaining
+  checks.
+- Durable references by path/URL/issue/PR/commit/branch: work cards, design
+  notes, recipes, issues, PRs, commits, diffs, logs, screenshots, or artifacts.
+- Ephemeral state only when it cannot be rediscovered.
+- Suggested skills for the next session, if any; otherwise `Suggested skills:
+  none`.
 
-Do not call it a retirement handoff. Write Foreman-to-Foreman successor handoffs
-as plain successor-session context, without target-session command ceremony.
-Inherited history should be labeled as reference-only unless it is still an
-active instruction.
+Do not duplicate content already captured in work cards, PRDs, ADRs, issues,
+PRs, commits, diffs, or test artifacts. Reference those artifacts instead.
 
-If the user passed arguments, treat them as the successor session's expected focus and bias the handoff toward that focus. If there is a side-conversation boundary, do not convert reference-only inherited instructions into active next steps.
-
-If a file artifact is requested, save it to a path produced by
-`mktemp -t foreman-handoff-XXXXXX.md`; read that new file before writing to it
-so accidental pre-existing content is noticed. Otherwise, return the handoff
-directly in the final response.
+Keep it compact and operational. Prefer bullets with exact paths, issue numbers,
+branches, SHAs, and commands. Do not call it a retirement handoff. Do not add
+GDI/Operator command ceremony unless the user explicitly asked for a cross-dock
+task handoff.
