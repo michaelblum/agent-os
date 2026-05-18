@@ -192,6 +192,7 @@
         "can_project_display_overlay",
         "can_reveal",
         "display_space_rect",
+        "coordinate_space",
         "local_space_rect",
         "ancestor_viewport_clip_chain",
         "scrollable_ancestor_chain",
@@ -225,6 +226,7 @@
         "can_project_display_overlay": { "type": "boolean" },
         "can_reveal": { "type": "boolean" },
         "display_space_rect": { "anyOf": [{ "$ref": "#/$defs/Rect" }, { "type": "null" }] },
+        "coordinate_space": { "type": "string", "minLength": 1 },
         "local_space_rect": { "anyOf": [{ "$ref": "#/$defs/Rect" }, { "type": "null" }] },
         "ancestor_viewport_clip_chain": {
           "type": "array",
