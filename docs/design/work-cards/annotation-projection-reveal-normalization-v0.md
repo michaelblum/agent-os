@@ -2,14 +2,17 @@
 
 ## Tracker
 
-- Follows merged neutral candidate helper work on `main`:
-  `a48cd8c fix(toolkit): remove surface inspector candidate aliases`
+- Current route snapshot: `main` at `16e6314` after the browser content seam
+  adapter and generated adapter-result schema coverage landed.
+- Follows merged neutral candidate helper work on `main`; Sigil and Surface
+  Inspector now import `packages/toolkit/workbench/annotation-candidates.js`
+  rather than Surface Inspector-specific candidate helpers.
 - Prior contract foundation:
   `docs/design/work-cards/surface-annotation-projection-contract-v0.md`
 - Prior reticle bridge:
   `docs/design/work-cards/display-first-annotation-sigil-reticle-target-bridge-v0.md`
-- Foreman audit source: `.docks/foreman/tmp/opportunities.md` ranked this as
-  the next annotation cleanup after neutral candidate helpers.
+- Foreman audit source: `.docks/foreman/tmp/opportunities.md` was refreshed
+  after the branch integration and ranks this as the next annotation cleanup.
 
 ## Fresh Context Contract
 
@@ -17,17 +20,20 @@ GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing. Work in `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
-This is a shared-normalization cleanup, not a new annotation feature. The goal
-is one canonical projection/reveal normalization contract for owned in-repo
-callers. Do not leave aliases, compatibility wrappers, or old vocabulary behind
-unless there is a concrete non-updatable consumer and an explicit removal gate.
+This is a shared-normalization cleanup, not a new annotation feature. Current
+code already routes candidate, session, and Surface Inspector status handling
+through `normalizeAnnotationProjectionStatus` in
+`packages/toolkit/workbench/annotation-projection.js`; do not redo the completed
+candidate-helper neutralization work. The goal is to finish any remaining
+projection/reveal normalization convergence so owned in-repo callers do not
+drift on status names, blocker fields, reveal capability, or rect evidence.
 
 ## Goal
 
-Unify equivalent annotation projection-status and reveal-result normalization
-so Surface Inspector, annotation candidates, annotation sessions, and projection
-adapters do not drift on status names, blocker fields, reveal capability, or
-rect evidence.
+Tighten the current annotation projection/reveal normalization boundary so
+Surface Inspector, annotation candidates, annotation sessions, browser DOM,
+browser seam, and projection adapters do not drift on status names, blocker
+fields, reveal capability, coordinate space, or rect evidence.
 
 After the slice, owned in-repo code should import the canonical normalizers
 directly. If two normalizers remain, their names and tests must make the
@@ -38,8 +44,7 @@ semantic boundary explicit rather than preserving duplicated logic by accident.
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
 - `docs/design/work-cards/surface-annotation-projection-contract-v0.md`
-- `docs/design/work-cards/neutral-annotation-candidate-helpers-v0.md` if it is
-  present locally; otherwise inspect the merged implementation on `main`
+- `.docks/foreman/tmp/opportunities.md` for the latest Foreman ranking
 - `packages/toolkit/workbench/annotation-projection.js`
 - `packages/toolkit/workbench/annotation-candidates.js`
 - `packages/toolkit/workbench/annotation-session.js`
@@ -67,23 +72,37 @@ blocker and continue deterministic tests only. This slice should not require
 live input verification unless GDI changes runtime behavior beyond pure
 normalization.
 
+Before editing, verify that no owned in-repo caller still imports the old
+Surface Inspector-specific candidate helper names:
+
+```bash
+rg -n "chooseSurfaceInspectorAnnotationCandidate|normalizeSurfaceInspectorAnnotationCandidate" packages apps tests docs
+```
+
+If that search returns only historical work-card references, do not treat
+candidate helper neutralization as in scope for this slice.
+
 ## Existing Code To Inspect
 
 - `packages/toolkit/workbench/annotation-projection.js` owns the projection
-  request, projection adapter result, reveal result, capability summary, and
-  semantic-target adapter contracts.
-- `packages/toolkit/workbench/annotation-candidates.js` currently owns
-  candidate normalization and a projection-status helper used while ranking and
-  normalizing candidates.
+  request, projection status, projection adapter result, reveal result,
+  capability summary, semantic-target adapter, and browser content seam adapter
+  contracts.
+- `packages/toolkit/workbench/annotation-candidates.js` owns candidate
+  normalization and imports `normalizeAnnotationProjectionStatus` while ranking
+  and normalizing candidates.
 - `packages/toolkit/workbench/annotation-session.js` has
   `normalizeAnnotationProjectionEvidence`, which partly overlaps with adapter
   and candidate projection evidence.
 - `packages/toolkit/workbench/surface-inspector-annotations.js` imports
-  projection status normalization and still has Surface Inspector-local reveal
-  result normalization.
+  projection status and reveal-result normalization, then wraps those results
+  for Surface Inspector-specific stale, absent, refresh, row, and snapshot
+  state.
 - `packages/toolkit/workbench/browser-dom-element-picker.js` produces
   projection adapter results and should keep its adapter-specific resolution
   behavior.
+- `shared/schemas/annotation-projection-v0.schema.json` includes
+  `coordinate_space` and `blocker_reasons` for adapter results.
 - `tests/toolkit/annotation-projection.test.mjs` and
   `tests/toolkit/surface-inspector-annotations.test.mjs` are the primary
   deterministic safety net.
@@ -92,10 +111,11 @@ normalization.
 
 ### Canonical Projection Normalization
 
-Choose one canonical home for shared projection status/evidence normalization.
-Prefer `packages/toolkit/workbench/annotation-projection.js` if it can own the
-concept cleanly. If a smaller neutral module is clearly better, use it, but
-keep the source of truth singular.
+Keep one canonical home for shared projection status/evidence normalization.
+Prefer the current home, `packages/toolkit/workbench/annotation-projection.js`,
+unless rediscovery proves a smaller neutral module is clearly better. If a new
+module is introduced, update every owned import in this slice and keep the
+source of truth singular.
 
 Owned callers should import the canonical normalizer directly. Do not keep
 compatibility aliases or old helper names just to reduce churn.
@@ -117,8 +137,9 @@ behavior:
 
 ### Canonical Reveal Result Normalization
 
-Unify equivalent reveal-result normalization between
-`annotation-projection.js` and `surface-inspector-annotations.js`.
+Verify that reveal-result normalization is canonical and remove any remaining
+equivalent duplicate semantics between `annotation-projection.js`,
+`surface-inspector-annotations.js`, and higher-level callers.
 
 The canonical reveal result should support the existing fields used by Surface
 Inspector and projection adapters:
@@ -132,9 +153,9 @@ Inspector and projection adapters:
 - `blocker_reason`;
 - normalized `projection` when present.
 
-If Surface Inspector needs a small wrapper to add `pin_id` before calling the
-canonical normalizer, keep that wrapper narrow and named for the extra state it
-adds. Do not keep a duplicate reveal normalizer with identical semantics.
+Surface Inspector may keep small wrappers for pin/comment/snapshot state, but
+those wrappers should be clearly named for the extra state they add. Do not keep
+a duplicate reveal normalizer with identical semantics.
 
 ### Session/Candidate Boundary
 
@@ -187,9 +208,12 @@ Start by comparing:
 
 - `normalizeAnnotationProjectionAdapterResult` and `normalizeRevealResult` in
   `annotation-projection.js`;
-- `normalizeAnnotationProjectionStatus` in `annotation-candidates.js`;
+- `normalizeAnnotationCandidate` in `annotation-candidates.js` and its use of
+  `normalizeAnnotationProjectionStatus`;
 - `normalizeAnnotationProjectionEvidence` in `annotation-session.js`;
-- the local reveal normalization in `surface-inspector-annotations.js`.
+- Surface Inspector stale/absent/refresh row and snapshot projection wrappers
+  in `surface-inspector-annotations.js`;
+- browser DOM and browser content seam adapter-result construction.
 
 Then extract only the common status/rect/blocker/reveal pieces that are truly
 equivalent. Keep adapter-result construction, candidate ranking, session subject
@@ -201,7 +225,8 @@ The right end state may be:
   `annotation-projection.js`;
 - one canonical reveal result normalizer exported from
   `annotation-projection.js`;
-- candidates, sessions, and Surface Inspector using those helpers directly;
+- candidates, sessions, Surface Inspector, browser DOM, and browser content
+  seam helpers using those canonical contracts directly where semantics match;
 - tests proving both canonical helpers and the existing higher-level callers.
 
 ## Verification
