@@ -24,6 +24,36 @@ Michael's current critique:
 Operator live verification agreed with this direction. The tabs hide some noise,
 but the Annotate pane still reads like debug state below the summary.
 
+## Foreman Review Disposition
+
+GDI's first pass at `289fd01` is not accepted as final. It made useful progress
+by selecting Annotate on mode activation, moving raw debug rows to Diagnostics,
+and demoting repeated surface row actions, but the default Annotate pane is still
+not the right information architecture.
+
+The live screenshot at:
+
+```text
+/tmp/surface-inspector-annotate-pane-progressive-disclosure-v0.png
+```
+
+still shows four summary cards (`mode`, `anchors`, `comments`, `snapshot`) above
+rows that repeat the same concepts (`anchors 0 frames / 0 comments`, scope, and
+snapshot). That is still a counter/status dashboard, not a consumable annotation
+workspace.
+
+Michael's review direction:
+
+> the four buttons at the top of the annotations tab are redundant - there's
+> "comments 0": why not just let the comments below speak for them selves? Same
+> with Anchors. below there is "anchors" 0 frames 0 comments...
+>
+> why not a tree? why not nest anchors under their frames, collapsing frames with
+> no child anchors to contiguous "path fragments" like vs code does e.g.
+> this_folder/has_no_children/so_its_one_node
+
+Treat this as a request-changes correction on the same branch.
+
 ## Evidence To Inspect
 
 Operator artifacts:
@@ -80,12 +110,14 @@ The user should be able to glance at Annotate and answer:
 
 - Annotation Mode is on or off.
 - Snapshot capture is ready, capturing, blocked, or complete.
-- There are N frame anchors and N comments.
-- The current scope has a human-readable status.
+- What annotations exist, as a tree of frame anchors and comment leaves.
+- Where the current scope or active frame sits in that tree.
 - Any blocker is actionable.
 
 The user should not see the same "Annotation Mode is on" fact repeated as a
 summary card, an all-caps section title, a toggle state, and a raw support row.
+The user should also not see anchor/comment counts repeated above a tree or list
+that can communicate the same information directly.
 
 ## Required Behavior
 
@@ -116,22 +148,54 @@ state. Avoid separate visible rows that restate:
 Keep the actual toggle reachable, but it can be compact, demoted, or integrated
 with the primary summary instead of occupying a second "mode is on" statement.
 
-### 3. Replace Raw Support Rows With Human Workflow Rows
+### 3. Make Annotate Tree-First
+
+The default Annotate pane should be an annotation tree, not a four-card metrics
+dashboard.
+
+Use the existing annotation row model where possible:
+
+- frame anchors are tree nodes;
+- comments are child leaves under their frame anchors;
+- nested frame anchors appear under their parent frames;
+- consecutive frame anchors with no intervening child anchors or comments
+  collapse into one compact path-fragment node, VS Code-style;
+- the collapsed node exposes the full path in a tooltip and through the existing
+  full-address controls;
+- the empty state is a single concise row such as "No annotations yet. Hover a
+  frame, then pin or add a comment."
+
+Do not put `anchors 0` and `comments 0` in prominent cards when there are no
+anchors or comments. Let the empty tree state speak for that. When anchors or
+comments exist, the tree rows should be the primary evidence; counts may be
+secondary metadata only if they do not compete with the tree.
+
+There is already relevant logic in
+`packages/toolkit/workbench/surface-inspector-annotations.js`:
+
+- `buildSurfaceInspectorAnnotationTreeRows(...)`;
+- `collapseAnchorChain(...)`;
+- `buildSurfaceInspectorFrameAddress(...)`.
+
+Strengthen or reuse that path before adding another parallel tree/list model.
+
+### 4. Replace Raw Support Rows With Human Workflow Rows
 
 Raw support rows should move to Diagnostics or be collapsed behind a debug
 details affordance. In Annotate, prefer workflow language:
 
-- scope: `main` or a compact frame address;
-- anchors/comments: counts and empty-state guidance;
+- compact mode/snapshot status in a toolbar or single status line;
+- current scope as a selected tree node or compact breadcrumb, not a repeated
+  support row;
 - snapshot: ready/capturing/blocked/last bundle;
 - blockers: one concise reason when present;
-- next action: a concise empty state such as "Hover a frame, then pin or add a
-  comment" only if the current state can support it.
+- next action only as the tree empty state when no annotations exist.
 
 Do not show debug phrases like `root pending`, `minimap 0 projected markers,
-passive`, or adapter capability dumps in the default Annotate view.
+passive`, adapter capability dumps, or `anchors 0 frames / 0 comments` in the
+default Annotate view.
 
-### 4. Demote Repeated Surface Row Actions
+### 5. Demote Repeated Surface Row Actions
 
 The Surfaces pane can remain diagnostic, but repeated `stats`, `tint`, and `x`
 actions should be less visually dominant. Choose the smallest local correction:
@@ -142,7 +206,7 @@ actions should be less visually dominant. Choose the smallest local correction:
 
 Do not remove these actions. Stats, tint, and remove must remain reachable.
 
-### 5. Preserve Contracts
+### 6. Preserve Contracts
 
 Do not change public annotation state, snapshot schema, emitted event names, or
 daemon bundle behavior.
@@ -177,6 +241,8 @@ Likely areas:
 - `renderAnnotatePane()`
 - `renderAnnotationSupportRows()`
 - `renderAnnotationModeToggleRow()`
+- `renderAnnotationManagementRows()` and `renderAnnotationManagementRow()`
+- `buildSurfaceInspectorAnnotationTreeRows(...)`
 - `syncListPaneDefault()`, `setAnnotationMode()`, and message handling around
   `canvas_inspector.annotation_toggle`
 - Surface row action rendering and CSS in the Surfaces pane
@@ -203,6 +269,12 @@ Add or update focused tests that prove:
 - activating Annotation Mode selects Annotate even after Diagnostics was
   manually selected;
 - Annotate does not render duplicate visible mode-active rows;
+- Annotate does not render prominent anchor/comment count cards above an empty
+  or populated annotation tree;
+- the default Annotate body is tree-first: empty state when no annotations,
+  frame-anchor rows when anchors exist, and comment rows nested under their
+  frame anchors;
+- consecutive empty frame anchors collapse into one compact path-fragment node;
 - raw support/debug rows are not visible in the default Annotate body;
 - diagnostics still exposes the lower-level state needed for debugging;
 - stats/tint/remove remain reachable in Surfaces.
@@ -222,8 +294,10 @@ packages/toolkit/components/surface-inspector/launch.sh
 Confirm:
 
 - Annotation Mode activation lands on Annotate.
-- Annotate has one clear mode state, not repeated mode-active rows.
-- Snapshot readiness and anchor/comment counts stay visible.
+- Annotate has one clear mode/snapshot status area, not repeated mode-active
+  rows or duplicate anchor/comment counters.
+- An empty annotation state reads as a tree/list empty state, not as a metrics
+  dashboard.
 - Diagnostics still hides and exposes raw evidence when selected.
 - Snapshot shortcut still produces a bundle with `annotation-snapshot.json`.
 
@@ -247,6 +321,9 @@ Report:
 
 - files changed;
 - how duplicate Annotation Mode expressions were removed or collapsed;
+- how Annotate became tree-first rather than counter-first;
+- how empty annotations, frame anchors, nested anchors, collapsed path
+  fragments, and comment leaves render;
 - how Annotate differs from Diagnostics after the change;
 - whether Annotation Mode activation now selects Annotate after Diagnostics;
 - what happened to repeated Surfaces row actions;
