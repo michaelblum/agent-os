@@ -733,6 +733,28 @@ test('active Annotation Mode keeps saved annotation management controls separate
   assert.match(source, /buildAnnotationTreeViewItems\(\)/);
 });
 
+test('Surface Inspector surfaces and diagnostics panes adopt Zag tree semantics', () => {
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
+  const surfacesStart = source.indexOf('function renderTree(options = {})');
+  const statusStart = source.indexOf('function renderStatusBar()');
+  assert.ok(surfacesStart >= 0);
+  assert.ok(statusStart > surfacesStart);
+  const treeBlock = source.slice(surfacesStart, statusStart);
+
+  assert.match(source, /let surfaceTreeView = null/);
+  assert.match(source, /function bindSurfaceTreeView\(\)/);
+  assert.match(source, /buildSurfaceTreeViewItems\(\{/);
+  assert.match(source, /data-surface-tree-view="\$\{context\}" data-aos-tree-view-root/);
+  assert.match(source, /surfaceTreeView = createAosZagTreeView\(\{/);
+  assert.match(treeBlock, /data-aos-tree-view-item/);
+  assert.match(treeBlock, /surfaceTreeNodeId\(node\)/);
+  assert.match(treeBlock, /renderCanvasRow\(node\.canvas, depth, \{ selfId: SELF_ID, tintedIds, statsIds, treeItemId: surfaceTreeNodeId\(node\) \}\)/);
+  assert.match(source, /data-resource-type="surface-affordance"/);
+  assert.match(source, /data-item-id="\$\{esc\(`affordance:\$\{affordance\.id\}`\)\}"/);
+  assert.match(source, /data-item-id="\$\{esc\(`stage:\$\{layer\.id\}`\)\}"/);
+  assert.match(source, /data-item-id="\$\{esc\(`input:\$\{region\.id\}`\)\}"/);
+});
+
 test('Surface Inspector lower pane separates annotate, surfaces, and diagnostics views', () => {
   const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
   const styles = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/styles.css'), 'utf8');

@@ -668,7 +668,8 @@ function renderSurfaceSegmentRow(segment, depth) {
 
 function renderSurfaceRow(c, depth, options = {}) {
   const segmentCount = Array.isArray(c.segments) ? c.segments.length : 0
-  let html = `<div class="tree-row surface" data-id="${escapeHTML(c.id)}" style="${rowIndentStyle(depth)}">`
+  const treeAttrs = options.treeItemId ? ` data-aos-tree-view-item data-item-id="${escapeHTML(options.treeItemId)}"` : ''
+  let html = `<div class="tree-row surface" data-id="${escapeHTML(c.id)}"${treeAttrs} style="${rowIndentStyle(depth)}">`
   html += renderCanvasStatusPrefix(c)
   html += `<span class="canvas-id">${escapeHTML(c.id)}</span>`
   html += `<span class="canvas-kind">desktop-world</span>`
@@ -689,7 +690,8 @@ export function renderCanvasRow(c, depth = 0, options = {}) {
   const tintedIds = options.tintedIds || new Set()
   const statsIds = options.statsIds || new Set()
   const cls = c?.id === selfId ? 'tree-row canvas self' : 'tree-row canvas'
-  let html = `<div class="${cls}" data-id="${escapeHTML(c?.id)}" style="${rowIndentStyle(depth)}">`
+  const treeAttrs = options.treeItemId ? ` data-aos-tree-view-item data-item-id="${escapeHTML(options.treeItemId)}"` : ''
+  let html = `<div class="${cls}" data-id="${escapeHTML(c?.id)}"${treeAttrs} style="${rowIndentStyle(depth)}">`
   html += renderCanvasStatusPrefix(c)
   html += `<span class="canvas-id">${escapeHTML(c?.id)}</span>`
   html += `<span class="canvas-dims">${dims}</span>`
@@ -936,6 +938,7 @@ export default function CanvasInspector() {
   let listPaneView = 'surfaces'
   let listPaneViewManual = false
   let annotationTreeView = null
+  let surfaceTreeView = null
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,
@@ -2032,6 +2035,7 @@ export default function CanvasInspector() {
         + `<div class="canvas-list-region aos-sidebar-rail-content" ${listCollapsed ? 'hidden' : ''}>${renderLowerPane()}</div>`
       bindLowerPaneTabs()
       bindAnnotationTreeView()
+      bindSurfaceTreeView()
     }
     contentEl.querySelectorAll('.annotation-overlay-surface').forEach((node) => node.remove())
     const overlay = renderAnnotationOverlays()
@@ -2087,6 +2091,26 @@ export default function CanvasInspector() {
       focusedId: items.find((item) => item.isSelected)?.id || items[0]?.id,
     })
     annotationTreeView.bind(root, { root })
+  }
+
+  function bindSurfaceTreeView() {
+    const root = listPaneEl?.querySelector?.('[data-surface-tree-view]')
+    if (!root) {
+      surfaceTreeView?.destroy?.()
+      surfaceTreeView = null
+      return
+    }
+    const items = buildSurfaceTreeViewItems({
+      diagnosticsOnly: root.dataset.surfaceTreeView === 'diagnostics',
+    })
+    surfaceTreeView?.destroy?.()
+    surfaceTreeView = createAosZagTreeView({
+      id: `surface-inspector-${root.dataset.surfaceTreeView || 'surfaces'}-tree`,
+      items,
+      defaultExpandedIds: items.filter((item) => item.hasChildren).map((item) => item.id),
+      focusedId: items[0]?.id,
+    })
+    surfaceTreeView.bind(root, { root })
   }
 
   function getMinimapWidth() {
@@ -2243,30 +2267,94 @@ export default function CanvasInspector() {
     if (!tree || tree.type === 'empty') {
       return '<div class="empty-state">No canvases active</div>'
     }
-    return `<div class="canvas-list">${renderTreeNode(tree, 0, options)}</div>`
+    const context = options.diagnosticsOnly ? 'diagnostics' : 'surfaces'
+    return `<div class="canvas-list" data-surface-tree-view="${context}" data-aos-tree-view-root>${renderTreeNode(tree, 0, options)}</div>`
+  }
+
+  function buildSurfaceTreeViewItems(options = {}) {
+    const resolvedCanvases = normalizeCanvasesToDesktopWorld(canvases)
+    const tree = computeInspectorTree({
+      displays: normalizeDisplays(displays),
+      canvases: resolvedCanvases,
+      marksByCanvas: marksState.marksByCanvas,
+      surfaceResources: buildSurfaceResourceSnapshot(surfaceResourceState, { canvases }),
+    })
+    const items = []
+    const visit = (node, depth, parentId = '') => {
+      if (!node || node.type === 'empty') return
+      const id = surfaceTreeNodeId(node)
+      const label = surfaceTreeNodeLabel(node)
+      const childNodes = surfaceTreeNodeChildren(node, options)
+      if (label) {
+        items.push({
+          id,
+          label,
+          fullLabel: label,
+          parentId,
+          depth,
+          hasChildren: childNodes.length > 0,
+          isExpanded: true,
+        })
+      }
+      const nextParent = label ? id : parentId
+      const nextDepth = label ? depth + 1 : depth
+      for (const child of childNodes) visit(child, nextDepth, nextParent)
+    }
+    visit(tree, 0, '')
+    return items
+  }
+
+  function surfaceTreeNodeChildren(node, options = {}) {
+    if (!node?.children) return []
+    if (node.type === 'canvas' && options.diagnosticsOnly) return node.children
+    if (node.type === 'canvas') return node.children.filter((child) => child.type === 'mark')
+    if (options.diagnosticsOnly) return node.children.filter((child) => child.type !== 'mark')
+    return node.children.filter((child) => child.type !== 'surface_resource_group')
+  }
+
+  function surfaceTreeNodeId(node) {
+    if (!node) return ''
+    if (node.type === 'display') return `display:${node.label}`
+    if (node.type === 'canvas') return `canvas:${node.canvas.id}`
+    if (node.type === 'mark') return `mark:${node.mark.id}`
+    if (node.type === 'surface_resource_group') return `resource-group:${node.label}`
+    if (node.type === 'surface_affordance') return `affordance:${node.affordance.id}`
+    if (node.type === 'stage_layer') return `stage:${node.stageLayer.id}`
+    if (node.type === 'input_region') return `input:${node.inputRegion.id}`
+    return `${node.type}:${node.label || 'root'}`
+  }
+
+  function surfaceTreeNodeLabel(node) {
+    if (!node) return ''
+    if (node.type === 'canvas') return node.canvas.id
+    if (node.type === 'mark') return node.mark.name
+    if (node.type === 'surface_affordance') return node.affordance.id
+    if (node.type === 'stage_layer') return node.stageLayer.label || node.stageLayer.id
+    if (node.type === 'input_region') return node.inputRegion.semanticLabel || node.inputRegion.id
+    return node.label || ''
   }
 
   function renderTreeNode(node, depth, options = {}) {
     if (!node) return ''
     if (node.type === 'union') {
-      return renderLocationRow(node.label, depth)
+      return renderLocationRow(node.label, depth, surfaceTreeNodeId(node))
         + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'display') {
-      return renderLocationRow(node.label, depth)
+      return renderLocationRow(node.label, depth, surfaceTreeNodeId(node))
         + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'surface_resource_group') {
       if (!options.diagnosticsOnly) return ''
-      return renderLocationRow(node.label, depth)
+      return renderLocationRow(node.label, depth, surfaceTreeNodeId(node))
         + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'canvas') {
       if (options.diagnosticsOnly) {
         const resourceChildren = node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
-        return resourceChildren ? renderLocationRow(node.canvas.id, depth) + resourceChildren : ''
+        return resourceChildren ? renderLocationRow(node.canvas.id, depth, surfaceTreeNodeId(node)) + resourceChildren : ''
       }
-      return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds, statsIds })
+      return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds, statsIds, treeItemId: surfaceTreeNodeId(node) })
         + renderSemanticTargetRows(node.canvas.id, depth + 1)
         + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
@@ -2294,8 +2382,9 @@ export default function CanvasInspector() {
     return rowIndentStyle(depth)
   }
 
-  function renderLocationRow(label, depth) {
-    return `<div class="tree-row location" style="${indentStyle(depth)}">`
+  function renderLocationRow(label, depth, treeItemId = '') {
+    const treeAttrs = treeItemId ? ` data-aos-tree-view-item data-item-id="${esc(treeItemId)}"` : ''
+    return `<div class="tree-row location"${treeAttrs} style="${indentStyle(depth)}">`
       + `<span class="location-label">${esc(label)}</span>`
       + `</div>`
   }
@@ -2557,7 +2646,7 @@ export default function CanvasInspector() {
   }
 
   function renderMarkTreeRow(mark, depth) {
-    return `<div class="tree-row mark" data-mark-id="${esc(mark.id)}" style="${indentStyle(depth)}">`
+    return `<div class="tree-row mark" data-aos-tree-view-item data-item-id="${esc(`mark:${mark.id}`)}" data-mark-id="${esc(mark.id)}" style="${indentStyle(depth)}">`
       + `<span class="mark-name" style="color:${esc(mark.color)}">${esc(mark.name)}</span>`
       + `</div>`
   }
@@ -2569,7 +2658,7 @@ export default function CanvasInspector() {
 
   function renderAffordanceTreeRow(affordance, depth) {
     const status = compactStatus(affordance.statuses)
-    return `<div class="tree-row surface-affordance" data-resource-type="surface-affordance" data-affordance-id="${esc(affordance.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
+    return `<div class="tree-row surface-affordance" data-aos-tree-view-item data-item-id="${esc(`affordance:${affordance.id}`)}" data-resource-type="surface-affordance" data-affordance-id="${esc(affordance.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
       + `<span class="surface-resource-kind">affordance</span>`
       + `<span class="surface-resource-label">${esc(affordance.id)}</span>`
       + `<span class="surface-resource-status">${esc(status)}</span>`
@@ -2579,7 +2668,7 @@ export default function CanvasInspector() {
   function renderStageLayerTreeRow(layer, depth) {
     const status = compactStatus(layer.statuses)
     const dims = Array.isArray(layer.frame) ? formatAt(layer.frame) : ''
-    return `<div class="tree-row stage-layer" data-resource-type="stage-layer" data-stage-layer-id="${esc(layer.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
+    return `<div class="tree-row stage-layer" data-aos-tree-view-item data-item-id="${esc(`stage:${layer.id}`)}" data-resource-type="stage-layer" data-stage-layer-id="${esc(layer.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
       + `<span class="surface-resource-kind">stage</span>`
       + `<span class="surface-resource-label">${esc(layer.label || layer.id)}</span>`
       + `<span class="canvas-dims">${esc(layer.kind)} ${esc(dims)}</span>`
@@ -2590,7 +2679,7 @@ export default function CanvasInspector() {
   function renderInputRegionTreeRow(region, depth) {
     const status = compactStatus(region.statuses)
     const dims = Array.isArray(region.frame) ? formatAt(region.frame) : ''
-    return `<div class="tree-row input-region" data-resource-type="input-region" data-input-region-id="${esc(region.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
+    return `<div class="tree-row input-region" data-aos-tree-view-item data-item-id="${esc(`input:${region.id}`)}" data-resource-type="input-region" data-input-region-id="${esc(region.id)}" style="${indentStyle(depth)}" title="${esc(status)}">`
       + `<span class="surface-resource-kind">region</span>`
       + `<span class="surface-resource-label">${esc(region.semanticLabel || region.id)}</span>`
       + `<span class="canvas-dims">${esc(region.consumePolicy)} ${esc(dims)}</span>`
