@@ -9,7 +9,8 @@ Rediscover before editing.
 
 This is a narrow IA/layout correction after the lower-pane tab organization
 landed. It is not a new annotation model, not playbook-seed shaping, and not a
-general Surface Inspector redesign.
+general Surface Inspector redesign. It is also not a mandate to create a new
+generic tree component.
 
 ## User Problem
 
@@ -39,8 +40,8 @@ The live screenshot at:
 
 still shows four summary cards (`mode`, `anchors`, `comments`, `snapshot`) above
 rows that repeat the same concepts (`anchors 0 frames / 0 comments`, scope, and
-snapshot). That is still a counter/status dashboard, not a consumable annotation
-workspace.
+snapshot). That is still a counter/status dashboard, not an easy-to-parse view
+of the actual annotation information.
 
 Michael's review direction:
 
@@ -52,7 +53,40 @@ Michael's review direction:
 > no child anchors to contiguous "path fragments" like vs code does e.g.
 > this_folder/has_no_children/so_its_one_node
 
-Treat this as a request-changes correction on the same branch.
+Treat this as a request-changes correction on the same branch. The ask is visual
+sensemaking: make the information easier to understand at a glance. Do not
+over-interpret this as a request for a new annotation workspace.
+
+## Tree Component Plan
+
+Do not introduce a new shared tree component by default in this slice.
+
+The repo currently has Zag adapters for tabs, menu, accordion, collapsible,
+select, splitter, and related controls, but no `@zag-js/tree-view` dependency
+and no `createAosZagTreeView` adapter. Adding a real Zag Tree View path would
+be a separate toolkit component-adapter slice:
+
+1. add the Zag tree-view package and lockfile entry, or provide a browser-safe
+   local adapter if direct bare imports cannot run inside `aos://` pages;
+2. add `packages/toolkit/adapters/zag/tree-view.js` plus focused adapter tests;
+3. define the data/DOM contract for tree items, branches, expansion, selection,
+   and keyboard navigation;
+4. only then adopt it in Surface Inspector.
+
+That is more machinery than this correction probably needs. For this card, start
+with the existing annotation data and row rendering:
+
+- `buildSurfaceInspectorAnnotationTreeRows(...)` already emits pin/comment rows;
+- `collapseAnchorChain(...)` already collapses consecutive empty frame anchors;
+- `buildSurfaceInspectorFrameAddress(...)` already creates compact/full frame
+  path labels.
+
+Use those helpers to render a tree-shaped, indented annotation view with clear
+visual hierarchy. Add ARIA tree roles if practical, but do not block the
+usability correction on a new generic Zag adapter. If the existing row model
+cannot support expansion/selection/focus cleanly, report that as the evidence
+for a follow-up Zag Tree View adapter instead of half-building one inside
+Surface Inspector.
 
 ## Evidence To Inspect
 
@@ -148,10 +182,10 @@ state. Avoid separate visible rows that restate:
 Keep the actual toggle reachable, but it can be compact, demoted, or integrated
 with the primary summary instead of occupying a second "mode is on" statement.
 
-### 3. Make Annotate Tree-First
+### 3. Make Annotate Hierarchical And Easy To Scan
 
-The default Annotate pane should be an annotation tree, not a four-card metrics
-dashboard.
+The default Annotate pane should make the annotation hierarchy legible instead
+of presenting a four-card metrics dashboard.
 
 Use the existing annotation row model where possible:
 
@@ -166,9 +200,9 @@ Use the existing annotation row model where possible:
   frame, then pin or add a comment."
 
 Do not put `anchors 0` and `comments 0` in prominent cards when there are no
-anchors or comments. Let the empty tree state speak for that. When anchors or
-comments exist, the tree rows should be the primary evidence; counts may be
-secondary metadata only if they do not compete with the tree.
+anchors or comments. Let the empty hierarchical view speak for that. When
+anchors or comments exist, the rows should be the primary evidence; counts may
+be secondary metadata only if they do not compete with the visible information.
 
 There is already relevant logic in
 `packages/toolkit/workbench/surface-inspector-annotations.js`:
@@ -271,7 +305,7 @@ Add or update focused tests that prove:
 - Annotate does not render duplicate visible mode-active rows;
 - Annotate does not render prominent anchor/comment count cards above an empty
   or populated annotation tree;
-- the default Annotate body is tree-first: empty state when no annotations,
+- the default Annotate body is hierarchy-first: empty state when no annotations,
   frame-anchor rows when anchors exist, and comment rows nested under their
   frame anchors;
 - consecutive empty frame anchors collapse into one compact path-fragment node;
@@ -321,7 +355,7 @@ Report:
 
 - files changed;
 - how duplicate Annotation Mode expressions were removed or collapsed;
-- how Annotate became tree-first rather than counter-first;
+- how Annotate became hierarchy-first rather than counter-first;
 - how empty annotations, frame anchors, nested anchors, collapsed path
   fragments, and comment leaves render;
 - how Annotate differs from Diagnostics after the change;
