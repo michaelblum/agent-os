@@ -57,6 +57,50 @@ test('computePanelTransfer returns a destination-display outline in DesktopWorld
   assert.equal(transfer.layer.kind, 'outline')
 })
 
+test('computePanelTransfer returns a reverse destination-display outline in DesktopWorld coordinates', () => {
+  const transfer = computePanelTransfer(displays, {
+    frame: [1580, 80, 500, 360],
+    pointer: { screenX: 40, screenY: 40 },
+    offsetX: 80,
+    offsetY: 20,
+    originDisplayId: 'extended',
+    layerId: 'test-outline',
+  })
+
+  assert.equal(transfer.targetDisplayId, 'main')
+  assert.deepEqual(transfer.nativeFrame, [0, 24, 500, 360])
+  assert.deepEqual(transfer.frame, [0, 24, 500, 360])
+  assert.deepEqual(transfer.layer.frame, transfer.frame)
+})
+
+test('computePanelTransfer returns stacked top-to-bottom and bottom-to-top outlines', () => {
+  const topToBottom = computePanelTransfer(stackedDisplays, {
+    frame: [100, 120, 500, 360],
+    pointer: { screenX: -180, screenY: 1040 },
+    offsetX: 80,
+    offsetY: 20,
+    originDisplayId: 'main-top',
+    layerId: 'stack-outline',
+  })
+  assert.equal(topToBottom.targetDisplayId, 'extended-bottom')
+  assert.deepEqual(topToBottom.nativeFrame, [-207, 1020, 500, 360])
+  assert.deepEqual(topToBottom.frame, [0, 1020, 500, 360])
+  assert.deepEqual(topToBottom.layer.frame, topToBottom.frame)
+
+  const bottomToTop = computePanelTransfer(stackedDisplays, {
+    frame: [1300, 1550, 500, 360],
+    pointer: { screenX: 1480, screenY: 40 },
+    offsetX: 80,
+    offsetY: 20,
+    originDisplayId: 'extended-bottom',
+    layerId: 'stack-outline',
+  })
+  assert.equal(bottomToTop.targetDisplayId, 'main-top')
+  assert.deepEqual(bottomToTop.nativeFrame, [1012, 33, 500, 360])
+  assert.deepEqual(bottomToTop.frame, [1219, 33, 500, 360])
+  assert.deepEqual(bottomToTop.layer.frame, bottomToTop.frame)
+})
+
 test('computePanelTransfer is inactive while pointer remains on the origin display', () => {
   assert.equal(computePanelTransfer(displays, {
     frame: [100, 80, 500, 360],
@@ -74,6 +118,24 @@ test('computePanelTransfer is inactive once the whole panel fits on the destinat
     offsetX: 80,
     offsetY: 20,
     originDisplayId: 'main',
+  }), null)
+})
+
+test('computePanelTransfer resumes direct drag once the whole panel fits in either direction', () => {
+  assert.equal(computePanelTransfer(displays, {
+    frame: [100, 80, 500, 360],
+    pointer: { screenX: 1600, screenY: 80 },
+    offsetX: 80,
+    offsetY: 20,
+    originDisplayId: 'main',
+  }), null)
+
+  assert.equal(computePanelTransfer(displays, {
+    frame: [1580, 80, 500, 360],
+    pointer: { screenX: 700, screenY: 120 },
+    offsetX: 80,
+    offsetY: 20,
+    originDisplayId: 'extended',
   }), null)
 })
 

@@ -5,7 +5,7 @@
 
 import { emit, wireBridge } from '../runtime/bridge.js'
 import { moveAbsolute, mutateSelf, removeSelf, removeCanvas, resumeCanvas, spawnChild, suspendCanvas } from '../runtime/canvas.js'
-import { registerInputRegion, removeInputRegion } from '../runtime/input-region.js'
+import { registerInputRegion, removeInputRegion, updateInputRegion } from '../runtime/input-region.js'
 import { normalizeCanvasInputMessage } from '../runtime/input-events.js'
 import { subscribe, unsubscribe } from '../runtime/subscribe.js'
 import { createPanelTransferController, defaultDesktopWorldStageUrl, ensureDesktopWorldStage, sendDesktopWorldStageLayer, wirePanelTransferDisplayGeometry } from './drag-transfer.js'
@@ -825,6 +825,7 @@ export function createMinimizeController({
   resume = resumeCanvas,
   remove = removeCanvas,
   registerRegion = registerInputRegion,
+  updateRegion = updateInputRegion,
   removeRegion = removeInputRegion,
   ensureStage = ensureDesktopWorldStage,
   stageCanvasId = 'aos-desktop-world-stage',
@@ -839,6 +840,7 @@ export function createMinimizeController({
   let last = null
   let activeStageChip = null
   let stageEnsureRecord = null
+  const chipDragThreshold = 4
 
   function restoreFrameForMinimize() {
     const maximizeState = maximizeController?.getState?.()
@@ -911,7 +913,9 @@ export function createMinimizeController({
       regionIds,
       restoreFrame: cloneFrame(restoreFrame),
       frame: cloneFrame(minimizedFrame),
+      title,
       affordance: null,
+      gesture: null,
     }
     const timedEnsureStage = async (options = {}) => {
       markTiming('stageEnsureStart')
@@ -942,6 +946,107 @@ export function createMinimizeController({
         last.timing.inputRegionRegistrationEnd
       )
     }
+    const updateStageChipFrame = async (nextFrame) => {
+      record.frame = cloneFrame(nextFrame)
+      const layer = chipStageLayer({ chipId, title, frame: record.frame })
+      layer.metadata = {
+        ...layer.metadata,
+        toolkit_affordance_id: chipId,
+        resource_scope_id: chipId,
+        owner_canvas_id: target,
+        source_canvas_id: target,
+        target_canvas_id: stageCanvasId,
+        stage_affordance_mode: 'minimized_panel_chip',
+      }
+      timedSendStageMessage({
+        type: 'desktop_world_stage.layer.upsert',
+        payload: layer,
+      })
+      await Promise.all([
+        updateRegion({
+          ...common,
+          id: regionIds.body,
+          frame: insetFrame(record.frame),
+          semantic_label: 'drag',
+          priority: 1150,
+          consume_policy: 'captured',
+          metadata: { ...common.metadata, action: 'drag_restore_body', click_action: 'restore', drag_threshold_px: chipDragThreshold },
+        }),
+        updateRegion({
+          ...common,
+          id: regionIds.restore,
+          frame: insetFrame(record.frame, { insetRight: closeWidth }),
+          semantic_label: 'restore',
+          priority: 1100,
+          consume_policy: 'captured',
+          metadata: { ...common.metadata, action: 'restore_or_drag', drag_threshold_px: chipDragThreshold },
+        }),
+        updateRegion({
+          ...common,
+          id: regionIds.close,
+          frame: insetFrame(record.frame, { insetLeft: record.frame[2] - closeWidth }),
+          semantic_label: 'close',
+          priority: 1200,
+          consume_policy: 'down_only',
+          metadata: { ...common.metadata, action: 'close' },
+        }),
+      ])
+    }
+    const pointFromRegionMessage = (message = {}) => {
+      const normalized = normalizeCanvasInputMessage(message) || message
+      const native = normalized.native || normalized.payload?.native || normalized.data?.native || null
+      const point = native || normalized.desktop_world || normalized.point || normalized.payload?.point || null
+      const x = finiteNumber(point?.x ?? normalized.x ?? normalized.screenX ?? normalized.payload?.x, NaN)
+      const y = finiteNumber(point?.y ?? normalized.y ?? normalized.screenY ?? normalized.payload?.y, NaN)
+      return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+    }
+    const finishBodyGesture = (activeRecord, { restoreIfClick = false } = {}) => {
+      const gesture = activeRecord.gesture
+      activeRecord.gesture = null
+      if (restoreIfClick && gesture && !gesture.dragging) {
+        cleanupStageChip(activeRecord, { resumeSource: true }).catch((error) => {
+          console.warn('[aos-panel] minimized chip restore cleanup failed', error)
+        })
+      }
+    }
+    const handleBodyGesture = (activeRecord, message, phase) => {
+      const point = pointFromRegionMessage(message)
+      if (phase === 'down') {
+        activeRecord.gesture = point
+          ? { start: point, last: point, startFrame: cloneFrame(activeRecord.frame), dragging: false }
+          : { start: null, last: null, startFrame: cloneFrame(activeRecord.frame), dragging: false }
+        return
+      }
+      const gesture = activeRecord.gesture
+      if (!gesture) return
+      if (phase === 'cancel') {
+        finishBodyGesture(activeRecord)
+        return
+      }
+      if (phase === 'drag' && point && gesture.start) {
+        const dx = point.x - gesture.start.x
+        const dy = point.y - gesture.start.y
+        if (!gesture.dragging && Math.hypot(dx, dy) >= chipDragThreshold) {
+          gesture.dragging = true
+        }
+        if (gesture.dragging) {
+          const nextFrame = cloneFrame([
+            gesture.startFrame[0] + dx,
+            gesture.startFrame[1] + dy,
+            gesture.startFrame[2],
+            gesture.startFrame[3],
+          ])
+          updateStageChipFrame(nextFrame).catch((error) => {
+            console.warn('[aos-panel] minimized chip drag update failed', error)
+          })
+        }
+        gesture.last = point
+        return
+      }
+      if (phase === 'up') {
+        finishBodyGesture(activeRecord, { restoreIfClick: true })
+      }
+    }
     const common = {
       owner_canvas_id: target,
       coordinate_space: 'native',
@@ -965,9 +1070,9 @@ export function createMinimizeController({
           id: regionIds.body,
           frame: insetFrame(minimizedFrame),
           semantic_label: 'drag',
-          priority: 1000,
-          consume_policy: 'never',
-          metadata: { ...common.metadata, action: 'drag', drag_deferred: true },
+          priority: 1150,
+          consume_policy: 'captured',
+          metadata: { ...common.metadata, action: 'drag_restore_body', click_action: 'restore', drag_threshold_px: chipDragThreshold },
         },
         {
           ...common,
@@ -975,8 +1080,8 @@ export function createMinimizeController({
           frame: insetFrame(minimizedFrame, { insetRight: closeWidth }),
           semantic_label: 'restore',
           priority: 1100,
-          consume_policy: 'down_only',
-          metadata: { ...common.metadata, action: 'restore' },
+          consume_policy: 'captured',
+          metadata: { ...common.metadata, action: 'restore_or_drag', drag_threshold_px: chipDragThreshold },
         },
         {
           ...common,
@@ -997,18 +1102,20 @@ export function createMinimizeController({
       registerRegion: timedRegisterRegion,
       removeRegion,
       onInputRegionEvent({ message }) {
-        if (message.phase && message.phase !== 'down') return
+        const normalized = normalizeCanvasInputMessage(message) || message
+        const phase = normalized.phase || message.phase || message.payload?.phase || message.data?.phase
+        const regionId = normalized.regionId || normalized.region_id || message.region_id || message.payload?.region_id || message.data?.region_id
+        if (!phase) return
         const activeRecord = activeStageChip?.chipId === chipId ? activeStageChip : record
-        if (message.region_id === regionIds.close) {
+        if (regionId === regionIds.close) {
+          if (phase !== 'down') return
           cleanupStageChip(activeRecord, { removeSource: true }).catch((error) => {
             console.warn('[aos-panel] minimized chip close cleanup failed', error)
           })
           return
         }
-        if (message.region_id === regionIds.restore) {
-          cleanupStageChip(activeRecord, { resumeSource: true }).catch((error) => {
-            console.warn('[aos-panel] minimized chip restore cleanup failed', error)
-          })
+        if (regionId === regionIds.restore || regionId === regionIds.body) {
+          handleBodyGesture(activeRecord, message, phase)
         }
       },
       onSourceRemoved() {

@@ -231,17 +231,17 @@ Region ids are derived from the chip id:
 
 | Region | Id suffix | Policy |
 | --- | --- | --- |
-| restore | `:restore` | left/body region, `semantic_label: "restore"`, `consume_policy: "down_only"` |
+| restore | `:restore` | left/body restore affordance, `semantic_label: "restore"`, `consume_policy: "captured"` |
 | close | `:close` | right close affordance, `semantic_label: "close"`, `consume_policy: "down_only"` |
-| body/drag | `:body` | full chip body, `semantic_label: "drag"`, `consume_policy: "never"` |
+| body/drag | `:body` | full chip body, `semantic_label: "drag"`, `consume_policy: "captured"` |
 
 The source canvas remains the owner for these regions and each region sets
 `remove_on_owner_suspend: false` so the chip can survive the source suspend.
-Restore resumes the source and removes the stage layer plus all regions. Close
-removes the chip layer/regions and removes the source. Owner removal also
-cleans the layer. Drag/body movement is intentionally deferred in V0; the body
-region exists so the hit area is explicit and can gain drag behavior without
-changing the daemon contract.
+Click-like body/restore gestures resume the source and remove the stage layer
+plus all regions; mousedown alone does not restore. Body/restore drags that
+cross the movement threshold move the stage chip instead, updating both the
+DesktopWorld layer and native input regions. Close removes the chip
+layer/regions and removes the source. Owner removal also cleans the layer.
 
 `minimize()` must be atomic from the caller's perspective: if it returns
 `status: "success"` and suspends the source, either the stage path has recorded

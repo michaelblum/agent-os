@@ -582,8 +582,8 @@ test('createMinimizeController creates a stage chip and input regions before sus
     },
   });
   assert.deepEqual(calls.slice(2, 5).map((entry) => [entry[1].id, entry[1].frame, entry[1].semantic_label, entry[1].consume_policy, entry[1].remove_on_owner_suspend]), [
-    ['aos-chip-panel-a-rs:body', [10, 43, 220, 38], 'drag', 'never', false],
-    ['aos-chip-panel-a-rs:restore', [10, 43, 186, 38], 'restore', 'down_only', false],
+    ['aos-chip-panel-a-rs:body', [10, 43, 220, 38], 'drag', 'captured', false],
+    ['aos-chip-panel-a-rs:restore', [10, 43, 186, 38], 'restore', 'captured', false],
     ['aos-chip-panel-a-rs:close', [196, 43, 34, 38], 'close', 'down_only', false],
   ]);
   assert.deepEqual(calls[5], ['suspend', 'panel-a']);
@@ -593,6 +593,17 @@ test('createMinimizeController creates a stage chip and input regions before sus
     type: 'input_region.event',
     region_id: 'aos-chip-panel-a-rs:restore',
     phase: 'down',
+    native: { x: 32, y: 52 },
+  })).toString('base64'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(calls.some((entry) => entry[0] === 'resume'), false);
+
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'input_region.event',
+    region_id: 'aos-chip-panel-a-rs:restore',
+    phase: 'up',
+    native: { x: 32, y: 52 },
   })).toString('base64'));
   await new Promise((resolve) => setImmediate(resolve));
 
@@ -984,6 +995,82 @@ test('createMinimizeController close region removes the stage chip and source pa
     'remove',
   ]);
   assert.deepEqual(calls.at(-1), ['remove', 'panel-a', { orphan_children: true }]);
+});
+
+test('createMinimizeController drags the stage chip body without restoring the source', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: { messageHandlers: { headsup: { postMessage() {} } } },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const calls = [];
+  const controller = createMinimizeController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    async ensureStage() { return true; },
+    sendStageMessage(message) { calls.push(['stage', message]); },
+    async registerRegion(region) { calls.push(['registerRegion', region]); },
+    async updateRegion(region) { calls.push(['updateRegion', region]); },
+    async removeRegion(id) { calls.push(['removeRegion', id]); },
+    async suspend(id) { calls.push(['suspend', id]); },
+    async resume(id) { calls.push(['resume', id]); },
+    now: () => 1000,
+  });
+
+  await controller.minimize({ title: 'Panel' });
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'input_region.event',
+    region_id: 'aos-chip-panel-a-rs:body',
+    phase: 'down',
+    native: { x: 40, y: 55 },
+  })).toString('base64'));
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'input_region.event',
+    region_id: 'aos-chip-panel-a-rs:body',
+    phase: 'drag',
+    native: { x: 64, y: 75 },
+  })).toString('base64'));
+  await new Promise((resolve) => setImmediate(resolve));
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'input_region.event',
+    region_id: 'aos-chip-panel-a-rs:body',
+    phase: 'up',
+    native: { x: 64, y: 75 },
+  })).toString('base64'));
+  await new Promise((resolve) => setImmediate(resolve));
+
+  const upserts = calls.filter((entry) => entry[0] === 'stage' && entry[1].type === 'desktop_world_stage.layer.upsert');
+  assert.deepEqual(upserts.at(-1)[1].payload.frame, [34, 63, 220, 38]);
+  assert.deepEqual(upserts.at(-1)[1].payload.metadata, {
+    toolkit_role: 'minimized_panel_chip',
+    toolkit_affordance_id: 'aos-chip-panel-a-rs',
+    resource_scope_id: 'aos-chip-panel-a-rs',
+    owner_canvas_id: 'panel-a',
+    source_canvas_id: 'panel-a',
+    target_canvas_id: 'aos-desktop-world-stage',
+    stage_affordance_mode: 'minimized_panel_chip',
+  });
+  assert.deepEqual(calls.filter((entry) => entry[0] === 'updateRegion').map((entry) => [
+    entry[1].id,
+    entry[1].frame,
+    entry[1].semantic_label,
+    entry[1].priority,
+    entry[1].consume_policy,
+  ]), [
+    ['aos-chip-panel-a-rs:body', [34, 63, 220, 38], 'drag', 1150, 'captured'],
+    ['aos-chip-panel-a-rs:restore', [34, 63, 186, 38], 'restore', 1100, 'captured'],
+    ['aos-chip-panel-a-rs:close', [220, 63, 34, 38], 'close', 1200, 'down_only'],
+  ]);
+  assert.equal(calls.some((entry) => entry[0] === 'resume'), false);
+  assert.equal(calls.some((entry) => entry[0] === 'removeRegion'), false);
 });
 
 test('createMinimizeController owner removal clears the orphaned stage chip', async (t) => {
