@@ -244,12 +244,14 @@ messages are the first narrow example. Future patch classes may include:
 - run/cancel workflow step
 - attach artifact
 
-Patches should be reversible where feasible and must produce explicit accepted,
-rejected, stale, or validation-result messages.
+Patches should be reversible where feasible and must produce explicit applied,
+rejected, or stale result messages. Validation detail belongs on a rejection or
+on a separate preflight/validate operation; a revised edit is a new patch, not
+a pending owner-held negotiation state.
 
 ### Persistence Adapter
 
-The persistence adapter writes accepted subject state back to the correct
+The persistence adapter writes owner-applied subject state back to the correct
 source of truth.
 
 Examples:

@@ -11,6 +11,10 @@ implementers.
 A coherent thing in the system that can be perceived, edited, or verified — an app, a wiki entry, a 3D object, a work record. The unit of identity in AOS.
 _Avoid_: object (overloaded), entity, item.
 
+**Subject Owner**:
+The authority for a Subject's mutable state and contracts. A Subject Owner receives patches or commands, validates them against current Subject state, applies or rejects them, and decides what propagation or persistence follows. The owner may be a source-of-truth service, app model, host runtime, or daemon primitive; it is not necessarily the Facet or display surface currently showing the Subject.
+_Avoid_: view owner, editor, lock holder.
+
 **Layer**:
 One of the ordered conceptual categories through which a Subject is projected: narrative → descriptor / execution map → controls / editor → artifacts / evidence → health / verification. The taxonomy is fixed; not every Subject uses every Layer.
 _Avoid_: tier, level, stage.
@@ -128,6 +132,14 @@ _Avoid_: feature, role, ability (too generic); permission (overloaded with macOS
 An operation exposed through a Facet or Host — `open`, `edit`, `save`, `verify`, `export`, etc. Controls are *derived* from the combination of a Subject's Capabilities and its Facets, not stored separately on the Subject. A Subject Browser that sees `editable` in `capabilities[]` knows to surface an Edit Control on whichever Facet sits in the controls Layer.
 _Avoid_: action (overloaded with `aos do`), affordance (UX term, not a model term), command.
 
+**Patch Channel**:
+A contract through which controls, views, agents, or hosts submit structured changes to a Subject Owner and receive explicit owner results. It is a logical mutation contract, not necessarily one transport. Existing examples include `canvas_object.transform.patch` / `.result` and `canvas_object.effects.patch` / `.result`.
+_Avoid_: direct edit, sync channel, lock.
+
+**Patch Result**:
+The terminal owner response to one patch attempt. Canonical patch result statuses are `applied`, `rejected`, and `stale`: `applied` means the owner changed state and returns the owner-applied state fragment; `rejected` means the owner did not apply the patch, often with a reason or validation detail; `stale` means the patch was based on state the owner no longer accepts. Validation diagnostics can be attached to a rejection or returned by a separate preflight/validate operation; a revised edit is a new patch attempt, not a continuation of a pending patch.
+_Avoid_: accepted (schema term is `applied`), validation-result (diagnostic detail, not a terminal patch status).
+
 ## Relationships
 
 - A **Subject** is projected through one or more **Layers**.
@@ -152,6 +164,8 @@ _Avoid_: action (overloaded with `aos do`), affordance (UX term, not a model ter
 - A **Subject Reference** carries a Subject Entry Handle (or Facet path) plus optional metadata (relationship type, role); a **Subject Entry Handle** is the resolver address. They are different layers — references express *relationships*; handles express *navigation*.
 - A **Subject Browser** consumes Subject Entry Handles, renders Navigation Trails, and follows Subject References. It is hosted via a normal **Host** (Browser or Canvas). The wiki, Canvas Inspector (when navigating runtime Subjects), and any future Work Record browser are all instances of this surface kind.
 - **Capabilities** declare *what contracts* a Subject implements; **Facets** declare *what projections* it offers; **Controls** are operations *derived* from the combination. A Subject Browser uses `capabilities[]` to decide which classes of behavior are safe to offer, then finds the matching Facets to attach those behaviors to.
+- A **Subject Owner** owns mutation authority for a Subject. Controls and agents submit edits through **Patch Channels**; callers do not hold implicit locks.
+- **Patch Results** are scoped to the Patch Channel that produced them. A `stale` Patch Result means refresh the relevant Subject or Facet state and submit a new patch.
 
 ## Example dialogue
 
@@ -175,3 +189,5 @@ _Avoid_: action (overloaded with `aos do`), affordance (UX term, not a model ter
 - `facets[].host` enum (`"browser" | "canvas" | "either"`) was considered and rejected as too coarse — a Facet may have *multiple Host implementations* with different entry points, target dialects, or fidelity. Resolved direction: `facets[].hosts[]` array of `{ kind, target_dialect, entry, ... }` records, with optional preference ordering. Initial sketch: `shared/schemas/aos-workbench-subject-vnext.md`.
 - "Dual-hosting" (used in `aos-grand-unification-plan.md` Phase 4) — resolved meaning: shipping a Facet with both Browser-Host and Canvas-Host implementations. The plan now says every editor Facet does not need to ship both Browser-Host and Canvas-Host implementations.
 - Dock vs Workflow — resolved: **Dock** and **Docked Session** are the canonical concepts for persona/session isolation. Keep **Workflow** reserved for AOS/domain orchestration Subjects such as the Employer Brand Comparative Audit Workflow. Do not add compatibility files that couple role/persona docks into a separate orchestration layer.
+- `stale` — resolved direction: `stale` is a qualified freshness failure, not one global verdict. The field path or namespace owns the recovery path: Patch Result `stale` means refresh Subject/Facet state and submit a new patch; Verifier Health `stale` means the Work Record no longer proves current truth; projection `stale` means re-resolve or re-render the addressed view; State ID freshness is not a first-class enum today, and the active diagnostic remains `state_id_inconsistency`. Bare `stale` in logs, UI, or dashboards is under-namespaced.
+- `validation-result` in patch prose — resolved: validation detail is diagnostic information attached to a `rejected` Patch Result or returned by a separate preflight/validate operation. It is not a terminal Patch Result status, and revised input is a new patch attempt.
