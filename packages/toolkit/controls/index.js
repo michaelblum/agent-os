@@ -7,6 +7,16 @@ export { createCheckboxGroup, renderCheckboxHtml } from './checkbox-group.js';
 export { createTextarea, renderTextareaHtml } from './textarea.js';
 export { createTimerBar } from './timer-bar.js';
 export {
+  createAccordion,
+  createCollapsible,
+  createDialog,
+  createMenu,
+  createPopover,
+  createSplitter,
+  createTooltip,
+  renderCollapsibleHtml,
+} from './zag-primitives.js';
+export {
   handleNumberFieldKeydown,
   handleNumberFieldWheel,
   numberFieldBaseStep,

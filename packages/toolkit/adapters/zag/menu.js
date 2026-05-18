@@ -50,6 +50,7 @@ export function createAosZagMenu(context = {}) {
       };
     },
     selectors: {
+      trigger: '[data-aos-menu-trigger]',
       content: null,
       item: itemSelector,
     },
@@ -65,6 +66,9 @@ export function createAosZagMenu(context = {}) {
       getContentProps(extra = {}) {
         return mergeProps(menuApi.getContentProps(), extra);
       },
+      getTriggerProps(extra = {}) {
+        return mergeProps(menuApi.getTriggerProps(), extra);
+      },
       getItemProps(props = {}) {
         return menuApi.getItemProps(props);
       },
@@ -73,7 +77,12 @@ export function createAosZagMenu(context = {}) {
       };
     },
     bindings: {
+      trigger: {
+        alias: 'Trigger',
+        getter: 'getTriggerProps',
+      },
       content: {
+        alias: 'Content',
         root: true,
         getter: 'getContentProps',
       },

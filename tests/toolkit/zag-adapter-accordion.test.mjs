@@ -62,6 +62,28 @@ test('bind wires minimum accordion parts', () => {
   adapter.destroy();
 });
 
+test('accordion item value derivation supports data-value, data-id, and id', () => {
+  const { adapter, document } = createAdapter({defaultValue: ['from-value']});
+  const container = patchSpreadSupport(document.createElement('div'));
+  const fromValue = patchSpreadSupport(document.createElement('div'));
+  fromValue.dataset.aosAccordionItem = '';
+  fromValue.dataset.value = 'from-value';
+  const fromDataId = patchSpreadSupport(document.createElement('div'));
+  fromDataId.dataset.aosAccordionItem = '';
+  fromDataId.dataset.id = 'from-data-id';
+  const fromId = patchSpreadSupport(document.createElement('div'));
+  fromId.dataset.aosAccordionItem = '';
+  fromId.setAttribute('id', 'from-id');
+  container.append(fromValue, fromDataId, fromId);
+  document.body.appendChild(container);
+
+  assert.equal(adapter.bindItems(container), 3);
+  assert.match(fromValue.getAttribute('id'), /from-value/);
+  assert.match(fromDataId.getAttribute('id'), /from-data-id/);
+  assert.match(fromId.getAttribute('id'), /from-id/);
+  adapter.destroy();
+});
+
 test('programmatic helpers update accordion state through Zag API', () => {
   const { adapter } = createAdapter({defaultValue: ['a']});
   adapter.setValue(['b']);

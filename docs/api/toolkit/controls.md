@@ -17,6 +17,13 @@ import {
   createTextarea,
   createTimerBar,
   createToggle,
+  createAccordion,
+  createCollapsible,
+  createDialog,
+  createMenu,
+  createPopover,
+  createSplitter,
+  createTooltip,
   renderTextareaHtml,
   wireNumberFieldControls,
 } from 'aos://toolkit/controls/index.js'
@@ -39,6 +46,39 @@ control.
 | `createSelect({ options, value, label, onChange })` | native single-value select | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createTimerBar({ totalMs, direction, display, flashThresholdMs, flashIntervalMs, onExpire })` | cosmetic count-down/count-up timer with digital or pie display | `start`, `pause`, `resume`, `reset`, `getRemainingMs`, `destroy` |
 
+## Zag Primitives
+
+Phase 1 Zag controls are reusable primitive bindings over
+`packages/toolkit/adapters/zag/`. Consumers should import these factories from
+`controls/index.js` instead of importing Zag packages directly. The adapters own
+Zag machine setup and ARIA/focus/keyboard/pointer props; the controls layer owns
+generic DOM scaffolding, lifecycle shape, events, and stock theme classes.
+
+Each primitive can render minimal semantic markup when no `root` is supplied, or
+bind existing semantic markup when `root` is supplied. Existing markup uses the
+same neutral data part attributes as the adapters, such as
+`data-aos-collapsible-trigger`, `data-aos-accordion-item`, and
+`data-aos-menu-item`. The common lifecycle is `mount(root?)`, `update(next)`,
+`connect()`, and `destroy()`. Open-state primitives also expose `open()` and
+`close()`. Change/select notifications are emitted as normal bubbling DOM
+events on `el` and through `on(...)` subscriptions where useful.
+
+| Factory | Parts | Notes |
+| --- | --- | --- |
+| `createCollapsible(config)` | root, trigger, content | supports controlled/uncontrolled `open` through Zag, disabled trigger state, `open()`, `close()`, and `on('change')` |
+| `createAccordion(config)` | root, item, item trigger, item content | supports `value`, `defaultValue`, `multiple`, and item value derivation from `data-value`, `data-id`, or `id` |
+| `createSplitter(config)` | root, panel, resize trigger | supports horizontal/vertical Zag orientation and panel size config without embedding a product layout |
+| `createPopover(config)` | trigger, positioner, content, title, description, close trigger | keeps dismiss and focus behavior Zag-owned; positioning options pass through generically |
+| `createDialog(config)` | trigger, backdrop, positioner, content, title, description, close trigger | keeps modal focus management Zag-owned; content remains consumer supplied |
+| `createMenu(config)` | trigger, content, item | uses neutral item selectors by default (`data-value` and `data-aos-menu-item`); consumers can supply product-owned selectors and value mapping |
+| `createTooltip(config)` | trigger, positioner, content | passes delay, open, disabled, and positioning options through to Zag |
+
+Stock generated triggers and item controls use at least 44px minimum hit targets
+in `defaults.css`. Consumers that provide their own visible triggers should keep
+the same minimum actionable size. These primitives are generic toolkit
+foundation; Subject Browser, Sigil, wiki, radial-menu, and work-record product
+behavior belongs in consumers that compose them.
+
 `wireNumberFieldControls(root, options)` remains the numeric field enhancement
 for existing semantic `<input type="number">` markup. It owns wheel and arrow-key
 stepping and returns `{ dispose() }`.
@@ -53,7 +93,9 @@ Stock visual classes live in `packages/toolkit/controls/defaults.css`. Consumers
 may use the classes directly or override the shared `--aos-control-*` tokens by
 cascade. V0 controls use `.aos-button`, `.aos-segmented`, `.aos-toggle-switch`,
 `.aos-text-input`, `.aos-textarea`, `.aos-checkbox`, `.aos-select`,
-`.aos-timer-bar`, and `.aos-field-error`.
+`.aos-timer-bar`, `.aos-field-error`, and primitive classes such as
+`.aos-collapsible`, `.aos-accordion`, `.aos-splitter`, `.aos-popover`,
+`.aos-dialog`, `.aos-menu`, and `.aos-tooltip`.
 
 ## Form Harness
 
