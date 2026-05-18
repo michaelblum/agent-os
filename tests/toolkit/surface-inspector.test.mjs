@@ -9,6 +9,7 @@ import {
   buildAnnotationNativeHitRegions,
   buildAnnotationOverlayEvalScript,
   buildAnnotationScopedHitRegions,
+  buildSurfaceInspectorAnnotationTreeViewItems,
   buildRevealPayloadForSurfaceInspectorPin,
   buildSemanticTargetsRequestMessages,
   buildSurfaceInspectorTargetNodeForAnnotation,
@@ -16,10 +17,18 @@ import {
   normalizeDisplays,
   projectAnnotationRectToMinimap,
   planAnnotationActionControlCanvasSync,
+  retainedTreeExpandedIds,
   projectPointToMinimap,
   resolveCanvasFrames,
 } from '../../packages/toolkit/components/surface-inspector/index.js';
 import { BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID } from '../../packages/toolkit/workbench/browser-dom-element-picker.js';
+import {
+  addSurfaceInspectorComment,
+  buildSurfaceInspectorAnnotationTreeRows,
+  createSurfaceInspectorAnnotationState,
+  pinSurfaceInspectorFrame,
+  setSurfaceInspectorAnnotationMode,
+} from '../../packages/toolkit/workbench/surface-inspector-annotations.js';
 import {
   CONTROLLED_BROWSER_DOM_FIXTURE_PATH,
   createControlledBrowserDomSurfacePublisher,
@@ -27,6 +36,24 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const inspectorSource = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
+
+const annotationNode = (id, subjectPath = ['main', id], extra = {}) => ({
+  id,
+  subject_id: id,
+  subject_path: subjectPath,
+  root_id: extra.root_id || 'main',
+  root_label: extra.root_label || 'main',
+  adapter_id: extra.adapter_id || 'aos-canvas-window',
+  ...extra,
+  projection: extra.projection || {
+    status: 'projectable',
+    projectable: true,
+    visible_display_rect: { x: 10, y: 20, w: 100, h: 80 },
+    coordinate_space: 'native_display',
+    current_render_status: 'live',
+    can_reveal: true,
+  },
+});
 
 class RevealFixtureElement {
   constructor(tagName, attrs = {}, rect = { x: 0, y: 0, width: 1, height: 1 }, text = '') {
@@ -731,6 +758,39 @@ test('active Annotation Mode keeps saved annotation management controls separate
   assert.match(source, /function bindAnnotationTreeView\(\)/);
   assert.match(source, /createAosZagTreeView\(\{/);
   assert.match(source, /buildAnnotationTreeViewItems\(\)/);
+});
+
+test('annotation tree view items preserve helper hierarchy contract from fixture state', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true);
+  state = pinSurfaceInspectorFrame(state, annotationNode('frame-a', ['main', 'frame-a']), { id: 'pin-a' });
+  state = addSurfaceInspectorComment(state, 'pin-a', 'A note', { id: 'comment-a' });
+  state = pinSurfaceInspectorFrame(state, annotationNode('frame-b', ['main', 'frame-a', 'frame-b']), {
+    id: 'pin-b',
+    parent_pin_id: 'pin-a',
+  });
+
+  const rows = buildSurfaceInspectorAnnotationTreeRows(state);
+  const items = buildSurfaceInspectorAnnotationTreeViewItems(rows);
+
+  assert.deepEqual(items.map((item) => item.id), ['pin-a', 'comment-a', 'pin-b']);
+  assert.equal(items[0].hasChildren, true);
+  assert.equal(items[0].label, 'main / frame-a');
+  assert.equal(items[1].parentId, 'pin-a');
+  assert.equal(items[1].data.type, 'comment');
+  assert.equal(items[2].parentId, 'pin-a');
+  assert.equal(items[2].depth, 1);
+});
+
+test('retained tree expansion state survives rerender inputs without defaulting open', () => {
+  const items = [
+    { id: 'root', hasChildren: true },
+    { id: 'child', parentId: 'root', hasChildren: true },
+    { id: 'leaf', parentId: 'child', hasChildren: false },
+  ];
+
+  assert.deepEqual(retainedTreeExpandedIds(null, items), ['root', 'child']);
+  assert.deepEqual(retainedTreeExpandedIds(['root'], items), ['root']);
+  assert.deepEqual(retainedTreeExpandedIds(['missing', 'child'], items), ['child']);
 });
 
 test('Surface Inspector surfaces and diagnostics panes adopt Zag tree semantics', () => {

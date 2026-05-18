@@ -3,6 +3,17 @@ import { mergeProps } from './shared.js';
 const ROOT_SELECTOR = '[data-aos-tree-view-root]';
 const ITEM_SELECTOR = '[data-aos-tree-view-item]';
 
+// Browser-safe local tree-view shim for aos:// hosted toolkit surfaces.
+//
+// The toolkit records @zag-js/tree-view as the target primitive dependency, but
+// hosted components cannot currently import bare @zag-js modules directly. This
+// shim implements the subset Surface Inspector needs from the Zag Tree View
+// contract: item normalization, roving focus, selection, expansion state,
+// visible item projection, ARIA tree roles/positions, bind/update/cleanup
+// lifecycle, and bound-DOM descendant hiding. It does not run the upstream Zag
+// machine internally, so less-common upstream behavior such as typeahead,
+// collection search helpers, and multi-select are intentionally not represented.
+
 function compactProps(props = {}) {
   return Object.fromEntries(Object.entries(props).filter(([, value]) => value !== undefined));
 }
@@ -29,7 +40,7 @@ function setAttrs(element, props = {}) {
     previous.set(attr, element.getAttribute?.(attr));
     if (value === false || value === undefined || value === null) {
       element.removeAttribute?.(attr);
-      if (value === false && attr in element) element[attr] = false;
+      if (attr in element) element[attr] = false;
     } else if (value === true) {
       element.setAttribute?.(attr, '');
       if (attr in element) element[attr] = true;
@@ -164,6 +175,10 @@ export function createAosZagTreeView(context = {}) {
     return result;
   }
 
+  function visibleItemIds() {
+    return new Set(visibleItems().map((item) => item.id));
+  }
+
   function treePosition(item) {
     const siblings = childrenOf(item.parentId);
     return {
@@ -283,10 +298,17 @@ export function createAosZagTreeView(context = {}) {
   }
 
   function syncBoundParts() {
+    const visible = visibleItemIds();
     for (const [itemId, element] of boundItems) {
-      setAttrs(element, Object.fromEntries(
+      const visibleItem = visible.has(itemId);
+      setAttrs(element, {
+        ...Object.fromEntries(
         Object.entries(getItemProps({ id: itemId })).filter(([key]) => !key.startsWith('on'))
-      ));
+        ),
+        hidden: visibleItem ? false : true,
+        'aria-hidden': visibleItem ? undefined : 'true',
+        'data-visible': visibleItem ? '' : undefined,
+      });
     }
   }
 
@@ -304,7 +326,14 @@ export function createAosZagTreeView(context = {}) {
 
   function bindItem(element, extraProps = {}, index = 0) {
     const itemId = extraProps.id || itemIdForElement(element, index);
-    const cleanup = setAttrs(element, getItemProps({ id: itemId }, extraProps.extra || {}));
+    const visible = visibleItemIds();
+    const visibleItem = visible.has(itemId);
+    const cleanup = setAttrs(element, {
+      ...getItemProps({ id: itemId }, extraProps.extra || {}),
+      hidden: visibleItem ? false : true,
+      'aria-hidden': visibleItem ? undefined : 'true',
+      'data-visible': visibleItem ? '' : undefined,
+    });
     boundItems.set(itemId, element);
     cleanups.add(cleanup);
     return cleanup;

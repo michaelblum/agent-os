@@ -18,6 +18,8 @@ function createItems() {
 
 function createBoundTree(extra = {}) {
   const document = createDocument();
+  const renderAllItems = extra.renderAllItems === true;
+  delete extra.renderAllItems;
   const adapter = createAosZagTreeView({
     id: 'test-tree',
     getRootNode: () => document,
@@ -27,10 +29,16 @@ function createBoundTree(extra = {}) {
   });
   const container = patchSpreadSupport(document.createElement('div'));
   container.dataset.aosTreeViewRoot = '';
-  for (const item of adapter.connect().visibleItems) {
+  const renderedItems = renderAllItems ? createItems() : adapter.connect().visibleItems;
+  for (const item of renderedItems) {
     const row = patchSpreadSupport(document.createElement('div'));
     row.dataset.aosTreeViewItem = '';
     row.dataset.itemId = item.id;
+    if (item.id === 'frame-a') {
+      const button = patchSpreadSupport(document.createElement('button'));
+      button.classList.add('annotation-pin-reveal');
+      row.appendChild(button);
+    }
     container.appendChild(row);
   }
   document.body.appendChild(container);
@@ -76,6 +84,27 @@ test('mount and cleanup lifecycle binds and removes tree item listeners', () => 
   adapter.destroy();
 });
 
+test('collapse preserves nested action controls and restores reachability on expand', () => {
+  const { adapter, container } = createBoundTree({
+    defaultExpandedIds: ['root'],
+    renderAllItems: true,
+  });
+  const frameA = treeItem(container, 'frame-a');
+  const reveal = frameA.querySelector('.annotation-pin-reveal');
+
+  assert.ok(reveal);
+  assert.equal(frameA.getAttribute('hidden'), null);
+
+  adapter.collapse('root');
+  assert.equal(frameA.getAttribute('hidden'), '');
+  assert.ok(frameA.querySelector('.annotation-pin-reveal'));
+
+  adapter.expand('root');
+  assert.equal(frameA.getAttribute('hidden'), null);
+  assert.ok(frameA.querySelector('.annotation-pin-reveal'));
+  adapter.destroy();
+});
+
 test('expand and collapse state round-trips through the adapter snapshot', () => {
   const { adapter } = createBoundTree();
 
@@ -84,6 +113,50 @@ test('expand and collapse state round-trips through the adapter snapshot', () =>
 
   adapter.collapse('root');
   assert.deepEqual(adapter.connect().expandedIds, ['frame-a']);
+  adapter.destroy();
+});
+
+test('collapse and expand update descendant DOM visibility', () => {
+  const { adapter, container } = createBoundTree({
+    defaultExpandedIds: ['root', 'frame-a'],
+    renderAllItems: true,
+  });
+  const frameA = treeItem(container, 'frame-a');
+  const commentA = treeItem(container, 'comment-a');
+
+  assert.equal(frameA.getAttribute('aria-expanded'), 'true');
+  assert.equal(commentA.getAttribute('hidden'), null);
+  assert.equal(commentA.getAttribute('aria-hidden'), null);
+
+  adapter.collapse('frame-a');
+
+  assert.equal(frameA.getAttribute('aria-expanded'), 'false');
+  assert.equal(commentA.getAttribute('hidden'), '');
+  assert.equal(commentA.getAttribute('aria-hidden'), 'true');
+  assert.equal(adapter.connect().visibleItems.some((item) => item.id === 'comment-a'), false);
+
+  adapter.expand('frame-a');
+
+  assert.equal(frameA.getAttribute('aria-expanded'), 'true');
+  assert.equal(commentA.getAttribute('hidden'), null);
+  assert.equal(commentA.getAttribute('aria-hidden'), null);
+  adapter.destroy();
+});
+
+test('update preserves supplied expansion state instead of resetting descendants visible', () => {
+  const { adapter, container } = createBoundTree({
+    defaultExpandedIds: ['root', 'frame-a'],
+    renderAllItems: true,
+  });
+  const commentA = treeItem(container, 'comment-a');
+
+  adapter.collapse('frame-a');
+  assert.equal(commentA.getAttribute('hidden'), '');
+
+  adapter.update({ items: createItems(), expandedIds: ['root'] });
+
+  assert.deepEqual(adapter.connect().expandedIds, ['root']);
+  assert.equal(commentA.getAttribute('hidden'), '');
   adapter.destroy();
 });
 

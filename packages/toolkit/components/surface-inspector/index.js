@@ -902,6 +902,50 @@ function verticalMargins(element) {
   return (Number.parseFloat(style.marginTop) || 0) + (Number.parseFloat(style.marginBottom) || 0)
 }
 
+export function buildSurfaceInspectorAnnotationTreeViewItems(rows = []) {
+  const stack = []
+  const childCounts = new Map()
+  const items = rows.map((row) => {
+    while (stack.length > row.depth) stack.pop()
+    const parentId = stack.at(-1)?.id || ''
+    const id = row.id
+    if (parentId) childCounts.set(parentId, (childCounts.get(parentId) || 0) + 1)
+    const address = row.type === 'pin' ? row.frame_address : null
+    const item = {
+      id,
+      label: row.type === 'comment' ? row.comment.text : (address?.compact || row.label || id),
+      fullLabel: row.type === 'comment' ? row.comment.text : (address?.full || row.label || id),
+      parentId,
+      depth: row.depth,
+      hasChildren: false,
+      isExpanded: true,
+      isSelected: row.active === true,
+      isFocused: row.active === true,
+      data: { type: row.type },
+    }
+    if (row.type === 'pin') stack[row.depth] = item
+    return item
+  })
+  return items.map((item) => ({
+    ...item,
+    hasChildren: childCounts.has(item.id),
+  }))
+}
+
+export function defaultExpandedTreeIds(items = []) {
+  return items.filter((item) => item.hasChildren).map((item) => item.id)
+}
+
+export function pruneTreeExpandedIds(expandedIds = [], items = []) {
+  const expandable = new Set(items.filter((item) => item.hasChildren).map((item) => item.id))
+  return expandedIds.filter((id) => expandable.has(id))
+}
+
+export function retainedTreeExpandedIds(retainedIds, items = []) {
+  if (!Array.isArray(retainedIds)) return defaultExpandedTreeIds(items)
+  return pruneTreeExpandedIds(retainedIds, items)
+}
+
 export default function CanvasInspector() {
   let contentEl = null
   let minimapPaneEl = null
@@ -939,6 +983,8 @@ export default function CanvasInspector() {
   let listPaneViewManual = false
   let annotationTreeView = null
   let surfaceTreeView = null
+  let annotationTreeExpandedIds = null
+  const surfaceTreeExpandedIdsByContext = new Map()
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,
@@ -2082,13 +2128,17 @@ export default function CanvasInspector() {
       return
     }
     const items = buildAnnotationTreeViewItems()
+    const expandedIds = retainedTreeExpandedIds(annotationTreeExpandedIds, items)
     annotationTreeView?.destroy?.()
     annotationTreeView = createAosZagTreeView({
       id: 'surface-inspector-annotation-tree',
       items,
-      defaultExpandedIds: items.filter((item) => item.hasChildren).map((item) => item.id),
+      expandedIds,
       selectedId: items.find((item) => item.isSelected)?.id,
       focusedId: items.find((item) => item.isSelected)?.id || items[0]?.id,
+      onExpandedChange(details = {}) {
+        annotationTreeExpandedIds = pruneTreeExpandedIds(details.expandedIds || [], buildAnnotationTreeViewItems())
+      },
     })
     annotationTreeView.bind(root, { root })
   }
@@ -2100,15 +2150,20 @@ export default function CanvasInspector() {
       surfaceTreeView = null
       return
     }
-    const items = buildSurfaceTreeViewItems({
-      diagnosticsOnly: root.dataset.surfaceTreeView === 'diagnostics',
-    })
+    const context = root.dataset.surfaceTreeView || 'surfaces'
+    const items = buildSurfaceTreeViewItems({ diagnosticsOnly: context === 'diagnostics' })
+    const expandedIds = retainedTreeExpandedIds(surfaceTreeExpandedIdsByContext.get(context), items)
     surfaceTreeView?.destroy?.()
     surfaceTreeView = createAosZagTreeView({
-      id: `surface-inspector-${root.dataset.surfaceTreeView || 'surfaces'}-tree`,
+      id: `surface-inspector-${context}-tree`,
       items,
-      defaultExpandedIds: items.filter((item) => item.hasChildren).map((item) => item.id),
+      expandedIds,
       focusedId: items[0]?.id,
+      onExpandedChange(details = {}) {
+        surfaceTreeExpandedIdsByContext.set(context, pruneTreeExpandedIds(details.expandedIds || [], buildSurfaceTreeViewItems({
+          diagnosticsOnly: context === 'diagnostics',
+        })))
+      },
     })
     surfaceTreeView.bind(root, { root })
   }
@@ -2542,35 +2597,11 @@ export default function CanvasInspector() {
 
   function buildAnnotationTreeViewItems() {
     const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
-    const stack = []
-    const childCounts = new Map()
-    const items = rows.map((row) => {
-      while (stack.length > row.depth) stack.pop()
-      const parentId = stack.at(-1)?.id || ''
-      const id = row.id
-      if (parentId) childCounts.set(parentId, (childCounts.get(parentId) || 0) + 1)
-      const address = row.type === 'pin'
-        ? (row.frame_address || buildSurfaceInspectorFrameAddress(row.pin))
-        : null
-      const item = {
-        id,
-        label: row.type === 'comment' ? row.comment.text : address.compact,
-        fullLabel: row.type === 'comment' ? row.comment.text : address.full,
-        parentId,
-        depth: row.depth,
-        hasChildren: false,
-        isExpanded: true,
-        isSelected: row.active === true,
-        isFocused: row.active === true,
-        data: { type: row.type },
-      }
-      if (row.type === 'pin') stack[row.depth] = item
-      return item
-    })
-    return items.map((item) => ({
-      ...item,
-      hasChildren: childCounts.has(item.id),
-    }))
+    return buildSurfaceInspectorAnnotationTreeViewItems(rows.map((row) => (
+      row.type === 'pin' && !row.frame_address
+        ? { ...row, frame_address: buildSurfaceInspectorFrameAddress(row.pin) }
+        : row
+    )))
   }
 
   function renderAnnotationManagementRow(row, depth) {
