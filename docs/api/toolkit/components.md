@@ -708,6 +708,12 @@ fiber-optic stem, fiber-optic bloom, and fractal tree layers as separate
 objects. Transform controllers can tune the whole composition relative to the
 radial menu item orbit path or tune each layer independently.
 
+Those object ids are registry resources under the owning canvas/menu subject,
+not wiki graph nodes by default. A workbench or subject browser should route to
+them through Facets and resource paths such as a radial menu `object-controls`
+Facet unless a separate durable source document or domain subject explicitly
+owns the object.
+
 Registry snapshots are retained-state messages. A canvas owner publishes a full
 replacement list of addressable objects with current transform values, units,
 parent links, optional natural-language descriptors, optional JSON-declared

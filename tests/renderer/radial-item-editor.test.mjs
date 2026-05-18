@@ -44,9 +44,11 @@ import {
   selectedRadialItem,
   selectedTerminalScreenMaterial,
   patchSelectedTerminalScreenMaterial,
+  setRadialMenuWorkbenchSubjectFactory,
   setSelectedItemFractalPulseIntensity,
   setSelectedItemHoverSpin,
 } from '../../apps/sigil/radial-item-editor/model.js'
+import { createRadialMenuWorkbenchSubject } from '../../packages/toolkit/workbench/radial-menu-subject.js'
 import {
   subjectCapabilities,
   subjectContracts,
@@ -57,6 +59,8 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../..')
 const canvasObjectControlSchemaPath = path.join(repoRoot, 'shared/schemas/canvas-object-control.schema.json')
+
+setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject)
 
 function assertValidCanvasObjectControlMessage(message) {
   const result = spawnSync(
@@ -265,8 +269,10 @@ test('radial item editor exports a source-ready lock-in payload for the selected
   assert.equal(payload.type, 'sigil.radial_item_editor.lock_in')
   assert.equal(payload.schema_version, '2026-05-03')
   assert.equal(payload.generated_at, '2026-05-03T12:00:00.000Z')
-  assert.equal(payload.subject.id, 'sigil.radial_menu.item:agent-terminal')
-  assert.equal(payload.subject.subject_type, 'sigil.radial_menu.item_3d')
+  assert.equal(payload.subject.id, 'aos.radial_menu:sigil.radial.main')
+  assert.equal(payload.subject.subject_type, 'aos.radial_menu.3d')
+  assert.equal(payload.subject.state.selected_item_id, 'agent-terminal')
+  assert.equal(payload.subject.state.selected_resource_path, 'item/agent-terminal')
   assert.deepEqual(payload.source, {
     kind: 'sigil.radial_menu.default_items',
     path: 'apps/sigil/renderer/radial-menu-defaults.js',
@@ -293,28 +299,59 @@ test('radial item editor exposes an AOS workbench subject descriptor', () => {
   const subject = buildRadialItemWorkbenchSubject(state)
 
   assert.equal(subject.type, 'aos.workbench.subject')
-  assert.equal(subject.id, 'sigil.radial_menu.item:wiki-graph')
-  assert.equal(subject.subject_type, 'sigil.radial_menu.item_3d')
+  assert.equal(subject.id, 'aos.radial_menu:sigil.radial.main')
+  assert.equal(subject.subject_type, 'aos.radial_menu.3d')
   assert.equal(subject.owner, 'sigil.radial-item-editor')
   assert.equal(subject.state.canvas_id, 'preview')
   assert.equal(subject.state.object_count, 6)
+  assert.equal(subject.state.selected_item_id, 'wiki-graph')
+  assert.equal(subject.state.selected_resource_path, 'item/wiki-graph')
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable', 'exportable'])
   assert.ok(!subject.capabilities.some((capability) => capability.includes('.')))
   assert.ok(subjectContracts(subject).includes('canvas_object.registry'))
   assert.ok(subjectContracts(subject).includes('canvas_object.effects.patch'))
-  assert.ok(subjectContracts(subject).includes('sigil.radial_item_editor.lock_in'))
+  assert.ok(subjectContracts(subject).includes('aos.radial_menu.export'))
   assert.ok(subjectContracts(subject).includes('canvas_object.transform.patch'))
   const facets = subjectFacets(subject)
   assert.deepEqual(facets.map((facet) => facet.key), [
+    'menu-overview',
+    'menu-config',
+    'item-config',
+    'source-notes',
+    'radial-preview',
     'object-registry',
     'object-controls',
-    'radial-preview',
+    'animation-controls',
+    'export-lock-in',
   ])
-  assert.ok(facets.find((facet) => facet.key === 'object-controls').contracts.includes('sigil.radial_item_editor.lock_in'))
+  assert.ok(facets.find((facet) => facet.key === 'export-lock-in').contracts.includes('aos.radial_menu.export'))
   assert.ok(subjectHosts(subject).every((host) => host.kind === 'canvas' && host.target_dialect === 'canvas'))
   assert.equal(subjectHosts(subject)[0].entry.value, 'preview')
   assert.equal('views' in subject, false)
   assert.equal('controls' in subject, false)
+})
+
+test('radial item editor workbench subject preserves edited non-default item sets', () => {
+  const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
+  const editedItem = {
+    ...wikiItem,
+    id: 'custom-edited-item',
+    label: 'Edited Custom Item',
+    action: 'editedCustomAction',
+  }
+  const state = createRadialItemEditorState({
+    items: [editedItem],
+    itemId: 'custom-edited-item',
+    canvasId: 'preview',
+  })
+  const subject = buildRadialItemWorkbenchSubject(state)
+
+  assert.equal(subject.state.selected_item_id, 'custom-edited-item')
+  assert.equal(subject.state.selected_resource_path, 'item/custom-edited-item')
+  assert.deepEqual(
+    subject.state.logical_items.map((item) => [item.id, item.label, item.action]),
+    [['custom-edited-item', 'Edited Custom Item', 'editedCustomAction']]
+  )
 })
 
 test('3D thing editor loader preserves radial subject registry, preview, patches, and lock-in action', () => {

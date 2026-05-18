@@ -102,8 +102,8 @@ slices with repo evidence and clear exit criteria.
   - wiki pages
   - markdown documents
   - work records
-  - radial menu items
-  - 3D object registries
+  - radial menu facets/resources
+  - canvas object registry facets/resources
   - generated artifact bundles
 - Add optional subject links:
   - Wiki Markdown links can resolve to subjects.
@@ -111,11 +111,12 @@ slices with repo evidence and clear exit criteria.
     subjects.
 - Add one real Navigation Trail of Subject Entry Handles:
   - `wiki:Sigil`
-  - `sigil.radial_menu:default`
-  - `sigil.radial_menu.item:wiki-graph`
-  - `canvas_object:radial.wiki-brain.shell`
-  - Each handle resolves to a Subject plus entry Facet; this is not a literal
-    chain of Subjects.
+  - `menu-config:aos.radial_menu:sigil.radial.main`
+  - `item-config:aos.radial_menu:sigil.radial.main/item/wiki-graph`
+  - `object-controls:aos.radial_menu:sigil.radial.main/item/wiki-graph`
+  - Each handle resolves through a Subject, Facet, Host, or resource path. This
+    is not a literal chain of wiki/domain Subjects, and it does not make every
+    menu item or `canvas_object` part a graph node by default.
 
 ### Phase 4: Browser-Hosted Wiki Subject Browser
 
@@ -173,7 +174,7 @@ slices with repo evidence and clear exit criteria.
 - First candidate playbook:
   - open browser-hosted wiki browser
   - locate Sigil subject
-  - follow radial menu item subject
+  - follow the Sigil radial menu facet/resource
   - inspect/edit one object transform
   - save a work record
   - run verifier report

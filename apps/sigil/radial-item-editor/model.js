@@ -24,12 +24,23 @@ export const RADIAL_ITEM_SOURCE = Object.freeze({
     export: 'DEFAULT_SIGIL_RADIAL_ITEMS',
     operation: 'replace_item_by_id',
 });
+export const SIGIL_RADIAL_MENU_SOURCE = Object.freeze({
+    kind: 'sigil.radial_menu.config',
+    path: 'apps/sigil/renderer/radial-menu/sigil-radial-menu.json',
+    operation: 'replace_item_by_id',
+});
 export const AVATAR_SUBJECT_SOURCE = Object.freeze({
     kind: 'sigil.avatar.object_graph',
     path: 'apps/sigil/renderer/live-modules/avatar-object-control.js',
     export: 'buildAvatarObjectRegistry',
     operation: 'owner_managed',
 });
+
+let radialMenuWorkbenchSubjectFactory = null;
+
+export function setRadialMenuWorkbenchSubjectFactory(factory) {
+    radialMenuWorkbenchSubjectFactory = typeof factory === 'function' ? factory : null;
+}
 
 function isPlainObject(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -52,6 +63,25 @@ function text(value, fallback = '') {
 
 function geometryKind(item = {}) {
     return typeof item.geometry?.type === 'string' ? item.geometry.type.toLowerCase() : '';
+}
+
+function radialWorkbenchItemsFromState(items = []) {
+    return (Array.isArray(items) ? items : []).map((item) => {
+        const next = cloneConfig(item);
+        if (!isPlainObject(next)) return next;
+        const logical = isPlainObject(next.logical) ? next.logical : {};
+        next.logical = {
+            ...logical,
+            id: text(next.id, logical.id),
+            label: text(next.label, logical.label || next.id),
+            action: next.action ?? logical.action ?? null,
+        };
+        if (Array.isArray(next.children)) {
+            next.children = radialWorkbenchItemsFromState(next.children);
+            next.logical.children = next.children.map((child) => cloneConfig(child.logical)).filter(Boolean);
+        }
+        return next;
+    });
 }
 
 function radialEditorCanvasHost(canvasId = DEFAULT_EDITOR_CANVAS_ID, { preferred = false, facet = '' } = {}) {
@@ -226,6 +256,7 @@ function radialSubjectDescriptor(state = {}) {
             item_id: item?.id || null,
             canvas_id: canvasId,
         },
+        items: radialWorkbenchItemsFromState(state.items),
         registry: () => buildEditorObjectRegistry(state),
         preview: (options = {}) => buildEditorRadialSnapshot(state, options),
         applyTransformPatch: (message = {}) => applyEditorObjectPatch(state, message),
@@ -374,6 +405,36 @@ export function buildThingEditorWorkbenchSubject(subjectInput = {}) {
     const descriptor = loadThingEditorSubject(subjectInput);
     const registry = descriptor.registry();
     const isRadialSubject = descriptor.subject_type === RADIAL_ITEM_SUBJECT_TYPE;
+    if (isRadialSubject) {
+        if (!radialMenuWorkbenchSubjectFactory) {
+            throw new Error('Sigil radial item editor requires toolkit radial menu workbench subject factory');
+        }
+        return radialMenuWorkbenchSubjectFactory({
+            menu: {
+                id: 'sigil.radial.main',
+                label: 'Sigil Radial Menu',
+                items: Array.isArray(descriptor.items) ? descriptor.items : DEFAULT_SIGIL_RADIAL_ITEMS,
+            },
+            owner: descriptor.owner,
+            canvasId: descriptor.canvas_id,
+            source: cloneConfig(SIGIL_RADIAL_MENU_SOURCE),
+            selectedItemId: descriptor.state?.item_id,
+            metadata: {
+                subject_adapter: descriptor.adapter,
+                selected_item_subject_id: descriptor.subject_id,
+                selected_item_subject_type: descriptor.subject_type,
+                selected_item_source: cloneConfig(descriptor.source),
+                action: text(descriptor.metadata?.action),
+                geometry_kind: text(descriptor.metadata?.geometry_kind),
+                sigil_leaf_adapter: true,
+            },
+            state: {
+                ...cloneConfig(descriptor.state),
+                object_count: registry.objects.length,
+                dirty: true,
+            },
+        });
+    }
     const previewContract = descriptor.subject_type === RADIAL_ITEM_SUBJECT_TYPE
         ? 'sigil.radial_item.preview'
         : 'sigil.avatar.preview';

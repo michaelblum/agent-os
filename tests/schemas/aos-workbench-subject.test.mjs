@@ -12,7 +12,8 @@ import { createWorkRecordSubject } from '../../packages/toolkit/workbench/work-r
 import { createWikiWorkflowSubject } from '../../packages/toolkit/workbench/workflow-subject.js';
 import { buildMarkdownWorkbenchSubject, createMarkdownWorkbenchState } from '../../packages/toolkit/components/markdown-workbench/model.js';
 import { buildWorkRecordWorkbenchSubject, createWorkRecordWorkbenchState } from '../../packages/toolkit/components/work-record-workbench/model.js';
-import { buildRadialItemWorkbenchSubject, createRadialItemEditorState } from '../../apps/sigil/radial-item-editor/model.js';
+import { buildRadialItemWorkbenchSubject, createRadialItemEditorState, setRadialMenuWorkbenchSubjectFactory } from '../../apps/sigil/radial-item-editor/model.js';
+import { createRadialMenuWorkbenchSubject } from '../../packages/toolkit/workbench/radial-menu-subject.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -34,6 +35,8 @@ const employerBrandArtifactBundleFixturePath = path.join(
   repoRoot,
   'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json',
 );
+
+setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject);
 
 async function validate(instance) {
   const result = spawnSync(

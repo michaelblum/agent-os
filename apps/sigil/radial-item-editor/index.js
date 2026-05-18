@@ -9,6 +9,7 @@ import {
     exportSelectedRadialItemDefinition,
     selectRadialItem,
     selectedRadialItem,
+    setRadialMenuWorkbenchSubjectFactory,
     setSelectedItemHoverSpin,
 } from './model.js';
 
@@ -18,6 +19,8 @@ const controllerId = params.get('controller-id') || 'object-transform-panel';
 const initialItemId = params.get('item') || 'wiki-graph';
 const toolkitRoot = (params.get('toolkit-root') || 'toolkit').replace(/[^a-zA-Z0-9_-]/g, '');
 const { createPanelWindowController } = await import(`/${toolkitRoot}/panel/index.js`);
+const { createRadialMenuWorkbenchSubject } = await import(`/${toolkitRoot}/workbench/radial-menu-subject.js`);
+setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject);
 
 const status = document.getElementById('status');
 const dragHandle = document.getElementById('drag-handle');

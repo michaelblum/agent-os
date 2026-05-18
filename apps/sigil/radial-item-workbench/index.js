@@ -10,6 +10,7 @@ import {
     exportSelectedRadialItemDefinition,
     selectRadialItem,
     selectedRadialItem,
+    setRadialMenuWorkbenchSubjectFactory,
     setSelectedItemHoverSpin,
 } from '../radial-item-editor/model.js';
 
@@ -33,6 +34,8 @@ addStylesheet(`/${toolkitRoot}/controls/defaults.css`, { before: appStylesheet }
 addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { before: appStylesheet });
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
+const { createRadialMenuWorkbenchSubject } = await import(`/${toolkitRoot}/workbench/radial-menu-subject.js`);
+setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject);
 const { createPanelWindowController, createSplitPane, syncMaximizeButton } = await import(`/${toolkitRoot}/panel/index.js`);
 
 const workbenchShell = document.querySelector('.aos-workbench-shell');

@@ -1190,10 +1190,26 @@ Concrete helper examples:
   claims/verifier, and health views into Facets backed by the existing
   `work-record-workbench` Canvas Host. Recording, replay, repair, and retirement
   remain Work Record model responsibilities, not Host behavior.
-- `buildRadialItemWorkbenchSubject()` describes the selected radial item's
-  object registry, object controls, and radial preview as Facets hosted by the
-  current editor canvas id. The `canvas-id` entry is a runtime assumption about
-  an already running editor canvas, not a command to create one.
+- `packages/toolkit/workbench/radial-menu-subject.js` owns the reusable V0
+  radial-menu workbench projection. `createRadialMenuWorkbenchSubject()` emits
+  an `aos.radial_menu.3d` Subject with Facets for menu overview, config JSON,
+  selected item config, source notes, 3D preview, object registry, object
+  controls, animation/effect controls, and export/lock-in. Entry handles use
+  the existing Subject Entry Handle syntax. For example, a selected item object
+  control route can be addressed as
+  `object-controls:aos.radial_menu:sigil.radial.main/item/wiki-graph`.
+- `buildRadialItemWorkbenchSubject()` in Sigil is now a showcase adapter over
+  that toolkit projection. Sigil injects the toolkit helper from the active
+  `toolkit-root`, keeps the live Three.js renderer and item modules in
+  `apps/sigil/`, and adds Sigil-specific metadata/source routes around the
+  toolkit Subject. The `canvas-id` host entries remain runtime assumptions
+  about an already running editor/workbench canvas, not commands to create one.
+
+Radial menu item and object-part drilldown is represented as Facets, Hosts,
+resource paths, and Subject Entry Handles under the radial-menu Subject. A menu
+item resource such as `item/wiki-graph` is not a wiki graph node by default.
+Promote a menu item to its own graph/domain Subject only when it has a durable
+source document or domain identity outside the menu implementation.
 
 Host metadata is descriptive. A Host entry says which target dialect and known
 component or canvas assumption can render a Facet; it does not launch a browser

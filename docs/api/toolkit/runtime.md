@@ -244,6 +244,12 @@ keyboard, test, or future menu-stack projections. Arrays replace by default;
 menu items are the V0 keyed-merge exception. The resolver intentionally imports
 no Three.js, DOM, app actions, Zag, or dynamic module code.
 
+The `logical_items` output is the stable lower menu projection. DOM, AX,
+semantic child canvases, tests, and ordinary stack-menu projections should
+consume that projection instead of walking 3D geometry or Sigil item modules.
+The 3D expression remains layered data on each resolved item for a renderer or
+app-owned adapter to consume.
+
 Hover defaults cascade from toolkit menu defaults to app/menu overrides and
 then item overrides under `three.item.hover`. The default hover transform uses
 exponential progress with `factor: 0.22`, scale `1 -> 1.08`, and y-axis spin.
@@ -253,6 +259,11 @@ to `1 -> 2` for every item and changes the cog and annotation reticle to
 z-axis wheel spin. Flat glyphs that must keep their face toward the viewer can
 set `three.item.facing: "camera"` so the renderer suppresses radial-angle yaw
 while preserving screen-plane Z spin.
+
+Zag is intentionally outside the 3D radial render path. It remains appropriate
+for ordinary DOM/AX/2D menu projections of the resolved logical menu model, but
+it does not own radial pointer geometry, drag-to-handoff state, or per-frame
+3D animation.
 
 ### `wireBridge(handler)`
 
