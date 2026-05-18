@@ -120,6 +120,11 @@ const ANNOTATION_ACTION_CANVAS_GAP = 6
 const ANNOTATION_ACTION_CONTROL_PATH = './annotation-action-control/index.html'
 const ANNOTATION_HIT_LAYER_PATH = './annotation-hit-layer/index.html'
 
+export function findSurfaceInspectorSurfaceTreeRoot(listPaneEl, activeView = 'surfaces') {
+  const roots = Array.from(listPaneEl?.querySelectorAll?.('[data-surface-tree-view]') || [])
+  return roots.find((root) => root?.dataset?.surfaceTreeView === activeView) || null
+}
+
 function escapeHTML(value) {
   if (value === null || value === undefined) return ''
   return String(value)
@@ -2144,7 +2149,7 @@ export default function CanvasInspector() {
   }
 
   function bindSurfaceTreeView() {
-    const root = listPaneEl?.querySelector?.('[data-surface-tree-view]')
+    const root = findSurfaceInspectorSurfaceTreeRoot(listPaneEl, listPaneView)
     if (!root) {
       surfaceTreeView?.destroy?.()
       surfaceTreeView = null

@@ -14,6 +14,7 @@ import {
   buildSemanticTargetsRequestMessages,
   buildSurfaceInspectorTargetNodeForAnnotation,
   computeMinimapLayout,
+  findSurfaceInspectorSurfaceTreeRoot,
   normalizeDisplays,
   projectAnnotationRectToMinimap,
   planAnnotationActionControlCanvasSync,
@@ -21,6 +22,8 @@ import {
   projectPointToMinimap,
   resolveCanvasFrames,
 } from '../../packages/toolkit/components/surface-inspector/index.js';
+import { createAosZagTreeView } from '../../packages/toolkit/adapters/zag/tree-view.js';
+import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs';
 import { BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID } from '../../packages/toolkit/workbench/browser-dom-element-picker.js';
 import {
   addSurfaceInspectorComment,
@@ -813,6 +816,68 @@ test('Surface Inspector surfaces and diagnostics panes adopt Zag tree semantics'
   assert.match(source, /data-item-id="\$\{esc\(`affordance:\$\{affordance\.id\}`\)\}"/);
   assert.match(source, /data-item-id="\$\{esc\(`stage:\$\{layer\.id\}`\)\}"/);
   assert.match(source, /data-item-id="\$\{esc\(`input:\$\{region\.id\}`\)\}"/);
+});
+
+test('Surface Inspector binds Zag tree semantics to the active diagnostics tree', () => {
+  const document = createDocument();
+  const listPane = patchSpreadSupport(document.createElement('div'));
+  const surfacesPanel = patchSpreadSupport(document.createElement('section'));
+  const diagnosticsPanel = patchSpreadSupport(document.createElement('section'));
+  const surfacesRoot = patchSpreadSupport(document.createElement('div'));
+  const diagnosticsRoot = patchSpreadSupport(document.createElement('div'));
+
+  surfacesPanel.setAttribute('data-aos-tabs-content', '');
+  surfacesPanel.setAttribute('data-value', 'surfaces');
+  surfacesPanel.setAttribute('hidden', '');
+  diagnosticsPanel.setAttribute('data-aos-tabs-content', '');
+  diagnosticsPanel.setAttribute('data-value', 'diagnostics');
+  surfacesRoot.setAttribute('data-surface-tree-view', 'surfaces');
+  surfacesRoot.setAttribute('data-aos-tree-view-root', '');
+  diagnosticsRoot.setAttribute('data-surface-tree-view', 'diagnostics');
+  diagnosticsRoot.setAttribute('data-aos-tree-view-root', '');
+
+  const addRow = (root, id) => {
+    const row = patchSpreadSupport(document.createElement('div'));
+    row.setAttribute('data-aos-tree-view-item', '');
+    row.setAttribute('data-item-id', id);
+    root.appendChild(row);
+    return row;
+  };
+  addRow(surfacesRoot, 'union:union');
+  addRow(surfacesRoot, 'display:main');
+  const diagnosticsUnion = addRow(diagnosticsRoot, 'union:union');
+  const diagnosticsDisplay = addRow(diagnosticsRoot, 'display:main');
+
+  surfacesPanel.appendChild(surfacesRoot);
+  diagnosticsPanel.appendChild(diagnosticsRoot);
+  listPane.append(surfacesPanel, diagnosticsPanel);
+  document.body.appendChild(listPane);
+
+  const activeRoot = findSurfaceInspectorSurfaceTreeRoot(listPane, 'diagnostics');
+  assert.equal(activeRoot, diagnosticsRoot);
+
+  const adapter = createAosZagTreeView({
+    id: 'surface-inspector-diagnostics-tree',
+    getRootNode: () => document,
+    items: [
+      { id: 'union:union', label: 'union', depth: 0, hasChildren: true },
+      { id: 'display:main', label: 'main', parentId: 'union:union', depth: 1 },
+    ],
+    expandedIds: ['union:union'],
+  });
+  adapter.bind(activeRoot, { root: activeRoot });
+
+  assert.equal(diagnosticsRoot.getAttribute('role'), 'tree');
+  assert.equal(diagnosticsUnion.getAttribute('role'), 'treeitem');
+  assert.equal(diagnosticsUnion.getAttribute('aria-expanded'), 'true');
+  assert.equal(surfacesRoot.getAttribute('role'), null);
+
+  diagnosticsUnion.dispatchEvent(new document.defaultView.Event('keydown', { key: 'ArrowLeft' }));
+
+  assert.equal(diagnosticsUnion.getAttribute('aria-expanded'), 'false');
+  assert.equal(diagnosticsDisplay.getAttribute('hidden'), '');
+  assert.equal(diagnosticsDisplay.getAttribute('aria-hidden'), 'true');
+  adapter.destroy();
 });
 
 test('Surface Inspector lower pane separates annotate, surfaces, and diagnostics views', () => {
