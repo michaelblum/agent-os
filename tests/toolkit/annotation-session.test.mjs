@@ -84,6 +84,37 @@ test('annotation subjects keep sparse projection evidence live but unprojectable
   assert.equal(normalized.status, 'live')
 })
 
+test('annotation subjects use canonical projection evidence for blockers, chains, and provenance', () => {
+  const normalized = normalizeAnnotationSubjectAddress(subject('button', ['display:1', 'window', 'button'], {
+    projection: {
+      adapter_id: 'aos-toolkit-semantic-target',
+      root_id: 'display:1',
+      subject_id: 'button',
+      subject_kind: 'button',
+      status: 'resolved_offscreen',
+      can_reveal: true,
+      visible_display_rect: { x: 10, y: 900, width: 30, height: 40 },
+      local_space_rect: { x: 5, y: 800, w: 30, h: 40 },
+      blocker_reason: 'target_below_viewport',
+      scrollable_ancestor_chain: [{ id: 'scroll', kind: 'region', scroll_y: 100 }],
+      provenance_source_payload_id: 'payload-1',
+      source_tree_node_metadata: { label: 'Save' },
+      refreshed_at: '2026-05-13T00:00:00.000Z',
+    },
+  }))
+
+  assert.equal(normalized.projection.current_render_status, 'offscreen_scrollable')
+  assert.equal(normalized.projection.can_project_display_overlay, false)
+  assert.equal(normalized.projection.can_reveal, true)
+  assert.equal(normalized.projection.display_space_rect, null)
+  assert.deepEqual(normalized.projection.visible_display_rect, { x: 10, y: 900, w: 30, h: 40 })
+  assert.deepEqual(normalized.projection.local_space_rect, { x: 5, y: 800, w: 30, h: 40 })
+  assert.equal(normalized.projection.blocker_reason, 'target_below_viewport')
+  assert.equal(normalized.projection.scrollable_ancestor_chain[0].id, 'scroll')
+  assert.equal(normalized.projection.provenance_source_payload_id, 'payload-1')
+  assert.deepEqual(normalized.projection.source_metadata, { label: 'Save' })
+})
+
 test('session entry keeps committed and preview stacks separate from hover-only preview state', () => {
   let session = enterAnnotationSession(createAnnotationSession(), {
     entry_source: 'hotkey',

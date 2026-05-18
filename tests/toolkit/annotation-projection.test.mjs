@@ -9,6 +9,7 @@ import {
   buildSemanticTargetProjectionAdapterResult,
   clipAnnotationDisplayRectToVisibleChain,
   normalizeAnnotationProjectionAdapterResult,
+  normalizeAnnotationProjectionEvidence,
   normalizeAnnotationProjectionRequest,
   normalizeAnnotationProjectionStatus,
   normalizeRevealResult,
@@ -126,6 +127,38 @@ test('projection adapter contract normalizes reachability and reveal capability 
   assert.equal(result.can_reveal, true);
   assert.equal(result.scrollable_ancestor_chain[0].id, 'preview-scroll');
   assert.equal(result.blocker_reason, 'below_current_viewport');
+});
+
+test('canonical projection evidence preserves shared rect, blocker, reveal, provenance, and source metadata', () => {
+  const evidence = normalizeAnnotationProjectionEvidence({
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'workbench',
+    subject_id: 'primary-cta',
+    subject_kind: 'button',
+    current_render_status: 'offscreen_scrollable',
+    visible_display_rect: { x: 10, y: 900, width: 30, height: 40 },
+    local_space_rect: { x: 5, y: 800, w: 30, h: 40 },
+    can_reveal: true,
+    blocker: { reason: 'target_below_viewport' },
+    coordinate_space: 'native_display',
+    scrollable_ancestor_chain: [{ id: 'scroll', kind: 'region', scroll_y: 100 }],
+    z_order_evidence: { occluded_by: ['toolbar'] },
+    provenance_source_payload_id: 'payload-1',
+    source_tree_node_metadata: { role: 'button', label: 'Apply' },
+    refreshed_at: '2026-05-10T00:00:00.000Z',
+  });
+
+  assert.equal(evidence.current_render_status, 'offscreen_scrollable');
+  assert.equal(evidence.can_project_display_overlay, false);
+  assert.equal(evidence.can_reveal, true);
+  assert.deepEqual(evidence.visible_display_rect, { x: 10, y: 900, w: 30, h: 40 });
+  assert.equal(evidence.display_space_rect, null);
+  assert.deepEqual(evidence.local_space_rect, { x: 5, y: 800, w: 30, h: 40 });
+  assert.equal(evidence.blocker_reason, 'target_below_viewport');
+  assert.deepEqual(evidence.scrollable_ancestor_chain[0].scroll, { x: null, y: 100, max_x: null, max_y: null });
+  assert.deepEqual(evidence.z_order_evidence, { occluded_by: ['toolbar'] });
+  assert.equal(evidence.provenance_source_payload_id, 'payload-1');
+  assert.deepEqual(evidence.source_metadata, { role: 'button', label: 'Apply' });
 });
 
 test('projection adapter contract keeps sparse adapter results unsupported', () => {

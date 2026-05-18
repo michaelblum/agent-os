@@ -287,13 +287,41 @@ export function normalizeAnnotationProjectionStatus(input = {}, options = {}) {
   };
 }
 
+export function normalizeAnnotationProjectionEvidence(input = null, options = {}) {
+  if (!input || typeof input !== 'object') return null;
+  const projection = normalizeAnnotationProjectionStatus(input, {
+    default_status: options.default_status,
+  });
+  return {
+    adapter_id: text(input.adapter_id || input.adapter),
+    root_id: text(input.root_id || input.canvas_id || input.window_id || input.root),
+    subject_id: text(input.subject_id || input.id),
+    subject_kind: text(input.subject_kind || input.kind || input.role),
+    current_render_status: projection.current_render_status,
+    can_project_display_overlay: projection.can_project_display_overlay,
+    can_reveal: projection.can_reveal,
+    display_space_rect: projection.display_space_rect,
+    visible_display_rect: projection.visible_display_rect,
+    coordinate_space: projection.coordinate_space,
+    local_space_rect: projection.local_space_rect,
+    ancestor_viewport_clip_chain: projection.ancestor_viewport_clip_chain,
+    scrollable_ancestor_chain: projection.scrollable_ancestor_chain,
+    z_order_evidence: projection.z_order_evidence,
+    blocker_reason: projection.blocker_reason,
+    blocker: projection.blocker,
+    refreshed_at: projection.refreshed_at,
+    provenance_source_payload_id: projection.provenance_source_payload_id,
+    source_metadata: cloneJson(input.source_metadata || input.source_tree_node_metadata || input.metadata || {}, {}),
+  };
+}
+
 function rectLikeToRect(rect = null) {
   if (!rect) return null;
   return normalizeRect(rect);
 }
 
 export function normalizeAnnotationProjectionAdapterResult(input = {}) {
-  const projection = normalizeAnnotationProjectionStatus(input);
+  const projection = normalizeAnnotationProjectionEvidence(input);
   const blockerReasons = normalizeBlockerReasons(input, projection.blocker_reason);
 
   return {

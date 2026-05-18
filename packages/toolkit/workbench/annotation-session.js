@@ -1,4 +1,4 @@
-import { normalizeAnnotationProjectionStatus } from './annotation-projection.js'
+import { normalizeAnnotationProjectionEvidence } from './annotation-projection.js'
 
 export const ANNOTATION_SESSION_SCHEMA = 'aos_annotation_session'
 export const ANNOTATION_SESSION_VERSION = '0.1.0'
@@ -73,28 +73,9 @@ function normalizeActor(actor = DEFAULT_ACTOR) {
   }
 }
 
-export function normalizeAnnotationProjectionEvidence(input = null) {
-  if (!input || typeof input !== 'object') return null
-  const projection = normalizeAnnotationProjectionStatus(input, { default_status: 'visible' })
-  return {
-    adapter_id: text(input.adapter_id || input.adapter),
-    subject_id: text(input.subject_id || input.id),
-    subject_kind: text(input.subject_kind || input.kind || input.role),
-    current_render_status: projection.current_render_status,
-    can_project_display_overlay: projection.can_project_display_overlay,
-    can_reveal: projection.can_reveal,
-    display_space_rect: projection.display_space_rect,
-    visible_display_rect: projection.visible_display_rect,
-    coordinate_space: projection.coordinate_space,
-    blocker_reason: projection.blocker_reason,
-    refreshed_at: projection.refreshed_at,
-    source_metadata: clone(input.source_metadata || input.source_tree_node_metadata || input.metadata || {}),
-  }
-}
-
 export function normalizeAnnotationSubjectAddress(subject = null) {
   if (!subject || typeof subject !== 'object') return null
-  const projection = normalizeAnnotationProjectionEvidence(subject.projection || subject.current_projection || subject)
+  const projection = normalizeAnnotationProjectionEvidence(subject.projection || subject.current_projection || subject, { default_status: 'visible' })
   const subjectPath = stringList(subject.subject_path || subject.path || subject.subject?.path)
   const adapterId = text(subject.adapter_id || subject.adapter || projection?.adapter_id, 'unknown-adapter')
   const rootId = text(subject.root_id || subject.display_id || subject.canvas_id || subject.root?.id || projection?.root_id, 'unknown-root')
@@ -204,7 +185,7 @@ export function normalizeAnnotationAnchor(anchor = {}, options = {}) {
   const subject = normalizeAnnotationSubjectAddress(anchor.subject || anchor.address_record || anchor)
   const address = text(anchor.address || subject?.address, 'subject:unknown')
   const created = isoNow(anchor.created_at || anchor.updated_at || options.now || Date.now())
-  const projection = normalizeAnnotationProjectionEvidence(anchor.projection || anchor.current_projection || subject?.projection)
+  const projection = normalizeAnnotationProjectionEvidence(anchor.projection || anchor.current_projection || subject?.projection, { default_status: 'visible' })
   const status = normalizeAnchorStatus(anchor.status || anchor.live_status || subject?.status || projection?.current_render_status)
   return {
     id: text(anchor.id, stableId('anchor', [address])),
