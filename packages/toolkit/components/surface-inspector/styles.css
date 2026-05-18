@@ -378,6 +378,15 @@
   border-top: 1px solid rgba(255, 255, 255, 0.04);
   margin-top: 1px;
 }
+.tree-row.surface .canvas-flags {
+  opacity: 0.2;
+  transition: opacity 120ms ease;
+}
+.tree-row.surface:hover .canvas-flags,
+.tree-row.surface:focus-within .canvas-flags,
+.tree-row.surface .btn.active {
+  opacity: 1;
+}
 .tree-row.surface-segment {
   color: var(--text-secondary);
   font-family: var(--font-mono);

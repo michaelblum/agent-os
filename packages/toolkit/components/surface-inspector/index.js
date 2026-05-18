@@ -429,13 +429,12 @@ export function renderAnnotationModeToggleRowHTML(options = {}) {
   const enabled = !!options.enabled
   const depth = Number.isFinite(Number(options.depth)) ? Number(options.depth) : 0
   const toggleClass = enabled ? 'btn annotation-mode-toggle-btn active' : 'btn annotation-mode-toggle-btn'
-  const label = `Annotation Mode: ${enabled ? 'on' : 'off'}`
+  const label = enabled ? 'Turn Annotation Mode off' : 'Turn Annotation Mode on'
   return `<div class="tree-row cursor-toggle-row annotation-mode-row" style="${rowIndentStyle(depth)}">`
-    + `<span class="cursor-toggle-label">annotation mode</span>`
-    + `<span class="cursor-toggle-state">${enabled ? 'active' : 'off'}</span>`
+    + `<span class="cursor-toggle-label">controls</span>`
     + `<span class="canvas-flags">`
     + renderButtonHtml({
-      label: enabled ? 'on' : 'off',
+      label: enabled ? 'Turn off' : 'Turn on',
       className: toggleClass,
       includeBaseClass: false,
       classFirst: true,
@@ -1733,6 +1732,7 @@ export default function CanvasInspector() {
     const wasActive = annotationState.annotation_mode.active
     annotationState = setSurfaceInspectorAnnotationMode(annotationState, enabled, options)
     if (annotationState.annotation_mode.active) {
+      listPaneView = 'annotate'
       annotationHoverStats = { create: 0, update: 0, remove: 0 }
       annotationOverlayStats = { create: 0, update: 0, clear: 0 }
       annotationHoverUpdateReason = 'annotation_mode_entered'
@@ -2205,6 +2205,7 @@ export default function CanvasInspector() {
     return `<div class="lower-pane-section diagnostics-section">`
       + renderCursorToggleRow(0)
       + renderMouseEventsToggleRow(0)
+      + renderAnnotationDebugRows(0)
       + renderDiagnosticsRows()
       + renderTree({ diagnosticsOnly: true })
       + `</div>`
@@ -2363,15 +2364,41 @@ export default function CanvasInspector() {
     const blocker = annotationState.last_projection_blocker?.reason || ''
     const current = session.committed_scope_stack?.at?.(-1) || session.root
     const currentPath = current?.subject?.path?.join(' / ') || current?.address || 'main'
-    const snapshotState = 'snapshot ready'
+    const snapshotState = bundleCapture?.status === 'pending'
+      ? 'capturing'
+      : bundleCapture?.status === 'error'
+        ? 'blocked'
+        : bundleCapture?.bundlePath
+          ? `complete: ${bundleCapture.bundlePath}`
+          : 'ready'
     const hover = session.hover_candidate
-    const minimapCount = anchors.filter((anchor) => anchor.projection?.can_project_display_overlay).length
     let html = ''
-    html += renderAnnotationSupportRow('mode', 'active', depth)
-    html += renderAnnotationSupportRow('root', session.root?.root?.label || session.root?.address || 'pending', depth)
     html += renderAnnotationSupportRow('scope', currentPath, depth)
     html += renderAnnotationSupportRow('anchors', `${anchors.length} frames / ${comments.length} comments`, depth)
     html += renderAnnotationSupportRow('snapshot', snapshotState, depth)
+    if (stale.length > 0) {
+      html += renderAnnotationSupportRow('blocker', `${stale.length} stale or blocked anchors`, depth, {
+        state: 'blocked',
+        blocker: stale.map((anchor) => anchor.projection?.blocker_reason || anchor.status).filter(Boolean).join(', '),
+      })
+    } else if (blocker) {
+      html += renderAnnotationSupportRow('blocker', blocker, depth, { state: 'blocked', blocker })
+    } else if (hover) {
+      html += renderAnnotationSupportRow('next action', 'Pin the hovered frame or add a comment', depth)
+    } else if (anchors.length === 0 && !hover) {
+      html += `<div class="tree-row annotation-empty" style="${indentStyle(depth)}"><span>Hover a frame, then pin or add a comment.</span></div>`
+    }
+    return html
+  }
+
+  function renderAnnotationDebugRows(depth) {
+    const session = surfaceInspectorAnnotationStateToSession(annotationState)
+    const anchors = session.anchors || []
+    const hover = session.hover_candidate
+    const minimapCount = anchors.filter((anchor) => anchor.projection?.can_project_display_overlay).length
+    let html = `<div class="annotation-debug" role="group" aria-label="Annotation diagnostics">`
+    html += renderAnnotationSupportRow('mode', annotationState.annotation_mode.active ? 'active' : 'off', depth)
+    html += renderAnnotationSupportRow('root', session.root?.root?.label || session.root?.address || 'pending', depth)
     html += renderAnnotationSupportRow('minimap', `${minimapCount} projected markers, passive`, depth)
     if (hover) {
       html += renderAnnotationSupportRow('hover preview', `${hover.adapter_id}:${hover.subject?.id || hover.address}`, depth, {
@@ -2387,16 +2414,7 @@ export default function CanvasInspector() {
         blocker: anchor.projection?.blocker_reason || '',
       })
     }
-    if (stale.length > 0) {
-      html += renderAnnotationSupportRow('diagnostics', `${stale.length} stale/blocked anchors`, depth, {
-        state: 'blocked',
-        blocker: stale.map((anchor) => anchor.projection?.blocker_reason || anchor.status).filter(Boolean).join(', '),
-      })
-    } else if (blocker) {
-      html += renderAnnotationSupportRow('diagnostics', blocker, depth, { state: 'blocked', blocker })
-    } else if (anchors.length === 0 && !hover) {
-      html += `<div class="tree-row annotation-empty" style="${indentStyle(depth)}"><span>waiting for display anchor evidence</span></div>`
-    }
+    html += `</div>`
     return html
   }
 
@@ -2899,7 +2917,11 @@ export default function CanvasInspector() {
       }
       if (msg.type === 'canvas_inspector.annotation_open') {
         if (!annotationState.annotation_mode.active) setAnnotationMode(true, { reason: msg.reason || 'external_open' })
-        else emitAnnotationModeState(msg.reason || 'external_open')
+        else {
+          listPaneView = 'annotate'
+          emitAnnotationModeState(msg.reason || 'external_open')
+          rerender()
+        }
         return
       }
       if (msg.type === 'lifecycle' && msg.action === 'suspend') {

@@ -538,11 +538,14 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
 
   assert.match(source, /title: 'Surface Inspector'/);
   assert.match(source, /renderAnnotationModeToggleRowHTML/);
-  assert.match(source, /Annotation Mode: \$\{enabled \? 'on' : 'off'\}/);
+  assert.match(source, /Turn Annotation Mode off/);
+  assert.match(source, /Turn Annotation Mode on/);
+  assert.doesNotMatch(source, /Annotation Mode: \$\{enabled \? 'on' : 'off'\}/);
   assert.match(source, /canvas_inspector\.annotation_toggle/);
   assert.match(source, /canvas_inspector\.annotation_open/);
   assert.match(source, /if \(!annotationState\.annotation_mode\.active\) setAnnotationMode\(true, \{ reason: msg\.reason \|\| 'external_open' \}\)/);
-  assert.match(source, /else emitAnnotationModeState\(msg\.reason \|\| 'external_open'\)/);
+  assert.match(source, /listPaneView = 'annotate'/);
+  assert.match(source, /else \{\s*listPaneView = 'annotate'\s*emitAnnotationModeState\(msg\.reason \|\| 'external_open'\)\s*rerender\(\)\s*\}/);
   assert.match(source, /syncInputSubscription\(\{ snapshot: false \}\)/);
   assert.match(source, /const wantsInput = cursorTrackingEnabled \|\| mouseEventsEnabled \|\| annotationState\.annotation_mode\.active/);
   assert.match(source, /const inputEvents = annotationState\.annotation_mode\.active/);
@@ -618,8 +621,8 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /frame anchor/);
   assert.match(source, /comment anchor/);
   assert.match(source, /projected markers, passive/);
-  assert.match(source, /waiting for display anchor evidence/);
-  assert.match(source, /const snapshotState = 'snapshot ready'/);
+  assert.doesNotMatch(source, /waiting for display anchor evidence/);
+  assert.match(source, /const snapshotState = bundleCapture\?\.status === 'pending'/);
   assert.doesNotMatch(source, /`\$\{annotationState\.snapshot_version\} snapshots`/);
   assert.match(source, /if \(!annotationState\.annotation_mode\.active\) \{\s*\/\/ Object marks/s);
   assert.match(source, /if \(annotationState\.annotation_mode\.active\) return ''/);
@@ -646,6 +649,49 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(styles, /\.annotation-row\.state-absent/);
   assert.match(styles, /\.annotation-support-label/);
   assert.doesNotMatch(source, /semantic-target-row/);
+});
+
+test('Annotate pane exposes workflow rows and moves raw support state to Diagnostics', () => {
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
+  const styles = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/styles.css'), 'utf8');
+  const annotateStart = source.indexOf('function renderAnnotationSupportRows(depth)');
+  const debugStart = source.indexOf('function renderAnnotationDebugRows(depth)');
+  const supportRowStart = source.indexOf('function renderAnnotationSupportRow', debugStart);
+  const modeToggleStart = source.indexOf('export function renderAnnotationModeToggleRowHTML');
+  const modeToggleEnd = source.indexOf('export function buildSemanticTargetsRequestMessages', modeToggleStart);
+  assert.ok(annotateStart >= 0);
+  assert.ok(debugStart > annotateStart);
+  assert.ok(supportRowStart > debugStart);
+  assert.ok(modeToggleStart >= 0);
+  assert.ok(modeToggleEnd > modeToggleStart);
+  const annotateBlock = source.slice(annotateStart, debugStart);
+  const debugBlock = source.slice(debugStart, supportRowStart);
+  const modeToggleBlock = source.slice(modeToggleStart, modeToggleEnd);
+
+  assert.match(annotateBlock, /renderAnnotationSupportRow\('scope'/);
+  assert.match(annotateBlock, /renderAnnotationSupportRow\('anchors'/);
+  assert.match(annotateBlock, /renderAnnotationSupportRow\('snapshot'/);
+  assert.match(annotateBlock, /renderAnnotationSupportRow\('blocker'/);
+  assert.match(annotateBlock, /renderAnnotationSupportRow\('next action'/);
+  assert.match(annotateBlock, /Hover a frame, then pin or add a comment\./);
+  assert.doesNotMatch(annotateBlock, /renderAnnotationSupportRow\('mode'/);
+  assert.doesNotMatch(annotateBlock, /renderAnnotationSupportRow\('root'/);
+  assert.doesNotMatch(annotateBlock, /renderAnnotationSupportRow\('minimap'/);
+  assert.doesNotMatch(annotateBlock, /hover preview/);
+  assert.doesNotMatch(annotateBlock, /frame anchor/);
+  assert.doesNotMatch(annotateBlock, /comment anchor/);
+  assert.match(debugBlock, /renderAnnotationSupportRow\('mode'/);
+  assert.match(debugBlock, /renderAnnotationSupportRow\('root'/);
+  assert.match(debugBlock, /renderAnnotationSupportRow\('minimap'/);
+  assert.match(debugBlock, /hover preview/);
+  assert.match(debugBlock, /frame anchor/);
+  assert.match(debugBlock, /comment anchor/);
+  assert.match(modeToggleBlock, /<span class="cursor-toggle-label">controls<\/span>/);
+  assert.doesNotMatch(modeToggleBlock, /<span class="cursor-toggle-label">annotation mode<\/span>/);
+  assert.doesNotMatch(modeToggleBlock, /<span class="cursor-toggle-state">\$\{enabled \? 'active' : 'off'\}<\/span>/);
+  assert.match(styles, /\.tree-row\.surface \.canvas-flags\s*\{\s*opacity: 0\.2/s);
+  assert.match(styles, /\.tree-row\.surface:hover \.canvas-flags/);
+  assert.match(styles, /\.tree-row\.surface \.btn\.active/);
 });
 
 test('active Annotation Mode keeps saved annotation management controls separate from support summary', () => {
