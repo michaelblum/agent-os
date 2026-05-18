@@ -153,9 +153,14 @@ export function renderDesktopWorldStageLayers(state) {
     const label = layer.label
       ? `<span class="desktop-world-stage-label">${esc(layer.label)}</span>`
       : ''
+    const affordances = layer.kind === 'chip'
+      ? '<span class="desktop-world-stage-chip-restore" aria-hidden="true">&#8617;</span>'
+        + '<span class="desktop-world-stage-chip-close" aria-hidden="true">&times;</span>'
+      : ''
     return (
       `<div class="desktop-world-stage-layer desktop-world-stage-${esc(layer.kind)}" `
       + `data-layer-id="${esc(layer.id)}" style="${style}">`
+      + affordances
       + label
       + '</div>'
     )

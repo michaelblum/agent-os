@@ -129,3 +129,22 @@ test('renderDesktopWorldStageLayers emits click-through DesktopWorld-positioned 
   assert.match(html, /--stage-fill:rgba\(10, 20, 30, 0.2\)/)
   assert.match(html, /&lt;panel&gt;/)
 })
+
+test('renderDesktopWorldStageLayers renders chip restore and close affordances', () => {
+  const state = createDesktopWorldStageState({
+    layers: [{
+      id: 'chip',
+      kind: 'chip',
+      label: 'Surface Inspector',
+      frame: [10, 20, 180, 38],
+    }],
+  })
+
+  const html = renderDesktopWorldStageLayers(state)
+
+  assert.match(html, /desktop-world-stage-chip-restore/)
+  assert.match(html, /desktop-world-stage-chip-close/)
+  assert.match(html, /&#8617;/)
+  assert.match(html, /&times;/)
+  assert.match(html, /Surface Inspector/)
+})

@@ -13,6 +13,7 @@ import {
   frameFromWindow,
   normalizeResizeEdge,
   resizeFrame,
+  stageLayerFrameFromNativeFrame,
   syncMaximizeButton,
   wireDrag,
   wireResize,
@@ -248,6 +249,21 @@ test('chip frame helper uses top-left display inference when display geometry is
       availHeight: 949,
     },
   }, { displays: panelDisplays }), [1522, 10, 210, 38]);
+});
+
+test('stageLayerFrameFromNativeFrame maps native chip frames into DesktopWorld coordinates', () => {
+  const displays = [{
+    id: 1,
+    nativeBounds: { x: 0, y: 0, w: 1512, h: 982 },
+    desktopWorldBounds: { x: 207, y: 0, w: 1512, h: 982 },
+    visibleBounds: { x: 207, y: 33, w: 1512, h: 949 },
+    nativeVisibleBounds: { x: 0, y: 33, w: 1512, h: 949 },
+  }];
+
+  assert.deepEqual(
+    stageLayerFrameFromNativeFrame([520, 120, 180, 38], displays),
+    [727, 120, 180, 38],
+  );
 });
 
 test('createMaximizeController toggles work-area frame and restores previous frame', () => {
@@ -499,6 +515,9 @@ test('createMinimizeController creates a stage chip and input regions before sus
     async remove(id) {
       calls.push(['remove', id]);
     },
+    getStageLayerFrame(frame) {
+      return [frame[0] + 1000, frame[1] + 2000, frame[2], frame[3]];
+    },
     maximizeController: maximize,
     now: nextTick,
   });
@@ -563,7 +582,7 @@ test('createMinimizeController creates a stage chip and input regions before sus
       id: 'aos-chip-panel-a-rs',
       kind: 'chip',
       label: 'Surface Inspector',
-      frame: [10, 43, 220, 38],
+      frame: [1010, 2043, 220, 38],
       zIndex: 20000,
       style: {
         color: 'rgba(245, 247, 250, 0.96)',
@@ -659,6 +678,9 @@ test('createMinimizeController keeps stage mode for a prewarmed stage owned by a
     async spawn(opts) { calls.push(['spawn', opts.id]); },
     async suspend(id) { calls.push(['suspend', id]); },
     async resume(id) { calls.push(['resume', id]); },
+    getStageLayerFrame(frame) {
+      return [frame[0] + 1000, frame[1] + 2000, frame[2], frame[3]];
+    },
     now: () => 1000,
   });
 
@@ -1022,6 +1044,9 @@ test('createMinimizeController drags the stage chip body without restoring the s
     async removeRegion(id) { calls.push(['removeRegion', id]); },
     async suspend(id) { calls.push(['suspend', id]); },
     async resume(id) { calls.push(['resume', id]); },
+    getStageLayerFrame(frame) {
+      return [frame[0] + 1000, frame[1] + 2000, frame[2], frame[3]];
+    },
     now: () => 1000,
   });
 
@@ -1048,7 +1073,8 @@ test('createMinimizeController drags the stage chip body without restoring the s
   await new Promise((resolve) => setImmediate(resolve));
 
   const upserts = calls.filter((entry) => entry[0] === 'stage' && entry[1].type === 'desktop_world_stage.layer.upsert');
-  assert.deepEqual(upserts.at(-1)[1].payload.frame, [34, 63, 220, 38]);
+  assert.deepEqual(upserts[0][1].payload.frame, [1010, 2043, 220, 38]);
+  assert.deepEqual(upserts.at(-1)[1].payload.frame, [1034, 2063, 220, 38]);
   assert.deepEqual(upserts.at(-1)[1].payload.metadata, {
     toolkit_role: 'minimized_panel_chip',
     toolkit_affordance_id: 'aos-chip-panel-a-rs',

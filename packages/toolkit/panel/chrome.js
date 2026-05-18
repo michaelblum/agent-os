@@ -8,6 +8,7 @@ import { moveAbsolute, mutateSelf, removeSelf, removeCanvas, resumeCanvas, spawn
 import { registerInputRegion, removeInputRegion, updateInputRegion } from '../runtime/input-region.js'
 import { normalizeCanvasInputMessage } from '../runtime/input-events.js'
 import { subscribe, unsubscribe } from '../runtime/subscribe.js'
+import { nativeToDesktopWorldRect } from '../runtime/spatial.js'
 import { createPanelTransferController, defaultDesktopWorldStageUrl, ensureDesktopWorldStage, sendDesktopWorldStageLayer, wirePanelTransferDisplayGeometry } from './drag-transfer.js'
 import {
   chipFrameForPanelFrame,
@@ -815,6 +816,18 @@ function chipStageLayer({ chipId, title, frame }) {
   }
 }
 
+export function stageLayerFrameFromNativeFrame(frame, displays = panelDisplays) {
+  const source = cloneFrame(frame)
+  const rect = nativeToDesktopWorldRect({
+    x: source[0],
+    y: source[1],
+    w: source[2],
+    h: source[3],
+  }, displays)
+  if (!rect) return source
+  return cloneFrame([rect.x, rect.y, rect.w, rect.h])
+}
+
 export function createMinimizeController({
   getCanvasId = currentCanvasId,
   getFrame = () => frameFromWindow(window),
@@ -831,6 +844,7 @@ export function createMinimizeController({
   stageCanvasId = 'aos-desktop-world-stage',
   stageUrl = defaultDesktopWorldStageUrl,
   sendStageMessage = (message) => sendDesktopWorldStageLayer(stageCanvasId, message),
+  getStageLayerFrame = stageLayerFrameFromNativeFrame,
   useStageChips = true,
   maximizeController = null,
   now = monotonicNow,
@@ -948,7 +962,7 @@ export function createMinimizeController({
     }
     const updateStageChipFrame = async (nextFrame) => {
       record.frame = cloneFrame(nextFrame)
-      const layer = chipStageLayer({ chipId, title, frame: record.frame })
+      const layer = chipStageLayer({ chipId, title, frame: getStageLayerFrame(record.frame) })
       layer.metadata = {
         ...layer.metadata,
         toolkit_affordance_id: chipId,
@@ -1063,7 +1077,7 @@ export function createMinimizeController({
       sourceCanvasId: target,
       targetCanvasId: stageCanvasId,
       mode: 'minimized_panel_chip',
-      layer: chipStageLayer({ chipId, title, frame: minimizedFrame }),
+      layer: chipStageLayer({ chipId, title, frame: getStageLayerFrame(minimizedFrame) }),
       regions: [
         {
           ...common,
