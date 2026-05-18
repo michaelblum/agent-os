@@ -17,6 +17,7 @@ import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
 import { renderButtonHtml } from '../../controls/button.js'
 import { renderTextFieldHtml } from '../../controls/text-field.js'
 import { createAosZagTabs } from '../../adapters/zag/tabs.js'
+import { createAosZagTreeView } from '../../adapters/zag/tree-view.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
   nativeToDesktopWorldPoint,
@@ -42,6 +43,7 @@ import {
   applySurfaceInspectorRevealResult,
   buildSurfaceInspectorAnnotationSnapshotArtifact,
   buildSurfaceInspectorAnnotationTreeRows,
+  buildSurfaceInspectorFrameAddress,
   buildSurfaceInspectorSnapshotPayload,
   computeSurfaceInspectorActiveEdge,
   createSurfaceInspectorAnnotationState,
@@ -933,6 +935,7 @@ export default function CanvasInspector() {
   let listCollapsed = false
   let listPaneView = 'surfaces'
   let listPaneViewManual = false
+  let annotationTreeView = null
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,
@@ -1733,6 +1736,7 @@ export default function CanvasInspector() {
     annotationState = setSurfaceInspectorAnnotationMode(annotationState, enabled, options)
     if (annotationState.annotation_mode.active) {
       listPaneView = 'annotate'
+      listPaneViewManual = false
       annotationHoverStats = { create: 0, update: 0, remove: 0 }
       annotationOverlayStats = { create: 0, update: 0, clear: 0 }
       annotationHoverUpdateReason = 'annotation_mode_entered'
@@ -2027,6 +2031,7 @@ export default function CanvasInspector() {
       listPaneEl.innerHTML = renderStatusBar()
         + `<div class="canvas-list-region aos-sidebar-rail-content" ${listCollapsed ? 'hidden' : ''}>${renderLowerPane()}</div>`
       bindLowerPaneTabs()
+      bindAnnotationTreeView()
     }
     contentEl.querySelectorAll('.annotation-overlay-surface').forEach((node) => node.remove())
     const overlay = renderAnnotationOverlays()
@@ -2063,6 +2068,25 @@ export default function CanvasInspector() {
       root: root,
       list: root.querySelector('[data-aos-tabs-list]'),
     })
+  }
+
+  function bindAnnotationTreeView() {
+    const root = listPaneEl?.querySelector?.('[data-annotation-tree-view]')
+    if (!root) {
+      annotationTreeView?.destroy?.()
+      annotationTreeView = null
+      return
+    }
+    const items = buildAnnotationTreeViewItems()
+    annotationTreeView?.destroy?.()
+    annotationTreeView = createAosZagTreeView({
+      id: 'surface-inspector-annotation-tree',
+      items,
+      defaultExpandedIds: items.filter((item) => item.hasChildren).map((item) => item.id),
+      selectedId: items.find((item) => item.isSelected)?.id,
+      focusedId: items.find((item) => item.isSelected)?.id || items[0]?.id,
+    })
+    annotationTreeView.bind(root, { root })
   }
 
   function getMinimapWidth() {
@@ -2168,28 +2192,11 @@ export default function CanvasInspector() {
   }
 
   function renderAnnotatePane() {
-    const session = surfaceInspectorAnnotationStateToSession(annotationState)
-    const anchors = session.anchors || []
-    const comments = anchors.filter((anchor) => (anchor.comment_text || '').trim())
-    const blocked = anchors.filter((anchor) => anchor.status !== 'live' || anchor.projection?.can_project_display_overlay === false)
-    const snapshotLabel = bundleCapture?.status === 'pending'
-      ? 'snapshot capturing'
-      : bundleCapture?.status === 'error'
-        ? 'snapshot blocked'
-        : 'snapshot ready'
     return `<div class="lower-pane-section annotate-section">`
-      + `<div class="lower-pane-summary">`
-      + `<div><span class="summary-label">mode</span><strong>${annotationState.annotation_mode.active ? 'annotating' : 'off'}</strong></div>`
-      + `<div><span class="summary-label">anchors</span><strong>${anchors.length}</strong></div>`
-      + `<div><span class="summary-label">comments</span><strong>${comments.length}</strong></div>`
-      + `<div><span class="summary-label">snapshot</span><strong>${esc(snapshotLabel)}</strong></div>`
-      + (blocked.length ? `<div class="summary-warning"><span class="summary-label">blockers</span><strong>${blocked.length}</strong></div>` : '')
-      + `</div>`
       + renderAnnotationModeToggleRow(0)
       + (annotationState.annotation_mode.active
-        ? `<div class="annotation-support" role="group" aria-label="Annotation support state">`
+        ? `<div class="annotation-support" role="group" aria-label="Annotations">`
           + renderAnnotationScopeControls(0)
-          + renderAnnotationSupportRows(0)
           + renderAnnotationManagementRows(0)
           + renderAnnotationTreeFallbackActions(0)
           + `</div>`
@@ -2310,9 +2317,8 @@ export default function CanvasInspector() {
     const fallbackActions = renderAnnotationTreeFallbackActions(depth + 1)
     const scopeControls = renderAnnotationScopeControls(depth + 1)
     const managementRows = renderAnnotationManagementRows(depth + 1)
-    return `<div class="annotation-support" role="group" aria-label="Annotation support state">`
+    return `<div class="annotation-support" role="group" aria-label="Annotations">`
       + scopeControls
-      + renderAnnotationSupportRows(depth + 1)
       + managementRows
       + fallbackActions
       + `</div>`
@@ -2435,18 +2441,54 @@ export default function CanvasInspector() {
 
   function renderAnnotationManagementRows(depth) {
     const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
-    if (rows.length === 0) return ''
-    return `<div class="annotation-management" role="tree" aria-label="Saved annotation management">`
-      + `<div class="tree-row annotation-management-heading" style="${indentStyle(depth)}"><span>saved annotation management</span></div>`
-      + rows.map((row) => renderAnnotationManagementRow(row, depth + 1)).join('')
+    if (rows.length === 0) {
+      return `<div class="annotation-management" data-annotation-tree-view data-aos-tree-view-root aria-label="Saved annotations">`
+        + `<div class="tree-row annotation-empty" style="${indentStyle(depth)}"><span>No annotations yet.</span></div>`
+        + `</div>`
+    }
+    return `<div class="annotation-management" data-annotation-tree-view data-aos-tree-view-root aria-label="Saved annotations">`
+      + rows.map((row) => renderAnnotationManagementRow(row, depth)).join('')
       + `</div>`
+  }
+
+  function buildAnnotationTreeViewItems() {
+    const rows = buildSurfaceInspectorAnnotationTreeRows(annotationState)
+    const stack = []
+    const childCounts = new Map()
+    const items = rows.map((row) => {
+      while (stack.length > row.depth) stack.pop()
+      const parentId = stack.at(-1)?.id || ''
+      const id = row.id
+      if (parentId) childCounts.set(parentId, (childCounts.get(parentId) || 0) + 1)
+      const address = row.type === 'pin'
+        ? (row.frame_address || buildSurfaceInspectorFrameAddress(row.pin))
+        : null
+      const item = {
+        id,
+        label: row.type === 'comment' ? row.comment.text : address.compact,
+        fullLabel: row.type === 'comment' ? row.comment.text : address.full,
+        parentId,
+        depth: row.depth,
+        hasChildren: false,
+        isExpanded: true,
+        isSelected: row.active === true,
+        isFocused: row.active === true,
+        data: { type: row.type },
+      }
+      if (row.type === 'pin') stack[row.depth] = item
+      return item
+    })
+    return items.map((item) => ({
+      ...item,
+      hasChildren: childCounts.has(item.id),
+    }))
   }
 
   function renderAnnotationManagementRow(row, depth) {
     const stateLabel = row.projection_state || row.pin?.projection?.current_render_status || 'unsupported'
     const blocker = row.blocker_text || row.pin?.projection?.blocker_reason || ''
     if (row.type === 'comment') {
-      return `<div class="tree-row annotation-row comment ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-comment-id="${esc(row.comment.id)}" style="${indentStyle(depth)}" title="${esc(blocker || row.comment.text)}">`
+      return `<div class="tree-row annotation-row comment ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-aos-tree-view-item data-item-id="${esc(row.id)}" data-comment-id="${esc(row.comment.id)}" style="${indentStyle(depth + row.depth)}" title="${esc(blocker || row.comment.text)}">`
         + `<span class="annotation-comment-dot"></span>`
         + renderInspectorButton({
           label: row.comment.text,
@@ -2468,7 +2510,7 @@ export default function CanvasInspector() {
     const expanded = row.pin.expanded === true
     const address = row.frame_address || { compact: row.label, full: row.pin.subject_path.join(' / ') }
     const label = address.compact
-    return `<div class="tree-row annotation-row pin ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-pin-id="${esc(row.pin.id)}" style="${indentStyle(depth)}" title="${esc(address.full)}">`
+    return `<div class="tree-row annotation-row pin ${row.active ? 'active' : ''} state-${esc(stateLabel)}" data-aos-tree-view-item data-item-id="${esc(row.id)}" data-pin-id="${esc(row.pin.id)}" style="${indentStyle(depth + row.depth)}" title="${esc(address.full)}">`
       + `<span class="annotation-pin-dot"></span>`
       + renderInspectorButton({
         label,

@@ -583,7 +583,10 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /nativeCursor/);
   assert.match(source, /const hitPoint = nativeCursor\?\.valid \? nativeCursor : cursor/);
   assert.match(source, /pinned: true/);
-  assert.match(source, /Saved annotation management/);
+  assert.match(source, /createAosZagTreeView/);
+  assert.match(source, /data-annotation-tree-view data-aos-tree-view-root/);
+  assert.match(source, /aria-label="Saved annotations"/);
+  assert.match(source, /No annotations yet\./);
   assert.match(source, /Reveal Target/);
   assert.match(source, /annotation-pin-reveal/);
   assert.match(source, /annotation-pin-label/);
@@ -707,10 +710,12 @@ test('active Annotation Mode keeps saved annotation management controls separate
   const renderBlock = source.slice(renderStart, semanticStart);
   const bindBlock = source.slice(bindStart, bindEnd);
 
-  assert.match(renderBlock, /renderAnnotationSupportRows\(depth \+ 1\)/);
   assert.match(renderBlock, /renderAnnotationManagementRows\(depth \+ 1\)/);
   assert.match(renderBlock, /buildSurfaceInspectorAnnotationTreeRows\(annotationState\)/);
-  assert.match(renderBlock, /aria-label="Saved annotation management"/);
+  assert.doesNotMatch(renderBlock, /renderAnnotationSupportRows\(depth \+ 1\)/);
+  assert.match(renderBlock, /data-annotation-tree-view data-aos-tree-view-root/);
+  assert.match(renderBlock, /aria-label="Saved annotations"/);
+  assert.match(renderBlock, /data-aos-tree-view-item/);
   assert.match(renderBlock, /annotation-pin-label/);
   assert.match(renderBlock, /annotation-pin-reveal/);
   assert.match(renderBlock, /annotation-pin-expand/);
@@ -723,6 +728,9 @@ test('active Annotation Mode keeps saved annotation management controls separate
   assert.match(bindBlock, /unpinSurfaceInspectorFrame\(annotationState, btn\.dataset\.pinId\)/);
   assert.match(bindBlock, /deleteSurfaceInspectorComment\(annotationState, btn\.dataset\.commentId\)/);
   assert.match(bindBlock, /mode: 'edit'/);
+  assert.match(source, /function bindAnnotationTreeView\(\)/);
+  assert.match(source, /createAosZagTreeView\(\{/);
+  assert.match(source, /buildAnnotationTreeViewItems\(\)/);
 });
 
 test('Surface Inspector lower pane separates annotate, surfaces, and diagnostics views', () => {
@@ -735,6 +743,7 @@ test('Surface Inspector lower pane separates annotate, surfaces, and diagnostics
   assert.match(source, /let listPaneView = 'surfaces'/);
   assert.match(source, /let listPaneViewManual = false/);
   assert.match(source, /annotationState\.annotation_mode\.active \? 'annotate' : 'surfaces'/);
+  assert.match(source, /listPaneView = 'annotate'/);
   assert.match(source, /function renderLowerPane\(\)/);
   assert.match(source, /data-lower-pane-tabs data-aos-tabs-root/);
   assert.match(source, /\['annotate', 'Annotate'\]/);
@@ -764,14 +773,15 @@ test('Surface Inspector lower pane keeps required controls reachable in their ta
 
   assert.match(annotateBlock, /renderAnnotationModeToggleRow\(0\)/);
   assert.match(annotateBlock, /renderAnnotationScopeControls\(0\)/);
-  assert.match(annotateBlock, /renderAnnotationSupportRows\(0\)/);
+  assert.doesNotMatch(annotateBlock, /renderAnnotationSupportRows\(0\)/);
   assert.match(annotateBlock, /renderAnnotationManagementRows\(0\)/);
-  assert.match(annotateBlock, /bundleCapture\?\.status === 'pending'/);
-  assert.match(annotateBlock, /anchors\.length/);
-  assert.match(annotateBlock, /comments\.length/);
+  assert.doesNotMatch(annotateBlock, /lower-pane-summary/);
+  assert.doesNotMatch(annotateBlock, /anchors\.length/);
+  assert.doesNotMatch(annotateBlock, /comments\.length/);
   assert.match(surfacesBlock, /renderTree\(\{ includeDiagnostics: false \}\)/);
   assert.match(diagnosticsBlock, /renderCursorToggleRow\(0\)/);
   assert.match(diagnosticsBlock, /renderMouseEventsToggleRow\(0\)/);
+  assert.match(diagnosticsBlock, /renderAnnotationSupportRows\(0\)/);
   assert.match(diagnosticsBlock, /renderDiagnosticsRows\(\)/);
   assert.match(diagnosticsBlock, /renderTree\(\{ diagnosticsOnly: true \}\)/);
   assert.match(source, /if \(!options\.diagnosticsOnly\) return ''/);
