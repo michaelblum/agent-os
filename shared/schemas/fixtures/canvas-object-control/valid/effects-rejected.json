@@ -1,0 +1,18 @@
+{
+  "type": "canvas_object.effects.result",
+  "schema_version": "2026-05-03",
+  "request_id": "req-effects-2",
+  "source_id": "avatar-main",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.fiber-optics"
+  },
+  "status": "rejected",
+  "reason": "invalid_patch",
+  "message": "effects patch failed validation",
+  "validation_details": {
+    "errors": [
+      "fiberPulse.intensity must be between 0 and 3"
+    ]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "type": "canvas_object.transform.result",
+  "schema_version": "2026-05-03",
+  "request_id": "req-transform-invalid-3",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.shell"
+  },
+  "status": "applied",
+  "validation_details": {
+    "errors": [
+      "validation diagnostics are scoped to rejected results"
+    ]
+  },
+  "transform": {
+    "position": { "x": 0.018, "y": -0.035, "z": 0.018 },
+    "scale": { "x": 1.32, "y": 1.42, "z": 1.2 },
+    "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
+  }
+}

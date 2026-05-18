@@ -119,7 +119,10 @@ state it wants to change:
 ```
 
 `canvas_object.transform.result` is the owner response. Owners report whether the
-patch was applied, rejected, or stale:
+patch was applied, rejected, or stale. Rejected results may include
+`validation_details.errors` when the owner has structured validation diagnostics
+for the failed patch. Each entry is an owner-readable non-empty string. Simple
+V0 diagnostics may still use `message` only:
 
 ```json
 {
@@ -137,6 +140,29 @@ patch was applied, rejected, or stale:
     "rotation_degrees": { "x": -11.5, "y": 0, "z": 0 }
   },
   "visible": true
+}
+```
+
+Rejected transform result with validation diagnostics:
+
+```json
+{
+  "type": "canvas_object.transform.result",
+  "schema_version": "2026-05-03",
+  "request_id": "req-transform-2",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.tree"
+  },
+  "status": "rejected",
+  "reason": "invalid_patch",
+  "message": "transform patch failed validation",
+  "validation_details": {
+    "errors": [
+      "scale.x must be greater than 0",
+      "rotation_degrees.z must be a finite number"
+    ]
+  }
 }
 ```
 
@@ -160,7 +186,9 @@ controller sends changed control values by id:
 }
 ```
 
-`canvas_object.effects.result` reports the values the owner accepted:
+`canvas_object.effects.result` reports the values the owner applied, or a
+rejected/stale result with the same `reason`, `message`, and optional
+`validation_details.errors` diagnostics used by transform results:
 
 ```json
 {
@@ -174,6 +202,28 @@ controller sends changed control values by id:
   "status": "applied",
   "controls": {
     "fiberPulse.intensity": 1.35
+  }
+}
+```
+
+Rejected effects result with validation diagnostics:
+
+```json
+{
+  "type": "canvas_object.effects.result",
+  "schema_version": "2026-05-03",
+  "request_id": "req-effects-2",
+  "target": {
+    "canvas_id": "avatar-main",
+    "object_id": "radial.wiki-brain.fiber-optics"
+  },
+  "status": "rejected",
+  "reason": "invalid_patch",
+  "message": "effects patch failed validation",
+  "validation_details": {
+    "errors": [
+      "fiberPulse.intensity must be between 0 and 3"
+    ]
   }
 }
 ```

@@ -112,6 +112,18 @@
     "effectControlValue": {
       "type": ["number", "string", "boolean"]
     },
+    "validationDetails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["errors"],
+      "properties": {
+        "errors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        }
+      }
+    },
     "effectControl": {
       "type": "object",
       "additionalProperties": true,
@@ -232,6 +244,16 @@
             }
           },
           "then": { "required": ["reason"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["applied", "stale"] }
+            }
+          },
+          "then": {
+            "not": { "required": ["validation_details"] }
+          }
         }
       ],
       "properties": {
@@ -256,6 +278,7 @@
           ]
         },
         "message": { "type": "string" },
+        "validation_details": { "$ref": "#/$defs/validationDetails" },
         "transform": { "$ref": "#/$defs/transform" },
         "visible": { "type": "boolean" }
       }
@@ -293,6 +316,16 @@
             }
           },
           "then": { "required": ["reason"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": { "enum": ["applied", "stale"] }
+            }
+          },
+          "then": {
+            "not": { "required": ["validation_details"] }
+          }
         }
       ],
       "properties": {
@@ -317,6 +350,7 @@
           ]
         },
         "message": { "type": "string" },
+        "validation_details": { "$ref": "#/$defs/validationDetails" },
         "controls": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/effectControlValue" }
