@@ -6,12 +6,10 @@ import {
   machine as zagSelectMachine,
 } from '@zag-js/select';
 import {
-  applyProps,
-  compactProps,
+  createZagAdapter,
   normalizeProps,
   setDatasetFlag,
   valueForElement,
-  VanillaMachine,
 } from './shared.js';
 
 const DEFAULT_ITEM_SELECTOR = '[data-value]';
@@ -26,202 +24,118 @@ function itemText(element, item, value) {
 }
 
 export function createAosZagSelect(context = {}) {
-  const {
-    id,
-    collection,
-    getRootNode,
-    itemSelector = DEFAULT_ITEM_SELECTOR,
-  } = context;
+  const itemSelector = context.itemSelector || DEFAULT_ITEM_SELECTOR;
 
-  if (!id) throw new Error('createAosZagSelect requires an id');
-  if (!collection) throw new Error('createAosZagSelect requires a collection');
-
-  let currentProps = {
-    id,
-    collection,
-    getRootNode,
-    value: context.value,
-    placeholder: context.placeholder,
-    disabled: context.disabled,
-    multiple: context.multiple,
-    open: context.open,
-    ids: context.ids,
-    name: context.name,
-    form: context.form,
-    autoComplete: context.autoComplete,
-    invalid: context.invalid,
-    readOnly: context.readOnly,
-    required: context.required,
-    closeOnSelect: context.closeOnSelect,
-    highlightedValue: context.highlightedValue,
-    defaultHighlightedValue: context.defaultHighlightedValue,
-    defaultOpen: context.defaultOpen,
-    defaultValue: context.defaultValue,
-    loopFocus: context.loopFocus,
-    composite: context.composite,
-    deselectable: context.deselectable,
-    positioning: context.positioning,
-    translations: context.translations,
-    scrollToIndexFn: context.scrollToIndexFn,
-    onSelect: context.onSelect,
-    onHighlightChange: context.onHighlightChange,
-    onValueChange: context.onValueChange,
-    onOpenChange: context.onOpenChange,
-  };
-  currentProps = compactProps(currentProps);
-
-  let currentOnStateChange = context.onStateChange;
-  const service = new VanillaMachine(zagSelectMachine, () => currentProps);
-  const cleanups = new Set();
-
-  function api() {
-    return zagConnect(service.service, normalizeProps);
-  }
-
-  function notify() {
-    currentOnStateChange?.(connect());
-  }
-
-  service.start();
-  const unsubscribe = service.subscribe(notify);
-
-  function connect() {
-    const selectApi = api();
-    return {
-      api: selectApi,
-      service: service.service,
-      open: selectApi.open,
-      value: selectApi.value,
-      selectedItems: selectApi.selectedItems,
-      highlightedValue: selectApi.highlightedValue ?? null,
-      highlightedItem: selectApi.highlightedItem ?? null,
-      state: service.service.state.get(),
-      send: service.send,
-      getTriggerProps(extra = {}) {
-        return mergeProps(selectApi.getTriggerProps(), extra);
+  return createZagAdapter({
+    name: 'Select',
+    machine: zagSelectMachine,
+    connect: zagConnect,
+    props(currentContext) {
+      return {
+        id: currentContext.id,
+        collection: currentContext.collection,
+        getRootNode: currentContext.getRootNode,
+        value: currentContext.value,
+        placeholder: currentContext.placeholder,
+        disabled: currentContext.disabled,
+        multiple: currentContext.multiple,
+        open: currentContext.open,
+        ids: currentContext.ids,
+        name: currentContext.name,
+        form: currentContext.form,
+        autoComplete: currentContext.autoComplete,
+        invalid: currentContext.invalid,
+        readOnly: currentContext.readOnly,
+        required: currentContext.required,
+        closeOnSelect: currentContext.closeOnSelect,
+        highlightedValue: currentContext.highlightedValue,
+        defaultHighlightedValue: currentContext.defaultHighlightedValue,
+        defaultOpen: currentContext.defaultOpen,
+        defaultValue: currentContext.defaultValue,
+        loopFocus: currentContext.loopFocus,
+        composite: currentContext.composite,
+        deselectable: currentContext.deselectable,
+        positioning: currentContext.positioning,
+        translations: currentContext.translations,
+        scrollToIndexFn: currentContext.scrollToIndexFn,
+        onSelect: currentContext.onSelect,
+        onHighlightChange: currentContext.onHighlightChange,
+        onValueChange: currentContext.onValueChange,
+        onOpenChange: currentContext.onOpenChange,
+      };
+    },
+    validate(currentContext) {
+      if (!currentContext.collection) throw new Error('createAosZagSelect requires a collection');
+    },
+    selectors: {
+      trigger: '[data-aos-select-trigger]',
+      content: '[data-aos-select-content]',
+      item: itemSelector,
+    },
+    transientProps: ['itemSelector'],
+    snapshot(selectApi, service) {
+      return {
+        api: selectApi,
+        service: service.service,
+        open: selectApi.open,
+        value: selectApi.value,
+        selectedItems: selectApi.selectedItems,
+        highlightedValue: selectApi.highlightedValue ?? null,
+        highlightedItem: selectApi.highlightedItem ?? null,
+        state: service.service.state.get(),
+        send: service.send,
+        getTriggerProps(extra = {}) {
+          return mergeProps(selectApi.getTriggerProps(), extra);
+        },
+        getContentProps(extra = {}) {
+          return mergeProps(selectApi.getContentProps(), extra);
+        },
+        getItemProps(item, extra = {}) {
+          return mergeProps(selectApi.getItemProps({ item }), extra);
+        },
+        getLabelProps(extra = {}) {
+          return mergeProps(selectApi.getLabelProps(), extra);
+        },
+        setOpen: selectApi.setOpen,
+        setValue: selectApi.setValue,
+        selectValue: selectApi.selectValue,
+        clearValue: selectApi.clearValue,
+      };
+    },
+    bindings: {
+      trigger: {
+        getter: 'getTriggerProps',
       },
-      getContentProps(extra = {}) {
-        return mergeProps(selectApi.getContentProps(), extra);
+      content: {
+        root: true,
+        getter: 'getContentProps',
       },
-      getItemProps(item, extra = {}) {
-        return mergeProps(selectApi.getItemProps({ item }), extra);
+      item({ api, currentProps, element, extraProps, index }) {
+        const value = extraProps.value || valueForElement(element, index);
+        const item = extraProps.item || currentProps.collection.find(value) || {
+          value,
+          label: extraProps.valueText || itemText(element, null, value),
+          disabled: extraProps.disabled ?? element?.disabled,
+        };
+        setDatasetFlag(element, 'aosSelectItem', true);
+        return {
+          key: value,
+          props: mergeProps(api.getItemProps({ item }), extraProps.extra || {}),
+          cleanup() {
+            setDatasetFlag(element, 'aosSelectItem', false);
+          },
+        };
       },
-      getLabelProps(extra = {}) {
-        return mergeProps(selectApi.getLabelProps(), extra);
+    },
+    actions: {
+      open(api) {
+        api.setOpen(true);
       },
-      setOpen: selectApi.setOpen,
-      setValue: selectApi.setValue,
-      selectValue: selectApi.selectValue,
-      clearValue: selectApi.clearValue,
-    };
-  }
-
-  function update(nextContext = {}) {
-    currentOnStateChange = nextContext.onStateChange ?? currentOnStateChange;
-    currentProps = compactProps({
-      ...currentProps,
-      ...nextContext,
-      positioning: nextContext.positioning
-        ? {
-            ...(currentProps.positioning || {}),
-            ...nextContext.positioning,
-          }
-        : currentProps.positioning,
-    });
-    delete currentProps.itemSelector;
-    delete currentProps.onStateChange;
-    service.updateProps(() => currentProps);
-    return connect();
-  }
-
-  function cleanupBindings() {
-    for (const cleanup of cleanups) cleanup();
-    cleanups.clear();
-  }
-
-  function bindTrigger(element, extraProps = {}) {
-    const cleanup = applyProps(
-      element,
-      connect().getTriggerProps(extraProps),
-      `${id}:trigger`
-    );
-    cleanups.add(cleanup);
-    return cleanup;
-  }
-
-  function bindContent(element, extraProps = {}) {
-    const cleanup = applyProps(
-      element,
-      connect().getContentProps(extraProps),
-      `${id}:content`
-    );
-    cleanups.add(cleanup);
-    return cleanup;
-  }
-
-  function bindItem(element, props = {}, index = 0) {
-    const value = props.value || valueForElement(element, index);
-    const item = props.item || currentProps.collection.find(value) || {
-      value,
-      label: props.valueText || itemText(element, null, value),
-      disabled: props.disabled ?? element?.disabled,
-    };
-    const itemProps = connect().getItemProps(item, props.extra || {});
-    setDatasetFlag(element, 'aosSelectItem', true);
-    const cleanup = applyProps(element, itemProps, `${id}:item:${value}`);
-    cleanups.add(() => {
-      setDatasetFlag(element, 'aosSelectItem', false);
-      cleanup();
-    });
-    return cleanup;
-  }
-
-  function bindItems(root, selector = itemSelector, getProps = null) {
-    const elements = Array.from(root?.querySelectorAll?.(selector) || []);
-    elements.forEach((element, index) => bindItem(element, getProps?.(element, index) || {}, index));
-    return elements.length;
-  }
-
-  function bind(root, options = {}) {
-    cleanupBindings();
-    bindTrigger(options.trigger || root?.querySelector?.('[data-aos-select-trigger]') || null, options.triggerProps || {});
-    bindContent(options.content || root?.querySelector?.('[data-aos-select-content]') || root, options.contentProps || {});
-    bindItems(root, options.itemSelector || itemSelector, options.getItemProps || null);
-    return connect();
-  }
-
-  function open() {
-    connect().api.setOpen(true);
-    return connect();
-  }
-
-  function close() {
-    connect().api.setOpen(false);
-    return connect();
-  }
-
-  function destroy() {
-    cleanupBindings();
-    unsubscribe?.();
-    service.stop();
-  }
-
-  return {
-    bind,
-    bindTrigger,
-    bindContent,
-    bindItem,
-    bindItems,
-    cleanupBindings,
-    close,
-    connect,
-    destroy,
-    open,
-    send: service.send,
-    service: service.service,
-    spreadProps: applyProps,
-    update,
-  };
+      close(api) {
+        api.setOpen(false);
+      },
+    },
+  }, context);
 }
 
 export { mergeProps, normalizeProps };
