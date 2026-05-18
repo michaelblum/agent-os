@@ -171,6 +171,13 @@ function unwrapMessage(message = {}) {
   return message || {};
 }
 
+function normalizeValidationDetails(value) {
+  const errors = Array.isArray(value?.errors)
+    ? value.errors.map((item) => text(item)).filter(Boolean)
+    : [];
+  return errors.length > 0 ? { errors } : null;
+}
+
 export function objectAddressKey(canvasId, objectId) {
   return `${encodeURIComponent(text(canvasId, 'unknown'))}::${encodeURIComponent(text(objectId, 'unknown'))}`;
 }
@@ -385,6 +392,9 @@ export function normalizeTransformResultMessage(message = {}) {
   if (!requestId) return { ok: false, error: 'result missing request_id' };
   if (!canvasId || !objectId) return { ok: false, error: 'result missing target address' };
   if (!['applied', 'rejected', 'stale'].includes(status)) return { ok: false, error: `invalid result status ${status}` };
+  const validationDetails = status === 'rejected'
+    ? normalizeValidationDetails(payload.validation_details)
+    : null;
   return {
     ok: true,
     result: {
@@ -396,6 +406,7 @@ export function normalizeTransformResultMessage(message = {}) {
       status,
       reason: text(payload.reason),
       message: text(payload.message),
+      ...(validationDetails ? { validation_details: validationDetails } : {}),
       transform: payload.transform ? normalizeTransform(payload.transform) : null,
       visible: payload.visible === undefined ? null : !!payload.visible,
     },
@@ -414,6 +425,9 @@ export function normalizeEffectsResultMessage(message = {}) {
   if (!requestId) return { ok: false, error: 'result missing request_id' };
   if (!canvasId || !objectId) return { ok: false, error: 'result missing target address' };
   if (!['applied', 'rejected', 'stale'].includes(status)) return { ok: false, error: `invalid result status ${status}` };
+  const validationDetails = status === 'rejected'
+    ? normalizeValidationDetails(payload.validation_details)
+    : null;
   return {
     ok: true,
     result: {
@@ -425,6 +439,7 @@ export function normalizeEffectsResultMessage(message = {}) {
       status,
       reason: text(payload.reason),
       message: text(payload.message),
+      ...(validationDetails ? { validation_details: validationDetails } : {}),
       controls: payload.controls && typeof payload.controls === 'object' ? { ...payload.controls } : {},
     },
   };

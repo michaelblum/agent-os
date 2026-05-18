@@ -54,9 +54,18 @@ function nextRequestId() {
   return `object-transform-${Date.now().toString(36)}-${requestCounter}`;
 }
 
-function shortStatus(result) {
+export function shortStatus(result) {
   if (!result) return 'No transform result yet';
-  const detail = result.message || result.reason || objectAddressLabel({ canvas_id: result.target.canvas_id, object_id: result.target.object_id });
+  const validationErrors = Array.isArray(result.validation_details?.errors)
+    ? result.validation_details.errors.filter(Boolean)
+    : [];
+  const validationSummary = validationErrors.length > 0
+    ? `${result.message || 'validation failed'}; ${validationErrors[0]}${validationErrors.length > 1 ? ` (+${validationErrors.length - 1} more)` : ''}`
+    : '';
+  const detail = validationSummary
+    || result.message
+    || result.reason
+    || objectAddressLabel({ canvas_id: result.target.canvas_id, object_id: result.target.object_id });
   return `${result.status}: ${detail}`;
 }
 

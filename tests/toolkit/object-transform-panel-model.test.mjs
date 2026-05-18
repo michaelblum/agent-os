@@ -18,6 +18,9 @@ import {
   updateEntryDescriptorDraft,
   updateEntryEffectsJsonDraft,
 } from '../../packages/toolkit/components/object-transform-panel/model.js';
+import {
+  shortStatus,
+} from '../../packages/toolkit/components/object-transform-panel/index.js';
 
 function registry(canvasId = 'avatar-main') {
   return {
@@ -371,6 +374,93 @@ test('owner effects results update local control values and clear pending reques
   assert.equal(result.ok, true);
   assert.equal(state.pendingByRequest.has('req-effects'), false);
   assert.equal(selectedObject(state).controls.animation_effects[0].value, 1.9);
+});
+
+test('rejected transform results preserve structured validation diagnostics', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, registry());
+  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+  state.pendingByRequest.set('req-invalid-transform', { key: state.selectedKey });
+
+  const result = applyTransformResultMessage(state, {
+    type: 'canvas_object.transform.result',
+    schema_version: '2026-05-03',
+    request_id: 'req-invalid-transform',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    status: 'rejected',
+    reason: 'invalid_patch',
+    message: 'transform patch failed validation',
+    validation_details: {
+      errors: [
+        'scale.x must be greater than 0',
+        '',
+        'rotation_degrees.z must be finite',
+      ],
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(state.pendingByRequest.has('req-invalid-transform'), false);
+  assert.deepEqual(state.lastResult.validation_details, {
+    errors: [
+      'scale.x must be greater than 0',
+      'rotation_degrees.z must be finite',
+    ],
+  });
+  assert.equal(
+    shortStatus(state.lastResult),
+    'rejected: transform patch failed validation; scale.x must be greater than 0 (+1 more)',
+  );
+});
+
+test('rejected effects results preserve structured validation diagnostics without requiring them', () => {
+  const state = createObjectTransformState();
+  applyRegistryMessage(state, registry());
+  selectObject(state, objectAddressKey('avatar-main', 'radial.wiki-brain.tree'));
+
+  const structured = applyEffectsResultMessage(state, {
+    type: 'canvas_object.effects.result',
+    schema_version: '2026-05-03',
+    request_id: 'req-invalid-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    status: 'rejected',
+    reason: 'invalid_patch',
+    message: 'effects patch failed validation',
+    validation_details: {
+      errors: ['controls.fractalPulse.intensity must be <= 3'],
+    },
+  });
+
+  assert.equal(structured.ok, true);
+  assert.deepEqual(state.lastResult.validation_details, {
+    errors: ['controls.fractalPulse.intensity must be <= 3'],
+  });
+
+  const messageOnly = applyEffectsResultMessage(state, {
+    type: 'canvas_object.effects.result',
+    schema_version: '2026-05-03',
+    request_id: 'req-message-only-effects',
+    target: {
+      canvas_id: 'avatar-main',
+      object_id: 'radial.wiki-brain.tree',
+    },
+    status: 'rejected',
+    reason: 'invalid_patch',
+    message: 'owner rejected effects patch',
+    validation_details: {
+      errors: [],
+    },
+  });
+
+  assert.equal(messageOnly.ok, true);
+  assert.equal(state.lastResult.message, 'owner rejected effects patch');
+  assert.equal('validation_details' in state.lastResult, false);
 });
 
 test('non-patchable advertised objects reject transform patch construction', () => {
