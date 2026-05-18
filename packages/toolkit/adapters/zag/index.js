@@ -26,3 +26,4 @@ export { createAosZagRadioGroup } from './radio-group.js';
 export { createAosZagSwitch } from './switch.js';
 export { createAosZagEditable } from './editable.js';
 export { createAosZagTagsInput } from './tags-input.js';
+export { createAosZagTreeView } from './tree-view.js';
