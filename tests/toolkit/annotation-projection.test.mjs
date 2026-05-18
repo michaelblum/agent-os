@@ -4,6 +4,7 @@ import {
   assertAnnotationProjectionResultShape,
   buildAdapterCapabilitySummary,
   buildAnnotationProjectionResult,
+  buildBrowserContentSeamAdapterResult,
   buildConservativeAdapterSlotResult,
   buildSemanticTargetProjectionAdapterResult,
   clipAnnotationDisplayRectToVisibleChain,
@@ -286,19 +287,72 @@ test('conservative adapter slots report explicit blockers instead of fake rectan
     'macos-ax',
     'bounded_ax_reveal_unavailable',
   );
-  const chrome = buildConservativeAdapterSlotResult(
+  const browser = buildConservativeAdapterSlotResult(
     { subject_id: 'chrome-tab-content', subject_kind: 'browser_content_seam' },
-    'chrome-seam',
-    'chrome_dom_piercing_deferred',
+    'browser-content-seam',
+    'browser_dom_cdp_deferred',
   );
 
   assert.equal(object.can_project_display_overlay, false);
   assert.equal(object.blocker_reason, 'object_registry_no_display_projection');
   assert.equal(ax.can_reveal, false);
-  assert.equal(chrome.blocker_reason, 'chrome_dom_piercing_deferred');
-  assert.deepEqual(buildAdapterCapabilitySummary([object, ax, chrome]).map((item) => item.adapter_id), [
+  assert.equal(browser.blocker_reason, 'browser_dom_cdp_deferred');
+  assert.deepEqual(buildAdapterCapabilitySummary([object, ax, browser]).map((item) => item.adapter_id), [
     'aos-object-registry',
     'macos-ax',
-    'chrome-seam',
+    'browser-content-seam',
   ]);
 });
+
+test('browser content seam adapter preserves session evidence without projecting page DOM', () => {
+  const seam = buildBrowserContentSeamAdapterResult({
+    id: 'local-session',
+    mode: 'launched',
+    headless: false,
+    browser_window_id: 91234,
+    active_url: 'https://example.invalid/app',
+    updated_at: '2026-05-17T12:00:00.000Z',
+  })
+
+  assert.equal(seam.adapter_id, 'browser-content-seam')
+  assert.equal(seam.subject_kind, 'browser_content_seam')
+  assert.equal(seam.root_id, 'local-session')
+  assert.equal(seam.current_render_status, 'unsupported')
+  assert.equal(seam.can_project_display_overlay, false)
+  assert.equal(seam.can_reveal, false)
+  assert.equal(seam.display_space_rect, null)
+  assert.equal(seam.source_tree_node_metadata.target, 'browser:local-session')
+  assert.equal(seam.source_tree_node_metadata.browser_window_id, 91234)
+  assert.equal(seam.source_tree_node_metadata.active_url, 'https://example.invalid/app')
+  assert.deepEqual(seam.blocker_reasons, [
+    'browser_content_inset_unresolved',
+    'browser_tab_identity_unresolved',
+    'browser_dom_cdp_deferred',
+  ])
+})
+
+test('browser content seam adapter reports remote and controlled-fixture boundaries explicitly', () => {
+  const remote = buildBrowserContentSeamAdapterResult({
+    id: 'remote-cdp',
+    mode: 'attach',
+    attach_kind: 'cdp',
+    headless: null,
+    active_url: 'http://localhost:9222',
+  }, {
+    controlled_fixture: true,
+    source: 'surface_inspector_diagnostics',
+  })
+
+  assert.equal(remote.can_project_display_overlay, false)
+  assert.equal(remote.can_reveal, false)
+  assert.equal(remote.blocker_reason, 'browser_session_not_local')
+  assert.ok(remote.blocker_reasons.includes('browser_session_not_local'))
+  assert.ok(remote.blocker_reasons.includes('browser_dom_cdp_deferred'))
+  assert.equal(remote.source_tree_node_metadata.controlled_fixture_dom_support, 'accepted_via_controlled_browser_dom_surface')
+  assert.equal(remote.source_tree_node_metadata.arbitrary_browser_dom_cdp, 'deferred')
+
+  const summary = buildAdapterCapabilitySummary([remote])[0]
+  assert.equal(summary.adapter_id, 'browser-content-seam')
+  assert.equal(summary.can_project_display_overlay, false)
+  assert.deepEqual(summary.blockers, remote.blocker_reasons)
+})

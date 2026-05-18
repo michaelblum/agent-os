@@ -433,9 +433,24 @@ Mermaid/SVG, 3D scenes, PDFs, images, and generic canvases are future consumers
 of the same contract; each future adapter owns coordinate-system-specific
 anchor resolution and returns the shared projection result rather than adding
 Employer Brand-specific fields or treating annotations as fixed UI positions.
-Chrome/browser seams and native AX/window payloads remain conservative slots:
-they may represent explicit structured window/content bounds, but they do not
-pierce arbitrary Chrome DOM or harvest broad background AX trees.
+Browser seams and native AX/window payloads remain conservative slots: they may
+represent explicit structured window/content bounds, but they do not pierce
+arbitrary Chrome DOM or harvest broad background AX trees.
+
+`buildBrowserContentSeamAdapterResult(record, context)` is the neutral helper
+for browser session/tab/content seam diagnostics. It emits adapter id
+`browser-content-seam`, subject kind `browser_content_seam`, the stable target
+grammar `browser:<session>`, registry evidence such as mode, attach kind,
+headless state, active URL, and local `browser_window_id`, and explicit
+blockers such as `browser_session_not_local`,
+`browser_content_inset_unresolved`, `browser_tab_identity_unresolved`, and
+`browser_dom_cdp_deferred`. The helper always returns
+`can_project_display_overlay: false` and `can_reveal: false` for the seam until
+a later contract can prove a precise current content rectangle or a safe reveal
+operation. Controlled browser DOM fixtures remain a separate accepted adapter
+path through `browser-dom-element-picker.js` and
+`controlled-browser-dom-surface.js`; their selector candidates and element
+rectangles do not promote arbitrary browser-page DOM/CDP access.
 
 `shared/schemas/spatial-subject-tree-v0.schema.json` is the neutral tree
 contract above topology and projection results. Spatial topology owns

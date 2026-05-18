@@ -1,5 +1,6 @@
 export const ANNOTATION_PROJECTION_SCHEMA = 'annotation_projection';
 export const ANNOTATION_PROJECTION_VERSION = '0.1.0';
+export const BROWSER_CONTENT_SEAM_ADAPTER_ID = 'browser-content-seam';
 
 export const SURFACE_TYPES = new Set([
   'markdown_workbench',
@@ -238,6 +239,16 @@ function normalizeSourceTreeNodeMetadata(metadata = {}) {
   return cloneJson(metadata, {});
 }
 
+function normalizeBlockerReasons(input = {}, fallback = '') {
+  const raw = input.blocker_reasons || input.blockers || input.unsupported_boundaries || [];
+  const values = (Array.isArray(raw) ? raw : [raw])
+    .map((value) => text(typeof value === 'object' ? value?.reason : value))
+    .filter(Boolean);
+  const single = text(input.blocker_reason || input.reason || input.blocker?.reason || fallback);
+  if (single) values.unshift(single);
+  return [...new Set(values)];
+}
+
 export function normalizeAnnotationProjectionStatus(input = {}, options = {}) {
   const statusInput = input.current_render_status || input.render_status || input.status || input.projection_status;
   const aliasedStatus = statusInput === 'projectable'
@@ -283,6 +294,7 @@ function rectLikeToRect(rect = null) {
 
 export function normalizeAnnotationProjectionAdapterResult(input = {}) {
   const projection = normalizeAnnotationProjectionStatus(input);
+  const blockerReasons = normalizeBlockerReasons(input, projection.blocker_reason);
 
   return {
     adapter_id: text(input.adapter_id || input.adapter || input.id, 'unsupported-adapter'),
@@ -306,6 +318,7 @@ export function normalizeAnnotationProjectionAdapterResult(input = {}) {
     scrollable_ancestor_chain: projection.scrollable_ancestor_chain,
     z_order_evidence: projection.z_order_evidence,
     blocker_reason: projection.blocker_reason,
+    blocker_reasons: blockerReasons,
     refreshed_at: projection.refreshed_at,
     provenance_source_payload_id: projection.provenance_source_payload_id,
   };
@@ -347,10 +360,63 @@ export function buildAdapterCapabilitySummary(results = []) {
     item[result.current_render_status] += 1;
     item.can_project_display_overlay ||= result.can_project_display_overlay;
     item.can_reveal ||= result.can_reveal;
-    if (result.blocker_reason && !item.blockers.includes(result.blocker_reason)) item.blockers.push(result.blocker_reason);
+    for (const reason of result.blocker_reasons?.length ? result.blocker_reasons : [result.blocker_reason]) {
+      if (reason && !item.blockers.includes(reason)) item.blockers.push(reason);
+    }
     summary.set(result.adapter_id, item);
   }
   return [...summary.values()];
+}
+
+function browserContentSeamBlockers(record = {}, options = {}) {
+  const blockers = normalizeBlockerReasons(record);
+  const localWindowId = numberOrNull(record.browser_window_id ?? record.local_window_id ?? record.window_id);
+  if (!record.id && !record.session && !record.session_id) blockers.push('browser_session_unresolved');
+  if (record.headless === true || !localWindowId) blockers.push('browser_session_not_local');
+  blockers.push('browser_content_inset_unresolved');
+  blockers.push('browser_tab_identity_unresolved');
+  blockers.push(options.dom_blocker_reason || record.dom_blocker_reason || 'browser_dom_cdp_deferred');
+  return [...new Set(blockers.map((value) => text(value)).filter(Boolean))];
+}
+
+export function buildBrowserContentSeamAdapterResult(record = {}, context = {}) {
+  const sessionId = text(record.session || record.session_id || record.id, 'unknown-session');
+  const target = text(record.target || record.browser_target, `browser:${sessionId}`);
+  const localWindowId = numberOrNull(record.browser_window_id ?? record.local_window_id ?? record.window_id);
+  const blockers = browserContentSeamBlockers(record, context);
+  const controlledFixture = Boolean(record.controlled_fixture || context.controlled_fixture || record.source_metadata?.controlled_fixture);
+
+  return normalizeAnnotationProjectionAdapterResult({
+    adapter_id: BROWSER_CONTENT_SEAM_ADAPTER_ID,
+    subject_id: text(record.subject_id, `browser-content-seam:${sessionId}`),
+    subject_path: ['browser', sessionId, 'content-seam'],
+    root_id: sessionId,
+    root_path: ['browser', sessionId],
+    subject_kind: 'browser_content_seam',
+    current_render_status: 'unsupported',
+    can_project_display_overlay: false,
+    can_reveal: false,
+    blocker_reason: blockers[0] || 'browser_dom_cdp_deferred',
+    blocker_reasons: blockers,
+    source_tree_node_metadata: {
+      adapter_scope: 'browser_content_seam',
+      browser_session_id: sessionId,
+      target,
+      mode: text(record.mode),
+      attach_kind: text(record.attach_kind || record.attach),
+      headless: record.headless ?? null,
+      active_url: text(record.active_url),
+      browser_window_id: localWindowId,
+      tab_identity: null,
+      content_rect: null,
+      controlled_fixture_dom_support: controlledFixture ? 'accepted_via_controlled_browser_dom_surface' : 'not_controlled_fixture',
+      arbitrary_browser_dom_cdp: 'deferred',
+      unsupported_boundaries: blockers,
+      source: context.source || record.source || 'browser_session_registry',
+    },
+    refreshed_at: context.refreshed_at || record.updated_at || new Date(0).toISOString(),
+    provenance_source_payload_id: context.provenance_source_payload_id || record.payload_id || sessionId,
+  });
 }
 
 export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = {}) {

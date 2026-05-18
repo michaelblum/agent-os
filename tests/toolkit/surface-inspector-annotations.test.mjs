@@ -278,11 +278,11 @@ test('pinning a native window root preserves root kind for scoped native AX cand
 
 test('browser-class adapter capability keeps live page DOM/CDP deferred explicitly', () => {
   const state = createSurfaceInspectorAnnotationState()
-  const chrome = state.projection_capabilities.find((item) => item.adapter_id === 'chrome-seam')
-  assert.equal(chrome.status, 'unsupported')
-  assert.equal(chrome.display_overlay, false)
-  assert.equal(chrome.can_reveal, false)
-  assert.equal(chrome.blocker_reason, 'browser_dom_cdp_deferred')
+  const browser = state.projection_capabilities.find((item) => item.adapter_id === 'browser-content-seam')
+  assert.equal(browser.status, 'unsupported')
+  assert.equal(browser.display_overlay, false)
+  assert.equal(browser.can_reveal, false)
+  assert.equal(browser.blocker_reason, 'browser_dom_cdp_deferred')
 })
 
 test('pin creation, comment creation, edit, delete, and snapshot version are data operations', () => {

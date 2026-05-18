@@ -197,6 +197,7 @@
         "scrollable_ancestor_chain",
         "z_order_evidence",
         "blocker_reason",
+        "blocker_reasons",
         "refreshed_at",
         "provenance_source_payload_id"
       ],
@@ -235,6 +236,10 @@
         },
         "z_order_evidence": {},
         "blocker_reason": { "type": "string" },
+        "blocker_reasons": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "refreshed_at": { "type": "string" },
         "provenance_source_payload_id": { "type": "string" }
       }

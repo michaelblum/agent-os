@@ -8,7 +8,7 @@ const CANDIDATE_ADAPTER_PRIORITY = new Map([
   ['aos-browser-dom-element-picker', 72],
   ['aos-canvas-window', 60],
   ['macos-ax', 50],
-  ['chrome-seam', 30],
+  ['browser-content-seam', 30],
 ])
 const ACTIONABLE_CAPABILITIES = new Set(['press', 'focus', 'set_value', 'scroll', 'increment', 'decrement'])
 const NOISY_SUBJECT_KINDS = new Set(['group', 'container', 'region', 'main', 'section', 'generic', 'div'])
@@ -415,7 +415,7 @@ export function normalizeAnnotationProjectionCapabilities(input = []) {
     { adapter_id: 'aos-toolkit-semantic-target', status: 'visible', display_overlay: true, minimap: true, tree: true, can_reveal: true },
     { adapter_id: 'aos-object-registry', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'object_registry_no_display_projection' },
     { adapter_id: 'macos-ax', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'bounded_ax_reveal_unavailable' },
-    { adapter_id: 'chrome-seam', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'browser_dom_cdp_deferred' },
+    { adapter_id: 'browser-content-seam', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false, blocker_reason: 'browser_dom_cdp_deferred' },
     { adapter_id: 'generic-dom', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false },
     { adapter_id: 'three-canvas', status: 'unsupported', display_overlay: false, minimap: true, tree: true, can_reveal: false },
   ]
