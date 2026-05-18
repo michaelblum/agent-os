@@ -32,6 +32,7 @@ import {
     desktopWorldToNativePoint,
     globalToUnionLocalPoint,
     nativeToDesktopWorldPoint,
+    nativeToDesktopWorldRect,
     normalizeDisplays,
 } from './display-utils.js';
 import { createFastTravelController } from './fast-travel.js';
@@ -1496,10 +1497,97 @@ function annotationReticleRectFromAt(at = null) {
     return { x, y, w, h };
 }
 
+function annotationReticleRectFromObject(rect = null) {
+    if (!rect || typeof rect !== 'object') return null;
+    const x = Number(rect.x ?? rect.left);
+    const y = Number(rect.y ?? rect.top);
+    const w = Number(rect.w ?? rect.width);
+    const h = Number(rect.h ?? rect.height);
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+    return { x, y, w, h };
+}
+
+function annotationReticleProjectionRect(rect = null) {
+    const normalized = annotationReticleRectFromObject(rect);
+    return normalized
+        ? {
+            x: normalized.x,
+            y: normalized.y,
+            w: normalized.w,
+            h: normalized.h,
+        }
+        : null;
+}
+
+function annotationReticleCanvasDesktopWorldRect(canvasId = '') {
+    const id = String(canvasId || '').trim();
+    if (!id) return null;
+    const canvas = liveJs.annotationReticleTargetEvidence.canvases.get(id);
+    const nativeRect = annotationReticleRectFromAt(canvas?.atResolved || canvas?.at);
+    return nativeToDesktopWorldRect(nativeRect, liveJs.displays);
+}
+
+function annotationReticleNativeRectToDesktopWorld(rect = null) {
+    const normalized = annotationReticleRectFromObject(rect);
+    if (!normalized) return null;
+    return nativeToDesktopWorldRect(normalized, liveJs.displays);
+}
+
+function annotationReticleProjectionSpace(projection = {}) {
+    return String(projection.coordinate_space || projection.coordinateSpace || '').toLowerCase();
+}
+
+function annotationReticleCandidateInDesktopWorld(candidate = null) {
+    if (!candidate || typeof candidate !== 'object') return null;
+    const projection = candidate.projection && typeof candidate.projection === 'object'
+        ? candidate.projection
+        : null;
+    const space = annotationReticleProjectionSpace(projection);
+    if (!projection || !space || space === 'desktop_world') return candidate;
+    if (space !== 'native_display' && space !== 'native' && space !== 'screen' && space !== 'native_desktop') {
+        return candidate;
+    }
+
+    const displayRect = projection.display_space_rect || candidate.display_space_rect || candidate.rect;
+    const visibleRect = projection.visible_display_rect || displayRect;
+    const desktopDisplayRect = annotationReticleNativeRectToDesktopWorld(displayRect);
+    const desktopVisibleRect = annotationReticleNativeRectToDesktopWorld(visibleRect);
+    if (!desktopDisplayRect || !desktopVisibleRect) {
+        return {
+            ...candidate,
+            blocker_reason: candidate.blocker_reason || 'desktop_world_projection_unavailable',
+            projection: {
+                ...projection,
+                can_project_display_overlay: false,
+                projectable: false,
+                blocker_reason: projection.blocker_reason || 'desktop_world_projection_unavailable',
+            },
+        };
+    }
+
+    return {
+        ...candidate,
+        display_space_rect: desktopDisplayRect,
+        visible_display_rect: desktopVisibleRect,
+        projection: {
+            ...projection,
+            display_space_rect: desktopDisplayRect,
+            visible_display_rect: desktopVisibleRect,
+            coordinate_space: 'desktop_world',
+            source_coordinate_space: projection.coordinate_space || 'native_display',
+        },
+        source_metadata: {
+            ...(candidate.source_metadata || {}),
+            source_coordinate_space: projection.coordinate_space || 'native_display',
+        },
+    };
+}
+
 function annotationReticleUpsertCandidate(candidate = null) {
-    if (!candidate?.id && !candidate?.subject_id) return;
-    const key = String(candidate.id || candidate.subject_id);
-    liveJs.annotationReticleTargetEvidence.candidates.set(key, candidate);
+    const normalized = annotationReticleCandidateInDesktopWorld(candidate);
+    if (!normalized?.id && !normalized?.subject_id) return;
+    const key = String(normalized.id || normalized.subject_id);
+    liveJs.annotationReticleTargetEvidence.candidates.set(key, normalized);
 }
 
 function annotationReticleRemoveCandidate(id = '') {
@@ -1513,11 +1601,18 @@ function annotationReticleCandidateList() {
     return [...liveJs.annotationReticleTargetEvidence.candidates.values()];
 }
 
+function annotationReticleRefreshCanvasCandidates() {
+    for (const canvas of liveJs.annotationReticleTargetEvidence.canvases.values()) {
+        annotationReticleUpsertCandidate(annotationReticleCanvasCandidate(canvas));
+    }
+}
+
 function annotationReticleCanvasCandidate(canvas = null) {
     const id = String(canvas?.id || '').trim();
     if (!id || id === 'avatar-main' || id === hitTarget.hit.id || id === radialTargetSurface.id) return null;
     if (canvas?.suspended === true) return null;
-    const rect = annotationReticleRectFromAt(canvas.atResolved || canvas.at);
+    const nativeRect = annotationReticleRectFromAt(canvas.atResolved || canvas.at);
+    const rect = nativeToDesktopWorldRect(nativeRect, liveJs.displays);
     if (!rect) return null;
     return {
         id,
@@ -1541,14 +1636,73 @@ function annotationReticleCanvasCandidate(canvas = null) {
             visible_display_rect: rect,
             display_space_rect: rect,
             coordinate_space: 'desktop_world',
+            source_coordinate_space: 'native_display',
+            native_display_rect: nativeRect,
             refreshed_at: new Date().toISOString(),
         },
         source_metadata: {
             adapter_scope: 'sigil_cached_canvas_lifecycle',
             canvas_id: id,
+            source_coordinate_space: 'native_display',
+            native_display_rect: nativeRect,
             parent: canvas.parent || null,
             track: canvas.track || null,
         },
+    };
+}
+
+function annotationReticleSemanticTargetForDesktopWorld(canvasId = '', target = {}) {
+    const declaredSpace = String(
+        target.coordinate_space
+        || target.coordinateSpace
+        || target.rect_coordinate_space
+        || target.display_rect_coordinate_space
+        || ''
+    ).toLowerCase();
+    if (declaredSpace === 'desktop_world') return target;
+
+    const sourceRect = annotationReticleProjectionRect(
+        target.display_space_rect
+        || target.display_bounds
+        || target.bounds
+        || target.rect
+    );
+    if (!sourceRect) return target;
+
+    const sourceCoordinateSpace = declaredSpace || 'canvas_local';
+    const desktopRect = (
+        sourceCoordinateSpace === 'native_display'
+        || sourceCoordinateSpace === 'native'
+        || sourceCoordinateSpace === 'screen'
+        || sourceCoordinateSpace === 'native_desktop'
+    )
+        ? nativeToDesktopWorldRect(sourceRect, liveJs.displays)
+        : (() => {
+            const canvasRect = annotationReticleCanvasDesktopWorldRect(canvasId);
+            return canvasRect
+                ? {
+                    x: canvasRect.x + sourceRect.x,
+                    y: canvasRect.y + sourceRect.y,
+                    w: sourceRect.w,
+                    h: sourceRect.h,
+                }
+                : null;
+        })();
+
+    if (!desktopRect) return {
+        ...target,
+        current_render_status: 'blocked',
+        blocker_reason: target.blocker_reason || 'desktop_world_projection_unavailable',
+        coordinate_space: sourceCoordinateSpace,
+    };
+
+    return {
+        ...target,
+        display_space_rect: desktopRect,
+        visible_display_rect: desktopRect,
+        local_space_rect: target.local_space_rect || target.local_bounds || sourceRect,
+        coordinate_space: 'desktop_world',
+        source_coordinate_space: sourceCoordinateSpace,
     };
 }
 
@@ -1576,10 +1730,11 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
     if (!targets.length) return;
     const candidateIds = [];
     for (const target of targets) {
-        const projection = buildSemanticTargetProjectionAdapterResult(target, {
+        const desktopTarget = annotationReticleSemanticTargetForDesktopWorld(canvasId, target);
+        const projection = buildSemanticTargetProjectionAdapterResult(desktopTarget, {
             canvas_id: canvasId,
-            refreshed_at: target.refreshed_at || payload.refreshed_at || new Date().toISOString(),
-            provenance_source_payload_id: target.payload_id || payload.payload_id,
+            refreshed_at: desktopTarget.refreshed_at || payload.refreshed_at || new Date().toISOString(),
+            provenance_source_payload_id: desktopTarget.payload_id || payload.payload_id,
         });
         const candidate = {
             id: projection.subject_id,
@@ -1589,11 +1744,11 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
             root_label: canvasId,
             root_kind: 'canvas',
             subject_kind: projection.subject_kind,
-            label: target.name || target.label || target.role || projection.subject_id,
+            label: desktopTarget.name || desktopTarget.label || desktopTarget.role || projection.subject_id,
             adapter_id: 'aos-toolkit-semantic-target',
             projection,
             source_metadata: {
-                ...target,
+                ...desktopTarget,
                 adapter_scope: 'sigil_cached_semantic_targets',
                 canvas_id: canvasId,
             },
@@ -2714,6 +2869,7 @@ function handleHostMessage(rawMsg) {
             ?? computeDesktopWorldBounds(liveJs.displays);
         liveJs.visibleBounds = boundsWithMinMax(msg.visible_desktop_world_bounds)
             ?? computeVisibleDesktopWorldBounds(liveJs.displays);
+        annotationReticleRefreshCanvasCandidates();
         syncSigilInputRegions();
         if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {
             const resolve = liveJs._resolveFirstDisplayGeometry;

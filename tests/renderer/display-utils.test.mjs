@@ -5,6 +5,7 @@ import {
   computeDisplayNonant,
   computeWorkbenchFrame,
   globalToUnionLocalPoint,
+  nativeToDesktopWorldRect,
   normalizeDisplays,
 } from '../../apps/sigil/renderer/live-modules/display-utils.js'
 
@@ -15,6 +16,25 @@ test('globalToUnionLocalPoint is re-exported through Sigil display-utils', () =>
       { x: 0, y: 0, w: 1920, h: 2062, minX: 0, minY: 0 },
     ),
     { x: 291, y: 540 },
+  )
+})
+
+test('nativeToDesktopWorldRect is re-exported through Sigil display-utils', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+    },
+    {
+      id: 'extended',
+      bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+    },
+  ])
+
+  assert.deepEqual(
+    nativeToDesktopWorldRect({ x: 1132, y: 53, w: 360, h: 457 }, displays),
+    { x: 1339, y: 53, w: 360, h: 457 },
   )
 })
 

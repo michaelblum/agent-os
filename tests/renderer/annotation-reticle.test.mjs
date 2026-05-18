@@ -237,6 +237,18 @@ test('Sigil clears stale semantic reticle candidates before replacement or empty
   assert.match(semanticBlock, /recordAnnotationReticleSemanticCandidateIds\(liveJs\.annotationReticleTargetEvidence, canvasId, candidateIds\)/)
 })
 
+test('Sigil reticle candidates are projected through canonical DesktopWorld helpers', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+
+  assert.match(source, /nativeToDesktopWorldRect/)
+  assert.match(source, /function annotationReticleCandidateInDesktopWorld/)
+  assert.match(source, /function annotationReticleSemanticTargetForDesktopWorld/)
+  assert.match(source, /nativeToDesktopWorldRect\(nativeRect, liveJs\.displays\)/)
+  assert.match(source, /coordinate_space: 'desktop_world'/)
+  assert.match(source, /source_coordinate_space: 'native_display'/)
+  assert.match(source, /annotationReticleSemanticTargetForDesktopWorld\(canvasId, target\)/)
+})
+
 test('annotation reticle stays unresolved instead of crashing when displays are absent', () => {
   let now = Date.parse('2026-05-13T12:00:00.000Z')
   const controller = createSigilAnnotationReticleController({

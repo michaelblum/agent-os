@@ -19,6 +19,7 @@ const {
     findDisplayForPoint: toolkitFindDisplayForPoint,
     clampPointToDisplays: toolkitClampPointToDisplays,
     nativeToDesktopWorldPoint: toolkitNativeToDesktopWorldPoint,
+    nativeToDesktopWorldRect: toolkitNativeToDesktopWorldRect,
     desktopWorldToNativePoint: toolkitDesktopWorldToNativePoint,
     globalToUnionLocalPoint: toolkitGlobalToUnionLocalPoint,
 } = await import(toolkitSpecifier('runtime/spatial.js'));
@@ -33,6 +34,7 @@ export { toolkitComputeVisibleDesktopWorldBounds as computeVisibleDesktopWorldBo
 export { toolkitFindDisplayForPoint as findDisplayForPoint };
 export { toolkitClampPointToDisplays as clampPointToDisplays };
 export { toolkitNativeToDesktopWorldPoint as nativeToDesktopWorldPoint };
+export { toolkitNativeToDesktopWorldRect as nativeToDesktopWorldRect };
 export { toolkitDesktopWorldToNativePoint as desktopWorldToNativePoint };
 export { toolkitGlobalToUnionLocalPoint as globalToUnionLocalPoint };
 
