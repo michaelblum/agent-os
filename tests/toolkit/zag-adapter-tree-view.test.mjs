@@ -55,19 +55,21 @@ function keydown(document, element, key) {
   element.dispatchEvent(new document.defaultView.Event('keydown', { key }));
 }
 
-test('tree view adapter remains browser-safe for aos:// hosted components', async () => {
+test('tree view adapter is an AOS-owned browser-safe adapter for aos:// hosted components', async () => {
   const source = await readFile(new URL('../../packages/toolkit/adapters/zag/tree-view.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /from ['"]@zag-js\//);
+  assert.match(source, /AOS-owned tree-view adapter/);
+  assert.match(source, /without claiming to run the upstream @zag-js\/tree-view machine/);
 });
 
-test('toolkit package metadata includes the tree-view Zag dependency', async () => {
+test('toolkit package metadata does not advertise an unused upstream tree-view dependency', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../../packages/toolkit/package.json', import.meta.url), 'utf8'));
   const packageLock = JSON.parse(await readFile(new URL('../../packages/toolkit/package-lock.json', import.meta.url), 'utf8'));
   const packageName = ['@zag-js', 'tree-view'].join('/');
 
-  assert.equal(packageJson.dependencies?.[packageName], '^1.40.0');
-  assert.equal(packageLock.packages?.['']?.dependencies?.[packageName], '^1.40.0');
-  assert.ok(packageLock.packages?.[`node_modules/${packageName}`]);
+  assert.equal(packageJson.dependencies?.[packageName], undefined);
+  assert.equal(packageLock.packages?.['']?.dependencies?.[packageName], undefined);
+  assert.equal(packageLock.packages?.[`node_modules/${packageName}`], undefined);
 });
 
 test('mount and cleanup lifecycle binds and removes tree item listeners', () => {
