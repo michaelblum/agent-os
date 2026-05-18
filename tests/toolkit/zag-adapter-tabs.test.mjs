@@ -68,6 +68,16 @@ test('tabs adapter remains browser-safe for aos:// hosted components', async () 
   assert.doesNotMatch(source, /from ['"]@zag-js\//);
 });
 
+test('toolkit package metadata does not ship the local tabs adapter as a Zag runtime dependency', async () => {
+  const packageJson = JSON.parse(await readFile(new URL('../../packages/toolkit/package.json', import.meta.url), 'utf8'));
+  const packageLock = JSON.parse(await readFile(new URL('../../packages/toolkit/package-lock.json', import.meta.url), 'utf8'));
+  const tabsPackageName = ['@zag-js', 'tabs'].join('/');
+
+  assert.equal(packageJson.dependencies?.[tabsPackageName], undefined);
+  assert.equal(packageLock.packages?.['']?.dependencies?.[tabsPackageName], undefined);
+  assert.equal(packageLock.packages?.[`node_modules/${tabsPackageName}`], undefined);
+});
+
 test('live tab adopters do not import bare Zag modules into aos:// pages', async () => {
   const paths = [
     '../../packages/toolkit/adapters/zag/tabs.js',
