@@ -1,8 +1,38 @@
 # Toolkit Panel Chip Drag And Transfer Outline Correction V0
 
-## Foreman Review - Request Changes
+## Foreman Acceptance
 
-Status: request changes.
+Status: accepted after correction commit `0824e52`.
+
+Accepted evidence:
+
+- `packages/toolkit/components/desktop-world-stage/model.js` again renders
+  explicit restore and close affordances for chip layers.
+- `packages/toolkit/components/desktop-world-stage/styles.css` again styles
+  separate restore and close affordances instead of a single close pseudo-marker.
+- `packages/toolkit/panel/chrome.js` again maps chip visual frames through
+  `stageLayerFrameFromNativeFrame` for initial stage upserts and drag upserts,
+  while native input regions stay in native coordinates.
+- `tests/toolkit/desktop-world-stage.test.mjs` covers chip affordance rendering.
+- `tests/toolkit/panel-chrome.test.mjs` covers native-to-DesktopWorld chip frame
+  mapping and drag updates.
+
+Foreman verification:
+
+```bash
+node --test tests/toolkit/panel-chrome.test.mjs
+node --test tests/toolkit/panel-drag-transfer.test.mjs
+node --test tests/toolkit/stage-affordance.test.mjs
+node --test tests/toolkit/desktop-world-stage.test.mjs
+node --test tests/toolkit/toolkit-api-docs-contract.test.mjs
+node --test tests/toolkit/surface-interaction-decision-tree-contract.test.mjs
+git diff --check
+./aos ready
+```
+
+`./aos ready` returned `ready=true mode=repo daemon=reachable tap=active`.
+
+## Foreman Review - Request Changes Superseded
 
 The gesture and transfer-outline work in `395d6f8` is directionally right, but
 the branch is based on `main` and drops behavior from the prior minimized-chip
