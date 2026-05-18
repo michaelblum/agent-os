@@ -122,6 +122,17 @@ export function resolveRadialHoverRotationDegrees(item = {}) {
     };
 }
 
+export function resolveRadialItemFacesCamera(item = {}) {
+    if (item.geometry?.faceCamera === true) return true;
+    const value = String(
+        item.three?.item?.facing
+        ?? item.three?.item?.orientation?.facing
+        ?? item.geometry?.facing
+        ?? ''
+    ).toLowerCase();
+    return ['camera', 'camera-facing', 'screen', 'screen-facing', 'billboard', 'face-camera'].includes(value);
+}
+
 function applyObjectTransform(object, transform = {}, defaults = {}) {
     if (!object) return;
     const position = vectorValue(transform.position, defaults.position);
@@ -946,14 +957,22 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
                 nativeGeometry,
                 itemMotion: sourceItemMotion,
             });
+            const facesCamera = resolveRadialItemFacesCamera(item);
             glyph.userData.hoverSpin = hoverSpin.rate > 0
                 ? finite(glyph.userData.hoverSpin, 0) + (dt * hoverProgress * hoverSpin.rate)
                 : 0;
             const hoverRotation = resolveRadialHoverRotationDegrees(item);
-            glyph.rotation.x = nativeGeometry ? hoverProgress * hoverRotation.x : 0.08 + (hoverProgress * 0.04);
-            glyph.rotation.y = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004) + (hoverSpin.axis === 'y' ? glyph.userData.hoverSpin : 0) + (hoverProgress * hoverRotation.y);
+            const baseRotationX = nativeGeometry
+                ? hoverProgress * hoverRotation.x
+                : 0.08 + (hoverProgress * 0.04);
+            const baseRotationY = (nativeGeometry ? 0 : finite(item.angle, 0) * 0.004)
+                + (hoverSpin.axis === 'y' ? glyph.userData.hoverSpin : 0)
+                + (hoverProgress * hoverRotation.y);
+            glyph.rotation.x = facesCamera ? 0 : baseRotationX;
+            glyph.rotation.y = facesCamera ? 0 : baseRotationY;
             glyph.rotation.z = (hoverProgress * hoverRotation.z) + (hoverSpin.axis === 'z' ? glyph.userData.hoverSpin : 0);
             glyph.userData.hoverSpinAxis = hoverSpin.axis;
+            glyph.userData.facesCamera = facesCamera;
             glyph.userData.hoverScaleMultiplier = hoverScaleMultiplier;
             if (activationDisplay) {
                 applyGlyphDisplayOpacity(glyph, activationDisplay.opacity);

@@ -23,6 +23,13 @@ class Vector3 {
     return this
   }
 
+  setScalar(value) {
+    this.x = value
+    this.y = value
+    this.z = value
+    return this
+  }
+
   copy(value) {
     this.x = value.x
     this.y = value.y
@@ -92,6 +99,20 @@ class Box3 {
 class Color {
   constructor(value) {
     this.value = value
+    this.isColor = true
+  }
+
+  clone() {
+    return new Color(this.value)
+  }
+
+  copy(value) {
+    this.value = value.value
+    return this
+  }
+
+  lerp() {
+    return this
   }
 }
 
@@ -100,6 +121,8 @@ class Object3D {
     this.children = []
     this.position = new Vector3()
     this.scale = new Vector3(1, 1, 1)
+    this.visible = true
+    this.userData = {}
     this.rotation = {
       x: 0,
       y: 0,
@@ -112,10 +135,25 @@ class Object3D {
   add(...children) {
     this.children.push(...children)
   }
+
+  remove(child) {
+    this.children = this.children.filter((entry) => entry !== child)
+  }
+
+  traverse(visit) {
+    visit(this)
+    for (const child of this.children) child.traverse?.(visit)
+  }
 }
 
 class Geometry {}
-class Material {}
+class Material {
+  constructor(options = {}) {
+    Object.assign(this, options)
+    this.userData = {}
+    this.opacity = options.opacity ?? 1
+  }
+}
 class BufferGeometry extends Geometry {
   setFromPoints(points) {
     this.points = points
@@ -140,6 +178,7 @@ globalThis.THREE = {
   BufferGeometry,
   Color,
   DodecahedronGeometry: Geometry,
+  DoubleSide: 2,
   EdgesGeometry: Geometry,
   Group: Object3D,
   IcosahedronGeometry: Geometry,
@@ -155,8 +194,10 @@ globalThis.THREE = {
 
 const {
   DEFAULT_RADIAL_ITEM_MOTION,
+  createSigilRadialGestureVisuals,
   normalizeModelScene,
   radialGlyphActivationState,
+  resolveRadialItemFacesCamera,
   resolveNestedFiberBloomTransform,
   resolveNestedFiberStemTransform,
   resolveNestedFractalPulse,
@@ -320,7 +361,41 @@ test('resolveRadialHoverConfig reads data-driven scale and wheel spin axes', asy
   assert.deepEqual(resolveRadialHoverScale(terminal), { from: 1, to: 2 })
   assert.deepEqual(resolveRadialHoverSpin(context, { nativeGeometry: true }), { axis: 'z', rate: 1.45 })
   assert.deepEqual(resolveRadialHoverSpin(reticle, { nativeGeometry: false }), { axis: 'z', rate: 0.35 })
+  assert.equal(resolveRadialItemFacesCamera(context), false)
+  assert.equal(resolveRadialItemFacesCamera(reticle), true)
   assert.deepEqual(resolveRadialHoverRotationDegrees(context), { x: 0.12, y: 0, z: 0.055 })
+})
+
+test('camera-facing reticle keeps its face toward the viewer instead of radial-angle yaw', async () => {
+  const { DEFAULT_SIGIL_RADIAL_ITEMS } = await import('../../apps/sigil/renderer/radial-menu-defaults.js')
+  const reticle = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-mode')
+  const scene = new Object3D()
+  const visuals = createSigilRadialGestureVisuals({
+    scene,
+    projectPoint: () => new Vector3(0, 0, 0),
+    projectRadius: () => 0.3,
+  })
+
+  visuals.update({
+    phase: 'radial',
+    menuProgress: 1,
+    origin: { x: 0, y: 0 },
+    pointer: { x: 0, y: 0 },
+    activeItemId: 'annotation-mode',
+    items: [{
+      ...reticle,
+      angle: 270,
+      center: { x: 0, y: 0 },
+      hitRadius: 20,
+      visualRadius: 20,
+    }],
+  }, { time: 0 })
+
+  const glyph = visuals.group.children[0]
+  assert.equal(glyph.userData.facesCamera, true)
+  assert.equal(glyph.rotation.x, 0)
+  assert.equal(glyph.rotation.y, 0)
+  assert.ok(glyph.rotation.z > 0)
 })
 
 test('Sigil radial item modules own fallback glyph creation hooks', async () => {

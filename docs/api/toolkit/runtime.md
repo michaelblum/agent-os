@@ -250,7 +250,9 @@ exponential progress with `factor: 0.22`, scale `1 -> 1.08`, and y-axis spin.
 Apps can override those values in JSON; Sigil's
 `apps/sigil/renderer/radial-menu/sigil-radial-menu.json` sets item hover scale
 to `1 -> 2` for every item and changes the cog and annotation reticle to
-z-axis wheel spin.
+z-axis wheel spin. Flat glyphs that must keep their face toward the viewer can
+set `three.item.facing: "camera"` so the renderer suppresses radial-angle yaw
+while preserving screen-plane Z spin.
 
 ### `wireBridge(handler)`
 
