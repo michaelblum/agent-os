@@ -15,6 +15,7 @@ import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
 import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
 import { renderButtonHtml, renderTextFieldHtml } from '../../controls/index.js'
+import { createAosZagTabs } from '../../adapters/zag/tabs.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
   nativeToDesktopWorldPoint,
@@ -108,6 +109,7 @@ const SEE_BUNDLE_HOTKEY_LABEL = 'ctrl+opt+c'
 const LIST_PANE_CLOSED_HEIGHT = 28
 const LIST_PANE_OPEN_HEIGHT = 240
 const MINIMAP_PANE_MAX_HEIGHT = 260
+const LIST_PANE_VIEWS = ['annotate', 'surfaces', 'diagnostics']
 const COMMENT_BLUE = '#58c4ff'
 const FRAME_GOLD = '#f4c542'
 const ANNOTATION_ACTION_CANVAS_SIZE = 32
@@ -900,6 +902,7 @@ export default function CanvasInspector() {
   let contentEl = null
   let minimapPaneEl = null
   let listPaneEl = null
+  let lowerPaneTabs = null
   let splitController = null
   let currentSelfFrame = null
   let pendingSelfResizeFrame = 0
@@ -928,6 +931,8 @@ export default function CanvasInspector() {
   let bundleHotkeyLabel = SEE_BUNDLE_HOTKEY_LABEL
   let bundleOutputMode = 'bundle_path'
   let listCollapsed = false
+  let listPaneView = 'surfaces'
+  let listPaneViewManual = false
   let bundleCapture = {
     status: 'idle',
     message: `bundle ${bundleHotkeyLabel}`,
@@ -2010,13 +2015,17 @@ export default function CanvasInspector() {
     if (!contentEl) return
     const priorListRegion = listPaneEl?.querySelector?.('.canvas-list-region')
     const priorListScrollTop = priorListRegion?.scrollTop ?? 0
+    const nextDefaultView = annotationState.annotation_mode.active ? 'annotate' : 'surfaces'
+    if (!listPaneViewManual) listPaneView = nextDefaultView
+    if (!LIST_PANE_VIEWS.includes(listPaneView)) listPaneView = nextDefaultView
     if (minimapPaneEl) {
       const minimapHTML = renderMinimap(minimapCanvases())
       minimapPaneEl.innerHTML = minimapHTML || '<div class="empty-state">Waiting for display geometry...</div>'
     }
     if (listPaneEl) {
       listPaneEl.innerHTML = renderStatusBar()
-        + `<div class="canvas-list-region aos-sidebar-rail-content" ${listCollapsed ? 'hidden' : ''}>${renderTree()}</div>`
+        + `<div class="canvas-list-region aos-sidebar-rail-content" ${listCollapsed ? 'hidden' : ''}>${renderLowerPane()}</div>`
+      bindLowerPaneTabs()
     }
     contentEl.querySelectorAll('.annotation-overlay-surface').forEach((node) => node.remove())
     const overlay = renderAnnotationOverlays()
@@ -2028,6 +2037,31 @@ export default function CanvasInspector() {
     syncDebugState()
     syncControlledAnnotationDisplayOverlays()
     syncAnnotationActionControlCanvases()
+  }
+
+  function setListPaneView(view, options = {}) {
+    if (!LIST_PANE_VIEWS.includes(view)) return
+    listPaneView = view
+    listPaneViewManual = options.manual === true
+    rerender()
+  }
+
+  function bindLowerPaneTabs() {
+    const root = listPaneEl?.querySelector?.('[data-lower-pane-tabs]')
+    if (!root) return
+    lowerPaneTabs?.destroy?.()
+    lowerPaneTabs = createAosZagTabs({
+      id: 'surface-inspector-lower-pane',
+      value: listPaneView,
+      activationMode: 'automatic',
+      onValueChange(details = {}) {
+        if (details.value && details.value !== listPaneView) setListPaneView(details.value, { manual: true })
+      },
+    })
+    lowerPaneTabs.bind(root, {
+      root: root,
+      list: root.querySelector('[data-aos-tabs-list]'),
+    })
   }
 
   function getMinimapWidth() {
@@ -2101,7 +2135,92 @@ export default function CanvasInspector() {
     return html
   }
 
-  function renderTree() {
+  function renderLowerPane() {
+    return `<div class="lower-pane-tabs" data-lower-pane-tabs data-aos-tabs-root>`
+      + renderLowerPaneTabList()
+      + renderLowerPanePanel('annotate', renderAnnotatePane())
+      + renderLowerPanePanel('surfaces', renderSurfacesPane())
+      + renderLowerPanePanel('diagnostics', renderDiagnosticsPane())
+      + `</div>`
+  }
+
+  function renderLowerPaneTabList() {
+    const tabs = [
+      ['annotate', 'Annotate'],
+      ['surfaces', 'Surfaces'],
+      ['diagnostics', 'Diagnostics'],
+    ]
+    return `<div class="lower-pane-tab-list" data-aos-tabs-list>`
+      + tabs.map(([value, label]) => renderButtonHtml({
+        label,
+        className: `lower-pane-tab ${listPaneView === value ? 'active' : ''}`,
+        includeBaseClass: false,
+        classFirst: true,
+        dataset: { value },
+        rawAttributes: 'data-aos-tabs-trigger',
+      })).join('')
+      + `</div>`
+  }
+
+  function renderLowerPanePanel(value, html) {
+    return `<section class="lower-pane-panel" data-aos-tabs-content data-value="${esc(value)}">${html}</section>`
+  }
+
+  function renderAnnotatePane() {
+    const session = surfaceInspectorAnnotationStateToSession(annotationState)
+    const anchors = session.anchors || []
+    const comments = anchors.filter((anchor) => (anchor.comment_text || '').trim())
+    const blocked = anchors.filter((anchor) => anchor.status !== 'live' || anchor.projection?.can_project_display_overlay === false)
+    const snapshotLabel = bundleCapture?.status === 'pending'
+      ? 'snapshot capturing'
+      : bundleCapture?.status === 'error'
+        ? 'snapshot blocked'
+        : 'snapshot ready'
+    return `<div class="lower-pane-section annotate-section">`
+      + `<div class="lower-pane-summary">`
+      + `<div><span class="summary-label">mode</span><strong>${annotationState.annotation_mode.active ? 'annotating' : 'off'}</strong></div>`
+      + `<div><span class="summary-label">anchors</span><strong>${anchors.length}</strong></div>`
+      + `<div><span class="summary-label">comments</span><strong>${comments.length}</strong></div>`
+      + `<div><span class="summary-label">snapshot</span><strong>${esc(snapshotLabel)}</strong></div>`
+      + (blocked.length ? `<div class="summary-warning"><span class="summary-label">blockers</span><strong>${blocked.length}</strong></div>` : '')
+      + `</div>`
+      + renderAnnotationModeToggleRow(0)
+      + (annotationState.annotation_mode.active
+        ? `<div class="annotation-support" role="group" aria-label="Annotation support state">`
+          + renderAnnotationScopeControls(0)
+          + renderAnnotationSupportRows(0)
+          + renderAnnotationManagementRows(0)
+          + renderAnnotationTreeFallbackActions(0)
+          + `</div>`
+        : `<div class="empty-state compact">Annotation Mode is off.</div>`)
+      + `</div>`
+  }
+
+  function renderSurfacesPane() {
+    return `<div class="lower-pane-section surfaces-section">${renderTree({ includeDiagnostics: false })}</div>`
+  }
+
+  function renderDiagnosticsPane() {
+    return `<div class="lower-pane-section diagnostics-section">`
+      + renderCursorToggleRow(0)
+      + renderMouseEventsToggleRow(0)
+      + renderDiagnosticsRows()
+      + renderTree({ diagnosticsOnly: true })
+      + `</div>`
+  }
+
+  function renderDiagnosticsRows() {
+    const resourceSnapshot = buildSurfaceResourceSnapshot(surfaceResourceState, { canvases })
+    const counts = resourceSnapshot?.counts || {}
+    return `<div class="diagnostics-summary">`
+      + `<div class="tree-row diagnostic-row"><span class="annotation-support-label">events</span><span class="annotation-support-value">${eventCount}</span></div>`
+      + `<div class="tree-row diagnostic-row"><span class="annotation-support-label">bundle</span><span class="annotation-support-value">${esc(bundleCapture?.message || bundleHotkeyLabel)}</span></div>`
+      + `<div class="tree-row diagnostic-row"><span class="annotation-support-label">resources</span><span class="annotation-support-value">${Number(counts.stageLayers || 0)} stage / ${Number(counts.inputRegions || 0)} regions / ${Number(counts.affordances || 0)} affordances</span></div>`
+      + (lastTintError ? `<div class="tree-row diagnostic-row state-blocked"><span class="annotation-support-label">action error</span><span class="annotation-support-value">${esc(lastTintError.id)}</span></div>` : '')
+      + `</div>`
+  }
+
+  function renderTree(options = {}) {
     if (canvases.length === 0 && marksState.marksByCanvas.size === 0 && displays.length === 0) {
       return '<div class="empty-state">Waiting for canvases...</div>'
     }
@@ -2115,44 +2234,48 @@ export default function CanvasInspector() {
     if (!tree || tree.type === 'empty') {
       return '<div class="empty-state">No canvases active</div>'
     }
-    return `<div class="canvas-list">${renderTreeNode(tree, 0)}</div>`
+    return `<div class="canvas-list">${renderTreeNode(tree, 0, options)}</div>`
   }
 
-  function renderTreeNode(node, depth) {
+  function renderTreeNode(node, depth, options = {}) {
     if (!node) return ''
     if (node.type === 'union') {
       return renderLocationRow(node.label, depth)
-        + renderCursorToggleRow(depth + 1)
-        + renderMouseEventsToggleRow(depth + 1)
-        + renderAnnotationModeToggleRow(depth + 1)
-        + renderAnnotationTree(depth + 1)
-        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+        + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'display') {
       return renderLocationRow(node.label, depth)
-        + (depth === 0 ? renderAnnotationModeToggleRow(depth + 1) + renderAnnotationTree(depth + 1) : '')
-        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+        + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'surface_resource_group') {
+      if (!options.diagnosticsOnly) return ''
       return renderLocationRow(node.label, depth)
-        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+        + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'canvas') {
+      if (options.diagnosticsOnly) {
+        const resourceChildren = node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
+        return resourceChildren ? renderLocationRow(node.canvas.id, depth) + resourceChildren : ''
+      }
       return renderCanvasRow(node.canvas, depth, { selfId: SELF_ID, tintedIds, statsIds })
         + renderSemanticTargetRows(node.canvas.id, depth + 1)
-        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+        + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'mark') {
+      if (options.diagnosticsOnly) return ''
       return renderMarkTreeRow(node.mark, depth)
     }
     if (node.type === 'surface_affordance') {
+      if (!options.diagnosticsOnly) return ''
       return renderAffordanceTreeRow(node.affordance, depth)
-        + node.children.map((c) => renderTreeNode(c, depth + 1)).join('')
+        + node.children.map((c) => renderTreeNode(c, depth + 1, options)).join('')
     }
     if (node.type === 'stage_layer') {
+      if (!options.diagnosticsOnly) return ''
       return renderStageLayerTreeRow(node.stageLayer, depth)
     }
     if (node.type === 'input_region') {
+      if (!options.diagnosticsOnly) return ''
       return renderInputRegionTreeRow(node.inputRegion, depth)
     }
     return ''

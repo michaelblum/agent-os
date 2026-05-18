@@ -215,6 +215,110 @@
   display: none;
 }
 
+.lower-pane-tabs {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lower-pane-tab-list {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px 8px 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.lower-pane-tab {
+  min-width: 0;
+  min-height: 22px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+.lower-pane-tab:hover,
+.lower-pane-tab:focus-visible {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+  outline: none;
+}
+
+.lower-pane-tab.active,
+.lower-pane-tab[aria-selected="true"] {
+  color: var(--text-primary);
+  border-color: rgba(138, 180, 255, 0.55);
+  background: rgba(138, 180, 255, 0.16);
+}
+
+.lower-pane-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.lower-pane-panel[hidden] {
+  display: none;
+}
+
+.lower-pane-section {
+  min-height: 100%;
+  padding: 6px 0 8px;
+  box-sizing: border-box;
+}
+
+.lower-pane-summary,
+.diagnostics-summary {
+  margin: 0 8px 6px;
+}
+
+.lower-pane-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.lower-pane-summary > div {
+  min-width: 0;
+  padding: 5px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.lower-pane-summary strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.summary-label {
+  display: block;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.summary-warning {
+  border-color: rgba(255, 180, 107, 0.3);
+}
+
 .canvas-list-toggle {
   position: absolute;
   left: 50%;
@@ -571,6 +675,13 @@
   white-space: nowrap;
 }
 .canvas-flags { margin-left: auto; display: flex; gap: 4px; flex-shrink: 0; }
+.tree-row.canvas .canvas-flags {
+  opacity: 0.28;
+}
+.tree-row.canvas:hover .canvas-flags,
+.tree-row.canvas:focus-within .canvas-flags {
+  opacity: 1;
+}
 .flag {
   font-size: 9px;
   padding: 0 4px;
@@ -606,6 +717,11 @@
   text-align: center;
   padding: 16px;
   font-style: italic;
+}
+.empty-state.compact {
+  min-height: 52px;
+  padding: 8px;
+  justify-content: flex-start;
 }
 
 .status-bar {

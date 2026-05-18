@@ -679,6 +679,63 @@ test('active Annotation Mode keeps saved annotation management controls separate
   assert.match(bindBlock, /mode: 'edit'/);
 });
 
+test('Surface Inspector lower pane separates annotate, surfaces, and diagnostics views', () => {
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
+  const styles = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/styles.css'), 'utf8');
+
+  assert.match(source, /import \{ createAosZagTabs \} from '\.\.\/\.\.\/adapters\/zag\/tabs\.js'/);
+  assert.doesNotMatch(source, /from ['"]@zag-js\/tabs['"]/);
+  assert.match(source, /const LIST_PANE_VIEWS = \['annotate', 'surfaces', 'diagnostics'\]/);
+  assert.match(source, /let listPaneView = 'surfaces'/);
+  assert.match(source, /let listPaneViewManual = false/);
+  assert.match(source, /annotationState\.annotation_mode\.active \? 'annotate' : 'surfaces'/);
+  assert.match(source, /function renderLowerPane\(\)/);
+  assert.match(source, /data-lower-pane-tabs data-aos-tabs-root/);
+  assert.match(source, /\['annotate', 'Annotate'\]/);
+  assert.match(source, /\['surfaces', 'Surfaces'\]/);
+  assert.match(source, /\['diagnostics', 'Diagnostics'\]/);
+  assert.match(source, /data-aos-tabs-trigger/);
+  assert.match(source, /data-aos-tabs-content/);
+  assert.match(source, /createAosZagTabs\(\{/);
+  assert.match(source, /onValueChange\(details = \{\}\)/);
+  assert.match(styles, /\.lower-pane-tab-list/);
+  assert.match(styles, /\.lower-pane-panel\[hidden\]/);
+});
+
+test('Surface Inspector lower pane keeps required controls reachable in their task sections', () => {
+  const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
+  const annotateStart = source.indexOf('function renderAnnotatePane()');
+  const surfacesStart = source.indexOf('function renderSurfacesPane()');
+  const diagnosticsStart = source.indexOf('function renderDiagnosticsPane()');
+  const treeStart = source.indexOf('function renderTree(options = {})');
+  assert.ok(annotateStart >= 0);
+  assert.ok(surfacesStart > annotateStart);
+  assert.ok(diagnosticsStart > surfacesStart);
+  assert.ok(treeStart > diagnosticsStart);
+  const annotateBlock = source.slice(annotateStart, surfacesStart);
+  const surfacesBlock = source.slice(surfacesStart, diagnosticsStart);
+  const diagnosticsBlock = source.slice(diagnosticsStart, treeStart);
+
+  assert.match(annotateBlock, /renderAnnotationModeToggleRow\(0\)/);
+  assert.match(annotateBlock, /renderAnnotationScopeControls\(0\)/);
+  assert.match(annotateBlock, /renderAnnotationSupportRows\(0\)/);
+  assert.match(annotateBlock, /renderAnnotationManagementRows\(0\)/);
+  assert.match(annotateBlock, /bundleCapture\?\.status === 'pending'/);
+  assert.match(annotateBlock, /anchors\.length/);
+  assert.match(annotateBlock, /comments\.length/);
+  assert.match(surfacesBlock, /renderTree\(\{ includeDiagnostics: false \}\)/);
+  assert.match(diagnosticsBlock, /renderCursorToggleRow\(0\)/);
+  assert.match(diagnosticsBlock, /renderMouseEventsToggleRow\(0\)/);
+  assert.match(diagnosticsBlock, /renderDiagnosticsRows\(\)/);
+  assert.match(diagnosticsBlock, /renderTree\(\{ diagnosticsOnly: true \}\)/);
+  assert.match(source, /if \(!options\.diagnosticsOnly\) return ''/);
+  assert.match(source, /if \(options\.diagnosticsOnly\) \{/);
+  assert.match(source, /renderCanvasActionButtons\(canvasId/);
+  assert.match(source, /classList\.contains\('tint-btn'\)/);
+  assert.match(source, /classList\.contains\('stats-btn'\)/);
+  assert.match(source, /classList\.contains\('remove-btn'\)/);
+});
+
 test('display add-comment action opens editor for an existing frame anchor without re-pinning', () => {
   const source = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
   const pinStart = source.indexOf('function pinHoverCandidate({ openEditor = false } = {})');
