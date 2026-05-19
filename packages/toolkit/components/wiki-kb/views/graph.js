@@ -17,7 +17,10 @@ import {
   wikiKBAosRef,
 } from '../semantics.js'
 import { createFixedSidebarPane } from '../../../panel/layouts/split-pane.js'
-import { createButton, createButtonGroup, createTextField, createToggle } from '../../../controls/index.js'
+import { createButton } from '../../../controls/button.js'
+import { createButtonGroup } from '../../../controls/button-group.js'
+import { createTextField } from '../../../controls/text-field.js'
+import { createToggle } from '../../../controls/toggle.js'
 
 const COLORS = {
   edge: 'rgba(100, 100, 160, 0.35)',

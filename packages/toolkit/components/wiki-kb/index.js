@@ -19,8 +19,9 @@ import {
   createWikiSubjectSelectionPayload,
   WIKI_SUBJECT_SELECTION_TYPE,
 } from '../../workbench/wiki-subject-opening.js'
-import { createAosZagTabs } from '../../adapters/zag/tabs.js'
-import { createButton, createButtonGroup, createSelect } from '../../controls/index.js'
+import { createButton } from '../../controls/button.js'
+import { createButtonGroup } from '../../controls/button-group.js'
+import { createSelect } from '../../controls/select.js'
 
 const VIEW_DEFS = [
   { id: 'graph', label: 'Graph', factory: GraphView },
@@ -301,21 +302,10 @@ export default function WikiKB(options = {}) {
 
   function bindViewTabs() {
     if (chromeMode !== 'default' || !rootEl) return
-    viewTabs ??= createAosZagTabs({
-      id: 'wiki-kb-view-tabs',
-      getRootNode: () => rootEl.ownerDocument || document,
-      activationMode: 'automatic',
-    })
-    viewTabs.update({
-      value: activeViewId,
-      onValueChange(details) {
-        const nextViewId = viewValueFromChange(details)
-        if (nextViewId && nextViewId !== activeViewId && viewDefs.some((entry) => entry.id === nextViewId)) {
-          switchView(nextViewId)
-        }
-      },
-    })
-    viewTabs.bind(rootEl)
+    viewTabs ??= {
+      update() {},
+      bind() {},
+    }
   }
 
   function activateView(id) {

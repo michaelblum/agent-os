@@ -864,6 +864,12 @@ export default function MarkdownWorkbench(options = {}) {
       sync();
     } else if (type === 'wiki_page_changed') {
       scheduleGraphReload();
+    } else if (type === 'clear-selection') {
+      splitOpen = false;
+      outlineOpen = false;
+      graphWorkbench?.onMessage?.({ type: 'clear-selection' }, graphHost);
+      sync();
+      scheduleEmbeddedGraphFit([260, 520]);
     } else if (type === 'set-view') {
       const nextMode = message?.payload?.view || message?.payload?.mode || message?.view || message?.mode;
       if (nextMode === 'source' || nextMode === 'preview') {
