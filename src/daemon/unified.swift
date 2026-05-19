@@ -301,6 +301,9 @@ class UnifiedDaemon {
                 case "capture.region":
                     self.handleCaptureRegion(callerID: canvasID, payload: inner ?? [:])
                     return
+                case "browser_dom.element_target":
+                    self.handleBrowserDomElementTarget(callerID: canvasID, payload: inner ?? [:])
+                    return
                 case "canvas_object.marks":
                     // Fan out to any canvas that subscribed; don't echo back to sender.
                     var markPayload: [String: Any] = [:]
@@ -1106,6 +1109,97 @@ class UnifiedDaemon {
         canvasSubscriptionLock.lock()
         defer { canvasSubscriptionLock.unlock() }
         return canvasReadyManifests[canvasID]
+    }
+
+    private func numberValue(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let string = value as? String { return Double(string) }
+        return nil
+    }
+
+    private func rectPayload(_ value: Any?) -> BrowserDomContentRect? {
+        guard let dict = value as? [String: Any],
+              let x = numberValue(dict["x"] ?? dict["left"]),
+              let y = numberValue(dict["y"] ?? dict["top"]),
+              let w = numberValue(dict["w"] ?? dict["width"]),
+              let h = numberValue(dict["h"] ?? dict["height"]),
+              w > 0,
+              h > 0
+        else { return nil }
+        return BrowserDomContentRect(x: x, y: y, w: w, h: h)
+    }
+
+    private func handleBrowserDomElementTarget(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        let sessionID = ((payload["browser_session_id"] as? String) ?? (payload["session_id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let requestedWindowID = numberValue(payload["browser_window_id"] ?? payload["window_id"]).map(Int.init)
+        guard !sessionID.isEmpty || requestedWindowID != nil else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "BROWSER_SESSION_UNRESOLVED", message: "browser_dom.element_target requires browser_session_id or browser_window_id")
+            return
+        }
+        guard let pointDict = payload["point"] as? [String: Any],
+              let x = numberValue(pointDict["x"]),
+              let y = numberValue(pointDict["y"])
+        else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "BROWSER_DOM_POINT_UNRESOLVED", message: "browser_dom.element_target requires point.x and point.y")
+            return
+        }
+        guard let contentRect = rectPayload(payload["browser_content_rect"] ?? payload["content_rect"]) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "BROWSER_CONTENT_INSET_UNRESOLVED", message: "browser content rect evidence is required")
+            return
+        }
+
+        do {
+            let record = try sessionID.isEmpty
+                ? readRegistry().first { $0.browser_window_id == requestedWindowID }
+                : findRegistryRecord(id: sessionID)
+            guard let record else {
+                dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "BROWSER_SESSION_UNRESOLVED", message: "browser session is not registered for the supplied evidence")
+                return
+            }
+            if let expectedWindow = requestedWindowID,
+               let actualWindow = record.browser_window_id,
+               expectedWindow != actualWindow {
+                dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "NATIVE_AX_ROOT_MISMATCH", message: "browser session window does not match active native window")
+                return
+            }
+            guard record.browser_window_id != nil else {
+                dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "BROWSER_SESSION_NOT_LOCAL", message: "browser session has no local window evidence")
+                return
+            }
+
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                do {
+                    let target = BrowserTarget(session: record.id, ref: nil)
+                    let body = try seeCaptureBrowserDomElementTarget(
+                        target: target,
+                        point: BrowserDomHitTestPoint(x: x, y: y),
+                        contentRect: contentRect
+                    )
+                    guard var object = try JSONSerialization.jsonObject(with: Data(body.utf8), options: []) as? [String: Any] else {
+                        self?.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                            status: "error", code: "BROWSER_DOM_TARGET_INVALID_JSON", message: "browser DOM element target response was not an object")
+                        return
+                    }
+                    object["browser_session_id"] = record.id
+                    object["browser_window_id"] = record.browser_window_id as Any
+                    self?.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                        status: "ok", extra: object)
+                } catch {
+                    self?.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                        status: "error", code: "BROWSER_DOM_TARGET_FAILED", message: "\(error)")
+                }
+            }
+        } catch {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "BROWSER_SESSION_UNRESOLVED", message: "\(error)")
+        }
     }
 
     private func handleCanvasCreate(callerID: String, payload: [String: Any]) {

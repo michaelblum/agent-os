@@ -1561,6 +1561,53 @@ function annotationReticleBrowserContentRect(canvasId = '', payload = {}, target
     return null;
 }
 
+function annotationReticleBrowserContentRectFromWindow(payload = {}) {
+    return annotationReticleProjectionRect(
+        payload.browser_content_rect
+        || payload.content_rect
+        || payload.browserContentRect
+    );
+}
+
+function annotationReticleBrowserSessionFromWindow(payload = {}) {
+    return String(
+        payload.browser_session_id
+        || payload.browser_session
+        || payload.session_id
+        || payload.session
+        || ''
+    ).trim();
+}
+
+function annotationReticleBrowserDomBridgeEvidence(pointer = null) {
+    const activeScope = annotationReticle.snapshot()?.active_scope || null;
+    if (activeScope?.adapter_id !== 'macos-ax' && activeScope?.root_kind !== 'native_window') {
+        return { ok: false, blocker_reason: 'browser_native_window_scope_required' };
+    }
+    const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent || {};
+    const sessionId = annotationReticleBrowserSessionFromWindow(windowEvent);
+    const windowId = String(windowEvent.window_id || windowEvent.windowID || windowEvent.id || '').trim();
+    if (!sessionId && !windowId) return { ok: false, blocker_reason: 'browser_session_unresolved' };
+    const contentRect = annotationReticleBrowserContentRectFromWindow(windowEvent);
+    if (!contentRect) return { ok: false, blocker_reason: 'browser_content_inset_unresolved', session_id: sessionId };
+    if (!pointer || !Number.isFinite(Number(pointer.x)) || !Number.isFinite(Number(pointer.y))) {
+        return { ok: false, blocker_reason: 'browser_dom_point_unresolved', session_id: sessionId, content_rect: contentRect };
+    }
+    return {
+        ok: true,
+        session_id: sessionId,
+        browser_window_id: windowId,
+        browser_pid: Number.isFinite(Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid))
+            ? Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid)
+            : null,
+        content_rect: contentRect,
+        point: {
+            x: Number(pointer.x) - contentRect.x,
+            y: Number(pointer.y) - contentRect.y,
+        },
+    };
+}
+
 function annotationReticleCanvasDesktopWorldRect(canvasId = '') {
     const id = String(canvasId || '').trim();
     if (!id) return null;
@@ -1784,6 +1831,9 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
                 refreshed_at: target.refreshed_at || payload.refreshed_at || new Date().toISOString(),
                 provenance_source_payload_id: target.payload_id || payload.payload_id || target.id,
                 browser_attachment: target.browser_attachment || payload.browser_attachment || 'explicit_local_page',
+                browser_session_id: target.browser_session_id || payload.browser_session_id,
+                browser_window_id: target.browser_window_id || payload.browser_window_id,
+                browser_pid: target.browser_pid || payload.browser_pid,
             });
             annotationReticleUpsertCandidate(candidate);
             candidateIds.push(candidate.id);
@@ -1816,6 +1866,77 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
         candidateIds.push(candidate.id);
     }
     recordAnnotationReticleSemanticCandidateIds(liveJs.annotationReticleTargetEvidence, canvasId, candidateIds);
+}
+
+let pendingAnnotationReticleBrowserDomRequestKey = '';
+
+function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'preview') {
+    if (!annotationReticle.active) return false;
+    const evidence = annotationReticleBrowserDomBridgeEvidence(pointer);
+    if (!evidence.ok) {
+        if (evidence.blocker_reason === 'browser_content_inset_unresolved') {
+            recordAnnotationReticleEvent('browser_dom_bridge_blocked', {
+                reason,
+                blocker_reason: evidence.blocker_reason,
+                browser_session_id: evidence.session_id || '',
+            });
+        }
+        return false;
+    }
+    const requestKey = [
+        evidence.session_id,
+        evidence.browser_window_id,
+        Math.round(evidence.point.x),
+        Math.round(evidence.point.y),
+        reason,
+    ].join(':');
+    if (pendingAnnotationReticleBrowserDomRequestKey === requestKey) return true;
+    pendingAnnotationReticleBrowserDomRequestKey = requestKey;
+    host.request('browser_dom.element_target', {
+        browser_session_id: evidence.session_id,
+        browser_window_id: evidence.browser_window_id,
+        browser_pid: evidence.browser_pid,
+        point: evidence.point,
+        browser_content_rect: evidence.content_rect,
+    }, { timeoutMs: 2500 })
+        .then((msg) => {
+            if (pendingAnnotationReticleBrowserDomRequestKey === requestKey) pendingAnnotationReticleBrowserDomRequestKey = '';
+            const payload = msg.payload || msg;
+            const target = payload.target || payload;
+            if (!annotationReticleIsBrowserDomElementTarget(target)) return;
+            const candidate = buildBrowserDomElementAnnotationCandidate({
+                ...target,
+                browser_session_id: evidence.session_id,
+                browser_window_id: evidence.browser_window_id,
+                browser_pid: evidence.browser_pid,
+            }, {
+                content_rect: payload.browser_content_rect || evidence.content_rect,
+                root_label: target.source_url || target.surface_id || evidence.session_id,
+                refreshed_at: new Date().toISOString(),
+                browser_attachment: 'explicit_local_page',
+                browser_session_id: evidence.session_id,
+                browser_window_id: evidence.browser_window_id,
+                browser_pid: evidence.browser_pid,
+                provenance: 'sigil_reticle_browser_dom_bridge',
+            });
+            annotationReticleUpsertCandidate(candidate);
+            annotationReticle.updatePreview(pointer);
+            syncAnnotationReticleSnapshot();
+            recordAnnotationReticleEvent('browser_dom_bridge_target', {
+                reason,
+                browser_session_id: evidence.session_id,
+                candidate_id: candidate.id,
+            });
+        })
+        .catch((error) => {
+            if (pendingAnnotationReticleBrowserDomRequestKey === requestKey) pendingAnnotationReticleBrowserDomRequestKey = '';
+            recordAnnotationReticleEvent('browser_dom_bridge_failed', {
+                reason,
+                browser_session_id: evidence.session_id,
+                message: String(error?.message || error),
+            });
+        });
+    return true;
 }
 
 function annotationReticleHandleNativeWindow(payload = {}) {
@@ -1912,6 +2033,7 @@ function flushAnnotationReticlePreview() {
     const pointer = pendingAnnotationReticlePreviewPointer;
     pendingAnnotationReticlePreviewPointer = null;
     if (!pointer || !annotationReticle.active) return;
+    annotationReticleRequestBrowserDomTarget(pointer, 'preview');
     annotationReticle.updatePreview(pointer);
     syncAnnotationReticleSnapshot();
 }
@@ -1948,6 +2070,7 @@ function commitAnnotationReticleRelease(x, y) {
         cancelAnimationFrame(pendingAnnotationReticlePreviewFrame);
         flushAnnotationReticlePreview();
     }
+    annotationReticleRequestBrowserDomTarget({ x, y, valid: true }, 'release');
     const event = annotationReticle.commitRelease({ x, y, valid: true });
     syncAnnotationReticleSnapshot();
     if (event) recordAnnotationReticleEvent('commit', event);

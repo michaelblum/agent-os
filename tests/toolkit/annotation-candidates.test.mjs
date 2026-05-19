@@ -264,6 +264,85 @@ test('scoped annotation candidate selection rejects outside siblings and prefers
   assert.equal(chooseAnnotationCandidateForScope([windowScope, outside, child], windowScope, { x: 195, y: 195 }).id, 'ax-child')
 })
 
+test('native browser window scope accepts DOM candidates with matching window and content evidence', () => {
+  const windowScope = buildNativeWindowAnnotationCandidate({
+    window_id: 918,
+    app: 'Google Chrome',
+    pid: 1234,
+    bundle_id: 'com.google.Chrome',
+    title: 'Example',
+    bounds: { x: 100, y: 100, width: 900, height: 700 },
+  })
+
+  const dom = node('dom-save', ['browser_page', 'browser-page:https://example.test', 'element', 'dom-save'], {
+    adapter_id: 'aos-browser-dom-element-picker',
+    root_id: 'browser-page:https://example.test',
+    root_kind: 'browser_page',
+    subject_kind: 'button',
+    label: 'Save',
+    capabilities: ['press'],
+    source_metadata: {
+      browser_session_id: 'chrome-local',
+      browser_window_id: '918',
+      browser_pid: 1234,
+      source_url: 'https://example.test/',
+      browser_content_rect: { x: 112, y: 156, w: 860, h: 600 },
+    },
+  })
+  dom.projection.visible_display_rect = { x: 180, y: 200, w: 80, h: 32 }
+  dom.projection.source_tree_node_metadata = {
+    browser_content_rect: { x: 112, y: 156, w: 860, h: 600 },
+  }
+
+  const scoped = filterAnnotationCandidatesForScope([windowScope, dom], windowScope, { x: 190, y: 210 }, { include_rejections: true })
+  assert.deepEqual(scoped.candidates.map((candidate) => candidate.id), ['dom-save'])
+  assert.equal(scoped.candidates[0].source_metadata.scope_filter_reason, 'scoped_native_browser_dom_child')
+  assert.equal(scoped.rejected.some((entry) => entry.id === 'dom-save'), false)
+})
+
+test('native browser window scope blocks DOM candidates with mismatched or missing browser evidence', () => {
+  const windowScope = buildNativeWindowAnnotationCandidate({
+    window_id: 918,
+    app: 'Google Chrome',
+    pid: 1234,
+    bounds: { x: 100, y: 100, width: 900, height: 700 },
+  })
+
+  const mismatched = node('foreign-dom', ['browser_page', 'foreign', 'element', 'foreign-dom'], {
+    adapter_id: 'aos-browser-dom-element-picker',
+    root_id: 'browser-page:https://foreign.test',
+    root_kind: 'browser_page',
+    subject_kind: 'button',
+    label: 'Foreign',
+    source_metadata: {
+      browser_session_id: 'chrome-foreign',
+      browser_window_id: '777',
+      source_url: 'https://foreign.test/',
+      browser_content_rect: { x: 112, y: 156, w: 860, h: 600 },
+    },
+  })
+  mismatched.projection.visible_display_rect = { x: 180, y: 200, w: 80, h: 32 }
+
+  const missingContent = node('unresolved-dom', ['browser_page', 'local', 'element', 'unresolved-dom'], {
+    adapter_id: 'aos-browser-dom-element-picker',
+    root_id: 'browser-page:https://example.test',
+    root_kind: 'browser_page',
+    subject_kind: 'button',
+    label: 'Unresolved',
+    source_metadata: {
+      browser_session_id: 'chrome-local',
+      browser_window_id: '918',
+      source_url: 'https://example.test/',
+    },
+  })
+  missingContent.projection.visible_display_rect = { x: 190, y: 220, w: 80, h: 32 }
+
+  const scoped = filterAnnotationCandidatesForScope([mismatched, missingContent], windowScope, { x: 195, y: 225 }, { include_rejections: true })
+  assert.deepEqual(scoped.candidates, [])
+  assert.equal(scoped.rejected.some((entry) => entry.id === 'foreign-dom' && entry.reason === 'native_ax_root_mismatch'), true)
+  assert.equal(scoped.rejected.some((entry) => entry.id === 'unresolved-dom' && entry.reason === 'browser_content_inset_unresolved'), true)
+})
+
 test('semantic scope selection requires direct children rather than overlap-only descendants', () => {
   const scope = node('section', ['canvas', 'doc', 'semantic', 'section'], {
     adapter_id: 'aos-toolkit-semantic-target',

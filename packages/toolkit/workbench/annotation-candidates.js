@@ -130,6 +130,43 @@ function rectContainsRect(outer = null, inner = null, tolerance = 0.5) {
     && b.y + b.h <= a.y + a.h + t
 }
 
+function browserDomCandidateMatchesNativeWindowScope(candidate = {}, scope = null) {
+  const adapter = text(candidate.adapter_id || candidate.projection?.adapter_id)
+  if (adapter !== 'aos-browser-dom-element-picker' || !scope) return { ok: false, reason: 'native_ax_root_mismatch' }
+
+  const metadata = {
+    ...(candidate.projection?.source_tree_node_metadata || {}),
+    ...(candidate.source_metadata || {}),
+  }
+  const scopeMetadata = scope.candidate?.source_metadata || {}
+  const contentRect = normalizeAnnotationRectLike(
+    metadata.browser_content_rect
+      || candidate.browser_content_rect
+      || candidate.content_rect,
+  )
+  const windowRect = normalizeAnnotationRectLike(scope.rect || scope.display_space_rect || scopeMetadata.bounds)
+  if (!contentRect || !windowRect || !rectContainsRect(windowRect, contentRect, 1)) {
+    return { ok: false, reason: 'browser_content_inset_unresolved' }
+  }
+
+  const candidateWindowId = text(metadata.browser_window_id || metadata.window_id)
+  const scopeWindowId = text(scopeMetadata.window_id || scope.candidate?.window_id)
+  if (candidateWindowId && scopeWindowId && candidateWindowId !== scopeWindowId) {
+    return { ok: false, reason: 'native_ax_root_mismatch' }
+  }
+
+  const candidatePid = Number.isFinite(Number(metadata.browser_pid ?? metadata.pid)) ? Number(metadata.browser_pid ?? metadata.pid) : null
+  const scopePid = Number.isFinite(Number(scopeMetadata.pid ?? scope.candidate?.pid)) ? Number(scopeMetadata.pid ?? scope.candidate?.pid) : null
+  if (candidatePid !== null && scopePid !== null && candidatePid !== scopePid) {
+    return { ok: false, reason: 'native_ax_root_mismatch' }
+  }
+
+  const sourceUrl = text(metadata.source_url || candidate.source_url)
+  const sessionId = text(metadata.browser_session_id || metadata.session_id)
+  if (!sourceUrl && !sessionId) return { ok: false, reason: 'native_ax_root_mismatch' }
+  return { ok: true, reason: 'scoped_native_browser_dom_child' }
+}
+
 export function isImplicitAnnotationRootCandidate(candidate = {}) {
   const adapter = text(candidate.adapter_id || candidate.projection?.adapter_id)
   const id = text(candidate.id || candidate.subject_id)
@@ -233,6 +270,9 @@ function candidateDirectnessForScope(candidate = {}, scope = null) {
 
   if (scope.adapter_id === 'macos-ax' || scope.root_kind === 'native_window') {
     if (adapter === 'macos-ax' && rootId === scope.root_id) return { accepted: true, direct: true, reason: 'scoped_native_window_child' }
+    const browserBridge = browserDomCandidateMatchesNativeWindowScope(candidate, scope)
+    if (browserBridge.ok) return { accepted: true, direct: true, reason: browserBridge.reason }
+    if (adapter === 'aos-browser-dom-element-picker') return { accepted: false, reason: browserBridge.reason }
     return { accepted: false, reason: 'native_ax_root_mismatch' }
   }
 

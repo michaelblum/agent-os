@@ -608,6 +608,9 @@ export function buildBrowserDomElementAnnotationCandidate(record = {}, options =
       text_excerpt: record.text_excerpt || '',
       browser_content_rect: contentRect,
       browser_attachment: options.browser_attachment || 'explicit_local_page',
+      browser_session_id: options.browser_session_id || record.browser_session_id || null,
+      browser_window_id: options.browser_window_id || record.browser_window_id || null,
+      browser_pid: options.browser_pid || record.browser_pid || null,
       provenance: options.provenance || 'browser_dom_element_picker',
     },
   }

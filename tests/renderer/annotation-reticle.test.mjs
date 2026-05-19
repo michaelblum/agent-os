@@ -365,6 +365,34 @@ test('Sigil reticle preserves browser DOM element target adapter identity', () =
   assert.match(semanticBlock, /browser_attachment: target\.browser_attachment \|\| payload\.browser_attachment \|\| 'explicit_local_page'/)
 })
 
+test('Sigil reticle requests live browser DOM target for scoped local browser windows', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+
+  assert.match(source, /function annotationReticleBrowserDomBridgeEvidence\(pointer = null\)/)
+  assert.match(source, /annotationReticleBrowserSessionFromWindow\(windowEvent\)/)
+  assert.match(source, /annotationReticleBrowserContentRectFromWindow\(windowEvent\)/)
+  assert.match(source, /blocker_reason: 'browser_content_inset_unresolved'/)
+  assert.match(source, /host\.request\('browser_dom\.element_target'/)
+  assert.match(source, /browser_session_id: evidence\.session_id/)
+  assert.match(source, /browser_window_id: evidence\.browser_window_id/)
+  assert.match(source, /buildBrowserDomElementAnnotationCandidate\(\{[\s\S]*browser_session_id: evidence\.session_id[\s\S]*browser_window_id: evidence\.browser_window_id/)
+  assert.match(source, /annotationReticleRequestBrowserDomTarget\(pointer, 'preview'\)/)
+  assert.match(source, /annotationReticleRequestBrowserDomTarget\(\{ x, y, valid: true \}, 'release'\)/)
+})
+
+test('daemon exposes bounded browser DOM element target request for Sigil reticle', () => {
+  const source = readFileSync(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8')
+
+  assert.match(source, /case "browser_dom\.element_target":/)
+  assert.match(source, /handleBrowserDomElementTarget\(callerID: canvasID, payload: inner \?\? \[:\]\)/)
+  assert.match(source, /BROWSER_CONTENT_INSET_UNRESOLVED/)
+  assert.match(source, /findRegistryRecord\(id: sessionID\)/)
+  assert.match(source, /NATIVE_AX_ROOT_MISMATCH/)
+  assert.match(source, /seeCaptureBrowserDomElementTarget\(/)
+  assert.match(source, /BrowserDomHitTestPoint\(x: x, y: y\)/)
+  assert.match(source, /contentRect: contentRect/)
+})
+
 test('annotation reticle stays unresolved instead of crashing when displays are absent', () => {
   let now = Date.parse('2026-05-13T12:00:00.000Z')
   const controller = createSigilAnnotationReticleController({
