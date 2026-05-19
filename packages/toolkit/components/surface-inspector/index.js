@@ -2296,6 +2296,9 @@ export default function CanvasInspector() {
     return `<div class="lower-pane-section diagnostics-section">`
       + renderCursorToggleRow(0)
       + renderMouseEventsToggleRow(0)
+      + (annotationState.annotation_mode.active
+        ? `<div class="diagnostics-annotation-support">${renderAnnotationSupportRows(0)}</div>`
+        : '')
       + renderAnnotationDebugRows(0)
       + renderDiagnosticsRows()
       + renderTree({ diagnosticsOnly: true })
