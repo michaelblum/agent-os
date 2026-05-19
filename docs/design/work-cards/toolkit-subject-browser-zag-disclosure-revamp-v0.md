@@ -81,6 +81,20 @@ the UI design.
    `Clear` after opening Markdown, and launch/load sanity for the components whose
    imports were changed if those launchers are available.
 
+Second Foreman review of branch head
+`0c315aee35a4047d0b69b9cffaef632e8d045757` accepted the Clear code path, but
+the browser-component barrel import gate still fails. This scan must return no
+browser component hits before Operator:
+
+```bash
+rg "\\.\\./\\.\\./controls/index\\.js|controls/index\\.js|from ['\\\"].*controls/index" packages/toolkit/components tests/toolkit -n
+```
+
+The remaining failing browser component imports were:
+
+- `packages/toolkit/components/surface-inspector/index.js`
+- `packages/toolkit/components/surface-zoom-inspector/index.js`
+
 ## Goal
 
 Refactor the toolkit Subject Browser so its interaction geometry is stable,
