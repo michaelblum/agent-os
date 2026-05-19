@@ -2,10 +2,12 @@
 
 ## Tracker
 
+- Status: completed as no-code verification on 2026-05-19.
 - Follow-up from `docs/design/work-cards/sigil-render-performance-regression-v0.md`.
 - Accepted baseline commit: `11df6de` (`fix(sigil): cheapen idle avatar render loop`).
 - User report: after the idle render fix, status-item hidden-to-visible summon
   still timed out on the first real-click path.
+- Follow-up: `docs/design/work-cards/aos-do-click-real-input-delivery-latency-v0.md`.
 
 ## Fresh Context Contract
 
@@ -80,7 +82,25 @@ After the corrected `11df6de` idle render performance slice, GDI measured:
 Treat the status path as independent from idle avatar render-loop cost unless
 new evidence proves otherwise.
 
-Foreman scoping found a likely synchronization gap to confirm:
+GDI verification on `gdi/sigil-status-item-summon-latency-v0` found no code
+change was needed after reset to `origin/main` at `e8d9c31`:
+
+- the base already contains the generic `status_item.state` bridge from target
+  canvas messages to `StatusItemManager.setPersistentVisible`;
+- the bridge is scoped by `canvasID == mgr.toggleId`;
+- `bash tests/sigil-status-item-lifecycle.sh` passed;
+- `bash tests/status-item-tracked-lifecycle-timeout.sh` passed;
+- `bash tests/sigil-real-input-status-avatar.sh` passed;
+- `./aos ready` reported `ready=true mode=repo daemon=reachable tap=active`;
+- direct split timing measured `./aos do click` command overhead at `2028.1ms`,
+  renderer visible `165.8ms` after the click command returned, and total
+  click-to-visible time `2193.8ms`.
+
+Conclusion: status-item state synchronization is not the remaining slow stage.
+The remaining measured cost belongs to real-input click delivery / CLI harness
+overhead, now tracked separately.
+
+Historical Foreman scoping had found a likely synchronization gap to confirm:
 
 - Sigil emits `host.post('status_item.state', { visible })` from
   `emitStatusItemState()` in `apps/sigil/renderer/live-modules/main.js`.
