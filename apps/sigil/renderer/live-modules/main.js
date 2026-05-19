@@ -17,7 +17,7 @@ import { createOmega, animateOmega, resetOmegaInterdimensionalTrail } from '../o
 import { animateSkins } from '../skins.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
-import { createRenderLoopScheduler, renderLoopContinuationReasons } from './render-loop.js';
+import { classifyRenderLoopWork, createRenderLoopScheduler, renderLoopContinuationReasons } from './render-loop.js';
 import { createHostRuntime } from './host-runtime.js';
 import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
@@ -149,6 +149,7 @@ const liveJs = {
     appliedAppearanceVersion: null,
     lastPublishedAppearanceVersion: null,
     surfaceRenderSnapshot: null,
+    surfaceRenderSnapshotReceivedAt: null,
     renderPerformanceTelemetry: { attempted: 0, sent: 0, skipped: null, lastError: null },
     renderLoop: { queued: false, suspended: false, mode: 'idle', continuationReasons: [], lastFrameAt: null },
     _resolveFirstDisplayGeometry: null,
@@ -191,6 +192,8 @@ window.__sigilBootFirstFrameAt = null;
 
 let rendererSuspended = false;
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
+const IDLE_AVATAR_MOTION_FRAME_DELAY_MS = 33;
+let structuralFrameDirty = true;
 let radialGestureVisuals = null;
 let lastRenderPerformanceFrameAt = null;
 let lastRenderPerformanceSampleAt = 0;
@@ -302,16 +305,20 @@ function runBootStep(stage, fn) {
     }
 }
 
-function scheduleRenderFrame() {
-    renderLoop.schedule(animate);
+function scheduleRenderFrame(options = {}) {
+    if (options.structural !== false) structuralFrameDirty = true;
+    renderLoop.schedule(animate, options);
 }
 
 function updateRenderLoopDebug(mode = renderLoop.lastMode, continuationReasons = []) {
     liveJs.renderLoop = {
         queued: renderLoop.queued,
+        delayed: renderLoop.delayed,
         suspended: renderLoop.suspended || rendererSuspended,
         mode,
         continuationReasons,
+        structuralDirty: structuralFrameDirty,
+        work: liveJs.renderLoop?.work ?? null,
         lastFrameAt: Date.now(),
     };
 }
@@ -400,7 +407,10 @@ function applySurfaceRenderSnapshot(snapshot) {
         liveJs.appliedAppearanceVersion = snapshot.appearanceVersion;
     }
     if (snapshot.avatarPos?.valid) liveJs.avatarPos = { ...snapshot.avatarPos };
-    if (snapshot.renderAvatarPos?.valid) liveJs.surfaceRenderSnapshot = snapshot;
+    if (snapshot.renderAvatarPos?.valid) {
+        liveJs.surfaceRenderSnapshot = snapshot;
+        liveJs.surfaceRenderSnapshotReceivedAt = performance.now();
+    }
     if (snapshot.pointerPos) liveJs.pointerPos = { ...snapshot.pointerPos };
     if (typeof snapshot.avatarHover === 'boolean') liveJs.avatarHover = snapshot.avatarHover;
     if (Number.isFinite(snapshot.avatarHoverProgress)) liveJs.avatarHoverProgress = snapshot.avatarHoverProgress;
@@ -916,6 +926,7 @@ function postRenderPerformanceSample({ frameStartedAt, renderStartedAt, renderEn
                 type: 'render-performance/sample',
                 payload: {
                     source: 'sigil-avatar',
+                    targetFps: liveJs.renderLoop?.work?.visualOnly ? 30 : 60,
                     frameMs,
                     updateMs: renderStartedAt - frameStartedAt,
                     renderMs: renderEndedAt - renderStartedAt,
@@ -3040,7 +3051,11 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'sigil.set_effects') {
-        if (typeof msg.paused === 'boolean') state.isPaused = msg.paused;
+        if (typeof msg.paused === 'boolean') {
+            const changed = state.isPaused !== msg.paused;
+            state.isPaused = msg.paused;
+            if (changed && !rendererSuspended) scheduleRenderFrame();
+        }
         return;
     }
 
@@ -3306,7 +3321,11 @@ function animate() {
     const frameStartedAt = performance.now();
     const dt = 0.016;
     const primarySegment = isPrimarySurfaceSegment();
-    if (primarySegment || !Number.isFinite(liveJs.surfaceRenderSnapshot?.globalTime)) {
+    if (
+        primarySegment
+        || !Number.isFinite(liveJs.surfaceRenderSnapshot?.globalTime)
+        || performance.now() - Number(liveJs.surfaceRenderSnapshotReceivedAt || 0) > 250
+    ) {
         state.globalTime += dt;
     } else {
         state.globalTime = liveJs.surfaceRenderSnapshot.globalTime;
@@ -3409,42 +3428,62 @@ function animate() {
     updateInnerEdgePulse(false);
     updateInnerEdgePulse(true);
 
-    contextMenu.updateSegmentPosition();
-
-    if (primarySegment && contextMenu.isOpen()) {
-        hitTarget.syncWorldRect(contextMenu.interactiveBounds(), true, { displays: liveJs.displays });
-    } else if (primarySegment && liveJs.avatarParking) {
-        hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
-    } else if (primarySegment && liveJs.avatarPos.valid) {
-        syncHitTargetToAvatar();
-    }
-    if (primarySegment) {
-        syncRadialTargetSurface();
-        syncSigilInputRegions();
-    }
     const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
-    overlay.draw({
-        state: liveJs.currentState,
-        avatarPos: avatarStagePos,
-        dragOrigin: dragOriginStage,
-        avatarHover: liveJs.avatarHover,
-        avatarHoverProgress: liveJs.avatarHoverProgress,
-        radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
-        annotationReticle: liveJs.annotationReticle,
-        annotationReticleOverlay: liveJs.annotationReticleOverlay || buildProjectedAnnotationReticleOverlay(liveJs.annotationReticle),
-        fastTravelEffect: state.transitionFastTravelEffect,
-        time: state.globalTime,
-        gotoRingRadius: liveJs.gotoRingRadius,
-        avatarHitRadius: liveJs.avatarHitRadius,
-        menuRingRadius: liveJs.menuRingRadius,
-        dragCancelRadius: liveJs.dragCancelRadius,
-    });
     const activeRadialActivationTransition = radialActivationTransition.tick(state.globalTime);
-    radialGestureVisuals?.update(liveJs.radialGestureMenu, {
-        time: state.globalTime,
-        activationTransition: activeRadialActivationTransition,
+    const continuationReasons = currentRenderLoopContinuationReasons(vitalityFrame);
+    const work = classifyRenderLoopWork({
+        continuationReasons,
+        structuralDirty: structuralFrameDirty,
     });
+    structuralFrameDirty = false;
+    liveJs.renderLoop.work = {
+        visualOnly: work.visualOnly,
+        structural: work.structural,
+        overlay: work.overlay,
+        publishState: work.publishState,
+        idleMotionDelayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,
+    };
+
+    if (work.structural) {
+        contextMenu.updateSegmentPosition();
+
+        if (primarySegment && contextMenu.isOpen()) {
+            hitTarget.syncWorldRect(contextMenu.interactiveBounds(), true, { displays: liveJs.displays });
+        } else if (primarySegment && liveJs.avatarParking) {
+            hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
+        } else if (primarySegment && liveJs.avatarPos.valid) {
+            syncHitTargetToAvatar();
+        }
+        if (primarySegment) {
+            syncRadialTargetSurface();
+            syncSigilInputRegions();
+        }
+    }
+    if (work.overlay) {
+        overlay.draw({
+            state: liveJs.currentState,
+            avatarPos: avatarStagePos,
+            dragOrigin: dragOriginStage,
+            avatarHover: liveJs.avatarHover,
+            avatarHoverProgress: liveJs.avatarHoverProgress,
+            radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
+            annotationReticle: liveJs.annotationReticle,
+            annotationReticleOverlay: liveJs.annotationReticleOverlay || buildProjectedAnnotationReticleOverlay(liveJs.annotationReticle),
+            fastTravelEffect: state.transitionFastTravelEffect,
+            time: state.globalTime,
+            gotoRingRadius: liveJs.gotoRingRadius,
+            avatarHitRadius: liveJs.avatarHitRadius,
+            menuRingRadius: liveJs.menuRingRadius,
+            dragCancelRadius: liveJs.dragCancelRadius,
+        });
+    }
+    if (work.structural || activeRadialActivationTransition) {
+        radialGestureVisuals?.update(liveJs.radialGestureMenu, {
+            time: state.globalTime,
+            activationTransition: activeRadialActivationTransition,
+        });
+    }
     if (activeRadialActivationTransition?.completed) {
         radialActivationTransition.clear();
         radialGestureVisuals?.reset?.();
@@ -3458,7 +3497,7 @@ function animate() {
     }
     const vitalityScale = Number.isFinite(vitalityFrame.scaleMultiplier) ? vitalityFrame.scaleMultiplier : 1;
     state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * vitalityScale * (1 + liveJs.avatarHoverProgress * 0.055));
-    if (desktopWorldSurface?.isPrimary) {
+    if (desktopWorldSurface?.isPrimary && work.publishState) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
     }
     const renderStartedAt = performance.now();
@@ -3474,10 +3513,13 @@ function animate() {
         liveJs._pendingLifecycleComplete = null;
     }
 
-    const continuationReasons = currentRenderLoopContinuationReasons(vitalityFrame);
     updateRenderLoopDebug(continuationReasons.length ? 'continuous' : 'idle', continuationReasons);
     if (continuationReasons.length > 0) {
-        renderLoop.schedule(animate, { mode: 'continuous' });
+        renderLoop.schedule(animate, {
+            mode: 'continuous',
+            structural: false,
+            delayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,
+        });
     }
 }
 

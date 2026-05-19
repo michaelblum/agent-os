@@ -55,6 +55,7 @@ export function normalizeRenderSample(input = {}, options = {}) {
     updateMs,
     gpuMs,
     fps: fps ?? (frameMs ? 1000 / frameMs : null),
+    targetFps: positiveNumber(input.targetFps),
     droppedFrames: droppedFrames != null ? Math.max(0, droppedFrames) : null,
     drawCalls: finiteNumber(input.drawCalls ?? input.calls),
     triangles: finiteNumber(input.triangles),
@@ -78,14 +79,15 @@ export function appendRenderSample(samples, sample, options = {}) {
 }
 
 export function summarizeRenderPerformance(samples = [], options = {}) {
-  const targetFps = positiveNumber(options.targetFps) ?? DEFAULT_TARGET_FPS;
-  const budgetMs = positiveNumber(options.budgetMs) ?? (1000 / targetFps);
-  const longFrameMs = positiveNumber(options.longFrameMs) ?? Math.max(50, budgetMs * 3);
-  const overBudgetFrameMs = positiveNumber(options.overBudgetFrameMs) ?? (budgetMs * 1.05);
   const now = finiteNumber(options.now) ?? Date.now();
   const liveWindowMs = positiveNumber(options.liveWindowMs) ?? 4000;
   const recent = samples.filter((sample) => sample && sample.frameMs != null && now - sample.ts <= liveWindowMs);
   const usable = recent.length > 0 ? recent : samples.filter((sample) => sample && sample.frameMs != null);
+  const sourceTargetFps = [...usable].reverse().find((sample) => positiveNumber(sample?.targetFps))?.targetFps;
+  const targetFps = positiveNumber(sourceTargetFps) ?? positiveNumber(options.targetFps) ?? DEFAULT_TARGET_FPS;
+  const budgetMs = positiveNumber(options.budgetMs) ?? (1000 / targetFps);
+  const longFrameMs = positiveNumber(options.longFrameMs) ?? Math.max(50, budgetMs * 3);
+  const overBudgetFrameMs = positiveNumber(options.overBudgetFrameMs) ?? (budgetMs * 1.05);
   const frameValues = usable.map((sample) => sample.frameMs).filter(Number.isFinite);
   const sortedFrameValues = [...frameValues].sort((a, b) => a - b);
   const latest = [...samples].reverse().find((sample) => sample && sample.frameMs != null) ?? null;
