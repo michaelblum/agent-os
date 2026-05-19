@@ -115,7 +115,7 @@ directly.
   `tests/renderer/fast-travel-preview.test.mjs` - own fast-travel gesture and
   preview state.
 - `src/daemon/surface-inspector-bundle.swift` and `src/display/status-item.swift`
-  - existing Canvas Inspector annotation/snapshot entry precedents if Sigil
+  - existing Surface Inspector annotation/snapshot entry precedents if Sigil
   needs a generic request path. Do not add Sigil-named daemon policy.
 
 ## Required Behavior
@@ -162,12 +162,12 @@ anchors. Emit a structured, inspectable Sigil event/proposal and report the
 missing primitive in the completion report. The V0 must still prove the radial
 gesture, visual treatment, and bounded commit payload.
 
-### Canvas Inspector Entry Bridge
+### Surface Inspector Entry Bridge
 
-If Sigil can reuse an existing generic Canvas Inspector request path to open or
+If Sigil can reuse an existing generic Surface Inspector request path to open or
 toggle Annotation Mode, use it. If no such path exists, add the smallest generic
-Canvas Inspector request needed, modeled after existing bundle capture/status
-entrypoints. Keep it named for Canvas Inspector or Annotation Mode, not Sigil.
+Surface Inspector request needed, modeled after existing bundle capture/status
+entrypoints. Keep it named for Surface Inspector or Annotation Mode, not Sigil.
 
 Acceptable direction:
 
@@ -228,7 +228,7 @@ When live annotation anchors exist, expose a camera radial affordance. In V0,
 - the latest `canvas_inspector.annotation_state` broadcast if Surface Inspector
   is open and reporting pins/anchors.
 
-Activating the camera should request the existing Canvas Inspector see-bundle
+Activating the camera should request the existing Surface Inspector see-bundle
 snapshot path, not create a new snapshot database. Prefer the existing
 `canvas_inspector.capture_bundle` request path where possible.
 
@@ -244,7 +244,7 @@ Ownership is Sigil app plus narrow toolkit helper only if needed:
   and product expression.
 - Toolkit may own a reusable pure helper for deterministic travel placement if
   the implementation would otherwise duplicate neutral geometry logic.
-- Daemon changes are allowed only for a tiny generic Canvas Inspector request
+- Daemon changes are allowed only for a tiny generic Surface Inspector request
   bridge if Sigil cannot reach the existing Annotation Mode/snapshot entry
   points.
 
@@ -269,7 +269,7 @@ After reading the code, likely edits are:
   - add the annotation reticle radial item and optionally camera item metadata.
 - `apps/sigil/renderer/live-modules/main.js`
   - track annotation reticle state, integrate radial item activation/hover,
-    expose debug snapshot fields, and bridge to Canvas Inspector requests.
+    expose debug snapshot fields, and bridge to Surface Inspector requests.
 - `apps/sigil/renderer/live-modules/interaction-overlay.js`
   - render the gold reticle vector treatment when annotation reticle mode is
     active.
@@ -278,7 +278,7 @@ After reading the code, likely edits are:
 - `packages/toolkit/workbench/annotation-session.js` or a new small helper only
   if Sigil needs shared session/placement behavior that belongs below the app.
 - `src/daemon/surface-inspector-bundle.swift` or adjacent daemon canvas-message
-  handling only if a generic Canvas Inspector request bridge is required.
+  handling only if a generic Surface Inspector request bridge is required.
 
 ## Verification
 

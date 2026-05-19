@@ -43,6 +43,16 @@
       "source_type": "api_doc"
     },
     {
+      "source_path": "docs/api/toolkit/controls.md",
+      "slug": "repo-doc-api-toolkit-controls",
+      "type": "repo_doc",
+      "name": "Toolkit Controls API",
+      "description": "Control primitives and Zag-backed toolkit control contracts.",
+      "tags": ["repo-docs", "api", "toolkit", "controls", "zag"],
+      "concepts": ["toolkit", "controls", "Zag", "Subject Browser"],
+      "source_type": "api_doc"
+    },
+    {
       "source_path": "docs/api/toolkit/runtime.md",
       "slug": "repo-doc-api-toolkit-runtime",
       "type": "repo_doc",
@@ -73,6 +83,16 @@
       "source_type": "markdown"
     },
     {
+      "source_path": "docs/design/aos-grand-unification-plan.md",
+      "slug": "repo-doc-grand-unification-plan",
+      "type": "repo_doc",
+      "name": "AOS Grand Unification Plan",
+      "description": "Current roadmap for subjects, browsers, workbenches, playbooks, verifiers, and generated artifacts.",
+      "tags": ["repo-docs", "design", "roadmap", "workbench", "subject-browser"],
+      "concepts": ["Subject Browser", "toolkit", "runtime wiki", "Workbench Subject"],
+      "source_type": "design_note"
+    },
+    {
       "source_path": "docs/design/aos-surface-system.md",
       "slug": "repo-doc-surface-system",
       "type": "repo_doc",
@@ -81,6 +101,16 @@
       "tags": ["repo-docs", "design", "surface-system", "toolkit"],
       "concepts": ["toolkit", "DesktopWorld stage", "input_region", "Surface Inspector"],
       "source_type": "markdown"
+    },
+    {
+      "source_path": "docs/design/aos-surface-stack-v0-integration-ledger.md",
+      "slug": "repo-doc-surface-stack-v0-integration-ledger",
+      "type": "repo_doc",
+      "name": "AOS Surface Stack V0 Integration Ledger",
+      "description": "Accepted surface-stack slice ledger, issue disposition, and current Sigil/toolkit boundary map.",
+      "tags": ["repo-docs", "design", "surface-system", "sigil", "toolkit"],
+      "concepts": ["Sigil", "toolkit", "Surface Inspector", "DesktopWorld stage"],
+      "source_type": "design_note"
     },
     {
       "source_path": "docs/design/display-first-annotation-mode-and-sigil-reticle.md",
@@ -103,14 +133,24 @@
       "source_type": "markdown"
     },
     {
-      "source_path": "docs/design/work-cards/repo-docs-runtime-wiki-projection-v0.md",
-      "slug": "repo-doc-work-card-runtime-wiki-projection-v0",
+      "source_path": "docs/design/generated-artifact-lifecycle-policy.md",
+      "slug": "repo-doc-generated-artifact-lifecycle-policy",
       "type": "repo_doc",
-      "name": "Repo Docs Runtime Wiki Projection V0 Work Card",
-      "description": "Active work card defining the deterministic repo-docs to runtime wiki projection slice.",
-      "tags": ["repo-docs", "work-card", "runtime-wiki"],
-      "concepts": ["runtime wiki", "daemon", "toolkit", "HTML Workbench Expression"],
-      "source_type": "work_card"
+      "name": "Generated Artifact Lifecycle Policy",
+      "description": "Policy for generated projections, runtime wiki pages, evidence artifacts, fixtures, and cleanup boundaries.",
+      "tags": ["repo-docs", "design", "generated-artifacts", "runtime-wiki"],
+      "concepts": ["runtime wiki", "generated artifacts", "HTML Workbench Expression", "artifact bundles"],
+      "source_type": "design_note"
+    },
+    {
+      "source_path": "docs/adr/0008-subject-browser-is-a-surface-kind.md",
+      "slug": "repo-doc-adr-subject-browser-surface-kind",
+      "type": "repo_doc",
+      "name": "ADR 0008: Subject Browser Is A Surface Kind",
+      "description": "Decision record separating Subject Browser as a surface class from the wiki graph itself.",
+      "tags": ["repo-docs", "adr", "subject-browser", "wiki"],
+      "concepts": ["Subject Browser", "runtime wiki", "toolkit", "Workbench Subject"],
+      "source_type": "adr"
     }
   ]
 }

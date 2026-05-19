@@ -504,7 +504,7 @@ Final report must include:
 
 - issue #296 reference;
 - files changed;
-- whether legacy Canvas Inspector naming was changed to Surface Inspector;
+- whether legacy Surface Inspector naming was changed to Surface Inspector;
 - implemented Annotation Mode entry points;
 - data model summary;
 - adapter support and unsupported states;

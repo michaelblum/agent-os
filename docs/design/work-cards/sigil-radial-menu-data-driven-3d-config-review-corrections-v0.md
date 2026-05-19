@@ -294,8 +294,8 @@ Likely implementation paths:
 - Do not remove current live radial behavior; preserve the existing baseline
   layout while moving its source of truth.
 - Do not add npm dependencies.
-- Do not widen into unrelated Sigil Studio, Agent Terminal, or context-menu
-  work.
+- Do not widen into unrelated legacy avatar configuration, Agent Terminal, or
+  context-menu work.
 
 ## Verification
 

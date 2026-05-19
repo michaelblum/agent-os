@@ -3,7 +3,7 @@ import { createWikiPageSubject } from './wiki-subject.js';
 
 const MARKDOWN_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
 const SIGIL_RENDERER_URL = 'aos://sigil/renderer/index.html';
-const SIGIL_STUDIO_URL = 'aos://sigil/studio/index.html';
+const SIGIL_AVATAR_CONFIG_URL = 'aos://sigil/studio/index.html';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -127,7 +127,7 @@ export function createSigilAgentSubject(page = {}, options = {}) {
         capabilities: ['editable'],
         contracts: ['sigil.agent.appearance'],
         hosts: [
-          canvasComponentHost(SIGIL_STUDIO_URL, { facet: 'appearance-controls' }),
+          canvasComponentHost(SIGIL_AVATAR_CONFIG_URL, { facet: 'appearance-controls' }),
         ],
       },
     ],

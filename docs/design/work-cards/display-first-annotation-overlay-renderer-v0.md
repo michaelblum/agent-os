@@ -174,7 +174,7 @@ visible to users:
 Ownership is toolkit workbench/component:
 
 - workbench helper owns session-to-overlay render planning;
-- Canvas Inspector may consume that helper as a compatibility surface;
+- Surface Inspector may consume that helper as a compatibility surface;
 - daemon/native primitives should not encode annotation UI policy in this
   slice;
 - Sigil app behavior is out of scope except for keeping the renderer reusable
@@ -204,7 +204,7 @@ After reading the code, likely edits are:
 - add small compatibility helpers near `annotation-session.js` only if the
   conversion boundary belongs there.
 
-Keep edits tightly scoped. If the current Canvas Inspector overlay code can
+Keep edits tightly scoped. If the current Surface Inspector overlay code can
 consume the helper without broad DOM churn, prefer that route.
 
 ## Verification

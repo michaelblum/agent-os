@@ -179,7 +179,7 @@ artifact data shape compatible unless the card reveals a real contract bug.
 
 Ownership is toolkit component/workbench:
 
-- Canvas Inspector owns the support UI surface;
+- Surface Inspector owns the support UI surface;
 - workbench helpers own shared annotation session and render-plan behavior;
 - daemon/native primitives should not encode annotation UI policy;
 - Sigil is out of scope for this slice.

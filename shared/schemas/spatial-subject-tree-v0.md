@@ -3,7 +3,7 @@
 **File:** `spatial-subject-tree-v0.schema.json`
 **Version:** `0.1.0`
 **Producers:** spatial topology snapshots, AOS canvas adapters, surface adapters, capture/locator/report/export/workflow adapters
-**Consumers:** Canvas Inspector, future Annotation Inspector, hit-test services, annotation projection, capture repair, human approval workflows
+**Consumers:** Surface Inspector, future Annotation Inspector, hit-test services, annotation projection, capture repair, human approval workflows
 
 ## What This Is
 

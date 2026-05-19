@@ -116,7 +116,7 @@ packages/toolkit/components/surface-inspector/launch.sh
 Verify:
 
 - Title, canvas id, manifest, and visible labels say Surface Inspector /
-  `surface-inspector`, not Canvas Inspector / `canvas-inspector`.
+  `surface-inspector`, not Surface Inspector / `canvas-inspector`.
 - Canvas list, display placement, cursor toggle, annotation controls, minimap,
   and tree rows are legible and not visually overlapped.
 - Shared controls look consistent: focus ring, hover, pressed, disabled/loading

@@ -98,7 +98,7 @@ const health = await aos.selfCheck();
 //   permissions: { accessibility: true, screenRecording: true },
 //   canvases: [
 //     { id: "avatar", url: "aos://sigil/renderer/index.html", interactive: false },
-//     { id: "studio", url: "aos://sigil/studio/index.html", interactive: true }
+//     { id: "agent-terminal", url: "aos://sigil/agent-terminal/index.html", interactive: true }
 //   ],
 //   services: {
 //     sigil: { running: true, pid: 67001 },

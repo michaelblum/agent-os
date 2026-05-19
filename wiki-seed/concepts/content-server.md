@@ -13,7 +13,7 @@ The daemon runs a local HTTP file server that serves HTML, CSS, and JavaScript f
 
 Canvases use `aos://` URLs which the daemon rewrites to `http://127.0.0.1:PORT/...` at canvas creation time.
 
-Example: `aos://sigil/studio/index.html` resolves to the studio interface.
+Example: `aos://sigil/renderer/index.html` resolves to the Sigil renderer through the registered Sigil content root.
 
 ## Configuration
 

@@ -19,7 +19,7 @@ Canvases are transparent NSWindow overlays managed by the aos daemon. Each canva
 
 ## Canvas Types
 
-- **Interactive** (`.statusBar` level, mouse-enabled) — receive clicks and keyboard focus. Used for studio, chat, inspector.
+- **Interactive** (`.statusBar` level, mouse-enabled) — receive clicks and keyboard focus. Used for toolkit inspectors, terminals, workbenches, and explicit app control surfaces.
 - **Overlay** (`.statusBar` level, click-through) — ignore mouse events while staying visually above the desktop. Used for display overlays, annotations.
 
 ## Toolkit Debug Surfaces

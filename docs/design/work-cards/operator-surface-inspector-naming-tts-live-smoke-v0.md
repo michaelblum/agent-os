@@ -64,7 +64,7 @@ git status --short --branch
   compatibility was intentionally forced.
 - `./aos show wait --id surface-inspector --manifest surface-inspector` succeeds.
 - Status item / Sigil utility entry labels say `Surface Inspector`, not
-  `Canvas Inspector`.
+  `Surface Inspector`.
 - When voice announcements are enabled, create/remove announcements say
   `Surface Inspector displayed` and `Surface Inspector removed`, not
   `Canvas canvas inspector displayed`.

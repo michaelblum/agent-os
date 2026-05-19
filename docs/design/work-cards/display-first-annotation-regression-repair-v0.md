@@ -59,7 +59,7 @@ The current implementation likely has these weak spots:
   that as a gold pin/lightbulb-like icon.
 - `applyRadialGestureMove()` updates the radial target surface and annotation
   reticle preview on the pointer path. The reticle enter path also opens/toggles
-  Canvas Inspector through `requestCanvasInspectorAnnotationToggle()`. If that is
+  Surface Inspector through `requestCanvasInspectorAnnotationToggle()`. If that is
   happening during drag acquisition, it is a likely jank source.
 - `shouldEnterAnnotationReticle()` currently treats `inside` or `outward`
   relation to the reticle item as enough to enter reticle mode. It does not track
@@ -114,14 +114,14 @@ Acceptance criteria:
 
 - Measure or instrument enough evidence to identify the jank source.
 - Pointer movement must not create/destroy canvases, repeatedly open/toggle
-  Canvas Inspector, or force full Surface Inspector list rerenders.
+  Surface Inspector, or force full Surface Inspector list rerenders.
 - Reticle preview updates are requestAnimationFrame-coalesced or otherwise
   bounded to state changes that matter.
 - Radial target surface sync is idempotent and does not send update work when the
   radial target geometry is unchanged.
 - Existing radial item activation and normal fast-travel behavior remain intact.
 
-If opening Canvas Inspector during drag is the cause, defer that bridge until it
+If opening Surface Inspector during drag is the cause, defer that bridge until it
 is not on the drag hot path, while still recording inspectable reticle state.
 
 ### 4. Narrow Reticle Fast-Travel Acquisition

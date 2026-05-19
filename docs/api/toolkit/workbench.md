@@ -225,7 +225,7 @@ already-available bounded evidence, such as canvas frames, AOS semantic target
 broadcasts, native window events, or native AX focus events, to restore live
 projections after a source settles. If no matching source evidence exists, the
 anchor remains present with blocker reason `projection_refresh_source_missing`.
-Canvas Inspector exposes `projection_refresh` in annotation snapshots and debug
+Surface Inspector exposes `projection_refresh` in annotation snapshots and debug
 state so support surfaces can show pending settle reason, refresh generation,
 and the last refresh result.
 

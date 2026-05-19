@@ -406,7 +406,7 @@ test('Sigil applies annotation item-click lifecycle guard to avatar and target-s
   assert.match(source, /case 'RADIAL': \{[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
 })
 
-test('Sigil defers Canvas Inspector opening out of the radial drag reticle entry path', () => {
+test('Sigil defers Surface Inspector opening out of the radial drag reticle entry path', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const enterStart = source.indexOf('function enterAnnotationReticle')
   const updateStart = source.indexOf('function updateAnnotationReticlePreview', enterStart)

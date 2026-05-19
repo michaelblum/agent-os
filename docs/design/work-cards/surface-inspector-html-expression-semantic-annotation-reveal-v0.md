@@ -137,7 +137,7 @@ overlays should only render when the target is visible and projectable.
 
 ## Suggested Implementation Areas
 
-Inspect current Surface Inspector and legacy Canvas Inspector paths before
+Inspect current Surface Inspector and legacy Surface Inspector paths before
 editing. The right files may include:
 
 - Surface Inspector annotation state/model helpers;

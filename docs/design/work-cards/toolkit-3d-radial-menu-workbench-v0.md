@@ -8,8 +8,9 @@
 - Related behavior epic: #295 Display-first Annotation Mode and Sigil reticle.
 - Related adapter tracker: #297 Annotation projection and subject-address
   adapters.
-- Related Sigil avatar editor tracker: #75 Sigil Studio draft/wiki-backed
-  controls.
+- Historical Sigil avatar configuration tracker: #75, now superseded by the
+  parked-legacy `apps/sigil/studio/` boundary. New avatar configuration work
+  should get a fresh product decision and issue.
 - Prior implementation slice:
   `docs/design/work-cards/sigil-radial-menu-data-driven-3d-config-v0.md`.
 - Prior design slice:
