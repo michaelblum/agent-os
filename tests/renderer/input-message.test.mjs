@@ -133,3 +133,12 @@ test('Sigil treats coalesced press release travel as fast travel', async () => {
   assert.match(main, /case 'PRESS':[\s\S]*distance\(x, y, liveJs\.mousedownPos\.x, liveJs\.mousedownPos\.y\) >= liveJs\.dragThreshold/)
   assert.match(main, /case 'PRESS':[\s\S]*queueFastTravel\(x, y\);[\s\S]*setInteractionState\('IDLE', 'press-release-fast-travel'\)/)
 })
+
+test('Sigil avatar input hit testing does not depend on render scale', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+  const match = main.match(/function isOnAvatar\(x, y\) \{([\s\S]*?)\n\}/)
+
+  assert.ok(match, 'isOnAvatar function should exist')
+  assert.match(match[1], /!liveJs\.avatarVisible \|\| !liveJs\.avatarPos\.valid/)
+  assert.doesNotMatch(match[1], /appScale/)
+})

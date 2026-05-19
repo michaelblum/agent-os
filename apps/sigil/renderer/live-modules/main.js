@@ -1315,7 +1315,7 @@ window.postLastPositionToDaemon = postLastPositionToDaemon;
 window.postToHost = host.post;
 
 function isOnAvatar(x, y) {
-    if (!liveJs.avatarPos.valid || state.appScale <= 0.05) return false;
+    if (!liveJs.avatarVisible || !liveJs.avatarPos.valid) return false;
     const dx = x - liveJs.avatarPos.x;
     const dy = y - liveJs.avatarPos.y;
     return ((dx * dx) + (dy * dy)) <= (liveJs.avatarHitRadius * liveJs.avatarHitRadius);
