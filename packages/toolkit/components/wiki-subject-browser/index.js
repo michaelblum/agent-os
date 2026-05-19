@@ -1184,7 +1184,7 @@ export default function WikiSubjectBrowser(options = {}) {
             <span data-role="path-status"></span>
           </div>
           <nav class="wiki-subject-browser-path" data-role="path-crumbs" aria-label="Active drilldown path"></nav>
-          <button type="button" class="wiki-subject-browser-root-clear" data-role="root-clear">Clear</button>
+          <button type="button" class="wiki-subject-browser-root-clear" data-role="root-clear">Clear Browser</button>
         </header>
         <div class="wiki-subject-browser-shell aos-splitter" data-role="browser-shell" data-aos-splitter-root>
           <section class="wiki-subject-browser-workbench-region aos-splitter__panel" data-role="workbench-region" data-aos-splitter-panel data-value="graph"></section>
@@ -1270,12 +1270,13 @@ export default function WikiSubjectBrowser(options = {}) {
       });
       applyWikiSubjectBrowserSemanticTarget(rootClearEl, {
         id: 'root-clear',
-        name: 'Clear Subject Browser focus',
+        name: 'Clear Subject Browser to graph root',
         role: 'AXButton',
-        action: 'clear_subject_browser',
-        aosRef: wikiSubjectBrowserAosRef('path', 'clear'),
+        action: 'clear_subject_browser_root',
+        aosRef: wikiSubjectBrowserAosRef('path', 'clear-root'),
       });
-      rootClearEl.textContent = 'Clear';
+      rootClearEl.title = 'Clear Subject Browser to graph root';
+      rootClearEl.textContent = 'Clear Browser';
       rootClearEl?.addEventListener('click', clearBrowserFocus);
       shellSplitter = mountSemanticPrimitive(rootEl.querySelector('[data-role="browser-shell"]'));
       shellSplitter.mount();

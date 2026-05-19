@@ -730,6 +730,12 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(indexJs, /loadGraphOnStart:\s*true/);
   assert.match(indexJs, /applyWikiSubjectBrowserSemanticTarget/);
   assert.match(indexJs, /wikiSubjectBrowserAosRef\('root'\)/);
+  assert.match(indexJs, /Clear Browser/);
+  assert.match(indexJs, /Clear Subject Browser to graph root/);
+  assert.match(indexJs, /clear_subject_browser_root/);
+  assert.match(indexJs, /wikiSubjectBrowserAosRef\('path', 'clear-root'\)/);
+  assert.match(indexJs, /id:\s*'subject-details-clear'[\s\S]*Clear focused Subject details/);
+  assert.match(indexJs, /action:\s*'clear_subject_focus'/);
   assert.match(indexJs, /subject-index-status/);
   assert.match(indexJs, /subjectIndexMarkup/);
   assert.match(indexJs, /subject-search/);

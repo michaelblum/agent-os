@@ -9,7 +9,7 @@ import {
   createSplitter,
   createTooltip,
   renderCollapsibleHtml,
-} from '../../packages/toolkit/controls/index.js';
+} from '../../packages/toolkit/controls/zag-primitives.js';
 import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs';
 
 function patchedDocument() {
