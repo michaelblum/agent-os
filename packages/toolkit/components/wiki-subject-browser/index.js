@@ -9,7 +9,11 @@ import {
   WIKI_SUBJECT_SELECTION_TYPE,
 } from '../../workbench/wiki-subject-opening.js';
 import MarkdownWorkbench from '../markdown-workbench/index.js';
-import { createButton, createSelect, createTextField } from '../../controls/index.js';
+import {
+  createButton,
+} from '../../controls/button.js';
+import { createSelect } from '../../controls/select.js';
+import { createTextField } from '../../controls/text-field.js';
 import {
   SUBJECT_BROWSER_INDEX_FILTER_KEYS,
   applySubjectIndexFilter,
@@ -202,6 +206,7 @@ function createSharedButton({
     if (value !== undefined && value !== null) control.el.dataset[key] = String(value);
   }
   if (semantic) applyWikiSubjectBrowserSemanticTarget(control.el, semantic);
+  if (label && !control.el.textContent.trim()) control.el.textContent = label;
   if (onClick) control.el.addEventListener('click', onClick);
   return control.el;
 }
@@ -225,9 +230,32 @@ export default function WikiSubjectBrowser(options = {}) {
   let navigationTrailEl = null;
   let navigationTrailStatusEl = null;
   let workbenchRegionEl = null;
+  let shellSplitter = null;
+  let contextSwitcherEl = null;
+  let pathCrumbsEl = null;
+  let pathStatusEl = null;
+  let rootClearEl = null;
+  let catalogAccordion = null;
+  let subjectListAccordion = null;
+  let activeWorkbenchContext = 'catalog';
+  let detailDrilldownPath = [];
+  const workbenchContextEls = new Map();
   let workbench = null;
   let workbenchHost = null;
   const state = createWikiSubjectBrowserState();
+
+  function mountSemanticPrimitive(root) {
+    return {
+      mount() {
+        return this;
+      },
+      update() {
+        return this;
+      },
+      destroy() {},
+      el: root,
+    };
+  }
 
   function syncSnapshot() {
     const snapshot = wikiSubjectBrowserSnapshot(state);
@@ -236,6 +264,8 @@ export default function WikiSubjectBrowser(options = {}) {
       rootEl.dataset.selectedPath = snapshot.selected_path;
       rootEl.dataset.focusedSubjectId = snapshot.focused_subject_id || '';
     }
+    renderPathToolbar(snapshot);
+    syncWorkbenchContext(snapshot);
     renderCatalog(snapshot);
     renderSubjectIndex(snapshot);
     window.__wikiSubjectBrowserState = snapshot;
@@ -397,7 +427,132 @@ export default function WikiSubjectBrowser(options = {}) {
 
   function inspectSubjectIndexEntry(entry = {}) {
     applySubjectIndexFocus(state, entry);
+    detailDrilldownPath = [{
+      kind: 'subject',
+      label: entry.label || entry.entry_handle || entry.subject_id,
+      ref: entry.semantic_ref,
+    }];
+    setWorkbenchContext('details');
     syncSnapshot();
+  }
+
+  function clearBrowserFocus() {
+    applyWikiSubjectSelection(state, null);
+    clearSubjectIndexFocus(state);
+    resetSubjectIndexFilters(state);
+    detailDrilldownPath = [];
+    workbench?.onMessage?.({ type: 'clear-selection' }, workbenchHost);
+    setWorkbenchContext('catalog', { sync: false });
+    syncSnapshot();
+  }
+
+  function pathSegments(snapshot = wikiSubjectBrowserSnapshot(state)) {
+    const path = text(snapshot.selected_path);
+    if (path) {
+      const parts = path.split('/').filter(Boolean);
+      return [
+        { label: 'Graph Root', index: 0, path: '' },
+        ...parts.map((part, index) => ({
+          label: part,
+          index: index + 1,
+          path: parts.slice(0, index + 1).join('/'),
+        })),
+      ];
+    }
+    if (detailDrilldownPath.length > 0) {
+      return [
+        { label: 'Graph Root', index: 0, path: '' },
+        ...detailDrilldownPath.map((segment, index) => ({
+          label: segment.label,
+          index: index + 1,
+          path: '',
+          detailIndex: index,
+        })),
+      ];
+    }
+    const focused = text(snapshot.focused_subject_details?.label || snapshot.focused_subject_id);
+    return [
+      { label: 'Graph Root', index: 0, path: '' },
+      ...(focused ? [{ label: focused, index: 1, path: '' }] : []),
+    ];
+  }
+
+  function renderPathToolbar(snapshot = wikiSubjectBrowserSnapshot(state)) {
+    if (!pathCrumbsEl || !pathStatusEl || !rootClearEl) return;
+    const segments = pathSegments(snapshot);
+    pathStatusEl.textContent = segments.length > 1 ? 'Drilldown path' : 'Graph root';
+    rootClearEl.disabled = !snapshot.selected_path && !snapshot.focused_subject_id && !snapshot.content_open;
+    pathCrumbsEl.replaceChildren();
+    segments.forEach((segment, index) => {
+      if (index > 0) {
+        const separator = document.createElement('span');
+        separator.className = 'wiki-subject-browser-path-separator';
+        separator.textContent = '/';
+        pathCrumbsEl.appendChild(separator);
+      }
+      const isCurrent = index === segments.length - 1;
+      const crumb = document.createElement(isCurrent ? 'span' : 'button');
+      crumb.className = 'wiki-subject-browser-path-crumb';
+      crumb.textContent = segment.label;
+      crumb.dataset.pathIndex = String(segment.index);
+      if (isCurrent) {
+        crumb.setAttribute('aria-current', 'page');
+      } else {
+        crumb.type = 'button';
+        crumb.addEventListener('click', () => {
+          if (segment.index === 0) {
+            clearBrowserFocus();
+            return;
+          }
+          if (Number.isInteger(segment.detailIndex)) {
+            detailDrilldownPath = detailDrilldownPath.slice(0, segment.detailIndex + 1);
+            syncSnapshot();
+            return;
+          }
+          const selection = createWikiSubjectSelectionPayload({
+            id: segment.path,
+            path: segment.path,
+            name: segment.label,
+            type: 'page',
+          });
+          applyWikiSubjectSelection(state, selection);
+          workbench?.onMessage?.(selection, workbenchHost);
+          syncSnapshot();
+        });
+      }
+      pathCrumbsEl.appendChild(crumb);
+    });
+  }
+
+  function setWorkbenchContext(context = 'catalog', { sync = true } = {}) {
+    activeWorkbenchContext = ['catalog', 'index', 'details', 'trail'].includes(context) ? context : 'catalog';
+    syncWorkbenchContext();
+    if (sync) syncSnapshot();
+  }
+
+  function setDetailDrilldownPath(segments = []) {
+    detailDrilldownPath = segments.map((segment) => ({
+      kind: text(segment.kind, 'detail'),
+      label: text(segment.label, 'Detail'),
+      ref: text(segment.ref),
+    }));
+    setWorkbenchContext('details');
+    syncSnapshot();
+  }
+
+  function syncWorkbenchContext(snapshot = wikiSubjectBrowserSnapshot(state)) {
+    for (const [context, element] of workbenchContextEls.entries()) {
+      const active = context === activeWorkbenchContext;
+      element.hidden = !active;
+      element.dataset.active = String(active);
+    }
+    contextSwitcherEl?.querySelectorAll('[data-workbench-context]')?.forEach((button) => {
+      const active = button.dataset.workbenchContext === activeWorkbenchContext;
+      button.setAttribute('aria-pressed', String(active));
+      button.dataset.active = String(active);
+    });
+    const detailsButton = contextSwitcherEl?.querySelector('[data-workbench-context="details"]');
+    if (detailsButton) detailsButton.dataset.hasFocus = String(!!snapshot.focused_subject_id);
   }
 
   async function openNavigationTrailEntry(entryKey = '') {
@@ -498,6 +653,8 @@ export default function WikiSubjectBrowser(options = {}) {
       for (const entry of entries) {
         const item = document.createElement('article');
         item.className = 'wiki-subject-browser-catalog-entry';
+        item.dataset.aosAccordionItem = '';
+        item.dataset.value = entry.key;
         item.dataset.entryId = entry.id;
         applyWikiSubjectBrowserSemanticTarget(item, {
           id: `subject-catalog-entry-${entry.key}`,
@@ -507,12 +664,17 @@ export default function WikiSubjectBrowser(options = {}) {
 
         const title = document.createElement('div');
         title.className = 'wiki-subject-browser-catalog-title';
+        title.dataset.aosAccordionItemTrigger = '';
+        title.dataset.value = entry.key;
+        title.tabIndex = 0;
         title.innerHTML = '<strong></strong><span></span>';
         title.querySelector('strong').textContent = entry.label;
         title.querySelector('span').textContent = entry.subject?.subject_type || 'subject';
 
         const meta = document.createElement('div');
         meta.className = 'wiki-subject-browser-catalog-meta';
+        meta.dataset.aosAccordionItemContent = '';
+        meta.dataset.value = entry.key;
         const contracts = Array.isArray(entry.contracts) ? entry.contracts.length : 0;
         const refs = entry.affordances?.reference_count || 0;
         meta.textContent = `${contracts} contracts · ${refs} refs`;
@@ -549,6 +711,7 @@ export default function WikiSubjectBrowser(options = {}) {
       }
     }
     catalogStatusEl.textContent = catalogStatusText(snapshot);
+    catalogAccordion?.update?.();
   }
 
   function renderSubjectIndex(snapshot = wikiSubjectBrowserSnapshot(state)) {
@@ -576,6 +739,8 @@ export default function WikiSubjectBrowser(options = {}) {
             || snapshot.focused_entry_handle === entry.entry_handle;
           const item = document.createElement('article');
           item.className = 'wiki-subject-browser-subject-entry';
+          item.dataset.aosAccordionItem = '';
+          item.dataset.value = entry.key;
           item.dataset.subjectId = entry.subject_id;
           item.dataset.entryHandle = entry.entry_handle;
           item.dataset.focused = String(focused);
@@ -588,12 +753,17 @@ export default function WikiSubjectBrowser(options = {}) {
 
           const title = document.createElement('div');
           title.className = 'wiki-subject-browser-subject-title';
+          title.dataset.aosAccordionItemTrigger = '';
+          title.dataset.value = entry.key;
+          title.tabIndex = 0;
           title.innerHTML = '<strong></strong><span></span>';
           title.querySelector('strong').textContent = entry.label;
           title.querySelector('span').textContent = entry.entry_handle;
 
           const meta = document.createElement('div');
           meta.className = 'wiki-subject-browser-subject-meta';
+          meta.dataset.aosAccordionItemContent = '';
+          meta.dataset.value = entry.key;
           meta.textContent = subjectEntryMetaText(entry);
 
           const actions = document.createElement('div');
@@ -649,6 +819,7 @@ export default function WikiSubjectBrowser(options = {}) {
           subjectListEl.appendChild(item);
         }
       }
+      subjectListAccordion?.update?.();
     }
     renderSubjectDetails(snapshot);
     renderNavigationTrail(snapshot);
@@ -712,6 +883,18 @@ export default function WikiSubjectBrowser(options = {}) {
     meta.className = 'wiki-subject-browser-details-meta';
     meta.textContent = subjectDetailsStatusText(details);
     subject.append(title, meta);
+    if (details.health) {
+      const health = document.createElement('div');
+      health.className = 'wiki-subject-browser-health aos-collapsible';
+      health.dataset.aosCollapsibleRoot = '';
+      health.innerHTML = `
+        <button type="button" data-aos-collapsible-trigger>Health JSON</button>
+        <pre data-aos-collapsible-content></pre>
+      `;
+      health.querySelector('pre').textContent = JSON.stringify(details.health, null, 2);
+      mountSemanticPrimitive(health).mount();
+      subject.appendChild(health);
+    }
 
     const controls = document.createElement('div');
     controls.className = 'wiki-subject-browser-details-actions';
@@ -832,6 +1015,15 @@ export default function WikiSubjectBrowser(options = {}) {
       item.innerHTML = '<strong></strong><span></span>';
       item.querySelector('strong').textContent = facet.label || facet.key;
       item.querySelector('span').textContent = `${facet.layer || 'layer'} · ${facet.host_count || 0} hosts`;
+      item.tabIndex = 0;
+      item.dataset.detailFacetKey = facet.key || '';
+      item.addEventListener('click', () => {
+        const details = objectValue(wikiSubjectBrowserSnapshot(state).focused_subject_details);
+        setDetailDrilldownPath([
+          { kind: 'subject', label: details.label || details.entry_handle || 'Subject' },
+          { kind: 'facet', label: facet.label || facet.key, ref: facet.semantic_ref },
+        ]);
+      });
       group.appendChild(item);
     }
     subjectDetailsEl.appendChild(group);
@@ -862,6 +1054,20 @@ export default function WikiSubjectBrowser(options = {}) {
       item.innerHTML = '<strong></strong><span></span>';
       item.querySelector('strong').textContent = `${hostReference.facet_key || 'facet'} host`;
       item.querySelector('span').textContent = hostReferenceMetaText(hostReference);
+      item.tabIndex = 0;
+      item.dataset.detailHostId = hostReference.id || '';
+      item.addEventListener('click', () => {
+        const details = objectValue(wikiSubjectBrowserSnapshot(state).focused_subject_details);
+        setDetailDrilldownPath([
+          { kind: 'subject', label: details.label || details.entry_handle || 'Subject' },
+          { kind: 'facet', label: hostReference.facet_key || 'facet' },
+          {
+            kind: 'host',
+            label: hostReference.entry?.facet || hostReference.entry?.value || hostReference.kind || 'Host',
+            ref: hostReference.semantic_ref,
+          },
+        ]);
+      });
       group.appendChild(item);
     }
     subjectDetailsEl.appendChild(group);
@@ -972,14 +1178,36 @@ export default function WikiSubjectBrowser(options = {}) {
         aosRef: wikiSubjectBrowserAosRef('root'),
       });
       rootEl.innerHTML = `
-        <section class="wiki-subject-browser-workbench-region" data-role="workbench-region"></section>
-        <aside class="wiki-subject-browser-catalog" aria-label="Subject catalog">
-          <header>
-            <strong>Subject Catalog</strong>
-            <span data-role="catalog-status"></span>
-          </header>
-          <div data-role="catalog-list"></div>
-          <section class="wiki-subject-browser-index" aria-label="Subject graph index" data-role="subject-index">
+        <header class="wiki-subject-browser-pathbar" aria-label="Subject path">
+          <div class="wiki-subject-browser-pathbar-label">
+            <strong>Path</strong>
+            <span data-role="path-status"></span>
+          </div>
+          <nav class="wiki-subject-browser-path" data-role="path-crumbs" aria-label="Active drilldown path"></nav>
+          <button type="button" class="wiki-subject-browser-root-clear" data-role="root-clear">Clear</button>
+        </header>
+        <div class="wiki-subject-browser-shell aos-splitter" data-role="browser-shell" data-aos-splitter-root>
+          <section class="wiki-subject-browser-workbench-region aos-splitter__panel" data-role="workbench-region" data-aos-splitter-panel data-value="graph"></section>
+          <button type="button" class="wiki-subject-browser-resize aos-splitter__resize-trigger" data-aos-splitter-resize-trigger data-value="graph:workbench" aria-label="Resize browser workbench"></button>
+          <aside class="wiki-subject-browser-catalog aos-splitter__panel" aria-label="Subject browser workbench" data-aos-splitter-panel data-value="workbench">
+            <header>
+              <strong>Workbench</strong>
+              <span data-role="catalog-status"></span>
+            </header>
+            <div class="wiki-subject-browser-context-switcher" data-role="context-switcher" aria-label="Workbench contexts">
+              <button type="button" data-workbench-context="catalog">Catalog</button>
+              <button type="button" data-workbench-context="index">Index</button>
+              <button type="button" data-workbench-context="details">Details</button>
+              <button type="button" data-workbench-context="trail">Trail</button>
+            </div>
+            <section class="wiki-subject-browser-context wiki-subject-browser-catalog-context" aria-label="Subject catalog" data-role="catalog-context" data-workbench-context-panel="catalog">
+              <header>
+                <strong>Catalog</strong>
+                <span data-role="catalog-context-status"></span>
+              </header>
+              <div class="wiki-subject-browser-accordion aos-accordion" data-role="catalog-list" data-aos-accordion-root></div>
+            </section>
+            <section class="wiki-subject-browser-context wiki-subject-browser-index" aria-label="Subject graph index" data-role="subject-index" data-workbench-context-panel="index">
             <header>
               <strong>Subject Index</strong>
               <span data-role="subject-index-status"></span>
@@ -1013,24 +1241,44 @@ export default function WikiSubjectBrowser(options = {}) {
               <button type="button" data-role="subject-filters-reset">Reset</button>
             </div>
             <div class="wiki-subject-browser-list-status" data-role="subject-list-status"></div>
-            <div class="wiki-subject-browser-subject-list" data-role="subject-list"></div>
+            <div class="wiki-subject-browser-subject-list aos-accordion" data-role="subject-list" data-aos-accordion-root></div>
           </section>
-          <section class="wiki-subject-browser-details" aria-label="Focused Subject details" data-role="subject-details-section">
+          <section class="wiki-subject-browser-context wiki-subject-browser-details" aria-label="Focused Subject details" data-role="subject-details-section" data-workbench-context-panel="details">
             <header>
               <strong>Details</strong>
               <span data-role="subject-details-status"></span>
             </header>
             <div data-role="subject-details"></div>
           </section>
-          <section class="wiki-subject-browser-trail" aria-label="Navigation trail" data-role="navigation-trail-section">
+          <section class="wiki-subject-browser-context wiki-subject-browser-trail" aria-label="Navigation trail" data-role="navigation-trail-section" data-workbench-context-panel="trail">
             <header>
               <strong>Trail</strong>
               <span data-role="navigation-trail-status"></span>
             </header>
             <div data-role="navigation-trail"></div>
           </section>
-        </aside>
+          </aside>
+        </div>
       `;
+      pathStatusEl = rootEl.querySelector('[data-role="path-status"]');
+      pathCrumbsEl = rootEl.querySelector('[data-role="path-crumbs"]');
+      rootClearEl = rootEl.querySelector('[data-role="root-clear"]');
+      applyWikiSubjectBrowserSemanticTarget(pathCrumbsEl, {
+        id: 'active-path',
+        name: 'Active drilldown path',
+        aosRef: wikiSubjectBrowserAosRef('path'),
+      });
+      applyWikiSubjectBrowserSemanticTarget(rootClearEl, {
+        id: 'root-clear',
+        name: 'Clear Subject Browser focus',
+        role: 'AXButton',
+        action: 'clear_subject_browser',
+        aosRef: wikiSubjectBrowserAosRef('path', 'clear'),
+      });
+      rootClearEl.textContent = 'Clear';
+      rootClearEl?.addEventListener('click', clearBrowserFocus);
+      shellSplitter = mountSemanticPrimitive(rootEl.querySelector('[data-role="browser-shell"]'));
+      shellSplitter.mount();
       workbenchRegionEl = rootEl.querySelector('[data-role="workbench-region"]');
       const catalogAside = rootEl.querySelector('.wiki-subject-browser-catalog');
       const catalogMarkup = catalogAside.innerHTML;
@@ -1040,8 +1288,25 @@ export default function WikiSubjectBrowser(options = {}) {
         aosRef: wikiSubjectBrowserAosRef('subject-catalog'),
       });
       catalogAside.innerHTML = catalogMarkup;
-      catalogEl = catalogAside.querySelector('[data-role="catalog-list"]');
       catalogStatusEl = catalogAside.querySelector('[data-role="catalog-status"]');
+      contextSwitcherEl = catalogAside.querySelector('[data-role="context-switcher"]');
+      contextSwitcherEl?.querySelectorAll('[data-workbench-context]')?.forEach((button) => {
+        button.addEventListener('click', () => setWorkbenchContext(button.dataset.workbenchContext));
+      });
+      for (const panel of catalogAside.querySelectorAll('[data-workbench-context-panel]')) {
+        workbenchContextEls.set(panel.dataset.workbenchContextPanel, panel);
+      }
+      const catalogContextEl = catalogAside.querySelector('[data-role="catalog-context"]');
+      const catalogContextMarkup = catalogContextEl.innerHTML;
+      applyWikiSubjectBrowserSemanticTarget(catalogContextEl, {
+        id: 'subject-catalog-context',
+        name: 'Subject catalog context',
+        aosRef: wikiSubjectBrowserAosRef('subject-catalog', 'context'),
+      });
+      catalogContextEl.innerHTML = catalogContextMarkup;
+      catalogEl = catalogContextEl.querySelector('[data-role="catalog-list"]');
+      catalogAccordion = mountSemanticPrimitive(catalogEl);
+      catalogAccordion.mount();
       const subjectIndexEl = catalogAside.querySelector('[data-role="subject-index"]');
       const subjectIndexMarkup = subjectIndexEl.innerHTML;
       applyWikiSubjectBrowserSemanticTarget(catalogStatusEl, {
@@ -1071,6 +1336,8 @@ export default function WikiSubjectBrowser(options = {}) {
       subjectFiltersEl = subjectIndexEl.querySelector('[data-role="subject-filters"]');
       subjectListStatusEl = subjectIndexEl.querySelector('[data-role="subject-list-status"]');
       subjectListEl = subjectIndexEl.querySelector('[data-role="subject-list"]');
+      subjectListAccordion = mountSemanticPrimitive(subjectListEl);
+      subjectListAccordion.mount();
       applyWikiSubjectBrowserSemanticTarget(subjectIndexStatusEl, {
         id: 'subject-index-status',
         name: 'Subject graph index status',
