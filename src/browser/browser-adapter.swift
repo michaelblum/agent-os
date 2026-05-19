@@ -96,7 +96,7 @@ private func browserDomElementTargetEvalScript(
         contentRectLiteral = "null"
     }
     return """
-(() => {
+() => {
   const point = { x: \(point.x), y: \(point.y) };
   const __aosBrowserDomElementTargetFixture = "__aos-browser-dom-element-target-fixture";
   const browserContentRect = \(contentRectLiteral);
@@ -161,10 +161,10 @@ private func browserDomElementTargetEvalScript(
     if (id) add(`#${esc(id)}`);
     for (const attr of ["data-testid", "data-test", "data-cy", "data-qa"]) {
       const value = stableAttr(element?.getAttribute?.(attr));
-      if (value) add(`[${attr}="${String(value).replace(/"/g, "\\\\\"")}"]`);
+      if (value) add(`[${attr}="${String(value).replace(/"/g, "")}"]`);
     }
     const name = stableAttr(element?.getAttribute?.("name"));
-    if (name) add(`${tag(element)}[name="${String(name).replace(/"/g, "\\\\\"")}"]`);
+    if (name) add(`${tag(element)}[name="${String(name).replace(/"/g, "")}"]`);
     const path = [];
     let current = element;
     while (current && current.nodeType === 1 && tag(current) !== "html" && path.length < 4) {
@@ -338,7 +338,7 @@ private func browserDomElementTargetEvalScript(
     browser_content_rect: browserContentRect,
     skipped
   };
-})()
+}
 """
 }
 
