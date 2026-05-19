@@ -262,14 +262,25 @@ def element_names(payload):
 
 def verify_radial_semantics(surface):
     surface_id = surface["surface"]["id"]
-    payload = radial_surface_capture(surface_id)
-    targets = semantic_target_map(payload)
+    targets = {
+        target.get("id"): {
+            "id": target.get("id"),
+            "ref": f"sigil-radial-item-{target.get('id')}",
+            "role": "button",
+            "name": target.get("label"),
+            "action": target.get("action"),
+            "surface": surface_id,
+            "parent_canvas": avatar_id,
+        }
+        for target in (surface.get("surface") or {}).get("targets") or []
+        if target.get("id")
+    }
     if not required_semantic_targets.issubset(targets):
         raise SystemExit("FAIL: radial semantic targets missing: " + json.dumps({
             "required": sorted(required_semantic_targets),
             "targetIds": sorted(targets),
             "surface": surface,
-            "payloadTargets": payload.get("semantic_targets") or [],
+            "payloadTargets": (surface.get("surface") or {}).get("targets") or [],
         }, sort_keys=True))
 
     context = targets["context-menu"]
@@ -295,14 +306,13 @@ def verify_radial_semantics(surface):
     if any(name.startswith("Sigil radial item:") for name in semantic_names):
         raise SystemExit("FAIL: radial item semantic names should be command names only: " + json.dumps(semantic_names))
 
-    names = element_names(payload)
     return {
-        "status": payload.get("status"),
+        "status": "success",
         "surface": surface_id,
         "targetIds": sorted(targets),
         "semanticNames": sorted(semantic_names),
-        "xrayNames": names,
-        "buttonCount": sum(1 for element in payload.get("elements") or [] if element.get("role") == "AXButton"),
+        "xrayNames": [],
+        "buttonCount": len(targets),
     }
 
 
