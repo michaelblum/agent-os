@@ -121,6 +121,29 @@ test('frame and enabled state changes update or remove avatar region', () => {
   assert.equal(adapter.snapshot().regions.avatar.registered, false)
 })
 
+test('avatar region is removed while a higher-fidelity hit canvas is active', () => {
+  const host = createHost()
+  let hitCanvasActive = false
+  const adapter = createSigilInputRegionAdapter({
+    host,
+    liveState: createLiveState(),
+    windowObject: {},
+    fallbackCanvasId: 'avatar-main',
+    avatarNativeFrame: () => [60, 80, 80, 80],
+    avatarRegionEnabled: () => !hitCanvasActive,
+    contextMenuIsOpen: () => false,
+    logger: quietLogger(),
+  })
+
+  adapter.sync()
+  hitCanvasActive = true
+  adapter.sync()
+
+  assert.deepEqual(host.calls.map((call) => call.method), ['register', 'remove'])
+  assert.equal(host.calls[1].id, SIGIL_AVATAR_INPUT_REGION_ID)
+  assert.equal(adapter.snapshot().regions.avatar.registered, false)
+})
+
 test('context-menu region has higher priority and expected metadata', () => {
   const host = createHost()
   const adapter = createSigilInputRegionAdapter({

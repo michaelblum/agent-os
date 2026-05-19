@@ -38,6 +38,7 @@ export function createSigilInputRegionAdapter({
     windowObject = globalThis.window,
     isPrimarySegment = () => true,
     avatarNativeFrame,
+    avatarRegionEnabled = () => true,
     contextMenuNativeFrame,
     contextMenuIsOpen = () => false,
     logger = console,
@@ -116,6 +117,7 @@ export function createSigilInputRegionAdapter({
     function syncAvatar() {
         if (
             !isPrimarySegment()
+            || !avatarRegionEnabled()
             || !liveState.avatarVisible
             || !liveState.avatarPos?.valid
             || !CAPTURE_STATES.has(liveState.currentState)

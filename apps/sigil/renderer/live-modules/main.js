@@ -715,6 +715,7 @@ sigilInputRegions = createSigilInputRegionAdapter({
     windowObject: window,
     isPrimarySegment: isPrimarySurfaceSegment,
     avatarNativeFrame: nativeFrameForAvatar,
+    avatarRegionEnabled: () => !hitTarget.hit.interactive,
     contextMenuIsOpen: () => contextMenu.isOpen(),
     contextMenuNativeFrame: () => nativeFrameFromDesktopRect(contextMenu.interactiveBounds()),
 });
@@ -2129,6 +2130,7 @@ function setAvatarVisibility(visible) {
     emitStatusItemState();
     emitAvatarMark();
     syncSigilInputRegions();
+    syncHitTargetToAvatar();
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
@@ -2158,6 +2160,7 @@ function setAvatarPosition(x, y) {
     postLastPositionToDaemon();
     emitAvatarMark();
     syncSigilInputRegions();
+    syncHitTargetToAvatar();
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
