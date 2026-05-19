@@ -47,6 +47,33 @@ Foreman checked the current runtime after the report:
 The exact CPU percentages are not a deterministic test oracle, but they justify
 adding bounded diagnostics and cleanup invariants.
 
+### Foreman Spot Check — 2026-05-18
+
+Foreman rechecked the runtime after a report that mouse events felt slow and
+asked whether Operator/GDI handoffs might be leaving orphaned processes behind:
+
+- `./aos ready` reported `ready=true`, repo daemon reachable, and input tap
+  active.
+- `./aos status --json` reported a single repo daemon, `pid=98054`,
+  `ownership_state=consistent`, `stale_resources.status=clean`,
+  `stale_daemons=0`, and no stale canvases.
+- `./aos show list` reported active AOS canvases for DesktopWorld/avatar,
+  hidden hit/menu surfaces, Surface Inspector, and warm-suspended log/agent
+  terminal panels. These are legitimate runtime surfaces, not stale canvas
+  records.
+- `ps` showed several long-lived Codex process pairs from earlier dock-style
+  sessions, plus older launchd-owned WebKit XPC processes. They were mostly
+  idle and did not own the AOS input tap.
+- No duplicate `/Users/Michael/Code/agent-os/aos serve --idle-timeout none`
+  process was present.
+
+Conclusion: lingering Operator/GDI/Codex sessions are possible and should be
+cleaned up operationally when known finished, but current evidence does not
+point to duplicate AOS daemons or stale canvas records as the primary mouse
+latency cause. Keep this slice focused on Surface Inspector input subscription,
+annotation cleanup, and bounded mouse-move work unless fresh evidence shows a
+process leak.
+
 ## Required Behavior
 
 ### 1. Status Item Annotation Mode State Must Be Truthful
