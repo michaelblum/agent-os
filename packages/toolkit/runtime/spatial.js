@@ -279,6 +279,15 @@ function displayForNativeRect(rect, displays = []) {
     || null
 }
 
+function displayForDesktopWorldRect(rect, displays = []) {
+  if (!rect) return null
+  const point = rectCenter(rect)
+  const normalized = normalizeDisplayEntries(displays)
+  return normalized.find((display) => displayContainsRect(display, rect, { rectKey: 'bounds' }))
+    || normalized.find((display) => point && displayContainsPoint(display, point, { rectKey: 'bounds' }))
+    || null
+}
+
 function nativeToDesktopWorldViaDisplays(rect, displays = []) {
   const display = displayForNativeRect(rect, displays)
   if (!display) return null
@@ -315,6 +324,11 @@ export function nativeToDesktopWorldRect(rect, displaysOrNativeDesktopBounds) {
 }
 
 export function desktopWorldToNativePoint(point, displaysOrNativeDesktopBounds) {
+  if (Array.isArray(displaysOrNativeDesktopBounds)) {
+    const worldRect = point ? { x: point.x, y: point.y, w: 1, h: 1 } : null
+    const rect = desktopWorldToNativeViaDisplays(worldRect, displaysOrNativeDesktopBounds)
+    if (rect) return { x: rect.x, y: rect.y }
+  }
   const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
   if (!nativeDesktopBounds || !point) return null
   const x = asNumber(point.x)
@@ -327,6 +341,10 @@ export function desktopWorldToNativePoint(point, displaysOrNativeDesktopBounds) 
 }
 
 export function desktopWorldToNativeRect(rect, displaysOrNativeDesktopBounds) {
+  if (Array.isArray(displaysOrNativeDesktopBounds)) {
+    const mapped = desktopWorldToNativeViaDisplays(rect, displaysOrNativeDesktopBounds)
+    if (mapped) return mapped
+  }
   const nativeDesktopBounds = resolveNativeDesktopBounds(displaysOrNativeDesktopBounds)
   if (!nativeDesktopBounds || !rect) return null
   return {
@@ -334,6 +352,22 @@ export function desktopWorldToNativeRect(rect, displaysOrNativeDesktopBounds) {
     y: rect.y + nativeDesktopBounds.y,
     w: rect.w,
     h: rect.h,
+  }
+}
+
+function desktopWorldToNativeViaDisplays(rect, displays = []) {
+  const source = normalizeRect(rect)
+  if (!rect || source.w <= 0 || source.h <= 0) return null
+  const display = displayForDesktopWorldRect(source, displays)
+  if (!display) return null
+  const nativeBounds = rectForDisplay(display, 'nativeBounds')
+  const desktopBounds = rectForDisplay(display, 'bounds')
+  if (!nativeBounds || !desktopBounds) return null
+  return {
+    x: source.x - desktopBounds.x + nativeBounds.x,
+    y: source.y - desktopBounds.y + nativeBounds.y,
+    w: source.w,
+    h: source.h,
   }
 }
 

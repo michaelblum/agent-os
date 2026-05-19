@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import {
   computeDisplayNonant,
   computeWorkbenchFrame,
+  desktopWorldToNativePoint,
+  desktopWorldToNativeRect,
   globalToUnionLocalPoint,
   nativeToDesktopWorldRect,
   normalizeDisplays,
@@ -35,6 +37,29 @@ test('nativeToDesktopWorldRect is re-exported through Sigil display-utils', () =
   assert.deepEqual(
     nativeToDesktopWorldRect({ x: 1132, y: 53, w: 360, h: 457 }, displays),
     { x: 1339, y: 53, w: 360, h: 457 },
+  )
+})
+
+test('desktopWorldToNative uses containing display bounds instead of union origin', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'main',
+      is_main: true,
+      native_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+    },
+    {
+      id: 'extended',
+      native_bounds: { x: -207, y: 982, w: 1920, h: 1080 },
+    },
+  ])
+
+  assert.deepEqual(
+    desktopWorldToNativePoint({ x: 1056, y: 1468 }, displays),
+    { x: 849, y: 1468 },
+  )
+  assert.deepEqual(
+    desktopWorldToNativeRect({ x: 1016, y: 1428, w: 80, h: 80 }, displays),
+    { x: 809, y: 1428, w: 80, h: 80 },
   )
 })
 

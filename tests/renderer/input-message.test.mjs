@@ -126,3 +126,10 @@ test('Sigil live child input path does not reintroduce private hit-target flags'
   assert.doesNotMatch(main, /fromHitTarget/)
   assert.doesNotMatch(menu, /assumeInside/)
 })
+
+test('Sigil treats coalesced press release travel as fast travel', async () => {
+  const main = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
+
+  assert.match(main, /case 'PRESS':[\s\S]*distance\(x, y, liveJs\.mousedownPos\.x, liveJs\.mousedownPos\.y\) >= liveJs\.dragThreshold/)
+  assert.match(main, /case 'PRESS':[\s\S]*queueFastTravel\(x, y\);[\s\S]*setInteractionState\('IDLE', 'press-release-fast-travel'\)/)
+})

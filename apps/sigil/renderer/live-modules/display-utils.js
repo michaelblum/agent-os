@@ -21,6 +21,7 @@ const {
     nativeToDesktopWorldPoint: toolkitNativeToDesktopWorldPoint,
     nativeToDesktopWorldRect: toolkitNativeToDesktopWorldRect,
     desktopWorldToNativePoint: toolkitDesktopWorldToNativePoint,
+    desktopWorldToNativeRect: toolkitDesktopWorldToNativeRect,
     globalToUnionLocalPoint: toolkitGlobalToUnionLocalPoint,
 } = await import(toolkitSpecifier('runtime/spatial.js'));
 
@@ -36,6 +37,7 @@ export { toolkitClampPointToDisplays as clampPointToDisplays };
 export { toolkitNativeToDesktopWorldPoint as nativeToDesktopWorldPoint };
 export { toolkitNativeToDesktopWorldRect as nativeToDesktopWorldRect };
 export { toolkitDesktopWorldToNativePoint as desktopWorldToNativePoint };
+export { toolkitDesktopWorldToNativeRect as desktopWorldToNativeRect };
 export { toolkitGlobalToUnionLocalPoint as globalToUnionLocalPoint };
 
 export function computeWorkbenchFrame(displays = [], point, options = {}) {

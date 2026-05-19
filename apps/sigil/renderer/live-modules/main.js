@@ -2327,6 +2327,15 @@ function handleLeftMouseDown(x, y) {
 function handleLeftMouseUp(x, y) {
     switch (liveJs.currentState) {
         case 'PRESS':
+            if (
+                liveJs.mousedownPos
+                && distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) >= liveJs.dragThreshold
+            ) {
+                clearGestureState();
+                queueFastTravel(x, y);
+                setInteractionState('IDLE', 'press-release-fast-travel');
+                return;
+            }
             clearGestureState();
             fastTravel.clearGesture('press-click');
             setInteractionState('GOTO', 'press-click');
