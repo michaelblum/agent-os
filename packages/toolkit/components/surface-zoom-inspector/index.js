@@ -19,7 +19,9 @@ import {
 } from './model.js'
 import { mountChrome } from '../../panel/chrome.js'
 import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js'
-import { renderButtonHtml, renderSelectHtml, renderToggleHtml } from '../../controls/index.js'
+import { renderButtonHtml } from '../../controls/button.js'
+import { renderSelectHtml } from '../../controls/select.js'
+import { renderToggleHtml } from '../../controls/toggle.js'
 import {
   renderWorkbenchPaneHeader,
   renderWorkbenchReadout,

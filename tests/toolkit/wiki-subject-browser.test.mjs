@@ -550,6 +550,28 @@ test('wiki subject browser bridges wiki selection to open-request payloads', () 
   );
 });
 
+test('wiki subject browser clear returns wiki selection state to graph root', () => {
+  const selection = createWikiSubjectSelectionPayload({
+    id: 'aos/concepts/runtime-modes.md',
+    path: 'aos/concepts/runtime-modes.md',
+    name: 'Runtime Modes',
+    type: 'concept',
+  });
+  const state = createWikiSubjectBrowserState();
+
+  applyWikiSubjectSelection(state, selection);
+  applyWikiSubjectOpenRequested(state, createWikiSubjectBrowserOpenRequestFromSelection(selection));
+  applyWikiSubjectSelection(state, null);
+  const snapshot = wikiSubjectBrowserSnapshot(state);
+
+  assert.equal(snapshot.selected_path, '');
+  assert.equal(snapshot.selected_subject, null);
+  assert.equal(snapshot.focused_subject_id, '');
+  assert.equal(snapshot.focused_entry_handle, '');
+  assert.equal(snapshot.content_open, false);
+  assert.equal(snapshot.last_event.payload, null);
+});
+
 test('wiki subject browser loads and opens non-wiki catalog entries through canonical descriptors', async () => {
   const record = await repoJson(
     'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json',
@@ -748,6 +770,8 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:wiki-graph"/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:content-pane"/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:content-close"/);
+  assert.match(markdownJs, /type === 'clear-selection'[\s\S]*splitOpen = false/);
+  assert.match(markdownJs, /type === 'clear-selection'[\s\S]*graphWorkbench\?\.onMessage\?\.\(\{ type: 'clear-selection' \}/);
   assert.match(markdownJs, /createTextarea\(\{/);
   assert.match(markdownJs, /aosRef: 'markdown-workbench:source-editor'/);
   assert.match(markdownJs, /type\.startsWith\('wiki-kb\/'\)/);

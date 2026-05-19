@@ -14,7 +14,8 @@ import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runti
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
 import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
-import { renderButtonHtml, renderTextFieldHtml } from '../../controls/index.js'
+import { renderButtonHtml } from '../../controls/button.js'
+import { renderTextFieldHtml } from '../../controls/text-field.js'
 import { createAosZagTabs } from '../../adapters/zag/tabs.js'
 import { subscribe, unsubscribe } from '../../runtime/subscribe.js'
 import {
