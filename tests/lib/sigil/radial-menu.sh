@@ -315,12 +315,9 @@ def radial_surface_observable_probe():
     target_ids = set(probe.get("targetIds") or [])
     visible_frame = ris.native_rect_intersects_visible_display(daemon_frame or surface.get("frame"), displays_payload())
     if (
-        probe.get("state") == "RADIAL"
-        and probe.get("phase") == "radial"
-        and surface.get("ready") is True
+        surface.get("ready") is True
         and surface.get("interactive") is True
         and required_semantic_targets.issubset(target_ids)
-        and (probe.get("visuals") or {}).get("visible") is True
         and daemon_canvas
         and daemon_canvas.get("interactive") is True
         and visible_frame
@@ -331,10 +328,31 @@ def radial_surface_observable_probe():
 
 
 def radial_items_by_id(probe):
-    return {
+    items = {
         item.get("id"): item
         for item in (probe.get("items") or [])
         if item.get("id") and isinstance(item.get("center"), dict)
+    }
+    if items:
+        return items
+    surface = probe.get("surface") or {}
+    frame = surface.get("frame") if isinstance(surface.get("frame"), list) and len(surface.get("frame")) >= 2 else None
+    if not frame:
+        return {}
+    return {
+        target.get("id"): {
+            "id": target.get("id"),
+            "label": target.get("label"),
+            "action": target.get("action"),
+            "active": target.get("active"),
+            "center": {
+                "x": float(frame[0]) + float(target.get("x", 0)),
+                "y": float(frame[1]) + float(target.get("y", 0)),
+                "valid": True,
+            },
+        }
+        for target in (surface.get("targets") or [])
+        if target.get("id")
     }
 
 

@@ -10,6 +10,7 @@ from pathlib import Path
 
 LIB_DIR = Path(__file__).resolve().parent
 NODE_HELPER = LIB_DIR / "real-input-surface-primitives.mjs"
+AOS_COMMAND_TIMEOUT_SECONDS = float(os.environ.get("AOS_REAL_INPUT_COMMAND_TIMEOUT_SECONDS", "8"))
 
 
 class AOS:
@@ -17,13 +18,33 @@ class AOS:
         self.aos_bin = aos_bin
 
     def run(self, *args):
-        return subprocess.check_output([self.aos_bin, *args], text=True, stderr=subprocess.STDOUT)
+        return subprocess.check_output(
+            [self.aos_bin, *args],
+            text=True,
+            stderr=subprocess.STDOUT,
+            timeout=AOS_COMMAND_TIMEOUT_SECONDS,
+        )
 
     def run_json(self, *args):
         return json.loads(self.run(*args))
 
     def run_json_capture(self, *args):
-        completed = subprocess.run([self.aos_bin, *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        try:
+            completed = subprocess.run(
+                [self.aos_bin, *args],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                timeout=AOS_COMMAND_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            return {
+                "ok": False,
+                "returncode": None,
+                "stdout": error.stdout or "",
+                "error": f"timed out after {AOS_COMMAND_TIMEOUT_SECONDS:g}s",
+                "args": [self.aos_bin, *args],
+            }
         if completed.returncode != 0:
             return {"ok": False, "returncode": completed.returncode, "stdout": completed.stdout, "args": [self.aos_bin, *args]}
         try:

@@ -1488,11 +1488,27 @@ function syncOmegaTrailToTravelOrigin() {
 }
 
 function queueFastTravel(x, y) {
-    fastTravel.start(x, y, { pointer: { x, y, valid: true } });
+    const travel = fastTravel.start(x, y, { pointer: { x, y, valid: true } });
     syncOmegaTrailToTravelOrigin();
     if (desktopWorldSurface?.isPrimary) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(liveJs.avatarPos));
     }
+    if (travel?.effect === 'line') {
+        const travelKey = travelVectorKey(travel);
+        const timeoutMs = Math.max(1, Number(travel.durationMs) || 0) + 40;
+        window.setTimeout(() => {
+            if (travelVectorKey(liveJs.travel) !== travelKey) return;
+            fastTravel.tick(0, () => {
+                postLastPositionToDaemon();
+                syncHitTargetToAvatar();
+            });
+            if (desktopWorldSurface?.isPrimary) {
+                desktopWorldSurface.publishState(surfaceRenderSnapshot(liveJs.avatarPos));
+            }
+            if (!rendererSuspended) scheduleRenderFrame();
+        }, timeoutMs);
+    }
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function annotationReticleRectFromAt(at = null) {
@@ -2357,6 +2373,9 @@ function handleLeftMouseUp(x, y) {
             return;
         }
         case 'FAST_TRAVEL': {
+            const releaseDistanceFromDown = liveJs.mousedownPos
+                ? distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y)
+                : 0;
             const result = radialGestureMenu.release({ x, y, valid: true }, {
                 input: {
                     kind: 'gesture',
@@ -2376,6 +2395,15 @@ function handleLeftMouseUp(x, y) {
             if (result?.committed?.type === 'fastTravel') {
                 queueFastTravel(x, y);
                 setInteractionState('IDLE', 'radial-release-fast-travel');
+                return;
+            }
+            if (
+                !annotationReticle.active
+                && releaseDistanceFromDown >= liveJs.dragThreshold
+                && !result?.committed
+            ) {
+                queueFastTravel(x, y);
+                setInteractionState('IDLE', 'radial-fast-travel-release-fallback');
                 return;
             }
             fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-fast-travel-item' : 'radial-fast-travel-cancel');
