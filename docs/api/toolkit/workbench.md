@@ -470,6 +470,13 @@ candidate shape for an approved local browser page/session. It requires a
 proven `content_rect`/`browser_content_rect` to project viewport bounds into
 DesktopWorld coordinates. Without that inset it reports
 `browser_content_inset_unresolved` and does not draw a false display overlay.
+The repo-mode browser adapter exposes the same narrow record boundary through
+`aos see capture browser:<session> --browser-dom-point x,y`, optionally with
+`--browser-content-rect x,y,w,h` when the caller has a proven content rect. That
+command performs one explicit local page hit test and returns an
+`aos-browser-dom-element-picker` `element_target` payload with selector, XPath,
+frame, shadow, source URL, viewport, page, and projection evidence; it is not a
+background crawl or capture/export workflow.
 
 `shared/schemas/spatial-subject-tree-v0.schema.json` is the neutral tree
 contract above topology and projection results. Spatial topology owns

@@ -87,6 +87,8 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("channel", "--channel", "Capture a focus channel by id"),
                 flag("grid", "--grid", "Grid overlay (e.g. 4x3)"),
                 flag("xray", "--xray", "AX element traversal overlay", type: .bool),
+                flag("browser-dom-point", "--browser-dom-point", "Browser DOM viewport point hit test for browser:<session> targets: x,y"),
+                flag("browser-content-rect", "--browser-content-rect", "Proven browser content rect in DesktopWorld coordinates: x,y,w,h"),
                 flag("label", "--label", "Badge annotations (implies --xray)", type: .bool),
                 flag("perception", "--perception", "Include topology + resolved surface geometry for the capture (segments when spanning displays)", type: .bool),
                 flag("show-cursor", "--show-cursor", "Include cursor in capture", type: .bool),

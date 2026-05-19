@@ -466,6 +466,27 @@ func parseGlobalRect(_ spec: String, label: String = "--region") -> CGRect {
     return rect.integral
 }
 
+func parseViewportPoint(_ spec: String, label: String = "--browser-dom-point") -> BrowserDomHitTestPoint {
+    let parts = spec.split(separator: ",").compactMap { Double($0) }
+    guard parts.count == 2 else {
+        exitError("\(label) must be x,y", code: "INVALID_ARG")
+    }
+    guard parts[0] >= 0, parts[1] >= 0 else {
+        exitError("\(label) coordinates must be non-negative viewport points", code: "INVALID_ARG")
+    }
+    return BrowserDomHitTestPoint(x: parts[0], y: parts[1])
+}
+
+func parseBrowserContentRect(_ spec: String, label: String = "--browser-content-rect") -> BrowserDomContentRect {
+    let rect = parseGlobalRect(spec, label: label)
+    return BrowserDomContentRect(
+        x: Double(rect.origin.x),
+        y: Double(rect.origin.y),
+        w: Double(rect.size.width),
+        h: Double(rect.size.height)
+    )
+}
+
 struct CaptureSurfaceSelection {
     let kind: String
     let id: String?
@@ -937,6 +958,10 @@ struct CaptureOptions {
     // Xray (accessibility traversal)
     var xray: Bool = false
 
+    // Browser DOM point hit test for explicit local browser sessions.
+    var browserDomPoint: BrowserDomHitTestPoint? = nil
+    var browserContentRect: BrowserDomContentRect? = nil
+
     // Label (badge annotations; implies xray)
     var label: Bool = false
 
@@ -1050,6 +1075,16 @@ func parseCaptureArgs(_ args: [String]) -> CaptureOptions {
         // Xray (accessibility traversal)
         case "--xray":
             opts.xray = true
+
+        // Browser DOM point targeting.
+        case "--browser-dom-point":
+            i += 1
+            guard i < args.count else { exitError("--browser-dom-point requires x,y", code: "MISSING_ARG") }
+            opts.browserDomPoint = parseViewportPoint(args[i])
+        case "--browser-content-rect":
+            i += 1
+            guard i < args.count else { exitError("--browser-content-rect requires x,y,w,h", code: "MISSING_ARG") }
+            opts.browserContentRect = parseBrowserContentRect(args[i])
 
         // Label (badge annotations; implies --xray)
         case "--label":
@@ -1829,6 +1864,15 @@ private func findSelectedText(in element: AXUIElement, depth: Int = 0, maxDepth:
 func captureBrowserTarget(opts: CaptureOptions) async {
     do {
         let bt = try parseBrowserTarget(opts.target)
+        if let point = opts.browserDomPoint {
+            let response = try seeCaptureBrowserDomElementTarget(
+                target: bt,
+                point: point,
+                contentRect: opts.browserContentRect
+            )
+            print(response)
+            return
+        }
         if opts.xray {
             let elements = try seeCaptureXray(target: bt, withBounds: opts.label)
             var resp = SuccessResponse()
