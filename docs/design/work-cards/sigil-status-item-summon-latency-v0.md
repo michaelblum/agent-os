@@ -3,9 +3,9 @@
 ## Tracker
 
 - Follow-up from `docs/design/work-cards/sigil-render-performance-regression-v0.md`.
-- Accepted baseline commit: `be0e7fc` (`Fix Sigil idle render loop`).
+- Accepted baseline commit: `11df6de` (`fix(sigil): cheapen idle avatar render loop`).
 - User report: after the idle render fix, status-item hidden-to-visible summon
-  still took `20508.7ms` in a real-click path.
+  still timed out on the first real-click path.
 
 ## Fresh Context Contract
 
@@ -60,11 +60,25 @@ Before the idle render fix, Foreman measured:
 - a repeated cycle behaved the same: first click timed out after `5000ms`,
   second click summoned in `1417.1ms`.
 
-After the idle render fix, GDI measured:
+After the older idle render fix, GDI measured:
 
 - status-item hidden-to-visible summon remained slow at `20508.7ms`;
 - idle render loop was no longer hot, so this is likely no longer render-loop
   scheduling.
+
+After the corrected `11df6de` idle render performance slice, GDI measured:
+
+- idle visible avatar stayed animated with `work.visualOnly=true`;
+- pure avatar-motion frames had `structural=false`, `overlay=false`, and
+  `publishState=false`;
+- render-performance `sigil-avatar` reported `targetFps=30`, current FPS
+  `30.3`, average FPS `29.2`, P95 `35ms`, over budget `0%`, and stable state;
+- WebKit GPU dropped to about `18.5%` from the prior `47-51%`;
+- daemon dropped to about `7.8%` from the prior `10-11%`;
+- status-item summon after hidden state still timed out at `8000ms`.
+
+Treat the status path as independent from idle avatar render-loop cost unless
+new evidence proves otherwise.
 
 Foreman scoping found a likely synchronization gap to confirm:
 
