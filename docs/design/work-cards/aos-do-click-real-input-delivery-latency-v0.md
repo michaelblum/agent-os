@@ -7,6 +7,10 @@
 - Baseline evidence: status-item state synchronization is already correct, but
   a direct repo-mode measurement showed `./aos do click` command overhead of
   `2028.1ms` before the renderer became visible `165.8ms` later.
+- Classification: measurement/test-tooling follow-up only. This does not
+  explain the original background fan/resource consumption, which occurred while
+  the user was not clicking and was using unrelated apps such as VS Code and
+  Terminal.
 
 ## Fresh Context Contract
 
@@ -22,6 +26,11 @@ This slice should either reduce the overhead in the AOS `do click` path when
 the daemon is already ready and the input tap is active, or adjust the status
 item real-input harness to use an appropriate lower-latency real-input
 injection boundary with timing split clearly reported.
+
+Do not route this as the next product performance fix. If background resource
+consumption persists after `11df6de`, investigate idle/background AOS canvas,
+WebKit, BroadcastChannel, timer/listener, and renderer accumulation evidence
+instead.
 
 ## Read First
 
@@ -71,6 +80,11 @@ The status-item follow-up branch found:
 That means the previously alarming first-click status item measurement is not a
 renderer visibility transition or status-item state synchronization delay. It
 is dominated by the real-input command path used by the harness.
+
+This evidence is orthogonal to the original fan/load report. That report
+occurred during ordinary desktop use with no click in progress, so the relevant
+resource-consumption fix remains the idle/background render path work from
+`11df6de` and any follow-up evidence of post-fix accumulation.
 
 ## Required Behavior
 
