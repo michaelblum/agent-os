@@ -95,6 +95,33 @@ The remaining failing browser component imports were:
 - `packages/toolkit/components/surface-inspector/index.js`
 - `packages/toolkit/components/surface-zoom-inspector/index.js`
 
+## Operator Clear Failure Correction
+
+Operator acceptance on branch head
+`1920bd23744d3e4358695864927e2fca0cfac515` reported `needs_gdi_fix`.
+The import gate and inspector launch sanity passed, but native activation of a
+visible `Clear` control did not reset the browser. After the click, observation
+still showed the Markdown path, focused Work Record details, and Markdown content
+in the left pane.
+
+Treat this as an interaction-geometry/semantic-target failure unless code
+evidence proves otherwise. The root reset control must be unambiguous and
+native-clickable:
+
+- disambiguate the top Path reset control from the Details `Clear` control and
+  any other clear/reset controls;
+- make the root reset control's visible label, aria label, semantic target name,
+  action, and `data-aos-ref` specific enough for native target resolution;
+- harden the handler path so activation of that root control clears
+  `selected_path`, `focused_subject_id`, focused details, recent focus state, and
+  the embedded Markdown document pane;
+- preserve the separate Details clear action if it remains useful, but do not let
+  it satisfy the root-reset acceptance check;
+- add deterministic coverage that distinguishes root reset from Details clear;
+- run a targeted live proof that opens Markdown, focuses Work Record details,
+  activates the root reset control through native interaction, and then observes
+  graph-root Path, no focused target, and no open Markdown pane.
+
 ## Goal
 
 Refactor the toolkit Subject Browser so its interaction geometry is stable,
