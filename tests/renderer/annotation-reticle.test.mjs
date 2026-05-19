@@ -151,12 +151,114 @@ test('annotation reticle preview and release prefer shared projectable annotatio
   assert.equal(committed.session.anchors.some((anchor) => anchor.subject.adapter_id === 'aos-toolkit-semantic-target'), true)
 })
 
+test('annotation reticle re-enters from the last live parent scope and rejects outside siblings', () => {
+  let now = Date.parse('2026-05-13T12:00:00.000Z')
+  const parentWindow = {
+    id: 'native-window-1',
+    adapter_id: 'macos-ax',
+    root_id: 'native-window-1',
+    root_label: 'Browser',
+    root_kind: 'native_window',
+    subject_id: 'native-window-1',
+    subject_path: ['native_window', 'native-window-1'],
+    subject_kind: 'native_window',
+    label: 'Browser',
+    projection: {
+      adapter_id: 'macos-ax',
+      root_id: 'native-window-1',
+      subject_id: 'native-window-1',
+      subject_kind: 'native_window',
+      status: 'visible',
+      current_render_status: 'visible',
+      projectable: true,
+      can_project_display_overlay: true,
+      visible_display_rect: { x: 80, y: 60, w: 260, h: 180 },
+      display_space_rect: { x: 80, y: 60, w: 260, h: 180 },
+      coordinate_space: 'desktop_world',
+    },
+  }
+  const insideChild = {
+    id: 'ax-inside',
+    adapter_id: 'macos-ax',
+    root_id: 'native-window-1',
+    root_kind: 'native_window',
+    subject_id: 'ax-inside',
+    subject_path: ['native_window', 'native-window-1', 'ax_element', 'ax-inside'],
+    subject_kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Inside',
+    projection: {
+      adapter_id: 'macos-ax',
+      root_id: 'native-window-1',
+      subject_id: 'ax-inside',
+      subject_kind: 'AXButton',
+      status: 'visible',
+      current_render_status: 'visible',
+      projectable: true,
+      can_project_display_overlay: true,
+      visible_display_rect: { x: 130, y: 100, w: 80, h: 32 },
+      display_space_rect: { x: 130, y: 100, w: 80, h: 32 },
+      coordinate_space: 'desktop_world',
+    },
+  }
+  const outsideSibling = {
+    ...insideChild,
+    id: 'ax-outside',
+    root_id: 'native-window-2',
+    subject_id: 'ax-outside',
+    subject_path: ['native_window', 'native-window-2', 'ax_element', 'ax-outside'],
+    label: 'Outside',
+    projection: {
+      ...insideChild.projection,
+      root_id: 'native-window-2',
+      subject_id: 'ax-outside',
+      visible_display_rect: { x: 140, y: 108, w: 18, h: 18 },
+      display_space_rect: { x: 140, y: 108, w: 18, h: 18 },
+    },
+  }
+  let candidates = [parentWindow]
+  const controller = createSigilAnnotationReticleController({
+    getDisplays: () => [display],
+    getAvatarPos: () => ({ x: 20, y: 20, valid: true }),
+    getAnnotationCandidates: () => candidates,
+    now: () => now,
+  })
+
+  controller.enter({ x: 20, y: 20, valid: true })
+  now += 1000
+  const firstCommit = controller.commitRelease({ x: 100, y: 80, valid: true })
+  assert.equal(firstCommit.preview_target.subject_kind, 'native_window')
+  const parentAddress = firstCommit.session.committed_scope_stack.at(-1).address
+
+  candidates = [parentWindow, outsideSibling, insideChild]
+  now += 1000
+  const secondEnter = controller.enter({ x: 20, y: 20, valid: true })
+  assert.equal(secondEnter.active_scope.address, parentAddress)
+  assert.equal(secondEnter.scope_blocker_reason, '')
+
+  now += 1000
+  const preview = controller.updatePreview({ x: 150, y: 116, valid: true })
+  assert.equal(preview.preview_target.subject.id, 'ax-inside')
+  assert.equal(preview.preview_target.source_metadata.active_scope_address, parentAddress)
+
+  now += 1000
+  const secondCommit = controller.commitRelease({ x: 150, y: 116, valid: true })
+  assert.equal(secondCommit.preview_target.id, 'ax-inside')
+  const childAddress = secondCommit.session.committed_scope_stack.at(-1).address
+  assert.deepEqual(secondCommit.session.committed_scope_stack.map((subject) => subject.address), [
+    firstCommit.session.root.address,
+    parentAddress,
+    childAddress,
+  ])
+  assert.deepEqual(secondCommit.session.anchors.at(-1).scope_path, secondCommit.session.committed_scope_stack.map((subject) => subject.address))
+})
+
 test('annotation reticle imports neutral annotation candidate helpers', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/annotation-reticle.js'), 'utf8')
 
   assert.match(source, /workbench\/annotation-candidates\.js/)
   assert.doesNotMatch(source, /workbench\/surface-inspector-annotations\.js/)
-  assert.match(source, /chooseAnnotationCandidate/)
+  assert.match(source, /chooseAnnotationCandidateForScope/)
   assert.match(source, /normalizeAnnotationCandidate/)
 })
 
@@ -247,6 +349,20 @@ test('Sigil reticle candidates are projected through canonical DesktopWorld help
   assert.match(source, /coordinate_space: 'desktop_world'/)
   assert.match(source, /source_coordinate_space: 'native_display'/)
   assert.match(source, /annotationReticleSemanticTargetForDesktopWorld\(canvasId, target\)/)
+})
+
+test('Sigil reticle preserves browser DOM element target adapter identity', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const semanticStart = source.indexOf('function annotationReticleHandleSemanticTargets')
+  const nativeStart = source.indexOf('function annotationReticleHandleNativeWindow', semanticStart)
+  const semanticBlock = source.slice(semanticStart, nativeStart)
+
+  assert.match(source, /workbench\/browser-dom-element-picker\.js/)
+  assert.match(source, /buildBrowserDomElementAnnotationCandidate/)
+  assert.match(source, /BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID/)
+  assert.match(semanticBlock, /annotationReticleIsBrowserDomElementTarget\(target\)/)
+  assert.match(semanticBlock, /content_rect: annotationReticleBrowserContentRect\(canvasId, payload, target\)/)
+  assert.match(semanticBlock, /browser_attachment: target\.browser_attachment \|\| payload\.browser_attachment \|\| 'explicit_local_page'/)
 })
 
 test('annotation reticle stays unresolved instead of crashing when displays are absent', () => {

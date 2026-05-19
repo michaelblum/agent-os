@@ -8,7 +8,7 @@ const {
     commitAnnotationPreview,
 } = await import(toolkitSpecifier('workbench/annotation-session.js'));
 const {
-    chooseAnnotationCandidate,
+    chooseAnnotationCandidateForScope,
     normalizeAnnotationCandidate,
 } = await import(toolkitSpecifier('workbench/annotation-candidates.js'));
 
@@ -153,20 +153,39 @@ function bridgeMetadata(reason, point = null, sourceCount = 0) {
     };
 }
 
+function latestCommittedScope(session = null) {
+    const stack = Array.isArray(session?.committed_scope_stack) ? session.committed_scope_stack : [];
+    return stack.length ? stack[stack.length - 1] : null;
+}
+
+function liveCommittedScopeStack(session = null) {
+    const stack = Array.isArray(session?.committed_scope_stack) ? session.committed_scope_stack : [];
+    if (!stack.length) return [];
+    const anchors = Array.isArray(session?.anchors) ? session.anchors : [];
+    const liveAddresses = new Set(anchors
+        .filter((anchor) => anchor?.status === 'live')
+        .map((anchor) => String(anchor.address || anchor.subject?.address || ''))
+        .filter(Boolean));
+    if (!liveAddresses.size) return [];
+    return stack.every((subject) => liveAddresses.has(String(subject?.address || ''))) ? stack : [];
+}
+
 export function resolveSigilAnnotationReticleTarget({
     candidates = [],
     display = null,
     pointer = null,
     role = 'pointer-preview',
+    activeScope = null,
 } = {}) {
     const sourceCandidates = Array.isArray(candidates) ? candidates : [];
-    const chosen = chooseAnnotationCandidate(sourceCandidates, pointer);
+    const chosen = chooseAnnotationCandidateForScope(sourceCandidates, activeScope, pointer);
     if (chosen) {
         const normalized = normalizeAnnotationCandidate({
             ...chosen,
             source_metadata: {
                 ...objectOrEmpty(chosen.source_metadata || chosen.source_tree_node_metadata || chosen.metadata),
-                ...bridgeMetadata('projectable_candidate_under_pointer', pointer, sourceCandidates.length),
+                ...bridgeMetadata(activeScope ? 'scoped_projectable_candidate_under_pointer' : 'projectable_candidate_under_pointer', pointer, sourceCandidates.length),
+                active_scope_address: activeScope?.address || '',
                 sigil_fallback: false,
             },
         });
@@ -340,21 +359,30 @@ export function createSigilAnnotationReticleController({
     let rootEvidence = null;
     let lastCommit = null;
     let lastExitReason = null;
+    let lastScopeBlocker = null;
 
     function enter(pointer = null) {
         const avatarPos = getAvatarPos() || pointer || { x: 0, y: 0, valid: true };
         const display = findDisplay(getDisplays(), avatarPos);
         const root = createDisplayAnnotationSubject(display, avatarPos, { role: 'root' });
+        const priorScopeStack = liveCommittedScopeStack(session);
+        const committedScopeStack = priorScopeStack.length ? priorScopeStack : [root];
+        lastScopeBlocker = priorScopeStack.length ? null : (session.anchors?.length ? 'previous_scope_not_live' : null);
         session = enterAnnotationSession(session, {
             entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
-            root,
-            committed_scope_stack: [root],
-            preview_scope_stack: [root],
+            root: priorScopeStack[0] || root,
+            committed_scope_stack: committedScopeStack,
+            preview_scope_stack: committedScopeStack,
             now: now(),
         });
         active = true;
         previewPointer = pointer ? { x: finite(pointer.x), y: finite(pointer.y), valid: true } : null;
-        rootEvidence = { display: displayId(display), root };
+        rootEvidence = {
+            display: displayId(display),
+            root: session.root,
+            active_scope: latestCommittedScope(session),
+            blocker_reason: lastScopeBlocker || '',
+        };
         lastExitReason = null;
         return snapshot();
     }
@@ -368,6 +396,7 @@ export function createSigilAnnotationReticleController({
             display,
             pointer,
             role: 'pointer-preview',
+            activeScope: latestCommittedScope(session),
         });
         const hover = resolved.subject;
         previewPointer = { x: finite(pointer.x), y: finite(pointer.y), valid: true };
@@ -401,6 +430,7 @@ export function createSigilAnnotationReticleController({
             display,
             pointer: releasePoint,
             role: 'release-target',
+            activeScope: latestCommittedScope(session),
         });
         const target = resolved.subject;
         session = setAnnotationHoverCandidate(session, target, { now: now() });
@@ -426,6 +456,7 @@ export function createSigilAnnotationReticleController({
             committed_at: new Date(now()).toISOString(),
             root: session.root,
             root_evidence: rootEvidence,
+            active_scope: latestCommittedScope(session),
             release_point: releasePoint,
             preview_target: target,
             target_limitation: resolved.target_limitation,
@@ -461,6 +492,8 @@ export function createSigilAnnotationReticleController({
             active,
             entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
             root_evidence: rootEvidence,
+            active_scope: latestCommittedScope(session),
+            scope_blocker_reason: lastScopeBlocker || '',
             preview_pointer: previewPointer,
             preview_target: session.hover_candidate,
             last_committed_event: lastCommit,

@@ -83,6 +83,11 @@ function rectFromDomRect(rect = null) {
   return { x, y, width, height }
 }
 
+function rectWithXYWH(rect = null) {
+  const source = rectFromDomRect(rect)
+  return source ? { x: source.x, y: source.y, w: source.width, h: source.height } : null
+}
+
 function pageBoundsFromViewport(viewportBounds, doc = null) {
   if (!viewportBounds) return null
   const win = doc?.defaultView
@@ -530,6 +535,82 @@ export function buildBrowserDomProjectionAdapterResult(record = {}, options = {}
     refreshed_at: text(options.refreshed_at || record.updated_at || record.created_at, '1970-01-01T00:00:00.000Z'),
     provenance_source_payload_id: text(options.provenance_source_payload_id || record.id),
   })
+}
+
+export function buildBrowserDomElementAnnotationCandidate(record = {}, options = {}) {
+  const projection = buildBrowserDomProjectionAdapterResult(record, options)
+  const contentRect = rectWithXYWH(options.content_rect || options.browser_content_rect)
+  const viewportRect = rectWithXYWH(record.viewport_bounds || record.bounds)
+  const canProject = Boolean(contentRect && viewportRect && projection.can_project_display_overlay !== false)
+  const displayRect = canProject
+    ? {
+        x: contentRect.x + viewportRect.x,
+        y: contentRect.y + viewportRect.y,
+        w: viewportRect.w,
+        h: viewportRect.h,
+      }
+    : null
+  const blockerReason = canProject
+    ? ''
+    : text(options.blocker_reason || projection.blocker_reason || (!contentRect ? 'browser_content_inset_unresolved' : 'browser_dom_target_not_projectable'))
+  return {
+    id: text(record.id || projection.subject_id),
+    adapter_id: BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
+    root_id: projection.root_id,
+    root_kind: 'browser_page',
+    root_label: text(options.root_label || record.source_url || record.surface_id || projection.root_id, projection.root_id),
+    subject_id: projection.subject_id,
+    subject_path: projection.subject_path,
+    subject_kind: projection.subject_kind,
+    role: text(record.role || record.tag_name || projection.subject_kind),
+    label: text(record.accessible_name || record.label || record.text_excerpt || projection.subject_id, projection.subject_id),
+    text_excerpt: text(record.text_excerpt),
+    preferred_selector: record.preferred_selector || null,
+    selector_candidates: Array.isArray(record.selector_candidates) ? [...record.selector_candidates] : [],
+    xpath: record.xpath ?? null,
+    display_space_rect: displayRect,
+    local_space_rect: rectWithXYWH(record.page_bounds || record.viewport_bounds || record.bounds),
+    projection: {
+      ...projection,
+      status: canProject ? 'visible' : 'unsupported',
+      current_render_status: canProject ? 'visible' : 'unsupported',
+      can_project_display_overlay: canProject,
+      projectable: canProject,
+      display_space_rect: displayRect,
+      visible_display_rect: displayRect,
+      coordinate_space: 'desktop_world',
+      blocker_reason: blockerReason,
+      source_tree_node_metadata: {
+        ...(projection.source_tree_node_metadata || {}),
+        frame_chain: Array.isArray(record.frame_chain) ? [...record.frame_chain] : [],
+        shadow_chain: Array.isArray(record.shadow_chain) ? [...record.shadow_chain] : [],
+        selector_candidates: Array.isArray(record.selector_candidates) ? [...record.selector_candidates] : [],
+        preferred_selector: record.preferred_selector || null,
+        xpath: record.xpath ?? null,
+        source_url: record.source_url || null,
+        browser_content_rect: contentRect,
+      },
+    },
+    blocker_reason: blockerReason,
+    blocker: blockerReason ? { reason: blockerReason } : null,
+    source_metadata: {
+      adapter_scope: 'explicit_browser_dom_element',
+      source_url: record.source_url || null,
+      source_path: record.source_path || null,
+      frame_chain: Array.isArray(record.frame_chain) ? [...record.frame_chain] : [],
+      shadow_chain: Array.isArray(record.shadow_chain) ? [...record.shadow_chain] : [],
+      selector_candidates: Array.isArray(record.selector_candidates) ? [...record.selector_candidates] : [],
+      preferred_selector: record.preferred_selector || null,
+      xpath: record.xpath ?? null,
+      tag_name: record.tag_name || null,
+      role: record.role || null,
+      label: record.accessible_name || record.label || '',
+      text_excerpt: record.text_excerpt || '',
+      browser_content_rect: contentRect,
+      browser_attachment: options.browser_attachment || 'explicit_local_page',
+      provenance: options.provenance || 'browser_dom_element_picker',
+    },
+  }
 }
 
 export function buildBrowserDomAnnotationProjection(record = {}, options = {}) {

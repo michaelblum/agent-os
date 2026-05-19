@@ -174,7 +174,9 @@ consumers:
 import {
   buildNativeAxElementAnnotationCandidate,
   buildNativeWindowAnnotationCandidate,
+  chooseAnnotationCandidateForScope,
   chooseAnnotationCandidate,
+  filterAnnotationCandidatesForScope,
   normalizeAnnotationAdapterCapabilitySummary,
   normalizeAnnotationCandidate,
   normalizeAnnotationProjectionCapabilities,
@@ -188,6 +190,17 @@ candidate builders emit `macos-ax` annotation candidates using native window
 roots, keep bounded AX elements scoped to the selected native window root, and
 preserve stale or unsupported blocker reasons when cursor evidence no longer
 matches or bounded projection is unavailable.
+
+`filterAnnotationCandidatesForScope(candidates, scope, point, options?)` and
+`chooseAnnotationCandidateForScope(candidates, scope, point, options?)` apply
+the display-first direct-child rule before ranking. Candidates must belong to
+the active scope by adapter/root/path evidence and their current projection must
+stay inside the active scope rectangle. Rejected candidates can be reported with
+reasons such as `candidate_outside_active_scope`, `candidate_not_direct_child`,
+`native_ax_root_mismatch`, or `browser_page_scope_mismatch`. The helper is the
+shared boundary for Surface Inspector and Sigil-style reticles; callers should
+use cached candidates on pointer hot paths and refresh adapter evidence only on
+mode entry, scope changes, settle events, or explicit refresh.
 
 ### Surface Inspector Annotation Support V0
 
@@ -451,6 +464,12 @@ operation. Controlled browser DOM fixtures remain a separate accepted adapter
 path through `browser-dom-element-picker.js` and
 `controlled-browser-dom-surface.js`; their selector candidates and element
 rectangles do not promote arbitrary browser-page DOM/CDP access.
+`buildBrowserDomElementAnnotationCandidate(record, options?)` converts an
+explicit browser DOM `element_target` record into the shared annotation
+candidate shape for an approved local browser page/session. It requires a
+proven `content_rect`/`browser_content_rect` to project viewport bounds into
+DesktopWorld coordinates. Without that inset it reports
+`browser_content_inset_unresolved` and does not draw a false display overlay.
 
 `shared/schemas/spatial-subject-tree-v0.schema.json` is the neutral tree
 contract above topology and projection results. Spatial topology owns

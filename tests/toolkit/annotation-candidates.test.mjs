@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 import {
   buildNativeAxElementAnnotationCandidate,
   buildNativeWindowAnnotationCandidate,
+  chooseAnnotationCandidateForScope,
   chooseAnnotationCandidate,
+  filterAnnotationCandidatesForScope,
   normalizeAnnotationCandidate,
 } from '../../packages/toolkit/workbench/annotation-candidates.js'
 
@@ -223,4 +225,69 @@ test('candidate ranking prefers actionable labeled targets over passive containe
   button.projection.visible_display_rect = { x: 160, y: 150, w: 96, h: 32 }
 
   assert.equal(chooseAnnotationCandidate([container, blocked, button], { x: 170, y: 160 }).id, 'save-button')
+})
+
+test('scoped annotation candidate selection rejects outside siblings and prefers direct children', () => {
+  const windowScope = node('native-window:1:Browser', ['native_window', 'native-window:1:Browser'], {
+    adapter_id: 'macos-ax',
+    root_id: 'native-window:1:Browser',
+    root_kind: 'native_window',
+    subject_kind: 'native_window',
+  })
+  windowScope.projection.visible_display_rect = { x: 100, y: 100, w: 500, h: 400 }
+
+  const child = node('ax-child', ['native_window', 'native-window:1:Browser', 'ax_element', 'ax-child'], {
+    adapter_id: 'macos-ax',
+    root_id: 'native-window:1:Browser',
+    root_kind: 'native_window',
+    subject_kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Inside',
+    capabilities: ['press'],
+  })
+  child.projection.visible_display_rect = { x: 180, y: 180, w: 90, h: 32 }
+
+  const outside = node('other-window-button', ['native_window', 'native-window:2:Other', 'ax_element', 'other-window-button'], {
+    adapter_id: 'macos-ax',
+    root_id: 'native-window:2:Other',
+    root_kind: 'native_window',
+    subject_kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Outside but smaller',
+    capabilities: ['press'],
+  })
+  outside.projection.visible_display_rect = { x: 190, y: 190, w: 20, h: 20 }
+
+  const scoped = filterAnnotationCandidatesForScope([windowScope, outside, child], windowScope, { x: 195, y: 195 }, { include_rejections: true })
+  assert.deepEqual(scoped.candidates.map((candidate) => candidate.id), ['ax-child'])
+  assert.equal(scoped.rejected.some((entry) => entry.id === 'other-window-button' && entry.reason === 'native_ax_root_mismatch'), true)
+  assert.equal(chooseAnnotationCandidateForScope([windowScope, outside, child], windowScope, { x: 195, y: 195 }).id, 'ax-child')
+})
+
+test('semantic scope selection requires direct children rather than overlap-only descendants', () => {
+  const scope = node('section', ['canvas', 'doc', 'semantic', 'section'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'section',
+  })
+  scope.projection.visible_display_rect = { x: 0, y: 0, w: 400, h: 400 }
+
+  const direct = node('row', ['canvas', 'doc', 'semantic', 'section', 'row'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'row',
+  })
+  direct.projection.visible_display_rect = { x: 20, y: 20, w: 300, h: 80 }
+
+  const grandchild = node('button', ['canvas', 'doc', 'semantic', 'section', 'row', 'button'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'button',
+    capabilities: ['press'],
+  })
+  grandchild.projection.visible_display_rect = { x: 40, y: 30, w: 80, h: 32 }
+
+  const scoped = filterAnnotationCandidatesForScope([grandchild, direct], scope, { x: 50, y: 40 }, { include_rejections: true })
+  assert.deepEqual(scoped.candidates.map((candidate) => candidate.id), ['row'])
+  assert.equal(scoped.rejected.some((entry) => entry.id === 'button' && entry.reason === 'candidate_not_direct_child'), true)
 })

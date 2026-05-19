@@ -10,6 +10,9 @@ export AOS_STATE_ROOT="$tmproot"
 export AOS_RUNTIME_MODE="repo"
 trap 'rm -rf "$tmproot"' EXIT
 
+grep -q '"Comet"' src/browser/window-resolver.swift \
+    || { echo "FAIL Chromium owner allowlist must include measured Comet bundle name" >&2; exit 1; }
+
 # Case 1: create attach extension
 out=$(./aos focus create --id test-attach --target browser://attach --extension 2>&1)
 echo "$out" | grep -q '"status":[[:space:]]*"success"' || { echo "FAIL create: $out" >&2; exit 1; }

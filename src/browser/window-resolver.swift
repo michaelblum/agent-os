@@ -33,6 +33,7 @@ private let kChromiumOwnerNames: Set<String> = [
     "Brave Browser Beta",
     "Brave Browser Nightly",
     "Arc",
+    "Comet",
     "Vivaldi"
 ]
 

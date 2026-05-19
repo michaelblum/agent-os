@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import {
   BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
   buildBrowserDomAnnotationProjection,
+  buildBrowserDomElementAnnotationCandidate,
   buildBrowserDomElementTargetRecord,
   buildBrowserDomProjectionAdapterResult,
   buildBrowserDomSelectorCandidates,
@@ -211,6 +212,36 @@ test('committed browser DOM targets are annotation projection compatible and mod
   assert.equal(projection.surface_binding.surface_type, 'browser_page')
   assert.equal(projection.projections[0].anchor_type, 'element_target')
   assert.equal(projection.projections[0].source_anchor.selector_candidates[0], '#stable-cta')
+})
+
+test('browser DOM element targets project only with an explicit local content rect', () => {
+  const { doc, button } = createFixtureDocument()
+  const record = buildBrowserDomElementTargetRecord(button, {
+    surface_id: 'local-chromium-page',
+    source_url: 'https://example.invalid/app',
+    viewport: { width: 800, height: 600 },
+    now: '2026-05-10T00:00:00.000Z',
+    document: doc,
+  })
+
+  const blocked = buildBrowserDomElementAnnotationCandidate(record)
+  assert.equal(blocked.adapter_id, BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID)
+  assert.equal(blocked.root_kind, 'browser_page')
+  assert.equal(blocked.projection.can_project_display_overlay, false)
+  assert.equal(blocked.blocker_reason, 'browser_content_inset_unresolved')
+  assert.equal(blocked.source_metadata.browser_attachment, 'explicit_local_page')
+  assert.equal(blocked.source_metadata.preferred_selector, '#stable-cta')
+
+  const projected = buildBrowserDomElementAnnotationCandidate(record, {
+    content_rect: { x: 100, y: 80, width: 900, height: 700 },
+    browser_attachment: 'explicit_local_cdp',
+  })
+  assert.equal(projected.projection.can_project_display_overlay, true)
+  assert.equal(projected.blocker_reason, '')
+  assert.deepEqual(projected.display_space_rect, { x: 172, y: 184, w: 164, h: 40 })
+  assert.deepEqual(projected.local_space_rect, { x: 72, y: 104, w: 164, h: 40 })
+  assert.equal(projected.source_metadata.browser_attachment, 'explicit_local_cdp')
+  assert.equal(projected.source_metadata.source_url, 'https://example.invalid/app')
 })
 
 test('browser DOM element target fixture validates against the annotation schema', () => {

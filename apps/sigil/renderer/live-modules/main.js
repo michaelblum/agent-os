@@ -81,6 +81,10 @@ const {
 const {
     buildSemanticTargetProjectionAdapterResult,
 } = await import(toolkitSpecifier('workbench/annotation-projection.js'));
+const {
+    BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
+    buildBrowserDomElementAnnotationCandidate,
+} = await import(toolkitSpecifier('workbench/browser-dom-element-picker.js'));
 
 const host = createHostRuntime();
 const interactionTrace = createInteractionTrace({
@@ -1519,6 +1523,27 @@ function annotationReticleProjectionRect(rect = null) {
         : null;
 }
 
+function annotationReticleIsBrowserDomElementTarget(target = {}) {
+    return target?.kind === 'element_target'
+        || target?.surface_type === 'browser_page'
+        || target?.adapter_id === BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID;
+}
+
+function annotationReticleBrowserContentRect(canvasId = '', payload = {}, target = {}) {
+    const explicit = annotationReticleProjectionRect(
+        target.browser_content_rect
+        || target.content_rect
+        || payload.browser_content_rect
+        || payload.content_rect
+    );
+    if (explicit) return explicit;
+    const sourcePath = String(target.source_path || payload.source_path || '');
+    if (sourcePath.includes('docs/design/fixtures/browser-dom-element-picker-v0/controlled-page.html')) {
+        return annotationReticleCanvasDesktopWorldRect(canvasId);
+    }
+    return null;
+}
+
 function annotationReticleCanvasDesktopWorldRect(canvasId = '') {
     const id = String(canvasId || '').trim();
     if (!id) return null;
@@ -1730,6 +1755,23 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
     if (!targets.length) return;
     const candidateIds = [];
     for (const target of targets) {
+        if (annotationReticleIsBrowserDomElementTarget(target)) {
+            const candidate = buildBrowserDomElementAnnotationCandidate({
+                ...target,
+                surface_id: target.surface_id || canvasId,
+                surface_type: 'browser_page',
+                kind: 'element_target',
+            }, {
+                content_rect: annotationReticleBrowserContentRect(canvasId, payload, target),
+                root_label: target.source_url || target.surface_id || canvasId,
+                refreshed_at: target.refreshed_at || payload.refreshed_at || new Date().toISOString(),
+                provenance_source_payload_id: target.payload_id || payload.payload_id || target.id,
+                browser_attachment: target.browser_attachment || payload.browser_attachment || 'explicit_local_page',
+            });
+            annotationReticleUpsertCandidate(candidate);
+            candidateIds.push(candidate.id);
+            continue;
+        }
         const desktopTarget = annotationReticleSemanticTargetForDesktopWorld(canvasId, target);
         const projection = buildSemanticTargetProjectionAdapterResult(desktopTarget, {
             canvas_id: canvasId,
@@ -1773,8 +1815,12 @@ function annotationReticleHandleNativeAxElement(payload = {}) {
     const windowCandidate = buildNativeWindowAnnotationCandidate(windowEvent || {}, {
         refreshed_at: windowEvent?.ts || new Date().toISOString(),
     });
+    const activeScope = annotationReticle.snapshot()?.active_scope || null;
+    const selectedRoot = activeScope?.adapter_id === 'macos-ax' || activeScope?.root_kind === 'native_window'
+        ? activeScope
+        : windowCandidate;
     annotationReticleUpsertCandidate(buildNativeAxElementAnnotationCandidate(payload, {
-        selected_root: windowCandidate,
+        selected_root: selectedRoot,
         window: windowEvent,
         refreshed_at: payload.ts || new Date().toISOString(),
         source_event_id: payload.ref || payload.id || '',

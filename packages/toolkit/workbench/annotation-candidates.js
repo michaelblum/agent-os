@@ -119,6 +119,17 @@ function rectContainsPoint(rect = null, point = null) {
     && y <= normalized.y + normalized.h
 }
 
+function rectContainsRect(outer = null, inner = null, tolerance = 0.5) {
+  const a = normalizeAnnotationRectLike(outer)
+  const b = normalizeAnnotationRectLike(inner)
+  if (!a || !b) return false
+  const t = Math.max(0, Number(tolerance) || 0)
+  return b.x >= a.x - t
+    && b.y >= a.y - t
+    && b.x + b.w <= a.x + a.w + t
+    && b.y + b.h <= a.y + a.h + t
+}
+
 export function isImplicitAnnotationRootCandidate(candidate = {}) {
   const adapter = text(candidate.adapter_id || candidate.projection?.adapter_id)
   const id = text(candidate.id || candidate.subject_id)
@@ -144,6 +155,105 @@ function candidateVisibleRect(candidate = {}) {
       || candidate.display_space_rect
       || candidate.rect,
   )
+}
+
+function candidateAddress(candidate = {}) {
+  const adapter = text(candidate.adapter_id || candidate.projection?.adapter_id, 'unknown-adapter')
+  const root = text(candidate.root_id || candidate.projection?.root_id || candidate.canvas_id || candidate.window_id, 'main')
+  const subject = text(candidate.subject_id || candidate.id || candidate.projection?.subject_id)
+  const path = subjectPathFromNode(candidate)
+  return text(candidate.address || candidate.subject_address, `subject:${adapter}:${root}:${[...path, subject].filter(Boolean).join(':')}`)
+}
+
+function scopeSubjectEvidence(scope = null) {
+  if (!scope || typeof scope !== 'object') return null
+  const normalized = scope.subject && scope.root
+    ? {
+        ...scope,
+        id: text(scope.subject.id || scope.subject_id || scope.id),
+        adapter_id: text(scope.adapter_id || scope.projection?.adapter_id),
+        root_id: text(scope.root.id || scope.root_id || scope.projection?.root_id),
+        root_kind: text(scope.root.kind || scope.root_kind),
+        root_label: text(scope.root.label || scope.root_label),
+        subject_id: text(scope.subject.id || scope.subject_id || scope.id),
+        subject_kind: text(scope.subject.kind || scope.subject_kind || scope.kind),
+        subject_path: Array.isArray(scope.subject.path) ? scope.subject.path : subjectPathFromNode(scope),
+        display_space_rect: candidateVisibleRect(scope),
+        source_metadata: clone(scope.source_metadata || {}),
+      }
+    : normalizeAnnotationCandidate(scope || {})
+  if (!normalized) return null
+  return {
+    candidate: normalized,
+    address: candidateAddress(normalized),
+    adapter_id: text(normalized.adapter_id || normalized.projection?.adapter_id),
+    root_id: text(normalized.root_id || normalized.root?.id || normalized.projection?.root_id),
+    root_kind: text(normalized.root_kind || normalized.root?.kind),
+    subject_id: text(normalized.subject_id || normalized.id || normalized.subject?.id || normalized.projection?.subject_id),
+    subject_kind: text(normalized.subject_kind || normalized.kind || normalized.role || normalized.subject?.kind || normalized.projection?.subject_kind),
+    subject_path: subjectPathFromNode(normalized),
+    rect: candidateVisibleRect(normalized),
+  }
+}
+
+function pathHasPrefix(path = [], prefix = []) {
+  if (!Array.isArray(path) || !Array.isArray(prefix) || path.length < prefix.length) return false
+  return prefix.every((part, index) => text(path[index]) === text(part))
+}
+
+function candidateDirectnessForScope(candidate = {}, scope = null) {
+  if (!scope) return { accepted: true, direct: true, reason: 'display_root_scope' }
+  if (candidateAddress(candidate) === scope.address || text(candidate.subject_id || candidate.id) === scope.subject_id) {
+    return { accepted: false, reason: 'candidate_is_active_scope' }
+  }
+
+  const adapter = text(candidate.adapter_id || candidate.projection?.adapter_id)
+  const rootId = text(candidate.root_id || candidate.projection?.root_id)
+  const subjectPath = subjectPathFromNode(candidate)
+  const scopeIsDisplay = scope.subject_kind === 'display' || scope.root_kind === 'display'
+  if (scopeIsDisplay) return { accepted: true, direct: true, reason: 'display_direct_child' }
+
+  if (scope.adapter_id === 'aos-canvas-window' || scope.subject_kind === 'canvas_window' || scope.root_kind === 'canvas') {
+    if (adapter === 'aos-toolkit-semantic-target' && rootId === scope.subject_id) {
+      return { accepted: true, direct: true, reason: 'scoped_canvas_semantic_child' }
+    }
+    if (adapter === 'aos-canvas-window') {
+      const parent = candidate.source_metadata?.parent || candidate.parent_canvas_id || candidate.parent
+      if (text(parent) && text(parent) === scope.subject_id) return { accepted: true, direct: true, reason: 'scoped_canvas_child' }
+    }
+  }
+
+  if (scope.adapter_id === 'aos-toolkit-semantic-target') {
+    if (adapter === scope.adapter_id && rootId === scope.root_id && pathHasPrefix(subjectPath, scope.subject_path)) {
+      return subjectPath.length === scope.subject_path.length + 1
+        ? { accepted: true, direct: true, reason: 'scoped_semantic_direct_child' }
+        : { accepted: false, reason: 'candidate_not_direct_child' }
+    }
+  }
+
+  if (scope.adapter_id === 'macos-ax' || scope.root_kind === 'native_window') {
+    if (adapter === 'macos-ax' && rootId === scope.root_id) return { accepted: true, direct: true, reason: 'scoped_native_window_child' }
+    return { accepted: false, reason: 'native_ax_root_mismatch' }
+  }
+
+  if (scope.adapter_id === 'aos-browser-dom-element-picker' || scope.subject_kind === 'browser_page') {
+    if (adapter === 'aos-browser-dom-element-picker' && rootId === scope.root_id) {
+      if (pathHasPrefix(subjectPath, scope.subject_path)) {
+        return subjectPath.length === scope.subject_path.length + 1
+          ? { accepted: true, direct: true, reason: 'scoped_browser_dom_direct_child' }
+          : { accepted: false, reason: 'candidate_not_direct_child' }
+      }
+      return { accepted: true, direct: true, reason: 'scoped_browser_page_child' }
+    }
+    return { accepted: false, reason: 'browser_page_scope_mismatch' }
+  }
+
+  if (rootId && rootId === scope.root_id && pathHasPrefix(subjectPath, scope.subject_path)) {
+    return subjectPath.length === scope.subject_path.length + 1
+      ? { accepted: true, direct: true, reason: 'scoped_direct_child' }
+      : { accepted: false, reason: 'candidate_not_direct_child' }
+  }
+  return { accepted: false, reason: 'candidate_not_in_active_scope' }
 }
 
 function normalizeCapabilities(input = {}) {
@@ -266,6 +376,53 @@ export function chooseAnnotationCandidate(candidates = [], point = null) {
       return text(a.candidate.id).localeCompare(text(b.candidate.id))
     })
   return ranked[0]?.candidate || null
+}
+
+export function filterAnnotationCandidatesForScope(candidates = [], scope = null, point = null, options = {}) {
+  const activeScope = scopeSubjectEvidence(scope)
+  const scopeRect = activeScope?.rect || null
+  const rejected = []
+  const scoped = []
+  for (const raw of Array.isArray(candidates) ? candidates : []) {
+    const candidate = normalizeAnnotationCandidate(raw)
+    if (!candidate || isImplicitAnnotationRootCandidate(candidate)) continue
+    const rect = candidateVisibleRect(candidate)
+    if (!rect) {
+      rejected.push({ id: text(candidate.id || candidate.subject_id), reason: 'candidate_projection_missing' })
+      continue
+    }
+    if (scopeRect && !rectContainsRect(scopeRect, rect, options.rect_tolerance ?? 0.5)) {
+      rejected.push({ id: candidate.id, reason: 'candidate_outside_active_scope' })
+      continue
+    }
+    const directness = candidateDirectnessForScope(candidate, activeScope)
+    if (!directness.accepted) {
+      rejected.push({ id: candidate.id, reason: directness.reason })
+      continue
+    }
+    if (point && !rectContainsPoint(rect, point)) continue
+    scoped.push({
+      ...candidate,
+      source_metadata: {
+        ...candidate.source_metadata,
+        active_scope_address: activeScope?.address || '',
+        scope_filter_reason: directness.reason,
+        scope_filter_limitation: directness.direct ? '' : 'scope_overlap_fallback',
+      },
+      priority_evidence: {
+        ...(candidate.priority_evidence || {}),
+        scoped_direct_child: directness.direct,
+      },
+    })
+  }
+  return options.include_rejections
+    ? { candidates: scoped, rejected, active_scope: activeScope?.candidate || null }
+    : scoped
+}
+
+export function chooseAnnotationCandidateForScope(candidates = [], scope = null, point = null, options = {}) {
+  const scoped = filterAnnotationCandidatesForScope(candidates, scope, point, options)
+  return chooseAnnotationCandidate(Array.isArray(scoped) ? scoped : scoped.candidates, point)
 }
 
 export function buildNativeWindowAnnotationCandidate(input = {}, options = {}) {
