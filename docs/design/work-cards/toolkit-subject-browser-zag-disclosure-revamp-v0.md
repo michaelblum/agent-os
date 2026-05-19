@@ -54,6 +54,33 @@ Execution order:
 5. Stop and report if live proof needs DOM/eval activation. Do not grind through
    another long Operator-style pass.
 
+## Foreman Review Correction
+
+GDI completed an implementation branch at
+`gdi/toolkit-subject-browser-zag-disclosure-revamp-v0`
+(`c064a3da48807e7155b577778164ed5e51c7e1b8`). Foreman review found two narrow
+blockers before Operator acceptance. Do not restart the revamp and do not broaden
+the UI design.
+
+1. Bring the branch onto current `origin/main` so it includes the latest work-card
+   guidance, then keep the fix path-scoped.
+2. Fix `Clear` so the Subject Browser's Path, focused target, and left pane all
+   return to a clean graph-root state. The current branch calls
+   `workbench.onMessage({ type: 'clear-selection' })`, but Markdown Workbench only
+   forwards that message to the embedded graph and leaves any previously opened
+   Markdown document pane visible.
+3. Remove the remaining WebView component imports from the controls barrel or
+   introduce a browser-safe split. `packages/toolkit/controls/index.js` now exports
+   Zag primitives that import bare `@zag-js/*` modules. Browser-loaded components
+   must not import that barrel until Zag packaging is browser-safe. Foreman found
+   remaining component imports in `surface-inspector` and `surface-zoom-inspector`.
+4. Re-run the deterministic checks below plus a targeted import scan proving no
+   shipped browser component imports `../../controls/index.js` unless it is
+   intentionally Node/test-only.
+5. Re-run only the bounded live acceptance flows for the two corrected areas:
+   `Clear` after opening Markdown, and launch/load sanity for the components whose
+   imports were changed if those launchers are available.
+
 ## Goal
 
 Refactor the toolkit Subject Browser so its interaction geometry is stable,
