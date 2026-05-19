@@ -85,7 +85,7 @@ function renderSourceSummary(source, samples, options) {
         + renderMetric('Long frames', String(summary.longFrames ?? 0))
         + renderMetric('Dropped est', String(Math.round(summary.estimatedDropped ?? 0)))
       + `</div>`
-      + renderSparkline(samples, options.targetFps)
+      + renderSparkline(samples, summary.targetFps)
       + `<div class="perf-coarse">`
         + `<span>render ${esc(formatMetric(summary.avgRenderMs, 1))} ms</span>`
         + `<span>update ${esc(formatMetric(summary.avgUpdateMs, 1))} ms</span>`

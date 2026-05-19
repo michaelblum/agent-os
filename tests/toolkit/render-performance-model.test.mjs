@@ -27,11 +27,12 @@ test('normalizeRenderSample accepts common frame timing aliases', () => {
 });
 
 test('normalizeRenderSample derives frame time from fps', () => {
-  const sample = normalizeRenderSample({ fps: 30 }, { now: 2000, source: 'renderer' });
+  const sample = normalizeRenderSample({ fps: 30, targetFps: 30 }, { now: 2000, source: 'renderer' });
 
   assert.equal(sample.source, 'renderer');
   assert.equal(Math.round(sample.frameMs), 33);
   assert.equal(sample.fps, 30);
+  assert.equal(sample.targetFps, 30);
 });
 
 test('appendRenderSample enforces the configured sample limit', () => {
@@ -84,6 +85,17 @@ test('summarizeRenderPerformance preserves source-provided current fps', () => {
 
   assert.equal(summary.currentFps, 60);
   assert.equal(summary.currentFrameMs, 18);
+});
+
+test('summarizeRenderPerformance honors source-provided target fps', () => {
+  const summary = summarizeRenderPerformance([
+    { ts: 1000, frameMs: 35, fps: 28.6, targetFps: 30 },
+    { ts: 1035, frameMs: 35, fps: 28.6, targetFps: 30 },
+  ], { now: 1100, targetFps: 60 });
+
+  assert.equal(summary.targetFps, 30);
+  assert.equal(Math.round(summary.budgetMs), 33);
+  assert.equal(summary.state, 'stable');
 });
 
 test('buildSparkline classifies bar states by frame budget', () => {
