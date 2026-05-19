@@ -177,6 +177,24 @@ private func browserDomElementTargetEvalScript(
     add(path.join(" > "));
     return out;
   };
+  const shadowChain = (element) => {
+    const chain = [];
+    let current = element;
+    while (current && current.nodeType === 1) {
+      const root = current.getRootNode?.();
+      if (root && root !== document && root.host) {
+        chain.unshift({
+          host_tag_name: tag(root.host),
+          host_selector: selectors(root.host)[0] || null,
+          mode: root.mode || "unknown"
+        });
+        current = root.host;
+      } else {
+        current = current.parentElement;
+      }
+    }
+    return chain;
+  };
   const xpath = (element) => {
     const parts = [];
     let current = element;
@@ -194,6 +212,37 @@ private func browserDomElementTargetEvalScript(
       current = current.parentElement || current.getRootNode?.().host || null;
     }
     return parts.length ? `/${parts.join("/")}` : null;
+  };
+  const describe = (element) => {
+    const bounds = rect(element);
+    const selectorCandidates = selectors(element);
+    return {
+      id: stable("dom-node", [selectorCandidates[0], tag(element), label(element), xpath(element)]),
+      tag_name: tag(element),
+      role: role(element),
+      label: label(element),
+      text_excerpt: text(element?.innerText || element?.textContent).replace(/\\s+/g, " ").slice(0, 160),
+      selector_candidates: selectorCandidates,
+      preferred_selector: selectorCandidates[0] || null,
+      xpath: xpath(element),
+      viewport_bounds: bounds,
+      page_bounds: bounds ? { x: bounds.x + scrollX, y: bounds.y + scrollY, width: bounds.width, height: bounds.height } : null
+    };
+  };
+  const ancestorDescriptors = (element) => {
+    const chain = [];
+    const seen = new Set();
+    let current = element;
+    while (current && current.nodeType === 1 && !seen.has(current)) {
+      seen.add(current);
+      chain.push(describe(current));
+      if (tag(current) === "body") break;
+      current = current.parentElement || current.getRootNode?.().host || null;
+    }
+    if (!chain.some((item) => item.tag_name === "body") && document.body) {
+      chain.push(describe(document.body));
+    }
+    return chain;
   };
   const reject = (element) => {
     if (!element || element.nodeType !== 1) return "not_an_element";
@@ -230,6 +279,8 @@ private func browserDomElementTargetEvalScript(
   const pageBounds = bounds ? { x: bounds.x + scrollX, y: bounds.y + scrollY, width: bounds.width, height: bounds.height } : null;
   const id = stable("element-target", [location.href, preferred, xpath(element), JSON.stringify(point)]);
   const displayRect = browserContentRect && bounds ? { x: browserContentRect.x + bounds.x, y: browserContentRect.y + bounds.y, w: bounds.width, h: bounds.height } : null;
+  const ancestors = ancestorDescriptors(element);
+  const shadow = shadowChain(element);
   return {
     status: "success",
     schema: "browser_dom_element_target",
@@ -255,10 +306,10 @@ private func browserDomElementTargetEvalScript(
       label: label(element),
       accessible_name: label(element),
       text_excerpt: text(element.innerText || element.textContent).replace(/\\s+/g, " ").slice(0, 160),
-      ancestor_chain: [],
-      ancestor_descriptors: [],
+      ancestor_chain: ancestors.map((item) => item.preferred_selector || item.xpath || item.tag_name).filter(Boolean),
+      ancestor_descriptors: ancestors,
       frame_chain: [{ kind: "top", url: location.href }],
-      shadow_chain: [],
+      shadow_chain: shadow,
       metadata: {
         picker: { source: "aos_browser_eval", state_version: "0.1.0" },
         visibility: { state: "visible", can_reveal: Boolean(preferred), reveal_action: preferred ? "scrollIntoView" : null, blocker_reason: "" },

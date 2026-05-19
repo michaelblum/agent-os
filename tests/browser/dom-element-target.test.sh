@@ -20,6 +20,8 @@ echo "$out" | jq -e '.target.kind == "element_target" and .target.preferred_sele
     || { echo "FAIL target vocabulary: $out" >&2; exit 1; }
 echo "$out" | jq -e '.target.frame_chain[0].kind == "top" and (.target.shadow_chain | type) == "array"' >/dev/null \
     || { echo "FAIL frame/shadow evidence: $out" >&2; exit 1; }
+echo "$out" | jq -e '.target.ancestor_chain[0] == "#save" and .target.ancestor_descriptors[0].preferred_selector == "#save"' >/dev/null \
+    || { echo "FAIL ancestor evidence: $out" >&2; exit 1; }
 echo "$out" | jq -e '.projection.can_project_display_overlay == true and .projection.display_space_rect.x == 112 and .projection.display_space_rect.y == 224' >/dev/null \
     || { echo "FAIL display projection: $out" >&2; exit 1; }
 
