@@ -48,6 +48,10 @@ class DaemonSession {
     /// External consumers (e.g. Sigil) must pass the path to the `aos` binary explicitly.
     func connectWithAutoStart(binaryPath: String, timeoutMs: Int32 = 1000) -> Bool {
         if connect(timeoutMs: timeoutMs) { return true }
+        if daemonAutoStartDisabled() {
+            fputs("ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n", stderr)
+            return false
+        }
 
         let currentMode = aosCurrentRuntimeMode(executablePath: binaryPath)
         let otherSocketPath = aosSocketPath(for: currentMode.other)
@@ -67,6 +71,14 @@ class DaemonSession {
             if connect(timeoutMs: timeoutMs) { return true }
         }
         return false
+    }
+
+    private func daemonAutoStartDisabled() -> Bool {
+        guard let value = ProcessInfo.processInfo.environment["AOS_DISABLE_DAEMON_AUTOSTART"] else {
+            return false
+        }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return ["1", "true", "yes", "on"].contains(normalized)
     }
 
     private func startManagedDaemon(binaryPath: String, mode: AOSRuntimeMode) -> Bool {

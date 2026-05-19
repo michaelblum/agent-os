@@ -4,6 +4,7 @@ REAL_INPUT_SURFACE_HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$REAL_INPUT_SURFACE_HARNESS_DIR/visual-harness.sh"
 
 AOS_REAL_INPUT_SURFACE_INSPECTOR_ID="${AOS_REAL_INPUT_SURFACE_INSPECTOR_ID:-surface-inspector}"
+export AOS_DISABLE_DAEMON_AUTOSTART="${AOS_REAL_INPUT_DISABLE_DAEMON_AUTOSTART:-1}"
 
 aos_real_input_surface_run() {
   local aos_bin
