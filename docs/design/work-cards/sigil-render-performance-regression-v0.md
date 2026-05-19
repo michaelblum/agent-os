@@ -17,7 +17,8 @@ rediscover before editing.
 
 ## Goal
 
-Make Sigil cheap when the avatar is merely visible and idle.
+Make Sigil cheap when the avatar is merely visible and idle while preserving
+expected idle avatar animation.
 
 The user reported a significant Sigil rendering regression:
 
@@ -27,10 +28,10 @@ The user reported a significant Sigil rendering regression:
 - status icon click to summon avatar is slower on the first couple of clicks;
 - the fan comes on when the avatar is just sitting there.
 
-This slice should identify and fix the idle render/runtime hot path first. If
-the same root cause clearly explains the status-click or Wiki radial latency,
-fix that too. Otherwise record those as follow-up slices with the evidence
-below.
+This slice should identify and fix the idle render/runtime hot path first. The
+fix must not pause, hide, or remove expected visible avatar motion. If the same
+root cause clearly explains the status-click or Wiki radial latency, fix that
+too. Otherwise record those as follow-up slices with the evidence below.
 
 ## Read First
 
@@ -105,6 +106,46 @@ With the toolkit render-performance panel attached before teardown:
 This points at continuous scheduling / WebKit / canvas-surface overhead while
 idle, not only heavy Three.js scene complexity.
 
+### Follow-Up Evidence From 2026-05-19
+
+The user clarified that an idle visible avatar should still be allowed to
+animate. Turning off effects, hiding the avatar, or removing idle motion is not
+an acceptable product fix.
+
+Foreman used `sigil.set_effects paused=true` only as an isolation check. That
+made AOS WebContent/GPU/daemon CPU drop sharply, which proves the active Sigil
+frame path was hot. It does not prove that avatar animation itself should be
+disabled.
+
+After restoring `paused=false`, `window.__sigilDebug.snapshot()` reported
+`avatarVisible=true`, `paused=false`, and `renderLoop.mode="idle"` with no
+continuation reasons. That exposed a separate bug: `sigil.set_effects` changes
+pause state but does not schedule a frame when unpausing, so animation resumes
+only after another event wakes the renderer.
+
+Git history shows the regression pressure clearly:
+
+- `44be55f` (`2026-05-14`, `Fix Sigil idle render loop`) repaired the idle loop
+  so the visible idle avatar did not require full continuous rendering.
+- `05fe5ae` (`2026-05-14`, `Repair Sigil radial reticle drift`) reintroduced
+  continuous rendering with the explicit `avatar-motion` continuation reason.
+- Current code in `apps/sigil/renderer/live-modules/main.js` makes
+  `avatarMotionActive` true whenever the avatar is visible, unpaused, and the
+  vitality rotation multiplier is non-zero.
+- Current `animate()` does not treat `avatar-motion` as a cheap visual-only
+  frame. Every visible idle animation frame still runs child hit target sync,
+  radial target surface sync, input region sync, overlay drawing, radial visual
+  updates, visibility/fast-travel drawing, render-performance sampling, and
+  `desktopWorldSurface.publishState(surfaceRenderSnapshot(...))`.
+- A live WebContent sample during the fan event showed heavy work under
+  `BroadcastChannel::dispatchMessage` and JavaScript DOM/attribute work. That
+  aligns with full-surface/DesktopWorld state fanout and per-frame structural
+  work riding on idle motion.
+
+Treat this as a lifecycle/scheduling contract bug: idle visual motion must be
+cheap, while structural sync, bridge fanout, overlay work, and diagnostics must
+run only when their inputs changed or on an explicitly bounded heartbeat.
+
 ### Status Icon Evidence
 
 After forcing hidden state with `status_item.hide`, two status-click summon
@@ -144,25 +185,26 @@ separate warm lifecycle slice.
 ### Idle Avatar Cost
 
 When the avatar is visible, in `IDLE`, not hovered, not transitioning, not
-traveling, no radial menu active, no context menu open, and no animation state
-needs continuous visual motion, Sigil should not run a full continuous
-render/update loop.
+traveling, no radial menu active, and no context menu open, Sigil may run a
+continuous visual animation loop for expected avatar motion. That loop must be
+cheap and must not run the full structural/runtime update path every frame.
 
 Acceptable behavior:
 
+- keep expected idle avatar motion visible;
 - render a frame when visibility, position, hover, menu, radial, session
   vitality, appearance, display topology, or lifecycle state changes;
 - render bounded transition frames while an explicit transition is active;
-- keep child hit/input regions and status item state correct;
+- keep child hit/input regions and status item state correct without syncing
+  unchanged native frames every animation frame;
 - keep `canvas_object.marks` heartbeat behavior without using it as a reason to
   render continuously;
-- keep multi-segment DesktopWorld state synchronized without making secondary
-  segments burn frames unnecessarily.
+- keep multi-segment DesktopWorld state synchronized without publishing a full
+  primary state snapshot every idle animation frame unless follower state really
+  depends on that exact frame.
 
-Do not fake a fix by hiding the avatar or disabling expected visible effects
-without a deliberate product decision. If the current product intentionally
-requires an always-rotating idle avatar, make the loop adaptive enough that CPU
-and WebKit/GPU load are materially lower, and report that tradeoff.
+Do not fake a fix by hiding the avatar, pausing effects, disabling expected
+visible motion, or reverting to pre-DesktopWorld canvas/event ownership.
 
 ### Render Performance Telemetry
 
@@ -225,30 +267,53 @@ moving policy into Swift.
 Inspect before editing:
 
 - `apps/sigil/renderer/live-modules/render-loop.js` - current scheduler only
-  supports queued/suspended, not idle dirty/continuous modes.
+  supports queued/suspended, not separate visual-animation versus structural
+  dirty modes.
 - `apps/sigil/renderer/live-modules/main.js` - `animate()` always calls
-  `scheduleRenderFrame()` after visible frames, and visible idle work currently
-  animates particles, phenomena, aura, lightning, magnetic field, omega, skins,
-  trails, pulses, overlay, radial visuals, visibility, and fast travel.
+  all visual systems, child-surface/input-region sync, overlay draw,
+  BroadcastChannel state publish, and telemetry sampling on the same frame path
+  before deciding whether to continue for `avatar-motion`.
 - `apps/sigil/renderer/session-vitality.js` - may need event-driven or
   low-frequency tick semantics.
 - `apps/sigil/renderer/live-modules/desktop-world-surface-runtime.js` - ensure
   primary/secondary segment sync does not force unnecessary frames.
 - `tests/renderer/sigil-render-loop.test.mjs` - extend for dirty/continuous
   scheduling.
+- `packages/toolkit/runtime/desktop-world-surface-three.js` - inspect
+  `publishState()` fanout and follower scheduling before deciding whether the
+  right fix is Sigil dirty gating, sparse follower clock/state, or a toolkit
+  helper.
+- `apps/sigil/renderer/live-modules/interaction-overlay.js` - avoid full
+  overlay canvas clear/draw on idle frames when no overlay feature is visible or
+  dirty.
 - `tests/renderer/*.test.mjs` around radial and transition behavior if the
   scheduler boundary affects those states.
 
-Likely shape:
+Implementation shape:
 
-- introduce a scheduler mode or frame decision helper that distinguishes
-  `continuous`, `transition`, `dirty`, and `idle`;
-- make `animate()` reschedule only when continuous/transition work remains;
+- introduce a scheduler/frame decision helper that distinguishes
+  visual animation, transition animation, structural dirty work, diagnostics,
+  and idle;
+- make `avatar-motion` continue only the cheap visual path;
+- run child hit/radial/input sync only when position, visibility, menu bounds,
+  display topology, or interactive mode changed;
+- publish DesktopWorld state only when follower-observable state changed, or
+  replace full-frame fanout with a sparse clock/calibration path if follower
+  animation needs time coherence;
+- draw the interaction overlay only while overlay-visible features are active or
+  dirty;
+- keep interaction trace disabled by default and bounded when explicitly
+  enabled by diagnostics;
+- make `sigil.set_effects paused=false` schedule a frame when visible animation
+  should resume;
+- make `animate()` reschedule only when visual animation or transition work
+  remains;
 - request a frame from state-changing paths instead of relying on a permanent
   loop;
 - keep low-frequency or event-driven heartbeats separate from visual rendering;
-- add deterministic tests for no reschedule in idle and reschedule while
-  visible effects/transitions/radial activity are active.
+- add deterministic tests proving idle avatar animation remains active while
+  structural sync, full state publish, overlay draw, and diagnostic trace work
+  do not run every animation frame without dirty inputs.
 
 ## Verification
 
@@ -288,6 +353,7 @@ Live AOS verification if `./aos ready` passes:
 3. Measure idle visible avatar for at least 5 seconds:
 
    - toolkit `sigil-avatar` source should be stable;
+   - the avatar should visibly continue its expected idle animation;
    - CPU/GPU load should be materially lower than Foreman's `~11% daemon` and
      `~47-51% WebKit GPU` idle baseline;
    - no visible regression to avatar placement, hit target readiness, or status
