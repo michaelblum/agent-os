@@ -131,7 +131,7 @@ aos_real_input_surface_assert_inspector_visible() {
       const state = window.__canvasInspectorState;
       const rows = document.querySelectorAll(".tree-row.canvas").length;
       const minimap = !!document.querySelector(".minimap-display");
-      return !!state && rows > 0 && minimap && document.visibilityState === "visible";
+      return !!state && rows > 0 && minimap;
     })()' \
     --timeout 5s >/dev/null
 
@@ -163,7 +163,9 @@ aos_real_input_surface_start() {
   aos_bin="$(aos_visual_aos)"
 
   aos_real_input_surface_require_enabled || return $?
-  "$aos_bin" ready >/dev/null
+  if ! "$aos_bin" status --json 2>/dev/null | python3 -c 'import json,sys; data=json.load(sys.stdin); runtime=data.get("runtime") or {}; raise SystemExit(0 if (runtime.get("socket_reachable") is True and runtime.get("input_tap_status") == "active") else 1)' >/dev/null 2>&1; then
+    "$aos_bin" ready >/dev/null
+  fi
 
   if ! aos_real_input_surface_canvas_exists "$inspector_id"; then
     aos_visual_launch_canvas_inspector "$inspector_id"

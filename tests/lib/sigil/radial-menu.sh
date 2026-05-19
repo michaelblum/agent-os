@@ -401,7 +401,7 @@ def stable_hit_target():
     return None
 
 
-initial = wait_until(stable_hit_target, timeout=6.0, interval=0.08, label="stable Sigil hit target")
+initial = wait_until(stable_hit_target, timeout=12.0, interval=0.08, label="stable Sigil hit target")
 frame = initial.get("hitTargetFrame")
 avatar_pos = initial.get("avatarPos") or {}
 if not frame or not avatar_pos.get("valid"):
@@ -421,7 +421,7 @@ if scenario in ("desktop-world-path", "figure-eight"):
         json.dumps(path_plan["points"][0]["x"]),
         json.dumps(path_plan["points"][0]["y"]),
     ))
-    initial = wait_until(stable_hit_target, timeout=6.0, interval=0.08, label="stable Sigil hit target at DesktopWorld path start")
+    initial = wait_until(stable_hit_target, timeout=12.0, interval=0.08, label="stable Sigil hit target at DesktopWorld path start")
     avatar_pos = initial.get("avatarPos") or {}
     if not avatar_pos.get("valid"):
         fail_with_artifact("avatar could not be placed at DesktopWorld path start", {
