@@ -18,6 +18,42 @@ primitive foundation. It replaces the brittle right-rail composition with a
 progressive-disclosure design, while preserving the subject/workbench contracts
 already built in the current Subject Browser branch.
 
+## Restart Guidance After Interrupted Draft
+
+An interrupted GDI attempt left draft work in:
+
+```text
+/Users/Michael/Code/agent-os-gdi-zag-disclosure
+```
+
+That worktree contains uncommitted edits to:
+
+- `packages/toolkit/components/wiki-subject-browser/index.js`
+- `packages/toolkit/components/wiki-subject-browser/styles.css`
+
+Treat that diff as reference material only. It is not accepted, not reviewed,
+and not the canonical starting point. Before implementing, inspect it to harvest
+useful ideas, then start from current `main` unless Foreman explicitly says
+otherwise. Do not copy the draft wholesale without revalidating each change
+against this card.
+
+If creating or using a sibling worktree is necessary to protect unrelated dirty
+state, state that before doing it. Do not build `./aos` in a fresh worktree until
+deterministic checks pass and the live proof is actually needed.
+
+Execution order:
+
+1. Do a read-only triage of the interrupted draft and summarize which ideas are
+   worth keeping.
+2. Implement the revamp in small deterministic checkpoints on top of current
+   `main`: shell composition first, then Path/Clear behavior, then resource
+   drilldown controls, then responsive behavior.
+3. Run deterministic checks after each checkpoint that materially changes
+   behavior.
+4. Run live AOS proof only after the deterministic implementation is stable.
+5. Stop and report if live proof needs DOM/eval activation. Do not grind through
+   another long Operator-style pass.
+
 ## Goal
 
 Refactor the toolkit Subject Browser so its interaction geometry is stable,
