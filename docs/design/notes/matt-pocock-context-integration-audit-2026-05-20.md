@@ -70,7 +70,7 @@ Agent-os has:
 - no `docs/agents/`;
 - no `## Agent skills` block in root `AGENTS.md` or `CLAUDE.md`.
 
-There are at least 268 Markdown files across `docs/adr`, `docs/api`,
+There are at least 270 Markdown files across `docs/adr`, `docs/api`,
 `docs/decisions`, `docs/design`, `docs/dev`, `docs/recipes`, and `docs/wiki`
 within two directory levels. Treating this as a simple single-context repo is
 too weak for agent-os.
@@ -93,6 +93,13 @@ agent-os has multiple durable domains: AOS primitives, toolkit/default surface
 system, Sigil, docks/session operations, gateway/host, work records, wiki/KB,
 runtime permissions, and design-token/toolkit styling.
 
+Validation 2026-05-20: confirmed. Matt's
+`setup-matt-pocock-skills/SKILL.md` says the setup flow writes an
+`## Agent skills` block plus `docs/agents/issue-tracker.md`,
+`docs/agents/triage-labels.md`, and `docs/agents/domain.md`. The local
+agent-os tree still has no root `CONTEXT-MAP.md`, no `docs/agents/`, and no
+`## Agent skills` block in root `AGENTS.md` or `CLAUDE.md`.
+
 ### 2. `CONTEXT.md` is not just a glossary
 
 The current `CONTEXT.md` is useful, but it exceeds Matt's intended boundary:
@@ -112,6 +119,15 @@ Recommended framing: either split pure domain glossary from contract/status
 notes, or explicitly define agent-os `CONTEXT.md` as "domain language plus
 contract terminology index" and document when implementation detail is allowed.
 
+Validation 2026-05-20: confirmed. Matt's `/grill-with-docs` skill says
+`CONTEXT.md` should be "a glossary and nothing else" and "totally devoid of
+implementation details"; its `CONTEXT-FORMAT.md` says definitions should be
+tight, project-specific domain terms. Agent-os `CONTEXT.md` now includes live
+wire forms such as `browser:<session>/<ref>`, schema references, host/runtime
+contract language, ADR resolution notes, migration/cutover notes, and pending
+plan cleanup notes. That is useful local material, but it is not Matt's pure
+glossary shape.
+
 ### 3. Multi-context structure is missing
 
 Matt's model gives a `CONTEXT-MAP.md` for multi-context repos. Agent-os is a
@@ -130,6 +146,15 @@ Without a map, agents overload root `CONTEXT.md` and then miss nearer authority
 docs such as `packages/toolkit/AGENTS.md`, `.docks/AGENTS.md`, `docs/api/`, or
 `shared/schemas/`.
 
+Validation 2026-05-20: confirmed. Matt's `domain.md`,
+`grill-with-docs/SKILL.md`, and `CONTEXT-FORMAT.md` all use root
+`CONTEXT-MAP.md` as the multi-context signal. Agent-os has separate subtree
+authority files for `.docks/`, `apps/sigil/`, `packages/toolkit/`,
+`packages/toolkit/controls/`, `packages/toolkit/panel/`,
+`packages/toolkit/runtime/`, `src/`, `src/daemon/`, and several `CLAUDE.md`
+compatibility files, but no root context map connecting those local contracts
+to root vocabulary.
+
 ### 4. Context maintenance has no SOP
 
 There is no durable rule for:
@@ -143,6 +168,14 @@ There is no durable rule for:
 
 This is exactly how the recent drift happened: `ARCHITECTURE.md` and
 `CONTEXT.md` were updated, but nearby docs still carry old claims.
+
+Validation 2026-05-20: confirmed. `docs/recipes/` contains useful SOPs such as
+agent entry paths, accessibility surfaces, GDI exit interviews, and layered
+subject expressions, but no context maintenance recipe. The root `AGENTS.md`
+"Durable lessons" paragraph names `AGENTS.md`, `tests/README.md`,
+`docs/recipes/`, `docs/design/`, `shared/schemas/`, `docs/api/`, and
+`ARCHITECTURE.md`; it still does not name `CONTEXT.md`, `CONTEXT-MAP.md`, or
+`docs/agents/domain.md` as maintained context surfaces.
 
 ### 5. Sibling source-of-truth docs still conflict
 
@@ -164,6 +197,17 @@ Some stale historical docs should remain historical, but `AGENTS.md`,
 `src/CLAUDE.md`, `docs/api/aos.md`, and live ADRs are not purely historical.
 They need a follow-up sweep or explicit supersession notes.
 
+Validation 2026-05-20: confirmed, with one nuance. The conflict set is still
+real after the recent `ARCHITECTURE.md` / `CONTEXT.md` update: `AGENTS.md`,
+`src/CLAUDE.md`, and `docs/api/aos.md` still use the stronger "`say` is sugar"
+or "same as" wording, while `ARCHITECTURE.md` now says `say` is conceptually
+aligned with `tell human` but remains a convenience path. ADR-0006 still uses
+`screen:<state-id>/<x,y>` for coordinate actions, while `CONTEXT.md` says live
+coordinate actions use raw `x,y` plus optional `--state-id`. The ADR-0004
+example is only partially stale: `browser:` and `canvas:` are still live target
+dialects, but `screen:` and `ax:` need the same live-CLI qualification that
+`CONTEXT.md` now carries.
+
 ### 6. ADR placement is split
 
 Matt's skills assume `docs/adr/` and context-scoped `docs/adr/` directories.
@@ -175,6 +219,14 @@ Agent-os has both:
 That may be intentional, but it is not documented for consumers. A Matt-style
 domain setup would need to say whether `docs/decisions/` is an ADR namespace, a
 legacy namespace, or a different decision-document class.
+
+Validation 2026-05-20: confirmed. Matt's domain-doc model points consumers at
+`docs/adr/` and optional context-scoped `src/<context>/docs/adr/` directories.
+The agent-os tree has eleven live-looking ADRs under `docs/adr/` and one
+ADR-named decision under `docs/decisions/`. That split is material to a
+Matt-style setup because a generated `docs/agents/domain.md` would otherwise
+teach skills to read only `docs/adr/` and silently miss the toolkit platform
+strategy decision.
 
 ### 7. Root docs overlap without a precedence map
 
@@ -194,6 +246,15 @@ operational claims. There is no compact precedence map for which file owns:
 The root `AGENTS.md` has a "Durable lessons" paragraph, but it does not mention
 `CONTEXT.md`, `CONTEXT-MAP.md`, or Matt-style domain docs as a maintained
 surface.
+
+Validation 2026-05-20: confirmed and slightly incomplete. Additional
+high-value misses are visible under the surfaces named in the work card:
+`.docks/AGENTS.md` defines dock role/session boundaries, `docs/api/` owns live
+CLI and toolkit contracts, `docs/recipes/` owns reusable SOPs, and subtree
+`AGENTS.md` files own local policy, but there is no compact root map that says
+which of those files wins when they overlap with `CONTEXT.md` or
+`ARCHITECTURE.md`. This is not just a root-doc issue; it is the missing
+consumer map for the whole documentation topology.
 
 ## Likely Root Cause
 
@@ -227,6 +288,18 @@ other markdown instead of governing or being governed by them.
 5. **Decide whether root `CONTEXT.md` stays pure glossary.** Either slim it
    toward Matt's glossary model or explicitly document agent-os's broader
    "glossary plus contract terminology index" variant.
+
+## Recommended Next Slice
+
+Smallest docs-only implementation pass: install the agent-os-specific Matt setup
+scaffold without changing source behavior. Add a root `## Agent skills` block
+to the existing root `AGENTS.md`, create `docs/agents/domain.md`,
+`docs/agents/issue-tracker.md`, and `docs/agents/triage-labels.md`, and make
+`domain.md` explicitly say agent-os is multi-context and that root
+`CONTEXT.md` is currently a governed "domain language plus contract terminology
+index" variant. Defer `CONTEXT-MAP.md`, sibling stale-doc repairs, ADR namespace
+cleanup, and the context maintenance SOP to later slices so this first pass only
+teaches agents where to look.
 
 ## Immediate Risk
 
