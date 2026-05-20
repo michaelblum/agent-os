@@ -1,29 +1,29 @@
 $ memory_pressure
 The system has 17179869184 (1048576 pages with a page size of 16384).
 
-Stats: 
-Pages free: 4868 
-Pages purgeable: 2 
-Pages purged: 33188396 
+Stats:
+Pages free: 4868
+Pages purgeable: 2
+Pages purged: 33188396
 
 Swap I/O:
-Swapins: 303558629 
-Swapouts: 312681820 
+Swapins: 303558629
+Swapouts: 312681820
 
 Page Q counts:
-Pages active: 166797 
-Pages inactive: 160073 
-Pages speculative: 5991 
-Pages throttled: 0 
-Pages wired down: 165657 
+Pages active: 166797
+Pages inactive: 160073
+Pages speculative: 5991
+Pages throttled: 0
+Pages wired down: 165657
 
 Compressor Stats:
-Pages used by compressor: 505495 
-Pages decompressed: 1790967317 
-Pages compressed: 1884197075 
+Pages used by compressor: 505495
+Pages decompressed: 1790967317
+Pages compressed: 1884197075
 
 File I/O:
-Pageins: 32925982 
-Pageouts: 840302 
+Pageins: 32925982
+Pageouts: 840302
 
 System-wide memory free percentage: 33%

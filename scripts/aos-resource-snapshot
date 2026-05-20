@@ -10,6 +10,13 @@ mkdir -p "$out_dir"
 
 cd "$repo_root"
 
+sanitize_capture_files() {
+  local name="$1"
+  for file in "$out_dir/$name" "$out_dir/$name.stderr"; do
+    [[ -f "$file" ]] && perl -0pi -e 's/[ \t]+(?=\n)//g' "$file"
+  done
+}
+
 run_capture() {
   local name="$1"
   shift
@@ -21,8 +28,10 @@ run_capture() {
   } >"$out_dir/$name" 2>"$out_dir/$name.stderr" || {
     local status=$?
     printf 'exit_status=%s\n' "$status" >>"$out_dir/$name.stderr"
+    sanitize_capture_files "$name"
     return 0
   }
+  sanitize_capture_files "$name"
 }
 
 run_shell_capture() {
@@ -34,8 +43,10 @@ run_shell_capture() {
   } >"$out_dir/$name" 2>"$out_dir/$name.stderr" || {
     local status=$?
     printf 'exit_status=%s\n' "$status" >>"$out_dir/$name.stderr"
+    sanitize_capture_files "$name"
     return 0
   }
+  sanitize_capture_files "$name"
 }
 
 run_capture "aos-status.txt" ./aos status
