@@ -62,13 +62,12 @@ runtime evidence, which is not expected.
 
 ## Branch/Base
 
-branch_from: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
-required_start_ref: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
+branch_from: `origin/main`
+required_start_ref: `origin/main`
 
-This work card and the context map live on the branch above, not on
-`origin/main`. Do not reset to `origin/main` for this slice. Use
-`gdi/context-live-doc-stale-sweep-v0` as the output branch if creating a
-separate GDI branch.
+This work card is present on `origin/main` after PR #368 merged. Start from
+`origin/main` for this slice. Use `gdi/context-live-doc-stale-sweep-v0` as the
+output branch if creating a separate GDI branch.
 
 ## Required Behavior
 

@@ -64,13 +64,12 @@ or stage them.
 
 ## Branch/Base
 
-branch_from: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
-required_start_ref: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
+branch_from: `origin/main`
+required_start_ref: `origin/main`
 
-This work card and the validated audit live on the branch above, not on
-`origin/main`. Do not reset to `origin/main` for this slice. Use
-`gdi/matt-context-setup-scaffold-v0` as the output branch if creating a separate
-GDI branch.
+This work card is present on `origin/main` after PR #368 merged. Start from
+`origin/main` for this slice. Use `gdi/matt-context-setup-scaffold-v0` as the
+output branch if creating a separate GDI branch.
 
 ## Conflict Handling Rubric
 
