@@ -2259,10 +2259,10 @@ export default function CanvasInspector() {
       ['surfaces', 'Surfaces'],
       ['diagnostics', 'Diagnostics'],
     ]
-    return `<div class="lower-pane-tab-list" data-aos-tabs-list>`
+    return `<div class="lower-pane-tab-list aos-tabs" data-aos-tabs-list>`
       + tabs.map(([value, label]) => renderButtonHtml({
         label,
-        className: `lower-pane-tab ${listPaneView === value ? 'active' : ''}`,
+        className: `lower-pane-tab aos-tab ${listPaneView === value ? 'active' : ''}`,
         includeBaseClass: false,
         classFirst: true,
         dataset: { value },
@@ -2272,7 +2272,7 @@ export default function CanvasInspector() {
   }
 
   function renderLowerPanePanel(value, html) {
-    return `<section class="lower-pane-panel" data-aos-tabs-content data-value="${esc(value)}">${html}</section>`
+    return `<section class="lower-pane-panel aos-tab-content" data-aos-tabs-content data-value="${esc(value)}">${html}</section>`
   }
 
   function renderAnnotatePane() {

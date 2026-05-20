@@ -1,8 +1,12 @@
-# ADR-001: Toolkit Platform Strategy
+# Toolkit Platform Strategy
 
 Status: Accepted
 Date: 2026-05-15
 Related: [#328](https://github.com/michaelblum/agent-os/issues/328), [#325](https://github.com/michaelblum/agent-os/issues/325), [#326](https://github.com/michaelblum/agent-os/issues/326), [#327](https://github.com/michaelblum/agent-os/issues/327)
+
+Originally recorded as `docs/decisions/ADR-001-toolkit-platform-strategy.md`
+with title `ADR-001: Toolkit Platform Strategy`; migrated into the canonical
+ADR namespace on 2026-05-20.
 
 ## Context
 

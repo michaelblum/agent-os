@@ -338,13 +338,12 @@ export default function IntegrationHub(options = {}) {
           ${renderButtonHtml({ includeBaseClass: false, className: 'integration-hub-refresh', label: 'Refresh' })}
         </section>
 
-        <section class="integration-hub-surface-tabs aos-segmented" role="tablist" aria-label="Integration broker surfaces" data-aos-tabs-root data-aos-tabs-list>
+        <section class="integration-hub-surface-tabs aos-tabs" role="tablist" aria-label="Integration broker surfaces" data-aos-tabs-root data-aos-tabs-list data-density="compact">
           ${surfaces.map((surface) => `
             ${renderButtonHtml({
               includeBaseClass: false,
-              className: `integration-hub-surface-tab${surface.id === state.activeSurface ? ' active' : ''}`,
+              className: `integration-hub-surface-tab aos-tab${surface.id === state.activeSurface ? ' active' : ''}`,
               label: surface.label,
-              pressed: surface.id === state.activeSurface,
               dataset: { surface: surface.id, value: surface.id, aosTabsTrigger: true },
             })}
           `).join('')}
@@ -354,7 +353,7 @@ export default function IntegrationHub(options = {}) {
           ${esc(surfaces.find((surface) => surface.id === state.activeSurface)?.description || '')}
         </section>
 
-        <section class="integration-hub-grid" data-aos-tabs-content data-value="${esc(state.activeSurface)}">
+        <section class="integration-hub-grid aos-tab-content" data-aos-tabs-content data-value="${esc(state.activeSurface)}">
           ${renderSurfaces()}
         </section>
       </div>

@@ -8,6 +8,13 @@ body {
   font: var(--aos-type-body, 12px/1.4 var(--font-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif));
 }
 
+.aos-workbench-shell,
+.aos-workbench-shell *,
+.aos-workbench-shell *::before,
+.aos-workbench-shell *::after {
+  box-sizing: border-box;
+}
+
 .aos-workbench-shell {
   position: relative;
   width: 100%;
@@ -28,11 +35,11 @@ body {
 
 .aos-workbench-titlebar {
   flex: 0 0 auto;
-  min-height: var(--aos-panel-titlebar-min-height, 44px);
+  min-height: var(--aos-panel-titlebar-min-height, 36px);
   display: flex;
   align-items: center;
   gap: var(--aos-panel-titlebar-gap, 10px);
-  padding: var(--aos-panel-titlebar-padding, 7px 10px);
+  padding: var(--aos-panel-titlebar-padding, 4px 10px);
   border-bottom: 1px solid var(--border-subtle, rgba(122, 241, 255, 0.18));
   background: var(--bg-panel-header, rgba(7, 18, 23, 0.96));
   user-select: none;

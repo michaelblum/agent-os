@@ -135,7 +135,7 @@ test('safeExternalHref allows explicit safe protocols only', () => {
   assert.equal(safeExternalHref('javascript:alert(1)'), '');
 });
 
-test('mindmap helpers prefer the highest-degree node as the root', () => {
+test('radial graph helpers prefer the highest-degree node as the root', () => {
   const nodes = normalizeGraphPayload({
     nodes: [
       { id: 'alpha', name: 'Alpha', type: 'entity' },

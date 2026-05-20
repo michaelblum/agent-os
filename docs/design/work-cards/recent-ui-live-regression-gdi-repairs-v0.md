@@ -216,7 +216,7 @@ Run deterministic tests first:
 
 ```bash
 node --test tests/toolkit/controls-button.test.mjs
-node --test tests/toolkit/zag-adapter-tabs.test.mjs tests/toolkit/integration-hub-semantics.test.mjs tests/toolkit/wiki-kb-tabs.test.mjs
+node --test tests/toolkit/zag-adapter-tabs.test.mjs tests/toolkit/integration-hub-semantics.test.mjs tests/toolkit/wiki-kb-layout-modes.test.mjs
 node --test tests/toolkit/markdown-workbench-layout.test.mjs tests/toolkit/surface-zoom-inspector.test.mjs
 node --test tests/toolkit/decision-gate.test.mjs
 ```

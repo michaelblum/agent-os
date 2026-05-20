@@ -649,7 +649,10 @@ aos say --voice-slot 1 --language en --quality-tier premium,enhanced "Hello"
 aos say --list-voices
 ```
 
-`aos say` is sugar for `aos tell human ...`. Consumers that need one communication surface should prefer `aos tell`.
+`aos say` is a direct TTS convenience path conceptually aligned with speaking to
+the human. `aos tell human ...` is daemon-routed communication; consumers that
+need routed communication, session metadata, channels, or future sinks should
+prefer `aos tell`.
 Use `--voice <id>` to select a concrete voice id, or `--voice-slot <n>` to
 select the nth currently speakable voice after any `--language`, `--gender`,
 and `--quality-tier` filters are applied. `--quality-tier` accepts repeated

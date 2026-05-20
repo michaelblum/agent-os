@@ -12,6 +12,24 @@ creating separate workflows.
   `CLAUDE.md` files are compatibility pointers for tools that still discover
   that filename; keep subtree-specific detail in nearby `AGENTS.md` files.
 
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues are the durable tracker; repo-specific GitHub operations go
+through `./aos dev gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage labels are repository vocabulary to inspect and map before use, not names
+agents may freely create. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Agent-os is multi-context in practice; read `CONTEXT-MAP.md` to choose the
+right domain docs, while preserving `CONTEXT.md` as the shared vocabulary and
+contract-term index. See `docs/agents/domain.md`.
+
 ## Repo Model
 
 - `src/` and `shared/` hold the unified `aos` binary and shared schemas.
@@ -82,8 +100,10 @@ session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`
 files for local contracts, `tests/README.md` for verification mechanics,
 `docs/recipes/` for reusable SOPs, `docs/design/` for provider-neutral plans
 and specs, and `shared/schemas/`, `docs/api/`, or `ARCHITECTURE.md` for
-cross-tool contracts. Prefer measured, provider-neutral guidance over reactive
-warnings. See
+cross-tool contracts. Use `CONTEXT.md`, `CONTEXT-MAP.md`, and
+`docs/agents/domain.md` as governed context surfaces, and follow
+`docs/recipes/context-doc-maintenance.md` when these docs may need to move
+together. Prefer measured, provider-neutral guidance over reactive warnings. See
 `docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
 
 ## Design Principle: Primitives First
@@ -123,10 +143,13 @@ The `aos` CLI uses an embodied verb metaphor. Know the verbs and what they cover
 | `tell` | Communicate outward | Routes to TTS, channels, future sinks |
 | `listen` | Receive communication | Aggregates STT, channels, stdin, future sources |
 
-`say` is sugar for `tell human`. `do tell` is AppleScript (talks to apps, not
-agents). The agent decides WHAT to communicate and TO WHOM — the daemon decides
-HOW to deliver it. See `ARCHITECTURE.md` for the full rationale. Historical
-design context is archived at
+`say` is a direct TTS convenience path conceptually aligned with speaking to the
+human. `tell human` is daemon-routed communication; consumers that need routed
+communication, session metadata, channels, or future sinks should prefer
+`tell`. `do tell` is AppleScript (talks to apps, not agents). The agent decides
+WHAT to communicate and TO WHOM — the daemon decides HOW to deliver it. See
+`ARCHITECTURE.md` for the full rationale. Historical design context is archived
+at
 `docs/archive/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
 ## Host Shell Boundary

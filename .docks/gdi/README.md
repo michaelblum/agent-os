@@ -12,6 +12,7 @@ The dock is just a session profile. Codex discovers `AGENTS.md` and
 `/Users/Michael/Code/agent-os`.
 
 GDI is the deterministic implementation dock. It consumes plain assigned
-handoffs, implements the assigned slice, runs verification, and reports exact results.
+transfer dispatches, implements the assigned slice, runs verification, and
+reports exact results.
 Foreman remains the default owner for workstream coordination, git/GitHub
 hygiene, PRs, and issue state unless a goal explicitly assigns that work.

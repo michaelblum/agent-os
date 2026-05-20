@@ -75,7 +75,7 @@ on commit `17aded4`:
 Run at minimum:
 
 ```bash
-node --test tests/toolkit/zag-adapter-tabs.test.mjs tests/toolkit/integration-hub-semantics.test.mjs tests/toolkit/wiki-kb-tabs.test.mjs
+node --test tests/toolkit/zag-adapter-tabs.test.mjs tests/toolkit/integration-hub-semantics.test.mjs tests/toolkit/wiki-kb-layout-modes.test.mjs
 git diff --check
 ```
 

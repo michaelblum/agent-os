@@ -79,27 +79,41 @@ Dock status lines should lead with the dock identity, such as `foreman:`,
 status-line color settings, so use identity text and terminal titles as the
 stable visual differentiators.
 
-## Clipboard Handoffs
+## Clipboard Transfers
 
 When a dock session produces a message intended for another session, use the
 repo handoff tool instead of letting Stop hooks infer clipboard content from
 chat text:
 
 ```bash
-scripts/agent-handoff --text "$handoff_message" --options-json '{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
+scripts/agent-handoff --text "$transfer_payload" --options-json '{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
 
-# Compatibility wrappers for dock-targeted handoffs:
-printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock gdi
-printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock foreman
-printf '%s' "$handoff_message" | scripts/dock-handoff-clipboard --target-dock operator
+# Compatibility wrappers for dock-targeted transfer payloads:
+printf '%s' "$transfer_payload" | scripts/dock-handoff-clipboard --target-dock gdi
+printf '%s' "$transfer_payload" | scripts/dock-handoff-clipboard --target-dock foreman
+printf '%s' "$transfer_payload" | scripts/dock-handoff-clipboard --target-dock operator
 ```
 
-`scripts/agent-handoff` copies only the handoff payload. It then prints that same
+`scripts/agent-handoff` copies only the transfer payload. It then prints that same
 raw payload between `----- BEGIN HANDOFF -----` and `----- END HANDOFF -----`
 markers for chat, followed by `(copied to clipboard)` and a human-readable local
-timestamp. Handoffs are plain instructions for every dock. Individual docks may
-wrap the generic tool for their own default payload construction, but formatting
-and clipboard behavior should stay centralized in the generic tool.
+timestamp. Clipboard transfer payloads are plain instructions for every dock.
+Individual docks may wrap the generic tool for their own default payload
+construction, but formatting and clipboard behavior should stay centralized in
+the generic tool.
+
+Use the transfer kind to choose durable storage:
+
+| Transfer kind | Normal storage |
+| --- | --- |
+| Foreman successor handoff | Clipboard/chat or a temp file from `mktemp -t foreman-handoff-XXXXXX.md`; do not commit it. |
+| GDI work card | `docs/design/work-cards/<card>.md`, with a thin clipboard dispatch pointing at the card. |
+| Operator run | Clipboard/chat unless a durable capture plan is explicitly needed. |
+| Human-needed packet | Clipboard/chat unless the recovery path should become reusable SOP. |
+
+Do not store successor-Foreman handoffs under `docs/design/work-cards/`. If a
+handoff needs durable follow-up, create a separate work card, issue, PR comment,
+or design note and reference it from the handoff.
 
 ## Canonical Docks
 
@@ -108,16 +122,16 @@ and clipboard behavior should stay centralized in the generic tool.
   lives, what is complete, what remains blocked, and when commits, pushes, PRs,
   or issue updates are appropriate.
 - `gdi/` is the Goal-Driven Implementation role. GDI consumes assigned
-  handoffs, implements the assigned deterministic slice, runs verification, and
-  reports exact results. GDI does not own next-work selection, PRs, issues, or
-  branch hygiene unless a goal explicitly says so.
+  transfer dispatches, implements the assigned deterministic slice, runs
+  verification, and reports exact results. GDI does not own next-work selection,
+  PRs, issues, or branch hygiene unless a goal explicitly says so.
 - `operator/` is the Operator supervised human-in-the-loop execution and
   locator review role. Operator inspects live surfaces, records bounded human
   judgments, observes stop conditions, and reports evidence. Operator does not
-  own git/GitHub or implementation scope unless a handoff explicitly says so.
+  own git/GitHub or implementation scope unless a transfer explicitly says so.
 
 For non-trivial GDI work, Foreman should prefer a Markdown work card under
-`docs/design/work-cards/` plus a thin GDI handoff such as:
+`docs/design/work-cards/` plus a thin GDI dispatch such as:
 
 ```text
 follow the instructions in docs/design/work-cards/<card>.md

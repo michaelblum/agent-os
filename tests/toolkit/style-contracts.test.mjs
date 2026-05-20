@@ -8,6 +8,15 @@ async function repoText(path) {
   return readFile(new URL(path, repo), 'utf8');
 }
 
+function customPropertyMap(css) {
+  const rootBody = css.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  const properties = new Map();
+  for (const match of rootBody.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)) {
+    properties.set(match[1], match[2].trim());
+  }
+  return properties;
+}
+
 test('toolkit theme exposes semantic typography and control tokens', async () => {
   const theme = await repoText('packages/toolkit/components/_base/theme.css');
 
@@ -32,6 +41,8 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-panel-radius',
     '--aos-panel-shadow',
     '--aos-panel-titlebar-min-height',
+    '--aos-panel-titlebar-padding-block',
+    '--aos-panel-titlebar-padding-inline',
     '--aos-panel-titlebar-padding',
     '--aos-panel-titlebar-gap',
     '--aos-panel-control-gap',
@@ -61,6 +72,18 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
   assert.match(theme, /--bg-panel:\s*var\(--aos-panel-bg\)/);
   assert.match(theme, /--border-panel:\s*var\(--aos-panel-border\)/);
   assert.match(theme, /--radius-panel:\s*var\(--aos-panel-radius\)/);
+});
+
+test('toolkit theme keeps design tokens available inside the toolkit content root', async () => {
+  const tokenCss = await repoText('packages/design-tokens/tokens.css');
+  const themeCss = await repoText('packages/toolkit/components/_base/theme.css');
+  const tokenProperties = customPropertyMap(tokenCss);
+  const themeProperties = customPropertyMap(themeCss);
+
+  assert.doesNotMatch(themeCss, /@import\s+url\(["']\.\.\/\.\.\/\.\.\/design-tokens\/tokens\.css["']\)/);
+  for (const [name, value] of tokenProperties) {
+    assert.equal(themeProperties.get(name), value, `${name} should be re-exported by toolkit theme.css for aos://toolkit pages`);
+  }
 });
 
 test('workbench toolbar defaults do not restyle protected button primitives', async () => {
@@ -143,4 +166,91 @@ test('wiki graph controls consume compact toolkit tokens', async () => {
   assert.match(wikiCss, /background:\s*var\(--aos-control-compact-bg-active/);
   assert.doesNotMatch(wikiCss, /font-size:\s*9px/);
   assert.doesNotMatch(wikiCss, /background:\s*rgba\(18,\s*18,\s*28,\s*0\.78\)/);
+});
+
+test('mounted toolkit panel component pages import base theme and panel defaults', async () => {
+  const panelPages = [
+    'packages/toolkit/components/artifact-bundle-workbench/index.html',
+    'packages/toolkit/components/html-workbench-expression/index.html',
+    'packages/toolkit/components/inspector-panel/index.html',
+    'packages/toolkit/components/integration-hub/index.html',
+    'packages/toolkit/components/log-console/index.html',
+    'packages/toolkit/components/markdown-workbench/index.html',
+    'packages/toolkit/components/object-transform-panel/index.html',
+    'packages/toolkit/components/playbook-workbench/index.html',
+    'packages/toolkit/components/render-performance/index.html',
+    'packages/toolkit/components/spatial-telemetry/index.html',
+    'packages/toolkit/components/surface-inspector/index.html',
+    'packages/toolkit/components/surface-zoom-inspector/index.html',
+    'packages/toolkit/components/test-console/index.html',
+    'packages/toolkit/components/wiki-kb/index.html',
+    'packages/toolkit/components/wiki-subject-browser/index.html',
+    'packages/toolkit/components/work-record-workbench/index.html',
+  ];
+
+  for (const page of panelPages) {
+    const html = await repoText(page);
+    assert.match(html, /_base\/theme\.css/, `${page} should import toolkit base theme`);
+    assert.match(html, /panel\/defaults\.css/, `${page} should import panel defaults`);
+  }
+});
+
+test('segmented controls are not used as tablists', async () => {
+  const files = [
+    'packages/toolkit/components/integration-hub/index.js',
+    'packages/toolkit/components/markdown-workbench/index.js',
+    'packages/toolkit/components/object-transform-panel/index.js',
+    'packages/toolkit/components/playbook-workbench/index.js',
+    'packages/toolkit/components/surface-zoom-inspector/index.js',
+  ];
+
+  for (const file of files) {
+    const source = await repoText(file);
+    assert.doesNotMatch(source, /aos-segmented[^"`'\n>]*["'`][^>\n]*role="tablist"/, `${file} should not render segmented controls as tablists`);
+    assert.doesNotMatch(source, /role="tablist"[^>\n]*aos-segmented/, `${file} should not render segmented controls as tablists`);
+  }
+});
+
+test('segmented control primitive users import control defaults', async () => {
+  const adopters = [
+    ['packages/toolkit/components/markdown-workbench/index.html', 'packages/toolkit/components/markdown-workbench/index.js'],
+    ['packages/toolkit/components/object-transform-panel/index.html', 'packages/toolkit/components/object-transform-panel/index.js'],
+    ['packages/toolkit/components/playbook-workbench/index.html', 'packages/toolkit/components/playbook-workbench/index.js'],
+    ['packages/toolkit/components/surface-zoom-inspector/index.html', 'packages/toolkit/components/surface-zoom-inspector/index.js'],
+    ['packages/toolkit/components/wiki-kb/index.html', 'packages/toolkit/components/wiki-kb/index.js'],
+  ];
+
+  for (const [htmlPath, jsPath] of adopters) {
+    const source = await repoText(jsPath);
+    assert.match(source, /aos-segmented|createButtonGroup/, `${jsPath} should keep this contract scoped to segmented primitive users`);
+    const html = await repoText(htmlPath);
+    assert.match(html, /controls\/defaults\.css/, `${htmlPath} should import control defaults for .aos-segmented`);
+  }
+});
+
+test('Zag tabs use the connected tab primitive classes', async () => {
+  const sources = new Map([
+    ['integration-hub', await repoText('packages/toolkit/components/integration-hub/index.js')],
+    ['surface-inspector', await repoText('packages/toolkit/components/surface-inspector/index.js')],
+    ['panel-tabs', await repoText('packages/toolkit/panel/layouts/tabs.js')],
+  ]);
+
+  for (const [name, source] of sources) {
+    assert.match(source, /data-aos-tabs-list[\s\S]{0,160}aos-tabs|aos-tabs[\s\S]{0,160}data-aos-tabs-list/, `${name} tab list should use .aos-tabs`);
+    assert.match(source, /data-aos-tabs-trigger[\s\S]*aos-tab|aos-tab[\s\S]*(data-aos-tabs-trigger|aosTabsTrigger)/, `${name} tab triggers should use .aos-tab`);
+    assert.match(source, /data-aos-tabs-content[\s\S]*aos-tab-content|aos-tab-content[\s\S]*(data-aos-tabs-content|aosTabsContent)/, `${name} tab panels should use .aos-tab-content`);
+  }
+});
+
+test('legacy aos text aliases are not consumed without compatibility tokens', async () => {
+  const files = [
+    'packages/toolkit/components/artifact-bundle-workbench/styles.css',
+    'packages/toolkit/components/test-console/styles.css',
+  ];
+
+  for (const file of files) {
+    const css = await repoText(file);
+    assert.doesNotMatch(css, /--aos-text(?:-strong|-muted)?\b/, `${file} should use base --text-* aliases`);
+    assert.doesNotMatch(css, /--aos-muted\b/, `${file} should use base --text-muted`);
+  }
 });

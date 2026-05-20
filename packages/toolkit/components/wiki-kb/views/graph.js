@@ -1,4 +1,4 @@
-// Force-directed graph view for wiki-kb.
+// Force-directed graph layout for wiki-kb.
 
 import {
   buildAdjacency,
@@ -1073,7 +1073,7 @@ export default function GraphView({ onSelectNode }) {
   return {
     mount() {
       rootEl = document.createElement('div')
-      rootEl.className = 'wiki-kb-graph-view'
+      rootEl.className = 'wiki-kb-graph-layout'
       rootEl.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
       rootEl.innerHTML = `
         <div class="wiki-kb-controls-shell aos-sidebar-rail">

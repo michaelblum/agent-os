@@ -4,12 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman> [--text <handoff>]
-  printf '%s' "$handoff" | .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman>
+  .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman> [--text <payload>]
+  printf '%s' "$payload" | .docks/foreman/scripts/handoff --target-dock <gdi|operator|foreman>
 
-Foreman-only wrapper for cross-session handoffs. It delegates clipboard writes
-and chat demarcation to the repo-level handoff tool through
-scripts/dock-handoff-clipboard.
+Foreman-only compatibility wrapper for cross-session transfer payloads. It
+delegates clipboard writes and chat demarcation to the repo-level handoff tool
+through scripts/dock-handoff-clipboard.
 EOF
 }
 
@@ -56,7 +56,7 @@ case "$target_dock" in
     exit 2
     ;;
   *)
-    echo "FAIL: unsupported Foreman handoff target: $target_dock" >&2
+    echo "FAIL: unsupported Foreman transfer target: $target_dock" >&2
     exit 2
     ;;
 esac

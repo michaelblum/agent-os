@@ -35,7 +35,7 @@ function createMenu(options = {}) {
 
 test('Sigil radial menu commits configured context item on release', () => {
   const { menu, commits } = createMenu()
-  const started = menu.start({ x: 200, y: 200, valid: true })
+  const started = menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
   const contextItem = started.items.find((item) => item.id === 'context-menu')
 
   const moved = menu.move({ ...contextItem.center, valid: true })
@@ -53,7 +53,7 @@ test('Sigil radial menu commits configured context item on release', () => {
 
 test('Sigil radial menu preserves release context for activation adapters', () => {
   const { menu, commits } = createMenu()
-  const started = menu.start({ x: 200, y: 200, valid: true })
+  const started = menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
   const contextItem = started.items.find((item) => item.id === 'context-menu')
 
   menu.move({ ...contextItem.center, valid: true })
@@ -180,6 +180,35 @@ test('Sigil default radial geometry leaves adjacent four and five item targets s
   assertSeparated(visibleCamera)
 })
 
+test('Sigil radial menu anchors the annotation reticle to the threshold vector', () => {
+  const origin = { x: 200, y: 200, valid: true }
+  const rightward = createSigilRadialGestureMenu({
+    state: {
+      avatarHitRadius: defaultState.avatarHitRadius,
+      radialGestureMenu: defaultState.radialGestureMenu,
+      annotationReticle: { camera_available: false, live_anchor_count: 0 },
+    },
+  }).start(origin, { x: 260, y: 200, valid: true })
+  const reticle = rightward.items.find((item) => item.id === 'annotation-mode')
+  const left = rightward.items.filter((item) => item.id !== 'annotation-mode' && item.angle > 180)
+  const right = rightward.items.filter((item) => item.id !== 'annotation-mode' && item.angle < 180)
+
+  assert.equal(reticle.angle, 0)
+  assert.ok(reticle.center.x > origin.x)
+  assert.equal(Math.round(reticle.center.y), origin.y)
+  assert.ok(left.length > 0)
+  assert.ok(right.length > 0)
+
+  const upward = createSigilRadialGestureMenu({
+    state: {
+      avatarHitRadius: defaultState.avatarHitRadius,
+      radialGestureMenu: defaultState.radialGestureMenu,
+      annotationReticle: { camera_available: false, live_anchor_count: 0 },
+    },
+  }).start(origin, { x: 200, y: 140, valid: true })
+  assert.equal(upward.items.find((item) => item.id === 'annotation-mode').angle, 270)
+})
+
 test('Sigil radial menu normalizes stale wiki brain item geometry from saved config', () => {
   const staleMenu = {
     items: [
@@ -295,7 +324,7 @@ test('Sigil radial menu reports fast-travel handoff and reentry', () => {
 
 test('Sigil radial menu reports active item crossed at fast-travel handoff', () => {
   const { menu } = createMenu()
-  const started = menu.start({ x: 200, y: 200, valid: true })
+  const started = menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
   const annotationItem = started.items.find((item) => item.id === 'annotation-mode')
 
   const hover = menu.move({ ...annotationItem.center, valid: true })
@@ -317,12 +346,12 @@ test('Sigil radial menu reports active item crossed at fast-travel handoff', () 
 
 test('Sigil radial menu commits item when release lands on item after fast-travel handoff', () => {
   const { menu, commits } = createMenu()
-  const started = menu.start({ x: 200, y: 200, valid: true })
-  const wikiItem = started.items.find((item) => item.id === 'wiki-graph')
+  menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
 
   const handoff = menu.move({ x: 390, y: 200, valid: true })
   assert.equal(handoff.enteredFastTravel, true)
   assert.equal(handoff.snapshot.phase, 'fastTravel')
+  const wikiItem = handoff.snapshot.items.find((item) => item.id === 'wiki-graph')
 
   const released = menu.release({ ...wikiItem.center, valid: true }, {
     input: {

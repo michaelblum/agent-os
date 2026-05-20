@@ -115,13 +115,13 @@ function renderCheckboxControl({
 
 function renderDescriptorModeGroup(field, modes, activeMode) {
   return (
-    `<div class="object-transform-descriptor-modes aos-segmented" role="tablist" aria-label="Animation/effects view">`
+    `<div class="object-transform-descriptor-modes aos-segmented" role="group" aria-label="Animation/effects view">`
       + modes.map((mode) => renderButtonHtml({
         includeBaseClass: false,
         className: `object-transform-mode-button${mode.id === activeMode ? ' active' : ''}`,
         label: mode.label,
         title: mode.title,
-        rawAttributes: `data-object-descriptor-field="${esc(field)}" data-object-descriptor-mode="${esc(mode.id)}" aria-selected="${mode.id === activeMode ? 'true' : 'false'}"`,
+        rawAttributes: `data-object-descriptor-field="${esc(field)}" data-object-descriptor-mode="${esc(mode.id)}" aria-pressed="${mode.id === activeMode ? 'true' : 'false'}"`,
       })).join('')
     + '</div>'
   );

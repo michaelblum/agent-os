@@ -34,7 +34,8 @@
     "reentryRadius": 3.95,
     "spreadDegrees": 112,
     "startAngle": -90,
-    "orientation": "fixed"
+    "orientation": "trigger-vector",
+    "anchorItemId": "annotation-mode"
   },
   "items": [
     {

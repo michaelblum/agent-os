@@ -81,28 +81,50 @@ connector tools only when the user explicitly asks for them or when `gh` cannot
 represent the needed operation.
 
 Foreman is the default git/GitHub steward. GDI and Operator should perform
-GitHub operations only when the assigned goal or handoff explicitly includes
+GitHub operations only when the assigned goal or transfer explicitly includes
 that work.
 
-## Cross-Session Handoffs
+## Cross-Session Transfers
 
-For cross-session handoffs, use the repo-level agent handoff tool from the repo
-root:
+Use precise transfer language so dock roles do not inherit the wrong workflow:
+
+- **Transfer** is the umbrella term for moving actionable context to another
+  session or actor.
+- **Handoff** is state transfer to a successor session, especially
+  Foreman-to-Foreman continuity.
+- **Dispatch** is the short clipboard payload that starts a target dock on an
+  existing artifact.
+- **Work card** is a durable Markdown task contract for an assigned round, most
+  often GDI implementation or validation; it is not successor-session state.
+- **Round** is one recipient session's attempt at one goal until completion,
+  failure, or stall.
+- **Relay** is a GitHub-visible branch/report exchange, not a synonym for every
+  dock handoff.
+
+Keep storage aligned with the transfer kind. Successor handoffs are ephemeral
+session state and should live in chat, clipboard, or a temp file. Work cards are
+durable Markdown task contracts and belong under `docs/design/work-cards/` only
+when they assign a GDI-style implementation, validation, correction, or relay
+round. Operator and human-needed transfers are usually clipboard/chat packets
+unless their capture plan or recovery path needs durable documentation.
+
+For cross-session clipboard payloads, use the repo-level agent handoff tool from
+the repo root:
 
 ```bash
-scripts/agent-handoff --text "$handoff_message" --options-json '{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
+scripts/agent-handoff --text "$transfer_payload" --options-json '{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
 ```
 
-The tool copies the raw handoff to the clipboard and prints the chat-visible
+The tool copies the raw payload to the clipboard and prints the chat-visible
 append block. Use that printed block at the end of the final chat response so
-the human can recover the handoff from chat if the clipboard is lost. Handoffs
-are plain instructions for every target dock; do not prepend command prefixes or
-addressee ceremony.
+the human can recover the payload from chat if the clipboard is lost. Clipboard
+transfer payloads are plain instructions for every target dock; do not prepend
+command prefixes or addressee ceremony.
 
 `scripts/dock-handoff-clipboard --target-dock <dock>` is the compatibility
-wrapper for dock-targeted handoffs. Individual docks may add thin local wrappers
-or hooks for their own default payload construction, but clipboard writes and
-chat demarcation should still go through `scripts/agent-handoff`.
+wrapper for dock-targeted transfer payloads. Individual docks may add thin local
+wrappers or hooks for their own default payload construction, but clipboard
+writes and chat demarcation should still go through `scripts/agent-handoff`.
 
 ## Momentum After External Changes
 
@@ -114,13 +136,13 @@ finish with hygiene and a concrete next step:
 - name the next logical actionable step.
 
 If the next step can be accepted with a simple affirmative by another session,
-proactively place a concise handoff on the clipboard with the dock handoff
-wrapper: `.docks/foreman/scripts/handoff` for Foreman-originated handoffs, or
+proactively place a concise transfer dispatch on the clipboard with the dock
+handoff wrapper: `.docks/foreman/scripts/handoff` for Foreman-originated transfers, or
 `scripts/dock-handoff-clipboard --target-dock <dock>` for generic dock-targeted
-handoffs. Those wrappers delegate to `scripts/agent-handoff` for the rich
+transfers. Those wrappers delegate to `scripts/agent-handoff` for the rich
 clipboard and chat-visible block. The payload should be paste-ready plain
-instructions, not a status essay. Use the printed chat-visible handoff block in
+instructions, not a status essay. Use the printed chat-visible block in
 the final response so the human can recover it if the clipboard is overwritten.
 
-Do not create clipboard handoffs for vague optional ideas. Use this only when
+Do not create clipboard transfer payloads for vague optional ideas. Use this only when
 there is a clear next action that advances the current workstream.

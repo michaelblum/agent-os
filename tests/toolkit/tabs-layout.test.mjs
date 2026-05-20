@@ -194,16 +194,24 @@ test('Tabs onActivate fires for initial mount and active-tab changes only', asyn
     { index: 0, title: 'Alpha', name: 'alpha' },
   ]);
 
-  const tabStrip = chrome.controlsEl.children[0];
+  const tabRoot = chrome.contentEl.children[0];
+  const tabStrip = tabRoot.children[0];
+  const tabPanels = tabRoot.children[1];
   const [alphaBtn, betaBtn, gammaBtn] = tabStrip.children;
-  const [alphaPanel, betaPanel, gammaPanel] = chrome.contentEl.children;
+  const [alphaPanel, betaPanel, gammaPanel] = tabPanels.children;
 
+  assert.equal(chrome.contentEl.dataset.layout, 'tabs');
+  assert.equal(tabRoot.className, 'aos-tab-shell');
+  assert.equal(tabRoot.attributes['data-aos-tabs-root'], '');
   assert.equal(tabStrip.attributes.role, 'tablist');
+  assert.equal(tabStrip.attributes['data-aos-tabs-list'], '');
   assert.equal(alphaBtn.textContent, 'Alpha');
   assert.equal(alphaBtn.attributes.role, 'tab');
   assert.equal(alphaBtn.attributes.type, 'button');
   assert.equal(alphaBtn.attributes['aria-label'], 'Alpha');
   assert.equal(alphaBtn.attributes['aria-selected'], 'true');
+  assert.equal(alphaBtn.attributes['data-aos-tabs-trigger'], '');
+  assert.equal(alphaPanel.attributes['data-aos-tabs-content'], '');
   assert.equal(alphaBtn.dataset.aosRef, 'panel-tabs:tabs-smoke:alpha');
   assert.equal(alphaBtn.dataset.aosAction, 'tabs/activate');
   assert.equal(alphaBtn.dataset.aosSurface, 'panel-tabs');

@@ -8,6 +8,7 @@
 }
 
 .wiki-kb-shell {
+  --wiki-kb-layout-bg: var(--bg-panel);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -31,7 +32,7 @@
   backdrop-filter: blur(12px);
 }
 
-.wiki-kb-view-menu {
+.wiki-kb-layout-mode-menu {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -41,7 +42,7 @@
   text-transform: uppercase;
 }
 
-.wiki-kb-view-menu select {
+.wiki-kb-layout-mode-menu select {
   min-width: 94px;
   border: 1px solid rgba(122, 241, 255, 0.22);
   border-radius: 5px;
@@ -51,7 +52,7 @@
   font: inherit;
 }
 
-.wiki-kb-view-static {
+.wiki-kb-layout-mode-static {
   color: rgba(235, 255, 255, 0.82);
   font: inherit;
 }
@@ -71,42 +72,26 @@
   pointer-events: none;
 }
 
-.wiki-kb-tab-strip {
+.wiki-kb-layout-mode-bar {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border-subtle);
-  background:
-    linear-gradient(180deg, rgba(20, 20, 32, 0.98), rgba(18, 18, 28, 0.92)),
-    radial-gradient(circle at top right, rgba(138, 180, 255, 0.08), transparent 45%);
+  gap: var(--aos-panel-control-gap);
+  padding: var(--aos-panel-titlebar-padding-block) var(--aos-panel-titlebar-padding-inline);
+  border-bottom: 1px solid var(--aos-panel-border-subtle);
+  background: var(--bg-panel);
 }
 
-.wiki-kb-view-tab {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 3px 10px;
-  background: transparent;
-  color: var(--text-muted);
-  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
+.wiki-kb-layout-mode-control {
+  flex: 0 0 auto;
+}
+
+.wiki-kb-layout-mode-button {
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
-.wiki-kb-view-tab:hover {
-  color: var(--text-secondary);
-}
-
-.wiki-kb-view-tab.active {
-  color: var(--text-primary);
-  background: var(--aos-control-compact-bg-active, rgba(60, 60, 90, 0.22));
-  border-color: rgba(138, 180, 255, 0.35);
-}
-
-.wiki-kb-tab-spacer {
+.wiki-kb-layout-mode-spacer {
   flex: 1;
 }
 
@@ -131,13 +116,19 @@
   overflow: hidden;
 }
 
-.wiki-kb-view {
+.wiki-kb-layout {
   position: absolute;
   inset: 0;
 }
 
-.wiki-kb-graph-view {
-  background: radial-gradient(circle at center, #102028 0%, #05080b 68%, #020304 100%);
+.wiki-kb-layout[hidden] {
+  display: none;
+}
+
+.wiki-kb-graph-layout {
+  background:
+    radial-gradient(circle at center, #102028 0%, #05080b 68%, #020304 100%),
+    var(--wiki-kb-layout-bg, var(--bg-panel-content, transparent));
 }
 
 .wiki-kb-graph-main {

@@ -1099,8 +1099,8 @@ separate compatibility helpers, but it is not part of live graph derivation.
 
 This index is a cross-subject navigation aid for Subject Browsers and agents.
 It is not the wiki graph projection and does not replace the force-graph or
-mind-map layout work tracked by #72. The wiki graph projection continues to
-consume wiki graph snapshots with `nodes[]`, `links[]`, `raw`, and
+Radial Graph layout work tracked by #72. The wiki graph projection continues
+to consume wiki graph snapshots with `nodes[]`, `links[]`, `raw`, and
 `config.graphView`; Subject graph index V0 consumes Workbench Subject
 descriptors and catalog entries.
 

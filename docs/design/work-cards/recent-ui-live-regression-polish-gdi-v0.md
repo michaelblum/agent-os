@@ -152,7 +152,7 @@ Likely files:
 - `packages/toolkit/components/integration-hub/styles.css`
 - `tests/toolkit/integration-hub-semantics.test.mjs`
 
-### 4. Wiki KB Detail-tab expectation
+### 4. Wiki KB Detail-panel expectation
 
 Evidence:
 
@@ -160,25 +160,25 @@ Evidence:
 /tmp/aos-operator-ui-live-sweep-v0/wiki-kb-initial.png
 ```
 
-The active Operator card asks for Wiki KB `graph/detail/mind-map` tabs. The
-current component exposes `Graph` and `Mind Map`, with selected-node details in
-the sidebar instead of a `Detail` tab.
+The active Operator card now asks for Wiki KB `Graph` and `Radial Graph`
+layout modes. Selected-node details stay in the synchronized sidebar instead
+of becoming a sibling `Detail` workspace.
 
 Classify and resolve this mismatch narrowly:
 
-- if a first-class `Detail` tab is intended, add it with focused tests and make
-  sure it remains synchronized with graph selection; or
-- if details belong only in the sidebar, update the Operator card and relevant
-  docs/tests to stop expecting a Detail tab.
+- if a first-class `Detail` workspace is intended, add it with focused tests
+  and make sure it remains synchronized with graph selection; or
+- if details belong only in the sidebar, keep docs/tests aligned to the
+  sidebar contract and do not add a duplicate workspace.
 
-Do not build a duplicate detail UI just to satisfy the sweep wording if the
+Do not build a duplicate detail UI just to satisfy old sweep wording if the
 existing sidebar is the deliberate product contract.
 
 Likely files:
 
 - `packages/toolkit/components/wiki-kb/index.js`
 - `packages/toolkit/components/wiki-kb/styles.css`
-- `tests/toolkit/wiki-kb-tabs.test.mjs`
+- `tests/toolkit/wiki-kb-layout-modes.test.mjs`
 - `docs/design/work-cards/operator-recent-ui-regression-live-sweep-v0.md`
 
 ## Hard Boundaries
@@ -198,7 +198,7 @@ Run focused deterministic tests first:
 ```bash
 node --test tests/toolkit/markdown-workbench-layout.test.mjs
 node --test tests/toolkit/playbook-workbench-v0.test.mjs
-node --test tests/toolkit/integration-hub-semantics.test.mjs tests/toolkit/wiki-kb-tabs.test.mjs
+node --test tests/toolkit/integration-hub-semantics.test.mjs tests/toolkit/wiki-kb-layout-modes.test.mjs
 git diff --check
 ```
 

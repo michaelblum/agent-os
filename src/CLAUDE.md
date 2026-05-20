@@ -96,7 +96,7 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos show render --html "..." --out /tmp/x.png
 ./aos do click 500,300            # Click at coordinates
 ./aos do type "hello world"       # Type with natural cadence
-./aos say "Hello, I'm your agent" # Speak text aloud (sugar for tell human)
+./aos say "Hello, I'm your agent" # Direct TTS convenience path
 ./aos say --voice-slot 1 "Done"   # Speak with nth speakable registry voice
 ./aos say --list-voices           # List available voices
 ./aos voice list                  # Registry-backed voice catalog
@@ -111,7 +111,7 @@ See root `AGENTS.md` for the runtime model (repo vs installed modes, mode-scoped
 ./aos config get see.canvas_inspector_bundle --json
 ./aos config set voice.enabled true # Discoverable config write
 ./aos config set see.canvas_inspector_bundle.hotkey cmd+shift+x
-./aos tell human "Hello"          # Speak (same as aos say)
+./aos tell human "Hello"          # Daemon-routed communication to the human
 ./aos tell human --from-session-id <id> --purpose final_response "Done."
 ./aos listen --channels              # List known channels
 ./aos set voice.enabled true         # Configure settings

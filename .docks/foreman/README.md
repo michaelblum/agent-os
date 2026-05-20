@@ -21,6 +21,11 @@ should run or inspect missing local evidence, take a scoped checkpoint when
 appropriate, route the next obvious GDI/Operator slice, or name the concrete
 human-only decision that blocks further progress.
 
-For successor-session handoffs, use the dock-local `foreman-session-handoff`
-skill shape: compact, chat-ready, current-state first, and plain
-session-to-session instructions.
+For transfer artifacts, classify through the dock-local `foreman-session-transfer`
+skill first. Use its Foreman, GDI, and Operator references to keep successor
+handoffs, durable work cards, and supervised run packets separate.
+
+Successor-session handoffs are ephemeral Foreman continuity state: use the
+Foreman transfer reference and the compatibility `foreman-session-handoff` shape
+for compact, chat-ready, current-state-first instructions. Do not store those
+handoffs under `docs/design/work-cards/` or commit them.

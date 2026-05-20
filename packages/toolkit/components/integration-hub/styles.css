@@ -119,8 +119,7 @@ body {
 }
 
 .integration-hub-refresh,
-.integration-hub-action,
-.integration-hub-surface-tab {
+.integration-hub-action {
   appearance: none;
   border: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--bg-panel) 90%, black 10%);
@@ -133,8 +132,7 @@ body {
 }
 
 .integration-hub-refresh:hover,
-.integration-hub-action:hover,
-.integration-hub-surface-tab:hover {
+.integration-hub-action:hover {
   background: color-mix(in srgb, #4ba3ff 18%, var(--bg-panel) 82%);
   border-color: color-mix(in srgb, #4ba3ff 40%, var(--border-subtle) 60%);
   color: var(--text-primary);
@@ -142,15 +140,9 @@ body {
 }
 
 .integration-hub-surface-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.integration-hub-surface-tab.active {
-  background: linear-gradient(135deg, color-mix(in srgb, #4ba3ff 24%, var(--bg-panel) 76%), color-mix(in srgb, #7fd4ff 16%, var(--bg-panel) 84%));
-  border-color: color-mix(in srgb, #7fd4ff 55%, var(--border-subtle) 45%);
-  color: var(--text-primary);
+  --aos-tab-strip-bg: var(--bg-panel);
+  --aos-tab-panel-bg: var(--bg-panel);
+  border-bottom-color: var(--border-subtle);
 }
 
 .integration-hub-grid {

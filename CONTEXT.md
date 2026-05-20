@@ -73,15 +73,23 @@ The per-Claim verdict produced by the verifier: status (`verified | failed | unv
 _Avoid_: claim status (looks like a field on the Claim itself; it's a separate verifier output).
 
 **Target**:
-A scope address in an AOS target dialect. Has a *dialect* (`browser`, `canvas`, `screen`, `ax`) and a scope id. Examples: `browser:<session>`, `canvas:<canvas-id>`, `screen:<state-id>`, `ax:<...>`.
+A scope address in an AOS target dialect. Live ref-addressed CLI target strings
+currently include `browser:<session>[/<ref>]` and
+`canvas:<canvas-id>/<ref>`. `screen` and `ax` remain useful target-model
+vocabulary, but their current CLI wire forms are not `screen:` or `ax:` target
+strings: coordinate actions use raw `x,y` plus optional `--state-id`, and AX
+actions are selected through flags such as `--pid` and `--role`.
 _Avoid_: address (too generic), URL.
 
 **Ref**:
-A stable, semantic identifier of an element inside a Target's scope, when that dialect supports refs. In browser/canvas DOMs, materialized as `data-aos-ref`; in AX, materialized as the AX path. Refs are dialect-specific — `screen:` does not have Refs (coordinates take their place, with a `state_id` for staleness).
+A stable, semantic identifier of an element inside a Target's scope, when that dialect supports refs. In browser/canvas DOMs, materialized as `data-aos-ref`; in AX model terms, materialized as the AX path. Refs are dialect-specific — screen coordinate actions do not have Refs, so coordinates are correlated with a `state_id` for staleness/provenance.
 _Avoid_: id, selector, locator (those are implementation strategies; a Ref is the durable name).
 
 **Target-with-Ref**:
-A complete address for one semantic element inside a Target's scope: `<dialect>:<scope-id>/<ref>`. The wire form used by `aos see`, `aos do`, `aos show`, and other commands that need to pinpoint a single thing.
+A complete address for one semantic element inside a Target's scope:
+`<dialect>:<scope-id>/<ref>`. This is the live wire form for browser and
+canvas targets and the target-model shape for other ref-addressed resolvers as
+they converge.
 _Avoid_: full target (ambiguous), qualified ref.
 
 **Semantic Target**:
@@ -113,7 +121,7 @@ A Facet that requires Canvas Hosting because it depends on privileged runtime be
 _Avoid_: native (overloaded with macOS-native), canvas-only (correct in effect but loses the "requires runtime privilege" rationale).
 
 **State ID**:
-An opaque perception identifier minted by `aos see capture` that names the state the agent acted from. Guards the *premise* of an action: "I chose this based on this observed state." For **coordinate actions** it is part of the Target address (`screen:<state-id>/<x,y>`) because coordinates have no semantic identity without a referenced perception. For **Ref-based actions** it is correlation/provenance metadata — Refs can be re-resolved against the current scope, so a stale State ID does not invalidate a Ref. Today AOS echoes and correlates State IDs but does not reject stale coordinate actions; future enforcement is scoped to coordinate fallbacks only.
+An opaque perception identifier minted by `aos see capture` that names the state the agent acted from. Guards the *premise* of an action: "I chose this based on this observed state." For **coordinate actions** it is supplied in the live CLI as `--state-id <id>` alongside the raw `x,y` coordinate, because coordinates have no semantic identity without a referenced perception. For **Ref-based actions** it is correlation/provenance metadata — Refs can be re-resolved against the current scope, so a stale State ID does not invalidate a Ref. Today AOS echoes and correlates State IDs but does not reject stale coordinate actions; future enforcement is scoped to coordinate fallbacks only.
 _Avoid_: state, version, snapshot id (those are storage-layer terms), perception id (technically equivalent but State ID is the wire term).
 
 **Subject Reference**:
@@ -155,11 +163,14 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
 - The verifier produces one **Claim Result** per Claim by evaluating the Claim's referenced Postconditions against captured Evidence; aggregated Claim Results determine the run's **Verifier Health**.
-- A **Target-with-Ref** is the unit of address for `aos see`/`aos do`/`aos show`. An **Anchor** is one role a Target-with-Ref can play (placement reference for `show`); on resolution it becomes an **Anchor Binding** in the display subsystem.
-- Refs are dialect-specific: `browser`, `canvas`, and `ax` Targets carry Refs; `screen` Targets carry coordinates plus a `state_id` instead.
+- A **Target-with-Ref** is the model unit of address for ref-addressed `aos see`/`aos do`/`aos show` operations. Live CLI forms currently expose it for browser and canvas targets. An **Anchor** is one role a Target-with-Ref can play (placement reference for `show`); on resolution it becomes an **Anchor Binding** in the display subsystem.
+- Refs are dialect-specific: `browser` and `canvas` live CLI targets carry Refs, and AX model targets identify elements by AX path/filters. Screen coordinate actions carry raw coordinates plus `--state-id` instead.
 - A **Subject** is host-neutral. A **Facet** declares one or more **Hosts** it supports; opening a Facet means picking one of its Hosts and addressing the resulting render through that Host's Target dialect.
 - **Browser-First** is a posture for wiki/editor/artifact Facets; **AOS-Native** is a *requirement* for Facets that depend on AOS runtime privileges. Most Facets fall in between and can declare multiple Hosts.
-- A **State ID** is required-for-correctness on coordinate actions (`screen:<state-id>/<x,y>`) and recommended-for-provenance on Ref-based actions. Dry-run preserves and echoes the supplied State ID without minting a new perception.
+- A **State ID** is required-for-correctness on coordinate actions and is passed
+  in the current CLI as `--state-id <id>` next to raw `x,y`; it is
+  recommended-for-provenance on Ref-based actions. Dry-run preserves and echoes
+  the supplied State ID without minting a new perception.
 - `subject_type` names the **kind** of a Subject (`wiki.entity`, `sigil.agent`, `sigil.radial_menu.item_3d`, etc.) and is stable per Subject. Cross-Subject relationships use **Subject References**, not by switching `subject_type` based on context.
 - A **Subject Reference** carries a Subject Entry Handle (or Facet path) plus optional metadata (relationship type, role); a **Subject Entry Handle** is the resolver address. They are different layers — references express *relationships*; handles express *navigation*.
 - A **Subject Browser** consumes Subject Entry Handles, renders Navigation Trails, and follows Subject References. It is hosted via a normal **Host** (Browser or Canvas). The wiki, Canvas Inspector (when navigating runtime Subjects), and any future Work Record browser are all instances of this surface kind.
@@ -180,7 +191,7 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - "wiki page as Subject" vs "wiki page as Facet" — **resolved (ADR-0007)**: the wiki page is *always* a Subject (`wiki.entity` / `wiki.concept` / etc.). Domain Subjects (`sigil.agent`, etc.) carry a **Subject Reference** to the wiki document Subject as the source of their narrative-Layer Facet. Two stable Subjects, related by reference; no Subject ever has a context-dependent `subject_type`.
 - Cutover note — wiki helper output now keeps wiki documents as wiki-oriented Subjects. App-specialized domain Subjects such as `sigil.agent` are emitted by domain helpers and relate back to wiki narrative documents through top-level `subject_references[]`.
 - `capabilities[]` now contains only high-level registry names such as `inspectable`, `editable`, `verifier-target`, `replayable`, and `exportable` in live writer output. Dotted operation/event strings like `markdown_document.text.patch`, `wiki.invoke`, `work_record.execution_map.edit`, and `canvas_object.effects.patch` are live `contracts[]` values. Reader fallback for archived descriptors stays isolated in compatibility helpers and should not drive new Subject Browser behavior.
-- "subject chain" — resolved: this is a **Navigation Trail** of Subject Entry Handles, not a chain of Subjects. `aos-grand-unification-plan.md` now uses that wording; schema work still needs to define the handle shape.
+- "subject chain" — resolved: this is a **Navigation Trail** of Subject Entry Handles, not a chain of Subjects. Toolkit now defines the canonical `<facet-key>:<subject-id>` handle helper; only a future shared JSON schema for handles, if desired, remains pending.
 - Work Record `origin` field shape — **resolved (ADR-0009)**: `origin: { kind, ref }` where `kind ∈ ad_hoc | recipe | playbook | workflow`. Documentation-only Recipes are *not* origins; they are cited via a separate `references[]` array with `relationship: "guided_by"`. Schema sketch: `shared/schemas/aos-work-record-v0.md`; representative Work Record helpers now preserve v0 origin/reference data in descriptor projections.
 - Phase 6 of `aos-grand-unification-plan.md` lists "save a work record" and "run verifier report" as Playbook steps — they are *harness obligations* around running a Playbook, not steps inside it. Playbook step sequences end at the final action + postcondition. Pending: plan revision.
 - Verifier Report shape — the plan lists `claims`, `verified`, `failed`, `unverified` as four parallel fields. Resolved direction (ADR-0003): use `claim_results[]` as the source of truth; if the four parallel fields persist, they are *derived indexes of Claim IDs*, not independent storage. When a Verifier Report is embedded in a Work Record it should not echo the full `claims` list (single source of truth); when reports travel standalone, they include a `claims_digest` for auditability. The v0 sketch keeps `claim_results[]` top-level and makes report indexes derived.
