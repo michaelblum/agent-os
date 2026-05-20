@@ -26,8 +26,9 @@ agents may freely create. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Agent-os is multi-context in practice; read root vocabulary plus nearby local
-contracts until a `CONTEXT-MAP.md` exists. See `docs/agents/domain.md`.
+Agent-os is multi-context in practice; read `CONTEXT-MAP.md` to choose the
+right domain docs, while preserving `CONTEXT.md` as the shared vocabulary and
+contract-term index. See `docs/agents/domain.md`.
 
 ## Repo Model
 

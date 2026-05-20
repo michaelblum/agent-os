@@ -9,15 +9,16 @@ needed to keep agents and implementers aligned.
 ## Read Order
 
 Before changing behavior or writing plans, read the root `CONTEXT.md` for shared
-language, then read the nearest subtree `AGENTS.md` for local policy. Use
-`ARCHITECTURE.md` for the system narrative, `docs/api/` and `shared/schemas/`
-for live contracts, `docs/adr/` and `docs/decisions/` for durable decisions, and
-`docs/recipes/` for reusable operating procedures.
+language, then read `CONTEXT-MAP.md` to choose the domain docs, local contracts,
+schemas, and source roots for the subject area you are touching. Use
+`ARCHITECTURE.md` for the system narrative, nearby subtree `AGENTS.md` files for
+local policy, `docs/api/` and `shared/schemas/` for live contracts, `docs/adr/`
+and `docs/decisions/` for durable decisions, and `docs/recipes/` for reusable
+operating procedures.
 
-`CONTEXT-MAP.md` is intentionally deferred. Until it exists, do not infer that
-the repo is single-context just because root `CONTEXT.md` exists. Follow the
-subject area you are touching through nearby subtree docs and interface
-contracts.
+Do not infer that the repo is single-context just because root `CONTEXT.md`
+exists. `CONTEXT.md` is the shared vocabulary and contract-term index;
+`CONTEXT-MAP.md` is the routing map for the repo's separate domains.
 
 ## Decision Docs
 
