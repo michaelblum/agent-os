@@ -15,6 +15,7 @@ const DEFAULT_CONFIG = {
   spreadDegrees: 95,
   startAngle: -90,
   orientation: 'fixed',
+  anchorItemId: null,
   releaseInDeadZone: 'cancel',
 }
 
@@ -48,6 +49,19 @@ function copyItem(item = {}, fallbackId) {
 function itemSlot(index, count) {
   if (count <= 1) return 0
   return -0.5 + (index / (count - 1))
+}
+
+function itemAnchorSlot(items = [], config = {}, count = 0) {
+  const anchorId = text(config.anchorItemId || config.anchorItem || config.triggerItemId, '')
+  if (!anchorId) return 0
+  const index = items.findIndex((item) => item?.id === anchorId)
+  if (index < 0) return 0
+  return finite(items[index].slot, itemSlot(index, count))
+}
+
+function text(value, fallback = '') {
+  const s = String(value ?? '').replace(/\s+/g, ' ').trim()
+  return s || fallback
 }
 
 export function normalizeDegrees(degrees) {
@@ -155,14 +169,18 @@ export function resolveRadialGestureItems(items = [], config = {}, state = {}) {
   const resolvedConfig = resolveRadialGestureConfig(config)
   const list = Array.isArray(items) ? items.map((item, index) => copyItem(item, `item-${index + 1}`)) : []
   const origin = point(state.origin)
-  const baseAngle = resolvedConfig.orientation === 'trigger-vector'
-    ? finite(state.triggerAngle, resolvedConfig.startAngle)
-    : finite(resolvedConfig.startAngle, DEFAULT_CONFIG.startAngle)
   const count = list.length
+  const spread = finite(resolvedConfig.spreadDegrees, DEFAULT_CONFIG.spreadDegrees)
+  const anchorSlot = resolvedConfig.orientation === 'trigger-vector'
+    ? itemAnchorSlot(list, resolvedConfig, count)
+    : 0
+  const baseAngle = resolvedConfig.orientation === 'trigger-vector'
+    ? finite(state.triggerAngle, resolvedConfig.startAngle) - (anchorSlot * spread)
+    : finite(resolvedConfig.startAngle, DEFAULT_CONFIG.startAngle)
 
   return list.map((item, index) => {
     const slot = finite(item.slot, itemSlot(index, count))
-    const angle = normalizeDegrees(item.angle ?? (baseAngle + slot * finite(resolvedConfig.spreadDegrees, DEFAULT_CONFIG.spreadDegrees)))
+    const angle = normalizeDegrees(item.angle ?? (baseAngle + slot * spread))
     const center = pointAtAngle(origin, angle, resolvedConfig.itemRadiusPx)
     return {
       ...item,
@@ -186,6 +204,7 @@ export function createRadialGestureModel(options = {}) {
   let cancelReason = null
   let lastTransition = null
   let triggerAngle = finite(config.startAngle, DEFAULT_CONFIG.startAngle)
+  let triggerLocked = config.orientation !== 'trigger-vector'
 
   function metrics() {
     const distance = distanceBetween(origin, pointer)
@@ -222,6 +241,8 @@ export function createRadialGestureModel(options = {}) {
       committed,
       cancelReason,
       lastTransition,
+      triggerAngle,
+      triggerLocked,
       radii: {
         deadZone: config.deadZoneRadiusPx,
         item: config.itemRadiusPx,
@@ -241,6 +262,16 @@ export function createRadialGestureModel(options = {}) {
     pointer = point(nextPointer)
     lastTransition = null
     const m = metrics()
+
+    if (config.orientation === 'trigger-vector') {
+      if (m.distance <= config.deadZoneRadiusPx) {
+        triggerLocked = false
+      } else if (!triggerLocked) {
+        triggerAngle = m.angle
+        triggerLocked = true
+        lastTransition = 'trigger_vector_lock'
+      }
+    }
 
     if (phase === 'fastTravel') {
       if (m.distance <= config.reentryRadiusPx) {
@@ -266,7 +297,13 @@ export function createRadialGestureModel(options = {}) {
       cancelReason = null
       lastTransition = 'start'
       const initialDistance = distanceBetween(origin, pointer)
-      if (initialDistance > 0) triggerAngle = angleDegrees(origin, pointer)
+      if (config.orientation === 'trigger-vector') {
+        triggerLocked = initialDistance > config.deadZoneRadiusPx
+        if (triggerLocked) triggerAngle = angleDegrees(origin, pointer)
+      } else {
+        triggerLocked = true
+        if (initialDistance > 0) triggerAngle = angleDegrees(origin, pointer)
+      }
       activeItemId = hitItem(pointer)?.id || null
       return snapshot()
     },
@@ -317,6 +354,7 @@ export function createRadialGestureModel(options = {}) {
       cancelReason = null
       lastTransition = null
       triggerAngle = finite(config.startAngle, DEFAULT_CONFIG.startAngle)
+      triggerLocked = config.orientation !== 'trigger-vector'
       return snapshot()
     },
     snapshot,

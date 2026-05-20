@@ -60,6 +60,54 @@ test('resolveRadialGestureItems spreads fixed item slots around start angle', ()
   assert.equal(resolved[0].visualRadius, 20)
 })
 
+test('trigger-vector radial geometry anchors a configured item to the crossing vector', () => {
+  const resolved = resolveRadialGestureItems([
+    { id: 'left' },
+    { id: 'reticle' },
+    { id: 'right' },
+  ], {
+    radiusBasis: 100,
+    orientation: 'trigger-vector',
+    anchorItemId: 'reticle',
+    startAngle: -90,
+    spreadDegrees: 90,
+    itemRadius: 1,
+    itemHitRadius: 0.25,
+    itemVisualRadius: 0.2,
+  }, {
+    origin: { x: 200, y: 200 },
+    triggerAngle: 0,
+  })
+
+  assert.equal(resolved.find((item) => item.id === 'reticle').angle, 0)
+  assert.equal(resolved.find((item) => item.id === 'left').angle, 315)
+  assert.equal(resolved.find((item) => item.id === 'right').angle, 45)
+  assert.deepEqual(resolved.find((item) => item.id === 'reticle').center, { x: 300, y: 200 })
+})
+
+test('trigger-vector radial placement locks until the pointer returns to origin', () => {
+  const gesture = model({
+    orientation: 'trigger-vector',
+    anchorItemId: 'wiki-graph',
+  })
+  const started = gesture.start({ x: 200, y: 200 }, { x: 260, y: 200 })
+  const firstWiki = started.items.find((item) => item.id === 'wiki-graph')
+  assert.equal(firstWiki.angle, 0)
+  assert.equal(started.triggerLocked, true)
+
+  const stillLocked = gesture.move({ x: 200, y: 80 })
+  assert.equal(stillLocked.items.find((item) => item.id === 'wiki-graph').angle, 0)
+  assert.equal(stillLocked.triggerLocked, true)
+
+  const rearmed = gesture.move({ x: 205, y: 200 })
+  assert.equal(rearmed.triggerLocked, false)
+
+  const relocked = gesture.move({ x: 200, y: 120 })
+  assert.equal(relocked.lastTransition, 'trigger_vector_lock')
+  assert.equal(relocked.triggerLocked, true)
+  assert.equal(relocked.items.find((item) => item.id === 'wiki-graph').angle, 270)
+})
+
 test('model starts in radial phase and reports menu growth progress', () => {
   const gesture = model()
   const started = gesture.start({ x: 100, y: 100 })

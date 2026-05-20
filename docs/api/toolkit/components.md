@@ -43,9 +43,11 @@ Token groups:
 - panel chrome: `--aos-panel-bg`, `--aos-panel-header-bg`,
   `--aos-panel-border`, `--aos-panel-border-subtle`,
   `--aos-panel-radius`, `--aos-panel-shadow`,
-  `--aos-panel-titlebar-min-height`, `--aos-panel-titlebar-padding`,
-  `--aos-panel-titlebar-gap`, `--aos-panel-control-gap`, and
-  `--aos-panel-grip-color`
+  `--aos-panel-titlebar-min-height`,
+  `--aos-panel-titlebar-padding-block`,
+  `--aos-panel-titlebar-padding-inline`,
+  `--aos-panel-titlebar-padding`, `--aos-panel-titlebar-gap`,
+  `--aos-panel-control-gap`, and `--aos-panel-grip-color`
 - controls: `--aos-control-height`, `--aos-control-padding`,
   `--aos-control-gap`, `--aos-control-radius`, `--aos-control-border`,
   `--aos-control-bg`, `--aos-control-bg-hover`,

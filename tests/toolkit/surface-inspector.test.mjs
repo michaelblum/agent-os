@@ -903,9 +903,19 @@ test('Surface Inspector lower pane separates annotate, surfaces, and diagnostics
   assert.match(source, /\['diagnostics', 'Diagnostics'\]/);
   assert.match(source, /data-aos-tabs-trigger/);
   assert.match(source, /data-aos-tabs-content/);
+  assert.match(source, /class="lower-pane-tab-list aos-tabs"/);
+  assert.match(source, /lower-pane-tab aos-tab/);
+  assert.match(source, /class="lower-pane-panel aos-tab-content"/);
   assert.match(source, /createAosZagTabs\(\{/);
   assert.match(source, /onValueChange\(details = \{\}\)/);
   assert.match(styles, /\.lower-pane-tab-list/);
+  assert.match(styles, /--surface-inspector-tab-panel-bg/);
+  assert.match(styles, /gap:\s*0/);
+  assert.match(styles, /padding:\s*6px 8px 0/);
+  assert.match(styles, /margin:\s*0 0 -1px/);
+  assert.match(styles, /border-bottom-color:\s*var\(--surface-inspector-tab-panel-bg\)/);
+  assert.match(styles, /background:\s*var\(--surface-inspector-tab-panel-bg\)/);
+  assert.doesNotMatch(styles, /\.lower-pane-tab\.active,[\s\S]*?background:\s*rgba\(138,\s*180,\s*255,\s*0\.16\)/);
   assert.match(styles, /\.lower-pane-panel\[hidden\]/);
 });
 

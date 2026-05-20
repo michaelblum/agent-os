@@ -486,14 +486,19 @@ Activation callback info:
 Important boundary:
 
 - `Tabs` provides structure and activation behavior
+- `Tabs` uses the browser-safe `createAosZagTabs` adapter for tab ARIA,
+  keyboard focus, and trigger/content state
 - `Tabs` may notify consumers when activation changes through `onActivate(info, host)`
-- `Tabs` does **not** define a canonical visual design
+- `Tabs` supplies a stock tabbed panel structure in `panel/defaults.css`; apps
+  may theme it through the `.aos-*` hooks and shared custom properties
 
 Panel-level control/event surface:
 
 - `tabs/activate` with `{ index }`, `{ name }`, or `{ title }`
 - `tabs/activated` emitted when activation changes with `{ index, title, name }`
 - the returned layout object also exposes `activate(payload)` for same-canvas programmatic activation
-- consumers own the CSS for `.aos-tabs`, `.aos-tab`, `.aos-tab.active`, and `.aos-tab-content`
-- `Tabs` mounts its strip into `chrome.controlsEl`; consumers should treat slot refs as the behavioral API and `.aos-*` classes as styling hooks
+- consumers may theme `.aos-tab-shell`, `.aos-tabs`, `.aos-tab`,
+  `.aos-tab.active`, `.aos-tab-panels`, and `.aos-tab-content`
+- `Tabs` mounts its strip inside `chrome.contentEl` so selected tabs are
+  contiguous with their tabpanel body instead of floating in the titlebar
 - active tab state is exposed via `.active`, `data-active`, `aria-selected`, and the `hidden` attribute on tab panels

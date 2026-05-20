@@ -8,6 +8,15 @@ async function repoText(path) {
   return readFile(new URL(path, repo), 'utf8');
 }
 
+function customPropertyMap(css) {
+  const rootBody = css.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  const properties = new Map();
+  for (const match of rootBody.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)) {
+    properties.set(match[1], match[2].trim());
+  }
+  return properties;
+}
+
 test('toolkit theme exposes semantic typography and control tokens', async () => {
   const theme = await repoText('packages/toolkit/components/_base/theme.css');
 
@@ -32,6 +41,8 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
     '--aos-panel-radius',
     '--aos-panel-shadow',
     '--aos-panel-titlebar-min-height',
+    '--aos-panel-titlebar-padding-block',
+    '--aos-panel-titlebar-padding-inline',
     '--aos-panel-titlebar-padding',
     '--aos-panel-titlebar-gap',
     '--aos-panel-control-gap',
@@ -61,6 +72,18 @@ test('toolkit theme exposes semantic typography and control tokens', async () =>
   assert.match(theme, /--bg-panel:\s*var\(--aos-panel-bg\)/);
   assert.match(theme, /--border-panel:\s*var\(--aos-panel-border\)/);
   assert.match(theme, /--radius-panel:\s*var\(--aos-panel-radius\)/);
+});
+
+test('toolkit theme keeps design tokens available inside the toolkit content root', async () => {
+  const tokenCss = await repoText('packages/design-tokens/tokens.css');
+  const themeCss = await repoText('packages/toolkit/components/_base/theme.css');
+  const tokenProperties = customPropertyMap(tokenCss);
+  const themeProperties = customPropertyMap(themeCss);
+
+  assert.doesNotMatch(themeCss, /@import\s+url\(["']\.\.\/\.\.\/\.\.\/design-tokens\/tokens\.css["']\)/);
+  for (const [name, value] of tokenProperties) {
+    assert.equal(themeProperties.get(name), value, `${name} should be re-exported by toolkit theme.css for aos://toolkit pages`);
+  }
 });
 
 test('workbench toolbar defaults do not restyle protected button primitives', async () => {

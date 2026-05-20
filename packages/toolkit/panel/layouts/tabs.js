@@ -8,6 +8,7 @@ import { subscribe } from '../../runtime/subscribe.js'
 import { evalCanvas, spawnChild } from '../../runtime/canvas.js'
 import { declareManifest, emitReady } from '../../runtime/manifest.js'
 import { applySemanticTargetAttributes } from '../../runtime/semantic-targets.js'
+import { createAosZagTabs } from '../../adapters/zag/tabs.js'
 import { createRouter } from '../router.js'
 
 const TABS_SURFACE = 'panel-tabs'
@@ -19,6 +20,10 @@ function text(value, fallback = '') {
 
 function refPart(value, fallback = 'target') {
   return text(value, fallback).replace(/[^a-zA-Z0-9_-]/g, '-')
+}
+
+function tabValue(content = {}, index = 0) {
+  return refPart(content.manifest?.name || content.manifest?.title, `tab-${index + 1}`)
 }
 
 export function panelTabAosRef(panelName, tabID) {
@@ -44,7 +49,7 @@ function applyPanelTabSemanticTarget(element, content, index, options = {}) {
     element,
     panelTabSemanticTarget(content, index, options),
     {
-      idPrefix: 'aos-tab',
+      idPrefix: null,
       visibleLabel: true,
     },
   )
@@ -72,20 +77,34 @@ export function Tabs(factories, options = {}) {
       // Retained for future programmatic activation API (tear-off, keyboard nav).
       let activeIdx = -1
       const panelName = chrome.titleEl.textContent || 'tabs-panel'
+      const tabsId = `${refPart(panelName, 'tabs-panel')}-tabs`
+      const values = contents.map((content, index) => tabValue(content, index))
 
-      // Build tab strip in the header's controls slot.
+      chrome.contentEl.innerHTML = ''
+      chrome.contentEl.dataset.layout = 'tabs'
+
+      const tabRoot = document.createElement('div')
+      tabRoot.className = 'aos-tab-shell'
+      tabRoot.setAttribute('data-aos-tabs-root', '')
+      chrome.contentEl.appendChild(tabRoot)
+
       const tabStrip = document.createElement('div')
       tabStrip.className = 'aos-tabs'
-      tabStrip.setAttribute('role', 'tablist')
-      chrome.controlsEl.appendChild(tabStrip)
+      tabStrip.setAttribute('data-aos-tabs-list', '')
+      tabRoot.appendChild(tabStrip)
+
+      const tabPanels = document.createElement('div')
+      tabPanels.className = 'aos-tab-panels'
+      tabRoot.appendChild(tabPanels)
 
       const tabButtons = contents.map((c, i) => {
         const label = c.manifest?.title || c.manifest?.name || `tab ${i + 1}`
         const btn = document.createElement('button')
         btn.className = 'aos-tab'
         btn.textContent = label
+        btn.dataset.value = values[i]
+        btn.setAttribute('data-aos-tabs-trigger', '')
         applyPanelTabSemanticTarget(btn, c, i, { panelName, selected: false })
-        btn.addEventListener('click', () => activate(i))
         tabStrip.appendChild(btn)
         return btn
       })
@@ -95,12 +114,14 @@ export function Tabs(factories, options = {}) {
         const slot = document.createElement('div')
         slot.className = 'aos-tab-content'
         slot.setAttribute('role', 'tabpanel')
-        const tabButtonID = tabButtons[i].id || tabButtons[i].getAttribute?.('id') || `aos-tab-${i + 1}`
-        const slotID = `${tabButtonID}-panel`
+        slot.dataset.value = values[i]
+        slot.setAttribute('data-aos-tabs-content', '')
+        const tabButtonID = `${tabsId}-trigger-${values[i]}`
+        const slotID = `${tabsId}-content-${values[i]}`
         slot.setAttribute('id', slotID)
         slot.setAttribute('aria-labelledby', tabButtonID)
         tabButtons[i].setAttribute('aria-controls', slotID)
-        chrome.contentEl.appendChild(slot)
+        tabPanels.appendChild(slot)
         elByContent.set(c, slot)
 
         const host = makeHost(slot, c)
@@ -113,6 +134,23 @@ export function Tabs(factories, options = {}) {
         // Auto-subscribe to streams in manifest.requires
         const requires = c.manifest?.requires || []
         if (requires.length > 0) subscribe(requires, { snapshot: true })
+      })
+
+      const zagTabs = createAosZagTabs({
+        id: tabsId,
+        defaultValue: values[0],
+        onValueChange({ value }) {
+          const idx = values.indexOf(value)
+          if (idx >= 0) activate(idx, { fromZag: true })
+        },
+      })
+      zagTabs.bindRoot(tabRoot)
+      zagTabs.bindList(tabStrip)
+      tabButtons.forEach((button, index) => {
+        zagTabs.bindTrigger(button, { value: values[index] }, index)
+      })
+      contents.forEach((content, index) => {
+        zagTabs.bindContent(elByContent.get(content), { value: values[index] }, index)
       })
 
       function activateByPayload(payload = {}) {
@@ -167,9 +205,10 @@ export function Tabs(factories, options = {}) {
         router(msg)
       })
 
-      function activate(idx) {
+      function activate(idx, options = {}) {
         if (idx === activeIdx) return
         activeIdx = idx
+        if (!options.fromZag) zagTabs.setValue(values[idx], { silent: true })
         contents.forEach((c, i) => {
           const isActive = i === idx
           const slot = elByContent.get(c)

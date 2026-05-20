@@ -216,6 +216,18 @@
 }
 
 .lower-pane-tabs {
+  --surface-inspector-tab-panel-bg: rgba(5, 10, 14, 0.96);
+  --surface-inspector-tab-strip-bg: rgba(2, 9, 12, 0.72);
+  --aos-tab-bg: transparent;
+  --aos-tab-bg-hover: rgba(7, 25, 31, 0.72);
+  --aos-tab-border: var(--border-subtle);
+  --aos-tab-border-active: var(--border-subtle);
+  --aos-tab-height: 24px;
+  --aos-tab-padding: 4px 8px 5px;
+  --aos-tab-panel-bg: var(--surface-inspector-tab-panel-bg);
+  --aos-tab-radius: 5px 5px 0 0;
+  --aos-tab-strip-bg: var(--surface-inspector-tab-strip-bg);
+  background: var(--surface-inspector-tab-panel-bg);
   height: 100%;
   min-height: 0;
   display: flex;
@@ -226,22 +238,26 @@
   flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-  padding: 6px 8px 4px;
+  align-items: end;
+  gap: 0;
+  padding: 6px 8px 0;
   border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-inspector-tab-strip-bg);
 }
 
 .lower-pane-tab {
   min-width: 0;
-  min-height: 22px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.03);
+  min-height: var(--aos-tab-height);
+  margin: 0 0 -1px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--aos-tab-border);
+  border-radius: var(--aos-tab-radius);
+  background: transparent;
   color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  padding: var(--aos-tab-padding);
+  font: var(--aos-type-micro-label, 650 9px/1.3 var(--font-mono));
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0;
   cursor: pointer;
 }
 
@@ -255,14 +271,18 @@
 .lower-pane-tab.active,
 .lower-pane-tab[aria-selected="true"] {
   color: var(--text-primary);
-  border-color: rgba(138, 180, 255, 0.55);
-  background: rgba(138, 180, 255, 0.16);
+  border-color: var(--aos-tab-border-active);
+  border-bottom-color: var(--surface-inspector-tab-panel-bg);
+  background: var(--surface-inspector-tab-panel-bg);
+  z-index: 1;
 }
 
 .lower-pane-panel {
   flex: 1;
+  height: auto;
   min-height: 0;
   overflow: auto;
+  background: var(--surface-inspector-tab-panel-bg);
 }
 
 .lower-pane-panel[hidden] {
