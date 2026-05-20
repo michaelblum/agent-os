@@ -10,6 +10,7 @@ test('default Wiki KB view tabs adopt the Zag tabs adapter hooks', () => {
   assert.match(source, /button\.dataset\.aosTabsTrigger = ''/)
   assert.match(source, /button\.dataset\.value = view\.id/)
   assert.match(source, /viewTabs \?\?= createAosZagTabs\(/)
+  assert.match(source, /viewTabs\.update\(\{[\s\S]*value: activeViewId[\s\S]*onValueChange\(details\)/)
   assert.match(source, /viewTabs\.bind\(rootEl\)/)
 })
 

@@ -305,7 +305,11 @@ export default function WikiKB(options = {}) {
     if (chromeMode !== 'default' || !rootEl) return
     viewTabs ??= createAosZagTabs({
       id: 'wiki-kb-view-tabs',
+      getRootNode: () => rootEl.ownerDocument || document,
       defaultValue: activeViewId,
+    })
+    viewTabs.update({
+      value: activeViewId,
       onValueChange(details) {
         const nextViewId = viewValueFromChange(details)
         if (nextViewId && nextViewId !== activeViewId) switchView(nextViewId)

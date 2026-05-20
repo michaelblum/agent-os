@@ -211,6 +211,22 @@ test('segmented controls are not used as tablists', async () => {
   }
 });
 
+test('segmented control primitive users import control defaults', async () => {
+  const adopters = [
+    ['packages/toolkit/components/markdown-workbench/index.html', 'packages/toolkit/components/markdown-workbench/index.js'],
+    ['packages/toolkit/components/object-transform-panel/index.html', 'packages/toolkit/components/object-transform-panel/index.js'],
+    ['packages/toolkit/components/playbook-workbench/index.html', 'packages/toolkit/components/playbook-workbench/index.js'],
+    ['packages/toolkit/components/surface-zoom-inspector/index.html', 'packages/toolkit/components/surface-zoom-inspector/index.js'],
+  ];
+
+  for (const [htmlPath, jsPath] of adopters) {
+    const source = await repoText(jsPath);
+    assert.match(source, /aos-segmented/, `${jsPath} should keep this contract scoped to segmented primitive users`);
+    const html = await repoText(htmlPath);
+    assert.match(html, /controls\/defaults\.css/, `${htmlPath} should import control defaults for .aos-segmented`);
+  }
+});
+
 test('Zag tabs use the connected tab primitive classes', async () => {
   const sources = new Map([
     ['integration-hub', await repoText('packages/toolkit/components/integration-hub/index.js')],
