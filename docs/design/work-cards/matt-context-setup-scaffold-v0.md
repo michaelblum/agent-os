@@ -72,6 +72,37 @@ This work card and the validated audit live on the branch above, not on
 `gdi/matt-context-setup-scaffold-v0` as the output branch if creating a separate
 GDI branch.
 
+## Conflict Handling Rubric
+
+Matt's skills are external reference patterns, not repo authority. When Matt's
+templates conflict with agent-os contracts, preserve agent-os behavior and
+document the local adaptation.
+
+Classify mismatches with this vocabulary:
+
+- adopt: Matt's pattern fits agent-os directly.
+- adapt: Matt's concept is useful, but agent-os needs local wording or routing.
+- reject: Matt's pattern conflicts with a stronger agent-os contract.
+- defer: The mismatch is real but belongs to a later slice.
+- stale-local-doc: an agent-os doc conflicts with live code, schema, CLI/API,
+  or the validated audit.
+- authority-conflict: two live agent-os docs disagree and this card does not
+  say which one wins.
+
+Authority order for this slice:
+
+1. Current work card.
+2. Root `AGENTS.md` and nearest subtree `AGENTS.md`.
+3. Live code, schemas, tests, CLI/API behavior.
+4. `docs/api/`, `shared/schemas/`, `ARCHITECTURE.md`, `CONTEXT.md`.
+5. ADRs and decisions, unless clearly superseded.
+6. Design notes and prior work cards.
+7. Matt Pocock skills/templates.
+
+Do not broaden scope to fix every mismatch. Implement only the setup scaffold,
+then report any defer, stale-local-doc, or authority-conflict items as
+follow-up candidates.
+
 ## Required Behavior
 
 Create these docs surfaces:
