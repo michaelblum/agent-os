@@ -21,6 +21,8 @@ const CAPTURE_STATUSES = new Set([
   'capture_failed',
 ]);
 
+let captureSessionCounter = 0;
+
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized || fallback;
@@ -225,6 +227,16 @@ function runPlaywright(playwrightCli, args, { timeout = 30_000 } = {}) {
     };
   }
   return result;
+}
+
+function createPlaywrightSessionName(sessionPrefix) {
+  captureSessionCounter = (captureSessionCounter + 1) % Number.MAX_SAFE_INTEGER;
+  const prefix = slug(sessionPrefix, 'capture').slice(0, 8);
+  const pid = process.pid.toString(36);
+  const counter = captureSessionCounter.toString(36);
+  const timestamp = Date.now().toString(36);
+  // playwright-cli derives short socket names from the leading session text.
+  return `${prefix}-${pid}-${counter}-${timestamp}`;
 }
 
 function parseRunCodeResult(stdout) {
@@ -541,7 +553,7 @@ export function captureBrowserEvidenceRequest(requestInput, {
     };
   }
 
-  const session = `${sessionPrefix}-${process.pid}-${slug(request.request_id, 'request')}`;
+  const session = createPlaywrightSessionName(sessionPrefix);
   const paths = assetPathsForRequest(request, { assetDir, outputDir });
   fs.mkdirSync(path.dirname(paths.screenshot_absolute_path), { recursive: true });
 
