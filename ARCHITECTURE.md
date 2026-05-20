@@ -10,13 +10,14 @@ The agent (LLM) is the brain. The daemon is the nervous system. The agent decide
 
 ### Unix-Style Composition
 
-Within the unified binary, each subcommand does one thing. Perception is separate from action. Action is separate from projection. Voice is separate from vision. Subcommands communicate through structured JSON on stdout (success) and stderr (errors). An orchestrator — any orchestrator — pipes them together.
+Within the unified binary, each subcommand does one thing. Perception is separate from action. Action is separate from projection. Voice is separate from vision. Agent-facing command forms communicate through structured JSON on stdout (success) and stderr (errors). Discovery and user-facing surfaces, such as `aos help` without `--json`, may intentionally default to text. An orchestrator — any orchestrator — pipes the machine-readable forms together.
 
 `aos see`, `aos show`, `aos do`, and `aos say` are independently useful at the verb level: a consumer can use perception without action, action without projection. The binary is the shared runtime; the subcommand is the unit of composition.
 
 ### JSON-First I/O Contract
 
-Every tool in the ecosystem follows the same output contract:
+Agent-facing tools in the ecosystem expose the same machine-readable output
+contract:
 
 **Success** (stdout, exit 0):
 ```json
@@ -34,7 +35,10 @@ Every tool in the ecosystem follows the same output contract:
 }
 ```
 
-No tool emits unstructured text. No tool requires interactive input during normal operation. An LLM can parse every response without heuristics.
+Agent-facing command forms should not require interactive input during normal
+operation, and their machine-readable responses should be parseable without
+heuristics. User-facing discovery surfaces may emit text by default when they
+also expose a JSON form for agents.
 
 ### Shared Coordinate Model
 
@@ -147,7 +151,10 @@ The verb vocabulary follows an embodied metaphor. Communication is one primitive
 
 The agent decides WHAT to communicate and TO WHOM. The daemon decides HOW to deliver it. This follows the first principle above: agent tokens are for decisions, not plumbing.
 
-**`say` is sugar for `tell human`.** It stays as a convenience — short, intuitive, already shipped — but it's not a separate primitive. When `tell` gains new capabilities, `say` inherits them.
+**`say` is conceptually aligned with `tell human`.** It stays as a convenience
+path for direct TTS — short, intuitive, already shipped — while `tell human` is
+the daemon-routed communication path that participates in audience routing,
+presence, and future sinks.
 
 **`do tell` is a different level.** AppleScript `do tell` talks to *apps*. `tell` talks to *agents and humans*. Three tiers: human (`tell human`), agent (`tell <channel>`), app (`do tell`).
 
@@ -189,7 +196,8 @@ The MCP gateway (`packages/gateway/`) is an optional adapter that wraps the daem
 
 Channels inherit runtime mode isolation (repo channels don't crosstalk with installed channels) and wiki namespace conventions (apps scope channels under their namespace, system channels are root-level). Historical coordination-bus design context is archived at `docs/archive/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
-All subsystems share the LCS convention. All emit JSON. All are stateless at the subcommand level — the daemon and orchestrator hold state.
+All subsystems share the LCS convention. Agent-facing forms emit JSON. All are
+stateless at the subcommand level — the daemon and orchestrator hold state.
 
 ---
 
@@ -197,7 +205,10 @@ All subsystems share the LCS convention. All emit JSON. All are stateless at the
 
 ### Monorepo Structure
 
-The `aos` unified binary is the canonical primitive. `packages/` holds supporting Node.js services (MCP gateway, agent host) and reusable WKWebView components. `apps/` holds Track 2 consumers.
+The `aos` unified binary is the canonical primitive. `packages/` holds
+supporting Node.js services, extracted CLI/daemon package work, shared design
+tokens, and the reusable toolkit surface layer. `apps/` holds product
+consumers.
 
 ```
 agent-os/
@@ -211,7 +222,9 @@ agent-os/
     daemon/              ← `aos serve` — UnifiedDaemon: socket, routing, autonomic
     commands/, shared/
   packages/
-    toolkit/             ← Reusable WKWebView components for apps
+    toolkit/             ← Reusable surface layer: runtime, controls, panel, workbench, components
+    design-tokens/       ← Shared CSS token source for toolkit and app surfaces
+    cli/, daemon/        ← Extracted package roots for CLI/daemon-adjacent work
     gateway/             ← Node.js MCP server — external consumer surface
     host/                ← Node.js agent host — Anthropic SDK loop, sessions
   apps/
@@ -237,7 +250,9 @@ agent-os/
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
 | `host` | Runtime | Node.js/TS | `packages/host/` | v1 shipped | Anthropic SDK agent loop, session store (SQLite), sigil bridge, tool registry |
-| `toolkit` | Web components | JS/HTML | `packages/toolkit/` | Active | Reusable WKWebView components: base class, shared theme, Surface Inspector, integration-hub, legacy single-file overlays |
+| `cli` / `daemon` packages | Packaging | JS/TS + assets | `packages/cli/`, `packages/daemon/` | Active | Package roots for CLI verbs and daemon-adjacent runtime surfaces that sit around the unified Swift primitive |
+| `design-tokens` | Design system | CSS | `packages/design-tokens/` | Active | Shared token source consumed by toolkit and app surfaces |
+| `toolkit` | Toolkit/default surface system | JS/HTML/CSS | `packages/toolkit/` | Active | Opt-in reusable AOS surface policy and stock surfaces: `runtime/`, `controls/`, `adapters/zag`, `panel/`, `workbench/`, and `components/` |
 | Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), Studio control surface, chat canvas. Consumer of `aos` display subsystem. |
 
 ---
@@ -258,18 +273,25 @@ Orchestrator
   |-- aos say "Hello"                   --> JSON { status: "success" }
 ```
 
-Each call is fire-and-forget. The subcommand does its job and exits. The orchestrator decides what to do next based on the JSON response. Persistent state — canvases, focus channels, behavioral profiles — lives in the daemon (`aos serve`), which the subcommands talk to over a Unix socket.
+Each call is fire-and-forget when using an agent-facing JSON form. The
+subcommand does its job and exits. The orchestrator decides what to do next
+based on the JSON response. Persistent state — canvases, focus channels,
+behavioral profiles — lives in the daemon (`aos serve`), which the subcommands
+talk to over a Unix socket.
 
 ### The Feedback Loop
 
-The agent's way of showing the human what it's doing is native macOS throughout:
+The agent's native screen/canvas loop is macOS-first:
 
 1. `aos see capture --xray` perceives the screen
 2. `aos show` draws a spotlight, overlay, or avatar canvas on the native desktop
 3. `aos do click` fires at the identified coordinates
 4. `aos say` narrates what happened
 
-No DOM involved. Browser automation (if needed) is the orchestrator's concern and lives outside agent-os.
+Browser and DOM work is also an in-repo target adapter through
+`browser:<session>[/<ref>]`. The browser adapter remains outside the daemon
+kernel, but it is not outside agent-os: `aos see` and `aos do` can target
+browser sessions through the CLI adapter when a task is DOM/ARIA scoped.
 
 ---
 
@@ -291,7 +313,7 @@ is the canonical name.
    desktop-wide visuals and create private full-coverage surfaces only when they
    need a special renderer, lifecycle, or isolation boundary.
 4. **Opt-in topology tracking.** A DesktopWorld surface created with `--surface desktop-world` or `--track union` resolves its segments from the current display topology and auto-updates on topology changes. Canvases created with literal `--at` values stay at their spawn-time bounds regardless of topology changes.
-5. **Position data stays out of canvases.** Any per-agent / per-entity position state (e.g., "where the avatar was last") lives in the owning app's state, not in the canvas subsystem. The canvas only knows about its bounds.
+5. **Position data stays out of canvases.** Any per-agent / per-entity position state (e.g., "where the avatar was last") should live in the owning app or toolkit state, not in the canvas subsystem. The current daemon still carries transitional Sigil/renderer resume position state (`position.get` / `position.set` over an internal last-position store); treat that as convergence debt until the owner layer holds it directly. The canvas itself only knows about its bounds.
 
 ### Coordinate system contract
 
