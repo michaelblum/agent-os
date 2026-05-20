@@ -8,7 +8,7 @@
 }
 
 .wiki-kb-shell {
-  --aos-tab-panel-bg: var(--bg-panel);
+  --wiki-kb-view-bg: var(--bg-panel);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -72,19 +72,26 @@
   pointer-events: none;
 }
 
-.wiki-kb-tab-strip {
+.wiki-kb-layout-mode-bar {
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  --aos-tab-strip-bg: var(--bg-panel);
-  --aos-tab-panel-bg: var(--bg-panel);
-  padding-right: 8px;
+  gap: var(--aos-panel-control-gap);
+  padding: var(--aos-panel-titlebar-padding-block) var(--aos-panel-titlebar-padding-inline);
+  border-bottom: 1px solid var(--aos-panel-border-subtle);
+  background: var(--bg-panel);
 }
 
-.wiki-kb-view-tab {
+.wiki-kb-view-mode-control {
+  flex: 0 0 auto;
+}
+
+.wiki-kb-view-mode-button {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.wiki-kb-tab-spacer {
+.wiki-kb-layout-mode-spacer {
   flex: 1;
 }
 
@@ -114,10 +121,14 @@
   inset: 0;
 }
 
+.wiki-kb-view[hidden] {
+  display: none;
+}
+
 .wiki-kb-graph-view {
   background:
     radial-gradient(circle at center, #102028 0%, #05080b 68%, #020304 100%),
-    var(--aos-tab-panel-bg, var(--bg-panel-content, transparent));
+    var(--wiki-kb-view-bg, var(--bg-panel-content, transparent));
 }
 
 .wiki-kb-graph-main {

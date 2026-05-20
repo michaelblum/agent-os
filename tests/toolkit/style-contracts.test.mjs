@@ -217,11 +217,12 @@ test('segmented control primitive users import control defaults', async () => {
     ['packages/toolkit/components/object-transform-panel/index.html', 'packages/toolkit/components/object-transform-panel/index.js'],
     ['packages/toolkit/components/playbook-workbench/index.html', 'packages/toolkit/components/playbook-workbench/index.js'],
     ['packages/toolkit/components/surface-zoom-inspector/index.html', 'packages/toolkit/components/surface-zoom-inspector/index.js'],
+    ['packages/toolkit/components/wiki-kb/index.html', 'packages/toolkit/components/wiki-kb/index.js'],
   ];
 
   for (const [htmlPath, jsPath] of adopters) {
     const source = await repoText(jsPath);
-    assert.match(source, /aos-segmented/, `${jsPath} should keep this contract scoped to segmented primitive users`);
+    assert.match(source, /aos-segmented|createButtonGroup/, `${jsPath} should keep this contract scoped to segmented primitive users`);
     const html = await repoText(htmlPath);
     assert.match(html, /controls\/defaults\.css/, `${htmlPath} should import control defaults for .aos-segmented`);
   }
@@ -231,7 +232,6 @@ test('Zag tabs use the connected tab primitive classes', async () => {
   const sources = new Map([
     ['integration-hub', await repoText('packages/toolkit/components/integration-hub/index.js')],
     ['surface-inspector', await repoText('packages/toolkit/components/surface-inspector/index.js')],
-    ['wiki-kb', await repoText('packages/toolkit/components/wiki-kb/index.js')],
     ['panel-tabs', await repoText('packages/toolkit/panel/layouts/tabs.js')],
   ]);
 

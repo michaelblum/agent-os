@@ -1,7 +1,7 @@
 // wiki-kb - Toolkit content for exploring wiki graph data.
 //
 // The component accepts graph snapshots plus incremental updates and renders
-// two synchronized views: a force graph and a radial mind map.
+// two synchronized graph layout modes: force-directed and radial.
 
 import GraphView from './views/graph.js'
 import MindmapView from './views/mindmap.js'
@@ -22,11 +22,10 @@ import {
 import { createButton } from '../../controls/button.js'
 import { createButtonGroup } from '../../controls/button-group.js'
 import { createSelect } from '../../controls/select.js'
-import { createAosZagTabs } from '../../adapters/zag/tabs.js'
 
 const VIEW_DEFS = [
   { id: 'graph', label: 'Graph', factory: GraphView },
-  { id: 'mindmap', label: 'Mind Map', factory: MindmapView },
+  { id: 'mindmap', label: 'Radial Graph', factory: MindmapView },
 ]
 
 function resolveViewDefs(viewIds) {
@@ -79,13 +78,9 @@ export default function WikiKB(options = {}) {
   let sidebarMode = 'markdown'
   let selectedNodeId = null
   let graphState = normalizeGraphPayload({})
-  let viewTabs = null
+  let viewModeGroup = null
   const viewInstances = new Map()
   const dom = {}
-
-  function viewValueFromChange(details) {
-    return typeof details === 'string' ? details : details?.value
-  }
 
   function currentNode() {
     return findNode(graphState.nodes, selectedNodeId)
@@ -286,11 +281,10 @@ export default function WikiKB(options = {}) {
       },
     })
     const viewEl = instance.mount()
-    viewEl.classList.add('wiki-kb-view', 'aos-tab-content')
-    viewEl.id = `wiki-kb-panel-${id}`
-    viewEl.setAttribute('role', 'tabpanel')
-    viewEl.setAttribute('aria-labelledby', `wiki-kb-tab-${id}`)
-    viewEl.dataset.aosTabsContent = ''
+    viewEl.classList.add('wiki-kb-view')
+    viewEl.id = `wiki-kb-view-${id}`
+    viewEl.setAttribute('role', 'region')
+    viewEl.setAttribute('aria-label', `${definition.label} graph layout`)
     viewEl.dataset.value = id
     viewEl.hidden = true
     contentEl.appendChild(viewEl)
@@ -301,23 +295,6 @@ export default function WikiKB(options = {}) {
     return created
   }
 
-  function bindViewTabs() {
-    if (chromeMode !== 'default' || !rootEl) return
-    viewTabs ??= createAosZagTabs({
-      id: 'wiki-kb-view-tabs',
-      getRootNode: () => rootEl.ownerDocument || document,
-      defaultValue: activeViewId,
-    })
-    viewTabs.update({
-      value: activeViewId,
-      onValueChange(details) {
-        const nextViewId = viewValueFromChange(details)
-        if (nextViewId && nextViewId !== activeViewId) switchView(nextViewId)
-      },
-    })
-    viewTabs.bind(rootEl)
-  }
-
   function activateView(id) {
     activeViewId = id
     for (const [viewId, entry] of viewInstances.entries()) {
@@ -326,29 +303,28 @@ export default function WikiKB(options = {}) {
       if (isActive) entry.instance.onActivate?.()
       else entry.instance.onDeactivate?.()
     }
-    for (const button of rootEl.querySelectorAll('.wiki-kb-view-tab')) {
+    viewModeGroup?.setValue(id, { emit: false })
+    for (const button of rootEl.querySelectorAll('.wiki-kb-view-mode-button')) {
       const isActive = button.dataset.view === id
       button.classList.toggle('active', isActive)
-      button.setAttribute('aria-selected', String(isActive))
+      button.setAttribute('aria-pressed', String(isActive))
       const view = viewDefs.find((entry) => entry.id === button.dataset.view)
       applyWikiKBSemanticTarget(button, {
-        id: `view-tab-${button.dataset.view}`,
-        role: 'AXTab',
-        name: view?.label || button.textContent,
-        action: 'set_view',
-        aosRef: wikiKBAosRef('tab', button.dataset.view),
-        selected: isActive,
+        id: `layout-mode-${button.dataset.view}`,
+        name: `${view?.label || button.textContent} layout`,
+        action: 'set_layout_mode',
+        aosRef: wikiKBAosRef('layout-mode', button.dataset.view),
+        pressed: isActive,
       })
     }
-    bindViewTabs()
     if (dom.viewSelectEl) {
       dom.viewSelectEl.value = id
       const view = viewDefs.find((entry) => entry.id === id)
       applyWikiKBSemanticTarget(dom.viewSelectEl, {
         id: 'view-select',
         role: 'AXPopUpButton',
-        name: 'Wiki graph view',
-        action: 'set_view',
+        name: 'Wiki graph layout mode',
+        action: 'set_layout_mode',
         value: view?.label || id,
       })
     }
@@ -430,9 +406,9 @@ export default function WikiKB(options = {}) {
             </div>
           ` : `<span class="wiki-kb-status wiki-kb-floating-status" role="status" aria-live="polite"></span>`}
         ` : `
-          <div class="wiki-kb-tab-strip aos-tabs" role="tablist" aria-label="Wiki KB Views" data-aos-tabs-root data-aos-tabs-list data-density="compact">
-            <span data-role="wiki-kb-view-tabs"></span>
-            <div class="wiki-kb-tab-spacer"></div>
+          <div class="wiki-kb-layout-mode-bar" aria-label="Wiki graph layout controls">
+            <span data-role="wiki-kb-view-mode"></span>
+            <div class="wiki-kb-layout-mode-spacer"></div>
             <span class="wiki-kb-status" role="status" aria-live="polite"></span>
           </div>
         `}
@@ -474,24 +450,24 @@ export default function WikiKB(options = {}) {
     } else {
       dom.viewSelectEl = null
     }
-    const viewTabsSlot = rootEl.querySelector('[data-role="wiki-kb-view-tabs"]')
-    if (viewTabsSlot) {
-      const fragment = document.createDocumentFragment()
-      for (const [index, view] of viewDefs.entries()) {
-        const button = document.createElement('button')
-        button.id = `wiki-kb-tab-${view.id}`
-        button.type = 'button'
-        button.textContent = view.label
-        addClassNames(button, `wiki-kb-view-tab aos-tab${view.id === activeViewId ? ' active' : ''}`)
-        button.dataset.view = view.id
-        button.dataset.value = view.id
-        button.dataset.aosTabsTrigger = ''
-        button.setAttribute('role', 'tab')
-        button.setAttribute('aria-selected', view.id === activeViewId ? 'true' : 'false')
-        button.setAttribute('aria-controls', `wiki-kb-panel-${view.id}`)
-        fragment.appendChild(button)
+    const viewModeSlot = rootEl.querySelector('[data-role="wiki-kb-view-mode"]')
+    if (viewModeSlot) {
+      viewModeGroup = createButtonGroup({
+        value: activeViewId,
+        options: viewDefs.map((view) => ({ value: view.id, label: view.label })),
+        onChange(nextViewId) {
+          if (typeof nextViewId === 'string' && nextViewId !== activeViewId) switchView(nextViewId)
+        },
+      })
+      addClassNames(viewModeGroup.el, 'wiki-kb-view-mode-control')
+      viewModeGroup.el.setAttribute('aria-label', 'Graph layout mode')
+      for (const button of viewModeGroup.el.querySelectorAll('button')) {
+        addClassNames(button, 'wiki-kb-view-mode-button')
+        button.dataset.view = button.dataset.value
       }
-      viewTabsSlot.replaceWith(fragment)
+      viewModeSlot.replaceWith(viewModeGroup.el)
+    } else {
+      viewModeGroup = null
     }
     dom.sidebarEl = rootEl.querySelector('.wiki-kb-sidebar')
     dom.sidebarTypeEl = rootEl.querySelector('.wiki-kb-sidebar-type')
@@ -590,8 +566,8 @@ export default function WikiKB(options = {}) {
     },
 
     teardown() {
-      viewTabs?.destroy()
-      viewTabs = null
+      viewModeGroup?.destroy()
+      viewModeGroup = null
     },
   }
 }
