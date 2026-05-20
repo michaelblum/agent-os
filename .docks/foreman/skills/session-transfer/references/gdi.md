@@ -75,6 +75,19 @@ After the human returns with "ready", run:
 
 Only continue if it reports ready.
 
+Keep the copied GDI dispatch plain. Do not prepend `/goal`, and do not add
+addressee ceremony. If the work is TCC-sensitive, put the TCC stop branch in the
+work card or append a plain suffix to the dispatch, for example:
+
+```text
+follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed
+```
+
+The GDI helper and Stop hook provide deterministic reinforcement for this stall:
+the helper prints the human-action command sequence and records a short-lived
+`tcc_permission_reset` stop condition; the Stop hook consumes that condition and
+speaks `GDI needs TCC reset.`.
+
 ## Bad Assumptions To Prevent
 
 - Do not read router changed-file counts as dirty worktree state.

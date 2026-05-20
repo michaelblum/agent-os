@@ -152,3 +152,30 @@ returns with "ready", run:
 
 Continue only when that reports ready. If it still reports a blocker, return to
 Foreman with the exact blocker instead of starting ad-hoc repair loops.
+
+For this deterministic TCC stall, the final GDI chat tail must include the
+helper's human-action block without relying on memory:
+
+```text
+human_needed: repo-mode AOS permission repair
+
+Human action:
+1. Run: ./aos permissions setup --once
+2. Grant the requested macOS Accessibility/Input Monitoring permission for the
+   repo-mode aos runtime if macOS prompts.
+3. Return to the GDI session and say: ready
+4. If the active goal is paused or Codex indicates it needs to resume, use:
+   /goal resume
+   Do not start a new goal for the same work.
+
+After the human returns, GDI runs:
+  ./aos ready --post-permission
+```
+
+The helper writes a short-lived GDI stop-condition marker for the Stop hook.
+The Stop hook consumes that marker and speaks `GDI needs TCC reset.` instead of
+the normal `GDI finished.` notice. Do not add a second direct `./aos say` call
+in the helper.
+
+When retiring or reusing a GDI CLI session after a completed active goal, clear
+completed goal state with `/goal clear` before starting unrelated work.

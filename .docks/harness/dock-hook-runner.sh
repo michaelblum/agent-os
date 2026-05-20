@@ -158,6 +158,15 @@ fi
 
 run_optional_hook "pre-stop"
 
+system_message=""
+if [[ "$dock" == "gdi" ]]; then
+  condition="$("$REPO_ROOT/.docks/harness/stop-condition.sh" consume "$REPO_ROOT" "$dock" tcc_permission_reset 2>/dev/null || true)"
+  if [[ "$condition" == "tcc_permission_reset" ]]; then
+    stop_notice="GDI needs TCC reset."
+    system_message=$'GDI stopped for repo-mode AOS permission repair.\n\nHuman action:\n1. Run: ./aos permissions setup --once\n2. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.\n3. Return to the GDI session and say: ready\n\nAfter that, GDI runs: ./aos ready --post-permission\n\nIf the active goal is paused or Codex indicates it needs to resume, use /goal resume rather than starting a new goal.'
+  fi
+fi
+
 if [[ "$voice_enabled" == "true" && -n "$voice_slot" ]]; then
   say_args=("$AOS_BIN" say --voice-slot "$voice_slot")
   if [[ -n "$voice_language" ]]; then
@@ -175,4 +184,13 @@ fi
 
 run_optional_hook "post-stop"
 
-printf '{"continue":true}\n'
+if [[ -n "$system_message" ]]; then
+  python3 - "$system_message" <<'PY'
+import json
+import sys
+
+print(json.dumps({"continue": True, "systemMessage": sys.argv[1]}))
+PY
+else
+  printf '{"continue":true}\n'
+fi

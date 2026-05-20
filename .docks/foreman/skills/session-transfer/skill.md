@@ -35,6 +35,11 @@ Name the transfer kind before writing:
 - **Human-needed packet:** a stall transfer whose next actor is the human.
   State the exact blocker and the bounded recovery command path.
 
+For GDI dispatches, keep `/goal` lifecycle commands out of the copied payload;
+Michael may add `/goal` manually in the CLI. If a reused GDI CLI session has a
+completed active goal, remind the human to run `/goal clear` before retiring or
+starting unrelated work.
+
 ## Terms
 
 - **Transfer:** umbrella term for moving actionable context across sessions.

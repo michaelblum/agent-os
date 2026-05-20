@@ -74,6 +74,20 @@ gh issue view <n> --json number,title,state,url,body,labels
 If the slice is pure docs or pure Node tests, say which runtime checks may be
 skipped.
 
+When live AOS verification can hit repo-mode Accessibility, Input Monitoring,
+or inactive input-tap blockers, include the deterministic GDI stop branch:
+
+```bash
+.docks/gdi/scripts/human-needed-tcc-reset
+```
+
+The GDI helper prints the human-action command sequence, records a short-lived
+`tcc_permission_reset` stop condition for the Stop hook, and GDI must stop with
+`human_needed` instead of retrying live checks. After the human returns with
+`ready`, GDI runs `./aos ready --post-permission`. If the active goal is paused
+or Codex indicates it needs to resume, the human should use `/goal resume`
+rather than starting a new goal.
+
 ### Existing Code To Inspect
 
 Name concrete files and why they matter. This is often the highest-leverage
@@ -178,6 +192,9 @@ For `agentic_relay` work, the pushed branch is the remote-visible code artifact.
 The completion report must also say whether any local-only state exists and
 whether it is related. Remote relay can request a bounded `LOCAL_PROBE_REQUEST`
 when GitHub-visible evidence is insufficient.
+
+For reused GDI CLI sessions, remind the human to clear completed goal state with
+`/goal clear` before retiring the session or starting unrelated work.
 
 ### Post-GDI Review Option
 

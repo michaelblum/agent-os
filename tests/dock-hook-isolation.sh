@@ -37,6 +37,7 @@ for required in (
     "aos_run_hook_command_bounded",
     "run_optional_hook \"pre-stop\"",
     "run_optional_hook \"post-stop\"",
+    "stop-condition.sh",
     "say --voice-slot",
     "dock-defaults.json",
     "voice.quality_tiers",
@@ -242,6 +243,96 @@ if grep -q 'ARGV:voice final-response' "$log_file"; then
 fi
 if grep -q 'Do not speak this tail' "$log_file"; then
   echo "FAIL: stop hooks must not pass the assistant tail to voice final-response" >&2
+  exit 1
+fi
+
+condition_dir="$TMPDIR_ROOT/conditions"
+PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$condition_dir" ".docks/harness/stop-condition.sh" write "$ROOT" gdi tcc_permission_reset 60
+tcc_out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$condition_dir" bash ".docks/gdi/hooks/stop.sh")"
+python3 - "$tcc_out" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not True:
+    raise SystemExit(f"FAIL: expected TCC Stop hook success JSON, got {payload}")
+message = payload.get("systemMessage", "")
+for required in (
+    "GDI stopped for repo-mode AOS permission repair.",
+    "./aos permissions setup --once",
+    "Accessibility/Input Monitoring",
+    "ready",
+    "./aos ready --post-permission",
+    "/goal resume",
+):
+    if required not in message:
+        raise SystemExit(f"FAIL: TCC Stop systemMessage missing {required!r}: {message!r}")
+PY
+grep -q 'ARGV:say --voice-slot 2 --language en --quality-tier premium --quality-tier enhanced --gender female GDI needs TCC reset.' "$log_file" || {
+  echo "FAIL: missing condition-specific GDI TCC stop notice" >&2
+  cat "$log_file" >&2
+  exit 1
+}
+
+normal_after_tcc_out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$condition_dir" bash ".docks/gdi/hooks/stop.sh")"
+python3 - "$normal_after_tcc_out" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: consumed TCC marker should return to normal Stop JSON, got {payload}")
+PY
+if [[ -d "$condition_dir" ]] && find "$condition_dir" -type f | grep -q .; then
+  echo "FAIL: consumed TCC stop condition left marker files behind" >&2
+  find "$condition_dir" -type f >&2
+  exit 1
+fi
+
+expired_dir="$TMPDIR_ROOT/expired-conditions"
+AOS_DOCK_STOP_CONDITION_DIR="$expired_dir" ".docks/harness/stop-condition.sh" write "$ROOT" gdi tcc_permission_reset 0
+sleep 1
+expired_out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$expired_dir" bash ".docks/gdi/hooks/stop.sh")"
+python3 - "$expired_out" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: expired TCC marker should not affect Stop JSON, got {payload}")
+PY
+
+helper_aos="$TMPDIR_ROOT/helper-aos"
+cat >"$helper_aos" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'HELPER:%s\n' "$*" >>"$AOS_FAKE_LOG"
+if [[ "$1" == "ready" ]]; then
+  printf '{"ready":false,"phase":"human_required"}\n'
+elif [[ "$1" == "permissions" ]]; then
+  printf 'targeted reset unavailable in fake test\n'
+fi
+SH
+chmod +x "$helper_aos"
+helper_out="$(AOS_DOCK_AOS_BIN="$helper_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$TMPDIR_ROOT/helper-conditions" bash ".docks/gdi/scripts/human-needed-tcc-reset")"
+python3 - "$helper_out" <<'PY'
+import sys
+
+text = sys.argv[1]
+for required in (
+    "human_needed: repo-mode AOS permission repair",
+    "Run: ./aos permissions setup --once",
+    "Grant the requested macOS Accessibility/Input Monitoring permission",
+    "Return to the session and say: ready",
+    "/goal resume",
+    "./aos ready --post-permission",
+):
+    if required not in text:
+        raise SystemExit(f"FAIL: human-needed helper output missing {required!r}:\n{text}")
+PY
+if grep -q 'HELPER:say' "$log_file"; then
+  echo "FAIL: human-needed helper should not speak directly; Stop hook owns TCC TTS" >&2
+  cat "$log_file" >&2
   exit 1
 fi
 
