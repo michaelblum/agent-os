@@ -12,6 +12,23 @@ creating separate workflows.
   `CLAUDE.md` files are compatibility pointers for tools that still discover
   that filename; keep subtree-specific detail in nearby `AGENTS.md` files.
 
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues are the durable tracker; repo-specific GitHub operations go
+through `./aos dev gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage labels are repository vocabulary to inspect and map before use, not names
+agents may freely create. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Agent-os is multi-context in practice; read root vocabulary plus nearby local
+contracts until a `CONTEXT-MAP.md` exists. See `docs/agents/domain.md`.
+
 ## Repo Model
 
 - `src/` and `shared/` hold the unified `aos` binary and shared schemas.
