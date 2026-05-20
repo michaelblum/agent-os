@@ -64,10 +64,9 @@ Update `shared/schemas/` when a structured contract changes. Schema changes
 usually require adjacent API docs, examples, fixtures, or migration notes unless
 the schema is explicitly internal and experimental.
 
-Add or update an ADR or `docs/decisions/` entry when the choice is
-hard-to-reverse, surprising without context, and the result of a real trade-off.
-Inspect both `docs/adr/` and `docs/decisions/` until their namespace split is
-explicitly consolidated or superseded.
+Add or update an ADR in `docs/adr/` when the choice is hard-to-reverse,
+surprising without context, and the result of a real trade-off. `docs/adr/` is
+the canonical namespace for ADRs and durable architecture decisions.
 
 Update root `AGENTS.md` for repo-wide agent operating rules, role-neutral
 methods, entry paths, verification posture, and durable placement guidance.

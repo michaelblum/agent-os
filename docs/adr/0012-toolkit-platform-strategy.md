@@ -4,6 +4,9 @@ Status: Accepted
 Date: 2026-05-15
 Related: [#328](https://github.com/michaelblum/agent-os/issues/328), [#325](https://github.com/michaelblum/agent-os/issues/325), [#326](https://github.com/michaelblum/agent-os/issues/326), [#327](https://github.com/michaelblum/agent-os/issues/327)
 
+Originally recorded as `docs/decisions/ADR-001-toolkit-platform-strategy.md`;
+migrated into the canonical ADR namespace on 2026-05-20.
+
 ## Context
 
 Agent-OS toolkit surfaces currently use a small vanilla JavaScript layer for

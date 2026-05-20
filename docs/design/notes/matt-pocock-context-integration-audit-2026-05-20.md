@@ -319,12 +319,16 @@ validated:
   `src/CLAUDE.md`, `docs/api/aos.md`, and ADR-0004/0006.
 - `c233e3f` added `docs/recipes/context-doc-maintenance.md` and connected it
   from `AGENTS.md`, `CONTEXT-MAP.md`, and `docs/agents/domain.md`.
+- The ADR namespace consolidation later moved
+  `docs/decisions/ADR-001-toolkit-platform-strategy.md` to
+  `docs/adr/0012-toolkit-platform-strategy.md`, making `docs/adr/` the
+  canonical ADR and durable architecture-decision namespace.
 
 The broader agent-os `CONTEXT.md` variant is now documented as a deliberate
 local adaptation: a governed domain-language and contract-term index rather
-than Matt's pure glossary shape. The ADR namespace split between `docs/adr/`
-and `docs/decisions/` remains a known consumer reality documented in the setup,
-map, and maintenance recipe; it has not been consolidated.
+than Matt's pure glossary shape. The ADR namespace split found at audit time
+was later resolved on this branch; dated audit-time findings remain historical
+evidence, not current consumer guidance.
 
 ## Residual Risk
 

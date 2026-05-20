@@ -93,15 +93,12 @@ source root. This file is a routing map, not a replacement for those sources.
 
 ## Durable Decisions And SOPs
 
-- ADRs: `docs/adr/`.
-- Additional durable decisions: `docs/decisions/`.
+- ADRs and durable architecture decisions: `docs/adr/`.
 - Recipes and SOPs: `docs/recipes/`.
 - Context maintenance recipe: `docs/recipes/context-doc-maintenance.md`.
 - Design plans, notes, and work cards: `docs/design/`.
 - Use this context when a task touches architectural trade-offs, cross-tool
-  contracts, reusable procedures, or workstream plans. Inspect both
-  `docs/adr/` and `docs/decisions/` until the ADR namespace is consolidated or
-  explicitly superseded.
+  contracts, reusable procedures, or workstream plans.
 
 ## Conflict And Scope Notes
 

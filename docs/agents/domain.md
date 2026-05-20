@@ -13,7 +13,7 @@ language, then read `CONTEXT-MAP.md` to choose the domain docs, local contracts,
 schemas, and source roots for the subject area you are touching. Use
 `ARCHITECTURE.md` for the system narrative, nearby subtree `AGENTS.md` files for
 local policy, `docs/api/` and `shared/schemas/` for live contracts, `docs/adr/`
-and `docs/decisions/` for durable decisions, and `docs/recipes/` for reusable
+for ADRs and durable architecture decisions, and `docs/recipes/` for reusable
 operating procedures.
 
 Do not infer that the repo is single-context just because root `CONTEXT.md`
@@ -25,11 +25,9 @@ updated together.
 
 ## Decision Docs
 
-The current consumer reality is split: most ADRs live under `docs/adr/`, and at
-least one ADR-named platform decision lives under `docs/decisions/`. This slice
-does not resolve that namespace split. Consumers should inspect both locations
-when a task touches architecture, toolkit policy, subject/work-record contracts,
-or other durable trade-offs.
+`docs/adr/` is the canonical namespace for ADRs and durable architecture
+decisions. Consumers should read it when a task touches architecture, toolkit
+policy, subject/work-record contracts, or other durable trade-offs.
 
 ## Conflicts
 

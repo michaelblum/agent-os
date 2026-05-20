@@ -4,9 +4,15 @@ Date: 2026-05-20
 Owner: GDI
 Work card: `docs/design/work-cards/adr-namespace-audit-v0.md`
 
+Implementation status: resolved on this branch by moving
+`docs/decisions/ADR-001-toolkit-platform-strategy.md` to
+`docs/adr/0012-toolkit-platform-strategy.md` and updating live consumer
+guidance to make `docs/adr/` the canonical ADR and durable
+architecture-decision namespace.
+
 ## Summary
 
-Agent-os currently has two durable-decision namespaces:
+At audit time, agent-os had two durable-decision namespaces:
 
 - `docs/adr/` contains an unprefixed, zero-padded numeric ADR series from
   `0001` through `0011`.
