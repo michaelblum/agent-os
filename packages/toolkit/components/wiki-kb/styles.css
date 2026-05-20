@@ -8,7 +8,7 @@
 }
 
 .wiki-kb-shell {
-  --wiki-kb-view-bg: var(--bg-panel);
+  --wiki-kb-layout-bg: var(--bg-panel);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -32,7 +32,7 @@
   backdrop-filter: blur(12px);
 }
 
-.wiki-kb-view-menu {
+.wiki-kb-layout-mode-menu {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -42,7 +42,7 @@
   text-transform: uppercase;
 }
 
-.wiki-kb-view-menu select {
+.wiki-kb-layout-mode-menu select {
   min-width: 94px;
   border: 1px solid rgba(122, 241, 255, 0.22);
   border-radius: 5px;
@@ -52,7 +52,7 @@
   font: inherit;
 }
 
-.wiki-kb-view-static {
+.wiki-kb-layout-mode-static {
   color: rgba(235, 255, 255, 0.82);
   font: inherit;
 }
@@ -82,11 +82,11 @@
   background: var(--bg-panel);
 }
 
-.wiki-kb-view-mode-control {
+.wiki-kb-layout-mode-control {
   flex: 0 0 auto;
 }
 
-.wiki-kb-view-mode-button {
+.wiki-kb-layout-mode-button {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -116,19 +116,19 @@
   overflow: hidden;
 }
 
-.wiki-kb-view {
+.wiki-kb-layout {
   position: absolute;
   inset: 0;
 }
 
-.wiki-kb-view[hidden] {
+.wiki-kb-layout[hidden] {
   display: none;
 }
 
-.wiki-kb-graph-view {
+.wiki-kb-graph-layout {
   background:
     radial-gradient(circle at center, #102028 0%, #05080b 68%, #020304 100%),
-    var(--wiki-kb-view-bg, var(--bg-panel-content, transparent));
+    var(--wiki-kb-layout-bg, var(--bg-panel-content, transparent));
 }
 
 .wiki-kb-graph-main {

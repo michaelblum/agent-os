@@ -287,7 +287,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/surface-inspector/index.html` - canvas lifecycle and minimap inspector with optional live cursor and mouse-event overlays
 - `aos://toolkit/components/spatial-telemetry/index.html` - live coordinate tables + event log for display, canvas, cursor, and object-mark debugging
 - `aos://toolkit/components/render-performance/index.html` - live framerate, frame-time, and coarse renderer telemetry panel
-- `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with force-graph and mind-map views
+- `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with Graph and Radial Graph layout modes
 - `aos://toolkit/components/wiki-subject-browser/index.html` - Wiki Subject Browser V0 shell that composes Wiki KB and Markdown Workbench into a graph-first subject browser
 - `aos://toolkit/components/artifact-bundle-workbench/index.html` - read-only Artifact Bundle Workbench V0 shell for gallery, preview, source, exports, provenance, and validation inspection
 - `aos://toolkit/components/playbook-workbench/index.html` - Playbook Workbench V0 shell that gates one saved-evidence browser Playbook simulation and hands off the emitted Work Record read-only
@@ -432,8 +432,8 @@ Consumer override:
 }
 ```
 
-Graph `nodes[].type` is a wiki page kind for the force graph and mind map
-legend. It is intentionally separate from Workbench Subject `subject_type`.
+Graph `nodes[].type` is a wiki page kind for graph layout legends. It is
+intentionally separate from Workbench Subject `subject_type`.
 The V0 page-kind vocabulary is `page`, `concept`, `entity`, `workflow`, and
 `reference`; incoming compatibility payloads normalize legacy `agent` to
 `entity` and plugin reference pages to `reference` before deriving available
@@ -444,13 +444,14 @@ Incremental updates go to `wiki-kb/graph/update` and may include:
 - `nodes`, `links`, `raw` for upserts
 - `removeNodes`, `removeLinks`, `removeRaw` for targeted removals
 - `replace`, `replaceLinks`, `clearRaw` for reset-style updates
-- `config.graphView` to update graph-view defaults and feature flags
+- `config.graphView` to update Graph layout defaults and feature flags
 
 Additional semantic intents:
 
-- `wiki-kb/reveal` with `{ id | path | name, view?, openSidebar?, focus? }`
+- `wiki-kb/reveal` with `{ id | path | name, layoutMode?, openSidebar?, focus? }`
 - `wiki-kb/clear-selection`
-- `wiki-kb/set-view` with `{ view }`
+- `wiki-kb/set-layout-mode` with `{ layoutMode }`
+- `wiki-kb/fit-layout`
 
 Current emitted semantic event:
 

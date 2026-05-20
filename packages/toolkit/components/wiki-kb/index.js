@@ -4,7 +4,7 @@
 // two synchronized graph layout modes: force-directed and radial.
 
 import GraphView from './views/graph.js'
-import MindmapView from './views/mindmap.js'
+import RadialGraphView from './views/radial-graph.js'
 import {
   applyGraphUpdate,
   nodeColor,
@@ -23,16 +23,16 @@ import { createButton } from '../../controls/button.js'
 import { createButtonGroup } from '../../controls/button-group.js'
 import { createSelect } from '../../controls/select.js'
 
-const VIEW_DEFS = [
+const LAYOUT_MODE_DEFS = [
   { id: 'graph', label: 'Graph', factory: GraphView },
-  { id: 'mindmap', label: 'Radial Graph', factory: MindmapView },
+  { id: 'radial-graph', label: 'Radial Graph', factory: RadialGraphView },
 ]
 
-function resolveViewDefs(viewIds) {
-  if (!Array.isArray(viewIds) || viewIds.length === 0) return VIEW_DEFS
-  const allowed = new Set(viewIds.map((id) => String(id)))
-  const defs = VIEW_DEFS.filter((entry) => allowed.has(entry.id))
-  return defs.length > 0 ? defs : VIEW_DEFS
+function resolveLayoutModeDefs(layoutModeIds) {
+  if (!Array.isArray(layoutModeIds) || layoutModeIds.length === 0) return LAYOUT_MODE_DEFS
+  const allowed = new Set(layoutModeIds.map((id) => String(id)))
+  const defs = LAYOUT_MODE_DEFS.filter((entry) => allowed.has(entry.id))
+  return defs.length > 0 ? defs : LAYOUT_MODE_DEFS
 }
 
 function canonicalMessageType(type) {
@@ -70,16 +70,16 @@ function addClassNames(el, className = '') {
 
 export default function WikiKB(options = {}) {
   const chromeMode = options.chrome === 'embedded' ? 'embedded' : 'default'
-  const viewDefs = resolveViewDefs(options.views)
+  const layoutModeDefs = resolveLayoutModeDefs(options.layoutModes)
   let host = null
   let rootEl = null
   let contentEl = null
-  let activeViewId = viewDefs[0]?.id || 'graph'
+  let activeLayoutModeId = layoutModeDefs[0]?.id || 'graph'
   let sidebarMode = 'markdown'
   let selectedNodeId = null
   let graphState = normalizeGraphPayload({})
-  let viewModeGroup = null
-  const viewInstances = new Map()
+  let layoutModeControl = null
+  const layoutInstances = new Map()
   const dom = {}
 
   function currentNode() {
@@ -207,11 +207,11 @@ export default function WikiKB(options = {}) {
     renderRelated(node)
   }
 
-  function focusActiveViewOnSelection() {
+  function focusActiveLayoutOnSelection() {
     const node = currentNode()
-    const view = viewInstances.get(activeViewId)
-    if (!view || !node) return
-    view.instance.focusNode?.(node)
+    const layout = layoutInstances.get(activeLayoutModeId)
+    if (!layout || !node) return
+    layout.instance.focusNode?.(node)
   }
 
   function emitSelection(node) {
@@ -238,7 +238,7 @@ export default function WikiKB(options = {}) {
       return
     }
     renderSidebar(selectedNode)
-    focusActiveViewOnSelection()
+    focusActiveLayoutOnSelection()
     if (emitSelectionEvent) emitSelection(selectedNode)
   }
 
@@ -247,8 +247,8 @@ export default function WikiKB(options = {}) {
     selectedNodeId = null
     dom.sidebarEl.classList.remove('open')
     dom.relatedListEl.replaceChildren()
-    const activeView = viewInstances.get(activeViewId)
-    activeView?.instance.clearSelection?.()
+    const activeLayout = layoutInstances.get(activeLayoutModeId)
+    activeLayout?.instance.clearSelection?.()
     if (emitSelectionEvent) emitSelection(null)
   }
 
@@ -262,104 +262,104 @@ export default function WikiKB(options = {}) {
     return byName || null
   }
 
-  function feedViews() {
-    for (const { instance } of viewInstances.values()) {
+  function feedLayouts() {
+    for (const { instance } of layoutInstances.values()) {
       instance.load(graphState)
     }
   }
 
-  function ensureView(id) {
-    const existing = viewInstances.get(id)
+  function ensureLayoutMode(id) {
+    const existing = layoutInstances.get(id)
     if (existing) return existing
 
-    const definition = viewDefs.find((entry) => entry.id === id)
-    if (!definition) throw new Error(`Unknown wiki-kb view '${id}'`)
+    const definition = layoutModeDefs.find((entry) => entry.id === id)
+    if (!definition) throw new Error(`Unknown wiki-kb layout mode '${id}'`)
 
     const instance = definition.factory({
       onSelectNode(node) {
         setSelection(node)
       },
     })
-    const viewEl = instance.mount()
-    viewEl.classList.add('wiki-kb-view')
-    viewEl.id = `wiki-kb-view-${id}`
-    viewEl.setAttribute('role', 'region')
-    viewEl.setAttribute('aria-label', `${definition.label} graph layout`)
-    viewEl.dataset.value = id
-    viewEl.hidden = true
-    contentEl.appendChild(viewEl)
+    const layoutEl = instance.mount()
+    layoutEl.classList.add('wiki-kb-layout')
+    layoutEl.id = `wiki-kb-layout-${id}`
+    layoutEl.setAttribute('role', 'region')
+    layoutEl.setAttribute('aria-label', `${definition.label} layout`)
+    layoutEl.dataset.value = id
+    layoutEl.hidden = true
+    contentEl.appendChild(layoutEl)
 
-    const created = { instance, viewEl }
-    viewInstances.set(id, created)
+    const created = { instance, layoutEl }
+    layoutInstances.set(id, created)
     instance.load(graphState)
     return created
   }
 
-  function activateView(id) {
-    activeViewId = id
-    for (const [viewId, entry] of viewInstances.entries()) {
-      const isActive = viewId === id
-      entry.viewEl.hidden = !isActive
+  function activateLayoutMode(id) {
+    activeLayoutModeId = id
+    for (const [layoutModeId, entry] of layoutInstances.entries()) {
+      const isActive = layoutModeId === id
+      entry.layoutEl.hidden = !isActive
       if (isActive) entry.instance.onActivate?.()
       else entry.instance.onDeactivate?.()
     }
-    viewModeGroup?.setValue(id, { emit: false })
-    for (const button of rootEl.querySelectorAll('.wiki-kb-view-mode-button')) {
-      const isActive = button.dataset.view === id
+    layoutModeControl?.setValue(id, { emit: false })
+    for (const button of rootEl.querySelectorAll('.wiki-kb-layout-mode-button')) {
+      const isActive = button.dataset.layoutMode === id
       button.classList.toggle('active', isActive)
       button.setAttribute('aria-pressed', String(isActive))
-      const view = viewDefs.find((entry) => entry.id === button.dataset.view)
+      const layoutMode = layoutModeDefs.find((entry) => entry.id === button.dataset.layoutMode)
       applyWikiKBSemanticTarget(button, {
-        id: `layout-mode-${button.dataset.view}`,
-        name: `${view?.label || button.textContent} layout`,
+        id: `layout-mode-${button.dataset.layoutMode}`,
+        name: `${layoutMode?.label || button.textContent} layout`,
         action: 'set_layout_mode',
-        aosRef: wikiKBAosRef('layout-mode', button.dataset.view),
+        aosRef: wikiKBAosRef('layout-mode', button.dataset.layoutMode),
         pressed: isActive,
       })
     }
-    if (dom.viewSelectEl) {
-      dom.viewSelectEl.value = id
-      const view = viewDefs.find((entry) => entry.id === id)
-      applyWikiKBSemanticTarget(dom.viewSelectEl, {
-        id: 'view-select',
+    if (dom.layoutModeSelectEl) {
+      dom.layoutModeSelectEl.value = id
+      const layoutMode = layoutModeDefs.find((entry) => entry.id === id)
+      applyWikiKBSemanticTarget(dom.layoutModeSelectEl, {
+        id: 'layout-mode-select',
         role: 'AXPopUpButton',
         name: 'Wiki graph layout mode',
         action: 'set_layout_mode',
-        value: view?.label || id,
+        value: layoutMode?.label || id,
       })
     }
-    focusActiveViewOnSelection()
+    focusActiveLayoutOnSelection()
   }
 
-  function switchView(id) {
-    ensureView(id)
-    activateView(id)
+  function switchLayoutMode(id) {
+    ensureLayoutMode(id)
+    activateLayoutMode(id)
   }
 
   function syncSelectionAfterData() {
     const node = currentNode()
     if (!node) {
       closeSidebar()
-      for (const { instance } of viewInstances.values()) {
+      for (const { instance } of layoutInstances.values()) {
         instance.clearSelection?.()
       }
       return
     }
     renderSidebar(node)
-    focusActiveViewOnSelection()
+    focusActiveLayoutOnSelection()
   }
 
   function applySnapshot(payload) {
     graphState = normalizeGraphPayload(payload)
     updateStatus()
-    feedViews()
+    feedLayouts()
     syncSelectionAfterData()
   }
 
   function applyUpdate(payload) {
     graphState = applyGraphUpdate(graphState, payload)
     updateStatus()
-    feedViews()
+    feedLayouts()
     syncSelectionAfterData()
   }
 
@@ -386,9 +386,9 @@ export default function WikiKB(options = {}) {
   }
 
   function onRootChange(event) {
-    const viewSelect = event.target.closest('.wiki-kb-view-select')
-    if (viewSelect) {
-      switchView(viewSelect.value)
+    const layoutModeSelect = event.target.closest('.wiki-kb-layout-mode-select')
+    if (layoutModeSelect) {
+      switchLayoutMode(layoutModeSelect.value)
     }
   }
 
@@ -396,18 +396,18 @@ export default function WikiKB(options = {}) {
     rootEl.innerHTML = `
       <div class="wiki-kb-shell">
         ${chromeMode === 'embedded' ? `
-          ${viewDefs.length > 1 ? `
-            <div class="wiki-kb-compact-chrome" aria-label="Wiki graph view controls">
-              <label class="wiki-kb-view-menu" title="Select graph view">
-                <span>View</span>
-                <span data-role="wiki-kb-view-select"></span>
+          ${layoutModeDefs.length > 1 ? `
+            <div class="wiki-kb-compact-chrome" aria-label="Wiki graph layout controls">
+              <label class="wiki-kb-layout-mode-menu" title="Select graph layout">
+                <span>Layout</span>
+                <span data-role="wiki-kb-layout-mode-select"></span>
               </label>
               <span class="wiki-kb-status" role="status" aria-live="polite"></span>
             </div>
           ` : `<span class="wiki-kb-status wiki-kb-floating-status" role="status" aria-live="polite"></span>`}
         ` : `
           <div class="wiki-kb-layout-mode-bar" aria-label="Wiki graph layout controls">
-            <span data-role="wiki-kb-view-mode"></span>
+            <span data-role="wiki-kb-layout-mode-control"></span>
             <div class="wiki-kb-layout-mode-spacer"></div>
             <span class="wiki-kb-status" role="status" aria-live="polite"></span>
           </div>
@@ -437,37 +437,39 @@ export default function WikiKB(options = {}) {
 
     contentEl = rootEl.querySelector('.wiki-kb-content')
     dom.statusEl = rootEl.querySelector('.wiki-kb-status')
-    const viewSelectSlot = rootEl.querySelector('[data-role="wiki-kb-view-select"]')
-    if (viewSelectSlot) {
-      const viewSelect = createSelect({
-        value: activeViewId,
-        options: viewDefs.map((view) => ({ value: view.id, label: view.label })),
+    const layoutModeSelectSlot = rootEl.querySelector('[data-role="wiki-kb-layout-mode-select"]')
+    if (layoutModeSelectSlot) {
+      const layoutModeSelect = createSelect({
+        value: activeLayoutModeId,
+        options: layoutModeDefs.map((layoutMode) => ({ value: layoutMode.id, label: layoutMode.label })),
       })
-      dom.viewSelectEl = viewSelect.el.querySelector('select')
-      addClassNames(dom.viewSelectEl, 'wiki-kb-view-select')
-      dom.viewSelectEl.setAttribute('aria-label', 'Wiki graph view')
-      viewSelectSlot.replaceWith(viewSelect.el)
+      dom.layoutModeSelectEl = layoutModeSelect.el.querySelector('select')
+      addClassNames(dom.layoutModeSelectEl, 'wiki-kb-layout-mode-select')
+      dom.layoutModeSelectEl.setAttribute('aria-label', 'Wiki graph layout mode')
+      layoutModeSelectSlot.replaceWith(layoutModeSelect.el)
     } else {
-      dom.viewSelectEl = null
+      dom.layoutModeSelectEl = null
     }
-    const viewModeSlot = rootEl.querySelector('[data-role="wiki-kb-view-mode"]')
-    if (viewModeSlot) {
-      viewModeGroup = createButtonGroup({
-        value: activeViewId,
-        options: viewDefs.map((view) => ({ value: view.id, label: view.label })),
-        onChange(nextViewId) {
-          if (typeof nextViewId === 'string' && nextViewId !== activeViewId) switchView(nextViewId)
+    const layoutModeControlSlot = rootEl.querySelector('[data-role="wiki-kb-layout-mode-control"]')
+    if (layoutModeControlSlot) {
+      layoutModeControl = createButtonGroup({
+        value: activeLayoutModeId,
+        options: layoutModeDefs.map((layoutMode) => ({ value: layoutMode.id, label: layoutMode.label })),
+        onChange(nextLayoutModeId) {
+          if (typeof nextLayoutModeId === 'string' && nextLayoutModeId !== activeLayoutModeId) {
+            switchLayoutMode(nextLayoutModeId)
+          }
         },
       })
-      addClassNames(viewModeGroup.el, 'wiki-kb-view-mode-control')
-      viewModeGroup.el.setAttribute('aria-label', 'Graph layout mode')
-      for (const button of viewModeGroup.el.querySelectorAll('button')) {
-        addClassNames(button, 'wiki-kb-view-mode-button')
-        button.dataset.view = button.dataset.value
+      addClassNames(layoutModeControl.el, 'wiki-kb-layout-mode-control')
+      layoutModeControl.el.setAttribute('aria-label', 'Graph layout mode')
+      for (const button of layoutModeControl.el.querySelectorAll('button')) {
+        addClassNames(button, 'wiki-kb-layout-mode-button')
+        button.dataset.layoutMode = button.dataset.value
       }
-      viewModeSlot.replaceWith(viewModeGroup.el)
+      layoutModeControlSlot.replaceWith(layoutModeControl.el)
     } else {
-      viewModeGroup = null
+      layoutModeControl = null
     }
     dom.sidebarEl = rootEl.querySelector('.wiki-kb-sidebar')
     dom.sidebarTypeEl = rootEl.querySelector('.wiki-kb-sidebar-type')
@@ -509,14 +511,14 @@ export default function WikiKB(options = {}) {
     rootEl.addEventListener('click', onRootClick)
     rootEl.addEventListener('change', onRootChange)
     updateStatus()
-    switchView(activeViewId)
+    switchLayoutMode(activeLayoutModeId)
   }
 
   return {
     manifest: {
       name: 'wiki-kb',
       title: 'Wiki KB',
-      accepts: ['graph', 'graph/update', 'reveal', 'clear-selection', 'set-view', 'fit-view'],
+      accepts: ['graph', 'graph/update', 'reveal', 'clear-selection', 'set-layout-mode', 'fit-layout'],
       emits: ['selection', WIKI_SUBJECT_SELECTION_TYPE],
       channelPrefix: 'wiki-kb',
       defaultSize: { w: 860, h: 580 },
@@ -536,7 +538,7 @@ export default function WikiKB(options = {}) {
       if (!type) {
         if (msg?.type === 'reveal') {
           const payload = msg?.payload || {}
-          if (payload.view) switchView(payload.view)
+          if (payload.layoutMode) switchLayoutMode(payload.layoutMode)
           const node = resolveRevealTarget(payload)
           if (node) setSelection(node)
           return
@@ -545,16 +547,16 @@ export default function WikiKB(options = {}) {
           clearSelection()
           return
         }
-        if (msg?.type === 'set-view') {
-          const view = msg?.payload?.view || msg?.payload?.id || msg?.payload
-          if (typeof view === 'string' && viewDefs.some((entry) => entry.id === view)) {
-            switchView(view)
+        if (msg?.type === 'set-layout-mode') {
+          const layoutMode = msg?.payload?.layoutMode || msg?.payload?.id || msg?.payload
+          if (typeof layoutMode === 'string' && layoutModeDefs.some((entry) => entry.id === layoutMode)) {
+            switchLayoutMode(layoutMode)
           }
           return
         }
-        if (msg?.type === 'fit-view') {
-          const activeView = viewInstances.get(activeViewId)
-          activeView?.instance.fit?.()
+        if (msg?.type === 'fit-layout') {
+          const activeLayout = layoutInstances.get(activeLayoutModeId)
+          activeLayout?.instance.fit?.()
           return
         }
         return
@@ -566,8 +568,8 @@ export default function WikiKB(options = {}) {
     },
 
     teardown() {
-      viewModeGroup?.destroy()
-      viewModeGroup = null
+      layoutModeControl?.destroy()
+      layoutModeControl = null
     },
   }
 }

@@ -23,8 +23,8 @@
         "name": "Wiki KB",
         "type": "plugin",
         "description": "Knowledge browser component built on toolkit panels.",
-        "tags": ["wiki", "graph", "mindmap"],
-        "raw": "# Wiki KB\n\nA graph browser component for wiki-shaped data.\n\n- Force graph view\n- Mind map view"
+        "tags": ["wiki", "graph", "radial"],
+        "raw": "# Wiki KB\n\nA graph browser component for wiki-shaped data.\n\n- Graph layout\n- Radial Graph layout"
       },
       {
         "id": "consumer-app",

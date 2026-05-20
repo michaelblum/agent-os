@@ -80,9 +80,9 @@ language that duplicates primitive roles:
    `createAosZagTabs`, `role="tablist"`, and `data-aos-tabs-*`, but renders the
    tab selector with `aos-segmented` and pill-like private styling. A live check
    showed the active tab background does not match the content panel background.
-2. `packages/toolkit/components/wiki-kb/index.js` / `styles.css` uses real tab
-   semantics and tabpanels, but the selected tab is a compact button-style pill
-   instead of a connected tab sharing the body background.
+2. `packages/toolkit/components/wiki-kb/index.js` / `styles.css` now treats
+   Graph and Radial Graph as layout modes of one graph canvas and uses the
+   segmented control primitive instead of tab semantics.
 3. `packages/toolkit/components/surface-zoom-inspector/index.js` /
    `styles.css` renders `secondary-tabs` inside a pane header with
    `role="tablist"` and private button styling. Decide whether these are true

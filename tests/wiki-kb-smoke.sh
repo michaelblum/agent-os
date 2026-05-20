@@ -37,7 +37,7 @@ for _ in range(50):
         'JSON.stringify({'
         'text: document.body.textContent.replace(/\\s+/g," ").trim(),'
         'status: document.querySelector(".wiki-kb-status")?.textContent.trim() ?? "",'
-        'active: document.querySelector(".wiki-kb-view-tab.active")?.dataset.view ?? null'
+        'active: document.querySelector(".wiki-kb-layout-mode-button.active")?.dataset.layoutMode ?? null'
         '})'
     )
     text = result.get("text") or ""
@@ -51,20 +51,20 @@ else:
     print("FAIL: wiki-kb did not populate sample graph state", flush=True)
     raise SystemExit(1)
 
-mindmap = eval_js(
-    'document.querySelector(".wiki-kb-view-tab[data-view=\\"mindmap\\"]").click();'
+radial_graph = eval_js(
+    'document.querySelector(".wiki-kb-layout-mode-button[data-layout-mode=\\"radial-graph\\"]").click();'
     'JSON.stringify({'
-    'active: document.querySelector(".wiki-kb-view-tab.active")?.dataset.view ?? null,'
+    'active: document.querySelector(".wiki-kb-layout-mode-button.active")?.dataset.layoutMode ?? null,'
     'breadcrumb: document.querySelector(".wiki-kb-breadcrumb")?.textContent ?? ""'
     '})'
 )
 
-if mindmap.get("active") != "mindmap":
-    print("FAIL: wiki-kb did not switch to mindmap tab", flush=True)
+if radial_graph.get("active") != "radial-graph":
+    print("FAIL: wiki-kb did not switch to radial graph layout", flush=True)
     raise SystemExit(1)
 
-if mindmap.get("breadcrumb") != "root: Toolkit":
-    print(f"FAIL: unexpected mindmap root {mindmap.get('breadcrumb')!r}", flush=True)
+if radial_graph.get("breadcrumb") != "root: Toolkit":
+    print(f"FAIL: unexpected radial graph root {radial_graph.get('breadcrumb')!r}", flush=True)
     raise SystemExit(1)
 PY
 

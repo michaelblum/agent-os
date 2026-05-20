@@ -64,7 +64,7 @@ Y=$((DISPLAY_Y + (DISPLAY_H - PANEL_H) / 2))
 "$AOS" show wait \
   --id "$CANVAS_ID" \
   --manifest wiki-kb \
-  --js '!!document.querySelector(".wiki-kb-status") && document.querySelector(".wiki-kb-view-mode-button.active")?.dataset.view === "graph"' \
+  --js '!!document.querySelector(".wiki-kb-status") && document.querySelector(".wiki-kb-layout-mode-button.active")?.dataset.layoutMode === "graph"' \
   --timeout 5s >/dev/null
 
 EVENT_CONTENT="$(cat "$EVENT_FILE")"

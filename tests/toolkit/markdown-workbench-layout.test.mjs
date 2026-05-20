@@ -30,14 +30,14 @@ test('markdown workbench embeds wiki graph as the primary pane', async () => {
   assert.match(html, /minWidth:\s*760/);
   assert.match(js, /class="aos-workbench-preview-pane markdown-workbench-graph-pane"/);
   assert.match(js, /data-role="graph"/);
-  assert.match(js, /WikiKB\(\{ chrome: 'embedded', views: \['graph'\] \}\)/);
+  assert.match(js, /WikiKB\(\{ chrome: 'embedded', layoutModes: \['graph'\] \}\)/);
   assert.match(js, /collapseEmbeddedGraphControls/);
   assert.match(js, /scheduleEmbeddedGraphFit/);
-  assert.match(js, /type:\s*'fit-view'/);
+  assert.match(js, /type:\s*'fit-layout'/);
   assert.match(js, /embeddedWikiGraphPayload/);
   assert.match(js, /labelMode:\s*'hover'/);
   assert.match(js, /collapsed:\s*true/);
-  assert.match(wikiJs, /accepts:\s*\[[^\]]*'fit-view'/s);
+  assert.match(wikiJs, /accepts:\s*\[[^\]]*'fit-layout'/s);
   assert.match(wikiJs, /createWikiSubjectSelectionPayload/);
   assert.match(wikiJs, /WIKI_SUBJECT_SELECTION_TYPE/);
   assert.match(wikiJs, /type:\s*node\.type \|\| 'unknown'/);
@@ -49,7 +49,7 @@ test('markdown workbench embeds wiki graph as the primary pane', async () => {
   assert.match(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-controls-shell\.collapsed\s+\.wiki-kb-controls-toggle/);
   assert.match(wikiCss, /\.wiki-kb-controls-panel\[hidden\]\s*\{\s*display:\s*none/);
   assert.doesNotMatch(wikiJs, /wiki-kb-graph-stats/);
-  assert.doesNotMatch(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-graph-view:has/);
+  assert.doesNotMatch(wikiCss, /\.wiki-kb-root\[data-chrome="embedded"\]\s+\.wiki-kb-graph-layout:has/);
   assert.match(wikiCss, /\.wiki-kb-floating-status\s*\{[\s\S]*top:\s*10px/);
   assert.match(js, /import \{ createSplitPane \} from '\.\.\/\.\.\/panel\/layouts\/split-pane\.js'/);
   assert.match(js, /splitPane = createSplitPane\(\{/);

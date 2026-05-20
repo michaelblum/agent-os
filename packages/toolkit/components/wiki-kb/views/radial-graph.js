@@ -1,4 +1,4 @@
-// Radial mind map view for wiki-kb.
+// Radial graph layout mode for wiki-kb.
 
 import {
   buildAdjacency,
@@ -18,7 +18,7 @@ const COLORS = {
   labelHighlight: '#e0e0e0',
 }
 
-function radialLayout(rootId, nodeMap, adjacency, width, height) {
+function radialGraphLayout(rootId, nodeMap, adjacency, width, height) {
   const centerX = width / 2
   const centerY = height / 2
   const ringGap = 90
@@ -75,7 +75,7 @@ function radialLayout(rootId, nodeMap, adjacency, width, height) {
   return placed
 }
 
-export default function MindmapView({ onSelectNode }) {
+export default function RadialGraphView({ onSelectNode }) {
   let rootEl = null
   let canvas = null
   let ctx = null
@@ -98,7 +98,7 @@ export default function MindmapView({ onSelectNode }) {
       draw()
       return
     }
-    layout = radialLayout(rootId, nodeMap, adjacency, size.width, size.height)
+    layout = radialGraphLayout(rootId, nodeMap, adjacency, size.width, size.height)
     draw()
   }
 
@@ -277,7 +277,7 @@ export default function MindmapView({ onSelectNode }) {
   return {
     mount() {
       rootEl = document.createElement('div')
-      rootEl.className = 'wiki-kb-mindmap-view'
+      rootEl.className = 'wiki-kb-radial-graph-layout'
       rootEl.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
       rootEl.innerHTML = `
         <canvas style="display:block;width:100%;height:100%"></canvas>

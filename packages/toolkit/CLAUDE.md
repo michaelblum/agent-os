@@ -87,7 +87,7 @@ components/             Layer 2 — reusable Content units
     styles.css              canonical component styles (link, don't copy)
   test-console/          supervised-run HITL step console
     styles.css              canonical component styles (link, don't copy)
-  wiki-kb/                wiki graph browser with graph + mind-map views
+  wiki-kb/                wiki graph browser with Graph + Radial Graph layouts
     styles.css              canonical component styles (link, don't copy)
   _dev/                   developer demos
     tabs-demo/            all three components in one Tabs panel

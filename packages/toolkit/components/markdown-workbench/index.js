@@ -394,7 +394,7 @@ export default function MarkdownWorkbench(options = {}) {
     for (const delay of fitDelays) {
       const timer = window.setTimeout(() => {
         graphFitTimers = graphFitTimers.filter((entry) => entry !== timer);
-        graphWorkbench?.onMessage?.({ type: 'fit-view' }, graphHost);
+        graphWorkbench?.onMessage?.({ type: 'fit-layout' }, graphHost);
       }, Math.max(0, Number(delay) || 0));
       graphFitTimers.push(timer);
     }
@@ -753,7 +753,7 @@ export default function MarkdownWorkbench(options = {}) {
       ariaLabel: 'Resize wiki graph and document panes',
     });
 
-    graphWorkbench = WikiKB({ chrome: 'embedded', views: ['graph'] });
+    graphWorkbench = WikiKB({ chrome: 'embedded', layoutModes: ['graph'] });
     graphHost = {
       contentEl: dom.graph,
       setTitle() {},

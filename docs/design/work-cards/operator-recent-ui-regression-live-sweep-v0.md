@@ -183,10 +183,11 @@ Launch Integration Hub:
 
 Verify:
 
-- Wiki KB Graph and Mind Map tabs switch with real pointer and keyboard.
+- Wiki KB Graph and Radial Graph layout modes switch with real pointer and
+  keyboard through the segmented layout control.
 - Wiki KB selected-node details remain in the synchronized sidebar, not a
   separate Detail tab. Graph controls, sidebar/details toggles, refresh,
-  markdown/raw toggles, and breadcrumbs remain visible and usable after tab
+  markdown/raw toggles, and breadcrumbs remain visible and usable after layout
   switches.
 - Integration Hub tabs switch between Providers, Workflows, and Jobs with
   correct active/selected state, visible content, and no stale selected panel.
