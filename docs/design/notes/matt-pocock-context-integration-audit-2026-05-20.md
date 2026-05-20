@@ -8,6 +8,10 @@ agent-os after pulling the latest `mattpocock/skills` repository on
 
 No source behavior was changed by this investigation.
 
+Follow-up work later on this same branch changed the repo state. See
+"Post-Audit Implementation Status" near the end of this note before treating
+the original findings as current gaps.
+
 ## External Reference Pulled
 
 Local repo:
@@ -56,7 +60,7 @@ The relevant Matt skills expect a setup layer before use:
 Important constraint from Matt's skill: `CONTEXT.md` is meant to be a glossary,
 not a spec, scratch pad, implementation ledger, or decision store.
 
-## Agent-OS Current State
+## Agent-OS State At Audit Time
 
 Agent-os has:
 
@@ -75,7 +79,7 @@ There are at least 270 Markdown files across `docs/adr`, `docs/api`,
 within two directory levels. Treating this as a simple single-context repo is
 too weak for agent-os.
 
-## Misses
+## Misses Found At Audit Time
 
 ### 1. Setup was skipped
 
@@ -271,7 +275,7 @@ the setup/adaptation step:
 The result is a useful but overburdened `CONTEXT.md` that evolves alongside
 other markdown instead of governing or being governed by them.
 
-## Recommended Follow-Up Slices
+## Recommended Follow-Up Slices At Audit Time
 
 1. **Install an agent-os-specific Matt setup layer.** Add `docs/agents/domain.md`
    and an `## Agent skills` block that explains the local adaptation. Do not
@@ -289,7 +293,7 @@ other markdown instead of governing or being governed by them.
    toward Matt's glossary model or explicitly document agent-os's broader
    "glossary plus contract terminology index" variant.
 
-## Recommended Next Slice
+## Recommended Next Slice At Audit Time
 
 Smallest docs-only implementation pass: install the agent-os-specific Matt setup
 scaffold without changing source behavior. Add a root `## Agent skills` block
@@ -301,10 +305,31 @@ index" variant. Defer `CONTEXT-MAP.md`, sibling stale-doc repairs, ADR namespace
 cleanup, and the context maintenance SOP to later slices so this first pass only
 teaches agents where to look.
 
-## Immediate Risk
+## Post-Audit Implementation Status
 
-If no follow-up happens, future agents will keep treating `CONTEXT.md` as a
-single global source of truth, while still reading conflicting claims from
-nearby root and subtree markdown. That creates exactly the failure mode just
-observed: local doc corrections land, but the next dock/session reads a
-different nearby file and makes a bad assumption.
+The initial follow-up sequence landed on the active branch after this audit was
+validated:
+
+- `534dbaf` added the agent-os-specific setup scaffold: `docs/agents/domain.md`,
+  `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and the root
+  `AGENTS.md` `## Agent skills` pointer block.
+- `90f1cdc` added root `CONTEXT-MAP.md` and updated domain-doc pointers to use
+  it for multi-context routing.
+- `3f80a10` swept the known live-doc stale claims in `AGENTS.md`,
+  `src/CLAUDE.md`, `docs/api/aos.md`, and ADR-0004/0006.
+- `c233e3f` added `docs/recipes/context-doc-maintenance.md` and connected it
+  from `AGENTS.md`, `CONTEXT-MAP.md`, and `docs/agents/domain.md`.
+
+The broader agent-os `CONTEXT.md` variant is now documented as a deliberate
+local adaptation: a governed domain-language and contract-term index rather
+than Matt's pure glossary shape. The ADR namespace split between `docs/adr/`
+and `docs/decisions/` remains a known consumer reality documented in the setup,
+map, and maintenance recipe; it has not been consolidated.
+
+## Residual Risk
+
+If these branch changes are not published or merged, future agents may still
+read a stale mainline state where `CONTEXT.md` looks like a single global source
+of truth. After merge, the main residual risk is maintenance drift: new domains,
+source roots, API contracts, schemas, ADRs, or role contracts must keep using
+`docs/recipes/context-doc-maintenance.md` instead of adding isolated markdown.
