@@ -1314,8 +1314,8 @@ test('drag geometry derives pointer frames and clamps final placement', () => {
   const moves = [];
   const states = [];
   const controller = createDragController({
-    move(screenX, screenY, offsetX, offsetY) {
-      moves.push({ screenX, screenY, offsetX, offsetY });
+    move(screenX, screenY, offsetX, offsetY, geometry) {
+      moves.push({ screenX, screenY, offsetX, offsetY, geometry });
       frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]];
     },
     getFrame: () => frame,
@@ -1332,7 +1332,28 @@ test('drag geometry derives pointer frames and clamps final placement', () => {
 
   controller.start({ pointerId: 1, clientX: 40, clientY: 20 });
   controller.move({ pointerId: 1, screenX: 770, screenY: 620 });
-  assert.deepEqual(moves, [{ screenX: 770, screenY: 620, offsetX: 40, offsetY: 20 }]);
+  assert.equal(moves.length, 1);
+  assert.deepEqual({
+    screenX: moves[0].screenX,
+    screenY: moves[0].screenY,
+    offsetX: moves[0].offsetX,
+    offsetY: moves[0].offsetY,
+    geometry: {
+      change: moves[0].geometry.change,
+      cause: moves[0].geometry.cause,
+      phase: moves[0].geometry.phase,
+    },
+  }, {
+    screenX: 770,
+    screenY: 620,
+    offsetX: 40,
+    offsetY: 20,
+    geometry: {
+      change: 'origin',
+      cause: 'placement.drag',
+      phase: 'update',
+    },
+  });
   controller.end();
 
   assert.deepEqual(updates.at(-1), [560, 440, 240, 160]);
@@ -1466,8 +1487,8 @@ test('wireDrag emits absolute drag updates with the original pointer offset', as
   const moves = [];
   const controller = wireDrag(header, controls, {
     globalInput: false,
-    move(screenX, screenY, offsetX, offsetY) {
-      moves.push({ screenX, screenY, offsetX, offsetY });
+    move(screenX, screenY, offsetX, offsetY, geometry) {
+      moves.push({ screenX, screenY, offsetX, offsetY, geometry });
     },
   });
   assert.equal(controller.getState().active, false);
@@ -1482,21 +1503,36 @@ test('wireDrag emits absolute drag updates with the original pointer offset', as
   assert.equal(down.defaultPrevented, true);
   assert.equal(header.dataset.dragging, 'true');
   assert.equal(header.hasPointerCapture(7), true);
-  assert.deepEqual(emitted, [{ type: 'drag_start' }]);
+  assert.equal(emitted[0].type, 'drag_start');
+  assert.equal(emitted[0].payload.geometry_cause, 'placement.drag');
+  assert.equal(emitted[0].payload.geometry_phase, 'start');
 
   header.dispatch('pointermove', { pointerId: 8, screenX: 111, screenY: 222 });
   assert.equal(moves.length, 0);
 
   header.dispatch('pointermove', { pointerId: 7, screenX: 300, screenY: 400 });
   assert.deepEqual(moves, [
-    { screenX: 300, screenY: 400, offsetX: 24, offsetY: 10 },
+    {
+      screenX: 300,
+      screenY: 400,
+      offsetX: 24,
+      offsetY: 10,
+      geometry: {
+        change: 'origin',
+        cause: 'placement.drag',
+        phase: 'update',
+        transaction_id: emitted[0].payload.geometry_transaction_id,
+      },
+    },
   ]);
 
   header.dispatch('pointerup', { pointerId: 7 });
   assert.equal('dragging' in header.dataset, false);
   assert.equal(controller.getState().active, false);
   assert.equal(header.hasPointerCapture(7), false);
-  assert.deepEqual(emitted, [{ type: 'drag_start' }, { type: 'drag_end' }]);
+  assert.deepEqual(emitted.map((message) => message.type), ['drag_start', 'drag_end']);
+  assert.equal(emitted[1].payload.geometry_phase, 'settled');
+  assert.equal(emitted[1].payload.geometry_transaction_id, emitted[0].payload.geometry_transaction_id);
 });
 
 test('wireDrag ignores pointerdown events originating from controls', async (t) => {
@@ -1725,7 +1761,25 @@ test('wireResize creates edge handles and emits resize lifecycle messages', asyn
   handle.dispatch('pointerup', { pointerId: 11 });
 
   assert.deepEqual(emitted, [
-    { type: 'resize_start', payload: { edge: 'se' } },
-    { type: 'resize_end', payload: { edge: 'se' } },
+    {
+      type: 'resize_start',
+      payload: {
+        edge: 'se',
+        geometry_change: 'frame',
+        geometry_cause: 'resize.drag',
+        geometry_phase: 'start',
+        geometry_transaction_id: emitted[0].payload.geometry_transaction_id,
+      },
+    },
+    {
+      type: 'resize_end',
+      payload: {
+        edge: 'se',
+        geometry_change: 'frame',
+        geometry_cause: 'resize.drag',
+        geometry_phase: 'settled',
+        geometry_transaction_id: emitted[0].payload.geometry_transaction_id,
+      },
+    },
   ]);
 });

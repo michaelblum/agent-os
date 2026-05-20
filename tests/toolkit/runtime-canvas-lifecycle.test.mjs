@@ -3,7 +3,9 @@ import assert from 'node:assert/strict'
 
 import {
   canvasLifecycleCanvasID,
+  mergeCanvasGeometryCanvas,
   mergeCanvasLifecycleCanvas,
+  normalizeCanvasGeometry,
 } from '../../packages/toolkit/runtime/canvas-lifecycle.js'
 
 test('canvasLifecycleCanvasID resolves top-level and nested ids', () => {
@@ -148,4 +150,46 @@ test('mergeCanvasLifecycleCanvas preserves DesktopWorld surface segments', () =>
   })
 
   assert.deepEqual(merged.segments, segments)
+})
+
+test('normalizeCanvasGeometry preserves frame invalidation metadata', () => {
+  const normalized = normalizeCanvasGeometry({
+    canvas_id: 'surface-inspector',
+    change: 'origin',
+    cause: 'placement.drag',
+    phase: 'update',
+    transaction_id: 'drag-1',
+    frame: [10, 20, 300, 200],
+    previous_frame: [9, 20, 300, 200],
+  })
+
+  assert.deepEqual(normalized, {
+    canvas_id: 'surface-inspector',
+    change: 'origin',
+    cause: 'placement.drag',
+    phase: 'update',
+    transaction_id: 'drag-1',
+    frame: [10, 20, 300, 200],
+    previous_frame: [9, 20, 300, 200],
+    canvas: null,
+  })
+})
+
+test('mergeCanvasGeometryCanvas updates frame without requiring lifecycle action', () => {
+  const merged = mergeCanvasGeometryCanvas({
+    id: 'surface-inspector',
+    at: [0, 0, 300, 200],
+    interactive: true,
+    scope: 'global',
+  }, {
+    canvas_id: 'surface-inspector',
+    change: 'origin',
+    cause: 'placement.drag',
+    phase: 'update',
+    frame: [40, 50, 300, 200],
+  })
+
+  assert.equal(merged.id, 'surface-inspector')
+  assert.deepEqual(merged.at, [40, 50, 300, 200])
+  assert.equal(merged.interactive, true)
 })

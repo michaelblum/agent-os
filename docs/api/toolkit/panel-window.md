@@ -273,10 +273,14 @@ workbench titlebars.
 const controller = createDragController({ clampOnEnd: true })
 ```
 
-By default the controller sends absolute drag updates through `move_abs`. When
+By default the controller sends absolute drag updates through `move_abs` with
+`canvas_geometry` metadata (`cause: "placement.drag"`, `change: "origin"`, and
+a stable drag `transaction_id`). When
 `clampOnEnd` is true, it reads the current window frame at drag completion,
 clamps it to the current display work area, and writes the corrected frame
-through `canvas.update` only when the panel would otherwise be stranded.
+through `canvas.update` only when the panel would otherwise be stranded. Resize,
+maximize, and restore writes also pass geometry metadata so subscribers can
+separate frame invalidation from structural `canvas_lifecycle` changes.
 
 Options:
 

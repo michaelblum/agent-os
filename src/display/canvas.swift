@@ -554,12 +554,15 @@ class CanvasManager {
     var onMenuItems: ((String, [[String: String]]) -> Void)?  // (canvasID, items)
     /// (canvasInfo, action) — relayed to subscribers as canvas_lifecycle events
     var onCanvasLifecycle: ((CanvasInfo, String) -> Void)?
+    /// (payload) — relayed to subscribers as canvas_geometry events
+    var onCanvasGeometry: (([String: Any]) -> Void)?
     /// (eventName, payload) — relayed to subscribers as desktop-world surface topology events.
     var onCanvasSurfaceEvent: ((String, [String: Any]) -> Void)?
     let startTime = Date()
     private var lastChannelReRead: Date = .distantPast
     private var lastAutoProjectUpdate: Date = .distantPast
     private var lastCursorTrailUpdate: Date = .distantPast
+    private var activeGeometryTransactions: [String: [String: Any]] = [:]
 
     var isEmpty: Bool { canvases.isEmpty }
     func hasCanvas(_ id: String) -> Bool { canvases[id] != nil }
@@ -629,12 +632,91 @@ class CanvasManager {
         onCanvasLifecycle?(canvas.toInfo(), action)
     }
 
+    private func frameArray(_ rect: CGRect) -> [CGFloat] {
+        [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height]
+    }
+
+    private func geometryChange(from previous: CGRect, to next: CGRect) -> String {
+        let originChanged = abs(previous.origin.x - next.origin.x) > 0.5 || abs(previous.origin.y - next.origin.y) > 0.5
+        let sizeChanged = abs(previous.size.width - next.size.width) > 0.5 || abs(previous.size.height - next.size.height) > 0.5
+        if originChanged && sizeChanged { return "frame" }
+        if sizeChanged { return "size" }
+        return "origin"
+    }
+
+    private func geometryContext(
+        change: String? = nil,
+        cause: String? = nil,
+        phase: String? = nil,
+        transactionID: String? = nil
+    ) -> [String: Any] {
+        [
+            "change": change ?? "frame",
+            "cause": cause ?? "unknown",
+            "phase": phase ?? "settled",
+            "transaction_id": transactionID ?? UUID().uuidString,
+        ]
+    }
+
+    private func emitGeometry(_ canvas: CanvasLike, previousFrame: CGRect?, currentFrame: CGRect, context: [String: Any]) {
+        let info = canvas.toInfo()
+        var canvasPayload: [String: Any] = [
+            "id": info.id,
+            "at": info.at,
+            "interactive": info.interactive,
+        ]
+        if let parent = info.parent { canvasPayload["parent"] = parent }
+        if let track = info.track { canvasPayload["track"] = track }
+        if let scope = info.scope { canvasPayload["scope"] = scope }
+        if let lifecycleState = info.lifecycleState { canvasPayload["lifecycle_state"] = lifecycleState }
+        if let windowLevel = info.windowLevel { canvasPayload["window_level"] = windowLevel }
+        if let windowNumbers = info.windowNumbers { canvasPayload["windowNumbers"] = windowNumbers }
+        if let segments = info.segments {
+            canvasPayload["segments"] = segments.map { segment in
+                [
+                    "display_id": Int(segment.displayID),
+                    "index": segment.index,
+                    "dw_bounds": segment.dwBounds,
+                    "native_bounds": segment.nativeBounds,
+                ] as [String: Any]
+            }
+        }
+
+        var payload: [String: Any] = [
+            "canvas_id": info.id,
+            "change": context["change"] as? String ?? (previousFrame.map { geometryChange(from: $0, to: currentFrame) } ?? "frame"),
+            "cause": context["cause"] as? String ?? "unknown",
+            "phase": context["phase"] as? String ?? "settled",
+            "transaction_id": context["transaction_id"] as? String ?? UUID().uuidString,
+            "frame": frameArray(currentFrame),
+            "at": frameArray(currentFrame),
+            "canvas": canvasPayload,
+        ]
+        if let previousFrame {
+            payload["previous_frame"] = frameArray(previousFrame)
+        }
+        onCanvasGeometry?(payload)
+    }
+
     @discardableResult
-    private func moveCanvas(_ canvas: CanvasLike, to cgRect: CGRect) -> Bool {
+    private func moveCanvas(
+        _ canvas: CanvasLike,
+        to cgRect: CGRect,
+        geometry context: [String: Any]? = nil,
+        emitCompatibilityLifecycle: Bool = false
+    ) -> Bool {
         let current = canvas.cgFrame
         guard framesDiffer(current, cgRect) else { return false }
         canvas.updatePosition(cgRect: cgRect)
-        emitLifecycle(canvas, action: "updated")
+        let resolvedContext = context ?? geometryContext(
+            change: geometryChange(from: current, to: cgRect),
+            cause: "unknown",
+            phase: "settled"
+        )
+        emitGeometry(canvas, previousFrame: current, currentFrame: canvas.cgFrame, context: resolvedContext)
+        if emitCompatibilityLifecycle || ((resolvedContext["phase"] as? String) == "settled") {
+            emitLifecycle(canvas, action: "updated")
+        }
         return true
     }
 
@@ -851,7 +933,11 @@ class CanvasManager {
                         emitLifecycle(surface, action: "updated")
                         updated.insert(surface.id)
                     }
-                } else if moveCanvas(canvas, to: unionBounds) {
+                } else if moveCanvas(canvas, to: unionBounds, geometry: geometryContext(
+                    change: "frame",
+                    cause: "display.topology",
+                    phase: "settled"
+                )) {
                     updated.insert(canvas.id)
                 }
             case .none:
@@ -1092,14 +1178,22 @@ class CanvasManager {
                 return
             }
 
-            if let dict = body as? [String: Any],
+               if let dict = body as? [String: Any],
                let type = dict["type"] as? String {
+                let messagePayload = dict["payload"] as? [String: Any]
+                func messageString(_ key: String) -> String? {
+                    (dict[key] as? String) ?? (messagePayload?[key] as? String)
+                }
 
                 if type == "move_abs",
                    let _ = dict["screenX"] as? Double,
                    let _ = dict["screenY"] as? Double,
                    let offsetX = dict["offsetX"] as? Double,
                    let offsetY = dict["offsetY"] as? Double {
+                    let change = messageString("geometry_change")
+                    let cause = messageString("geometry_cause")
+                    let phase = messageString("geometry_phase")
+                    let transactionID = messageString("geometry_transaction_id")
                     DispatchQueue.main.async { [weak self] in
                         guard let self = self else { return }
                         let mouse = mouseInCGCoords()
@@ -1112,7 +1206,12 @@ class CanvasManager {
                         // No display-snap: let the canvas straddle displays freely,
                         // same as the avatar animation path. updatePosition's retry
                         // logic handles any single-frame OS rejection at boundaries.
-                        self.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height))
+                        self.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height), geometry: self.geometryContext(
+                            change: change,
+                            cause: cause ?? "placement.drag",
+                            phase: phase ?? "update",
+                            transactionID: transactionID
+                        ))
                     }
                     return
                 }
@@ -1126,22 +1225,76 @@ class CanvasManager {
                         var cg = canvas.cgFrame
                         cg.origin.x += CGFloat(dx)
                         cg.origin.y += CGFloat(dy)
-                        self.moveCanvas(canvas, to: cg)
+                        self.moveCanvas(canvas, to: cg, geometry: self.geometryContext(
+                            change: "origin",
+                            cause: "unknown",
+                            phase: "settled"
+                        ))
                     }
                     return
                 }
 
                 if type == "drag_start" {
-                    DispatchQueue.main.async {
+                    let transactionID = messageString("geometry_transaction_id") ?? UUID().uuidString
+                    DispatchQueue.main.async { [weak self] in
                         ((canvas as? Canvas)?.window as? CanvasWindow)?.isActivelyDraggingCanvas = true
+                        let context = self?.geometryContext(
+                            change: messageString("geometry_change") ?? "origin",
+                            cause: messageString("geometry_cause") ?? "placement.drag",
+                            phase: "start",
+                            transactionID: transactionID
+                        ) ?? [:]
+                        self?.activeGeometryTransactions[id] = context
+                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
                     }
                     return
                 }
 
                 if type == "drag_end" {
-                    DispatchQueue.main.async {
+                    let transactionID = messageString("geometry_transaction_id")
+                    DispatchQueue.main.async { [weak self] in
                         ((canvas as? Canvas)?.window as? CanvasWindow)?.isActivelyDraggingCanvas = false
                         canvas.finalizeDragPosition()
+                        let existing = self?.activeGeometryTransactions.removeValue(forKey: id)
+                        let context = self?.geometryContext(
+                            change: messageString("geometry_change") ?? existing?["change"] as? String ?? "origin",
+                            cause: messageString("geometry_cause") ?? existing?["cause"] as? String ?? "placement.drag",
+                            phase: messageString("geometry_phase") ?? "settled",
+                            transactionID: transactionID ?? existing?["transaction_id"] as? String
+                        ) ?? [:]
+                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
+                        self?.emitLifecycle(canvas, action: "updated")
+                    }
+                    return
+                }
+
+                if type == "resize_start" {
+                    let transactionID = messageString("geometry_transaction_id") ?? UUID().uuidString
+                    DispatchQueue.main.async { [weak self] in
+                        let context = self?.geometryContext(
+                            change: messageString("geometry_change") ?? "frame",
+                            cause: messageString("geometry_cause") ?? "resize.drag",
+                            phase: "start",
+                            transactionID: transactionID
+                        ) ?? [:]
+                        self?.activeGeometryTransactions[id] = context
+                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
+                    }
+                    return
+                }
+
+                if type == "resize_end" {
+                    let transactionID = messageString("geometry_transaction_id")
+                    DispatchQueue.main.async { [weak self] in
+                        let existing = self?.activeGeometryTransactions.removeValue(forKey: id)
+                        let context = self?.geometryContext(
+                            change: messageString("geometry_change") ?? existing?["change"] as? String ?? "frame",
+                            cause: messageString("geometry_cause") ?? existing?["cause"] as? String ?? "resize.drag",
+                            phase: messageString("geometry_phase") ?? "settled",
+                            transactionID: transactionID ?? existing?["transaction_id"] as? String
+                        ) ?? [:]
+                        self?.emitGeometry(canvas, previousFrame: nil, currentFrame: canvas.cgFrame, context: context)
+                        self?.emitLifecycle(canvas, action: "updated")
                     }
                     return
                 }
@@ -1321,7 +1474,12 @@ class CanvasManager {
 
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
-            if moveCanvas(canvas, to: newFrame) {
+            if moveCanvas(canvas, to: newFrame, geometry: geometryContext(
+                change: req.geometryChange,
+                cause: req.geometryCause,
+                phase: req.geometryPhase,
+                transactionID: req.geometryTransactionID
+            )) {
                 lifecycleDirty = false
             }
             canvas.anchorWindowID = nil
@@ -1341,7 +1499,11 @@ class CanvasManager {
             if t == .union {
                 let bounds = allDisplaysBounds()
                 if bounds.width > 0 && bounds.height > 0 {
-                    if moveCanvas(canvas, to: bounds) {
+                    if moveCanvas(canvas, to: bounds, geometry: geometryContext(
+                        change: "frame",
+                        cause: "track.retarget",
+                        phase: "settled"
+                    )) {
                         lifecycleDirty = false
                     }
                 }
@@ -1376,10 +1538,10 @@ class CanvasManager {
                     y: winBounds.origin.y + off[1],
                     width: off[2], height: off[3]
                 )
-                moveCanvas(canvas, to: newFrame)
+                moveCanvas(canvas, to: newFrame, geometry: geometryContext(change: "frame", cause: "anchor.follow", phase: "settled"))
             } else {
                 canvas.offset = CGRect(x: 0, y: 0, width: winBounds.width, height: winBounds.height)
-                moveCanvas(canvas, to: winBounds)
+                moveCanvas(canvas, to: winBounds, geometry: geometryContext(change: "frame", cause: "anchor.follow", phase: "settled"))
             }
             startAnchorPolling()
         } else if let anchorWin = req.anchorWindow, let off = req.offset, off.count == 4 {
@@ -1392,7 +1554,7 @@ class CanvasManager {
                     y: windowBounds.origin.y + off[1],
                     width: off[2], height: off[3]
                 )
-                moveCanvas(canvas, to: newFrame)
+                moveCanvas(canvas, to: newFrame, geometry: geometryContext(change: "frame", cause: "anchor.follow", phase: "settled"))
             }
             startAnchorPolling()
         }
@@ -1791,7 +1953,11 @@ class CanvasManager {
                 width: offset.size.width,
                 height: offset.size.height
             )
-            moveCanvas(canvas, to: newFrame)
+            moveCanvas(canvas, to: newFrame, geometry: geometryContext(
+                change: "frame",
+                cause: "anchor.follow",
+                phase: "update"
+            ))
         }
         if !anyAnchored && !anyAutoProject { stopAnchorPolling() }
     }

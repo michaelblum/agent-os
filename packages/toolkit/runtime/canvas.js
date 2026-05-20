@@ -304,14 +304,21 @@ export function move(dx, dy) {
   window.webkit?.messageHandlers?.headsup?.postMessage({ type: 'move', dx, dy })
 }
 
-export function moveAbsolute(screenX, screenY, offsetX, offsetY) {
+export function moveAbsolute(screenX, screenY, offsetX, offsetY, geometry = null) {
   // Absolute drag path — the daemon derives the true global mouse position
   // from AppKit and uses the provided in-canvas offset to position the window.
-  window.webkit?.messageHandlers?.headsup?.postMessage({
+  const payload = {
     type: 'move_abs',
     screenX,
     screenY,
     offsetX,
     offsetY,
-  })
+  }
+  if (geometry && typeof geometry === 'object') {
+    if (geometry.change) payload.geometry_change = geometry.change
+    if (geometry.cause) payload.geometry_cause = geometry.cause
+    if (geometry.phase) payload.geometry_phase = geometry.phase
+    if (geometry.transaction_id) payload.geometry_transaction_id = geometry.transaction_id
+  }
+  window.webkit?.messageHandlers?.headsup?.postMessage(payload)
 }

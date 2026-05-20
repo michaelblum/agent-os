@@ -10,7 +10,7 @@
 
 import { emit, esc } from '../../runtime/bridge.js'
 import { evalCanvas, mutateSelf, spawnChild } from '../../runtime/canvas.js'
-import { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
+import { canvasLifecycleCanvasID, mergeCanvasGeometryCanvas, normalizeCanvasGeometry, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
 import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
@@ -3003,14 +3003,37 @@ export default function CanvasInspector() {
     }
   }
 
+  function syncMinimapGeometryLayer() {
+    if (!minimapPaneEl) return
+    const minimapHTML = renderMinimap(minimapCanvases())
+    minimapPaneEl.innerHTML = minimapHTML || '<div class="empty-state">Waiting for display geometry...</div>'
+    syncMinimapDynamicLayer()
+    syncDebugState()
+    syncControlledAnnotationDisplayOverlays()
+    syncAnnotationActionControlCanvases()
+  }
+
+  function applyGeometry(data) {
+    const geometry = normalizeCanvasGeometry(data)
+    if (!geometry) return false
+    const existing = canvases.find(c => c.id === geometry.canvas_id) || null
+    const next = mergeCanvasGeometryCanvas(existing, data)
+    if (!next) return false
+    if (geometry.canvas_id === SELF_ID) currentSelfFrame = cloneFrame(next.at)
+    const existingIndex = canvases.findIndex(c => c.id === geometry.canvas_id)
+    if (existingIndex >= 0) canvases[existingIndex] = next
+    else canvases.push(next)
+    return true
+  }
+
   return {
     manifest: {
       name: 'surface-inspector',
       title: 'Surface Inspector',
-      accepts: ['bootstrap', 'canvas_lifecycle', 'display_geometry', 'input_event', 'window_entered', 'element_focused', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.annotation_open', 'canvas_inspector.semantic_targets'],
+      accepts: ['bootstrap', 'canvas_lifecycle', 'canvas_geometry', 'display_geometry', 'input_event', 'window_entered', 'element_focused', 'canvas_object.marks', 'canvas_object.registry', 'input_region', 'canvas_inspector.see_bundle_status', 'canvas_inspector.annotation_toggle', 'canvas_inspector.annotation_open', 'canvas_inspector.semantic_targets'],
       emits: ['canvas.send'],
       channelPrefix: 'surface-inspector',
-      requires: ['canvas_lifecycle', 'display_geometry', 'canvas_object.marks', 'canvas_object.registry', 'input_region'],
+      requires: ['canvas_lifecycle', 'canvas_geometry', 'display_geometry', 'canvas_object.marks', 'canvas_object.registry', 'input_region'],
       defaultSize: { w: 360, h: 520 },
     },
 
@@ -3248,6 +3271,20 @@ export default function CanvasInspector() {
           }
         }
         rerender()
+        return
+      }
+      if (msg.type === 'canvas_geometry') {
+        eventCount++
+        const geometry = msg.payload || msg.data || msg
+        if (!applyGeometry(geometry)) return
+        const normalized = normalizeCanvasGeometry(geometry)
+        if (normalized?.phase === 'settled' && annotationState.annotation_mode.active) {
+          invalidateAnnotationProjections('canvas_geometry_settled', {
+            settle_reason: 'canvas_geometry_settled',
+            request_semantic_targets: 'surface_inspector_geometry',
+          })
+        }
+        syncMinimapGeometryLayer()
         return
       }
       if (msg.type === 'canvas_object.marks') {

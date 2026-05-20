@@ -635,6 +635,11 @@ test('Surface Inspector exposes Annotation Mode controls and snapshot state', ()
   assert.match(source, /refreshSurfaceInspectorAnnotationProjectionsFromEvidence/);
   assert.match(source, /invalidateAnnotationProjections\('display_geometry_changed'/);
   assert.match(source, /invalidateAnnotationProjections\('canvas_lifecycle_changed'/);
+  assert.match(source, /accepts: \['bootstrap', 'canvas_lifecycle', 'canvas_geometry'/);
+  assert.match(source, /requires: \['canvas_lifecycle', 'canvas_geometry'/);
+  assert.match(source, /if \(msg\.type === 'canvas_geometry'\)/);
+  assert.match(source, /syncMinimapGeometryLayer\(\)/);
+  assert.match(source, /invalidateAnnotationProjections\('canvas_geometry_settled'/);
   assert.match(source, /else \{\s*requestSemanticTargetsForLiveCanvases\('surface_inspector_lifecycle'\)\s*\}/);
   assert.match(source, /annotationCanvasLifecycleAffectsProjection/);
   assert.match(source, /return ids\.some\(\(id\) => !isAnnotationInternalCanvasId\(id\)\)/);

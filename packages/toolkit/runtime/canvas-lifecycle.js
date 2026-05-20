@@ -36,3 +36,41 @@ export function mergeCanvasLifecycleCanvas(existing, data) {
   if (owner !== undefined) next.owner = owner
   return next
 }
+
+export function canvasGeometryCanvasID(data) {
+  return data?.canvas_id || data?.id || data?.canvas?.id || null
+}
+
+export function normalizeCanvasGeometry(data = {}) {
+  const id = canvasGeometryCanvasID(data)
+  if (!id) return null
+  const frame = data.frame || data.at || data.canvas?.at || null
+  if (!Array.isArray(frame) || frame.length < 4) return null
+  return {
+    canvas_id: id,
+    change: data.change || 'frame',
+    cause: data.cause || 'unknown',
+    phase: data.phase || 'settled',
+    transaction_id: data.transaction_id || null,
+    frame,
+    previous_frame: Array.isArray(data.previous_frame) ? data.previous_frame : null,
+    canvas: data.canvas && typeof data.canvas === 'object' ? data.canvas : null,
+  }
+}
+
+export function mergeCanvasGeometryCanvas(existing, data) {
+  const geometry = normalizeCanvasGeometry(data)
+  if (!geometry) return null
+  const canvas = geometry.canvas || {}
+  return {
+    ...(existing || {}),
+    ...canvas,
+    id: geometry.canvas_id,
+    at: geometry.frame,
+    interactive: data?.interactive ?? canvas.interactive ?? existing?.interactive ?? false,
+    parent: data?.parent ?? canvas.parent ?? existing?.parent ?? null,
+    track: data?.track ?? canvas.track ?? existing?.track ?? null,
+    scope: data?.scope ?? canvas.scope ?? existing?.scope ?? 'global',
+    lifecycle_state: data?.lifecycle_state ?? canvas.lifecycle_state ?? existing?.lifecycle_state ?? null,
+  }
+}

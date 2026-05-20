@@ -314,6 +314,12 @@ Options:
   `canvas` object mirroring `aos show list`. Lifecycle payloads include
   `lifecycle_state` so inspectors can distinguish ordinary active canvases
   from explicit warm suspended canvases.
+- `canvas_geometry` is the frame invalidation stream for origin/size/frame
+  changes. It carries `change`, `cause`, `phase`, `transaction_id`, `frame`,
+  optional `previous_frame`, `canvas_id`, and a nested `canvas` identity object.
+  It does not snapshot; pair it with `canvas_lifecycle` snapshots for initial
+  state. Pointer-frequency drag/resize updates use `phase: "update"` and should
+  be handled with cheap frame/minimap updates instead of structural rerenders.
 
 ### `spawnChild(opts)`
 

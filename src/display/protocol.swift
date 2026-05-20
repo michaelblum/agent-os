@@ -78,6 +78,10 @@ struct CanvasRequest: Codable {
     var channel: String?        // channel name (legacy relay path for "post" action)
     var data: String?           // JSON string payload (for "post" action)
     var owner: CanvasOwnerInfo? = nil // optional caller/session metadata for daemon-owned resources
+    var geometryChange: String? = nil // canvas_geometry change: origin, size, frame
+    var geometryCause: String? = nil  // canvas_geometry cause, e.g. placement.drag
+    var geometryPhase: String? = nil  // canvas_geometry phase: start, update, settled, cancelled
+    var geometryTransactionID: String? = nil // stable across a geometry sequence
 
     enum CodingKeys: String, CodingKey {
         case action, id, at, offset, html, url, interactive, focus, ttl, js, scope
@@ -86,6 +90,10 @@ struct CanvasRequest: Codable {
         case anchorChannel = "anchor_channel"
         case autoProject = "auto_project"
         case track, surface, parent, cascade, suspended, channel, data, owner
+        case geometryChange = "geometry_change"
+        case geometryCause = "geometry_cause"
+        case geometryPhase = "geometry_phase"
+        case geometryTransactionID = "geometry_transaction_id"
     }
 }
 

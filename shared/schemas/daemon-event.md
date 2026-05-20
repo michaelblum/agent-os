@@ -47,7 +47,9 @@ Optional initial replay for snapshot-capable streams:
 ```
 
 Today `snapshot:true` replays current state for `display_geometry` and
-`canvas_lifecycle` immediately after the success response. For
+`canvas_lifecycle` immediately after the success response. `canvas_geometry` is
+a live invalidation stream and does not replay snapshots; subscribe to
+`canvas_lifecycle` with `snapshot:true` for initial canvas frames. For
 `canvas_lifecycle`, the replay uses the same payload shape as live events,
 including canvas metadata such as `parent`, `track`, `interactive`, `window_level`, `scope`,
 `lifecycle_state`, `owner`, `windowNumbers`, the nested `canvas` object, and `segments` for DesktopWorld surfaces. For a
@@ -76,7 +78,8 @@ their topology before normal boot side effects run.
 | Event | Data | Trigger |
 |-------|------|---------|
 | `canvas_message` | `{id, payload}` | Canvas JS called postMessage |
-| `canvas_lifecycle` | `{canvas_id, action, at, parent?, track?, interactive, window_level?, scope?, ttl?, cascade?, suspended?, lifecycle_state?, owner?, windowNumbers?, canvas}` | Canvas created/removed/updated |
+| `canvas_lifecycle` | `{canvas_id, action, at, parent?, track?, interactive, window_level?, scope?, ttl?, cascade?, suspended?, lifecycle_state?, owner?, windowNumbers?, canvas}` | Canvas created/removed/structurally updated; compatibility `updated` may be emitted at settled geometry boundaries |
+| `canvas_geometry` | `{canvas_id, change, cause, phase, transaction_id, frame, previous_frame?, at, canvas}` | Canvas frame changed without implying structural lifecycle/resource invalidation |
 | `canvas_segment_added` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface gained a display-backed segment |
 | `canvas_segment_removed` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface lost a display-backed segment |
 | `canvas_segment_changed` | `{canvas_id, display_id, index, dw_bounds, native_bounds}` | DesktopWorld surface segment ordering or bounds changed |
@@ -102,6 +105,15 @@ fields are the V0 compatibility surface; `routed_input` is the canonical
 `desktop_world`, and `coordinate_authority`.
 Canvases can subscribe to `input_region` with `snapshot:true` to receive
 `input_region.snapshot` plus live register/update/remove notifications.
+
+`canvas_geometry.change` is `origin`, `size`, or `frame`. `phase` is `start`,
+`update`, `settled`, or `cancelled`; pointer-frequency drag and resize movement
+uses `update`, while final compatibility lifecycle updates are reserved for
+`settled`. `cause` is a dotted reason such as `placement.drag`, `resize.drag`,
+`layout.maximize`, `layout.restore`, `layout.minimize`,
+`layout.unminimize`, `anchor.follow`, `track.retarget`, `display.topology`, or
+`unknown`. `transaction_id` is stable for a drag, resize, maximize/restore, or
+other geometry sequence when a sequence exists.
 
 ### act
 

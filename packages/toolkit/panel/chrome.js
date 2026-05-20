@@ -258,6 +258,15 @@ function updateSelfFrame(frame) {
   mutateSelf({ frame: currentPanelFrame })
 }
 
+function updateSelfFrameWithGeometry(frame, geometry = null) {
+  currentPanelFrame = cloneFrame(frame)
+  mutateSelf(geometry ? { frame: currentPanelFrame, geometry } : { frame: currentPanelFrame })
+}
+
+function nextGeometryTransactionId(prefix = 'geometry') {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`
+}
+
 export const clampFrameToWorkArea = placementClampFrameToWorkArea
 
 function framesEqual(lhs, rhs) {
@@ -293,7 +302,7 @@ export function createPanelWindowController({
   getWorkArea = defaultPanelWorkArea,
   getDragWorkArea = defaultPanelDragWorkArea,
   getChipFrame = chipFrame,
-  updateFrame = updateSelfFrame,
+  updateFrame = updateSelfFrameWithGeometry,
   move = moveAbsolute,
   drag = true,
   resize = false,
@@ -426,7 +435,7 @@ export function createDragController({
   getDragWorkArea = (frame = frameFromWindow(), pointer = null) => (
     placementWorkAreaForPoint(pointer, panelDisplays, getWorkArea(frame))
   ),
-  updateFrame = updateSelfFrame,
+  updateFrame = updateSelfFrameWithGeometry,
   clampOnEnd = false,
   transfer = false,
   transferController = null,
@@ -447,6 +456,7 @@ export function createDragController({
     return {
       active: Boolean(active),
       frame: cloneFrame(frame),
+      transactionId: active?.transactionId || null,
       transferActive,
       ...extra,
     }
@@ -460,8 +470,10 @@ export function createDragController({
 
   return {
     start(pointer = {}) {
+      const transactionId = nextGeometryTransactionId('placement-drag')
       const startPoint = screenPoint(pointer)
       active = {
+        transactionId,
         pointerId: pointer.pointerId ?? null,
         offsetX: finiteNumber(pointer.clientX, 0),
         offsetY: finiteNumber(pointer.clientY, 0),
@@ -490,7 +502,13 @@ export function createDragController({
         finiteNumber(pointer.screenX, active.frame[0] + active.offsetX),
         finiteNumber(pointer.screenY, active.frame[1] + active.offsetY),
         active.offsetX,
-        active.offsetY
+        active.offsetY,
+        {
+          change: 'origin',
+          cause: 'placement.drag',
+          phase: 'update',
+          transaction_id: active.transactionId,
+        }
       )
       frame = dragFrameFromPointer(pointer, active.offsetX, active.offsetY, active.frame)
       return notify({ phase: 'move' })
@@ -499,6 +517,7 @@ export function createDragController({
       if (!active) return state({ phase: 'idle' })
       const releasePointer = screenPoint(pointer) || active.lastPointer
       const startFrame = cloneFrame(active.frame)
+      const transactionId = active.transactionId
       active = null
       const transferResult = panelTransfer?.end()
       if (transferResult?.nativeFrame) {
@@ -519,12 +538,17 @@ export function createDragController({
         })
         if (!framesEqual(frame, clamped)) {
           frame = clamped
-          updateFrame(clamped)
+          updateFrame(clamped, {
+            change: 'origin',
+            cause: 'placement.drag',
+            phase: 'settled',
+            transaction_id: transactionId,
+          })
         }
       } else {
         frame = cloneFrame(getFrame())
       }
-      return notify({ phase: 'end' })
+      return notify({ phase: 'end', transactionId })
     },
     getState() {
       return state()
@@ -598,7 +622,7 @@ export function resizeFrame(frame, edge, deltaX = 0, deltaY = 0, {
 export function createResizeController({
   getFrame = () => frameFromWindow(),
   getWorkArea = (frame = frameFromWindow()) => workAreaForFrameTopLeft(frame, panelDisplays, workAreaFromWindow()),
-  updateFrame = updateSelfFrame,
+  updateFrame = updateSelfFrameWithGeometry,
   minWidth = 240,
   minHeight = 160,
   maxWidth = Infinity,
@@ -613,13 +637,19 @@ export function createResizeController({
       active: Boolean(active),
       edge: active?.edge || null,
       frame: cloneFrame(frame),
+      transactionId: active?.transactionId || null,
       ...extra,
     }
   }
 
   function apply(nextFrame, extra = {}) {
     frame = cloneFrame(nextFrame)
-    updateFrame(frame)
+    updateFrame(frame, {
+      change: extra.change || 'frame',
+      cause: extra.cause || 'resize.drag',
+      phase: extra.geometryPhase || (extra.phase === 'move' ? 'update' : 'settled'),
+      transaction_id: active?.transactionId || extra.transactionId || null,
+    })
     const snapshot = state(extra)
     onStateChange?.(snapshot)
     return snapshot
@@ -628,6 +658,7 @@ export function createResizeController({
   return {
     start(edge, pointer = {}) {
       active = {
+        transactionId: nextGeometryTransactionId('resize-drag'),
         edge: normalizeResizeEdge(edge),
         startX: finiteNumber(pointer.screenX, 0),
         startY: finiteNumber(pointer.screenY, 0),
@@ -648,11 +679,12 @@ export function createResizeController({
         maxWidth,
         maxHeight,
         workArea: getWorkArea(active.frame),
-      }), { phase: 'move' })
+      }), { phase: 'move', change: 'frame', cause: 'resize.drag', geometryPhase: 'update' })
     },
     end() {
+      const transactionId = active?.transactionId || null
       active = null
-      const snapshot = state({ phase: 'end' })
+      const snapshot = state({ phase: 'end', transactionId })
       onStateChange?.(snapshot)
       return snapshot
     },
@@ -663,7 +695,7 @@ export function createResizeController({
         maxWidth,
         maxHeight,
         workArea: getWorkArea(getFrame()),
-      }), { phase: 'resize', edge: normalizeResizeEdge(edge) })
+      }), { phase: 'resize', edge: normalizeResizeEdge(edge), change: 'frame', cause: 'unknown', geometryPhase: 'settled' })
     },
     getState() {
       return state()
@@ -674,7 +706,7 @@ export function createResizeController({
 export function createMaximizeController({
   getFrame = () => frameFromWindow(),
   getWorkArea = (frame = frameFromWindow()) => workAreaForFrameTopLeft(frame, panelDisplays, workAreaFromWindow()),
-  updateFrame = updateSelfFrame,
+  updateFrame = updateSelfFrameWithGeometry,
   onStateChange = null,
 } = {}) {
   let maximized = false
@@ -695,7 +727,12 @@ export function createMaximizeController({
     if (maximized) return state()
     restoreFrame = cloneFrame(getFrame())
     maximized = true
-    updateFrame(cloneFrame(getWorkArea(restoreFrame)))
+    updateFrame(cloneFrame(getWorkArea(restoreFrame)), {
+      change: 'frame',
+      cause: 'layout.maximize',
+      phase: 'settled',
+      transaction_id: nextGeometryTransactionId('layout-maximize'),
+    })
     notify()
     return state()
   }
@@ -705,7 +742,12 @@ export function createMaximizeController({
     const frame = cloneFrame(restoreFrame)
     maximized = false
     restoreFrame = null
-    updateFrame(frame)
+    updateFrame(frame, {
+      change: 'frame',
+      cause: 'layout.restore',
+      phase: 'settled',
+      transaction_id: nextGeometryTransactionId('layout-restore'),
+    })
     notify()
     return state()
   }
@@ -1500,12 +1542,17 @@ export function wireDrag(header, controlsEl, {
     activePointerId = pointerId
     header.dataset.dragging = 'true'
     e.preventDefault()
+    onStart?.(e, dragController)
+    const startState = dragController.start(e)
     // Drag lifecycle matters to the daemon: mixed-DPI seam placement keeps a
     // direct path during active drags and only falls back to re-home behavior
     // for non-drag placements.
-    emit('drag_start')
-    onStart?.(e, dragController)
-    dragController.start(e)
+    emit('drag_start', {
+      geometry_change: 'origin',
+      geometry_cause: 'placement.drag',
+      geometry_phase: 'start',
+      geometry_transaction_id: startState?.transactionId,
+    })
     installInputBridge()
     if (globalInput) subscribe(['input_event'])
 
@@ -1540,8 +1587,13 @@ export function wireDrag(header, controlsEl, {
       try {
         if (header.hasPointerCapture(pointerId)) header.releasePointerCapture(pointerId)
       } catch {}
-      dragController.end(releasePointer)
-      emit('drag_end')
+      const endState = dragController.end(releasePointer)
+      emit('drag_end', {
+        geometry_change: 'origin',
+        geometry_cause: 'placement.drag',
+        geometry_phase: 'settled',
+        geometry_transaction_id: endState?.transactionId || startState?.transactionId,
+      })
       if (globalInput) unsubscribe(['input_event'])
       activePointerId = null
       finishDrag = null
@@ -1579,9 +1631,15 @@ export function wireResize(panel, {
       const pointerId = event.pointerId
       event.preventDefault()
       event.stopPropagation?.()
-      emit('resize_start', { edge: normalizedEdge })
       onStart?.(normalizedEdge, event, resizeController)
-      resizeController.start(normalizedEdge, event)
+      const startState = resizeController.start(normalizedEdge, event)
+      emit('resize_start', {
+        edge: normalizedEdge,
+        geometry_change: 'frame',
+        geometry_cause: 'resize.drag',
+        geometry_phase: 'start',
+        geometry_transaction_id: startState?.transactionId,
+      })
       try { handle.setPointerCapture(pointerId) } catch {}
 
       const onMove = (moveEvent) => {
@@ -1598,8 +1656,14 @@ export function wireResize(panel, {
         try {
           if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId)
         } catch {}
-        resizeController.end()
-        emit('resize_end', { edge: normalizedEdge })
+        const endState = resizeController.end()
+        emit('resize_end', {
+          edge: normalizedEdge,
+          geometry_change: 'frame',
+          geometry_cause: 'resize.drag',
+          geometry_phase: 'settled',
+          geometry_transaction_id: endState?.transactionId || startState?.transactionId,
+        })
       }
 
       handle.addEventListener('pointermove', onMove)
