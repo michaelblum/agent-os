@@ -100,8 +100,10 @@ session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`
 files for local contracts, `tests/README.md` for verification mechanics,
 `docs/recipes/` for reusable SOPs, `docs/design/` for provider-neutral plans
 and specs, and `shared/schemas/`, `docs/api/`, or `ARCHITECTURE.md` for
-cross-tool contracts. Prefer measured, provider-neutral guidance over reactive
-warnings. See
+cross-tool contracts. Use `CONTEXT.md`, `CONTEXT-MAP.md`, and
+`docs/agents/domain.md` as governed context surfaces, and follow
+`docs/recipes/context-doc-maintenance.md` when these docs may need to move
+together. Prefer measured, provider-neutral guidance over reactive warnings. See
 `docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
 
 ## Design Principle: Primitives First

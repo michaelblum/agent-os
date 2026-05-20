@@ -19,6 +19,9 @@ operating procedures.
 Do not infer that the repo is single-context just because root `CONTEXT.md`
 exists. `CONTEXT.md` is the shared vocabulary and contract-term index;
 `CONTEXT-MAP.md` is the routing map for the repo's separate domains.
+Use `docs/recipes/context-doc-maintenance.md` when a change may require these
+context surfaces, API docs, schemas, ADRs, AGENTS files, or recipes to be
+updated together.
 
 ## Decision Docs
 

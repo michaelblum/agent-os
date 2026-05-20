@@ -96,6 +96,7 @@ source root. This file is a routing map, not a replacement for those sources.
 - ADRs: `docs/adr/`.
 - Additional durable decisions: `docs/decisions/`.
 - Recipes and SOPs: `docs/recipes/`.
+- Context maintenance recipe: `docs/recipes/context-doc-maintenance.md`.
 - Design plans, notes, and work cards: `docs/design/`.
 - Use this context when a task touches architectural trade-offs, cross-tool
   contracts, reusable procedures, or workstream plans. Inspect both
