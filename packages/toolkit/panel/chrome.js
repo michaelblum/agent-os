@@ -1508,6 +1508,7 @@ export function wireDrag(header, controlsEl, {
   let finishDrag = null
   let inputBridgeInstalled = false
   let lastGlobalPointer = null
+  let nativeInputActive = false
 
   function installInputBridge() {
     if (inputBridgeInstalled || !globalInput) return
@@ -1523,11 +1524,13 @@ export function wireDrag(header, controlsEl, {
         ? { pointerId: activePointerId, screenX: x, screenY: y, source: 'input_event' }
         : null
       if ((eventType === 'left_mouse_dragged' || eventType === 'mouse_moved') && Number.isFinite(x) && Number.isFinite(y)) {
+        nativeInputActive = true
         lastGlobalPointer = globalPointer
         dragController.move(globalPointer)
         return
       }
       if (eventType === 'left_mouse_up' || eventType === 'pointer_cancel' || eventType === 'mouse_cancel') {
+        if (globalPointer) nativeInputActive = true
         if (globalPointer) lastGlobalPointer = globalPointer
         finishDrag(globalPointer || lastGlobalPointer || { pointerId: activePointerId, source: 'input_event' })
       }
@@ -1540,6 +1543,7 @@ export function wireDrag(header, controlsEl, {
     if ((!NodeCtor || e.target instanceof NodeCtor) && controlsEl?.contains?.(e.target)) return
     const pointerId = e.pointerId
     activePointerId = pointerId
+    nativeInputActive = false
     header.dataset.dragging = 'true'
     e.preventDefault()
     onStart?.(e, dragController)
@@ -1560,7 +1564,7 @@ export function wireDrag(header, controlsEl, {
 
     const onMove = (ev) => {
       if (ev.pointerId !== pointerId) return
-      if (globalInput) return
+      if (globalInput && nativeInputActive) return
       dragController.move(ev)
     }
 
@@ -1596,6 +1600,7 @@ export function wireDrag(header, controlsEl, {
       })
       if (globalInput) unsubscribe(['input_event'])
       activePointerId = null
+      nativeInputActive = false
       finishDrag = null
       lastGlobalPointer = null
       onEnd?.(ev, dragController)
