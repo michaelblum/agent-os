@@ -272,6 +272,17 @@ function pathHasPrefix(path = [], prefix = []) {
   return prefix.every((part, index) => text(path[index]) === text(part))
 }
 
+function pathHasMeaningfulAncestry(path = []) {
+  return Array.isArray(path) && path.map((part) => text(part)).filter(Boolean).length > 1
+}
+
+function isNativeWindowRootScope(scope = null) {
+  if (!scope) return false
+  if (scope.subject_kind === 'native_window') return true
+  const path = Array.isArray(scope.subject_path) ? scope.subject_path : []
+  return path.length <= 2 && path[0] === 'native_window' && path[1] === scope.root_id
+}
+
 function candidateDirectnessForScope(candidate = {}, scope = null) {
   if (!scope) return { accepted: true, direct: true, reason: 'display_root_scope' }
   if (candidateAddress(candidate) === scope.address || text(candidate.subject_id || candidate.id) === scope.subject_id) {
@@ -303,7 +314,18 @@ function candidateDirectnessForScope(candidate = {}, scope = null) {
   }
 
   if (scope.adapter_id === 'macos-ax' || scope.root_kind === 'native_window') {
-    if (adapter === 'macos-ax' && rootId === scope.root_id) return { accepted: true, direct: true, reason: 'scoped_native_window_child' }
+    if (adapter === 'macos-ax' && rootId === scope.root_id) {
+      if (isNativeWindowRootScope(scope)) return { accepted: true, direct: true, reason: 'scoped_native_window_child' }
+      if (pathHasMeaningfulAncestry(scope.subject_path) && pathHasMeaningfulAncestry(subjectPath)) {
+        if (!pathHasPrefix(subjectPath, scope.subject_path)) {
+          return { accepted: false, reason: 'candidate_not_in_active_scope' }
+        }
+        return subjectPath.length === scope.subject_path.length + 1
+          ? { accepted: true, direct: true, reason: 'scoped_native_ax_direct_child' }
+          : { accepted: true, direct: false, reason: 'scoped_native_ax_descendant' }
+      }
+      return { accepted: false, reason: 'candidate_not_in_active_scope_path_unverified' }
+    }
     const browserBridge = browserDomCandidateMatchesNativeWindowScope(candidate, scope)
     if (browserBridge.ok) return { accepted: true, direct: true, reason: browserBridge.reason }
     if (adapter === 'aos-browser-dom-element-picker') return { accepted: false, reason: browserBridge.reason }

@@ -467,6 +467,80 @@ test('native extended-display scope allows visually distinct descendant controls
   assert.equal(chooseAnnotationCandidateForScope([windowScope, panel, button], windowScope, { x: 2010, y: 130 }).id, 'button')
 })
 
+test('native AX active element scope rejects overlapping non-descendant subject paths', () => {
+  const windowScope = buildNativeWindowAnnotationCandidate({
+    window_id: 51,
+    app: 'Visual Studio Code',
+    pid: 4242,
+    bounds: { x: 0, y: 0, width: 1000, height: 800 },
+  })
+  const baseProjection = {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    status: 'visible',
+    current_render_status: 'visible',
+    projectable: true,
+    can_project_display_overlay: true,
+    coordinate_space: 'desktop_world',
+  }
+  const panel = node('panel', ['native_window', windowScope.root_id, 'ax_element', 'panel'], {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    root_kind: 'native_window',
+    subject_kind: 'AXGroup',
+    role: 'AXGroup',
+    label: 'Explorer',
+    projection: {
+      ...baseProjection,
+      subject_id: 'panel',
+      subject_kind: 'AXGroup',
+      visible_display_rect: { x: 100, y: 100, w: 500, h: 500 },
+      display_space_rect: { x: 100, y: 100, w: 500, h: 500 },
+    },
+  })
+  const child = node('child', ['native_window', windowScope.root_id, 'ax_element', 'panel', 'child'], {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    root_kind: 'native_window',
+    subject_kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Child',
+    capabilities: ['press'],
+    projection: {
+      ...baseProjection,
+      subject_id: 'child',
+      subject_kind: 'AXButton',
+      visible_display_rect: { x: 120, y: 120, w: 80, h: 32 },
+      display_space_rect: { x: 120, y: 120, w: 80, h: 32 },
+    },
+  })
+  const overlappingNonDescendant = node('other-child', ['native_window', windowScope.root_id, 'ax_element', 'other-panel', 'other-child'], {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    root_kind: 'native_window',
+    subject_kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Other',
+    capabilities: ['press'],
+    projection: {
+      ...baseProjection,
+      subject_id: 'other-child',
+      subject_kind: 'AXButton',
+      visible_display_rect: { x: 130, y: 130, w: 40, h: 20 },
+      display_space_rect: { x: 130, y: 130, w: 40, h: 20 },
+    },
+  })
+
+  const point = { x: 140, y: 140 }
+  const report = explainAnnotationCandidateChoice([panel, child, overlappingNonDescendant], panel, point)
+
+  assert.equal(report.selected.id, 'child')
+  assert.equal(report.scoped_candidate_count, 1)
+  assert.equal(report.rejected.some((entry) => entry.id === 'panel' && entry.reason === 'candidate_is_active_scope'), true)
+  assert.equal(report.rejected.some((entry) => entry.id === 'other-child' && entry.reason === 'candidate_not_in_active_scope'), true)
+  assert.equal(chooseAnnotationCandidateForScope([panel, child, overlappingNonDescendant], panel, point).id, 'child')
+})
+
 test('scoped selection collapses visually equivalent ancestor and descendant layers', () => {
   const scope = node('section', ['canvas', 'doc', 'semantic', 'section'], {
     adapter_id: 'aos-toolkit-semantic-target',
