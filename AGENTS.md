@@ -141,10 +141,13 @@ The `aos` CLI uses an embodied verb metaphor. Know the verbs and what they cover
 | `tell` | Communicate outward | Routes to TTS, channels, future sinks |
 | `listen` | Receive communication | Aggregates STT, channels, stdin, future sources |
 
-`say` is sugar for `tell human`. `do tell` is AppleScript (talks to apps, not
-agents). The agent decides WHAT to communicate and TO WHOM — the daemon decides
-HOW to deliver it. See `ARCHITECTURE.md` for the full rationale. Historical
-design context is archived at
+`say` is a direct TTS convenience path conceptually aligned with speaking to the
+human. `tell human` is daemon-routed communication; consumers that need routed
+communication, session metadata, channels, or future sinks should prefer
+`tell`. `do tell` is AppleScript (talks to apps, not agents). The agent decides
+WHAT to communicate and TO WHOM — the daemon decides HOW to deliver it. See
+`ARCHITECTURE.md` for the full rationale. Historical design context is archived
+at
 `docs/archive/superpowers/specs/2026-04-15-tell-hear-coordination-verbs-design.md`.
 
 ## Host Shell Boundary
