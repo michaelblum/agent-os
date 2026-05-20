@@ -344,7 +344,7 @@ test('native browser window scope blocks DOM candidates with mismatched or missi
   assert.equal(scoped.rejected.some((entry) => entry.id === 'unresolved-dom' && entry.reason === 'browser_content_inset_unresolved'), true)
 })
 
-test('semantic scope selection requires direct children rather than overlap-only descendants', () => {
+test('semantic scope selection allows visually distinct scoped descendants', () => {
   const scope = node('section', ['canvas', 'doc', 'semantic', 'section'], {
     adapter_id: 'aos-toolkit-semantic-target',
     root_id: 'doc',
@@ -368,8 +368,8 @@ test('semantic scope selection requires direct children rather than overlap-only
   grandchild.projection.visible_display_rect = { x: 40, y: 30, w: 80, h: 32 }
 
   const scoped = filterAnnotationCandidatesForScope([grandchild, direct], scope, { x: 50, y: 40 }, { include_rejections: true })
-  assert.deepEqual(scoped.candidates.map((candidate) => candidate.id), ['row'])
-  assert.equal(scoped.rejected.some((entry) => entry.id === 'button' && entry.reason === 'candidate_not_direct_child'), true)
+  assert.deepEqual(scoped.candidates.map((candidate) => candidate.id), ['button', 'row'])
+  assert.equal(chooseAnnotationCandidateForScope([grandchild, direct], scope, { x: 50, y: 40 }).id, 'button')
 })
 
 test('native extended-display scope explains child panel selection over active window and siblings', () => {
@@ -412,7 +412,91 @@ test('native extended-display scope explains child panel selection over active w
   assert.equal(chooseAnnotationCandidateForScope([windowScope, sibling, panel], windowScope, { x: 2010, y: 130 }).id, 'vscode-panel')
 })
 
-test('scoped decision report exposes no-direct-child fallback reason', () => {
+test('native extended-display scope allows visually distinct descendant controls', () => {
+  const windowScope = buildNativeWindowAnnotationCandidate({
+    window_id: 51,
+    app: 'Visual Studio Code',
+    pid: 4242,
+    bounds: { x: 1920, y: 0, width: 1440, height: 900 },
+  })
+
+  const baseProjection = {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    status: 'visible',
+    current_render_status: 'visible',
+    projectable: true,
+    can_project_display_overlay: true,
+    coordinate_space: 'desktop_world',
+  }
+  const panel = node('panel', ['native_window', windowScope.root_id, 'ax_element', 'panel'], {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    root_kind: 'native_window',
+    subject_kind: 'AXGroup',
+    role: 'AXGroup',
+    label: 'Explorer',
+    projection: {
+      ...baseProjection,
+      subject_id: 'panel',
+      subject_kind: 'AXGroup',
+      visible_display_rect: { x: 1980, y: 80, w: 340, h: 760 },
+      display_space_rect: { x: 1980, y: 80, w: 340, h: 760 },
+    },
+  })
+  const button = node('button', ['native_window', windowScope.root_id, 'ax_element', 'panel', 'button'], {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    root_kind: 'native_window',
+    subject_kind: 'AXButton',
+    role: 'AXButton',
+    label: 'New File',
+    capabilities: ['press'],
+    projection: {
+      ...baseProjection,
+      subject_id: 'button',
+      subject_kind: 'AXButton',
+      visible_display_rect: { x: 2000, y: 120, w: 80, h: 28 },
+      display_space_rect: { x: 2000, y: 120, w: 80, h: 28 },
+    },
+  })
+
+  const report = explainAnnotationCandidateChoice([windowScope, panel, button], windowScope, { x: 2010, y: 130 })
+  assert.equal(report.selected.id, 'button')
+  assert.equal(report.rejected.some((entry) => entry.id === windowScope.id && entry.reason === 'candidate_is_active_scope'), true)
+  assert.equal(chooseAnnotationCandidateForScope([windowScope, panel, button], windowScope, { x: 2010, y: 130 }).id, 'button')
+})
+
+test('scoped selection collapses visually equivalent ancestor and descendant layers', () => {
+  const scope = node('section', ['canvas', 'doc', 'semantic', 'section'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'section',
+  })
+  scope.projection.visible_display_rect = { x: 0, y: 0, w: 400, h: 400 }
+
+  const row = node('row', ['canvas', 'doc', 'semantic', 'section', 'row'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'row',
+  })
+  row.projection.visible_display_rect = { x: 40, y: 30, w: 80, h: 32 }
+
+  const button = node('button', ['canvas', 'doc', 'semantic', 'section', 'row', 'button'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'button',
+    capabilities: ['press'],
+  })
+  button.projection.visible_display_rect = { x: 40.5, y: 30, w: 79.5, h: 32 }
+
+  const report = explainAnnotationCandidateChoice([scope, row, button], scope, { x: 50, y: 40 })
+  assert.equal(report.selected.id, 'button')
+  assert.equal(report.scoped_candidate_count, 1)
+  assert.equal(report.rejected.some((entry) => entry.id === 'row' && entry.reason === 'candidate_visual_equivalent'), true)
+})
+
+test('scoped decision report exposes no-distinct-descendant fallback reason', () => {
   const scope = node('section', ['canvas', 'doc', 'semantic', 'section'], {
     adapter_id: 'aos-toolkit-semantic-target',
     root_id: 'doc',
@@ -426,11 +510,11 @@ test('scoped decision report exposes no-direct-child fallback reason', () => {
     subject_kind: 'button',
     capabilities: ['press'],
   })
-  grandchild.projection.visible_display_rect = { x: 40, y: 30, w: 80, h: 32 }
+  grandchild.projection.visible_display_rect = { x: 0, y: 0, w: 400, h: 400 }
 
   const report = explainAnnotationCandidateChoice([scope, grandchild], scope, { x: 50, y: 40 })
   assert.equal(report.selected, null)
-  assert.equal(report.fallback_reason, 'active_scope_no_direct_child_under_pointer')
+  assert.equal(report.fallback_reason, 'active_scope_no_distinct_descendant_under_pointer')
   assert.equal(report.rejected.some((entry) => entry.id === 'section' && entry.reason === 'candidate_is_active_scope'), true)
-  assert.equal(report.rejected.some((entry) => entry.id === 'button' && entry.reason === 'candidate_not_direct_child'), true)
+  assert.equal(report.rejected.some((entry) => entry.id === 'button' && entry.reason === 'candidate_visual_equivalent_to_active_scope'), true)
 })

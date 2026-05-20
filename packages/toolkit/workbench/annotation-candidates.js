@@ -130,6 +130,17 @@ function rectContainsRect(outer = null, inner = null, tolerance = 0.5) {
     && b.y + b.h <= a.y + a.h + t
 }
 
+function rectsVisuallyEquivalent(a = null, b = null, tolerance = 1) {
+  const left = normalizeAnnotationRectLike(a)
+  const right = normalizeAnnotationRectLike(b)
+  if (!left || !right) return false
+  const t = Math.max(0, Number(tolerance) || 0)
+  return Math.abs(left.x - right.x) <= t
+    && Math.abs(left.y - right.y) <= t
+    && Math.abs(left.w - right.w) <= t
+    && Math.abs(left.h - right.h) <= t
+}
+
 function browserDomCandidateMatchesNativeWindowScope(candidate = {}, scope = null) {
   const adapter = text(candidate.adapter_id || candidate.projection?.adapter_id)
   if (adapter !== 'aos-browser-dom-element-picker' || !scope) return { ok: false, reason: 'native_ax_root_mismatch' }
@@ -287,7 +298,7 @@ function candidateDirectnessForScope(candidate = {}, scope = null) {
     if (adapter === scope.adapter_id && rootId === scope.root_id && pathHasPrefix(subjectPath, scope.subject_path)) {
       return subjectPath.length === scope.subject_path.length + 1
         ? { accepted: true, direct: true, reason: 'scoped_semantic_direct_child' }
-        : { accepted: false, reason: 'candidate_not_direct_child' }
+        : { accepted: true, direct: false, reason: 'scoped_semantic_descendant' }
     }
   }
 
@@ -304,7 +315,7 @@ function candidateDirectnessForScope(candidate = {}, scope = null) {
       if (pathHasPrefix(subjectPath, scope.subject_path)) {
         return subjectPath.length === scope.subject_path.length + 1
           ? { accepted: true, direct: true, reason: 'scoped_browser_dom_direct_child' }
-          : { accepted: false, reason: 'candidate_not_direct_child' }
+          : { accepted: true, direct: false, reason: 'scoped_browser_dom_descendant' }
       }
       return { accepted: true, direct: true, reason: 'scoped_browser_page_child' }
     }
@@ -314,7 +325,7 @@ function candidateDirectnessForScope(candidate = {}, scope = null) {
   if (rootId && rootId === scope.root_id && pathHasPrefix(subjectPath, scope.subject_path)) {
     return subjectPath.length === scope.subject_path.length + 1
       ? { accepted: true, direct: true, reason: 'scoped_direct_child' }
-      : { accepted: false, reason: 'candidate_not_direct_child' }
+      : { accepted: true, direct: false, reason: 'scoped_descendant' }
   }
   return { accepted: false, reason: 'candidate_not_in_active_scope' }
 }
@@ -444,6 +455,7 @@ export function chooseAnnotationCandidate(candidates = [], point = null) {
 export function filterAnnotationCandidatesForScope(candidates = [], scope = null, point = null, options = {}) {
   const activeScope = scopeSubjectEvidence(scope)
   const scopeRect = activeScope?.rect || null
+  const visualEquivalenceTolerance = options.visual_equivalence_tolerance ?? 1
   const rejected = []
   const scoped = []
   for (const raw of Array.isArray(candidates) ? candidates : []) {
@@ -464,6 +476,10 @@ export function filterAnnotationCandidatesForScope(candidates = [], scope = null
       continue
     }
     if (point && !rectContainsPoint(rect, point)) continue
+    if (scopeRect && rectsVisuallyEquivalent(scopeRect, rect, visualEquivalenceTolerance)) {
+      rejected.push(rejectionSummary(candidate, 'candidate_visual_equivalent_to_active_scope'))
+      continue
+    }
     scoped.push({
       ...candidate,
       source_metadata: {
@@ -478,9 +494,27 @@ export function filterAnnotationCandidatesForScope(candidates = [], scope = null
       },
     })
   }
+  const collapsed = []
+  for (const candidate of scoped) {
+    const rect = candidateVisibleRect(candidate)
+    const existing = collapsed.find((entry) => rectsVisuallyEquivalent(entry.rect, rect, visualEquivalenceTolerance))
+    if (!existing) {
+      collapsed.push({ rect, candidates: [candidate] })
+    } else {
+      existing.candidates.push(candidate)
+    }
+  }
+  const visuallyDistinct = collapsed.map((entry) => {
+    const selected = chooseAnnotationCandidate(entry.candidates, point)
+    const selectedAddress = candidateAddress(selected)
+    for (const candidate of entry.candidates) {
+      if (candidateAddress(candidate) !== selectedAddress) rejected.push(rejectionSummary(candidate, 'candidate_visual_equivalent'))
+    }
+    return selected
+  }).filter(Boolean)
   return options.include_rejections
-    ? { candidates: scoped, rejected, active_scope: activeScope?.candidate || null }
-    : scoped
+    ? { candidates: visuallyDistinct, rejected, active_scope: activeScope?.candidate || null }
+    : visuallyDistinct
 }
 
 export function chooseAnnotationCandidateForScope(candidates = [], scope = null, point = null, options = {}) {
@@ -500,7 +534,7 @@ export function explainAnnotationCandidateChoice(candidates = [], scope = null, 
   const fallbackReason = selected
     ? ''
     : (activeScope
-        ? (scoped.candidates.length ? 'active_scope_candidates_not_projectable_under_pointer' : 'active_scope_no_direct_child_under_pointer')
+        ? (scoped.candidates.length ? 'active_scope_candidates_not_projectable_under_pointer' : 'active_scope_no_distinct_descendant_under_pointer')
         : (sourceCandidates.length ? 'no_projectable_candidate_under_pointer' : 'annotation_candidate_cache_empty'))
   return {
     active_scope: activeScope ? candidateSummary(activeScope.candidate) : null,
