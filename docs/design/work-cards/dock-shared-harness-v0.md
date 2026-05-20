@@ -11,8 +11,8 @@ ability.
 
 - Add `.docks/harness/` with a shared hook runner.
 - Add `.docks/{foreman,gdi,operator}/dock.json` for dock metadata.
-- Convert dock session-start and stop hooks into thin wrappers around the
-  shared harness.
+- Convert dock stop hooks into thin wrappers around the shared harness. The
+  accepted current model is Stop-only; startup hooks are intentionally absent.
 - Preserve dock-local pre/post hook room for bespoke behavior.
 - Replace clipboard-themed stop speech with neutral stop notices:
   `Foreman finished.`, `GDI finished.`, and `Operator finished.`
@@ -27,10 +27,10 @@ ability.
 ## Design
 
 The shared runner is `.docks/harness/dock-hook-runner.sh`. Dock-local
-`hooks/session-start.sh` and `hooks/stop.sh` remain the Codex hook targets, but
-only exec the shared runner with the phase and dock name. This keeps the Codex
-hook surface dock-local while removing duplicated AOS registration, voice bind,
-and stop-notice speech mechanics.
+`hooks/stop.sh` scripts remain the Codex hook targets and only exec the shared
+runner with the `stop` phase and dock name. This keeps the Codex hook surface
+dock-local while removing duplicated stop-notice speech mechanics and avoiding
+stale startup registration state.
 
 Each dock owns a `dock.json` with role, harness, bounded timeout, neutral stop
 notice, handoff policy, and voice filters. `voice.voice_slot` is a 1-based
@@ -41,8 +41,6 @@ ordinal over the current speakable AOS voice registry. Stop hooks use
 Dock-local extension points are executable optional scripts under each dock's
 `hooks/` directory:
 
-- `pre-session-start.sh`
-- `post-session-start.sh`
 - `pre-stop.sh`
 - `post-stop.sh`
 

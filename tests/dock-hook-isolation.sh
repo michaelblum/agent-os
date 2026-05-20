@@ -34,10 +34,9 @@ if defaults.get("voice") != {
 runner_text = runner.read_text()
 for required in (
     ".agents/hooks/session-common.sh",
-    "aos_resolve_session_id",
     "aos_run_hook_command_bounded",
-    "pre-$phase",
-    "post-$phase",
+    "run_optional_hook \"pre-stop\"",
+    "run_optional_hook \"post-stop\"",
     "say --voice-slot",
     "dock-defaults.json",
     "voice.quality_tiers",
@@ -48,6 +47,10 @@ if "Handoff on clipboard!" in runner_text:
     raise SystemExit("FAIL: shared dock runner still uses clipboard-themed stop notice")
 if "voice final-response" in runner_text:
     raise SystemExit("FAIL: shared dock runner must not call voice final-response for Stop notices")
+if "aos_resolve_session_id" in runner_text:
+    raise SystemExit("FAIL: shared dock runner must not require a resolved session id")
+if "voice bind" in runner_text:
+    raise SystemExit("FAIL: shared dock runner must not bind voices for Stop notices")
 
 expected = {
     "foreman": {
@@ -79,12 +82,14 @@ for role in ("gdi", "foreman", "operator"):
         for matcher in entries
         for hook in matcher.get("hooks", [])
     ]
-    expected_start = f".docks/{role}/hooks/session-start.sh"
     expected_stop = f".docks/{role}/hooks/stop.sh"
-    if not any(expected_start in command for command in commands):
-        raise SystemExit(f"FAIL: {role} hooks do not use isolated session-start script: {commands}")
+    hook_names = set(payload.get("hooks", {}).keys())
+    if hook_names != {"Stop"}:
+        raise SystemExit(f"FAIL: {role} hooks should only declare Stop, got {sorted(hook_names)}")
     if not any(expected_stop in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks do not use isolated stop script: {commands}")
+    if any("session-start.sh" in command for command in commands):
+        raise SystemExit(f"FAIL: {role} hooks must not require startup hooks: {commands}")
     if any(".docks/hooks/" in command or "AOS_DOCK_ROLE=" in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks still route through shared dock behavior: {commands}")
     for matcher in payload.get("hooks", {}).values():
@@ -117,21 +122,24 @@ for role in ("gdi", "foreman", "operator"):
     if "voice_slot_execution" in voice:
         raise SystemExit(f"FAIL: {role} voice_slot execution should no longer be pending: {dock_config}")
 
-    for script_name in ("session-start.sh", "stop.sh"):
-        script_path = root / ".docks" / role / "hooks" / script_name
-        if not os.access(script_path, os.X_OK):
-            raise SystemExit(f"FAIL: {role} {script_name} is not executable")
-        script = script_path.read_text()
-        if ".docks/harness/dock-hook-runner.sh" not in script:
-            raise SystemExit(f"FAIL: {role} {script_name} is not a shared harness wrapper")
-        if "exec " not in script:
-            raise SystemExit(f"FAIL: {role} {script_name} should exec the shared harness")
-        if ".agents/hooks/session-common.sh" in script or "aos_resolve_session_id" in script:
-            raise SystemExit(f"FAIL: {role} {script_name} still duplicates shared harness mechanics")
-        if "AOS_DOCK_ROLE=" in script or ".docks/hooks/" in script:
-            raise SystemExit(f"FAIL: {role} {script_name} still contains dock hook routing")
-        if "python3" in script or "resolve_session_id()" in script:
-            raise SystemExit(f"FAIL: {role} {script_name} still has duplicated session-id parsing")
+    start_script_path = root / ".docks" / role / "hooks" / "session-start.sh"
+    if start_script_path.exists():
+        raise SystemExit(f"FAIL: {role} must not restore a session-start hook")
+
+    script_path = root / ".docks" / role / "hooks" / "stop.sh"
+    if not os.access(script_path, os.X_OK):
+        raise SystemExit(f"FAIL: {role} stop.sh is not executable")
+    script = script_path.read_text()
+    if ".docks/harness/dock-hook-runner.sh" not in script:
+        raise SystemExit(f"FAIL: {role} stop.sh is not a shared harness wrapper")
+    if "exec " not in script:
+        raise SystemExit(f"FAIL: {role} stop.sh should exec the shared harness")
+    if ".agents/hooks/session-common.sh" in script or "aos_resolve_session_id" in script:
+        raise SystemExit(f"FAIL: {role} stop.sh still duplicates shared harness mechanics")
+    if "AOS_DOCK_ROLE=" in script or ".docks/hooks/" in script:
+        raise SystemExit(f"FAIL: {role} stop.sh still contains dock hook routing")
+    if "python3" in script or "resolve_session_id()" in script:
+        raise SystemExit(f"FAIL: {role} stop.sh still has duplicated session-id parsing")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 foreman_handoff_skill_path = root / ".docks" / "foreman" / "skills" / "session-handoff" / "skill.md"
@@ -185,15 +193,6 @@ chmod +x "$fake_bin/pbcopy"
 
 payload='{"session_id":"019d99f3-0001-7000-b000-000000000001","last_assistant_message":"Do not speak this tail.\n\n(on clipboard)"}'
 for role in gdi foreman operator; do
-  out="$(printf '%s' "$payload" | AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash ".docks/$role/hooks/session-start.sh")"
-  python3 - "$out" <<'PY'
-import json
-import sys
-payload = json.loads(sys.argv[1])
-if payload.get("continue") is not True:
-    raise SystemExit(f"FAIL: expected SessionStart hook success JSON, got {payload}")
-PY
-
   out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_FAKE_CLIPBOARD_LOG="$clipboard_log" AOS_FAKE_CLIPBOARD_ROLE="$role" bash ".docks/$role/hooks/stop.sh")"
   python3 - "$out" <<'PY'
 import json
@@ -220,9 +219,9 @@ for notice in 'GDI finished.' 'Foreman finished.' 'Operator finished.'; do
   grep -q "$notice" "$log_file"
 done
 for expected in \
-  'PHASE:stop ARGV:say --voice-slot 1 --language en --quality-tier premium --quality-tier enhanced --gender male Foreman finished.' \
-  'PHASE:stop ARGV:say --voice-slot 2 --language en --quality-tier premium --quality-tier enhanced --gender female GDI finished.' \
-  'PHASE:stop ARGV:say --voice-slot 3 --language en --quality-tier premium --quality-tier enhanced --gender female Operator finished.'; do
+  'ARGV:say --voice-slot 1 --language en --quality-tier premium --quality-tier enhanced --gender male Foreman finished.' \
+  'ARGV:say --voice-slot 2 --language en --quality-tier premium --quality-tier enhanced --gender female GDI finished.' \
+  'ARGV:say --voice-slot 3 --language en --quality-tier premium --quality-tier enhanced --gender female Operator finished.'; do
   grep -q "$expected" "$log_file" || {
     echo "FAIL: missing Stop hook say voice-slot call: $expected" >&2
     cat "$log_file" >&2
@@ -233,11 +232,11 @@ if grep -q 'Handoff on clipboard!' "$log_file"; then
   echo "FAIL: stop hooks must use neutral stop notices, not clipboard-themed notices" >&2
   exit 1
 fi
-if grep -q 'PHASE:stop ARGV:voice bind' "$log_file"; then
+if grep -q 'ARGV:voice bind' "$log_file"; then
   echo "FAIL: Stop hook path must not call voice bind for normal stop speech" >&2
   exit 1
 fi
-if grep -q 'PHASE:stop ARGV:voice final-response' "$log_file"; then
+if grep -q 'ARGV:voice final-response' "$log_file"; then
   echo "FAIL: Stop hook path must not call voice final-response for normal stop speech" >&2
   exit 1
 fi
@@ -265,21 +264,6 @@ set -euo pipefail
 sleep 9
 SH
 chmod +x "$slow_aos"
-
-SECONDS=0
-out="$(printf '%s' "$payload" | AOS_DOCK_AOS_BIN="$slow_aos" AOS_DOCK_HOOK_TIMEOUT_SECONDS=1 bash ".docks/gdi/hooks/session-start.sh")"
-elapsed="$SECONDS"
-python3 - "$out" <<'PY'
-import json
-import sys
-payload = json.loads(sys.argv[1])
-if payload.get("continue") is not True:
-    raise SystemExit(f"FAIL: expected bounded fake-AOS hook success JSON, got {payload}")
-PY
-if (( elapsed > 6 )); then
-  echo "FAIL: bounded fake-AOS hook took too long: ${elapsed}s" >&2
-  exit 1
-fi
 
 SECONDS=0
 out="$(printf '%s' "$payload" | AOS_DOCK_AOS_BIN="$slow_aos" AOS_DOCK_HOOK_TIMEOUT_SECONDS=1 bash ".docks/gdi/hooks/stop.sh")"
