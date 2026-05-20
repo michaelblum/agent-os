@@ -1,7 +1,7 @@
 # Work Card: architecture-context-doc-update-v0
 
-**Status:** Ready for implementation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -12,6 +12,18 @@ Doc update follow-up for:
 
 The second-pass validation confirmed all named findings or confirmed them with
 wording adjustments. No findings were refuted.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- No implementation edits were needed in `ARCHITECTURE.md` or `CONTEXT.md`; the
+  merged main state already applies the validated audit findings.
+- Verification passed:
+  `rg -n "No tool emits unstructured text|No DOM involved|schema work still needs to define the handle shape|screen:<state-id>/<x,y>|When tell gains new capabilities, say inherits them" ARCHITECTURE.md CONTEXT.md`
+  produced no matches.
+- Manual spot checks confirmed the remaining JSON contract, browser target,
+  `say`/`tell human`, State ID, Subject Entry Handle, toolkit roster, and Work
+  Record references are qualified consistently with the validation findings.
 
 ## Fresh Context Contract
 

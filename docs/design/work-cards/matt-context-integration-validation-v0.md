@@ -1,7 +1,7 @@
 # Work Card: matt-context-integration-validation-v0
 
-**Status:** Ready for validation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -12,6 +12,18 @@ Second-pass validation for:
 This validates whether agent-os partially adopted Matt Pocock's
 `/grill-with-docs` and `CONTEXT.md` model without the setup, context-map, and
 maintenance surfaces that make it reliable in a large monorepo.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
+  contains per-finding validation notes plus a `Post-Audit Implementation
+  Status` section.
+- The note records the local Matt skills checkout state and the unrelated
+  `.DS_Store` files that were not edited.
+- Verification evidence: `git diff --check` passed, and manual review of the
+  note confirmed the validation questions were answered with concrete path
+  evidence.
 
 ## Fresh Context Contract
 

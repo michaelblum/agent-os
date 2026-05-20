@@ -1,7 +1,7 @@
 # Work Card: adr-namespace-consolidation-v0
 
-**Status:** Ready for implementation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -16,6 +16,17 @@ Implementation follow-up for:
 The ADR namespace audit recommends consolidating the single ADR-named file in
 `docs/decisions/` into the canonical `docs/adr/` series. This slice implements
 that docs-only migration and updates live consumer guidance.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- `docs/adr/0012-toolkit-platform-strategy.md` exists with the accepted toolkit
+  platform strategy content and provenance note.
+- `docs/decisions/` is absent from the working tree.
+- Live guidance no longer treats `docs/decisions/` as an active ADR namespace:
+  `rg -n "docs/decisions|ADR-001-toolkit-platform-strategy|0012-toolkit-platform-strategy|ADR namespace|durable decision|durable-decision" AGENTS.md CONTEXT-MAP.md docs/agents/domain.md docs/recipes/context-doc-maintenance.md docs/adr`
+  returns only the historical provenance note in
+  `docs/adr/0012-toolkit-platform-strategy.md`.
 
 ## Fresh Context Contract
 

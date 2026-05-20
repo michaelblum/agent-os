@@ -1,7 +1,7 @@
 # Work Card: context-maintenance-sop-v0
 
-**Status:** Ready for implementation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -16,6 +16,19 @@ The context setup, context map, and live-doc stale sweep fixed the immediate
 drift. The remaining governance gap is durable maintenance: agents still need a
 single SOP for when context docs, API docs, schemas, ADRs, AGENTS files, and
 recipes must be updated together.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- `docs/recipes/context-doc-maintenance.md` exists and covers local context
+  model, placement rules, coupled update triggers, stale-phrase checks, and
+  authority conflict behavior.
+- Pointer surfaces are updated in `AGENTS.md`, `docs/agents/domain.md`, and
+  `CONTEXT-MAP.md`.
+- Verification passed:
+  `rg -n "context-doc-maintenance|CONTEXT.md|CONTEXT-MAP.md|docs/agents/domain.md" AGENTS.md docs/agents/domain.md CONTEXT-MAP.md docs/recipes/context-doc-maintenance.md`.
+- Matt skills checkout was inspected read-only; only unrelated `.DS_Store`
+  files were present.
 
 ## Fresh Context Contract
 

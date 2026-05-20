@@ -1,7 +1,7 @@
 # Work Card: matt-context-map-v0
 
-**Status:** Ready for implementation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -15,6 +15,16 @@ The setup scaffold now teaches agents that agent-os is multi-context in
 practice, but still says `CONTEXT-MAP.md` is deferred. This slice creates the
 first root context map and updates only the small pointers that currently depend
 on its absence.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- Root `CONTEXT-MAP.md` exists and maps root/shared vocabulary, runtime
+  primitives, toolkit, workbench subjects, docks/session operations, Sigil,
+  gateway/host, and durable decisions/SOPs.
+- `AGENTS.md` and `docs/agents/domain.md` point agents to `CONTEXT-MAP.md`.
+- Verification passed:
+  `rg -n "CONTEXT-MAP.md|CONTEXT.md|docs/agents/domain.md" AGENTS.md docs/agents/domain.md CONTEXT-MAP.md`.
 
 ## Fresh Context Contract
 

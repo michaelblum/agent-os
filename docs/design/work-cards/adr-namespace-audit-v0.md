@@ -1,7 +1,7 @@
 # Work Card: adr-namespace-audit-v0
 
-**Status:** Ready for audit
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -16,6 +16,17 @@ The context setup, context map, stale-doc sweep, and maintenance SOP now teach
 agents to inspect both `docs/adr/` and `docs/decisions/`. That is an interim
 consumer rule, not a resolved namespace decision. This slice should produce an
 audit and recommendation before any ADR or decision files are moved.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- `docs/design/notes/adr-namespace-audit-2026-05-20.md` exists and includes the
+  requested inventory, consumer guidance summary, risk analysis, options,
+  recommendation, and follow-up plan.
+- The note also records the later implementation status: the toolkit platform
+  strategy was migrated to `docs/adr/0012-toolkit-platform-strategy.md`.
+- Verification passed:
+  `rg -n "docs/adr|docs/decisions|ADR namespace|durable-decision|durable decision" docs/design/notes/adr-namespace-audit-2026-05-20.md`.
 
 ## Fresh Context Contract
 

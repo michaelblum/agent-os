@@ -1,7 +1,7 @@
 # Work Card: matt-context-setup-scaffold-v0
 
-**Status:** Ready for implementation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -13,6 +13,16 @@ Implementation follow-up for:
 The validated audit found that agent-os adopted the visible `CONTEXT.md` /
 ADR pieces of Matt Pocock's engineering skills without the setup layer that
 teaches agents how to consume those docs in this repo.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- Root `AGENTS.md` contains the repo-local `## Agent skills` block.
+- `docs/agents/domain.md`, `docs/agents/issue-tracker.md`, and
+  `docs/agents/triage-labels.md` exist.
+- The Matt audit note records the implementation commit for this scaffold.
+- Verification evidence: `rg -n "^## Agent skills$|docs/agents/domain.md|docs/agents/issue-tracker.md|docs/agents/triage-labels.md" AGENTS.md docs/agents`
+  finds the expected block and docs.
 
 ## Fresh Context Contract
 
