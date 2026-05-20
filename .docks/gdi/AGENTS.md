@@ -11,6 +11,8 @@ bounded deterministic implementation work from plain work-card handoffs. Work in
 GDI owns deterministic implementation for the assigned goal:
 
 - consume the assigned work card or goal literally;
+- treat one GDI session as one goal round that ends in completion, failure, or
+  stall;
 - implement the narrowest correct change;
 - update local docs, schemas, fixtures, and tests required by that change;
 - run the requested verification and any adjacent tests needed for confidence;
@@ -40,25 +42,48 @@ For all profiles, the git boundary is:
 
 ### Preconditions — run before any implementation work
 
-1. **Sync** — fetch and hard-reset to origin/main before branching:
+1. **Resolve the assigned base** — read the dispatch first. If the work card is
+   readable in the current tree, read enough of it to find `branch_from` or
+   `required_start_ref` before resetting branches. If the work card is not
+   readable yet, use an explicit "start from" ref in the dispatch. If no base is
+   named and the work card path is not present, stop and report `misrouted` to
+   Foreman instead of resetting to `origin/main`.
+
+   If no base is named and the work card is present, use `origin/main`.
+
+   Bad assumptions to avoid:
+   - a clean `git status` means no local dirty files, not that the branch is the
+     correct base;
+   - router changed-file counts are often branch diff against a base, not dirty
+     local state;
+   - a work card or report may exist only on a feature branch.
+
+2. **Sync** — fetch and hard-reset the selected base before branching:
    ```
    git fetch origin
-   git checkout main
-   git reset --hard origin/main
+   git switch -C <local-base-branch> <required_start_ref>
    ```
-   Do not skip this step. Do not start implementation if local main is behind
-   or ahead of origin/main.
+   For the default main base, use `main` and `origin/main`. For a non-main
+   base, create or reuse a local work surface that tracks the named ref. Do not
+   reset to `origin/main` when the work card explicitly names another
+   `branch_from`.
 
-2. **Branch** — create `gdi/<work-card-slug>` from the now-synced `main`:
+3. **Verify instructions exist** — after syncing the selected base, confirm the
+   assigned work card or source artifact exists. If it does not, stop and report
+   `misrouted` to Foreman instead of inferring a different base.
+
+4. **Branch** — create `gdi/<work-card-slug>` from the selected base unless the
+   work card says the selected branch is the work surface:
    ```
    git checkout -b gdi/<work-card-slug>
    ```
-   If the branch already exists on origin, check it out and rebase on main.
-   If the work card specifies `branch_from`, branch from that ref instead.
+   If the branch already exists on origin, follow the work card's reuse/reset
+   instruction. If no instruction is present, stop and report the ambiguity to
+   Foreman rather than rebasing onto the wrong base.
 
 ### Implementation
 
-3. **Commit** — make scoped, atomic commits on the branch as work progresses.
+5. **Commit** — make scoped, atomic commits on the branch as work progresses.
    Follow the commit message convention in the work card if provided; otherwise
    use `<type>(<scope>): <short description>`. No AI attribution trailers.
 
@@ -67,16 +92,16 @@ For all profiles, the git boundary is:
 
 ### Completion — run after all verification passes
 
-4. **Verify commit contents** — confirm deliverables are in HEAD:
+6. **Verify commit contents** — confirm deliverables are in HEAD:
    ```
    git show --stat HEAD
    ```
    Include the full output in your completion report.
 
-5. **Push** — `git push origin gdi/<work-card-slug>` after verification.
+7. **Push** — `git push origin gdi/<work-card-slug>` after verification.
    Do not push until the work card verification block is green.
 
-6. **Completion report** — include all of the following, structured exactly
+8. **Completion report** — include all of the following, structured exactly
    as shown so Foreman can review it:
 
    ```
@@ -84,7 +109,7 @@ For all profiles, the git boundary is:
    - profile: <profile from the work card or docs/dev/active-profile.json>
    - branch: gdi/<slug>
    - head_sha: <git rev-parse HEAD>
-   - base_sha: <origin/main SHA at branch time>
+   - base_sha: <required_start_ref SHA at branch time>
    - files_changed: <n>
    - tests_passed: <n>/<n>
    - conflict_risk: <none|low|medium — list files if low or medium>
@@ -107,3 +132,23 @@ For all profiles, the git boundary is:
 
 GDI does not open PRs, merge branches, close issues, or rewrite branch history
 unless the work card explicitly assigns that operation.
+
+## Human-Needed TCC Stall
+
+If `./aos ready`, live AOS verification, Accessibility, Input Monitoring, or an
+inactive input-tap state blocks the assigned goal, do not keep retrying the
+goal. Run the bounded stall helper once:
+
+```bash
+.docks/gdi/scripts/human-needed-tcc-reset
+```
+
+Then stop and report `human_needed` with the script output. After the human
+returns with "ready", run:
+
+```bash
+./aos ready --post-permission
+```
+
+Continue only when that reports ready. If it still reports a blocker, return to
+Foreman with the exact blocker instead of starting ad-hoc repair loops.

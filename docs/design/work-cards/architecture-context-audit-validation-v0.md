@@ -51,6 +51,19 @@ This is a docs/code audit. Do not run `./aos ready` unless you decide live
 runtime evidence is essential. Prefer static source inspection and bounded CLI
 dry-runs.
 
+## Branch/Base
+
+branch_from: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
+required_start_ref: `origin/gdi/toolkit-panel-theme-consistency-audit-v0`
+
+This validation card and the first-pass audit report live on the branch above,
+not on `origin/main`. Do not reset to `origin/main` for this validation. A clean
+worktree on the source branch is acceptable; router changed-file counts are
+branch-diff context, not dirty local state.
+
+Use `gdi/architecture-context-audit-validation-v0` as the validation output
+branch if you need a separate branch. Start it from the required start ref.
+
 ## Existing Code To Inspect
 
 Start with these files, then search as needed:

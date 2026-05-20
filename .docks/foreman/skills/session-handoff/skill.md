@@ -1,12 +1,17 @@
 ---
 name: foreman-session-handoff
-description: Prepare a compact Foreman successor handoff before compaction, thread switch, or end-of-session transfer, especially for agent-os work involving GitHub issues/PRs, GDI or Operator routing, work cards, branch hygiene, verification evidence, and next-slice ownership.
+description: Prepare a compact successor-Foreman handoff before compaction, thread switch, or Foreman-to-Foreman session transfer. Use only for compressing current coordination state for the next Foreman. Do not use this skill to write GDI work cards, Operator instructions, relay packets, cross-dock clipboard handoffs, completion reviews, or recipient-specific transfer artifacts.
 argument-hint: "What should the next Foreman session focus on?"
 ---
 
+Use this skill only for a successor-Foreman handoff: compact state transfer from
+one Foreman session to the next. If the target is GDI, Operator, a remote relay,
+or a human blocker handoff, stop and use the Foreman transfer skill instead.
+
 Write a handoff document for the next Foreman session. Save it to a path from
-`mktemp -t handoff-XXXXXX.md`; read the new file before writing to it. If the
-user explicitly asks for chat-only output, return the handoff in chat instead.
+`mktemp -t foreman-handoff-XXXXXX.md`; read the new file before writing to it.
+If the user explicitly asks for chat-only output, return the handoff in chat
+instead.
 
 Optimize for successor efficiency. Use state already known from the predecessor
 session. Do not run repo/GitHub/runtime discovery commands just to fill a
@@ -38,6 +43,13 @@ Do not duplicate content already captured in work cards, PRDs, ADRs, issues,
 PRs, commits, diffs, or test artifacts. Reference those artifacts instead.
 
 Keep it compact and operational. Prefer bullets with exact paths, issue numbers,
-branches, SHAs, and commands. Do not call it a retirement handoff. Do not add
-GDI/Operator command ceremony unless the user explicitly asked for a cross-dock
-task handoff.
+branches, SHAs, and commands. Do not call it a retirement handoff.
+
+Misuse guardrails:
+
+- Do not create or revise `docs/design/work-cards/` from this skill.
+- Do not decide GDI branch bases or verification contracts from this skill.
+- Do not copy a GDI or Operator dispatch to the clipboard from this skill.
+- Do not add GDI/Operator command ceremony.
+- Do not summarize a work card into the successor handoff when a path reference
+  is enough.

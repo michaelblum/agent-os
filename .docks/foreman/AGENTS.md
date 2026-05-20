@@ -101,6 +101,30 @@ Treat these as governance failures to correct in the same turn:
 - ending with a generic offer instead of the executed next action and current
   owner.
 
+## Transfer Artifacts
+
+Before creating anything meant for another session, classify the transfer. Use
+the dock-local Foreman transfer skill for cross-session artifacts:
+
+- successor handoff: Foreman-to-Foreman state compression;
+- GDI round: one deterministic goal until completion, failure, or stall;
+- Operator run: supervised live/HITL evidence collection;
+- relay packet: remote/GitHub-visible execution or review exchange;
+- correction round: bounded follow-up after review or acceptance failure;
+- human-needed packet: a blocker whose next actor is the human.
+
+Do not use the `foreman-session-handoff` skill to write GDI work cards,
+Operator instructions, relay packets, or clipboard dispatches. That skill is
+only for successor-Foreman compression.
+
+Every non-trivial transfer artifact must state the recipient, transfer kind,
+single next goal, source artifact, required start ref when it is not
+`origin/main`, branch/output expectations, stop conditions, and required
+evidence. This is especially important when the work card or evidence exists
+only on a feature branch: a clean worktree does not prove the branch is the
+right base, and router changed-file counts may be branch diff rather than dirty
+state.
+
 ## Work-Card Routing
 
 For non-trivial GDI implementation work, create or update a Markdown work card
@@ -137,6 +161,22 @@ Do not paste long implementation instructions directly into the clipboard goal
 unless the task is genuinely small. If Foreman creates draft evidence, label it
 clearly in the work card so GDI knows whether to retain, amend, supersede, or
 revert it.
+
+When the GDI work card, report, fixture, or prerequisite commit is not on
+`origin/main`, include a Branch/Base section in the card with
+`branch_from: <ref>` and `required_start_ref: <ref>`, and include the start ref
+in the clipboard dispatch, for example:
+
+```text
+follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>
+```
+
+GDI rounds are one-goal sessions. If the next expected work is validation only,
+say validation only. If the next expected work is a correction, name the exact
+finding or path. If a live AOS/TCC blocker may stall the round, put the
+repo-standard stall path in the card:
+`.docks/gdi/scripts/human-needed-tcc-reset`, then
+`./aos ready --post-permission` after the human returns.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
 the thin plain work-card instruction, then add human-facing manual steps in Foreman's

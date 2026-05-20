@@ -86,6 +86,20 @@ that work.
 
 ## Cross-Session Handoffs
 
+Use precise transfer language so dock roles do not inherit the wrong workflow:
+
+- **Transfer** is the umbrella term for moving actionable context to another
+  session or actor.
+- **Handoff** is state transfer to a successor session, especially
+  Foreman-to-Foreman continuity.
+- **Dispatch** is the short clipboard payload that starts a target dock on an
+  existing artifact.
+- **Work card** is a durable Markdown task contract, usually consumed by GDI.
+- **Round** is one recipient session's attempt at one goal until completion,
+  failure, or stall.
+- **Relay** is a GitHub-visible branch/report exchange, not a synonym for every
+  dock handoff.
+
 For cross-session handoffs, use the repo-level agent handoff tool from the repo
 root:
 

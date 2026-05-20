@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+cd "$repo_root"
+
+notice="User needed! Repo-mode AOS permissions need human action."
+./aos say "$notice" >/dev/null 2>&1 || true
+
+echo "human_needed: repo-mode AOS permission repair"
+echo
+echo "GDI must stop the current goal loop here. Do not keep retrying live checks."
+echo
+echo "Running bounded readiness repair evidence:"
+./aos ready --repair --json || true
+echo
+echo "Running targeted repo-mode runtime reset:"
+./aos permissions reset-runtime --mode repo || true
+echo
+cat <<'EOF'
+Human action:
+1. Run: ./aos permissions setup --once
+2. Grant the requested macOS Accessibility/Input Monitoring permission for the
+   repo-mode aos runtime if macOS prompts.
+3. Return to the session and say: ready
+
+After the human returns, run:
+  ./aos ready --post-permission
+
+Continue only if it reports ready=true. If targeted reset reported unavailable
+or failed, report that exact blocker to Foreman instead of trying ad-hoc loops.
+EOF
