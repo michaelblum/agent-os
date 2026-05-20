@@ -88,6 +88,8 @@ class UnifiedDaemon {
     private lazy var inputSafetyVisualFeedbackPresenter = InputSafetyVisualFeedbackPresenter(
         runtime: DaemonInputSafetyVisualFeedbackRuntime(canvasManager: canvasManager)
     )
+    private var inputSafetyPassthroughTimer: DispatchSourceTimer?
+    private var inputSafetyPassthroughDeadline: Date?
     private var speechEngine: SpeechEngine?
     private var speechCancelTap: CFMachPort?
     private var speechCancelTapSource: CFRunLoopSource?
@@ -219,7 +221,7 @@ class UnifiedDaemon {
             self?.handleInputEvent(event: event, data: data) ?? false
         }
         perception.onInputSafetyHotkeyTriggered = { [weak self] deadline in
-            self?.inputSafetyVisualFeedbackPresenter.trigger(deadline: deadline)
+            self?.activateInputSafetyPassthrough(until: deadline)
         }
 
         // Wire canvas events -> broadcast
@@ -2408,6 +2410,7 @@ class UnifiedDaemon {
                         "cleanup_pending": visualSnapshot.cleanupPending,
                         "cleanup_complete": visualSnapshot.cleanupComplete,
                     ],
+                    "canvas_input_passthrough_active": canvasManager.inputPassthroughActive,
                 ] as [String: Any],
                 // New nested permissions block (daemon-sourced)
                 "permissions": [
@@ -2947,6 +2950,32 @@ class UnifiedDaemon {
     private func requestedInputEvents(_ json: [String: Any]) -> Bool {
         guard let events = json["events"] as? [String] else { return false }
         return events.contains("input_event")
+    }
+
+    private func activateInputSafetyPassthrough(until deadline: Date) {
+        inputSafetyPassthroughDeadline = deadline
+        canvasManager.setInputPassthrough(true)
+        inputSafetyVisualFeedbackPresenter.trigger(deadline: deadline)
+        scheduleInputSafetyPassthroughRestore(for: deadline)
+    }
+
+    private func scheduleInputSafetyPassthroughRestore(for deadline: Date) {
+        inputSafetyPassthroughTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: .main)
+        timer.schedule(deadline: .now() + max(0, deadline.timeIntervalSinceNow))
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            if let activeDeadline = self.inputSafetyPassthroughDeadline,
+               Date() < activeDeadline {
+                self.scheduleInputSafetyPassthroughRestore(for: activeDeadline)
+                return
+            }
+            self.canvasManager.setInputPassthrough(false)
+            self.inputSafetyPassthroughDeadline = nil
+            self.inputSafetyPassthroughTimer = nil
+        }
+        timer.resume()
+        inputSafetyPassthroughTimer = timer
     }
 
     private func handleInputEvent(event: String, data: [String: Any]) -> Bool {

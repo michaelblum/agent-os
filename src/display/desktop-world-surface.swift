@@ -37,6 +37,7 @@ protocol CanvasLike: AnyObject {
     func evaluateJavaScript(_ script: String, completion: ((Any?, Error?) -> Void)?)
     func setAlpha(_ alpha: CGFloat)
     func refreshWindowLevel()
+    func setInputPassthrough(_ enabled: Bool)
     func orderFront()
     func orderOut()
 }
@@ -137,10 +138,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     let id: String
     var isInteractive: Bool {
         didSet {
-            for segment in segments {
-                segment.window.ignoresMouseEvents = !isInteractive
-                segment.window.isInteractiveCanvas = isInteractive
-            }
+            applyMouseEventPolicy()
             applyWindowLevel()
         }
     }
@@ -174,6 +172,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private var htmlContent: String?
     private var urlString: String?
     private var hasShown = false
+    private var inputPassthrough = false
     private(set) var segments: [Segment] = []
     private(set) var lastDelta: TopologyDelta?
 
@@ -205,8 +204,20 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         }
     }
 
+    private func applyMouseEventPolicy() {
+        for segment in segments {
+            segment.window.ignoresMouseEvents = inputPassthrough || !isInteractive
+            segment.window.isInteractiveCanvas = !inputPassthrough && isInteractive
+        }
+    }
+
     func refreshWindowLevel() {
         applyWindowLevel()
+    }
+
+    func setInputPassthrough(_ enabled: Bool) {
+        inputPassthrough = enabled
+        applyMouseEventPolicy()
     }
 
     func setTTL(_ seconds: Double?) {
@@ -435,8 +446,8 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         window.isOpaque = false
         window.hasShadow = false
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
-        window.ignoresMouseEvents = !isInteractive
-        window.isInteractiveCanvas = isInteractive
+        window.ignoresMouseEvents = inputPassthrough || !isInteractive
+        window.isInteractiveCanvas = !inputPassthrough && isInteractive
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
         let config = WKWebViewConfiguration()

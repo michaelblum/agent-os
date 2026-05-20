@@ -171,3 +171,15 @@ if sed -n '/private func handleTapEvent/,/private func inputSafetyHotkeyEvent/p'
   echo "FAIL: event tap path must not perform shell, file, canvas, or sleep work" >&2
   exit 1
 fi
+
+if ! sed -n '/private func activateInputSafetyPassthrough/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+  rg -q 'canvasManager\.setInputPassthrough\(true\)'; then
+  echo "FAIL: input safety trigger must enable native canvas input passthrough" >&2
+  exit 1
+fi
+
+if ! sed -n '/private func activateInputSafetyPassthrough/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
+  rg -q 'canvasManager\.setInputPassthrough\(false\)'; then
+  echo "FAIL: input safety trigger must restore native canvas input passthrough" >&2
+  exit 1
+fi

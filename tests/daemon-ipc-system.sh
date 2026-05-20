@@ -103,6 +103,7 @@ assert isinstance(tap.get("panic_passthrough_active"), bool), f"input_tap.panic_
 assert tap.get("panic_passthrough_until") is None or isinstance(tap.get("panic_passthrough_until"), str), f"input_tap.panic_passthrough_until must be string-or-null: {d}"
 assert tap.get("panic_trigger") is None or tap.get("panic_trigger") == "cmd_opt_escape", f"input_tap.panic_trigger invalid: {d}"
 assert isinstance(tap.get("panic_trigger_count"), int), f"input_tap.panic_trigger_count missing: {d}"
+assert isinstance(tap.get("canvas_input_passthrough_active"), bool), f"input_tap.canvas_input_passthrough_active missing: {d}"
 
 # New nested permissions block
 perms = payload.get("permissions")

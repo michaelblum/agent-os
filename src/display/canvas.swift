@@ -306,6 +306,7 @@ class Canvas {
     var cascadeFromParent: Bool = true
     var parent: String?
     var owner: CanvasOwnerInfo?
+    private var inputPassthrough = false
 
     /// Direct create/update into a mixed-DPI straddling rect can still land at
     /// `frame + externalScreen.frame.origin` for specific ratios, while
@@ -372,8 +373,18 @@ class Canvas {
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: isInteractive)
     }
 
+    private func applyMouseEventPolicy() {
+        window.ignoresMouseEvents = inputPassthrough || !isInteractive
+        (window as? CanvasWindow)?.isInteractiveCanvas = !inputPassthrough && isInteractive
+    }
+
     func refreshWindowLevel() {
         applyWindowLevel()
+    }
+
+    func setInputPassthrough(_ enabled: Bool) {
+        inputPassthrough = enabled
+        applyMouseEventPolicy()
     }
 
     init(id: String, cgFrame: CGRect, interactive: Bool, windowLevel: String? = nil, aosSchemeHandler: WKURLSchemeHandler? = nil) {
@@ -394,8 +405,8 @@ class Canvas {
         window.isOpaque = false
         window.hasShadow = false
         window.level = resolveCanvasWindowLevel(windowLevel, interactive: interactive)
-        window.ignoresMouseEvents = !interactive
-        window.isInteractiveCanvas = interactive
+        window.ignoresMouseEvents = inputPassthrough || !interactive
+        window.isInteractiveCanvas = !inputPassthrough && interactive
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
 
         let config = WKWebViewConfiguration()
@@ -563,9 +574,18 @@ class CanvasManager {
     private var lastAutoProjectUpdate: Date = .distantPast
     private var lastCursorTrailUpdate: Date = .distantPast
     private var activeGeometryTransactions: [String: [String: Any]] = [:]
+    private var inputPassthroughOverride = false
 
     var isEmpty: Bool { canvases.isEmpty }
     func hasCanvas(_ id: String) -> Bool { canvases[id] != nil }
+    var inputPassthroughActive: Bool { inputPassthroughOverride }
+
+    func setInputPassthrough(_ enabled: Bool) {
+        inputPassthroughOverride = enabled
+        for canvas in canvases.values {
+            canvas.setInputPassthrough(enabled)
+        }
+    }
 
     func diagnosticsSnapshot() -> [String: Any] {
         var lifecycleStates: [String: Int] = [:]
@@ -1414,6 +1434,8 @@ class CanvasManager {
             return .fail("create requires --html, --file, --url, --auto-project, or stdin content", code: "NO_CONTENT")
         }
 
+        canvas.setInputPassthrough(inputPassthroughOverride)
+
         if !bornSuspended {
             canvas.show()
             canvas.lifecycleState = "active"
@@ -1570,19 +1592,20 @@ class CanvasManager {
             lifecycleDirty = true
             canvas.refreshWindowLevel()
             if let single = canvas as? Canvas {
-                single.window.ignoresMouseEvents = !interactive
+                single.setInputPassthrough(inputPassthroughOverride)
                 // The CanvasWindow reads isInteractiveCanvas to decide canBecomeKey
                 // and whether sendEvent should activate on first click. Without
                 // updating it, flipped-to-interactive canvases can receive mouse
                 // events but never become key window, so keyboard input bounces
                 // back to the previously-active app (system bonk on every keystroke).
-                (single.window as? CanvasWindow)?.isInteractiveCanvas = interactive
                 // NOTE: the WKWebView subclass (CanvasWebView vs plain WKWebView)
                 // is chosen at construction time and cannot be swapped at runtime.
                 // The only behavioral difference is acceptsFirstMouse, which only
                 // affects the first-click-starts-drag ergonomic. A flipped canvas
                 // may require one extra click to activate; recreate the canvas with
                 // --interactive at creation time for full first-mouse behavior.
+            } else {
+                canvas.setInputPassthrough(inputPassthroughOverride)
             }
         }
 
