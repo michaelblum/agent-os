@@ -1,7 +1,7 @@
 # Work Card: context-live-doc-stale-sweep-v0
 
-**Status:** Ready for implementation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Tracker
 
@@ -16,6 +16,19 @@ The validated Matt/context audit identified live sibling docs that still carry
 stale claims after `ARCHITECTURE.md` and `CONTEXT.md` were corrected. The
 context setup and map now make those conflicts easier to find; this slice fixes
 the known live-doc conflicts only.
+
+Accepted evidence:
+
+- Checked after PR #368 merged to `main`.
+- No implementation edits were needed in the scoped live docs; the merged main
+  state already carries the corrected `say`/`tell`, coordinate action, and
+  `screen`/`ax` target-dialect wording.
+- Verification passed:
+  `rg -n "say.*sugar|same as aos say|screen:<state-id>/<x,y>|When tell gains new capabilities, say inherits them" AGENTS.md src/CLAUDE.md docs/api/aos.md docs/adr/0004-anchor-is-a-role-resolved-into-a-binding.md docs/adr/0006-state-id-guards-coordinates-strictly-refs-loosely.md`
+  produced no matches.
+- Manual spot checks confirmed the remaining `say`, `tell human`, State ID,
+  coordinate, `screen`, and `ax` references are qualified consistently with
+  `ARCHITECTURE.md` and `CONTEXT.md`.
 
 ## Fresh Context Contract
 
