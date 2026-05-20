@@ -8,7 +8,9 @@ Implementation status: resolved on this branch by moving
 `docs/decisions/ADR-001-toolkit-platform-strategy.md` to
 `docs/adr/0012-toolkit-platform-strategy.md` and updating live consumer
 guidance to make `docs/adr/` the canonical ADR and durable
-architecture-decision namespace.
+architecture-decision namespace. The moved file title was normalized to
+`Toolkit Platform Strategy`; the old path and original title are preserved in
+its provenance note.
 
 ## Summary
 
