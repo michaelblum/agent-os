@@ -60,6 +60,31 @@ for channel in canvas_channels:
     assert channel.get("scope") == "cursor", f"channel scope invalid: {channel}"
     assert channel.get("rate") in ("continuous", "on-change", "on-settle"), f"channel rate invalid: {channel}"
 
+resources = payload.get("runtime_resources")
+assert isinstance(resources, dict), f"runtime_resources missing: {d}"
+canvases = resources.get("canvases")
+assert isinstance(canvases, dict), f"runtime_resources.canvases missing: {d}"
+assert isinstance(canvases.get("total"), int), f"canvas total missing: {resources}"
+assert isinstance(canvases.get("by_lifecycle_state"), dict), f"canvas lifecycle counts missing: {resources}"
+assert isinstance(canvases.get("by_surface_type"), dict), f"canvas surface counts missing: {resources}"
+assert isinstance(canvases.get("native_window_count"), int), f"native window count missing: {resources}"
+assert isinstance(canvases.get("window_levels"), dict), f"window levels missing: {resources}"
+assert isinstance(canvases.get("interactive_active"), int), f"interactive active count missing: {resources}"
+assert isinstance(canvases.get("full_desktop_active"), int), f"full desktop active count missing: {resources}"
+assert isinstance(canvases.get("desktop_world_segments"), int), f"desktop world segment count missing: {resources}"
+assert isinstance(canvases.get("pending_lifecycle_waiters"), int), f"pending lifecycle waiters missing: {resources}"
+subs = resources.get("canvas_event_subscriptions")
+assert isinstance(subs, dict), f"canvas subscription counters missing: {resources}"
+assert isinstance(subs.get("canvas_count"), int), f"canvas subscription count missing: {resources}"
+assert isinstance(subs.get("by_event"), dict), f"canvas subscription event counts missing: {resources}"
+assert isinstance(resources.get("canvas_perception_channel_count"), int), f"canvas perception channel count missing: {resources}"
+assert isinstance(resources.get("canvas_ready_manifest_count"), int), f"ready manifest count missing: {resources}"
+assert isinstance(resources.get("canvas_object_registry_count"), int), f"object registry count missing: {resources}"
+regions = resources.get("input_regions")
+assert isinstance(regions, dict), f"input region counters missing: {resources}"
+assert isinstance(regions.get("count"), int), f"input region count missing: {resources}"
+assert regions.get("active_capture") is None or isinstance(regions.get("active_capture"), dict), f"active capture invalid: {resources}"
+
 # Legacy flat fields preserved
 assert payload.get("input_tap_status") in ("active", "retrying", "unavailable"), f"input_tap_status missing: {d}"
 assert isinstance(payload.get("input_tap_attempts"), int), f"input_tap_attempts missing: {d}"

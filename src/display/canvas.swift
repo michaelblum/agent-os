@@ -564,6 +564,51 @@ class CanvasManager {
     var isEmpty: Bool { canvases.isEmpty }
     func hasCanvas(_ id: String) -> Bool { canvases[id] != nil }
 
+    func diagnosticsSnapshot() -> [String: Any] {
+        var lifecycleStates: [String: Int] = [:]
+        var surfaceTypes: [String: Int] = [:]
+        var windowLevels: [String: Int] = [:]
+        var nativeWindowCount = 0
+        var interactiveActiveCount = 0
+        var fullDesktopActiveCount = 0
+        var desktopWorldSegmentCount = 0
+
+        for canvas in canvases.values {
+            let info = canvas.toInfo()
+            let lifecycleState = info.lifecycleState ?? (info.suspended == true ? "suspended" : "active")
+            let isActive = lifecycleState == "active" && info.suspended != true
+            lifecycleStates[lifecycleState, default: 0] += 1
+            if isActive && info.interactive {
+                interactiveActiveCount += 1
+            }
+            if isActive && info.track == TrackTarget.union.rawValue {
+                fullDesktopActiveCount += 1
+            }
+            if let segments = info.segments, !segments.isEmpty {
+                surfaceTypes["desktop_world", default: 0] += 1
+                desktopWorldSegmentCount += segments.count
+            } else {
+                surfaceTypes["window", default: 0] += 1
+            }
+            let windowCount = info.windowNumbers?.count ?? 0
+            nativeWindowCount += windowCount
+            let level = info.windowLevel ?? "default"
+            windowLevels[level, default: 0] += windowCount
+        }
+
+        return [
+            "total": canvases.count,
+            "by_lifecycle_state": lifecycleStates,
+            "by_surface_type": surfaceTypes,
+            "native_window_count": nativeWindowCount,
+            "window_levels": windowLevels,
+            "interactive_active": interactiveActiveCount,
+            "full_desktop_active": fullDesktopActiveCount,
+            "desktop_world_segments": desktopWorldSegmentCount,
+            "pending_lifecycle_waiters": lifecycleWaiters.count,
+        ]
+    }
+
     func setCanvasAlpha(_ id: String, _ alpha: CGFloat) {
         guard let canvas = canvases[id] else { return }
         canvas.setAlpha(alpha)

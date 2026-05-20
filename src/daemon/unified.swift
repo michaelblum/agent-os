@@ -2298,6 +2298,22 @@ class UnifiedDaemon {
             subscriberLock.lock()
             let subscriberCount = subscribers.count
             subscriberLock.unlock()
+            let canvasDiagnostics = canvasManager.diagnosticsSnapshot()
+            canvasSubscriptionLock.lock()
+            var subscriptionEventCounts: [String: Int] = [:]
+            for events in canvasEventSubscriptions.values {
+                for event in events {
+                    subscriptionEventCounts[event, default: 0] += 1
+                }
+            }
+            let canvasSubscriptionCanvasCount = canvasEventSubscriptions.count
+            let canvasReadyManifestCount = canvasReadyManifests.count
+            let canvasObjectRegistryCount = canvasObjectRegistries.count
+            canvasSubscriptionLock.unlock()
+            inputRegionLock.lock()
+            let inputRegionSnapshot = inputRegions.snapshot()
+            let activeInputCapture: Any = inputRegions.activeCaptureSnapshot() ?? NSNull()
+            inputRegionLock.unlock()
             let mode = aosCurrentRuntimeMode()
             let pid = Int(getpid())
             let startedAt = ISO8601DateFormatter().string(from: startTime)
@@ -2340,6 +2356,20 @@ class UnifiedDaemon {
                 "perception_channels": perceptionChannels,
                 "canvas_perception_channels": canvasPerceptionChannelDetails,
                 "subscribers": subscriberCount,
+                "runtime_resources": [
+                    "canvases": canvasDiagnostics,
+                    "canvas_event_subscriptions": [
+                        "canvas_count": canvasSubscriptionCanvasCount,
+                        "by_event": subscriptionEventCounts,
+                    ],
+                    "canvas_perception_channel_count": canvasPerceptionChannelDetails.count,
+                    "canvas_ready_manifest_count": canvasReadyManifestCount,
+                    "canvas_object_registry_count": canvasObjectRegistryCount,
+                    "input_regions": [
+                        "count": inputRegionSnapshot.count,
+                        "active_capture": activeInputCapture,
+                    ],
+                ] as [String: Any],
                 // Legacy flat fields preserved
                 "input_tap_status": perception.inputTapStatus,
                 "input_tap_attempts": perception.inputTapAttempts,

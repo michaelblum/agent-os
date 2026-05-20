@@ -267,6 +267,20 @@ final class AOSInputRegionRegistry {
         allRegions.filter { ownerCanvasID == nil || $0.ownerCanvasID == ownerCanvasID }
     }
 
+    func activeCaptureSnapshot() -> [String: Any]? {
+        guard let captureRegionID else { return nil }
+        var snapshot: [String: Any] = ["region_id": captureRegionID]
+        if let captureID {
+            snapshot["capture_id"] = captureID
+        }
+        if let region = regions[captureRegionID] {
+            snapshot["owner_canvas_id"] = region.ownerCanvasID
+            snapshot["semantic_label"] = region.semanticLabel
+            snapshot["consume_policy"] = region.consumePolicy
+        }
+        return snapshot
+    }
+
     func route(eventType: String, point: CGPoint?, sourceSequence: String? = nil, gestureID: String? = nil) -> AOSInputRegionRoute? {
         guard let phase = aosInputRegionPointerPhases[eventType] else { return nil }
 

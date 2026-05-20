@@ -1,0 +1,18 @@
+$ ps -axo pid,ppid,pcpu,pmem,rss,vsz,etime,state,comm,args | awk 'NR==1 || /\/Users\/Michael\/Code\/agent-os\/aos serve/ || /com\.apple\.WebKit/'
+  PID  PPID  %CPU %MEM    RSS      VSZ  ELAPSED STAT COMM             ARGS
+47618     1   0.0  0.0   7904 439779440    25:37 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU
+47620     1   0.0  0.1  11552 439716448    25:37 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking
+47621     1   0.0  0.0   3744 507659504    25:37 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+47761     1   0.0  0.0   2976 507365840    25:00 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65507     1   0.3  0.3  55040 440569520    04:56 S    /Users/Michael/C /Users/Michael/Code/agent-os/aos serve --idle-timeout none
+65525     1   0.0  0.1  15744 440727328    04:48 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU
+65545     1   0.0  0.1  10896 439726656    04:47 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking
+65549     1   0.0  0.1  20096 507371296    04:46 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65561     1   0.0  0.1  18144 507370080    04:42 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65567     1   0.0  0.1  18704 507375680    04:41 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65568     1   0.0  0.1  20240 507596656    04:41 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65587     1   0.0  0.1  17840 507363136    04:38 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65589     1   0.0  0.1  17840 507362736    04:38 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65595     1   0.0  0.1  18096 507373792    04:36 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65598     1   0.0  0.1  18144 507374928    04:36 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent
+65599     1   0.0  0.1  19696 507382464    04:36 Ss   /System/Library/ /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent

@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+out_root="${1:-$repo_root/docs/design/fixtures/aos-runtime-resource-forensics-v0}"
+timestamp="${AOS_RESOURCE_SNAPSHOT_TIMESTAMP:-$(date -u +%Y%m%dT%H%M%SZ)}"
+out_dir="$out_root/$timestamp"
+
+mkdir -p "$out_dir"
+
+cd "$repo_root"
+
+run_capture() {
+  local name="$1"
+  shift
+  {
+    printf '$'
+    printf ' %q' "$@"
+    printf '\n'
+    "$@"
+  } >"$out_dir/$name" 2>"$out_dir/$name.stderr" || {
+    local status=$?
+    printf 'exit_status=%s\n' "$status" >>"$out_dir/$name.stderr"
+    return 0
+  }
+}
+
+run_shell_capture() {
+  local name="$1"
+  local script="$2"
+  {
+    printf '$ %s\n' "$script"
+    bash -lc "$script"
+  } >"$out_dir/$name" 2>"$out_dir/$name.stderr" || {
+    local status=$?
+    printf 'exit_status=%s\n' "$status" >>"$out_dir/$name.stderr"
+    return 0
+  }
+}
+
+run_capture "aos-status.txt" ./aos status
+run_capture "aos-status.json" ./aos status --json
+run_capture "aos-show-list.json" ./aos show list --json
+run_shell_capture "process-table.txt" "ps -axo pid,ppid,pcpu,pmem,rss,vsz,etime,state,comm,args | awk 'NR==1 || /\\/Users\\/Michael\\/Code\\/agent-os\\/aos serve/ || /com\\.apple\\.WebKit/'"
+run_capture "vm-stat.txt" vm_stat
+run_capture "memory-pressure.txt" memory_pressure
+
+node - "$out_dir" "$repo_root" <<'NODE'
+const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const outDir = process.argv[2];
+const repoRoot = process.argv[3];
+
+function read(file) {
+  try {
+    return fs.readFileSync(path.join(outDir, file), 'utf8');
+  } catch {
+    return '';
+  }
+}
+
+function parseShowList() {
+  const raw = read('aos-show-list.json').split('\n').filter((line) => !line.startsWith('$ ')).join('\n').trim();
+  if (!raw) return { canvases: [] };
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    return { canvases: [], parse_error: String(error && error.message ? error.message : error) };
+  }
+}
+
+function parseProcessTable() {
+  const lines = read('process-table.txt').split('\n').filter((line) => line.trim() && !line.startsWith('$ '));
+  if (lines.length <= 1) return [];
+  return lines.slice(1).map((line) => {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/);
+    if (!match) return { raw: line };
+    const [, pid, ppid, cpu, mem, rss, vsz, elapsed, state, comm, args] = match;
+    return {
+      pid: Number(pid),
+      ppid: Number(ppid),
+      cpu: Number(cpu),
+      mem: Number(mem),
+      rss_kb: Number(rss),
+      vsz_kb: Number(vsz),
+      elapsed,
+      state,
+      comm,
+      args,
+      role: args.includes(`${repoRoot}/aos serve`) ? 'aos_serve'
+        : args.includes('com.apple.WebKit.GPU') ? 'webkit_gpu'
+        : args.includes('com.apple.WebKit.WebContent') ? 'webkit_webcontent'
+        : args.includes('com.apple.WebKit.Networking') ? 'webkit_networking'
+        : 'other',
+    };
+  });
+}
+
+function countLines(command, args) {
+  try {
+    const text = execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return text.split('\n').filter((line) => line.trim()).length;
+  } catch {
+    return null;
+  }
+}
+
+const show = parseShowList();
+const canvases = Array.isArray(show.canvases) ? show.canvases : [];
+const processRows = parseProcessTable();
+const processes = processRows.map((row) => {
+  if (!row.pid) return row;
+  return {
+    ...row,
+    fd_count: countLines('lsof', ['-n', '-P', '-p', String(row.pid)]),
+    thread_count: countLines('ps', ['-M', String(row.pid)]),
+  };
+});
+
+const windowLevels = {};
+let nativeWindowCount = 0;
+let active = 0;
+let suspended = 0;
+let interactiveActive = 0;
+let fullDesktopActive = 0;
+
+for (const canvas of canvases) {
+  const lifecycle = canvas.lifecycleState || canvas.lifecycle_state || (canvas.suspended ? 'suspended' : 'active');
+  const isActive = lifecycle === 'active' && canvas.suspended !== true;
+  if (isActive) active += 1;
+  if (canvas.suspended === true || lifecycle === 'suspended' || lifecycle === 'warm_suspended') suspended += 1;
+  if (isActive && canvas.interactive === true) interactiveActive += 1;
+  if (isActive && canvas.track === 'union') fullDesktopActive += 1;
+  const windows = Array.isArray(canvas.windowNumbers) ? canvas.windowNumbers.length : 0;
+  nativeWindowCount += windows;
+  const level = canvas.windowLevel || 'default';
+  windowLevels[level] = (windowLevels[level] || 0) + windows;
+}
+
+const summary = {
+  captured_at: new Date().toISOString(),
+  status: read('aos-status.txt').split('\n').filter((line) => !line.startsWith('$ ')).join('\n').trim(),
+  canvas_summary: {
+    total: canvases.length,
+    active,
+    suspended,
+    interactive_active: interactiveActive,
+    full_desktop_active: fullDesktopActive,
+    native_window_count: nativeWindowCount,
+    window_levels: windowLevels,
+  },
+  processes,
+  memory_pressure: read('memory-pressure.txt').split('\n').filter((line) => !line.startsWith('$ ')).join('\n').trim(),
+};
+
+fs.writeFileSync(path.join(outDir, 'summary.json'), `${JSON.stringify(summary, null, 2)}\n`);
+NODE
+
+printf '%s\n' "$out_dir"
