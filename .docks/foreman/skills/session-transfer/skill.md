@@ -1,6 +1,6 @@
 ---
 name: foreman-session-transfer
-description: Use when Foreman creates, revises, or copies any artifact that transfers work or context to another session or role: GDI work cards, Operator runs, successor-Foreman handoffs, relay packets, correction rounds, review rounds, or human-needed blocker packets. Classifies the transfer first, loads only the recipient-specific reference needed, and prevents successor-handoff instructions from being reused for GDI work.
+description: The only Foreman skill entrypoint for creating, revising, or copying transfer artifacts to another session or role: GDI work cards, Operator runs, successor-Foreman handoffs, relay packets, correction rounds, review rounds, or human-needed blocker packets. Always classify the transfer first, then load only the recipient-specific reference needed; successor handoff generation is handled through references/foreman.md, not by a separate session-handoff skill.
 argument-hint: "Recipient and transfer purpose"
 ---
 
@@ -10,6 +10,10 @@ Use this skill before Foreman creates or revises a transfer artifact. A transfer
 artifact is anything meant to let another session act without rereading the
 current chat: work cards, clipboard dispatches, successor handoffs, operator
 runs, relay packets, correction rounds, and human-needed blocker packets.
+
+This is the only routable Foreman transfer skill. There is no separate
+`foreman-session-handoff` skill entrypoint; successor handoffs are the Foreman
+recipient kind inside this workflow and use `references/foreman.md`.
 
 ## Classify First
 

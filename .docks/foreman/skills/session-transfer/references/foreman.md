@@ -25,7 +25,7 @@ Successor handoffs are ephemeral by default:
 
 - write the handoff to `mktemp -t foreman-handoff-XXXXXX.md` unless the user
   explicitly asks for chat-only output;
-- read the temp file before writing to it when using the handoff skill shape;
+- read the temp file before writing to it when building the successor handoff;
 - copy the handoff with `.docks/foreman/scripts/handoff --target-dock foreman`
   only when another Foreman session should start from it;
 - do not put successor handoffs under `docs/design/work-cards/`;

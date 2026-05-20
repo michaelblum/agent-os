@@ -134,15 +134,22 @@ for role in ("gdi", "foreman", "operator"):
             raise SystemExit(f"FAIL: {role} {script_name} still has duplicated session-id parsing")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
-foreman_skill_path = root / ".docks" / "foreman" / "skills" / "session-handoff" / "skill.md"
-if not foreman_skill_path.exists():
-    raise SystemExit("FAIL: Foreman successor handoff skill is missing")
-foreman_skill = foreman_skill_path.read_text()
-if "name: foreman-session-handoff" not in foreman_skill:
-    raise SystemExit("FAIL: Foreman handoff skill uses the wrong name")
+foreman_handoff_skill_path = root / ".docks" / "foreman" / "skills" / "session-handoff" / "skill.md"
+if foreman_handoff_skill_path.exists():
+    raise SystemExit("FAIL: Foreman session-handoff must not be a routable skill")
+foreman_transfer_skill_path = root / ".docks" / "foreman" / "skills" / "session-transfer" / "skill.md"
+if not foreman_transfer_skill_path.exists():
+    raise SystemExit("FAIL: Foreman session-transfer skill is missing")
+foreman_transfer_skill = foreman_transfer_skill_path.read_text()
+if "name: foreman-session-transfer" not in foreman_transfer_skill:
+    raise SystemExit("FAIL: Foreman transfer skill uses the wrong name")
+if "only routable Foreman transfer skill" not in foreman_transfer_skill:
+    raise SystemExit("FAIL: Foreman transfer skill must state it is the sole routing entrypoint")
+if "successor handoffs are the Foreman" not in foreman_transfer_skill:
+    raise SystemExit("FAIL: Foreman transfer skill must route successor handoffs through the Foreman reference")
 if (root / ".docks" / "foreman" / "skills" / "retirement-handoff").exists():
     raise SystemExit("FAIL: retired Foreman retirement-handoff skill path still exists")
-for label, text in (("Foreman AGENTS", foreman_agents), ("Foreman handoff skill", foreman_skill)):
+for label, text in (("Foreman AGENTS", foreman_agents), ("Foreman transfer skill", foreman_transfer_skill)):
     legacy_command_token = "/" + "goal"
     for forbidden in (f"receives a `{legacy_command_token}", "`attn: GDI,", "attn: GDI, follow"):
         if forbidden in text:

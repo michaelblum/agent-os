@@ -26,6 +26,6 @@ skill first. Use its Foreman, GDI, and Operator references to keep successor
 handoffs, durable work cards, and supervised run packets separate.
 
 Successor-session handoffs are ephemeral Foreman continuity state: use the
-Foreman transfer reference and the compatibility `foreman-session-handoff` shape
-for compact, chat-ready, current-state-first instructions. Do not store those
-handoffs under `docs/design/work-cards/` or commit them.
+Foreman transfer reference for compact, chat-ready, current-state-first
+instructions. Do not store those handoffs under `docs/design/work-cards/` or
+commit them.

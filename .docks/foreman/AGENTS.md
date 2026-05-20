@@ -113,11 +113,10 @@ the dock-local Foreman transfer skill for cross-session artifacts:
 - correction round: bounded follow-up after review or acceptance failure;
 - human-needed packet: a blocker whose next actor is the human.
 
-Use `foreman-session-transfer` as the umbrella workflow. It has recipient
-references for Foreman, GDI, and Operator transfer shapes. The
-`foreman-session-handoff` skill is a compatibility entrypoint for the
-successor-Foreman transfer kind only; do not use it to write GDI work cards,
-Operator instructions, relay packets, or clipboard dispatches.
+Use `foreman-session-transfer` as the only direct skill entrypoint for transfer
+artifacts. It has recipient references for Foreman, GDI, and Operator transfer
+shapes. Successor-Foreman handoffs are the Foreman recipient kind inside that
+workflow, not a separate routable `session-handoff` skill.
 
 Every non-trivial transfer artifact must state the recipient, transfer kind,
 single next goal, source artifact, required start ref when it is not
