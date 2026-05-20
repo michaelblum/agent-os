@@ -72,8 +72,7 @@
     "reentryRadius": 1.85,
     "spreadDegrees": 88,
     "startAngle": -90,
-    "orientation": "fixed",
-    "anchorItemId": null
+    "orientation": "fixed"
   },
   "items": []
 }

@@ -18,7 +18,6 @@ const DEFAULT_CONFIG = {
     spreadDegrees: 88,
     startAngle: -90,
     orientation: 'fixed',
-    anchorItemId: null,
     items: DEFAULT_SIGIL_RADIAL_ITEMS,
 };
 

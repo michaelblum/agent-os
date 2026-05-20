@@ -485,7 +485,7 @@ test('default radial geometry derives from resolved Sigil JSON', async () => {
   const state = (await import('../../apps/sigil/renderer/state.js')).default
   const { DEFAULT_APPEARANCE } = await import('../../apps/sigil/renderer/appearance.js')
   const { RESOLVED_SIGIL_RADIAL_MENU, normalizeSigilRadialGestureMenu } = await import('../../apps/sigil/renderer/radial-menu-defaults.js')
-  const keys = ['deadZoneRadius', 'itemRadius', 'itemHitRadius', 'itemVisualRadius', 'menuRadius', 'handoffRadius', 'reentryRadius', 'spreadDegrees', 'startAngle', 'orientation', 'anchorItemId']
+  const keys = ['deadZoneRadius', 'itemRadius', 'itemHitRadius', 'itemVisualRadius', 'menuRadius', 'handoffRadius', 'reentryRadius', 'spreadDegrees', 'startAngle', 'orientation']
   const expected = Object.fromEntries(keys.map((key) => [key, RESOLVED_SIGIL_RADIAL_MENU.geometry[key]]))
 
   assert.deepEqual(Object.fromEntries(keys.map((key) => [key, state.radialGestureMenu[key]])), expected)

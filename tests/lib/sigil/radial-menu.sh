@@ -491,8 +491,14 @@ try:
             travel_target,
             label=f"avatar travel step {index} to {travel_target.get('id', 'target')}",
         )
-        travel_steps.append({"index": index, "target": travel_target, "probe": travel})
-        travel_pos = travel.get("avatarPos") or {}
+        settled = wait_until(
+            stable_hit_target,
+            timeout=4.0,
+            interval=0.08,
+            label=f"stable Sigil hit target after travel step {index}",
+        )
+        travel_steps.append({"index": index, "target": travel_target, "probe": travel, "settled": settled})
+        travel_pos = settled.get("avatarPos") or travel.get("avatarPos") or {}
         current_start = {"x": float(travel_pos["x"]), "y": float(travel_pos["y"])}
         time.sleep(0.12)
 

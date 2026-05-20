@@ -63,7 +63,6 @@ export const TOOLKIT_RADIAL_MENU_3D_DEFAULT = {
         spreadDegrees: 88,
         startAngle: -90,
         orientation: 'fixed',
-        anchorItemId: null,
     },
     items: [],
 };

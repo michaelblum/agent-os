@@ -254,9 +254,12 @@ Radial geometry supports fixed and trigger-vector placement. With
 `geometry.orientation: "trigger-vector"`, the menu locks its item angles from
 the pointer vector that first crosses into the radial gesture. It does not track
 later cursor movement; returning inside the dead zone re-arms the vector so the
-next outward crossing can choose a new placement. `geometry.anchorItemId` can
-pin one item, such as a reticle, directly on that trigger vector while the
-remaining items spread left and right by slot.
+next outward crossing can choose a new placement. Trigger-vector placement
+reserves that crossing vector as an egress lane: item array order fans out on
+the left and right flanks with no item centered directly on the drag vector.
+For odd item counts, the leading flank receives the extra item. Put higher
+priority or easy-switch items near the middle of the array when they should sit
+adjacent to the lane.
 
 Hover defaults cascade from toolkit menu defaults to app/menu overrides and
 then item overrides under `three.item.hover`. The default hover transform uses

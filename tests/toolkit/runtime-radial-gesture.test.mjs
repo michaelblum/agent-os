@@ -32,6 +32,10 @@ function model(options = {}) {
   })
 }
 
+function rounded(value) {
+  return Math.round(value * 1000) / 1000
+}
+
 test('radial geometry uses browser-coordinate angles', () => {
   assert.equal(normalizeDegrees(-90), 270)
   assert.equal(shortestAngleDelta(350, 10), -20)
@@ -60,7 +64,7 @@ test('resolveRadialGestureItems spreads fixed item slots around start angle', ()
   assert.equal(resolved[0].visualRadius, 20)
 })
 
-test('trigger-vector radial geometry anchors a configured item to the crossing vector', () => {
+test('trigger-vector radial geometry reserves the crossing vector as an egress lane', () => {
   const resolved = resolveRadialGestureItems([
     { id: 'left' },
     { id: 'reticle' },
@@ -68,7 +72,6 @@ test('trigger-vector radial geometry anchors a configured item to the crossing v
   ], {
     radiusBasis: 100,
     orientation: 'trigger-vector',
-    anchorItemId: 'reticle',
     startAngle: -90,
     spreadDegrees: 90,
     itemRadius: 1,
@@ -79,24 +82,69 @@ test('trigger-vector radial geometry anchors a configured item to the crossing v
     triggerAngle: 0,
   })
 
-  assert.equal(resolved.find((item) => item.id === 'reticle').angle, 0)
-  assert.equal(resolved.find((item) => item.id === 'left').angle, 315)
-  assert.equal(resolved.find((item) => item.id === 'right').angle, 45)
-  assert.deepEqual(resolved.find((item) => item.id === 'reticle').center, { x: 300, y: 200 })
+  assert.deepEqual(
+    resolved.map((item) => [item.id, rounded(shortestAngleDelta(item.angle, 0)), item.slot]),
+    [
+      ['left', -45, -1.5],
+      ['reticle', -15, -0.5],
+      ['right', 15, 0.5],
+    ]
+  )
+  assert.equal(resolved.some((item) => item.angle === 0), false)
+  assert.ok(resolved.find((item) => item.id === 'reticle').center.x > 290)
+  assert.ok(resolved.find((item) => item.id === 'reticle').center.y < 200)
+})
+
+test('trigger-vector egress lane splits odd and even item arrays by order', () => {
+  const common = {
+    radiusBasis: 100,
+    orientation: 'trigger-vector',
+    spreadDegrees: 100,
+    itemRadius: 1,
+    itemHitRadius: 0.25,
+    itemVisualRadius: 0.2,
+  }
+  const state = { origin: { x: 0, y: 0 }, triggerAngle: 0 }
+  const odd = resolveRadialGestureItems([
+    { id: 'a' },
+    { id: 'b' },
+    { id: 'middle-left' },
+    { id: 'middle-right' },
+    { id: 'e' },
+  ], common, state)
+  const even = resolveRadialGestureItems([
+    { id: 'a' },
+    { id: 'middle-left' },
+    { id: 'middle-right' },
+    { id: 'd' },
+  ], common, state)
+
+  assert.deepEqual(odd.map((item) => [item.id, rounded(shortestAngleDelta(item.angle, 0)), item.slot]), [
+    ['a', -50, -2.5],
+    ['b', -30, -1.5],
+    ['middle-left', -10, -0.5],
+    ['middle-right', 10, 0.5],
+    ['e', 30, 1.5],
+  ])
+  assert.deepEqual(even.map((item) => [item.id, rounded(shortestAngleDelta(item.angle, 0)), item.slot]), [
+    ['a', -50, -1.5],
+    ['middle-left', -16.667, -0.5],
+    ['middle-right', 16.667, 0.5],
+    ['d', 50, 1.5],
+  ])
 })
 
 test('trigger-vector radial placement locks until the pointer returns to origin', () => {
   const gesture = model({
     orientation: 'trigger-vector',
-    anchorItemId: 'wiki-graph',
   })
   const started = gesture.start({ x: 200, y: 200 }, { x: 260, y: 200 })
   const firstWiki = started.items.find((item) => item.id === 'wiki-graph')
-  assert.equal(firstWiki.angle, 0)
+  assert.equal(firstWiki.angle, 45)
   assert.equal(started.triggerLocked, true)
 
   const stillLocked = gesture.move({ x: 200, y: 80 })
-  assert.equal(stillLocked.items.find((item) => item.id === 'wiki-graph').angle, 0)
+  assert.equal(stillLocked.items.find((item) => item.id === 'wiki-graph').angle, 45)
   assert.equal(stillLocked.triggerLocked, true)
 
   const rearmed = gesture.move({ x: 205, y: 200 })
@@ -105,7 +153,7 @@ test('trigger-vector radial placement locks until the pointer returns to origin'
   const relocked = gesture.move({ x: 200, y: 120 })
   assert.equal(relocked.lastTransition, 'trigger_vector_lock')
   assert.equal(relocked.triggerLocked, true)
-  assert.equal(relocked.items.find((item) => item.id === 'wiki-graph').angle, 270)
+  assert.equal(relocked.items.find((item) => item.id === 'wiki-graph').angle, 315)
 })
 
 test('model starts in radial phase and reports menu growth progress', () => {

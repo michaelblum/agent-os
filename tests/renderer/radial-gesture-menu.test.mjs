@@ -4,8 +4,10 @@ import {
   createSigilRadialGestureMenu,
   DEFAULT_SIGIL_RADIAL_ITEMS,
 } from '../../apps/sigil/renderer/live-modules/radial-gesture-menu.js'
+import { reticleOuterMarginExit } from '../../apps/sigil/renderer/live-modules/annotation-reticle.js'
 import { normalizeSigilRadialGestureMenu } from '../../apps/sigil/renderer/radial-menu-defaults.js'
 import defaultState from '../../apps/sigil/renderer/state.js'
+import { pointAtAngle, radialItemPointerMetrics, shortestAngleDelta } from '../../packages/toolkit/runtime/radial-gesture.js'
 
 function createMenu(options = {}) {
   const commits = []
@@ -180,7 +182,7 @@ test('Sigil default radial geometry leaves adjacent four and five item targets s
   assertSeparated(visibleCamera)
 })
 
-test('Sigil radial menu anchors the annotation reticle to the threshold vector', () => {
+test('Sigil radial menu leaves an egress lane on the threshold vector', () => {
   const origin = { x: 200, y: 200, valid: true }
   const rightward = createSigilRadialGestureMenu({
     state: {
@@ -190,14 +192,28 @@ test('Sigil radial menu anchors the annotation reticle to the threshold vector',
     },
   }).start(origin, { x: 260, y: 200, valid: true })
   const reticle = rightward.items.find((item) => item.id === 'annotation-mode')
-  const left = rightward.items.filter((item) => item.id !== 'annotation-mode' && item.angle > 180)
-  const right = rightward.items.filter((item) => item.id !== 'annotation-mode' && item.angle < 180)
+  const deltas = Object.fromEntries(
+    rightward.items.map((item) => [item.id, Math.round(shortestAngleDelta(item.angle, 0) * 1000) / 1000])
+  )
 
-  assert.equal(reticle.angle, 0)
+  assert.equal(rightward.items.length, 4)
+  assert.deepEqual(deltas, {
+    'context-menu': -56,
+    'agent-terminal': -18.667,
+    'annotation-mode': 18.667,
+    'wiki-graph': 56,
+  })
   assert.ok(reticle.center.x > origin.x)
-  assert.equal(Math.round(reticle.center.y), origin.y)
-  assert.ok(left.length > 0)
-  assert.ok(right.length > 0)
+  assert.ok(reticle.center.y > origin.y)
+  assert.equal(rightward.items.some((item) => item.angle === 0), false)
+
+  const straightEgress = {
+    ...rightward,
+    pointer: pointAtAngle(origin, 0, rightward.radii.handoff + 16),
+  }
+  const metrics = radialItemPointerMetrics(straightEgress, reticle)
+  assert.ok(metrics.lateralDistance > reticle.hitRadius)
+  assert.equal(reticleOuterMarginExit(metrics, straightEgress), false)
 
   const upward = createSigilRadialGestureMenu({
     state: {
@@ -206,7 +222,40 @@ test('Sigil radial menu anchors the annotation reticle to the threshold vector',
       annotationReticle: { camera_available: false, live_anchor_count: 0 },
     },
   }).start(origin, { x: 200, y: 140, valid: true })
-  assert.equal(upward.items.find((item) => item.id === 'annotation-mode').angle, 270)
+  assert.equal(Math.round(shortestAngleDelta(upward.items.find((item) => item.id === 'annotation-mode').angle, 270) * 1000) / 1000, 18.667)
+})
+
+test('Sigil radial menu uses array order to put middle items beside the egress lane', () => {
+  const origin = { x: 200, y: 200, valid: true }
+  const visibleCamera = createSigilRadialGestureMenu({
+    state: {
+      avatarHitRadius: defaultState.avatarHitRadius,
+      radialGestureMenu: defaultState.radialGestureMenu,
+      annotationReticle: { camera_available: true, live_anchor_count: 1 },
+    },
+  }).start(origin, { x: 260, y: 200, valid: true })
+  const deltas = Object.fromEntries(
+    visibleCamera.items.map((item) => [item.id, Math.round(shortestAngleDelta(item.angle, 0) * 1000) / 1000])
+  )
+  const reticle = visibleCamera.items.find((item) => item.id === 'annotation-mode')
+
+  assert.equal(visibleCamera.items.length, 5)
+  assert.deepEqual(deltas, {
+    'context-menu': -56,
+    'agent-terminal': -33.6,
+    'annotation-mode': -11.2,
+    'annotation-camera': 11.2,
+    'wiki-graph': 33.6,
+  })
+  assert.equal(visibleCamera.items.some((item) => item.angle === 0), false)
+
+  const straightEgress = {
+    ...visibleCamera,
+    pointer: pointAtAngle(origin, 0, visibleCamera.radii.handoff + 16),
+  }
+  const metrics = radialItemPointerMetrics(straightEgress, reticle)
+  assert.ok(metrics.lateralDistance > reticle.hitRadius)
+  assert.equal(reticleOuterMarginExit(metrics, straightEgress), false)
 })
 
 test('Sigil radial menu normalizes stale wiki brain item geometry from saved config', () => {

@@ -15,7 +15,6 @@ const DEFAULT_CONFIG = {
   spreadDegrees: 95,
   startAngle: -90,
   orientation: 'fixed',
-  anchorItemId: null,
   releaseInDeadZone: 'cancel',
 }
 
@@ -51,17 +50,15 @@ function itemSlot(index, count) {
   return -0.5 + (index / (count - 1))
 }
 
-function itemAnchorSlot(items = [], config = {}, count = 0) {
-  const anchorId = text(config.anchorItemId || config.anchorItem || config.triggerItemId, '')
-  if (!anchorId) return 0
-  const index = items.findIndex((item) => item?.id === anchorId)
-  if (index < 0) return 0
-  return finite(items[index].slot, itemSlot(index, count))
+function egressLaneSlot(index, count) {
+  if (count <= 0) return 0
+  const leadingCount = Math.ceil(count / 2)
+  return index - leadingCount + 0.5
 }
 
-function text(value, fallback = '') {
-  const s = String(value ?? '').replace(/\s+/g, ' ').trim()
-  return s || fallback
+function slotStepDegrees(spread, slots = []) {
+  const maxSlot = Math.max(0, ...slots.map((slot) => Math.abs(finite(slot, 0))))
+  return maxSlot > 0 ? (spread / 2) / maxSlot : 0
 }
 
 export function normalizeDegrees(degrees) {
@@ -171,16 +168,16 @@ export function resolveRadialGestureItems(items = [], config = {}, state = {}) {
   const origin = point(state.origin)
   const count = list.length
   const spread = finite(resolvedConfig.spreadDegrees, DEFAULT_CONFIG.spreadDegrees)
-  const anchorSlot = resolvedConfig.orientation === 'trigger-vector'
-    ? itemAnchorSlot(list, resolvedConfig, count)
-    : 0
-  const baseAngle = resolvedConfig.orientation === 'trigger-vector'
-    ? finite(state.triggerAngle, resolvedConfig.startAngle) - (anchorSlot * spread)
+  const triggerVector = resolvedConfig.orientation === 'trigger-vector'
+  const defaultSlots = list.map((_, index) => triggerVector ? egressLaneSlot(index, count) : itemSlot(index, count))
+  const stepDegrees = triggerVector ? slotStepDegrees(spread, defaultSlots) : spread
+  const baseAngle = triggerVector
+    ? finite(state.triggerAngle, resolvedConfig.startAngle)
     : finite(resolvedConfig.startAngle, DEFAULT_CONFIG.startAngle)
 
   return list.map((item, index) => {
-    const slot = finite(item.slot, itemSlot(index, count))
-    const angle = normalizeDegrees(item.angle ?? (baseAngle + slot * spread))
+    const slot = finite(item.slot, defaultSlots[index])
+    const angle = normalizeDegrees(item.angle ?? (baseAngle + slot * stepDegrees))
     const center = pointAtAngle(origin, angle, resolvedConfig.itemRadiusPx)
     return {
       ...item,
