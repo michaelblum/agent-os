@@ -22,6 +22,7 @@ import {
 import { createButton } from '../../controls/button.js'
 import { createButtonGroup } from '../../controls/button-group.js'
 import { createSelect } from '../../controls/select.js'
+import { createAosZagTabs } from '../../adapters/zag/tabs.js'
 
 const VIEW_DEFS = [
   { id: 'graph', label: 'Graph', factory: GraphView },
@@ -285,7 +286,7 @@ export default function WikiKB(options = {}) {
       },
     })
     const viewEl = instance.mount()
-    viewEl.classList.add('wiki-kb-view')
+    viewEl.classList.add('wiki-kb-view', 'aos-tab-content')
     viewEl.id = `wiki-kb-panel-${id}`
     viewEl.setAttribute('role', 'tabpanel')
     viewEl.setAttribute('aria-labelledby', `wiki-kb-tab-${id}`)
@@ -302,10 +303,15 @@ export default function WikiKB(options = {}) {
 
   function bindViewTabs() {
     if (chromeMode !== 'default' || !rootEl) return
-    viewTabs ??= {
-      update() {},
-      bind() {},
-    }
+    viewTabs ??= createAosZagTabs({
+      id: 'wiki-kb-view-tabs',
+      defaultValue: activeViewId,
+      onValueChange(details) {
+        const nextViewId = viewValueFromChange(details)
+        if (nextViewId && nextViewId !== activeViewId) switchView(nextViewId)
+      },
+    })
+    viewTabs.bind(rootEl)
   }
 
   function activateView(id) {
@@ -420,7 +426,7 @@ export default function WikiKB(options = {}) {
             </div>
           ` : `<span class="wiki-kb-status wiki-kb-floating-status" role="status" aria-live="polite"></span>`}
         ` : `
-          <div class="wiki-kb-tab-strip" role="tablist" aria-label="Wiki KB Views" data-aos-tabs-root data-aos-tabs-list>
+          <div class="wiki-kb-tab-strip aos-tabs" role="tablist" aria-label="Wiki KB Views" data-aos-tabs-root data-aos-tabs-list data-density="compact">
             <span data-role="wiki-kb-view-tabs"></span>
             <div class="wiki-kb-tab-spacer"></div>
             <span class="wiki-kb-status" role="status" aria-live="polite"></span>
@@ -466,22 +472,22 @@ export default function WikiKB(options = {}) {
     }
     const viewTabsSlot = rootEl.querySelector('[data-role="wiki-kb-view-tabs"]')
     if (viewTabsSlot) {
-      const viewTabs = createButtonGroup({
-        value: activeViewId,
-        options: viewDefs.map((view) => ({ value: view.id, label: view.label })),
-      })
-      for (const [index, button] of [...viewTabs.el.querySelectorAll('button')].entries()) {
-        const view = viewDefs[index]
+      const fragment = document.createDocumentFragment()
+      for (const [index, view] of viewDefs.entries()) {
+        const button = document.createElement('button')
         button.id = `wiki-kb-tab-${view.id}`
-        addClassNames(button, `wiki-kb-view-tab${index === 0 ? ' active' : ''}`)
+        button.type = 'button'
+        button.textContent = view.label
+        addClassNames(button, `wiki-kb-view-tab aos-tab${view.id === activeViewId ? ' active' : ''}`)
         button.dataset.view = view.id
         button.dataset.value = view.id
         button.dataset.aosTabsTrigger = ''
         button.setAttribute('role', 'tab')
-        button.setAttribute('aria-selected', index === 0 ? 'true' : 'false')
+        button.setAttribute('aria-selected', view.id === activeViewId ? 'true' : 'false')
         button.setAttribute('aria-controls', `wiki-kb-panel-${view.id}`)
+        fragment.appendChild(button)
       }
-      viewTabsSlot.replaceWith(viewTabs.el)
+      viewTabsSlot.replaceWith(fragment)
     }
     dom.sidebarEl = rootEl.querySelector('.wiki-kb-sidebar')
     dom.sidebarTypeEl = rootEl.querySelector('.wiki-kb-sidebar-type')

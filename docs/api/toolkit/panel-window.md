@@ -499,6 +499,9 @@ Panel-level control/event surface:
 - the returned layout object also exposes `activate(payload)` for same-canvas programmatic activation
 - consumers may theme `.aos-tab-shell`, `.aos-tabs`, `.aos-tab`,
   `.aos-tab.active`, `.aos-tab-panels`, and `.aos-tab-content`
+- `.aos-tabs[data-density="compact"]` is the stock compact tab strip for nested
+  panes and utility panels, and `.aos-tabs[data-layout="equal"]` distributes
+  triggers evenly when equal-width tabs are needed
 - `Tabs` mounts its strip inside `chrome.contentEl` so selected tabs are
   contiguous with their tabpanel body instead of floating in the titlebar
 - active tab state is exposed via `.active`, `data-active`, `aria-selected`, and the `hidden` attribute on tab panels

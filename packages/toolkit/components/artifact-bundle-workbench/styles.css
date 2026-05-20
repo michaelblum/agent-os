@@ -3,7 +3,7 @@
   display: grid;
   grid-template-rows: auto 1fr;
   min-width: 0;
-  color: var(--aos-text, #e8f0f2);
+  color: var(--text-primary, #e8f0f2);
   background: var(--aos-panel-bg, #10171d);
 }
 
@@ -30,7 +30,7 @@
 
 .artifact-bundle-toolbar span,
 .artifact-bundle-toolbar em {
-  color: var(--aos-muted, #9aa7af);
+  color: var(--text-muted, #9aa7af);
   font-size: 0.78rem;
   font-style: normal;
 }
@@ -62,7 +62,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 12px 14px 8px;
-  color: var(--aos-text-strong, #ffffff);
+  color: var(--text-primary, #ffffff);
 }
 
 .artifact-bundle-gallery-entry {
@@ -89,7 +89,7 @@
 .artifact-bundle-muted,
 .artifact-bundle-list span,
 .artifact-bundle-row span {
-  color: var(--aos-muted, #9aa7af);
+  color: var(--text-muted, #9aa7af);
 }
 
 .artifact-bundle-gallery-entry code,
@@ -108,7 +108,7 @@
 }
 
 .artifact-bundle-preview header span {
-  color: var(--aos-muted, #9aa7af);
+  color: var(--text-muted, #9aa7af);
   font-size: 0.78rem;
 }
 
@@ -189,7 +189,7 @@
 .artifact-bundle-evidence-gap header {
   grid-column: 1 / -1;
   padding: 0;
-  color: var(--aos-text-strong, #ffffff);
+  color: var(--text-primary, #ffffff);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -200,7 +200,7 @@
 
 .artifact-bundle-evidence-summary span,
 .artifact-bundle-evidence-summary p {
-  color: var(--aos-muted, #9aa7af);
+  color: var(--text-muted, #9aa7af);
 }
 
 .artifact-bundle-evidence-summary span,
@@ -215,7 +215,7 @@
 
 .artifact-bundle-evidence-summary strong {
   margin-top: 2px;
-  color: var(--aos-text-strong, #ffffff);
+  color: var(--text-primary, #ffffff);
   font-size: 0.82rem;
 }
 
@@ -226,7 +226,7 @@
 }
 
 .artifact-bundle-evidence-gap-list code {
-  color: var(--aos-text, #e8f0f2);
+  color: var(--text-primary, #e8f0f2);
 }
 
 .artifact-bundle-action-row {
@@ -239,7 +239,7 @@
   padding: 6px 10px;
   border: 1px solid var(--aos-control-border, rgba(255, 255, 255, 0.12));
   border-radius: var(--aos-control-radius, 7px);
-  color: var(--aos-text-strong, #ffffff);
+  color: var(--text-primary, #ffffff);
   background: var(--aos-control-bg, rgba(255, 255, 255, 0.04));
   font: inherit;
   cursor: pointer;
@@ -266,7 +266,7 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 0.76rem;
-  color: var(--aos-text, #e8f0f2);
+  color: var(--text-primary, #e8f0f2);
 }
 
 @media (max-width: 980px) {

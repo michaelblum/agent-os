@@ -315,31 +315,11 @@
 }
 
 .object-transform-descriptor-modes {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 2px;
-  background: rgba(0, 0, 0, 0.18);
   text-transform: none;
 }
 
 .object-transform-mode-button {
-  appearance: none;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
   font: 10px var(--font-ui);
-  padding: 3px 6px;
-}
-
-.object-transform-mode-button:hover,
-.object-transform-mode-button.active {
-  background: rgba(138, 180, 255, 0.13);
-  color: var(--text-primary);
 }
 
 .object-transform-descriptor-box {

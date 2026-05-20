@@ -316,7 +316,7 @@ function renderSecondaryView(state) {
 function renderSecondaryTabs(state) {
   const active = state.activeSecondaryView || 'targets'
   return ['targets', 'drafts', 'diagnostics'].map((tab) => `
-    <button class="secondary-tab ${active === tab ? 'active' : ''}" data-secondary-tab="${tab}" aria-selected="${active === tab ? 'true' : 'false'}">${esc(tab[0].toUpperCase() + tab.slice(1))}</button>
+    <button class="secondary-tab ${active === tab ? 'active' : ''}" data-secondary-tab="${tab}" aria-pressed="${active === tab ? 'true' : 'false'}">${esc(tab[0].toUpperCase() + tab.slice(1))}</button>
   `).join('')
 }
 
@@ -500,7 +500,7 @@ function render(root, content, state) {
       ${renderWorkbenchPaneHeader({
         title: secondaryTitle,
         className: 'secondary-header',
-        actions: `<div class="secondary-tabs" role="tablist" aria-label="Secondary drawer views">${renderSecondaryTabs(state)}</div>`,
+        actions: `<div class="secondary-tabs aos-segmented" role="group" aria-label="Secondary drawer views">${renderSecondaryTabs(state)}</div>`,
       })}
       ${renderSecondaryView(state)}
     </section>

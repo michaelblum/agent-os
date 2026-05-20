@@ -6,7 +6,7 @@ const source = await readFile(new URL('../../packages/toolkit/components/wiki-kb
 
 test('default Wiki KB view tabs adopt the Zag tabs adapter hooks', () => {
   assert.match(source, /import \{ createAosZagTabs \} from '\.\.\/\.\.\/adapters\/zag\/tabs\.js'/)
-  assert.match(source, /class="wiki-kb-tab-strip"[^`]*data-aos-tabs-root data-aos-tabs-list/)
+  assert.match(source, /class="wiki-kb-tab-strip aos-tabs"[^`]*data-aos-tabs-root data-aos-tabs-list/)
   assert.match(source, /button\.dataset\.aosTabsTrigger = ''/)
   assert.match(source, /button\.dataset\.value = view\.id/)
   assert.match(source, /viewTabs \?\?= createAosZagTabs\(/)

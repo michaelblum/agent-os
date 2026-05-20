@@ -391,9 +391,25 @@ body {
   background: var(--aos-tab-strip-bg, rgba(4, 11, 16, 0.72));
 }
 
+.aos-tabs[data-density="compact"] {
+  --aos-tab-height: 24px;
+  --aos-tab-padding: 3px 8px 4px;
+  --aos-tab-radius: 5px 5px 0 0;
+  --aos-tab-strip-padding: 4px 8px 0;
+}
+
+.aos-tabs[data-layout="equal"] > .aos-tab {
+  flex: 1 1 0;
+  justify-content: center;
+  text-align: center;
+}
+
 .aos-tab {
   appearance: none;
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: var(--aos-tab-height, 28px);
   margin: 0 0 -1px;
   border: 1px solid var(--aos-tab-border, var(--border-subtle, rgba(122, 241, 255, 0.18)));

@@ -8,6 +8,7 @@
 }
 
 .wiki-kb-shell {
+  --aos-tab-panel-bg: var(--bg-panel);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -72,38 +73,15 @@
 }
 
 .wiki-kb-tab-strip {
-  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border-subtle);
-  background:
-    linear-gradient(180deg, rgba(20, 20, 32, 0.98), rgba(18, 18, 28, 0.92)),
-    radial-gradient(circle at top right, rgba(138, 180, 255, 0.08), transparent 45%);
+  --aos-tab-strip-bg: var(--bg-panel);
+  --aos-tab-panel-bg: var(--bg-panel);
+  padding-right: 8px;
 }
 
 .wiki-kb-view-tab {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 3px 10px;
-  background: transparent;
-  color: var(--text-muted);
-  font: var(--aos-type-micro, 9px/1.4 var(--font-mono));
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
-}
-
-.wiki-kb-view-tab:hover {
-  color: var(--text-secondary);
-}
-
-.wiki-kb-view-tab.active {
-  color: var(--text-primary);
-  background: var(--aos-control-compact-bg-active, rgba(60, 60, 90, 0.22));
-  border-color: rgba(138, 180, 255, 0.35);
 }
 
 .wiki-kb-tab-spacer {
@@ -137,7 +115,9 @@
 }
 
 .wiki-kb-graph-view {
-  background: radial-gradient(circle at center, #102028 0%, #05080b 68%, #020304 100%);
+  background:
+    radial-gradient(circle at center, #102028 0%, #05080b 68%, #020304 100%),
+    var(--aos-tab-panel-bg, var(--bg-panel-content, transparent));
 }
 
 .wiki-kb-graph-main {
