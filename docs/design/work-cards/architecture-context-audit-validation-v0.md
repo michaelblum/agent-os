@@ -1,12 +1,19 @@
 # Work Card: architecture-context-audit-validation-v0
 
-**Status:** Ready for validation
+**Status:** Accepted 2026-05-20
 **Owner:** GDI
 
 ## Tracker
 
 Second-pass validation for
 `docs/design/notes/architecture-context-codebase-audit-2026-05-20.md`.
+
+Accepted evidence:
+
+- Validation branch: `gdi/architecture-context-audit-validation-v0`.
+- Accepted commit: `0c9a6222c84e36babd2007688ab0d82674e44498`.
+- Merged into `gdi/toolkit-panel-theme-consistency-audit-v0` by fast-forward.
+- Validation branch pruned after acceptance.
 
 This card is validation-only. It should produce a corrected audit record and a
 clear recommendation for later doc edits, not directly rewrite
