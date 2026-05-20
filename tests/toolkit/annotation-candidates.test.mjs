@@ -5,6 +5,7 @@ import {
   buildNativeWindowAnnotationCandidate,
   chooseAnnotationCandidateForScope,
   chooseAnnotationCandidate,
+  explainAnnotationCandidateChoice,
   filterAnnotationCandidatesForScope,
   normalizeAnnotationCandidate,
 } from '../../packages/toolkit/workbench/annotation-candidates.js'
@@ -369,4 +370,67 @@ test('semantic scope selection requires direct children rather than overlap-only
   const scoped = filterAnnotationCandidatesForScope([grandchild, direct], scope, { x: 50, y: 40 }, { include_rejections: true })
   assert.deepEqual(scoped.candidates.map((candidate) => candidate.id), ['row'])
   assert.equal(scoped.rejected.some((entry) => entry.id === 'button' && entry.reason === 'candidate_not_direct_child'), true)
+})
+
+test('native extended-display scope explains child panel selection over active window and siblings', () => {
+  const windowScope = buildNativeWindowAnnotationCandidate({
+    window_id: 51,
+    app: 'Visual Studio Code',
+    pid: 4242,
+    bundle_id: 'com.microsoft.VSCode',
+    title: 'agent-os',
+    bounds: { x: 1920, y: 0, width: 1440, height: 900 },
+  })
+
+  const panel = node('vscode-panel', ['native_window', windowScope.root_id, 'ax_element', 'vscode-panel'], {
+    adapter_id: 'macos-ax',
+    root_id: windowScope.root_id,
+    root_kind: 'native_window',
+    subject_kind: 'AXGroup',
+    role: 'AXGroup',
+    label: 'Explorer',
+  })
+  panel.projection.visible_display_rect = { x: 1980, y: 80, w: 340, h: 760 }
+
+  const sibling = node('other-panel', ['native_window', 'native-window:99:Other', 'ax_element', 'other-panel'], {
+    adapter_id: 'macos-ax',
+    root_id: 'native-window:99:Other',
+    root_kind: 'native_window',
+    subject_kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Other',
+    capabilities: ['press'],
+  })
+  sibling.projection.visible_display_rect = { x: 2000, y: 120, w: 40, h: 40 }
+
+  const report = explainAnnotationCandidateChoice([windowScope, sibling, panel], windowScope, { x: 2010, y: 130 })
+  assert.equal(report.selected.id, 'vscode-panel')
+  assert.equal(report.raw_candidate_count, 3)
+  assert.equal(report.scoped_candidate_count, 1)
+  assert.equal(report.rejected.some((entry) => entry.id === windowScope.id && entry.reason === 'candidate_is_active_scope'), true)
+  assert.equal(report.rejected.some((entry) => entry.id === 'other-panel' && entry.reason === 'native_ax_root_mismatch'), true)
+  assert.equal(chooseAnnotationCandidateForScope([windowScope, sibling, panel], windowScope, { x: 2010, y: 130 }).id, 'vscode-panel')
+})
+
+test('scoped decision report exposes no-direct-child fallback reason', () => {
+  const scope = node('section', ['canvas', 'doc', 'semantic', 'section'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'section',
+  })
+  scope.projection.visible_display_rect = { x: 0, y: 0, w: 400, h: 400 }
+
+  const grandchild = node('button', ['canvas', 'doc', 'semantic', 'section', 'row', 'button'], {
+    adapter_id: 'aos-toolkit-semantic-target',
+    root_id: 'doc',
+    subject_kind: 'button',
+    capabilities: ['press'],
+  })
+  grandchild.projection.visible_display_rect = { x: 40, y: 30, w: 80, h: 32 }
+
+  const report = explainAnnotationCandidateChoice([scope, grandchild], scope, { x: 50, y: 40 })
+  assert.equal(report.selected, null)
+  assert.equal(report.fallback_reason, 'active_scope_no_direct_child_under_pointer')
+  assert.equal(report.rejected.some((entry) => entry.id === 'section' && entry.reason === 'candidate_is_active_scope'), true)
+  assert.equal(report.rejected.some((entry) => entry.id === 'button' && entry.reason === 'candidate_not_direct_child'), true)
 })

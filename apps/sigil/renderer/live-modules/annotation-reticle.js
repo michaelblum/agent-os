@@ -9,6 +9,7 @@ const {
 } = await import(toolkitSpecifier('workbench/annotation-session.js'));
 const {
     chooseAnnotationCandidateForScope,
+    explainAnnotationCandidateChoice,
     normalizeAnnotationCandidate,
 } = await import(toolkitSpecifier('workbench/annotation-candidates.js'));
 
@@ -153,6 +154,17 @@ function bridgeMetadata(reason, point = null, sourceCount = 0) {
     };
 }
 
+function decisionSource(candidate = null) {
+    const metadata = objectOrEmpty(candidate?.source_metadata);
+    const adapter = String(candidate?.adapter_id || candidate?.projection?.adapter_id || '');
+    if (adapter === 'aos-browser-dom-element-picker') return 'browser_dom_element_picker';
+    if (adapter === 'macos-ax') return candidate?.subject_kind === 'native_window' ? 'native_ax_window' : 'native_ax_element';
+    if (adapter === 'aos-toolkit-semantic-target') return 'aos_semantic_target';
+    if (adapter === 'aos-canvas-window') return 'canvas_window';
+    if (adapter === 'sigil-display-reticle-v0' || metadata.sigil_fallback) return 'display_fallback';
+    return adapter || 'unknown';
+}
+
 function latestCommittedScope(session = null) {
     const stack = Array.isArray(session?.committed_scope_stack) ? session.committed_scope_stack : [];
     return stack.length ? stack[stack.length - 1] : null;
@@ -178,6 +190,7 @@ export function resolveSigilAnnotationReticleTarget({
     activeScope = null,
 } = {}) {
     const sourceCandidates = Array.isArray(candidates) ? candidates : [];
+    const decision = explainAnnotationCandidateChoice(sourceCandidates, activeScope, pointer);
     const chosen = chooseAnnotationCandidateForScope(sourceCandidates, activeScope, pointer);
     if (chosen) {
         const normalized = normalizeAnnotationCandidate({
@@ -187,21 +200,28 @@ export function resolveSigilAnnotationReticleTarget({
                 ...bridgeMetadata(activeScope ? 'scoped_projectable_candidate_under_pointer' : 'projectable_candidate_under_pointer', pointer, sourceCandidates.length),
                 active_scope_address: activeScope?.address || '',
                 sigil_fallback: false,
+                target_source: decisionSource(chosen),
             },
         });
+        decision.selected = {
+            ...objectOrEmpty(decision.selected),
+            source: decisionSource(normalized),
+        };
         return {
             subject: normalized,
             fallback: false,
             blocker_reason: '',
             target_limitation: '',
+            decision_report: decision,
         };
     }
     const fallback = role === 'release-target'
         ? createDisplayAnnotationSubject(display, pointer, { role })
         : createPointerAnnotationSubject(display, pointer);
     const blockerReason = sourceCandidates.length
-        ? 'no_projectable_candidate_under_pointer'
+        ? (decision.fallback_reason || 'no_projectable_candidate_under_pointer')
         : 'annotation_candidate_cache_empty';
+    decision.fallback_reason = blockerReason;
     return {
         subject: {
             ...fallback,
@@ -209,6 +229,7 @@ export function resolveSigilAnnotationReticleTarget({
                 ...objectOrEmpty(fallback.source_metadata),
                 ...bridgeMetadata(blockerReason, pointer, sourceCandidates.length),
                 sigil_fallback: true,
+                target_source: 'display_fallback',
             },
             projection: {
                 ...objectOrEmpty(fallback.projection),
@@ -216,6 +237,7 @@ export function resolveSigilAnnotationReticleTarget({
                     ...objectOrEmpty(fallback.projection?.source_metadata),
                     ...bridgeMetadata(blockerReason, pointer, sourceCandidates.length),
                     sigil_fallback: true,
+                    target_source: 'display_fallback',
                 },
             },
             blocker_reason: blockerReason,
@@ -224,6 +246,7 @@ export function resolveSigilAnnotationReticleTarget({
         fallback: true,
         blocker_reason: blockerReason,
         target_limitation: 'display_under_release_pointer_v0',
+        decision_report: decision,
     };
 }
 
@@ -360,6 +383,7 @@ export function createSigilAnnotationReticleController({
     let lastCommit = null;
     let lastExitReason = null;
     let lastScopeBlocker = null;
+    let lastDecisionReport = null;
 
     function enter(pointer = null) {
         const avatarPos = getAvatarPos() || pointer || { x: 0, y: 0, valid: true };
@@ -399,6 +423,7 @@ export function createSigilAnnotationReticleController({
             activeScope: latestCommittedScope(session),
         });
         const hover = resolved.subject;
+        lastDecisionReport = resolved.decision_report || null;
         previewPointer = { x: finite(pointer.x), y: finite(pointer.y), valid: true };
         session = setAnnotationHoverCandidate(session, hover, { now: now() });
         return snapshot();
@@ -433,6 +458,7 @@ export function createSigilAnnotationReticleController({
             activeScope: latestCommittedScope(session),
         });
         const target = resolved.subject;
+        lastDecisionReport = resolved.decision_report || null;
         session = setAnnotationHoverCandidate(session, target, { now: now() });
         session = commitAnnotationPreview(session, { now: now(), actor: { role: 'sigil', id: 'radial-reticle' } });
         const targetRect = subjectProjectionRect(target) || displayRect;
@@ -462,6 +488,7 @@ export function createSigilAnnotationReticleController({
             target_limitation: resolved.target_limitation,
             fallback: resolved.fallback,
             blocker_reason: resolved.blocker_reason,
+            decision_report: resolved.decision_report || null,
             placement,
             session,
         };
@@ -496,6 +523,7 @@ export function createSigilAnnotationReticleController({
             scope_blocker_reason: lastScopeBlocker || '',
             preview_pointer: previewPointer,
             preview_target: session.hover_candidate,
+            decision_report: lastDecisionReport,
             last_committed_event: lastCommit,
             last_exit_reason: lastExitReason,
             camera_available: cameraAvailable(),
@@ -511,6 +539,7 @@ export function createSigilAnnotationReticleController({
         rootEvidence = value.root_evidence || null;
         lastCommit = value.last_committed_event || null;
         lastExitReason = value.last_exit_reason || null;
+        lastDecisionReport = value.decision_report || null;
         session = createAnnotationSession(value.session || {
             active,
             entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,

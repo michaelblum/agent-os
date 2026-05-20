@@ -202,6 +202,29 @@ function candidateAddress(candidate = {}) {
   return text(candidate.address || candidate.subject_address, `subject:${adapter}:${root}:${[...path, subject].filter(Boolean).join(':')}`)
 }
 
+function candidateSummary(candidate = null) {
+  if (!candidate) return null
+  return {
+    id: text(candidate.id || candidate.subject_id),
+    adapter_id: text(candidate.adapter_id || candidate.projection?.adapter_id),
+    root_id: text(candidate.root_id || candidate.projection?.root_id),
+    root_kind: text(candidate.root_kind || candidate.root?.kind),
+    subject_id: text(candidate.subject_id || candidate.id || candidate.projection?.subject_id),
+    subject_kind: text(candidate.subject_kind || candidate.kind || candidate.role || candidate.projection?.subject_kind),
+    label: text(candidate.label || candidate.accessible_name || candidate.title || candidate.name),
+    source: text(candidate.source_metadata?.provenance || candidate.source_metadata?.adapter_scope || candidate.projection?.adapter_id || candidate.adapter_id),
+  }
+}
+
+function rejectionSummary(candidate = null, reason = '') {
+  const summary = candidateSummary(candidate) || {}
+  return {
+    ...summary,
+    id: summary.id || text(candidate?.id || candidate?.subject_id),
+    reason: text(reason),
+  }
+}
+
 function scopeSubjectEvidence(scope = null) {
   if (!scope || typeof scope !== 'object') return null
   const normalized = scope.subject && scope.root
@@ -428,16 +451,16 @@ export function filterAnnotationCandidatesForScope(candidates = [], scope = null
     if (!candidate || isImplicitAnnotationRootCandidate(candidate)) continue
     const rect = candidateVisibleRect(candidate)
     if (!rect) {
-      rejected.push({ id: text(candidate.id || candidate.subject_id), reason: 'candidate_projection_missing' })
+      rejected.push(rejectionSummary(candidate, 'candidate_projection_missing'))
       continue
     }
     if (scopeRect && !rectContainsRect(scopeRect, rect, options.rect_tolerance ?? 0.5)) {
-      rejected.push({ id: candidate.id, reason: 'candidate_outside_active_scope' })
+      rejected.push(rejectionSummary(candidate, 'candidate_outside_active_scope'))
       continue
     }
     const directness = candidateDirectnessForScope(candidate, activeScope)
     if (!directness.accepted) {
-      rejected.push({ id: candidate.id, reason: directness.reason })
+      rejected.push(rejectionSummary(candidate, directness.reason))
       continue
     }
     if (point && !rectContainsPoint(rect, point)) continue
@@ -463,6 +486,31 @@ export function filterAnnotationCandidatesForScope(candidates = [], scope = null
 export function chooseAnnotationCandidateForScope(candidates = [], scope = null, point = null, options = {}) {
   const scoped = filterAnnotationCandidatesForScope(candidates, scope, point, options)
   return chooseAnnotationCandidate(Array.isArray(scoped) ? scoped : scoped.candidates, point)
+}
+
+export function explainAnnotationCandidateChoice(candidates = [], scope = null, point = null, options = {}) {
+  const sourceCandidates = Array.isArray(candidates) ? candidates : []
+  const scoped = filterAnnotationCandidatesForScope(sourceCandidates, scope, point, {
+    ...options,
+    include_rejections: true,
+  })
+  const selected = chooseAnnotationCandidate(scoped.candidates, point)
+  const activeScope = scopeSubjectEvidence(scope)
+  const rejected = scoped.rejected.slice(0, Number.isFinite(Number(options.rejection_limit)) ? Number(options.rejection_limit) : 8)
+  const fallbackReason = selected
+    ? ''
+    : (activeScope
+        ? (scoped.candidates.length ? 'active_scope_candidates_not_projectable_under_pointer' : 'active_scope_no_direct_child_under_pointer')
+        : (sourceCandidates.length ? 'no_projectable_candidate_under_pointer' : 'annotation_candidate_cache_empty'))
+  return {
+    active_scope: activeScope ? candidateSummary(activeScope.candidate) : null,
+    active_scope_address: activeScope?.address || '',
+    raw_candidate_count: sourceCandidates.length,
+    scoped_candidate_count: scoped.candidates.length,
+    selected: candidateSummary(selected),
+    rejected,
+    fallback_reason: fallbackReason,
+  }
 }
 
 export function buildNativeWindowAnnotationCandidate(input = {}, options = {}) {

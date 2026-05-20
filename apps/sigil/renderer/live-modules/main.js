@@ -1608,6 +1608,7 @@ function annotationReticleBrowserDomBridgeEvidence(pointer = null) {
         ok: true,
         session_id: sessionId,
         browser_window_id: windowId,
+        active_scope_address: activeScope?.address || '',
         browser_pid: Number.isFinite(Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid))
             ? Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid)
             : null,
@@ -1911,15 +1912,45 @@ function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'prev
         browser_content_rect: evidence.content_rect,
     }, { timeoutMs: 2500 })
         .then((msg) => {
-            if (pendingAnnotationReticleBrowserDomRequestKey === requestKey) pendingAnnotationReticleBrowserDomRequestKey = '';
+            if (pendingAnnotationReticleBrowserDomRequestKey !== requestKey) {
+                recordAnnotationReticleEvent('browser_dom_bridge_stale_response', {
+                    reason,
+                    browser_session_id: evidence.session_id,
+                    request_key: requestKey,
+                    pending_request_key: pendingAnnotationReticleBrowserDomRequestKey,
+                });
+                return;
+            }
+            pendingAnnotationReticleBrowserDomRequestKey = '';
+            const currentScope = annotationReticle.snapshot()?.active_scope || null;
+            if (annotationReticle.active && evidence.active_scope_address && currentScope?.address !== evidence.active_scope_address) {
+                recordAnnotationReticleEvent('browser_dom_bridge_stale_scope', {
+                    reason,
+                    browser_session_id: evidence.session_id,
+                    request_scope_address: evidence.active_scope_address,
+                    active_scope_address: currentScope?.address || '',
+                });
+                return;
+            }
             const payload = msg.payload || msg;
             const target = payload.target || payload;
-            if (!annotationReticleIsBrowserDomElementTarget(target)) return;
+            if (!annotationReticleIsBrowserDomElementTarget(target)) {
+                recordAnnotationReticleEvent('browser_dom_bridge_no_target', {
+                    reason,
+                    browser_session_id: evidence.session_id,
+                    blocker_reason: payload.blocker_reason || target?.blocker_reason || 'no_dom_target_at_point',
+                    skipped: Array.isArray(payload.skipped) ? payload.skipped : [],
+                    rejection_reasons: Array.isArray(payload.rejection_reasons) ? payload.rejection_reasons : [],
+                });
+                return;
+            }
             const candidate = buildBrowserDomElementAnnotationCandidate({
                 ...target,
                 browser_session_id: evidence.session_id,
                 browser_window_id: evidence.browser_window_id,
                 browser_pid: evidence.browser_pid,
+                skipped: Array.isArray(payload.skipped) ? payload.skipped : (Array.isArray(target.skipped) ? target.skipped : []),
+                rejection_reasons: Array.isArray(payload.rejection_reasons) ? payload.rejection_reasons : [],
             }, {
                 content_rect: payload.browser_content_rect || evidence.content_rect,
                 root_label: target.source_url || target.surface_id || evidence.session_id,
@@ -1937,6 +1968,8 @@ function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'prev
                 reason,
                 browser_session_id: evidence.session_id,
                 candidate_id: candidate.id,
+                skipped: candidate.source_metadata?.skipped_stack || [],
+                rejection_reasons: candidate.source_metadata?.rejection_reasons || [],
             });
         })
         .catch((error) => {

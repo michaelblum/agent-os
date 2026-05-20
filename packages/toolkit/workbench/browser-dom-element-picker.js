@@ -589,6 +589,10 @@ export function buildBrowserDomElementAnnotationCandidate(record = {}, options =
         xpath: record.xpath ?? null,
         source_url: record.source_url || null,
         browser_content_rect: contentRect,
+        skipped_stack: Array.isArray(record.skipped) ? cloneJson(record.skipped, []) : [],
+        rejection_reasons: Array.isArray(record.rejection_reasons)
+          ? cloneJson(record.rejection_reasons, [])
+          : (Array.isArray(record.skipped) ? record.skipped.map((entry) => text(entry.reason)).filter(Boolean) : []),
       },
     },
     blocker_reason: blockerReason,
@@ -607,6 +611,10 @@ export function buildBrowserDomElementAnnotationCandidate(record = {}, options =
       label: record.accessible_name || record.label || '',
       text_excerpt: record.text_excerpt || '',
       browser_content_rect: contentRect,
+      skipped_stack: Array.isArray(record.skipped) ? cloneJson(record.skipped, []) : [],
+      rejection_reasons: Array.isArray(record.rejection_reasons)
+        ? cloneJson(record.rejection_reasons, [])
+        : (Array.isArray(record.skipped) ? record.skipped.map((entry) => text(entry.reason)).filter(Boolean) : []),
       browser_attachment: options.browser_attachment || 'explicit_local_page',
       browser_session_id: options.browser_session_id || record.browser_session_id || null,
       browser_window_id: options.browser_window_id || record.browser_window_id || null,

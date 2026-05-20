@@ -175,6 +175,7 @@ import {
   buildNativeAxElementAnnotationCandidate,
   buildNativeWindowAnnotationCandidate,
   chooseAnnotationCandidateForScope,
+  explainAnnotationCandidateChoice,
   chooseAnnotationCandidate,
   filterAnnotationCandidatesForScope,
   normalizeAnnotationAdapterCapabilitySummary,
@@ -201,6 +202,14 @@ reasons such as `candidate_outside_active_scope`, `candidate_not_direct_child`,
 shared boundary for Surface Inspector and Sigil-style reticles; callers should
 use cached candidates on pointer hot paths and refresh adapter evidence only on
 mode entry, scope changes, settle events, or explicit refresh.
+
+`explainAnnotationCandidateChoice(candidates, scope, point, options?)` returns
+the same scoped selection decision as a compact diagnostics report: active scope
+identity, raw and scoped candidate counts, selected target summary, bounded
+rejection samples with reasons, and the fallback reason when no direct child can
+win. Sigil reticle debug snapshots and events use this report to explain why an
+active frame selected a child candidate, rejected the current scope/siblings, or
+fell back without drawing a false overlay.
 
 ### Surface Inspector Annotation Support V0
 

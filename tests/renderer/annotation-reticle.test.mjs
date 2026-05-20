@@ -139,6 +139,9 @@ test('annotation reticle preview and release prefer shared projectable annotatio
   assert.equal(preview.preview_target.adapter_id, 'aos-toolkit-semantic-target')
   assert.equal(preview.preview_target.address, 'subject:aos-toolkit-semantic-target:html-workbench-expression:canvas:html-workbench-expression:semantic:semantic-cta:semantic-cta')
   assert.equal(preview.preview_target.source_metadata.sigil_fallback, false)
+  assert.equal(preview.decision_report.raw_candidate_count, 1)
+  assert.equal(preview.decision_report.selected.id, 'semantic-cta')
+  assert.equal(preview.decision_report.selected.source, 'aos_semantic_target')
   assert.equal(preview.preview_target.projection.can_reveal, true)
 
   now += 1000
@@ -147,6 +150,7 @@ test('annotation reticle preview and release prefer shared projectable annotatio
   assert.equal(committed.target_limitation, '')
   assert.equal(committed.fallback, false)
   assert.equal(committed.blocker_reason, '')
+  assert.equal(committed.decision_report.selected.id, 'semantic-cta')
   assert.deepEqual(committed.placement.point, { x: 164, y: 84, valid: true })
   assert.equal(committed.session.anchors.some((anchor) => anchor.subject.adapter_id === 'aos-toolkit-semantic-target'), true)
 })
@@ -240,10 +244,15 @@ test('annotation reticle re-enters from the last live parent scope and rejects o
   const preview = controller.updatePreview({ x: 150, y: 116, valid: true })
   assert.equal(preview.preview_target.subject.id, 'ax-inside')
   assert.equal(preview.preview_target.source_metadata.active_scope_address, parentAddress)
+  assert.equal(preview.decision_report.raw_candidate_count, 3)
+  assert.equal(preview.decision_report.scoped_candidate_count, 1)
+  assert.equal(preview.decision_report.rejected.some((entry) => entry.id === 'native-window-1' && entry.reason === 'candidate_is_active_scope'), true)
+  assert.equal(preview.decision_report.rejected.some((entry) => entry.id === 'ax-outside' && entry.reason === 'native_ax_root_mismatch'), true)
 
   now += 1000
   const secondCommit = controller.commitRelease({ x: 150, y: 116, valid: true })
   assert.equal(secondCommit.preview_target.id, 'ax-inside')
+  assert.equal(secondCommit.decision_report.selected.source, 'native_ax_element')
   const childAddress = secondCommit.session.committed_scope_stack.at(-1).address
   assert.deepEqual(secondCommit.session.committed_scope_stack.map((subject) => subject.address), [
     firstCommit.session.root.address,
