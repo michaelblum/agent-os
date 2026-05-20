@@ -15,8 +15,9 @@ runs, relay packets, correction rounds, and human-needed blocker packets.
 
 Name the transfer kind before writing:
 
-- **Successor handoff:** Foreman to Foreman state compression. Use
-  `../session-handoff/skill.md`; do not write GDI work cards from that skill.
+- **Successor handoff:** Foreman-to-Foreman state compression. Read
+  `references/foreman.md`; do not create, update, or commit a work card for
+  successor continuity.
 - **GDI round:** one GDI session, one deterministic goal, ending in completion,
   failure, or stall. Read `references/gdi.md`.
 - **Operator run:** supervised live/HITL observation or action. Read
@@ -34,7 +35,8 @@ Name the transfer kind before writing:
 
 - **Transfer:** umbrella term for moving actionable context across sessions.
 - **Dispatch:** the short clipboard payload that starts a dock session.
-- **Work card:** durable Markdown task contract, usually for GDI.
+- **Work card:** durable Markdown task contract for a GDI/correction/relay
+  round; never a successor-Foreman handoff.
 - **Round:** one recipient session's attempt at one goal.
 - **Handoff:** reserve for successor session state transfer, especially
   Foreman-to-Foreman.
@@ -70,8 +72,27 @@ Bad assumption checks:
 - Do not rely on inherited chat memory for branch/base facts. Put them in the
   artifact.
 
+## Placement Matrix
+
+Use path and storage as part of the contract:
+
+| Transfer kind | Durable Markdown home | Clipboard/chat payload |
+| --- | --- | --- |
+| Successor handoff | Temporary `mktemp -t foreman-handoff-XXXXXX.md` file only, unless the user requests chat-only. Do not commit it. | Full compact handoff via `.docks/foreman/scripts/handoff --target-dock foreman` when another session should start from it. |
+| GDI round | `docs/design/work-cards/<card>.md` for non-trivial implementation or validation contracts. | Thin dispatch: `follow the instructions in docs/design/work-cards/<card>.md`. |
+| Operator run | Usually no durable Markdown. Use a design note or capture plan only when the evidence plan must persist. | Concrete supervised run instructions. |
+| Relay packet | GitHub-visible issue, PR, branch report, or explicitly named durable artifact. | The minimal pointer needed to start the relay. |
+| Human-needed packet | Usually chat and clipboard only. Durable docs only when the recovery path becomes reusable SOP. | Exact blocker and bounded recovery command path. |
+
+If a successor-Foreman handoff appears under `docs/design/work-cards/`, treat it
+as misplaced session state. Move it to a temp/chat handoff or delete it before
+committing unless the human explicitly asks to convert it into a real GDI work
+card with a GDI round contract.
+
 ## Output Discipline
 
 Keep clipboard dispatches thin. Put durable task detail in the referenced work
-card or issue. Put successor-Foreman state in the successor handoff. Do not use
-the successor handoff skill to author recipient work.
+card or issue. Put successor-Foreman state in the successor handoff, not in
+`docs/design/work-cards/`. Do not use successor handoff content to author
+recipient work without first reclassifying it as a GDI, Operator, relay,
+correction, or human-needed transfer.
