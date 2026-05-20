@@ -1,7 +1,7 @@
 # Work Card: toolkit-panel-theme-consistency-audit-v0
 
-**Status:** Ready for implementation
-**Owner:** GDI
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
 
 ## Fresh Context Contract
 
@@ -20,6 +20,21 @@ This card comes from the Surface Inspector lower-pane tab correction: the
 Surface Inspector used ARIA/Zag tab semantics but had private segmented-button
 styling. That was a symptom of a broader drift between semantics, primitive
 styling, and local component CSS.
+
+Accepted evidence:
+
+- Implemented and merged through PR #368:
+  `https://github.com/michaelblum/agent-os/pull/368`, merge commit
+  `28330aa27be7df0cb00ebc3e9f218c7713a784ee`.
+- Post-merge focused verification passed:
+  `node --test tests/toolkit/style-contracts.test.mjs tests/toolkit/surface-inspector.test.mjs tests/toolkit/tabs-layout.test.mjs tests/toolkit/wiki-kb-layout-modes.test.mjs tests/toolkit/wiki-kb.test.mjs tests/renderer/radial-gesture-menu.test.mjs tests/renderer/radial-gesture-visuals.test.mjs`
+  (`97/97`).
+- `./aos ready` reported `ready=true`.
+- Live AOS checks passed for `integration-hub` and `wiki-kb`. The original Wiki
+  KB wait selector was stale after the implementation; the current layout-mode
+  contract is `.wiki-kb-layout-mode-bar` plus `.wiki-kb-layout-mode-control`.
+- Temporary live-check canvases `toolkit-audit-integration-hub` and
+  `toolkit-audit-wiki-kb` were removed after verification.
 
 ## Read First
 

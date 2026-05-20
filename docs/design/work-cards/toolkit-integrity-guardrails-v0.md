@@ -1,9 +1,25 @@
 # Toolkit Integrity Guardrails V0
 
+**Status:** Accepted 2026-05-20
+**Owner:** Foreman
+
 ## Tracker
 
 Toolkit integrity guardrails for the existing layered toolkit model. This card
 owns only the first warn-mode reporting/test slice.
+
+Accepted evidence:
+
+- Implemented and merged through PR #368:
+  `https://github.com/michaelblum/agent-os/pull/368`, merge commit
+  `28330aa27be7df0cb00ebc3e9f218c7713a784ee`.
+- `scripts/toolkit-debt-report.mjs` exists and reports `mode: "warn"` with six
+  advisory debt categories.
+- `tests/toolkit/toolkit-integrity.test.mjs` exists and verifies the warn-mode
+  report structure and CLI behavior.
+- Post-merge verification passed:
+  `node --test tests/toolkit/toolkit-integrity.test.mjs`,
+  `node scripts/toolkit-debt-report.mjs --json`, and `git diff --check`.
 
 ## Fresh Context Contract
 
