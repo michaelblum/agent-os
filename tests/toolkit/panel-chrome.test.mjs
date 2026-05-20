@@ -1639,71 +1639,6 @@ test('wireDrag follows daemon input events while the cursor leaves the canvas', 
   ]);
 });
 
-test('wireDrag uses local pointermove as native move transport until daemon input arrives', async (t) => {
-  const previousNode = globalThis.Node;
-  const previousWindow = globalThis.window;
-  const previousAtob = globalThis.atob;
-  globalThis.Node = FakeNode;
-  const emitted = [];
-  globalThis.window = {
-    headsup: {},
-    webkit: {
-      messageHandlers: {
-        headsup: {
-          postMessage(message) {
-            emitted.push(message);
-          },
-        },
-      },
-    },
-  };
-  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
-  t.after(() => {
-    globalThis.Node = previousNode;
-    globalThis.window = previousWindow;
-    globalThis.atob = previousAtob;
-  });
-
-  const header = new FakeElement();
-  const controls = new FakeElement();
-  const moves = [];
-  wireDrag(header, controls, {
-    move(screenX, screenY, offsetX, offsetY) {
-      moves.push({ screenX, screenY, offsetX, offsetY });
-    },
-  });
-
-  header.dispatch('pointerdown', {
-    button: 0,
-    pointerId: 7,
-    clientX: 24,
-    clientY: 10,
-    target: header,
-  });
-  header.dispatch('pointermove', { pointerId: 7, screenX: 301, screenY: 402 });
-
-  assert.deepEqual(moves, [{ screenX: 301, screenY: 402, offsetX: 24, offsetY: 10 }]);
-
-  const sendInput = (message) => {
-    window.headsup.receive(Buffer.from(JSON.stringify(message)).toString('base64'));
-  };
-  sendInput({ type: 'input_event', payload: { type: 'left_mouse_dragged', x: 500, y: 1040 } });
-  header.dispatch('pointermove', { pointerId: 7, screenX: 999, screenY: 111 });
-
-  assert.deepEqual(moves, [
-    { screenX: 301, screenY: 402, offsetX: 24, offsetY: 10 },
-    { screenX: 500, screenY: 1040, offsetX: 24, offsetY: 10 },
-  ]);
-
-  header.dispatch('pointerup', { pointerId: 7, screenX: 999, screenY: 111 });
-  assert.deepEqual(emitted.map((message) => message.type), [
-    'drag_start',
-    'subscribe',
-    'drag_end',
-    'unsubscribe',
-  ]);
-});
-
 test('wireDrag does not use DOM pointermove coordinates for global panel placement', async (t) => {
   const previousNode = globalThis.Node;
   const previousWindow = globalThis.window;
@@ -1762,12 +1697,12 @@ test('wireDrag does not use DOM pointermove coordinates for global panel placeme
     screenY: 1150,
     target: header,
   });
+  header.dispatch('pointermove', { pointerId: 7, screenX: 1360, screenY: 80 });
 
   const sendInput = (message) => {
     window.headsup.receive(Buffer.from(JSON.stringify(message)).toString('base64'));
   };
   sendInput({ type: 'input_event', payload: { type: 'left_mouse_dragged', x: 1360, y: 1570 } });
-  header.dispatch('pointermove', { pointerId: 7, screenX: 1360, screenY: 80 });
   header.dispatch('pointerup', { pointerId: 7, screenX: 1360, screenY: 80 });
 
   assert.equal(starts.length, 1);
