@@ -433,6 +433,10 @@ class UnifiedDaemon {
 
         }
 
+        canvasManager.onCanvasGeometry = { [weak self] payload in
+            self?.publishCanvasGeometry(payload)
+        }
+
         canvasManager.onCanvasSurfaceEvent = { [weak self] event, data in
             self?.publishCanvasSurfaceEvent(event: event, data: data)
         }
@@ -549,10 +553,6 @@ class UnifiedDaemon {
                     _ = write(fd, ptr.baseAddress!, ptr.count)
                 }
             }
-        }
-
-        canvasManager.onCanvasGeometry = { [weak self] payload in
-            self?.publishCanvasGeometry(payload)
         }
     }
 
