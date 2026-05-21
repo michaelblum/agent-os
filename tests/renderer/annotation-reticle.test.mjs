@@ -414,6 +414,50 @@ test('Sigil reticle requests live browser DOM target for scoped local browser wi
   assert.match(source, /annotationReticle\.updatePreview\(\{ x, y, valid: true \}\)[\s\S]*annotationReticleRequestBrowserDomTarget\(\{ x, y, valid: true \}, 'release', liveJs\.annotationReticle\?\.preview_target \|\| null\)[\s\S]*const event = annotationReticle\.commitRelease/)
 })
 
+test('Sigil reticle accepts nested native window preview target as browser anchor', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const helpersStart = source.indexOf('function annotationReticleNativeWindowIdFromValue')
+  const helpersEnd = source.indexOf('function annotationReticleWindowEventMatchesAnchor', helpersStart)
+  assert.notEqual(helpersStart, -1)
+  assert.notEqual(helpersEnd, -1)
+
+  const helperSource = source.slice(helpersStart, helpersEnd)
+  const annotationReticleNativeBrowserWindowAnchor = new Function(`${helperSource}; return annotationReticleNativeBrowserWindowAnchor;`)()
+  const previewTarget = {
+    id: 'native-window:195:Comet',
+    subject_id: '',
+    adapter_id: 'macos-ax',
+    role: 'native_window',
+    root: {
+      id: 'native-window:195:Comet',
+      kind: 'native_window',
+      label: 'Comet',
+    },
+    subject: {
+      id: 'native-window:195:Comet',
+      kind: 'native_window',
+      path: ['native_window', 'native-window:195:Comet'],
+    },
+    source_metadata: {
+      window_id: '195',
+      pid: 732,
+      bundle_id: 'ai.perplexity.comet',
+    },
+  }
+  const displayRootScope = {
+    address: 'sigil:display:1:root',
+    adapter_id: 'aos-display-root',
+    root_kind: 'display',
+    subject_kind: 'display_root',
+  }
+
+  const anchor = annotationReticleNativeBrowserWindowAnchor(previewTarget, displayRootScope)
+  assert.equal(anchor.source, 'selected_native_window')
+  assert.equal(anchor.candidate_id, 'native-window:195:Comet')
+  assert.equal(anchor.window_id, '195')
+  assert.equal(anchor.pid, 732)
+})
+
 test('Sigil reticle maps browser DOM daemon errors to precise bridge blockers', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const mapperStart = source.indexOf('function annotationReticleBrowserDomBridgeBlockerFromError')

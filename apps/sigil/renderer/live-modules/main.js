@@ -1678,20 +1678,33 @@ function annotationReticleNativeWindowPidFromValue(value = null) {
     return Number.isFinite(Number(pid)) ? Number(pid) : null;
 }
 
+function annotationReticleNativeWindowKindFromValue(value = null) {
+    if (!value || typeof value !== 'object') return '';
+    const kind = String(
+        value.root_kind
+        || value.subject_kind
+        || value.root?.kind
+        || value.subject?.kind
+        || value.role
+        || ''
+    ).trim();
+    return kind === 'native_window' ? kind : '';
+}
+
 function annotationReticleNativeBrowserWindowAnchor(candidate = null, activeScope = null) {
     const subject = candidate && typeof candidate === 'object' ? candidate : null;
     if (!subject) return null;
     const isNativeWindow = subject.adapter_id === 'macos-ax'
-        && (subject.root_kind === 'native_window' || subject.subject_kind === 'native_window');
+        && annotationReticleNativeWindowKindFromValue(subject) === 'native_window';
     if (!isNativeWindow) return null;
     const activeIsNativeWindow = activeScope?.adapter_id === 'macos-ax'
-        && (activeScope?.root_kind === 'native_window' || activeScope?.subject_kind === 'native_window');
+        && annotationReticleNativeWindowKindFromValue(activeScope) === 'native_window';
     return {
         candidate: subject,
         source: activeIsNativeWindow && activeScope?.address === subject.address
             ? 'active_scope'
             : 'selected_native_window',
-        candidate_id: String(subject.id || subject.subject_id || ''),
+        candidate_id: String(subject.id || subject.subject_id || subject.subject?.id || subject.root?.id || ''),
         address: subject.address || '',
         window_id: annotationReticleNativeWindowIdFromValue(subject),
         pid: annotationReticleNativeWindowPidFromValue(subject),
