@@ -48,7 +48,7 @@ After this slice:
 
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/api/toolkit/workbench.md`
 - `docs/design/work-cards/annotation-candidate-helper-neutralization-v0.md`
 - `docs/design/work-cards/annotation-projection-reveal-normalization-v0.md`

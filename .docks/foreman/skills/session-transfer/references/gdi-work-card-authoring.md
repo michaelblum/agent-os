@@ -1,13 +1,14 @@
-# Recipe: GDI Work Card Authoring
+# GDI Work Card Authoring
 
-Use this recipe when Foreman writes or revises a work card for a fresh GDI
+Use this reference when Foreman writes or revises a work card for a fresh GDI
 session. The goal is reliable context transfer without freezing one permanent
 prompt format. GDI starts from a new context window, so the work card must carry
 the minimum map needed to rediscover state, inspect the right files, avoid old
 wrong paths, and verify the slice.
 
-This is a recipe, not a schema. Omit slots that do not apply. Add specialty
-slots when the slice crosses a boundary.
+This is a Foreman session-transfer reference, not a role-neutral recipe or a
+schema. Omit slots that do not apply. Add specialty slots when the slice crosses
+a boundary.
 
 ## Core Shape
 
@@ -282,7 +283,8 @@ Use when GDI prepares work for Operator:
 Use for architecture, recipe, issue, or instruction work:
 
 - name the source-of-truth boundary: `AGENTS.md`, subtree `AGENTS.md`,
-  `docs/recipes/`, `docs/design/`, `docs/api/`, or `shared/schemas/`;
+  `.docks/`, `docs/recipes/`, `docs/design/`, `docs/api/`, or
+  `shared/schemas/`;
 - avoid duplicating long policy in multiple files;
 - update provider-specific compatibility files only as pointers when possible;
 - run contradiction scans for retired phrases or superseded paths.

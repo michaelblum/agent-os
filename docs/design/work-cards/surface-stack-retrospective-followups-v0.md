@@ -129,7 +129,7 @@ Smallest useful slice:
 
 Likely files:
 
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `.docks/foreman/AGENTS.md` if Foreman-specific routing language needs to be
   sharpened.

@@ -38,7 +38,7 @@ slice.
 - `ARCHITECTURE.md`
 - `CONTEXT.md`
 - `docs/design/notes/architecture-context-codebase-audit-2026-05-20.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/api/aos.md`
 - `docs/api/toolkit/components.md`
 - `packages/toolkit/AGENTS.md`

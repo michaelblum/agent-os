@@ -51,7 +51,7 @@ runtime records versus generated projections.
 - `docs/design/evidence-workflow-block-abstraction-tracker.md`
 - `docs/design/user-signal-surface.md`
 - `docs/recipes/layered-subject-expressions.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/api/aos.md`
 - `docs/api/toolkit/workbench.md`
 - `docs/wiki/repo-docs-projection-v0.json`

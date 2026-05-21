@@ -61,7 +61,8 @@ These paths are documentation source-of-truth for the checkpoint:
 - `ARCHITECTURE.md`, `README.md`, `docs/api/`, `docs/adr/`, and
   `docs/design/aos-*`.
 - `docs/recipes/aos-surface-interaction-decision-tree.md`,
-  `docs/recipes/gdi-work-card-authoring.md`, and related workflow recipes.
+  `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`,
+  and related workflow references.
 - Surface-stack work cards under `docs/design/work-cards/`.
 
 ### Checkpoint Hygiene Added During This Pass

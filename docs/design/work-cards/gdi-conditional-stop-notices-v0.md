@@ -63,7 +63,7 @@ Michael's requested product behavior is:
 - `.docks/harness/dock-hook-runner.sh`
 - `.docks/foreman/skills/session-transfer/SKILL.md`
 - `.docks/foreman/skills/session-transfer/references/gdi.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `tests/dock-hook-isolation.sh`
 - `tests/dock-handoff-clipboard.sh`
 - `tests/help-contract.sh`
@@ -137,7 +137,7 @@ Inspect first, then choose the narrowest correct layer. Likely areas:
 - `.docks/gdi/README.md`
 - `.docks/foreman/skills/session-transfer/references/gdi.md`
 - `.docks/foreman/skills/session-transfer/SKILL.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `tests/dock-hook-isolation.sh`
 
 A reasonable implementation shape is:

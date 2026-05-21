@@ -50,7 +50,7 @@ namespace change in this slice.
 - `docs/agents/domain.md`
 - `docs/recipes/context-doc-maintenance.md`
 - `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - every file under `docs/adr/`
 - every file under `docs/decisions/`
 

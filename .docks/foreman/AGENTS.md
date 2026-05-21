@@ -167,12 +167,13 @@ the plain work-card instruction above. If a shared helper would inject ceremony,
 use a Foreman-specific plain clipboard copy path and report the copied payload
 plus timestamp in the dock-level chat-visible shape.
 
-Use `docs/recipes/gdi-work-card-authoring.md` as the flexible authoring shape:
-fresh context, read-first files, state rediscovery, exact files to inspect,
-hard boundaries, verification, and completion-report slots. Add specialty slots
-only when the slice needs them. When dirty worktrees or large proof artifacts
-would make review harder, ask for the recipe's path-scoped completion summary;
-skip that extra shape for tiny fixes where it adds noise.
+Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
+as the flexible authoring shape: fresh context, read-first files, state
+rediscovery, exact files to inspect, hard boundaries, verification, and
+completion-report slots. Add specialty slots only when the slice needs them.
+When dirty worktrees or large proof artifacts would make review harder, ask for
+the reference's path-scoped completion summary; skip that extra shape for tiny
+fixes where it adds noise.
 
 Do not paste long implementation instructions directly into the clipboard goal
 unless the task is genuinely small. If Foreman creates draft evidence, label it
