@@ -387,23 +387,23 @@ if (( elapsed > 6 )); then
   exit 1
 fi
 
-python3 - "$ROOT/.docks/README.md" "$ROOT/docs/recipes/codex-dock-session-profiles.md" <<'PY'
+python3 - "$ROOT/.docks/README.md" <<'PY'
 import pathlib
 import sys
 
 dock_readme = pathlib.Path(sys.argv[1]).read_text()
-recipe = pathlib.Path(sys.argv[2]).read_text()
 if "## Canonical Docks" not in dock_readme or "`operator/` is the Operator" not in dock_readme:
     raise SystemExit("FAIL: .docks/README.md canonical dock list does not include Operator")
 if ".docks/harness/dock-hook-runner.sh" not in dock_readme:
     raise SystemExit("FAIL: .docks/README.md does not document the shared dock harness")
 if "voice.voice_slot" not in dock_readme or "aos say --voice-slot" not in dock_readme:
     raise SystemExit("FAIL: .docks/README.md does not document active voice_slot stop speech")
-if "## Current Docks" not in recipe or ".docks/operator/" not in recipe or "Operator is a docked role" not in recipe:
-    raise SystemExit("FAIL: codex dock recipe does not document Operator as a current dock role")
-for label, text in ((".docks/README.md", dock_readme), ("codex-dock-session-profiles.md", recipe)):
-    if "not a Workflow" not in text and "not a workflow" not in text:
-        raise SystemExit(f"FAIL: {label} does not preserve dock-not-workflow boundary language")
+if "Remote or undocked agents cannot inherit the launch root automatically" not in dock_readme:
+    raise SystemExit("FAIL: .docks/README.md does not document remote dock adoption")
+if "Docks do not select the active development workflow profile" not in dock_readme:
+    raise SystemExit("FAIL: .docks/README.md does not preserve dock/profile separation")
+if "not a Workflow" not in dock_readme and "not a workflow" not in dock_readme:
+    raise SystemExit("FAIL: .docks/README.md does not preserve dock-not-workflow boundary language")
 PY
 
 python3 - "$ROOT/docs/design/work-cards/dock-shared-harness-v0.md" <<'PY'

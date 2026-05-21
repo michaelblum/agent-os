@@ -50,7 +50,7 @@ resurrecting startup registration.
 - `.docks/{foreman,gdi,operator}/hooks/stop.sh`
 - `tests/dock-hook-isolation.sh`
 - `docs/design/work-cards/dock-shared-harness-v0.md`
-- `docs/recipes/codex-dock-session-profiles.md`
+- `.docks/README.md`
 
 ## Rediscover State
 
