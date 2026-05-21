@@ -7,9 +7,14 @@ A dock is not a Workflow. A Workflow is an AOS/domain Subject such as the
 Employer Brand Comparative Audit. A dock is only a way to launch Codex with
 role-local instructions, hooks, and config.
 
+For cold starts, resolve the dock role before choosing implementation,
+verification, or git workflow behavior. Root `AGENTS.md` points new agents here
+so local and remote sessions share the same role vocabulary.
+
 ## Launch
 
-Open a terminal in the dock directory and start Codex:
+For a local Codex session, open a terminal in the dock directory and start
+Codex:
 
 ```bash
 cd .docks/gdi
@@ -26,10 +31,21 @@ Codex then discovers the dock's `AGENTS.md`, `.codex/hooks.json`, and any other
 project-local configuration from that launch root. Source edits and tests still
 belong in the real repo root unless the dock says otherwise.
 
+Remote or undocked agents cannot inherit the launch root automatically. They
+should adopt the requested dock persona explicitly, read shared
+`.docks/AGENTS.md`, then read the role-local `.docks/<dock>/AGENTS.md`. If no
+role is named and the task is coordination, review, routing, or git/GitHub
+hygiene, use Foreman.
+
 The active instruction ladder is root `AGENTS.md`, shared `.docks/AGENTS.md`,
 then the role-local `<dock>/AGENTS.md`. Keep common docked-session behavior in
 `.docks/AGENTS.md` and keep each role file focused on that role's authority,
 handoff contract, and stop conditions.
+
+Docks do not select the active development workflow profile. Resolve git,
+branch, PR, review, and merge posture from `docs/dev/active-profile.json` and
+`docs/dev/workflow-profiles.json`, then apply any explicit user override that is
+safe for the current session.
 
 Each dock keeps a small Stop hook that delegates to
 `.docks/harness/dock-hook-runner.sh`. The runner reads dock identity and voice
@@ -50,6 +66,11 @@ allowed capability classes. Inspect profiles with:
 This profile is descriptive, not an executor. It keeps the portable dock
 metaphor inspectable while leaving task judgment and command failures with the
 active agent.
+
+Dock-local skills use the conventional uppercase `SKILL.md` entrypoint under
+the owning dock, for example `.docks/foreman/skills/session-transfer/SKILL.md`.
+The `.docks` path is what makes the skill repo-native and role-local; provider
+or user-managed global skill registries are separate housekeeping surfaces.
 
 Dock-local bespoke Stop behavior belongs in executable scripts named
 `pre-stop.sh` or `post-stop.sh` under the dock's `hooks/` directory. The shared

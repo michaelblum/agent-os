@@ -64,10 +64,9 @@ git status --short --branch
 rg -n "scheduleRenderFrame|createRenderLoopScheduler|rendererSuspended|visualActive|requestAnimationFrame|postRenderPerformanceSample|renderPerformanceTelemetry|animateVisibility|status_item|openWikiWorkbench|radialActivationTransition" apps/sigil/renderer packages/toolkit tests/renderer
 ```
 
-Follow the active dev workflow profile in `docs/dev/workflow-profiles.json`.
-Under the current `hybrid_trunk` profile, stay on `main` for a small,
-single-sitting implementation. Create a short-lived branch or worktree only if
-the slice is risky, experimental, multi-day, or needs dirty-worktree isolation.
+Follow the active dev workflow profile in `docs/dev/active-profile.json` and
+`docs/dev/workflow-profiles.json`. Use the profile's branch/worktree guidance
+unless Foreman provides a safer slice-specific dispatch.
 
 ## Current Evidence
 

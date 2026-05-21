@@ -9,7 +9,7 @@
 - Preceding follow-up:
   `docs/design/work-cards/compact-real-input-scenario-output-v0.md`
 - Draft evidence to classify:
-  `.docks/gdi/skills/work-retrospective/skill.md`
+  `.docks/gdi/skills/work-retrospective/SKILL.md`
 
 ## Fresh Context Contract
 
@@ -36,7 +36,7 @@ dirty state remains without turning every small fix into a heavy template.
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `docs/design/work-cards/surface-stack-integration-checkpoint-hygiene-v0.md`
 - `docs/design/work-cards/surface-stack-retrospective-followups-v0.md`
-- `.docks/gdi/skills/work-retrospective/skill.md`
+- `.docks/gdi/skills/work-retrospective/SKILL.md`
 
 ## Rediscover State
 
@@ -45,9 +45,9 @@ Run:
 ```bash
 git status --short --branch
 git diff --stat
-git diff -- .docks/gdi/skills/work-retrospective/skill.md
+git diff -- .docks/gdi/skills/work-retrospective/SKILL.md
 ./aos dev recommend --json
-rg -n "Completion Report|path-scoped|dirty|unrelated|worktree|verification|handoff|diff summary|retrospective" AGENTS.md .docks/foreman/AGENTS.md docs/recipes docs/design/work-cards .docks/gdi/skills/work-retrospective/skill.md
+rg -n "Completion Report|path-scoped|dirty|unrelated|worktree|verification|handoff|diff summary|retrospective" AGENTS.md .docks/foreman/AGENTS.md docs/recipes docs/design/work-cards .docks/gdi/skills/work-retrospective/SKILL.md
 ```
 
 This slice does not need `./aos ready` unless the chosen verification path or
@@ -58,7 +58,7 @@ runtime checks, follow it.
 
 ### 1. Classify Existing Draft Evidence
 
-The dirty `.docks/gdi/skills/work-retrospective/skill.md` appears to add a temp
+The dirty `.docks/gdi/skills/work-retrospective/SKILL.md` appears to add a temp
 artifact path/readback convention for GDI retrospectives. Decide whether that is
 part of this slice:
 
@@ -106,7 +106,7 @@ This is docs/governance and dock-local workflow hygiene. Likely files are:
 - `docs/recipes/gdi-work-card-authoring.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/gdi/skills/work-retrospective/skill.md`
+- `.docks/gdi/skills/work-retrospective/SKILL.md`
 - `docs/design/work-cards/surface-stack-retrospective-followups-v0.md`
 
 Choose the smallest write set after inspection.

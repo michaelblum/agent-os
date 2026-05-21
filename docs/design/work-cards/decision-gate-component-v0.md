@@ -345,8 +345,10 @@ Do not run `./aos ready` — no daemon integration in this slice.
 
 ## Git
 
-The active workflow profile is `hybrid_trunk`. This work is small and
-incremental — commit directly to `main`.
+Follow the active workflow profile in `docs/dev/active-profile.json` and
+`docs/dev/workflow-profiles.json`. This work is small and incremental, but do
+not assume direct-to-main behavior unless the active profile or Foreman dispatch
+explicitly allows it.
 
 - Make **one commit per logical unit**: `panel-window-button.js` + its test,
   the `chrome.js` refactor, and the decision-gate component + its tests may

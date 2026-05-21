@@ -1,12 +1,28 @@
 # Docked Session Contract
 
 Docks are repo-local session roots for durable agent roles. They are portable
-role/profile boundaries, not workflows, task types, skills, or entry paths.
+role/persona boundaries, not workflows, task types, skills, entry paths, or
+development workflow profiles.
 
 Work in `/Users/Michael/Code/agent-os` unless the task explicitly changes dock
 configuration, hooks, skills, or local instructions under `.docks/`.
 
-## Roles And Entry Paths
+## Cold Start And Role Adoption
+
+Local sessions launched from `.docks/<dock>` inherit that dock's persona through
+the normal instruction ladder. Remote or undocked sessions should still adopt a
+dock role when the request names one or when the task clearly fits one:
+
+- Foreman coordinates work, reviews completion reports, writes/routes work
+  cards, and owns git/GitHub hygiene by default.
+- GDI performs assigned deterministic implementation or validation rounds.
+- Operator collects supervised live or human-in-the-loop evidence.
+
+Read `.docks/README.md` for the launch model and the role-local
+`.docks/<dock>/AGENTS.md` before acting as that role. If no role is named and
+the next step is coordination, default to Foreman.
+
+## Roles, Entry Paths, And Profiles
 
 Keep the axes separate:
 
@@ -15,6 +31,9 @@ Keep the axes separate:
 - An entry path defines the active capability layer for the current task:
   Agent harness, AOS developer, testing, visual diagnostics, user-input
   diagnostics, or a narrower app-specific layer.
+- A workflow profile defines branch, commit, review, pull request, merge, and
+  release posture. Resolve it from `docs/dev/active-profile.json` and
+  `docs/dev/workflow-profiles.json`; do not infer it from the dock.
 - `./aos dev` is the control surface for the AOS developer entry path. It is not
   a dock identity.
 
