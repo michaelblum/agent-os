@@ -79,6 +79,55 @@ type scale, heading/list spacing, code blocks, rules, and links. Workbenches
 keep their own artifact chrome, panes, toolbars, loading states, semantic refs,
 and edit/save affordances.
 
+## HTML File Workbench
+
+`packages/toolkit/components/html-file-workbench/` is the file-backed toolkit
+workbench for standalone local `.html` and `.htm` files. It is separate from
+`html-workbench-expression`: HTML File Workbench edits durable source files and
+previews their current text, while HTML Workbench Expression hosts generated
+annotation-ready projections with metadata.
+
+Launch a local file with:
+
+```bash
+packages/toolkit/components/html-file-workbench/launch.sh /path/to/demo.html
+```
+
+The default canvas id is `html-file-workbench`; set `CANVAS_ID=...` to override
+it. The launcher rejects missing files, non-HTML extensions, and files larger
+than `AOS_HTML_FILE_WORKBENCH_MAX_BYTES` bytes, defaulting to 1 MiB.
+
+The component accepts:
+
+- `html_file.open` with `{ path, content }`
+- `html_file.text.patch` with `{ content }`
+- `html_file.save.result`
+- `html_file.preview.reload`
+- `html_file.revert`
+
+It emits `html-file-workbench/save.requested` with
+`{ type: "html_file.save.request", path, content, content_length }`. Agents can
+persist the current editor content with:
+
+```bash
+packages/toolkit/components/html-file-workbench/save-current.sh html-file-workbench
+```
+
+The save helper reads `window.__htmlFileWorkbenchState` through
+`./aos show eval`, refuses to create missing targets or save non-HTML paths,
+writes UTF-8 text to the target file, and posts `html_file.save.result` back to
+the panel so dirty state clears.
+
+The live preview renders `state.previewContent` through an iframe `srcdoc` with
+a sandbox that allows same-file scripts and form-style demo interaction but does
+not include `allow-same-origin`, so preview scripts cannot directly reach the
+workbench shell DOM. Reload Preview explicitly copies editor source into the
+iframe; syntax or runtime errors inside the preview do not replace the editor.
+
+Smoke tests can inspect `window.__htmlFileWorkbenchState`, which includes
+`path`, `dirty`, `content`, `content_length`, `content_hash`, `preview_mode`,
+`preview_revision`, `preview_content_length`, and `last_result`.
+
 ## Decision Gate
 
 `aos://toolkit/components/decision-gate/index.html` is the blocking gate

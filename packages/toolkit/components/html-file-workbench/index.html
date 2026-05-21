@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="../_base/theme.css">
+<link rel="stylesheet" href="../../panel/defaults.css">
+<link rel="stylesheet" href="../../controls/defaults.css">
+<link rel="stylesheet" href="../../workbench/defaults.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<script type="module">
+import { mountPanel, Single } from '../../panel/index.js'
+import HtmlFileWorkbench from './index.js'
+
+try {
+  mountPanel({
+    title: 'HTML File Workbench',
+    layout: Single(HtmlFileWorkbench),
+    maximize: true,
+    resizable: true,
+    resize: { minWidth: 760, minHeight: 520 },
+  })
+} catch (error) {
+  document.body.dataset.mountError = String(error?.message || error)
+  document.body.innerHTML = `<pre style="padding:12px;color:#ffd166;background:#050a0e;height:100%;overflow:auto">${String(error?.stack || error)}</pre>`
+  throw error
+}
+</script>
+</body>
+</html>
