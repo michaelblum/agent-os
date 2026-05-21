@@ -1622,6 +1622,9 @@ function recordAnnotationReticleBrowserDomBridge(stage, evidence = {}) {
         request_key: evidence.request_key || '',
         pending_request_key: evidence.pending_request_key || '',
         candidate_id: evidence.candidate_id || '',
+        anchor_candidate_id: evidence.anchor_candidate_id || '',
+        anchor_source: evidence.anchor_source || '',
+        anchor_window_id: evidence.anchor_window_id || '',
         rejection_reason: evidence.rejection_reason || '',
         skipped: Array.isArray(evidence.skipped) ? evidence.skipped : [],
         rejection_reasons: Array.isArray(evidence.rejection_reasons) ? evidence.rejection_reasons : [],
@@ -1659,30 +1662,117 @@ function annotationReticleBrowserDomBridgeBlockerFromError(error = null) {
     }
 }
 
-function annotationReticleBrowserDomBridgeEvidence(pointer = null) {
+function annotationReticleNativeWindowIdFromValue(value = null) {
+    const metadata = value?.source_metadata || value?.source_tree_node_metadata || value?.metadata || {};
+    return String(
+        value?.window_id
+        || metadata.window_id
+        || value?.projection?.window_id
+        || ''
+    ).trim();
+}
+
+function annotationReticleNativeWindowPidFromValue(value = null) {
+    const metadata = value?.source_metadata || value?.source_tree_node_metadata || value?.metadata || {};
+    const pid = value?.pid ?? metadata.pid ?? value?.projection?.pid;
+    return Number.isFinite(Number(pid)) ? Number(pid) : null;
+}
+
+function annotationReticleNativeBrowserWindowAnchor(candidate = null, activeScope = null) {
+    const subject = candidate && typeof candidate === 'object' ? candidate : null;
+    if (!subject) return null;
+    const isNativeWindow = subject.adapter_id === 'macos-ax'
+        && (subject.root_kind === 'native_window' || subject.subject_kind === 'native_window');
+    if (!isNativeWindow) return null;
+    const activeIsNativeWindow = activeScope?.adapter_id === 'macos-ax'
+        && (activeScope?.root_kind === 'native_window' || activeScope?.subject_kind === 'native_window');
+    return {
+        candidate: subject,
+        source: activeIsNativeWindow && activeScope?.address === subject.address
+            ? 'active_scope'
+            : 'selected_native_window',
+        candidate_id: String(subject.id || subject.subject_id || ''),
+        address: subject.address || '',
+        window_id: annotationReticleNativeWindowIdFromValue(subject),
+        pid: annotationReticleNativeWindowPidFromValue(subject),
+    };
+}
+
+function annotationReticleWindowEventMatchesAnchor(windowEvent = null, anchor = null) {
+    if (!windowEvent || !anchor) return false;
+    const eventWindowId = String(windowEvent.window_id || windowEvent.windowID || windowEvent.id || '').trim();
+    if (anchor.window_id && eventWindowId && anchor.window_id !== eventWindowId) return false;
+    const eventPid = Number.isFinite(Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid))
+        ? Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid)
+        : null;
+    if (anchor.pid !== null && eventPid !== null && anchor.pid !== eventPid) return false;
+    return Boolean(eventWindowId || eventPid !== null);
+}
+
+function annotationReticleBrowserDomBridgeEvidence(pointer = null, anchorCandidate = null) {
     const activeScope = annotationReticle.snapshot()?.active_scope || null;
-    if (activeScope?.adapter_id !== 'macos-ax' && activeScope?.root_kind !== 'native_window') {
+    const anchor = annotationReticleNativeBrowserWindowAnchor(anchorCandidate, activeScope)
+        || annotationReticleNativeBrowserWindowAnchor(activeScope, activeScope);
+    if (!anchor) {
         return { ok: false, blocker_reason: 'browser_native_window_scope_required' };
     }
     const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent || {};
-    const axElementEvent = liveJs.annotationReticleTargetEvidence.latestNativeAxElementEvent || {};
-    const sessionId = annotationReticleBrowserSessionFromWindow(windowEvent);
-    const windowId = String(windowEvent.window_id || windowEvent.windowID || windowEvent.id || '').trim();
-    if (!sessionId && !windowId) return { ok: false, blocker_reason: 'browser_session_unresolved' };
-    const contentRect = annotationReticleBrowserContentRectFromWindow(windowEvent)
-        || annotationReticleBrowserContentRectFromAxElement(axElementEvent, windowEvent);
-    if (!contentRect) return { ok: false, blocker_reason: 'browser_content_inset_unresolved', session_id: sessionId, browser_window_id: windowId };
+    const scopedWindowEvent = annotationReticleWindowEventMatchesAnchor(windowEvent, anchor) ? windowEvent : {};
+    const axElementEvent = scopedWindowEvent === windowEvent
+        ? (liveJs.annotationReticleTargetEvidence.latestNativeAxElementEvent || {})
+        : {};
+    const sessionId = annotationReticleBrowserSessionFromWindow(scopedWindowEvent);
+    const eventWindowId = String(scopedWindowEvent.window_id || scopedWindowEvent.windowID || scopedWindowEvent.id || '').trim();
+    const windowId = eventWindowId || anchor.window_id;
+    if (!sessionId && !windowId) return {
+        ok: false,
+        blocker_reason: 'browser_session_unresolved',
+        anchor_candidate_id: anchor.candidate_id,
+        anchor_source: anchor.source,
+        anchor_window_id: anchor.window_id,
+    };
+    const anchorRect = annotationReticleProjectionRect(
+        anchor.candidate?.projection?.visible_display_rect
+        || anchor.candidate?.projection?.display_space_rect
+        || anchor.candidate?.display_space_rect
+        || anchor.candidate?.source_metadata?.bounds
+    );
+    const contentRect = annotationReticleBrowserContentRectFromWindow(scopedWindowEvent)
+        || annotationReticleBrowserContentRectFromAxElement(axElementEvent, scopedWindowEvent)
+        || annotationReticleBrowserContentRectFromAxElement(axElementEvent, { ...scopedWindowEvent, bounds: anchorRect });
+    if (!contentRect) return {
+        ok: false,
+        blocker_reason: 'browser_content_inset_unresolved',
+        session_id: sessionId,
+        browser_window_id: windowId,
+        anchor_candidate_id: anchor.candidate_id,
+        anchor_source: anchor.source,
+        anchor_window_id: anchor.window_id,
+    };
     if (!pointer || !Number.isFinite(Number(pointer.x)) || !Number.isFinite(Number(pointer.y))) {
-        return { ok: false, blocker_reason: 'browser_dom_point_unresolved', session_id: sessionId, browser_window_id: windowId, content_rect: contentRect };
+        return {
+            ok: false,
+            blocker_reason: 'browser_dom_point_unresolved',
+            session_id: sessionId,
+            browser_window_id: windowId,
+            content_rect: contentRect,
+            anchor_candidate_id: anchor.candidate_id,
+            anchor_source: anchor.source,
+            anchor_window_id: anchor.window_id,
+        };
     }
     return {
         ok: true,
         session_id: sessionId,
         browser_window_id: windowId,
         active_scope_address: activeScope?.address || '',
-        browser_pid: Number.isFinite(Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid))
-            ? Number(windowEvent.pid ?? windowEvent.app_pid ?? windowEvent.owner_pid)
-            : null,
+        anchor_scope_address: anchor.address,
+        anchor_candidate_id: anchor.candidate_id,
+        anchor_source: anchor.source,
+        anchor_window_id: anchor.window_id,
+        browser_pid: Number.isFinite(Number(scopedWindowEvent.pid ?? scopedWindowEvent.app_pid ?? scopedWindowEvent.owner_pid))
+            ? Number(scopedWindowEvent.pid ?? scopedWindowEvent.app_pid ?? scopedWindowEvent.owner_pid)
+            : anchor.pid,
         content_rect: contentRect,
         point: {
             x: Number(pointer.x) - contentRect.x,
@@ -1953,9 +2043,9 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
 
 let pendingAnnotationReticleBrowserDomRequestKey = '';
 
-function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'preview') {
+function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'preview', anchorCandidate = null) {
     if (!annotationReticle.active) return false;
-    const evidence = annotationReticleBrowserDomBridgeEvidence(pointer);
+    const evidence = annotationReticleBrowserDomBridgeEvidence(pointer, anchorCandidate);
     if (!evidence.ok) {
         recordAnnotationReticleBrowserDomBridge('browser_dom_bridge_blocked', {
             ...evidence,
@@ -2176,9 +2266,9 @@ function flushAnnotationReticlePreview() {
     const pointer = pendingAnnotationReticlePreviewPointer;
     pendingAnnotationReticlePreviewPointer = null;
     if (!pointer || !annotationReticle.active) return;
-    annotationReticleRequestBrowserDomTarget(pointer, 'preview');
     annotationReticle.updatePreview(pointer);
     syncAnnotationReticleSnapshot();
+    annotationReticleRequestBrowserDomTarget(pointer, 'preview', liveJs.annotationReticle?.preview_target || null);
 }
 
 function updateAnnotationReticlePreview(pointer = null) {
@@ -2213,7 +2303,9 @@ function commitAnnotationReticleRelease(x, y) {
         cancelAnimationFrame(pendingAnnotationReticlePreviewFrame);
         flushAnnotationReticlePreview();
     }
-    annotationReticleRequestBrowserDomTarget({ x, y, valid: true }, 'release');
+    annotationReticle.updatePreview({ x, y, valid: true });
+    syncAnnotationReticleSnapshot();
+    annotationReticleRequestBrowserDomTarget({ x, y, valid: true }, 'release', liveJs.annotationReticle?.preview_target || null);
     const event = annotationReticle.commitRelease({ x, y, valid: true });
     syncAnnotationReticleSnapshot();
     if (event) recordAnnotationReticleEvent('commit', event);
