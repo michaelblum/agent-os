@@ -1,9 +1,10 @@
-# Recipe: AOS GDI Exit Interview
+# AOS Control-Surface Exit Interview
 
-Use this recipe when a Goal Driven Implementation session has completed its
-implementation, verification, and commits, but before it marks the goal complete
-or emits its final handoff. The interview is read-only. Its purpose is to learn
-how well the AOS command surface served an agent that was required to use it.
+Use this reference with the parent `work-retrospective` skill when a Goal Driven
+Implementation session has completed its implementation, verification, and
+commits, and the user asks for an AOS/GDI exit interview or command-surface
+friction report. The interview is read-only. Its purpose is to learn how well
+the AOS command surface served an agent that was required to use it.
 
 The output should capture friction, misunderstandings, useful affordances,
 missing command shape, stale help, verification gaps, and any place where forced
@@ -178,8 +179,9 @@ and the result of a real trade-off.
 
 ## Output Contract
 
-The final response may be prose, but it should preserve the headings above. If
-a downstream collector needs JSON, wrap the same fields in:
+The parent `work-retrospective` skill owns the temp report artifact. Inside that
+report, preserve the headings above. If a downstream collector needs JSON, wrap
+the same fields in:
 
 ```json
 {

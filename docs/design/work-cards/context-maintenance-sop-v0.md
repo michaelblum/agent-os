@@ -54,7 +54,7 @@ This is a governance/SOP slice, not a stale-doc implementation sweep.
 - `docs/agents/domain.md`
 - `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/design/work-cards/context-live-doc-stale-sweep-v0.md`
 - `/Users/Michael/Code/mattpocock-skills/skills/engineering/grill-with-docs/SKILL.md`
 - `/Users/Michael/Code/mattpocock-skills/skills/engineering/grill-with-docs/CONTEXT-FORMAT.md`

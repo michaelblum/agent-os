@@ -33,6 +33,10 @@ For non-trivial GDI work, create or update a work card with:
 - Verification.
 - Completion Report.
 
+For the full flexible authoring shape, read
+`references/gdi-work-card-authoring.md`. Keep that detail in the work card, not
+in the clipboard dispatch.
+
 When the card lives on a branch that is not `origin/main`, the dispatch should
 also mention the branch:
 

@@ -51,7 +51,7 @@ toolkit platform decision.
 - `docs/recipes/context-doc-maintenance.md`
 - `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
 - `docs/design/notes/adr-namespace-audit-2026-05-20.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - every file under `docs/adr/`
 - `docs/decisions/ADR-001-toolkit-platform-strategy.md`
 

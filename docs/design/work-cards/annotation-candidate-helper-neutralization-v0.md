@@ -43,7 +43,7 @@ helpers may remain in `surface-inspector-annotations.js`.
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
 - `apps/sigil/AGENTS.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/api/toolkit/workbench.md`
 - `packages/toolkit/workbench/annotation-candidates.js`
 - `packages/toolkit/workbench/annotation-projection.js`

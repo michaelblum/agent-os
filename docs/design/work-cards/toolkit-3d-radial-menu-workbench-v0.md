@@ -46,7 +46,7 @@ the reticle menu item face/glyph should keep facing the camera through resolved
 - `AGENTS.md`
 - `packages/toolkit/AGENTS.md`
 - `apps/sigil/AGENTS.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/api/toolkit/runtime.md`
 - `docs/api/toolkit/workbench.md`
 - `docs/api/toolkit/components.md`

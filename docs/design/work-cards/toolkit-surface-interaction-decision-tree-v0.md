@@ -46,7 +46,7 @@ coherent deliverable:
 - `packages/toolkit/runtime/AGENTS.md`
 - `packages/toolkit/panel/AGENTS.md`
 - `apps/sigil/AGENTS.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/design/work-cards/toolkit-surface-resource-scope-v0.md`
 
 ## Rediscover State

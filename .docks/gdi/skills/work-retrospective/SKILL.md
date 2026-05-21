@@ -1,6 +1,6 @@
 ---
 name: work-retrospective
-description: Use after a bounded goal is achieved, failed, paused, or handed off when the user asks for a retrospective, friction report, after-action review, lessons learned, or feedback about what should be improved in product ergonomics, operational procedures, tests, tooling, docs, architecture, or engineering workflow. Especially useful for GDI goal work where implementation evidence can reveal better primitives, clearer harnesses, or process improvements.
+description: Use after a bounded goal is achieved, failed, paused, or handed off when the user asks for a retrospective, friction report, after-action review, lessons learned, AOS/GDI exit interview, or feedback about what should be improved in product ergonomics, operational procedures, tests, tooling, docs, architecture, or engineering workflow. Especially useful for GDI goal work where implementation evidence can reveal better primitives, clearer harnesses, or process improvements.
 ---
 
 # Work Retrospective
@@ -19,6 +19,14 @@ Look for friction in:
 - reviewability issues such as dirty worktrees, noisy output, hidden state, or brittle verification.
 
 Do not invent broad roadmap work from weak evidence. Prefer concrete observations grounded in what happened during the goal.
+
+## Specialized References
+
+When the user asks for an AOS/GDI exit interview, command-surface interview, or
+forced-AOS friction report, read
+`references/aos-control-surface-interview.md` before writing the retrospective.
+That reference is a specialized shape inside this skill, not a separate recipe
+or durable planning artifact.
 
 ## Inputs To Reconstruct
 

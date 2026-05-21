@@ -44,7 +44,7 @@ The first planned consumers to name in the report context are `InfoTag` in
 - `packages/toolkit/AGENTS.md`
 - `packages/toolkit/controls/AGENTS.md`
 - `packages/toolkit/panel/AGENTS.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `tests/toolkit/style-contracts.test.mjs`
 - `tests/toolkit/toolkit-api-docs-contract.test.mjs`
 

@@ -32,7 +32,7 @@ dirty state remains without turning every small fix into a heavy template.
 
 - `AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `docs/design/work-cards/surface-stack-integration-checkpoint-hygiene-v0.md`
 - `docs/design/work-cards/surface-stack-retrospective-followups-v0.md`
@@ -103,7 +103,7 @@ smallest clear way to prevent stale "next follow-up" recommendations.
 
 This is docs/governance and dock-local workflow hygiene. Likely files are:
 
-- `docs/recipes/gdi-work-card-authoring.md`
+- `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `.docks/foreman/AGENTS.md`
 - `.docks/gdi/skills/work-retrospective/SKILL.md`
