@@ -48,7 +48,9 @@ the router sees the intended slice.
 
 Read the repo and testing guidance:
 
-- `docs/recipes/fresh-session-continuation-primer.md`
+- `AGENTS.md`
+- `.docks/README.md`
+- `.docks/AGENTS.md`
 - `docs/recipes/agent-entry-paths-and-verification.md`
 - `tests/README.md`
 - `docs/dev/workflow-rules.json`
