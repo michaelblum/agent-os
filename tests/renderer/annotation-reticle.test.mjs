@@ -416,13 +416,34 @@ test('Sigil reticle requests live browser DOM target for scoped local browser wi
 
 test('Sigil reticle accepts nested native window preview target as browser anchor', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
-  const helpersStart = source.indexOf('function annotationReticleNativeWindowIdFromValue')
-  const helpersEnd = source.indexOf('function annotationReticleWindowEventMatchesAnchor', helpersStart)
+  const helpersStart = source.indexOf('function annotationReticleRectFromObject')
+  const helpersEnd = source.indexOf('function annotationReticleCanvasDesktopWorldRect', helpersStart)
   assert.notEqual(helpersStart, -1)
   assert.notEqual(helpersEnd, -1)
 
   const helperSource = source.slice(helpersStart, helpersEnd)
-  const annotationReticleNativeBrowserWindowAnchor = new Function(`${helperSource}; return annotationReticleNativeBrowserWindowAnchor;`)()
+  const displayRootScope = {
+    address: 'sigil:display:1:root',
+    adapter_id: 'aos-display-root',
+    root_kind: 'display',
+    subject_kind: 'display_root',
+  }
+  const annotationReticle = {
+    snapshot: () => ({
+      active_scope: displayRootScope,
+    }),
+  }
+  const liveJs = {
+    annotationReticleTargetEvidence: {
+      latestNativeWindowEvent: {},
+      latestNativeAxElementEvent: {},
+    },
+    displays: [],
+  }
+  const {
+    annotationReticleNativeBrowserWindowAnchor,
+    annotationReticleBrowserDomBridgeEvidence,
+  } = new Function('annotationReticle', 'liveJs', `${helperSource}; return { annotationReticleNativeBrowserWindowAnchor, annotationReticleBrowserDomBridgeEvidence };`)(annotationReticle, liveJs)
   const previewTarget = {
     id: 'native-window:195:Comet',
     subject_id: '',
@@ -442,13 +463,8 @@ test('Sigil reticle accepts nested native window preview target as browser ancho
       window_id: '195',
       pid: 732,
       bundle_id: 'ai.perplexity.comet',
+      bounds: { x: 0, y: 158, w: 1512, h: 824 },
     },
-  }
-  const displayRootScope = {
-    address: 'sigil:display:1:root',
-    adapter_id: 'aos-display-root',
-    root_kind: 'display',
-    subject_kind: 'display_root',
   }
 
   const anchor = annotationReticleNativeBrowserWindowAnchor(previewTarget, displayRootScope)
@@ -456,6 +472,14 @@ test('Sigil reticle accepts nested native window preview target as browser ancho
   assert.equal(anchor.candidate_id, 'native-window:195:Comet')
   assert.equal(anchor.window_id, '195')
   assert.equal(anchor.pid, 732)
+
+  const evidence = annotationReticleBrowserDomBridgeEvidence({ x: 100, y: 200, valid: true }, previewTarget)
+  assert.equal(evidence.blocker_reason, 'browser_content_inset_unresolved')
+  assert.notEqual(evidence.blocker_reason, 'browser_native_window_scope_required')
+  assert.equal(evidence.browser_window_id, '195')
+  assert.equal(evidence.anchor_source, 'selected_native_window')
+  assert.equal(evidence.anchor_candidate_id, 'native-window:195:Comet')
+  assert.equal(evidence.anchor_window_id, '195')
 })
 
 test('Sigil reticle maps browser DOM daemon errors to precise bridge blockers', () => {
