@@ -143,11 +143,27 @@ for role in ("gdi", "foreman", "operator"):
         raise SystemExit(f"FAIL: {role} stop.sh still has duplicated session-id parsing")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
-foreman_handoff_skill_path = root / ".docks" / "foreman" / "skills" / "session-handoff" / "skill.md"
-if foreman_handoff_skill_path.exists():
-    raise SystemExit("FAIL: Foreman session-handoff must not be a routable skill")
-foreman_transfer_skill_path = root / ".docks" / "foreman" / "skills" / "session-transfer" / "skill.md"
-if not foreman_transfer_skill_path.exists():
+def has_exact_name(path):
+    try:
+        return path.name in os.listdir(path.parent)
+    except FileNotFoundError:
+        return False
+
+legacy_skill_paths = []
+for skill_dir in (root / ".docks").glob("*/skills/*"):
+    if skill_dir.is_dir() and "skill.md" in os.listdir(skill_dir):
+        legacy_skill_paths.append(str((skill_dir / "skill.md").relative_to(root)))
+legacy_skill_paths.sort()
+if legacy_skill_paths:
+    raise SystemExit(f"FAIL: dock-local skills must use SKILL.md, found legacy paths: {legacy_skill_paths}")
+for foreman_handoff_skill_path in (
+    root / ".docks" / "foreman" / "skills" / "session-handoff" / "skill.md",
+    root / ".docks" / "foreman" / "skills" / "session-handoff" / "SKILL.md",
+):
+    if has_exact_name(foreman_handoff_skill_path):
+        raise SystemExit("FAIL: Foreman session-handoff must not be a routable skill")
+foreman_transfer_skill_path = root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md"
+if not has_exact_name(foreman_transfer_skill_path):
     raise SystemExit("FAIL: Foreman session-transfer skill is missing")
 foreman_transfer_skill = foreman_transfer_skill_path.read_text()
 if "name: foreman-session-transfer" not in foreman_transfer_skill:

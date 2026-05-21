@@ -59,8 +59,8 @@ git diff --name-only origin/main...HEAD
 ```
 
 Use `origin/main...HEAD` as the default comparison when the active workflow
-profile or assigned handoff used a branch. Under the current `hybrid_trunk`
-profile, a GDI session may be working directly on `main`; in that case report
+profile or assigned handoff used a branch. If the active profile or assigned
+handoff explicitly kept the GDI session on `main`, report
 `git status --short --branch`, the local commit range or file diff that best
 describes the session, and name the base you used.
 

@@ -61,7 +61,7 @@ Michael's requested product behavior is:
 - `.docks/gdi/hooks/stop.sh`
 - `.docks/gdi/scripts/human-needed-tcc-reset`
 - `.docks/harness/dock-hook-runner.sh`
-- `.docks/foreman/skills/session-transfer/skill.md`
+- `.docks/foreman/skills/session-transfer/SKILL.md`
 - `.docks/foreman/skills/session-transfer/references/gdi.md`
 - `docs/recipes/gdi-work-card-authoring.md`
 - `tests/dock-hook-isolation.sh`
@@ -136,7 +136,7 @@ Inspect first, then choose the narrowest correct layer. Likely areas:
 - `.docks/gdi/AGENTS.md`
 - `.docks/gdi/README.md`
 - `.docks/foreman/skills/session-transfer/references/gdi.md`
-- `.docks/foreman/skills/session-transfer/skill.md`
+- `.docks/foreman/skills/session-transfer/SKILL.md`
 - `docs/recipes/gdi-work-card-authoring.md`
 - `tests/dock-hook-isolation.sh`
 

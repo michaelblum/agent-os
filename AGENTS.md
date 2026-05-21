@@ -12,6 +12,25 @@ creating separate workflows.
   `CLAUDE.md` files are compatibility pointers for tools that still discover
   that filename; keep subtree-specific detail in nearby `AGENTS.md` files.
 
+## Dock-First Cold Start
+
+Agents that are new to the repo should resolve their dock role before choosing
+implementation, testing, or git workflow behavior. Start with `.docks/README.md`
+and `.docks/AGENTS.md`, then read the role-local `.docks/<dock>/AGENTS.md`
+that matches the request.
+
+Local Codex sessions launched from `.docks/<dock>` inherit that dock persona
+from the project-local instruction ladder. Remote or undocked agents should
+adopt the requested persona explicitly: Foreman for coordination, review,
+work-card routing, and git/GitHub hygiene; GDI for assigned deterministic
+implementation or validation rounds; Operator for supervised live or
+human-in-the-loop evidence collection. If the request does not name a dock and
+the next step is coordination, use Foreman as the default role.
+
+Docks are role boundaries, not workflow profiles or entry paths. Read
+`docs/dev/active-profile.json` for the active development workflow profile and
+`docs/dev/workflow-profiles.json` for the profile definitions.
+
 ## Agent skills
 
 ### Issue tracker
@@ -89,6 +108,7 @@ The common entry paths are:
 - **User-input diagnostics**: when ownership of mouse/keyboard streams is the
   issue, collect event-stream and routing evidence before guessing at fixes.
 
+After the dock role is resolved, choose the active entry path for the task.
 Start from Agent harness unless the user request clearly implies development,
 testing, diagnostics, or docs/wiki work. Skip deeper sections that do not match
 the active path, but revisit them when the session changes mode. Be transparent:
@@ -98,13 +118,12 @@ path change before using the new layer.
 Durable lessons should be recorded at the right boundary instead of scattered as
 session notes. Use this file for repo-wide operating rules, subtree `AGENTS.md`
 files for local contracts, `tests/README.md` for verification mechanics,
-`docs/recipes/` for reusable SOPs, `docs/design/` for provider-neutral plans
-and specs, and `shared/schemas/`, `docs/api/`, or `ARCHITECTURE.md` for
-cross-tool contracts. Use `CONTEXT.md`, `CONTEXT-MAP.md`, and
-`docs/agents/domain.md` as governed context surfaces, and follow
+`docs/recipes/` for reusable role-neutral SOPs, `docs/design/` for
+provider-neutral plans and specs, and `shared/schemas/`, `docs/api/`, or
+`ARCHITECTURE.md` for cross-tool contracts. Use `CONTEXT.md`, `CONTEXT-MAP.md`,
+and `docs/agents/domain.md` as governed context surfaces, and follow
 `docs/recipes/context-doc-maintenance.md` when these docs may need to move
-together. Prefer measured, provider-neutral guidance over reactive warnings. See
-`docs/recipes/agent-entry-paths-and-verification.md` for the working checklist.
+together. Prefer measured, provider-neutral guidance over reactive warnings.
 
 ## Design Principle: Primitives First
 
@@ -246,16 +265,14 @@ or ad hoc scripts.
   of trying to fully re-verify it yourself.
 - If display work starts from stale daemons or orphaned canvases, run
   `./aos clean` first and report what was cleaned.
-- Dev branch, PR, and release mechanics are selected by the active dev workflow
-  profile in `docs/dev/workflow-profiles.json`, not hard-coded in this root
-  contract. Workflow profiles are replaceable examples for development posture;
-  they are separate from docks, entry paths, and Level 0 AOS primitives.
-- The active AOS repo profile is `hybrid_trunk`: use `main` as the normal work
-  surface for small, low-risk, incremental changes. Create a short-lived branch
-  or worktree only for risky, experimental, multi-day, or dirty-worktree work
-  that should not live directly on `main` yet. If the user explicitly states a
-  different workflow preference, follow it and update the active profile when
-  asked.
+- Dev branch, PR, and release mechanics are selected by
+  `docs/dev/active-profile.json` and defined in
+  `docs/dev/workflow-profiles.json`, not hard-coded in this root contract.
+  Workflow profiles are replaceable examples for development posture; they are
+  separate from docks, entry paths, and Level 0 AOS primitives. If the user
+  explicitly states a different workflow preference for the current session,
+  follow it unless it would discard work, publish externally, or perform a
+  destructive operation.
 - When a profile or user request calls for a branch, keep names descriptive and
   short, such as `codex/supervised-run-harness` or `owner/sigil-visuals`.
 - Worktree sessions share one singleton repo daemon. Do not overwrite canonical

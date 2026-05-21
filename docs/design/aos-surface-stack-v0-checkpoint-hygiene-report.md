@@ -87,8 +87,8 @@ prepared:
 
 - `.vscode/settings.json` and `.vscode/tasks.json`: removed from the
   checkpoint branch as local editor convenience state.
-- `.docks/foreman/skills/retirement-handoff/skill.md` and
-  `.docks/gdi/skills/work-retrospective/skill.md`: kept in the PR as a
+- `.docks/foreman/skills/retirement-handoff/SKILL.md` and
+  `.docks/gdi/skills/work-retrospective/SKILL.md`: kept in the PR as a
   separate agent-tooling commit because they support the Foreman/GDI routing
   and retrospective workflow used by this checkpoint.
 - Pre-existing modified work cards for spatial-subject-tree and surface-zoom
