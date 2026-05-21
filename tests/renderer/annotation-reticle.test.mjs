@@ -20,6 +20,9 @@ import {
   radialItemPointerMetrics,
   resolveRadialGestureItems,
 } from '../../packages/toolkit/runtime/radial-gesture.js'
+import {
+  createCanvasResponseError,
+} from '../../apps/sigil/renderer/live-modules/host-runtime.js'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -398,6 +401,44 @@ test('Sigil reticle requests live browser DOM target for scoped local browser wi
   assert.match(source, /buildBrowserDomElementAnnotationCandidate\(\{[\s\S]*browser_session_id: evidence\.session_id[\s\S]*browser_window_id: evidence\.browser_window_id/)
   assert.match(source, /annotationReticleRequestBrowserDomTarget\(pointer, 'preview'\)/)
   assert.match(source, /annotationReticleRequestBrowserDomTarget\(\{ x, y, valid: true \}, 'release'\)/)
+})
+
+test('Sigil reticle maps browser DOM daemon errors to precise bridge blockers', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const mapperStart = source.indexOf('function annotationReticleBrowserDomBridgeBlockerFromError')
+  const evidenceStart = source.indexOf('function annotationReticleBrowserDomBridgeEvidence', mapperStart)
+  const mapperBlock = source.slice(mapperStart, evidenceStart)
+  const requestStart = source.indexOf('function annotationReticleRequestBrowserDomTarget')
+  const nativeStart = source.indexOf('function annotationReticleHandleNativeWindow', requestStart)
+  const requestBlock = source.slice(requestStart, nativeStart)
+
+  assert.match(mapperBlock, /BROWSER_SESSION_NOT_LOCAL'[\s\S]*browser_session_not_local/)
+  assert.match(mapperBlock, /BROWSER_SESSION_UNRESOLVED'[\s\S]*browser_session_unresolved/)
+  assert.match(mapperBlock, /BROWSER_DOM_POINT_UNRESOLVED'[\s\S]*browser_dom_point_unresolved/)
+  assert.match(mapperBlock, /BROWSER_CONTENT_INSET_UNRESOLVED'[\s\S]*browser_content_inset_unresolved/)
+  assert.match(mapperBlock, /NATIVE_AX_ROOT_MISMATCH'[\s\S]*native_ax_root_mismatch/)
+  assert.match(mapperBlock, /BROWSER_DOM_TARGET_INVALID_JSON'[\s\S]*browser_dom_target_invalid_json/)
+  assert.match(mapperBlock, /BROWSER_DOM_TARGET_FAILED'[\s\S]*browser_dom_target_failed/)
+  assert.match(mapperBlock, /default:[\s\S]*browser_dom_request_failed/)
+  assert.match(mapperBlock, /message\.match\(\/\^\(\[A-Z0-9_\]\+\):\//)
+  assert.match(requestBlock, /const blocker = annotationReticleBrowserDomBridgeBlockerFromError\(error\)/)
+  assert.match(requestBlock, /blocker_reason: blocker\.blocker_reason/)
+  assert.match(requestBlock, /code: blocker\.code/)
+  assert.match(requestBlock, /status: error\?\.status \|\| ''/)
+})
+
+test('host runtime rejected canvas responses preserve structured error fields', () => {
+  const error = createCanvasResponseError({
+    status: 'error',
+    code: 'BROWSER_SESSION_NOT_LOCAL',
+    message: 'browser session has no local window evidence',
+  })
+
+  assert.equal(error instanceof Error, true)
+  assert.equal(error.message, 'BROWSER_SESSION_NOT_LOCAL: browser session has no local window evidence')
+  assert.equal(error.code, 'BROWSER_SESSION_NOT_LOCAL')
+  assert.equal(error.status, 'error')
+  assert.equal(error.responseMessage, 'browser session has no local window evidence')
 })
 
 test('daemon exposes bounded browser DOM element target request for Sigil reticle', () => {

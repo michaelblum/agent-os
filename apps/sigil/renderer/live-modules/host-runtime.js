@@ -17,7 +17,7 @@ export function createHostRuntime() {
             entry.resolve(msg);
             return;
         }
-        entry.reject(new Error(`${msg.code || 'ERROR'}: ${msg.message || 'unknown'}`));
+        entry.reject(createCanvasResponseError(msg));
     }
 
     function dispatch(msg) {
@@ -182,4 +182,14 @@ export function createHostRuntime() {
             });
         },
     };
+}
+
+export function createCanvasResponseError(msg = {}) {
+    const code = msg.code || 'ERROR';
+    const message = msg.message || 'unknown';
+    const error = new Error(`${code}: ${message}`);
+    error.code = code;
+    error.status = msg.status || 'error';
+    error.responseMessage = message;
+    return error;
 }

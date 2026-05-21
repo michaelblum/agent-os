@@ -1612,6 +1612,9 @@ function recordAnnotationReticleBrowserDomBridge(stage, evidence = {}) {
         stage,
         reason: evidence.reason || '',
         blocker_reason: evidence.blocker_reason || '',
+        code: evidence.code || evidence.error_code || '',
+        error_code: evidence.error_code || evidence.code || '',
+        status: evidence.status || '',
         browser_session_id: evidence.session_id || evidence.browser_session_id || '',
         browser_window_id: evidence.browser_window_id || '',
         content_rect: evidence.content_rect || null,
@@ -1630,6 +1633,30 @@ function recordAnnotationReticleBrowserDomBridge(stage, evidence = {}) {
     liveJs.annotationReticleBrowserDomBridge = entry;
     recordAnnotationReticleEvent(stage, entry);
     return entry;
+}
+
+function annotationReticleBrowserDomBridgeBlockerFromError(error = null) {
+    const code = String(error?.code || error?.error_code || '').trim();
+    const message = String(error?.responseMessage || error?.message || error || '');
+    const normalizedCode = code || (message.match(/^([A-Z0-9_]+):/)?.[1] || '');
+    switch (normalizedCode) {
+        case 'BROWSER_SESSION_UNRESOLVED':
+            return { blocker_reason: 'browser_session_unresolved', code: normalizedCode };
+        case 'BROWSER_DOM_POINT_UNRESOLVED':
+            return { blocker_reason: 'browser_dom_point_unresolved', code: normalizedCode };
+        case 'BROWSER_CONTENT_INSET_UNRESOLVED':
+            return { blocker_reason: 'browser_content_inset_unresolved', code: normalizedCode };
+        case 'BROWSER_SESSION_NOT_LOCAL':
+            return { blocker_reason: 'browser_session_not_local', code: normalizedCode };
+        case 'NATIVE_AX_ROOT_MISMATCH':
+            return { blocker_reason: 'native_ax_root_mismatch', code: normalizedCode };
+        case 'BROWSER_DOM_TARGET_INVALID_JSON':
+            return { blocker_reason: 'browser_dom_target_invalid_json', code: normalizedCode };
+        case 'BROWSER_DOM_TARGET_FAILED':
+            return { blocker_reason: 'browser_dom_target_failed', code: normalizedCode };
+        default:
+            return { blocker_reason: 'browser_dom_request_failed', code: normalizedCode };
+    }
 }
 
 function annotationReticleBrowserDomBridgeEvidence(pointer = null) {
@@ -2041,11 +2068,14 @@ function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'prev
         })
         .catch((error) => {
             if (pendingAnnotationReticleBrowserDomRequestKey === requestKey) pendingAnnotationReticleBrowserDomRequestKey = '';
+            const blocker = annotationReticleBrowserDomBridgeBlockerFromError(error);
             recordAnnotationReticleBrowserDomBridge('browser_dom_bridge_failed', {
                 reason,
                 browser_session_id: evidence.session_id,
                 browser_window_id: evidence.browser_window_id,
-                blocker_reason: 'browser_dom_request_failed',
+                blocker_reason: blocker.blocker_reason,
+                code: blocker.code,
+                status: error?.status || '',
                 message: String(error?.message || error),
             });
         });
