@@ -1,6 +1,27 @@
 # AFK Codex Provider Session Adapter Inventory V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `5db132fcbb39767e650098d829bb89781f2d5056`
+- Changed files:
+  - `docs/design/notes/afk-codex-provider-session-adapter-contract-2026-05-22.md`
+- Foreman review: accepted. The note defines a repo-owned Codex
+  provider-session adapter contract, keeps `codex-thread-workbench` as a seed
+  rather than a dependency to promote wholesale, states privacy/local-state
+  boundaries, names fixture-only tests, and recommends the next GDI
+  implementation slice.
+- Foreman verification:
+  - `git diff --check a4f30cf0aea951e4081d7ed2f2baeaf971c61493..5db132fcbb39767e650098d829bb89781f2d5056`: pass
+  - `./aos dev recommend --json`: pass
+  - `./aos dev recommend --json --files docs/design/notes/afk-codex-provider-session-adapter-contract-2026-05-22.md`: pass; docs-only, no next commands
+- Local-only boundary confirmed: no real Codex sessions/transcripts were read,
+  no source/test code changed, and no provider config, gateway state, dock
+  profile, hook, GitHub state, push, or PR changed.
+- Routed follow-up:
+  `docs/design/work-cards/afk-codex-provider-session-adapter-v0.md`.
 
 ## Transfer Classification
 
