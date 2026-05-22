@@ -579,8 +579,9 @@ The next slices should stay reversible:
    supervised live Codex proof. The accepted source behavior preserves dry-run
    output, adds the explicit supervised live guard, keeps live intent Codex/GDI
    scoped, suppresses duplicate accepted/live receipt states before launch, and
-   classifies cleanup proof failure as `cleanup_unverified`. The next routed
-   step is supervised Operator proof in
-   `docs/design/work-cards/operator-afk-session-trigger-guarded-live-codex-proof-v0.md`.
+   classifies cleanup proof failure as `cleanup_unverified`. Because this
+   accepted slice is still a guarded launch-intent path rather than a
+   provider-launching command, the next routed source slice is
+   `docs/design/work-cards/afk-dev-session-trigger-supervised-bridge-launch-v0.md`.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
