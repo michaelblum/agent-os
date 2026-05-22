@@ -470,5 +470,10 @@ The next slices should stay reversible:
 10. Map provider-session observability before automating provider launch, so
    dispatch can report session id, catalog, telemetry, and terminal facts
    without relying on human-visible shutdown text.
+   The observability map now lives at
+   `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`;
+   it separates direct dock-root launch facts from Sigil terminal bridge
+   observability and recommends a no-provider dry-run receipt-field slice
+   before automated launch.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
