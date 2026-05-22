@@ -422,6 +422,11 @@ The next slices should stay reversible:
    packet, applies lease/timeout policy, starts or resumes a docked provider
    session, and updates lifecycle routes without making the gateway session
    authority.
+   The scheduler shape now lives at
+   `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`;
+   it keeps the scheduler focused on packet intake, start/resume decisions,
+   leases, heartbeats, lifecycle state, and result-route updates while leaving
+   provider-specific launch mechanics to provider-neutral dispatch.
 4. Design provider-neutral dispatch over the dock/session contract.
 5. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
