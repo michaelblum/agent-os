@@ -593,5 +593,14 @@ The next slices should stay reversible:
    `docs/design/work-cards/operator-afk-dev-session-trigger-supervised-bridge-live-v0.md`
    to observe the live command path and cleanup boundary before further source
    promotion.
+   That Operator run produced an accepted partial pass: the real trigger path
+   selected `codex --no-alt-screen`, launched from `.docks/gdi`, returned
+   `provider_acceptance_unobserved` plus `cleanup_unverified`, left no new
+   bridge/provider process behind, and did not mutate source or provider-owned
+   state. Because cleanup was externally verified while the receipt still
+   reported `cleanup_unverified`, the next source slice is
+   `docs/design/work-cards/afk-dev-session-trigger-live-cleanup-proof-v0.md`
+   to make the trigger record source-owned cleanup proof before another live
+   evidence run.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
