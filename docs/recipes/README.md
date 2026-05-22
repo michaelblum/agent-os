@@ -38,8 +38,8 @@ A Markdown recipe belongs here when it is:
 - specific enough to stop stale-doc drift or repeated bad choices.
 
 Examples include context-doc maintenance, AOS surface interaction decisions,
-accessibility surface expectations, layered subject expressions, and controlled
-smoke procedures.
+workstream checkpoint continuation, accessibility surface expectations,
+layered subject expressions, and controlled smoke procedures.
 
 ## Poor Recipe Fit
 

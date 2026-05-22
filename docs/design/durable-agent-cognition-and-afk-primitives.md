@@ -458,7 +458,9 @@ The next slices should stay reversible:
    command spelling deferred.
 8. Use the dev dry-run command to decide whether the next implementation path
    is receipt contract correction or a first supervised provider/session
-   launch.
+   launch. Apply
+   `docs/recipes/workstream-checkpoint-continuation.md` so this is a Foreman
+   routing decision, not a human-managed preference choice.
 9. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
 10. Trial a Researcher-compatible role only after the session trigger and async
