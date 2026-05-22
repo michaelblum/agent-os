@@ -1,6 +1,6 @@
 # Work Card: AFK Dev Launch Attempt Command V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
 
 ## Transfer Classification
 
@@ -277,3 +277,59 @@ Report:
 - confirmation that no provider config, provider transcript, gateway state,
   generated committed receipt artifact, GitHub state, push, or PR changed;
 - remaining gap before final AFK session trigger/dispatch command design.
+
+## Foreman Acceptance
+
+Accepted on 2026-05-22 at GDI commit
+`340a1c15725eff53bc2fd8158fca7c96cf1b3f76`.
+
+Review summary:
+
+- Scope matched the card: the command is limited to experimental
+  `./aos dev afk-launch-attempt`, delegates to
+  `scripts/afk-launch-attempt-prototype.mjs`, and does not expose
+  `--allow-provider-launch` or a final `aos session` command surface.
+- Changed files were limited to `src/commands/dev.swift`,
+  `src/shared/command-registry-data.swift`, and
+  `tests/dev-workflow-router.sh`.
+- Help, registry, and audit expose `dev-afk-launch-attempt` with the expected
+  safe fixture/diagnostic flags and preserve `afk-dry-run`.
+- Provider-free wrapper smoke returned `record_type=aos.afk_launch_attempt`,
+  `lifecycle_state=provider_acceptance_unobserved`,
+  `provider_session_id=not_applicable: no-provider-launch`, process-driver
+  terminal substrate, selected provider/dock `codex`/`gdi`, and
+  `provider_launch_performed=false`.
+- Fixture-backed wrapper smoke used only temporary packet, bridge, and
+  Codex-home fixtures and returned `lifecycle_state=provider_session_observed`,
+  `provider_launch_performed=true`, geometry `100x31`, extra Enter observed,
+  response marker observed, exact Codex adapter match by provider session id,
+  and no mismatches.
+
+Foreman verification:
+
+```bash
+node --test tests/afk-launch-attempt-prototype.test.mjs
+bash tests/dev-workflow-router.sh
+bash tests/help-contract.sh
+./aos dev build --no-restart
+./aos help dev --json
+./aos help dev afk-launch-attempt --json
+./aos dev audit --json
+./aos dev recommend --json --paths src/commands/dev.swift,src/shared/command-registry-data.swift,tests/dev-workflow-router.sh
+node --test tests/schemas/dev-workflow-rules.test.mjs
+node --test tests/schemas/dev-active-profile.test.mjs
+node --test tests/schemas/dev-workflow-profiles.test.mjs
+bash tests/dev-audit.sh
+git diff --check
+```
+
+All deterministic checks passed. Foreman also checked wrapper errors for
+missing `--packet`, missing `--packet` value, and unknown
+`--allow-provider-launch`; each returned the expected JSON error shape.
+
+`./aos ready` reported `human_required` with
+`daemon_tcc_grant_stale_or_missing` for the repo-mode `/Users/Michael/Code/agent-os/aos`
+runtime. This is an environment permission blocker, not an acceptance failure
+for the wrapper. Do not route live-dependent follow-up until the human runs the
+repo-standard permission reset/setup path and `./aos ready --post-permission`
+reports ready.
