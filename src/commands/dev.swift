@@ -94,6 +94,16 @@ private struct DevGhOptions {
     var positionals: [String] = []
 }
 
+private struct DevAfkDryRunOptions {
+    var json = false
+    var packet: String?
+    var provider: String?
+    var dock: String?
+    var repo: String?
+    var timestamp: String?
+    var out: String?
+}
+
 private struct DevClassifiedFile {
     let path: String
     let rules: [DevWorkflowRule]
@@ -172,6 +182,8 @@ func devCommand(args: [String]) {
         devRecommendCommand(args: subArgs)
     case "build":
         devBuildCommand(args: subArgs)
+    case "afk-dry-run":
+        devAfkDryRunCommand(args: subArgs)
     case "audit":
         devAuditCommand(args: subArgs)
     case "capabilities":
@@ -266,6 +278,48 @@ private func devBuildCommand(args: [String]) {
         if result.exitCode == 0 {
             print("Next: ./aos ready")
         }
+    }
+    exit(result.exitCode)
+}
+
+private func devAfkDryRunCommand(args: [String]) {
+    let options = parseDevAfkDryRunOptions(args)
+    guard let packet = options.packet else {
+        exitError("dev afk-dry-run requires --packet <path>", code: "MISSING_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.repo)
+    let script = (repoRoot as NSString).appendingPathComponent("scripts/afk-dry-run-prototype.mjs")
+    guard FileManager.default.fileExists(atPath: script) else {
+        exitError("Missing AFK dry-run prototype script: \(script)", code: "MISSING_SCRIPT")
+    }
+
+    var scriptArgs = [script, "--packet", packet]
+    if let provider = options.provider {
+        scriptArgs += ["--provider", provider]
+    }
+    if let dock = options.dock {
+        scriptArgs += ["--dock", dock]
+    }
+    if let repo = options.repo {
+        scriptArgs += ["--repo", repo]
+    }
+    if let timestamp = options.timestamp {
+        scriptArgs += ["--timestamp", timestamp]
+    }
+    if let out = options.out {
+        scriptArgs += ["--out", out]
+    }
+    if options.json {
+        scriptArgs.append("--json")
+    }
+
+    let result = runProcessCapturingOutput("/usr/bin/env", arguments: ["node"] + scriptArgs, cwd: repoRoot)
+    if !result.stdout.isEmpty {
+        print(result.stdout, terminator: result.stdout.hasSuffix("\n") ? "" : "\n")
+    }
+    if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
+        FileHandle.standardError.write(data)
     }
     exit(result.exitCode)
 }
@@ -944,6 +998,61 @@ private func parseDevDocksOptions(_ args: [String]) -> DevDocksOptions {
     return options
 }
 
+private func parseDevAfkDryRunOptions(_ args: [String]) -> DevAfkDryRunOptions {
+    var options = DevAfkDryRunOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--packet":
+            guard i + 1 < args.count else {
+                exitError("--packet requires a path", code: "MISSING_ARG")
+            }
+            options.packet = args[i + 1]
+            i += 2
+        case "--provider":
+            guard i + 1 < args.count else {
+                exitError("--provider requires a provider name", code: "MISSING_ARG")
+            }
+            options.provider = args[i + 1]
+            i += 2
+        case "--dock":
+            guard i + 1 < args.count else {
+                exitError("--dock requires a dock name", code: "MISSING_ARG")
+            }
+            options.dock = args[i + 1]
+            i += 2
+        case "--repo":
+            guard i + 1 < args.count else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--timestamp":
+            guard i + 1 < args.count else {
+                exitError("--timestamp requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.timestamp = args[i + 1]
+            i += 2
+        case "--out":
+            guard i + 1 < args.count else {
+                exitError("--out requires a path", code: "MISSING_ARG")
+            }
+            options.out = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev afk-dry-run flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            exitError("dev afk-dry-run does not accept positional arguments: \(arg)", code: "UNKNOWN_ARG")
+        }
+    }
+    return options
+}
+
 private func parseDevGhOptions(_ args: [String]) -> DevGhOptions {
     var options = DevGhOptions()
     var i = 0
@@ -1461,7 +1570,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
 
     var claims: [DevAuditClaim] = []
     let forms = Dictionary(uniqueKeysWithValues: dev.forms.map { ($0.id, $0) })
-    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"]
+    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"]
     let observedForms = dev.forms.map { $0.id }.sorted()
     claims.append(auditClaim(
         id: "dev-help-forms",
@@ -1483,6 +1592,11 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
         form: forms["dev-recommend"],
         expectedFlags: workflowFlags,
         defaultManifestRequired: true))
+    claims.append(auditFormFlagClaim(
+        id: "dev-afk-dry-run-help-flags",
+        form: forms["dev-afk-dry-run"],
+        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json"],
+        defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",
         form: forms["dev-audit"],

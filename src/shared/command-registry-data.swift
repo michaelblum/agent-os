@@ -1248,6 +1248,23 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execMutating(),
             output: outJSONFlag,
             examples: ["aos dev build --no-restart", "aos dev build --no-restart --json"]),
+        InvocationForm(id: "dev-afk-dry-run", usage: "aos dev afk-dry-run --packet <packet.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--json]",
+            args: [
+                flag("packet", "--packet", "Manual AFK packet JSON path for the experimental dry-run prototype", required: true),
+                flag("provider", "--provider", "Provider name to select as a dry-run fact; no provider is launched"),
+                flag("dock", "--dock", "Dock name to resolve for dry-run receipt facts"),
+                flag("repo", "--repo", "Repository root path"),
+                flag("timestamp", "--timestamp", "Fixed ISO timestamp for deterministic dry-run output"),
+                flag("out", "--out", "Optional local receipt output path"),
+                flag("json", "--json", "Emit machine-readable experimental receipt output", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev afk-dry-run --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
+                "aos dev afk-dry-run --packet /tmp/manual-afk-packet.json --json"
+            ]),
         InvocationForm(id: "dev-audit", usage: "aos dev audit [--manifest <path>] [--repo <path>] [--json]",
             args: [
                 flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/dev/workflow-rules.json")),

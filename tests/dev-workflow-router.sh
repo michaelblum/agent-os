@@ -107,11 +107,15 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"} <= set(forms), forms
+assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"} <= set(forms), forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
 recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= recommend_tokens, recommend_tokens
+afk_tokens = {arg.get("token") for arg in forms["dev-afk-dry-run"]["args"]}
+assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json"} <= afk_tokens, afk_tokens
+assert "--allow-provider-launch" not in afk_tokens, afk_tokens
+assert "experimental" in forms["dev-afk-dry-run"]["args"][0]["summary"].lower(), forms["dev-afk-dry-run"]
 audit_tokens = {arg.get("token") for arg in forms["dev-audit"]["args"]}
 assert {"--manifest", "--repo", "--json"} <= audit_tokens, audit_tokens
 capability_tokens = {arg.get("token") for arg in forms["dev-capabilities"]["args"]}
@@ -122,9 +126,28 @@ gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
 assert {"--repo", "--cwd", "--json", "--body-file", "--pr"} <= gh_tokens, gh_tokens
 PY
 then
-    pass "dev help exposes classify/recommend/build/audit/capabilities/docks/gh"
+    pass "dev help exposes classify/recommend/build/afk-dry-run/audit/capabilities/docks/gh"
 else
     fail "dev help missing workflow router forms"
+fi
+
+if OUT="$(./aos help dev afk-dry-run --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+forms = {form["id"]: form for form in data["forms"]}
+form = forms["dev-afk-dry-run"]
+tokens = {arg.get("token") for arg in form["args"]}
+assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json"} <= tokens, tokens
+assert "--allow-provider-launch" not in tokens, tokens
+assert "session" not in form["usage"].lower(), form
+assert "experimental" in json.dumps(form).lower(), form
+PY
+then
+    pass "dev afk-dry-run help stays experimental and hides provider launch"
+else
+    fail "dev afk-dry-run help drifted"
 fi
 
 if OUT="$(./aos dev capabilities list --role foreman --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'
