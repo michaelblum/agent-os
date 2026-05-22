@@ -559,8 +559,11 @@ The next slices should stay reversible:
    models scheduler intake and dispatch intent, resolves `.docks/gdi`, and
    emits `aos.afk_session_trigger_dry_run` with
    `provider_launch_allowed=false`, terminal substrate `not_attempted`, and
-   result route `not_attempted`. Live-dependent follow-up is paused until the
-   repo-mode AOS TCC/Input Monitoring readiness blocker is repaired and
-   `./aos ready --post-permission` reports ready.
+   result route `not_attempted`. Repo-mode AOS readiness was restored after the
+   post-build TCC/Input Monitoring reset flow. The next reversible slice is a
+   docs-only guarded-live readiness decision in
+   `docs/design/work-cards/afk-session-trigger-guarded-live-mode-readiness-v0.md`
+   before any source command is allowed to perform a supervised provider
+   launch.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
