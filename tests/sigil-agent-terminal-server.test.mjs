@@ -399,6 +399,61 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.match(snapshot.text, /resize:100x31/);
     assert.match(snapshot.text, /raw-submit:raw-key-marker/);
   });
+
+  it('forwards input coalesced after a pty-proxy control frame', async () => {
+    const script = [
+      'process.stdin.setEncoding("utf8");',
+      'if (process.stdin.isTTY) process.stdin.setRawMode(true);',
+      'let buffer = "";',
+      'process.stdout.write(`size:${process.stdout.columns}x${process.stdout.rows}\\r\\n`);',
+      'process.stdin.on("data", (chunk) => {',
+      '  for (const char of chunk) {',
+      '    if (char === "\\r" || char === "\\n") {',
+      '      process.stdout.write(`raw-submit:${buffer}\\r\\n`);',
+      '      buffer = "";',
+      '    } else {',
+      '      buffer += char;',
+      '    }',
+      '  }',
+      '});',
+      'setTimeout(() => {}, 10000);',
+    ].join(' ');
+    const proxy = spawn('python3', [
+      'apps/sigil/codex-terminal/pty-proxy.py',
+      `${shellQuote(process.execPath)} -e ${shellQuote(script)}`,
+    ], {
+      cwd: path.resolve('.'),
+      env: {
+        ...process.env,
+        SIGIL_AGENT_TERMINAL_COLS: '80',
+        SIGIL_AGENT_TERMINAL_ROWS: '24',
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let proxyOutput = '';
+    proxy.stdout.on('data', (chunk) => { proxyOutput += chunk.toString('utf8'); });
+    proxy.stderr.on('data', (chunk) => { proxyOutput += chunk.toString('utf8'); });
+
+    try {
+      await waitForText(() => proxyOutput, 'size:80x24');
+      proxy.stdin.write(Buffer.concat([
+        Buffer.from('\0{"type":"resize","cols":100,"rows":31}', 'utf8'),
+        Buffer.from('coalesced-marker\r', 'utf8'),
+      ]));
+      await waitForText(() => proxyOutput, 'raw-submit:coalesced-marker');
+      assert.doesNotMatch(proxyOutput, /coalesced-markerraw-submit/);
+
+      proxy.stdin.write(Buffer.from('\0{"type":"resize",', 'utf8'));
+      proxy.stdin.write(Buffer.from('"cols":90,"rows":30}partial-marker\r', 'utf8'));
+      await waitForText(() => proxyOutput, 'raw-submit:partial-marker');
+      assert.doesNotMatch(proxyOutput, /partial-markerraw-submit/);
+    } finally {
+      if (proxy.exitCode == null) {
+        proxy.kill('SIGTERM');
+        await new Promise((resolve) => proxy.once('exit', resolve));
+      }
+    }
+  });
 });
 
 function writeJsonl(file, records) {
@@ -506,4 +561,17 @@ async function waitForSnapshot(activePort, session, marker) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(`snapshot did not include ${marker}`);
+}
+
+async function waitForText(readText, marker) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const text = readText();
+    if (text.includes(marker)) return text;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`output did not include ${marker}:\n${readText()}`);
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
 }

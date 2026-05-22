@@ -31,19 +31,77 @@ def set_window_size(fd: int, rows: int, cols: int) -> None:
     fcntl.ioctl(fd, termios.TIOCSWINSZ, packed)
 
 
-def handle_control_frame(master_fd: int, data: bytes) -> bool:
-    if not data.startswith(b"\0"):
-        return False
+def json_object_end(data: bytes) -> int | None:
+    depth = 0
+    in_string = False
+    escaped = False
+    started = False
+    for index, byte in enumerate(data):
+        char = chr(byte)
+        if not started:
+            if char.isspace():
+                continue
+            if char != "{":
+                return None
+            started = True
+            depth = 1
+            continue
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    return None
+
+
+def apply_control_frame(master_fd: int, frame: bytes) -> None:
     try:
-        message = json.loads(data[1:].decode("utf8"))
+        message = json.loads(frame.decode("utf8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return True
+        return
     if message.get("type") != "resize":
-        return True
+        return
     cols = bounded_int(str(message.get("cols", "")), DEFAULT_COLS, 20, 300)
     rows = bounded_int(str(message.get("rows", "")), DEFAULT_ROWS, 8, 120)
     set_window_size(master_fd, rows, cols)
-    return True
+
+
+def forward_stdin(master_fd: int, data: bytes, pending_control: bytearray) -> None:
+    if pending_control:
+        pending_control.extend(data)
+        frame_end = json_object_end(bytes(pending_control[1:]))
+        if frame_end is None:
+            return
+        apply_control_frame(master_fd, bytes(pending_control[1 : frame_end + 1]))
+        trailing = bytes(pending_control[frame_end + 1 :])
+        pending_control.clear()
+        if trailing:
+            os.write(master_fd, trailing)
+        return
+
+    if not data.startswith(b"\0"):
+        os.write(master_fd, data)
+        return
+
+    frame_end = json_object_end(data[1:])
+    if frame_end is None:
+        pending_control.extend(data)
+        return
+    apply_control_frame(master_fd, data[1 : frame_end + 1])
+    trailing = data[frame_end + 1 :]
+    if trailing:
+        os.write(master_fd, trailing)
 
 
 def child_preexec(slave_fd: int):
@@ -80,6 +138,7 @@ def main() -> int:
     os.set_blocking(master_fd, False)
     stdin_fd = sys.stdin.fileno()
     os.set_blocking(stdin_fd, False)
+    pending_control = bytearray()
 
     try:
         while True:
@@ -100,9 +159,7 @@ def main() -> int:
                 except BlockingIOError:
                     data = b""
                 if data:
-                    if handle_control_frame(master_fd, data):
-                        continue
-                    os.write(master_fd, data)
+                    forward_stdin(master_fd, data, pending_control)
 
             if process.poll() is not None:
                 time.sleep(0.05)
