@@ -135,10 +135,12 @@ scripts/agent-handoff --text "$transfer_payload" --options-json '{"timestamp":tr
 ```
 
 The tool copies the raw payload to the clipboard and prints the chat-visible
-append block. Use that printed block at the end of the final chat response so
-the human can recover the payload from chat if the clipboard is lost. Clipboard
-transfer payloads are plain instructions for every target dock; do not prepend
-command prefixes or addressee ceremony.
+append block. When a recipient is supplied through `--options-json`, the printed
+block includes `Recipient: <dock>` before the gated payload. Use the exact
+printed block at the end of the final chat response so the human can recover
+the payload from chat if the clipboard is lost. Clipboard transfer payloads are
+plain instructions for every target dock; do not prepend command prefixes or
+addressee ceremony to the copied payload.
 
 `scripts/dock-handoff-clipboard --target-dock <dock>` is the compatibility
 wrapper for dock-targeted transfer payloads. Individual docks may add thin local
@@ -159,9 +161,10 @@ proactively place a concise transfer dispatch on the clipboard with the dock
 handoff wrapper: `.docks/foreman/scripts/handoff` for Foreman-originated transfers, or
 `scripts/dock-handoff-clipboard --target-dock <dock>` for generic dock-targeted
 transfers. Those wrappers delegate to `scripts/agent-handoff` for the rich
-clipboard and chat-visible block. The payload should be paste-ready plain
-instructions, not a status essay. Use the printed chat-visible block in
-the final response so the human can recover it if the clipboard is overwritten.
+clipboard and chat-visible block, including recipient, gates, copy notice, and
+timestamp. The payload should be paste-ready plain instructions, not a status
+essay. Use the exact printed chat-visible block in the final response so the
+human can recover it if the clipboard is overwritten.
 
 Do not create clipboard transfer payloads for vague optional ideas. Use this only when
 there is a clear next action that advances the current workstream.

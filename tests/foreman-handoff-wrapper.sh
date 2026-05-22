@@ -24,7 +24,7 @@ import sys
 
 payload, out, clipboard_path = sys.argv[1:]
 clipboard = pathlib.Path(clipboard_path).read_text()
-expected = f"----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+expected = f"Recipient: gdi\n----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: Foreman wrapper clipboard mismatch: {clipboard!r}")
 if out != expected:
@@ -39,7 +39,7 @@ import sys
 
 payload, out, clipboard_path = sys.argv[1:]
 clipboard = pathlib.Path(clipboard_path).read_text()
-expected = f"----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+expected = f"Recipient: operator\n----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: Foreman wrapper stdin clipboard mismatch: {clipboard!r}")
 if out != expected:
@@ -50,7 +50,7 @@ set +e
 bad_out="$(.docks/foreman/scripts/handoff --target-dock slack --text "$payload" 2>&1)"
 bad_rc=$?
 set -e
-if [[ "$bad_rc" -eq 0 ]] || [[ "$bad_out" != *"unsupported Foreman handoff target"* ]]; then
+if [[ "$bad_rc" -eq 0 ]] || [[ "$bad_out" != *"unsupported Foreman transfer target"* ]]; then
   echo "FAIL: Foreman wrapper accepted unsupported target: $bad_out" >&2
   exit 1
 fi

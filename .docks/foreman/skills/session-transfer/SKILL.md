@@ -100,10 +100,13 @@ card with a GDI round contract.
 
 ## Output Discipline
 
-Keep clipboard dispatches thin. Put durable task detail in the referenced work
-card, capture plan, or issue. For any dispatch that approaches the CLI goal
+Keep clipboard dispatches concise. Detailed instructions may be long, but they
+should live in the referenced work card, capture plan, issue, or another durable
+artifact. For any dispatch that approaches the observed 4,000-character CLI goal
 limit, move the instructions into a file and copy only `follow the instructions
 in <path>`. Put successor-Foreman state in the successor handoff, not in
 `docs/design/work-cards/`. Do not use successor handoff content to author
 recipient work without first reclassifying it as a GDI, Operator, relay,
-correction, or human-needed transfer.
+correction, or human-needed transfer. When a handoff tool prints a chat-visible
+block, include that exact block in the final response, including recipient,
+gates, copy notice, and timestamp.

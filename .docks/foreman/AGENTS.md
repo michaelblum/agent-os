@@ -144,8 +144,8 @@ GDI/correction work card with a single-round contract.
 ## Work-Card Routing
 
 For non-trivial GDI implementation or validation work, create or update a
-Markdown work card under `docs/design/work-cards/` and copy only a thin plain
-dispatch:
+Markdown work card under `docs/design/work-cards/` and copy only a concise
+plain dispatch:
 
 `follow the instructions in docs/design/work-cards/<card>.md`
 
@@ -162,19 +162,22 @@ answers, progress updates, review findings, status reports, or notes that are
 not intended to be pasted into another dock session.
 
 For non-trivial Operator runs, put the detailed live-run contract in a Markdown
-work card under `docs/design/work-cards/` and copy only a thin dispatch:
+work card under `docs/design/work-cards/` and copy only a concise dispatch:
 
 `follow the instructions in docs/design/work-cards/operator-<card>.md`
 
 Short Operator checks may still go directly into the clipboard when the whole
-prompt is comfortably under the CLI goal limit and does not need durable
-capture instructions.
+prompt is comfortably under the observed 4,000-character CLI goal limit and
+does not need durable capture instructions.
 
 Foreman-to-GDI clipboard payloads are a role-specific exception to any generic
 clipboard helper that adds command or addressee prefixes. Keep the copied text to
 the plain work-card instruction above. If a shared helper would inject ceremony,
 use a Foreman-specific plain clipboard copy path and report the copied payload
 plus timestamp in the dock-level chat-visible shape.
+The wrapper's printed chat-visible block includes the recipient, gates, copy
+notice, and timestamp; include that exact block in the final chat response when
+routing the transfer.
 
 Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 as the flexible authoring shape: fresh context, read-first files, state
@@ -206,8 +209,8 @@ repo-standard stall path in the card:
 `./aos ready --post-permission` after the human returns.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
-the thin plain work-card instruction, then add human-facing manual steps in Foreman's
-chat response. The default helper is:
+the concise plain work-card instruction, then add human-facing manual steps in
+Foreman's chat response. The default helper is:
 
 - paste/send the clipboard contents to GDI;
 - after GDI reports completion, optionally send `/review` in that same GDI
