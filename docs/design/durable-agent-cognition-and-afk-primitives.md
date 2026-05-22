@@ -602,5 +602,11 @@ The next slices should stay reversible:
    `docs/design/work-cards/afk-dev-session-trigger-live-cleanup-proof-v0.md`
    to make the trigger record source-owned cleanup proof before another live
    evidence run.
+   The first cleanup-proof output passed the focused tests but needs correction:
+   a fake-provider Foreman smoke showed the receipt could report cleanup
+   verified while a helper-owned `pty-proxy.py codex --no-alt-screen` process
+   was still visible immediately after the trigger returned. The routed
+   correction is
+   `docs/design/work-cards/afk-dev-session-trigger-live-cleanup-process-correction-v0.md`.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
