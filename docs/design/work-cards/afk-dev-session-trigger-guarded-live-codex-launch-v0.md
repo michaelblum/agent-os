@@ -78,7 +78,7 @@ telemetry stores, gateway state, dock profiles/hooks, GitHub state, pushes, PRs,
 or external publication were mutated.
 
 Next routed step:
-`docs/design/work-cards/operator-afk-session-trigger-guarded-live-codex-proof-v0.md`.
+`docs/design/work-cards/afk-dev-session-trigger-supervised-bridge-launch-v0.md`.
 
 ## Transfer Classification
 
