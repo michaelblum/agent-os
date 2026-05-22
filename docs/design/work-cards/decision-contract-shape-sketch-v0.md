@@ -1,6 +1,6 @@
 # Work Card: decision-contract-shape-sketch-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -15,6 +15,21 @@ The inventory confirmed that `docs/dev/workflow-rules.json` is the strongest
 current machine-readable Decision Contract candidate. This round should sketch
 the candidate shape without adding schemas, renaming artifacts, or changing
 command behavior.
+
+Accepted evidence:
+
+- GDI branch: `gdi/decision-contract-shape-sketch-v0`
+- Accepted commit: `3b73e803715a7e489dcdbb561e72379e6caad424`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/decision-contract-shape-sketch-2026-05-21.md`
+- Foreman-side verification passed:
+  `git diff --check 6a3af8931449e328e3ca3add91c0ab3e6ae55b40..3b73e803715a7e489dcdbb561e72379e6caad424`,
+  `./aos dev recommend --json`, and `./aos dev recommend --help` for the
+  documented `--paths` / `--files` input claim.
+- Recommendation accepted: keep Decision Contract docs-only for now, perform a
+  docs vocabulary pass, then map a second non-router candidate before any schema
+  slice.
 
 ## Fresh Context Contract
 
