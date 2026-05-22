@@ -1,6 +1,40 @@
 # AFK Bridge Codex PTY Observability Correction V0
 
-**Status:** Needs correction 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commits:
+  - `fad05c8132d1045a8298a77a44854adf277753b8`
+  - `46277e74f3621098aa8bd2e348986ea831df8c9f`
+- Changed files:
+  - `apps/sigil/codex-terminal/pty-proxy.py`
+  - `apps/sigil/codex-terminal/server.mjs`
+  - `tests/sigil-agent-terminal-server.test.mjs`
+- Foreman review: accepted after correction. The process-driver PTY now starts
+  with initialized terminal geometry, sets up a controlling terminal, exposes
+  process snapshot geometry, supports bounded `/resize`, applies WebSocket
+  resize frames to existing process sessions, and preserves input trailing a
+  control frame even when pipe reads coalesce or split control bytes.
+- Deterministic coverage added:
+  - raw no-echo/full-screen-ish PTY input acknowledgement for `/input` plus
+    Enter;
+  - raw PTY resize plus `enter:false` input followed by `/key Enter`;
+  - direct `pty-proxy.py` coverage for coalesced resize-control plus input;
+  - direct `pty-proxy.py` coverage for split partial resize-control plus input.
+- Foreman verification:
+  - `node --test tests/sigil-agent-terminal-server.test.mjs`: 12/12
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1
+  - `git diff --check 5d34f294aaaa295fe3ac51324eb3e6a7d7d7257e..46277e74f3621098aa8bd2e348986ea831df8c9f`
+  - `./aos dev recommend --json --files apps/sigil/codex-terminal/server.mjs apps/sigil/codex-terminal/pty-proxy.py tests/sigil-agent-terminal-server.test.mjs`
+  - Foreman repro probe for
+    `\0{"type":"resize","cols":100,"rows":31}coalesced-marker\r` now emitted
+    `got:coalesced-marker`.
+- Local-only boundary confirmed: no live provider, real provider transcript,
+  provider config, gateway state, dock profile, hook, GitHub state, push, or PR
+  changed.
+- Next routed slice:
+  `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-pty-rerun-v0.md`.
 
 ## Foreman Review
 
