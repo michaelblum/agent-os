@@ -1,6 +1,40 @@
 # Work Card: AFK Dev Session Trigger Guarded Live Duplicate/Cleanup Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted correction commit:
+`c6b05896375ebf1e944e0ba18ad8a1ca336c1e4d`
+(`fix(afk): guard duplicate live trigger cleanup`).
+
+The correction satisfies both Foreman findings:
+
+- same-key accepted/live receipt states now suppress launch, including
+  `terminal_started` and `provider_acceptance_unobserved`;
+- deterministic cleanup proof failure now returns `cleanup_unverified` and does
+  not allow provider launch.
+
+Verification:
+
+```text
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+10 tests passed
+
+git diff --check bd8781297797971826997072a32e6f20d844b41c..HEAD
+passed
+
+./aos dev recommend --json --paths scripts/afk-session-trigger-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs
+passed; focused test/manual inspection recommended, no Swift build required for correction files
+```
+
+Foreman reran targeted smokes for `provider_acceptance_unobserved`,
+`terminal_started`, and `cleanup_unverified`; all passed. No live provider,
+real bridge, real transcript read, provider state, gateway state, dock
+profile/hook, GitHub state, push, PR, or external publication changed.
 
 ## Transfer Classification
 

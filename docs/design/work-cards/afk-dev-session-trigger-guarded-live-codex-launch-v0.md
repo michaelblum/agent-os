@@ -1,6 +1,84 @@
 # Work Card: AFK Dev Session Trigger Guarded Live Codex Launch V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted implementation commits:
+
+- `9cf94336362a3e80f453462ad62b689ca0b015f5`
+  (`feat(afk): guard supervised live session trigger`)
+- `c6b05896375ebf1e944e0ba18ad8a1ca336c1e4d`
+  (`fix(afk): guard duplicate live trigger cleanup`)
+
+Accepted behavior:
+
+- preserves the accepted `--dry-run` receipt path;
+- adds experimental supervised live launch intent under
+  `./aos dev afk-session-trigger --supervised-live-launch --i-am-present
+  --json`;
+- limits the guarded live path to Codex/GDI before any launch can be allowed;
+- rejects missing human presence, missing JSON output, unsupported provider,
+  wrong dock, ambiguous launch aliases, and conflicting action flags before
+  side effects;
+- suppresses same-key duplicate launch for accepted/live states including
+  `accepted`, `accepted_pre_launch`, `terminal`, `terminal_started`, `running`,
+  `observed`, `provider_acceptance_unobserved`,
+  `provider_acceptance_observed`, `provider_session_observed`, and
+  `completed`;
+- keeps rejected/failed/expired/blocked attempts blocked until explicit
+  replacement/supersession;
+- adds explicit cleanup ownership and a deterministic `cleanup_unverified`
+  classification path;
+- keeps result route, work receipt, provider acceptance, Codex adapter, catalog,
+  and telemetry as not attempted in the deterministic launch-intent source
+  slice.
+
+Foreman verification:
+
+```text
+./aos ready --post-permission
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+10 tests passed
+
+node --test tests/afk-launch-attempt-prototype.test.mjs
+22 tests passed
+
+bash tests/dev-workflow-router.sh
+all checks passed
+
+bash tests/help-contract.sh
+all checks passed
+
+./aos dev build --no-restart
+passed; ./aos was up to date
+
+git diff --check 7ac982d181391cac8066d4074ba2d62e18249286..HEAD
+passed
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+```
+
+Foreman also reran targeted smokes for the prior acceptance blockers:
+
+- same-key `provider_acceptance_unobserved` existing receipt returns
+  `status=duplicate` and `dispatch.provider_launch_allowed=false`;
+- same-key `terminal_started` existing receipt returns `status=duplicate` and
+  `dispatch.provider_launch_allowed=false`;
+- deterministic cleanup failure returns `status=cleanup_unverified` and
+  `dispatch.provider_launch_allowed=false`.
+
+No live Codex, Claude, Gemini, tmux, provider terminal, or real bridge session
+was launched during acceptance. No real `~/.codex` transcript bodies, provider
+configs, provider session files, provider transcripts, provider catalogs,
+telemetry stores, gateway state, dock profiles/hooks, GitHub state, pushes, PRs,
+or external publication were mutated.
+
+Next routed step:
+`docs/design/work-cards/operator-afk-session-trigger-guarded-live-codex-proof-v0.md`.
 
 ## Transfer Classification
 

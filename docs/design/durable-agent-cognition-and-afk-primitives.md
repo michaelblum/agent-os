@@ -575,8 +575,12 @@ The next slices should stay reversible:
    boundaries before any final session command spelling. The next routed source
    slice is
    `docs/design/work-cards/afk-dev-session-trigger-guarded-live-codex-launch-v0.md`;
-   it should implement deterministic guarded-live behavior without running the
-   supervised live Codex proof, which remains an Operator follow-up after source
-   review.
+   it now implements deterministic guarded-live behavior without running the
+   supervised live Codex proof. The accepted source behavior preserves dry-run
+   output, adds the explicit supervised live guard, keeps live intent Codex/GDI
+   scoped, suppresses duplicate accepted/live receipt states before launch, and
+   classifies cleanup proof failure as `cleanup_unverified`. The next routed
+   step is supervised Operator proof in
+   `docs/design/work-cards/operator-afk-session-trigger-guarded-live-codex-proof-v0.md`.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
