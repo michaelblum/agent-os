@@ -386,6 +386,53 @@ test('classifies observed provider session with wrong cwd as structured mismatch
   ]);
 });
 
+test('keeps observed provider session with missing cwd as not observed', async () => {
+  const packetPath = await writePacket(validPacket());
+  const providerSessionId = 'observed-session-without-cwd';
+  const catalogPath = await writeCatalogFixture({
+    sessions: [
+      {
+        provider: 'codex',
+        session_id: providerSessionId,
+        updated_at: '2026-05-22T13:26:14.000Z',
+        source_file: '/tmp/missing-cwd-codex-session.jsonl',
+        resume_command: `codex resume ${providerSessionId}`,
+        telemetry_observed: true,
+        telemetry_event_refs: ['inline:missing-cwd-telemetry-must-not-bind'],
+      },
+    ],
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    '2026-05-22T13:26:14.000Z',
+    '--provider-session-id',
+    providerSessionId,
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(record.provider_acceptance.provider_session_id, providerSessionId);
+  assert.equal(record.provider_acceptance.provider_reported_cwd, 'not_observed');
+  assert.equal(record.catalog.status, 'catalog_not_observed');
+  assert.equal(record.catalog.provider_session_mismatch, 'not_observed');
+  assert.equal(record.telemetry.status, 'telemetry_not_attempted_no_catalog_match');
+  assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(record.mismatches, []);
+});
+
 test('classifies empty provider cwd catalog as not observed with telemetry not attempted', async () => {
   const packetPath = await writePacket(validPacket());
   const catalogPath = await writeCatalogFixture({ sessions: [] });
