@@ -1,6 +1,57 @@
 # Work Card: AFK Dev Session Trigger Live Cleanup Proof V0
 
-**Status:** Routed 2026-05-22
+**Status:** Correction routed 2026-05-22
+
+## Foreman Review Finding
+
+First GDI output:
+`e7645ff38ee266cd04a0e0794066d157c6a4cac2`
+(`fix(afk): record supervised bridge cleanup proof`).
+
+Foreman reran the required verification successfully:
+
+```text
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+14 tests passed
+
+node --test tests/afk-launch-attempt-prototype.test.mjs
+24 tests passed
+
+git diff --check 7fcdae5d1d760ea0af35d803a68eaa8325f298e5..HEAD
+passed
+```
+
+However, Foreman did not accept the slice. A deterministic fake-`codex` smoke
+that put a temporary non-provider `codex` binary first on `PATH` returned a
+receipt with source-owned cleanup marked verified while a helper-owned
+`pty-proxy.py codex --no-alt-screen` process was still visible immediately
+after the trigger command returned:
+
+```json
+{
+  "exit": 1,
+  "receipt_status": "provider_acceptance_unobserved",
+  "provider_acceptance_status": "provider_acceptance_unobserved",
+  "cleanup_status": "verified",
+  "terminal_command": "codex --no-alt-screen",
+  "lingering_matches_sample": [
+    "80877 .../pty-proxy.py codex --no-alt-screen"
+  ]
+}
+```
+
+The process exited by the time Foreman inspected it manually, and no unrelated
+process was killed. The acceptance blocker is still real: cleanup verification
+currently proves the bridge server process and health endpoint are gone, but
+does not prove the helper-owned terminal child/session launched for
+`codex --no-alt-screen` has exited before the receipt reports
+`cleanup.status=verified`.
+
+Next correction:
+`docs/design/work-cards/afk-dev-session-trigger-live-cleanup-process-correction-v0.md`.
 
 ## Transfer Classification
 
