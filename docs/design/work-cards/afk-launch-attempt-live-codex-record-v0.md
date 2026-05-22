@@ -1,6 +1,44 @@
 # Work Card: AFK Launch Attempt Live Codex Record V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `eeebb6951f18af92c897beea43ee9bd600763c32`
+- Changed files:
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman review: accepted. The prototype now consumes deterministic
+  supervised live Codex bridge fixtures with health/geometry, accepted resize,
+  input diagnostics, an extra `/key Enter`, response-marker observation,
+  provider session id, and Codex adapter correlation. The fixture-backed happy
+  path reports `provider_session_observed` instead of staying at
+  `provider_acceptance_unobserved`, while still refusing to mark the attempt
+  `completed` without route or worker-completion evidence.
+- Review finding: none.
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: 22/22
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1
+  - `node --test --experimental-strip-types packages/host/test/codex-thread-adapter.test.ts`: 16/16
+  - `git diff --check 424b987d358d317ff37f6914c761deb3b67707c7..eeebb6951f18af92c897beea43ee9bd600763c32`
+  - `./aos dev recommend --json --files scripts/afk-launch-attempt-prototype.mjs tests/afk-launch-attempt-prototype.test.mjs packages/host/src/codex-thread-adapter.ts packages/host/test/codex-thread-adapter.test.ts`
+  - `cd packages/host && npm test`: 63/63
+- Foreman manual fixture smoke: a temp packet, bridge fixture, and Codex-home
+  fixture produced `lifecycle_state=provider_session_observed`,
+  `provider_launch_performed=true`, provider session id
+  `019e5107-5456-7f22-b08b-b977df1b35f4`,
+  `codex_adapter.status=observed`,
+  `correlation_status=matched_by_provider_session_id`,
+  `matched_cwd_basis=intended_launch_cwd`, terminal geometry `100x31`,
+  accepted input and extra Enter, response marker observed, catalog and
+  telemetry `not_observed`, and result route `not_attempted`.
+- Local-only boundary confirmed: no live provider was launched by GDI or
+  Foreman for this deterministic acceptance; no provider config, real provider
+  transcript, gateway state, generated committed receipt artifact, GitHub
+  state, push, or PR changed.
+- Next routed slice:
+  `docs/design/work-cards/operator-afk-launch-attempt-live-codex-record-rerun-v0.md`.
 
 ## Transfer Classification
 
