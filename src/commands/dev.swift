@@ -124,6 +124,8 @@ private struct DevAfkLaunchAttemptOptions {
 private struct DevAfkSessionTriggerOptions {
     var json = false
     var dryRun = false
+    var supervisedLiveLaunch = false
+    var iAmPresent = false
     var packet: String?
     var provider: String?
     var dock: String?
@@ -132,6 +134,8 @@ private struct DevAfkSessionTriggerOptions {
     var out: String?
     var resultRoute: String?
     var idempotenceSalt: String?
+    var existingReceipt: String?
+    var replacementFor: String?
 }
 
 private struct DevClassifiedFile {
@@ -426,8 +430,8 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     guard let packet = options.packet else {
         exitError("dev afk-session-trigger requires --packet <path>", code: "MISSING_ARG")
     }
-    guard options.dryRun else {
-        exitError("dev afk-session-trigger requires --dry-run", code: "MISSING_ARG")
+    guard options.dryRun || options.supervisedLiveLaunch else {
+        exitError("dev afk-session-trigger requires --dry-run or --supervised-live-launch", code: "MISSING_ARG")
     }
 
     let repoRoot = resolveRepoRoot(options.repo)
@@ -436,7 +440,16 @@ private func devAfkSessionTriggerCommand(args: [String]) {
         exitError("Missing AFK session-trigger prototype script: \(script)", code: "MISSING_SCRIPT")
     }
 
-    var scriptArgs = [script, "--packet", packet, "--dry-run"]
+    var scriptArgs = [script, "--packet", packet]
+    if options.dryRun {
+        scriptArgs.append("--dry-run")
+    }
+    if options.supervisedLiveLaunch {
+        scriptArgs.append("--supervised-live-launch")
+    }
+    if options.iAmPresent {
+        scriptArgs.append("--i-am-present")
+    }
     if let provider = options.provider {
         scriptArgs += ["--provider", provider]
     }
@@ -457,6 +470,12 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     }
     if let idempotenceSalt = options.idempotenceSalt {
         scriptArgs += ["--idempotence-salt", idempotenceSalt]
+    }
+    if let existingReceipt = options.existingReceipt {
+        scriptArgs += ["--existing-receipt", existingReceipt]
+    }
+    if let replacementFor = options.replacementFor {
+        scriptArgs += ["--replacement-for", replacementFor]
     }
     if options.json {
         scriptArgs.append("--json")
@@ -1307,6 +1326,12 @@ private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSession
         case "--dry-run":
             options.dryRun = true
             i += 1
+        case "--supervised-live-launch":
+            options.supervisedLiveLaunch = true
+            i += 1
+        case "--i-am-present":
+            options.iAmPresent = true
+            i += 1
         case "--packet":
             guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
                 exitError("--packet requires a path", code: "MISSING_ARG")
@@ -1354,6 +1379,18 @@ private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSession
                 exitError("--idempotence-salt requires a value", code: "MISSING_ARG")
             }
             options.idempotenceSalt = args[i + 1]
+            i += 2
+        case "--existing-receipt":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--existing-receipt requires a path", code: "MISSING_ARG")
+            }
+            options.existingReceipt = args[i + 1]
+            i += 2
+        case "--replacement-for":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--replacement-for requires an id", code: "MISSING_ARG")
+            }
+            options.replacementFor = args[i + 1]
             i += 2
         default:
             if arg.hasPrefix("--") {
@@ -1917,7 +1954,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
     claims.append(auditFormFlagClaim(
         id: "dev-afk-session-trigger-help-flags",
         form: forms["dev-afk-session-trigger"],
-        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--dry-run", "--json"],
+        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--json"],
         defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",

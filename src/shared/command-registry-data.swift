@@ -1289,17 +1289,21 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --json"
             ]),
-        InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> --dry-run [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--json]",
+        InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>]",
             args: [
-                flag("packet", "--packet", "Manual transfer packet JSON path for the experimental session-trigger dry-run", required: true),
-                flag("dry-run", "--dry-run", "Required dry-run guard; no provider, terminal, gateway, or route is launched", type: .bool, required: true),
-                flag("provider", "--provider", "Provider name to select for dispatch intent; no provider is launched"),
+                flag("packet", "--packet", "Manual transfer packet JSON path for the experimental session trigger", required: true),
+                flag("dry-run", "--dry-run", "Dry-run guard; no provider, terminal, gateway, or route is launched", type: .bool),
+                flag("supervised-live-launch", "--supervised-live-launch", "Guarded supervised live launch intent for Codex/GDI source receipts", type: .bool),
+                flag("i-am-present", "--i-am-present", "Required human-presence guard for supervised live launch", type: .bool),
+                flag("provider", "--provider", "Provider name to select for dispatch intent"),
                 flag("dock", "--dock", "Dock name to resolve for launch-root intent facts"),
                 flag("repo", "--repo", "Repository root path"),
                 flag("timestamp", "--timestamp", "Fixed ISO timestamp for deterministic trigger output"),
                 flag("out", "--out", "Optional local trigger receipt output path"),
                 flag("result-route", "--result-route", "Fallback result route ref only when the packet omits one"),
                 flag("idempotence-salt", "--idempotence-salt", "Optional deterministic idempotence salt for tests"),
+                flag("existing-receipt", "--existing-receipt", "Existing trigger receipt fixture used for duplicate-prevention classification"),
+                flag("replacement-for", "--replacement-for", "Explicit replacement/supersession id for retrying a prior rejected or failed attempt"),
                 flag("json", "--json", "Emit machine-readable experimental trigger receipt output", type: .bool)
             ],
             stdin: nil, constraints: nil,
@@ -1307,7 +1311,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             output: outJSONFlag,
             examples: [
                 "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --dry-run --json",
-                "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --dry-run --json"
+                "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --supervised-live-launch --i-am-present --json"
             ]),
         InvocationForm(id: "dev-audit", usage: "aos dev audit [--manifest <path>] [--repo <path>] [--json]",
             args: [
