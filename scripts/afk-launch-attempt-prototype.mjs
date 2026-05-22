@@ -20,7 +20,7 @@ function usage() {
   return `Experimental AFK launch-attempt prototype.
 
 Usage:
-  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--catalog-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>]
+  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--catalog-fixture <path>] [--bridge-visibility-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>]
 
 This local prototype creates an aos.afk_launch_attempt record, observes terminal substrate through the Sigil codex-terminal bridge, and launches no provider.`;
 }
@@ -160,6 +160,8 @@ function normalizeCatalogFixture(value) {
   if (Array.isArray(value)) return value;
   if (Array.isArray(value.sessions)) return value.sessions;
   if (Array.isArray(value.catalog_sessions)) return value.catalog_sessions;
+  if (Array.isArray(value.requested_cwd_sessions)) return value.requested_cwd_sessions;
+  if (Array.isArray(value.requestedCwdSessions)) return value.requestedCwdSessions;
   throw new Error('Catalog fixture must be an array or object with sessions');
 }
 
@@ -169,6 +171,159 @@ function normalizeAllCwdCatalogFixture(value) {
   if (Array.isArray(value.allCwdSessions)) return value.allCwdSessions;
   if (Array.isArray(value.all_cwd_catalog_sessions)) return value.all_cwd_catalog_sessions;
   return [];
+}
+
+function bridgeFixtureCatalogInput(value) {
+  return value && typeof value === 'object' && value.catalog ? value.catalog : value;
+}
+
+function bridgeFixtureBridgeInput(value) {
+  return value && typeof value === 'object' && value.bridge ? value.bridge : value;
+}
+
+function inferProviderFromCommand(command) {
+  const match = String(command || '').match(PROVIDER_BINARY_PATTERN);
+  return match ? match[2].toLowerCase() : null;
+}
+
+function compactLines(...values) {
+  return values
+    .flat()
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => value.trim())
+    .join('\n');
+}
+
+function fixtureSnapshotText(bridge) {
+  const snapshot = bridge?.snapshot ?? {};
+  return compactLines(
+    snapshot.text,
+    snapshot.title,
+    snapshot.status,
+    bridge?.title,
+    bridge?.status,
+    bridge?.status_text,
+    bridge?.statusText,
+  );
+}
+
+function firstTextMatch(text, patterns) {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return NOT_OBSERVED;
+}
+
+function parseBridgeVisibilityText(text) {
+  const providerSessionId = firstTextMatch(text, [
+    /\bprovider[_\s-]*session[_\s-]*id\s*[:=]\s*([A-Za-z0-9._:-]+)/i,
+    /\bsession[_\s-]*id\s*[:=]\s*([A-Za-z0-9._:-]+)/i,
+    /\bsession\s+([0-9a-f]{8}-[0-9a-f-]{18,})\b/i,
+  ]);
+  return {
+    provider_session_id: providerSessionId,
+    provider_reported_cwd: firstTextMatch(text, [
+      /\bcwd\s*[:=]\s*([^\n]+)/i,
+      /\bcwd\s+([^\n]+)/i,
+    ]),
+    provider_reported_branch: firstTextMatch(text, [
+      /\bbranch\s*[:=]\s*([^\n]+)/i,
+      /\bbranch\s+([^\n]+)/i,
+    ]),
+    provider_reported_head: firstTextMatch(text, [
+      /\bhead\s*[:=]\s*([0-9a-f]{7,40})\b/i,
+      /\bhead\s+([0-9a-f]{7,40})\b/i,
+      /\brepo\s+head\s*[:=]?\s*([0-9a-f]{7,40})\b/i,
+    ]),
+    provider_version: firstTextMatch(text, [
+      /\bCodex CLI\s+([0-9][^\s\n]*)/i,
+      /\bversion\s*[:=]\s*([^\s\n]+)/i,
+    ]),
+    model: firstTextMatch(text, [
+      /\bmodel\s*[:=]\s*([^\s\n]+)/i,
+      /\bmodel\s+([^\s\n]+)/i,
+    ]),
+  };
+}
+
+function mergeProviderAcceptance(current, next) {
+  const merged = { ...current };
+  for (const [key, value] of Object.entries(next)) {
+    if (key === 'status' || key === 'provider_session_id') {
+      merged[key] = value;
+      continue;
+    }
+    if (
+      merged[key] === undefined
+      || merged[key] === NOT_OBSERVED
+      || merged[key] === NOT_APPLICABLE_NO_PROVIDER
+    ) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
+
+function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
+  if (!fixture) return null;
+  const bridge = bridgeFixtureBridgeInput(fixture);
+  const health = bridge.health ?? {};
+  const ensure = bridge.ensure ?? {};
+  const snapshot = bridge.snapshot ?? {};
+  const command = bridge.command ?? snapshot.command ?? health.defaultCommand ?? health.command ?? NOT_OBSERVED;
+  const cwd = ensure.cwd ?? health.defaultCwd ?? snapshot.cwd ?? fallbackCwd;
+  const session = ensure.session ?? snapshot.session ?? health.defaultSession ?? NOT_OBSERVED;
+  const driver = ensure.driver ?? snapshot.driver ?? health.driver ?? NOT_OBSERVED;
+  const text = fixtureSnapshotText(bridge);
+  const parsed = parseBridgeVisibilityText(text);
+  return {
+    bridge_session_started: true,
+    command,
+    providerSessionId: parsed.provider_session_id,
+    terminal_substrate: {
+      status: 'observed',
+      driver,
+      session_handle: session,
+      cwd,
+      command,
+      snapshot_ref: text ? 'inline:terminal_substrate.synthetic_snapshot' : NOT_OBSERVED,
+      snapshot_summary: {
+        session,
+        driver,
+        command: snapshot.command ?? command,
+        text_excerpt: text.split('\n').slice(0, 6).join('\n'),
+      },
+      bridge_health: {
+        ok: health.ok ?? NOT_OBSERVED,
+        default_session: health.defaultSession ?? NOT_OBSERVED,
+        default_cwd: health.defaultCwd ?? NOT_OBSERVED,
+        driver: health.driver ?? driver,
+      },
+    },
+    provider_acceptance: {
+      status: parsed.provider_session_id === NOT_OBSERVED
+        ? 'provider_acceptance_unobserved'
+        : 'provider_session_observed',
+      provider_session_id: parsed.provider_session_id,
+      provider_reported_cwd: parsed.provider_reported_cwd,
+      provider_reported_branch: parsed.provider_reported_branch,
+      provider_reported_head: parsed.provider_reported_head,
+      provider_version: parsed.provider_version,
+      model: parsed.model,
+    },
+    mismatch: parsed.provider_session_id === NOT_OBSERVED
+      ? {
+        code: 'provider_session_id_not_observed',
+        severity: 'info',
+        source: 'provider_acceptance',
+        expected: { provider_session_id: 'parseable from bridge snapshot/title' },
+        observed: { terminal_substrate: 'observed' },
+        effect: 'not_observed',
+        evidence_ref: text ? 'inline:terminal_substrate.synthetic_snapshot' : NOT_OBSERVED,
+      }
+      : null,
+  };
 }
 
 function timestampMs(value) {
@@ -498,8 +653,8 @@ function validatePathExists(name, path) {
   });
 }
 
-function selectedProvider({ explicitProvider, packetProviderHint }) {
-  const selected = explicitProvider ?? packetProviderHint ?? null;
+function selectedProvider({ explicitProvider, packetProviderHint, commandProvider }) {
+  const selected = explicitProvider ?? packetProviderHint ?? commandProvider ?? null;
   if (!selected) {
     return {
       selected_provider: 'missing_with_reason',
@@ -511,7 +666,9 @@ function selectedProvider({ explicitProvider, packetProviderHint }) {
   const normalized = String(selected).toLowerCase();
   return {
     selected_provider: normalized,
-    provider_selection_source: explicitProvider ? 'explicit_option' : 'packet_provider_hint',
+    provider_selection_source: explicitProvider
+      ? 'explicit_option'
+      : (packetProviderHint ? 'packet_provider_hint' : 'bridge_command'),
     status: SUPPORTED_PROVIDERS.has(normalized) ? 'selected_no_provider_launch' : 'unsupported',
     mismatch_facts: SUPPORTED_PROVIDERS.has(normalized) ? [] : [`unsupported_provider:${normalized}`],
   };
@@ -660,17 +817,26 @@ async function buildAttemptContext(options) {
   const rawCatalogFixture = options.catalogFixture
     ? await readJsonFile(repoPath(repoRoot, options.catalogFixture), 'catalog fixture')
     : null;
-  const catalogFixture = rawCatalogFixture ? normalizeCatalogFixture(rawCatalogFixture) : null;
-  const allCwdCatalogFixture = rawCatalogFixture ? normalizeAllCwdCatalogFixture(rawCatalogFixture) : [];
+  const rawBridgeVisibilityFixture = options.bridgeVisibilityFixture
+    ? await readJsonFile(repoPath(repoRoot, options.bridgeVisibilityFixture), 'bridge visibility fixture')
+    : null;
+  const catalogInput = bridgeFixtureCatalogInput(rawBridgeVisibilityFixture ?? rawCatalogFixture);
+  const catalogFixture = catalogInput ? normalizeCatalogFixture(catalogInput) : null;
+  const allCwdCatalogFixture = catalogInput ? normalizeAllCwdCatalogFixture(catalogInput) : [];
   const packetId = normalizePacketId(packet);
   const sourceArtifact = normalizeSourceArtifact(packet);
   const requiredStartRef = normalizeRef(packet);
   const selectedDock = options.dock ?? normalizeRequestedDock(packet) ?? 'missing_with_reason';
   const worktree = normalizeWorktree(packet, repoRoot);
   const cwdPath = repoPath(repoRoot, packet.cwd ?? repoRoot);
+  const bridgeCommand = rawBridgeVisibilityFixture
+    ? (bridgeFixtureBridgeInput(rawBridgeVisibilityFixture).command
+      ?? bridgeFixtureBridgeInput(rawBridgeVisibilityFixture).snapshot?.command)
+    : null;
   const provider = selectedProvider({
     explicitProvider: options.provider,
     packetProviderHint: normalizeProviderHint(packet),
+    commandProvider: inferProviderFromCommand(bridgeCommand),
   });
   const source = checkSourceArtifact(repoRoot, sourceArtifact);
   const refResolution = resolveRef(repoRoot, requiredStartRef);
@@ -706,6 +872,7 @@ async function buildAttemptContext(options) {
   const session = `afk-launch-${idempotenceKey.slice(0, 12)}`;
   const command = harmlessCommand(session, intendedLaunchCwd);
   assertNoProviderCommand(command);
+  const bridgeVisibility = normalizeBridgeVisibilityFixture(rawBridgeVisibilityFixture, intendedLaunchCwd);
 
   const validations = [
     validationRecord('packet_id_or_ref_present', Boolean(packetId), { packet_id_or_ref: packetId ?? null }),
@@ -728,6 +895,10 @@ async function buildAttemptContext(options) {
     }),
     validationRecord('provider_binary_not_in_command', !PROVIDER_BINARY_PATTERN.test(command), {
       command,
+    }),
+    validationRecord('bridge_visibility_fixture_provider_command_not_executed', true, {
+      command: bridgeVisibility?.command ?? NOT_APPLICABLE_NO_PROVIDER,
+      fixture: rawBridgeVisibilityFixture ? 'synthetic_bridge_visibility' : NOT_APPLICABLE_NO_PROVIDER,
     }),
   ];
 
@@ -754,10 +925,11 @@ async function buildAttemptContext(options) {
     action,
     idempotenceKey,
     command,
+    bridgeVisibility,
     catalogFixture,
     allCwdCatalogFixture,
-    providerSessionId: options.providerSessionId ?? NOT_OBSERVED,
-    launchObservedAt: options.launchObservedAt ?? options.timestamp ?? NOT_OBSERVED,
+    providerSessionId: options.providerSessionId ?? bridgeVisibility?.providerSessionId ?? NOT_OBSERVED,
+    launchObservedAt: options.launchObservedAt ?? catalogInput?.launch_observed_at ?? catalogInput?.launchObservedAt ?? options.timestamp ?? NOT_OBSERVED,
     validations,
   };
 }
@@ -896,7 +1068,7 @@ async function createLaunchAttempt(options) {
     return record;
   }
 
-  const observed = await observeTerminalSubstrate({
+  const observed = context.bridgeVisibility ?? await observeTerminalSubstrate({
     repoRoot: context.repoRoot,
     idempotenceKey: context.idempotenceKey,
     launchCwd: context.intendedLaunchCwd,
@@ -911,11 +1083,14 @@ async function createLaunchAttempt(options) {
     providerSessionId: context.providerSessionId,
   });
   record.terminal_substrate = observed.terminal_substrate;
+  if (observed.provider_acceptance) {
+    record.provider_acceptance = observed.provider_acceptance;
+  }
   if (catalogTelemetry.provider_acceptance) {
-    record.provider_acceptance = {
-      ...record.provider_acceptance,
-      ...catalogTelemetry.provider_acceptance,
-    };
+    record.provider_acceptance = mergeProviderAcceptance(
+      record.provider_acceptance,
+      catalogTelemetry.provider_acceptance,
+    );
   }
   record.catalog = context.catalogFixture ? catalogTelemetry.catalog : {
     ...record.catalog,
@@ -929,6 +1104,12 @@ async function createLaunchAttempt(options) {
     observed_at: timestamp,
     ...mismatch,
   })));
+  if (observed.mismatch) {
+    record.mismatches.push({
+      observed_at: timestamp,
+      ...observed.mismatch,
+    });
+  }
   record.lifecycle_state = 'provider_acceptance_unobserved';
   record.launch_intent.launch_performed = true;
   record.duplicate_handling.bridge_session_started = observed.bridge_session_started;
