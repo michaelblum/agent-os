@@ -1,6 +1,68 @@
 # Work Card: AFK Dev Session Trigger Supervised Bridge Provider Command Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted correction commit:
+`d885742b61dc95cccde9d40a416e5a8f46ea2fa4`
+(`fix(afk): launch supervised Codex provider command`).
+
+The correction satisfies Foreman's provider-command finding:
+
+- the accepted trigger path passes `launchMode: supervised-provider` into the
+  launch-attempt helper after the supervised live gates pass;
+- the no-fixture supervised provider branch selects `codex --no-alt-screen`
+  instead of the harmless `node -e` marker command;
+- the Swift wrapper does not expose the internal
+  `--provider-launch-dry-run` test hook, so normal
+  `./aos dev afk-session-trigger` live use enters the real provider branch;
+- fixture-backed tests still avoid live provider execution;
+- missing human presence, missing JSON, wrong provider, wrong dock, duplicate
+  live states, and rejected/failed relaunch states remain non-launching;
+- provider acceptance timeout remains non-completed, and cleanup proof remains
+  required before `completed`.
+
+Verification:
+
+```text
+git status --short --branch
+## gdi/afk-dev-session-trigger-supervised-bridge-launch-v0
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+12 tests passed
+
+node --test tests/afk-launch-attempt-prototype.test.mjs
+22 tests passed
+
+bash tests/dev-workflow-router.sh
+all checks passed
+
+bash tests/help-contract.sh
+all checks passed
+
+./aos dev build --no-restart
+passed; ./aos was up to date
+
+git diff --check
+passed
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+```
+
+Foreman targeted smoke of the accepted no-fixture guarded path returned
+`terminal_command="codex --no-alt-screen"`,
+`provider_launch_allowed=true`, and
+`provider_acceptance_status="provider_acceptance_unobserved"` without running a
+live provider.
+
+No live provider launch, real transcript read, provider config/session/catalog
+mutation, gateway state, dock profile/hook mutation, GitHub state, push, PR, or
+external publication happened during Foreman acceptance.
 
 ## Transfer Classification
 
