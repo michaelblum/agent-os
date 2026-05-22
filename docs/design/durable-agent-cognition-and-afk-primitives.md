@@ -497,6 +497,8 @@ The next slices should stay reversible:
    It validated visible Codex launch through the bridge from `.docks/gdi` with
    no mutations, but the current launch was not matched in the provider catalog
    or telemetry path; the next local slice is current-launch observability
-   correction before supervised real-launch attempt integration.
+   correction via
+   `docs/design/work-cards/afk-bridge-current-launch-observability-correction-v0.md`
+   before supervised real-launch attempt integration.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
