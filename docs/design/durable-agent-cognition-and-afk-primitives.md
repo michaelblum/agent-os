@@ -524,5 +524,9 @@ The next slices should stay reversible:
    via
    `docs/design/work-cards/afk-bridge-catalog-scope-correction-v0.md`
    before another live proof.
+   That correction is now accepted: `/sessions?provider=codex&all_cwd=true`
+   explicitly requests all-cwd catalog discovery while omitted `cwd` remains
+   scoped to the bridge default cwd. The next proof is a supervised live
+   bridge-backed correlation smoke using that explicit all-cwd query.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
