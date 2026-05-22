@@ -1289,6 +1289,26 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --json"
             ]),
+        InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> --dry-run [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--json]",
+            args: [
+                flag("packet", "--packet", "Manual transfer packet JSON path for the experimental session-trigger dry-run", required: true),
+                flag("dry-run", "--dry-run", "Required dry-run guard; no provider, terminal, gateway, or route is launched", type: .bool, required: true),
+                flag("provider", "--provider", "Provider name to select for dispatch intent; no provider is launched"),
+                flag("dock", "--dock", "Dock name to resolve for launch-root intent facts"),
+                flag("repo", "--repo", "Repository root path"),
+                flag("timestamp", "--timestamp", "Fixed ISO timestamp for deterministic trigger output"),
+                flag("out", "--out", "Optional local trigger receipt output path"),
+                flag("result-route", "--result-route", "Fallback result route ref only when the packet omits one"),
+                flag("idempotence-salt", "--idempotence-salt", "Optional deterministic idempotence salt for tests"),
+                flag("json", "--json", "Emit machine-readable experimental trigger receipt output", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --dry-run --json",
+                "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --dry-run --json"
+            ]),
         InvocationForm(id: "dev-audit", usage: "aos dev audit [--manifest <path>] [--repo <path>] [--json]",
             args: [
                 flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/dev/workflow-rules.json")),

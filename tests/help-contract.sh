@@ -231,6 +231,28 @@ else
     fail "dev build warning is missing the preferred permission reset sequence"
 fi
 
+# --- 19. dev afk-session-trigger help exposes dry-run-only trigger flags ---
+OUT=$(./aos help dev afk-session-trigger --json 2>/dev/null)
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+form = next(item for item in data["forms"] if item["id"] == "dev-afk-session-trigger")
+tokens = {arg.get("token") for arg in form["args"]}
+assert {"--packet", "--dry-run", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--json"} <= tokens, tokens
+assert "--live" not in tokens, tokens
+assert "--launch-provider" not in tokens, tokens
+assert "--start" not in tokens, tokens
+assert "experimental" in json.dumps(form).lower(), form
+assert "no provider" in json.dumps(form).lower(), form
+PY
+then
+    pass "dev afk-session-trigger help exposes dry-run-only flags"
+else
+    fail "dev afk-session-trigger help is missing dry-run-only flags: $OUT"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"
