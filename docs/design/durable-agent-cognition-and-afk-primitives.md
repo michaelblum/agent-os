@@ -516,5 +516,11 @@ The next slices should stay reversible:
    catalog absence, exact match, and ambiguous current candidates are distinct
    fixture-backed states. The next proof is another supervised live
    bridge-backed correlation smoke using the corrected classifier.
+   That live smoke now has a partial receipt at
+   `docs/design/notes/manual-afk-receipts/2026-05-22-live-bridge-cwd-mismatch-classifier-gdi-partial.md`;
+   it exercised the corrected wrong-cwd classifier against live catalog data and
+   exposed that bridge `/sessions?provider=codex` is still cwd-scoped by
+   default. The next local slice is a read-only bridge catalog-scope correction
+   before another live proof.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
