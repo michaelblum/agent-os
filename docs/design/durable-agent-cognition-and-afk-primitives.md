@@ -509,7 +509,8 @@ The next slices should stay reversible:
    It proved the GDI cwd-filter classifier refused stale matches, but the
    provider-owned transcript for the current launch recorded `.docks/operator`
    instead of requested `.docks/gdi`; the next local slice is explicit
-   provider-session cwd mismatch classification before another live
-   correlation proof.
+   provider-session cwd mismatch classification via
+   `docs/design/work-cards/afk-provider-session-cwd-mismatch-classification-v0.md`
+   before another live correlation proof.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
