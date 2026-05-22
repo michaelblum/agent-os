@@ -442,7 +442,15 @@ The next slices should stay reversible:
    it assigns duplicate field ownership, defines the minimum manual-trial
    receipt trail, and recommends a docs-only work/evidence receipt shape before
    a deterministic local dry-run prototype.
-6. Distill one real browser/model-control run into a work/evidence record and
+6. Define the docs-only AFK work/evidence receipt shape that a manual trial and
+   deterministic dry-run prototype must leave behind.
+   The receipt shape now lives at
+   `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`;
+   it separates transfer, scheduler, dispatch, work, and evidence receipts,
+   defines mandatory review fields, gives temporary manual storage/naming, and
+   recommends a deterministic local dry-run prototype as the next reversible
+   slice.
+7. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
-7. Trial a Researcher-compatible role only after the session trigger and async
+8. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
