@@ -69,3 +69,9 @@ reliable:
 
 This structure should clarify judgment. It should not turn every recipe into a
 schema before the shape has proved useful.
+
+If the reusable result is only a judgment of the form "given these inputs and
+this evidence, classify/choose/route this way," cite the Decision Contract /
+Inference Block vocabulary in
+`docs/design/durable-agent-cognition-and-afk-primitives.md` instead of treating
+it as a new recipe type.
