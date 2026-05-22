@@ -1,6 +1,49 @@
 # AFK Launch Attempt Codex Adapter Integration V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `5ea92b26e27b79a2ce0c96f3c8236c507c44982e`
+- Changed files:
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman review: accepted. The prototype now accepts
+  `--codex-home-fixture` / `--codex-home`, keeps direct
+  `node scripts/afk-launch-attempt-prototype.mjs ...` execution by using a
+  bounded TypeScript adapter bridge internally, records adapter evidence under
+  `codex_adapter`, and adds matched `codex://threads/<id>` plus
+  `codex-thread:<id>` refs to `evidence.observed_refs`.
+- Accepted statuses covered by fixtures:
+  - `matched_by_provider_session_id`
+  - `wrong_cwd`
+  - `matched_by_cwd_time_window`
+  - `not_observed` with no usable time window
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`
+  - `node --test --experimental-strip-types packages/host/test/codex-thread-adapter.test.ts`
+  - `node --test --experimental-strip-types packages/host/test/session-catalog.test.ts`
+  - `npm --prefix packages/host run check`
+  - `npm --prefix packages/host test`
+  - `git diff --check`
+  - `./aos dev recommend --json`
+- Foreman manual smoke used a temp packet, temp bridge visibility fixture, and
+  temp Codex home. Result: lifecycle `provider_acceptance_unobserved`,
+  provider acceptance `provider_session_observed`, adapter status
+  `matched_by_provider_session_id`, matched thread
+  `019e7777-1111-7222-8333-444444444444`, observed refs included
+  `inline:terminal_substrate.snapshot_summary`,
+  `codex://threads/019e7777-1111-7222-8333-444444444444`, and
+  `codex-thread:019e7777-1111-7222-8333-444444444444`, catalog
+  `catalog_not_observed`, telemetry `telemetry_not_attempted_no_catalog_match`,
+  mismatches `[]`. Temp artifacts were removed.
+- Router note: `./aos dev recommend --json` still reports broad branch-history
+  recommendations from the full durable workstream diff; for this slice, the
+  launch-attempt prototype test plus package-local host checks cover the changed
+  files.
+- Local-only boundary confirmed: no real Codex sessions/transcripts, provider
+  config, gateway state, dock profile, hook, GitHub state, push, or PR changed.
 
 ## Transfer Classification
 
