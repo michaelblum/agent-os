@@ -341,10 +341,12 @@ human-supervision posture.
    transfer packets, work records, evidence records, and AFK/session
    primitives.
 6. Add role-kind vocabulary over Foreman, GDI, and Operator without renaming.
-7. Design the session trigger/scheduler primitive.
-8. Design background dispatch with async result routing.
-9. Trial Researcher on a real community-signal intake.
-10. Extend the evidence-record model for live browser/model/canvas control
+7. Design the AFK transfer packet/result-route shape between integration jobs,
+   docked provider sessions, work/evidence records, and notifier completion.
+8. Design the session trigger/scheduler primitive.
+9. Design provider-neutral dispatch over the dock/session contract.
+10. Trial Researcher on a real community-signal intake.
+11. Extend the evidence-record model for live browser/model/canvas control
     runs.
 
 Researcher is intentionally after the AFK primitives. Without session trigger
@@ -411,7 +413,17 @@ The next slices should stay reversible:
    notification in their own primitives.
 2. Sketch one transfer packet/result route shape that can connect an integration
    job to a docked provider session.
-3. Distill one real browser/model-control run into a work/evidence record and
+   The packet/result-route sketch now lives at
+   `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`;
+   it keeps gateway/broker ownership to provider ingress, job transitions, and
+   notifier delivery while leaving session launch/resume to AOS session control,
+   provider dispatch, and future scheduler primitives.
+3. Design the session trigger/scheduler primitive that accepts a transfer
+   packet, applies lease/timeout policy, starts or resumes a docked provider
+   session, and updates lifecycle routes without making the gateway session
+   authority.
+4. Design provider-neutral dispatch over the dock/session contract.
+5. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
-4. Trial a Researcher-compatible role only after the session trigger and async
+6. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
