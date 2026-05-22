@@ -488,5 +488,9 @@ The next slices should stay reversible:
    `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`; it keeps
    the record pre-schema and recommends a local no-schema prototype before
    unattended provider launch.
+   The no-provider launch-attempt prototype now creates a local
+   `aos.afk_launch_attempt` record, proves terminal substrate with a harmless
+   process-driver command, and enforces idempotence without starting a provider;
+   the next proof is a supervised bridge-backed provider launch smoke.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
