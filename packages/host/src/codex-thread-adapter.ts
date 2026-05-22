@@ -272,7 +272,7 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
       return emptyCorrelation('not_observed', evidence_refs, resolved.diagnostics);
     }
     const matchedBasis = matchCwdBasis(resolved.thread.normalized_cwd, cwdBases);
-    if (intendedCwd && matchedBasis === 'not_observed') {
+    if (cwdBases.length > 0 && matchedBasis === 'not_observed') {
       return {
         status: 'wrong_cwd',
         thread: resolved.thread,

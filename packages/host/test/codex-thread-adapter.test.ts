@@ -172,6 +172,24 @@ describe('Codex thread adapter', () => {
     assert.match(result.mismatches[0].expected ?? '', /workspace_root:/);
   });
 
+  it('keeps wrong_cwd protection when only workspace root is supplied for provider id correlation', () => {
+    writeCodexSession(codexHome, SESSION_ID, otherCwd, '2026-05-22T14:00:00.000Z');
+
+    const result = correlateLaunch({
+      codexHome,
+      providerSessionId: SESSION_ID,
+      workspaceRoot: repoCwd,
+    });
+
+    assert.equal(result.status, 'wrong_cwd');
+    assert.equal(result.confidence, 'none');
+    assert.equal(result.cwd_match_basis, 'not_observed');
+    assert.equal(result.thread?.thread_id, SESSION_ID);
+    assert.equal(result.mismatches[0].code, 'wrong_cwd');
+    assert.equal(result.mismatches[0].expected, repoCwd);
+    assert.equal(result.mismatches[0].observed, otherCwd);
+  });
+
   it('preserves provider_session_id_not_observed when terminal substrate exists without a provider id', () => {
     const result = correlateLaunch({
       codexHome,
