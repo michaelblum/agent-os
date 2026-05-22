@@ -584,7 +584,7 @@ test('classifies missing source-owned cleanup proof as cleanup_unverified after 
   assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
   assert.equal(receipt.cleanup.status, 'cleanup_unverified');
   assert.equal(receipt.cleanup.source_ref, 'inline:launch_attempt.cleanup');
-  assert.equal(receipt.cleanup.reason, 'cleanup proof is required after terminal substrate/provider launch evidence');
+  assert.equal(receipt.cleanup.reason, 'cleanup proof must include helper-owned bridge and child/session teardown');
   assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'));
 });
 
@@ -657,5 +657,48 @@ test('provider acceptance timeout returns non-completed state even with cleanup 
   assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
   assert.equal(receipt.terminal_substrate.status, 'observed');
   assert.notEqual(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.cleanup.status, 'verified');
+  assert.ok(receipt.cleanup.proof.some((item) => String(item).includes('bridge health endpoint unreachable')));
+  assert.ok(receipt.cleanup.proof.some((item) => String(item).includes('pty-proxy.py process')));
   assert.ok(receipt.mismatches.some((item) => item.class === 'provider_acceptance_unobserved'));
+});
+
+test('provider acceptance timeout with failed cleanup reports cleanup_unverified', async () => {
+  const packetPath = await writePacket(validPacket());
+  const cleanupFixture = await writeJsonFixture('afk-session-trigger-cleanup-', 'cleanup.json', {
+    status: 'cleanup_unverified',
+    reason: 'owned process-driver child still observable after bridge teardown',
+    proof: [
+      { kind: 'owned_bridge_process_exit', exit_observed: true },
+      { kind: 'owned_bridge_health_unreachable_after_teardown', unreachable: true },
+      { kind: 'owned_process_driver_child_exit', exit_observed: false },
+    ],
+  });
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'provider-timeout-cleanup-failed-test',
+    '--provider-launch-dry-run',
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'cleanup_unverified');
+  assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
+  assert.equal(receipt.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.equal(receipt.cleanup.status, 'cleanup_unverified');
+  assert.equal(receipt.cleanup.reason, 'owned process-driver child still observable after bridge teardown');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'));
 });

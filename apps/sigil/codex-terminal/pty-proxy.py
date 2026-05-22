@@ -134,6 +134,16 @@ def main() -> int:
         close_fds=True,
         preexec_fn=child_preexec(slave_fd),
     )
+    print(f"SIGIL_AGENT_PTY_CHILD_PID={process.pid}", file=sys.stderr, flush=True)
+
+    def terminate_child(signum, _frame):
+        try:
+            os.killpg(process.pid, signum)
+        except OSError:
+            pass
+
+    signal.signal(signal.SIGTERM, terminate_child)
+    signal.signal(signal.SIGHUP, terminate_child)
     os.close(slave_fd)
     os.set_blocking(master_fd, False)
     stdin_fd = sys.stdin.fileno()

@@ -15,6 +15,7 @@ const defaultCwd = process.env.SIGIL_AGENT_CWD || process.env.SIGIL_CODEX_CWD ||
 const defaultCommand = process.env.SIGIL_AGENT_COMMAND || process.env.SIGIL_CODEX_COMMAND || 'codex --no-alt-screen';
 const requestedDriver = process.env.SIGIL_AGENT_TERMINAL_DRIVER || process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
 const processSessions = new Map();
+const ownedTmuxSessions = new Set();
 const sessionCommands = new Map();
 const defaultTerminalSize = {
   cols: boundedInt(process.env.SIGIL_AGENT_TERMINAL_COLS || process.env.SIGIL_CODEX_TERMINAL_COLS, 80, 20, 300),
@@ -162,6 +163,19 @@ function appendProcessOutput(record, chunk) {
   }
 }
 
+function appendProcessStderr(record, chunk) {
+  const textChunk = chunk.toString('utf8');
+  const remaining = textChunk.split('\n').filter((line) => {
+    const match = line.match(/^SIGIL_AGENT_PTY_CHILD_PID=(\d+)$/);
+    if (match) {
+      record.commandPid = Number(match[1]);
+      return false;
+    }
+    return line.length > 0;
+  }).join('\n');
+  if (remaining) appendProcessOutput(record, `${remaining}\n`);
+}
+
 function ensureProcessSession(session, cwd, command, force = false) {
   const existing = processSessions.get(session);
   if (existing && !existing.exited && !force) return { created: false, driver: 'process' };
@@ -190,11 +204,12 @@ function ensureProcessSession(session, cwd, command, force = false) {
     buffer: `$ ${shellCommand}\n`,
     clients: new Set(),
     exited: false,
+    commandPid: null,
   };
   processSessions.set(session, record);
   sessionCommands.set(session, { command: shellCommand, cwd: cwd || defaultCwd });
   child.stdout.on('data', chunk => appendProcessOutput(record, chunk));
-  child.stderr.on('data', chunk => appendProcessOutput(record, chunk));
+  child.stderr.on('data', chunk => appendProcessStderr(record, chunk));
   child.on('exit', (code, signal) => {
     record.exited = true;
     const message = `\n[process exited: ${signal || (code ?? 0)}]\n`;
@@ -217,7 +232,7 @@ function ensureProcessSession(session, cwd, command, force = false) {
       }
     }
   });
-  return { created: true, driver: 'process' };
+  return { created: true, driver: 'process', child_pid: child.pid };
 }
 
 function ensureTmuxSession(session, cwd, command, force = false) {
@@ -233,7 +248,42 @@ function ensureTmuxSession(session, cwd, command, force = false) {
   args.push(command || defaultCommand);
   run('tmux', args);
   sessionCommands.set(session, { command: command || defaultCommand, cwd: cwd || defaultCwd });
+  ownedTmuxSessions.add(session);
   return { created: true, driver: 'tmux' };
+}
+
+function terminateProcessSession(session, record, signal = 'SIGTERM') {
+  if (!record || record.exited) return Promise.resolve({ session, exited: true, signal: null });
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
+      resolve({ session, exited: record.exited, signal: record.child.signalCode ?? null });
+    };
+    const killTimer = setTimeout(() => {
+      if (!record.exited) record.child.kill('SIGKILL');
+      setTimeout(finish, 100);
+    }, 1000);
+    record.child.once('exit', finish);
+    record.child.kill(signal);
+  });
+}
+
+async function terminateOwnedSessions() {
+  const processStops = [...processSessions.entries()]
+    .map(([session, record]) => terminateProcessSession(session, record));
+  const tmuxStops = [];
+  if (tmuxAvailable) {
+    for (const session of ownedTmuxSessions) {
+      tmuxStops.push(Promise.resolve().then(() => {
+        if (hasSession(session)) run('tmux', ['kill-session', '-t', session]);
+        return { session, exited: !hasSession(session), driver: 'tmux' };
+      }));
+    }
+  }
+  return Promise.all([...processStops, ...tmuxStops]);
 }
 
 function ensureSession(session, cwd, command, force = false) {
@@ -252,6 +302,8 @@ function capture(session, lines) {
       session,
       command: existing.exited ? 'exited' : 'process',
       driver: 'process',
+      process_child_pid: existing.child.pid,
+      command_child_pid: existing.commandPid,
       terminal: {
         cols: existing.terminalSize.cols,
         rows: existing.terminalSize.rows,
@@ -731,3 +783,23 @@ server.on('upgrade', (req, socket) => {
 server.listen(port, '127.0.0.1', () => {
   console.log(`sigil-agent-terminal bridge listening on http://127.0.0.1:${port} (${activeDriver()})`);
 });
+
+let shuttingDown = false;
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  server.close(() => {});
+  terminateOwnedSessions()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error(`sigil-agent-terminal shutdown failed: ${error.message || error}`);
+      process.exit(1);
+    });
+  setTimeout(() => process.exit(1), 2500).unref();
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
