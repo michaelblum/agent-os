@@ -1,6 +1,68 @@
 # Operator AFK Codex Workspace Root Live Correlation V0
 
-**Status:** Routed 2026-05-22
+**Status:** Partial accepted 2026-05-22
+
+## Foreman Review
+
+- Result classification: `partial_pass`, structured `not_observed`.
+- Accepted evidence: Operator launched bridge-backed Codex from
+  `.docks/gdi`, verified cleanup, and the corrected prototype returned a
+  structured `not_observed` result with no `wrong_cwd`.
+- Branch/ref evidence:
+  - branch: `gdi/afk-codex-workspace-root-correlation-correction-v0`
+  - HEAD: `1a344b085bb8cdb8271cab8d711856fb3571f746`
+  - `docs/durable-agent-cognition-v0`:
+    `1a344b085bb8cdb8271cab8d711856fb3571f746`
+  - initial and final worktree: clean
+- Verification reported by Operator:
+  - `./aos ready`: passed, `ready=true mode=repo daemon=reachable tap=active`
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: passed, 21/21
+  - `node --test --experimental-strip-types packages/host/test/codex-thread-adapter.test.ts`: passed, 16/16
+- Live bridge evidence:
+  - port: `17866`
+  - `launch_observed_at`: `2026-05-22T17:48:37Z`
+  - `/health`: `ok=true`,
+    `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`,
+    `driver=process`
+  - `/ensure`: `ok=true`, `session=afk-codex-workspace-root-live`,
+    `created=true`, `driver=process`
+  - snapshot: live Codex TUI observed in
+    `/Users/Michael/Code/agent-os/.docks/gdi`
+  - provider session id independently observed: no
+  - one allowed status prompt was sent, but no provider session id became
+    visible
+- Prototype result summary:
+  - `lifecycle_state`: `provider_acceptance_unobserved`
+  - `provider_acceptance.status`: `provider_acceptance_unobserved`
+  - `provider_acceptance.provider_session_id`: `not_observed`
+  - `codex_adapter.status`: `observed`
+  - `codex_adapter.correlation_status`: `not_observed`
+  - `codex_adapter.matched_cwd_basis`: `not_observed`
+  - `codex_adapter.matched_thread_id`: `not_observed`
+  - `codex_adapter.candidate_thread_ids`: `[]`
+  - `codex_adapter.matched_thread_ref`: `not_observed`
+  - `codex_adapter.matched_deeplink`: `not_observed`
+  - `catalog.status`: `catalog_not_observed`
+  - `telemetry.status`: `telemetry_not_attempted_no_catalog_match`
+  - mismatch codes: `provider_session_id_not_observed`; no `wrong_cwd`
+- Cleanup accepted:
+  - bridge stopped
+  - port `17866` verified unreachable
+  - temp packet, bridge visibility, snapshot, and output files removed
+  - no source, docs, config, provider config, gateway, dock profile, hook,
+    GitHub, push, or PR changes were made by Operator
+  - provider-owned Codex transcript/catalog files were not edited, deleted,
+    moved, or cleaned
+- Foreman local follow-up check: read-only explicit `/Users/Michael/.codex`
+  inspection found no candidate under `.docks/gdi`, repo root, `.docks`, or
+  adjacent dock roots after `2026-05-22T17:48:37Z`. The only rollout file
+  touched during the live window that matched the work card was Operator's own
+  session:
+  `019e50cc-bd02-77b0-b6c1-51eb9409d240`, with
+  `session_meta.cwd=/Users/Michael/Code/agent-os/.docks/operator`. No separate
+  rollout for the bridge-launched Codex process was observed.
+- Next routed slice:
+  `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-diagnosis-v0.md`.
 
 ## Transfer Classification
 
