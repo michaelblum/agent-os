@@ -1,6 +1,43 @@
 # Work Card: AFK Provider Session CWD Mismatch Classification V0
 
-**Status:** Routed 2026-05-22
+**Status:** Correction Routed 2026-05-22
+
+## Foreman Review Finding
+
+- Reviewed output commit:
+  `c5a3508d9d72a562cc735274af09bea5ff30ad7f`
+- Result: correction required before acceptance.
+- Passing verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`
+  - `git diff --check f2d8f108691e89e00b788cab336670a6a0f99cd7..c5a3508d9d72a562cc735274af09bea5ff30ad7f`
+  - `./aos dev recommend --json`
+- Finding: `classifyCatalogAndTelemetry` currently resolves a missing
+  provider-session cwd with `resolve(normalizeSessionCwd(session) ?? '')`.
+  That turns an unobserved cwd into the process cwd and can classify a session
+  with no cwd metadata as `provider_session_wrong_cwd`. Wrong-cwd should only
+  be emitted when the provider/session catalog actually supplies an observed
+  cwd that differs from the intended launch cwd.
+
+## Correction Goal
+
+Keep the implemented Operator wrong-cwd fixture behavior, but add the missing
+guard and test coverage for an observed provider session id whose catalog record
+does not include cwd metadata.
+
+Required correction:
+
+- if the matching provider session id has no cwd value, keep
+  `provider_acceptance.provider_session_id` but report
+  `provider_acceptance.provider_reported_cwd: not_observed`;
+- do not emit `provider_session_wrong_cwd`,
+  `catalog_provider_session_wrong_cwd`, or
+  `telemetry_not_attempted_wrong_cwd` when cwd is missing/unobserved;
+- do not bind telemetry from that session as current-launch telemetry unless
+  the session is otherwise a valid current/matched session for the intended cwd;
+- add a focused deterministic test for this case;
+- preserve the accepted wrong-cwd fixture case and the stale-GDI current-launch
+  absence case.
 
 ## Tracker
 
