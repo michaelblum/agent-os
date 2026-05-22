@@ -479,5 +479,10 @@ The next slices should stay reversible:
    facts for the no-provider path; the remaining implementation gap is a real
    terminal/session substrate plus post-launch catalog and telemetry
    observation.
+   A no-provider substrate validation now exercises the existing Sigil terminal
+   bridge process driver with a harmless command; the remaining gap is an
+   AOS-owned launch-attempt/session record that can bind selected provider,
+   terminal handle, provider session id, catalog match, telemetry, and result
+   route after a real launch.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.

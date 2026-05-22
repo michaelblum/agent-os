@@ -1,6 +1,29 @@
 # Work Card: AFK Terminal Substrate No-Provider Validation V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `360fcb55c096a7a9981033aaf708fe25f8b91a74`
+- Changed file:
+  - `tests/afk-terminal-substrate-no-provider.test.mjs`
+- Foreman review: accepted. The validation starts the existing Sigil
+  codex-terminal bridge with `SIGIL_AGENT_TERMINAL_DRIVER=process`, temporary
+  home/catalog roots, and a harmless Node command. It asserts machine-readable
+  `/health`, `/ensure`, `/snapshot`, `/sessions`, and `/session-inspector`
+  facts without launching Codex, Claude, Gemini, or another provider.
+- Foreman verification:
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`
+  - `node --test tests/sigil-agent-terminal-server.test.mjs`
+  - `git diff --check 369d8310e3bbb6c428f8a72a0f1548f74b845c3f..360fcb55c096a7a9981033aaf708fe25f8b91a74`
+  - `./aos dev recommend --json`
+- Substrate facts verified: process driver, default session, cwd, ensured
+  session id, harmless command snapshot/output, machine-readable session/cwd
+  payload, empty provider catalog, and missing telemetry/session-inspector
+  record.
+- Local-only boundary confirmed: no provider session, provider config, gateway
+  state, generated receipt artifact, GitHub state, push, or PR changed.
 
 ## Fresh Context Contract
 
