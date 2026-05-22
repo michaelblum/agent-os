@@ -475,5 +475,9 @@ The next slices should stay reversible:
    it separates direct dock-root launch facts from Sigil terminal bridge
    observability and recommends a no-provider dry-run receipt-field slice
    before automated launch.
+   The dry-run receipt now carries explicit `dispatch.launch_observability`
+   facts for the no-provider path; the remaining implementation gap is a real
+   terminal/session substrate plus post-launch catalog and telemetry
+   observation.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
