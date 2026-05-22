@@ -1,6 +1,6 @@
 # Work Card: afk-session-trigger-scheduler-shape-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -23,6 +23,21 @@ destinations, status mapping, and ownership boundaries are now clear enough to
 answer the next design question: what AOS primitive accepts a packet, applies a
 lease, starts or resumes a docked provider session, and records lifecycle
 updates without making the gateway or provider adapter the session authority?
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-session-trigger-scheduler-shape-v0`
+- Accepted commit: `5c2bfbcd2183123d7aa9bc139c32eb2cde206dae`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/afk-session-trigger-scheduler-shape-2026-05-21.md`
+- Synthesis update:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman-side verification passed:
+  `git diff --check 05234165cd5fbec558db00a3927c9315898a9534..5c2bfbcd2183123d7aa9bc139c32eb2cde206dae`
+  and `./aos dev recommend --json`.
+- Recommendation accepted: design provider-neutral dispatch over the
+  dock/session contract before work/evidence record trials or a local prototype.
 
 ## Fresh Context Contract
 
