@@ -1,6 +1,43 @@
 # Operator AFK Bridge Codex Transcript Materialization Rerun V0
 
-**Status:** Routed 2026-05-22
+**Status:** Partial pass 2026-05-22
+
+## Result
+
+- Classification: `partial_pass:input_accepted_not_observed`.
+- Foreman review: accepted as a partial diagnostic result. The branch/ref gate
+  passed with `HEAD` and `docs/durable-agent-cognition-v0` both at
+  `9f7925b75bcdd2cc953c3518c339970cb2633e9a`, the repo worktree remained
+  clean, `./aos ready` passed, and Operator reported the required focused
+  tests except `tests/sigil-agent-terminal-server.test.mjs`; Foreman reran that
+  missing local preflight check and it passed 9/9.
+- Bridge evidence: process driver bridge ran on port `17866` with
+  `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`; `/ensure` created
+  session `afk-codex-transcript-materialization-rerun` for
+  `codex --no-alt-screen`; `launch_observed_at=2026-05-22T18:27:46Z`.
+- Process evidence: the bridge launched `pty-proxy.py`, `node .../bin/codex
+  --no-alt-screen`, and the native Codex binary, all with cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`.
+- Input evidence: `/input` returned accepted process-driver diagnostics:
+  `session_exists=true`, `text_bytes=168`, `text_accepted=true`,
+  `enter_sent=true`, `enter_bytes=1`, and `enter_accepted=true`.
+- Snapshot evidence: snapshots immediately after send, after about 8 seconds,
+  and after an additional bounded wait did not show typed prompt text,
+  submission, model response, or the submitted marker. Operator did not send
+  `/key Enter` because the prompt never appeared typed.
+- Transcript evidence: only the current Operator rollout under
+  `.docks/operator` updated after launch. The marker was present there because
+  Operator issued the probe; no separate bridge-launched `.docks/gdi` Codex
+  rollout materialized, so the prototype probe was skipped per this card.
+- Cleanup proof: bridge stopped, port `17866` was no longer listening, the
+  orphaned bridge-owned `pty-proxy.py codex --no-alt-screen` subtree was
+  cleaned up, no matching bridge process remained in Foreman cleanup checks,
+  and `git status --short --branch` was clean.
+- Local-only boundary confirmed: no source/docs/config/provider config/gateway
+  state/dock profile/hook/GitHub/push/PR changes were made by Operator, and
+  provider-owned Codex transcript/catalog files were left untouched.
+- Next routed slice:
+  `docs/design/work-cards/afk-bridge-codex-pty-observability-correction-v0.md`.
 
 ## Transfer Classification
 
