@@ -1,6 +1,6 @@
 # Dock Handoff Chat Shape Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Routed 2026-05-22; amended before GDI start 2026-05-22
 
 ## Transfer Classification
 
@@ -35,7 +35,10 @@ The actual gaps are:
 
 - The dock-target wrapper accepts `--target-dock`, but the standardized
   chat-visible output does not include the recipient dock. That leaves the
-  recipient line up to model memory.
+  recipient line up to model memory. The implementation should add a
+  `recipient` key to `scripts/agent-handoff --options-json` and have
+  dock-specific wrappers pass that option, so `scripts/agent-handoff` remains
+  the owner of the full chat-visible shape.
 - `.docks/AGENTS.md` says agents must use the printed block in final chat, but
   there is no tool-level recipient header and no Foreman-local instruction that
   makes the final response shape hard to forget.
@@ -51,9 +54,10 @@ Make cross-session transfer formatting tool-owned and test-backed:
 - Detailed transfer instructions for non-trivial GDI or Operator rounds live in
   Markdown files or equivalent durable artifacts.
 - The clipboard payload is a concise, goal-safe prompt pointing at that file.
-- The chat-visible output produced by dock handoff tooling includes the target
-  recipient, gated clipboard payload text, `(copied to clipboard)`, and a
-  human-readable timestamp.
+- The chat-visible output produced by `scripts/agent-handoff` includes the
+  target recipient, gated clipboard payload text, `(copied to clipboard)`, and
+  a human-readable timestamp when a recipient is supplied through
+  `--options-json`.
 
 ## Read First
 
@@ -68,6 +72,21 @@ Make cross-session transfer formatting tool-owned and test-backed:
 - `tests/agent-handoff.sh`
 - `tests/dock-handoff-clipboard.sh`
 - `tests/foreman-handoff-wrapper.sh`
+
+## Orientation Context
+
+The framing note
+`docs/design/2026-05-22-aos-runtime-substrate-framing.md` exists on `main` as
+orientation material, not as a work card or required merge target for this
+round. Skim it only if a routing question comes up. The relevant design point is
+that `scripts/agent-handoff` is the generic cross-session routing primitive, so
+recipient-aware output should be owned there rather than baked into
+`scripts/dock-handoff-clipboard`.
+
+That same note mentions placeholder interpolation for payloads or headers as a
+future shape. Do not implement interpolation in this correction unless it is the
+smallest necessary way to satisfy the recipient output contract. If it surfaces
+as an obvious follow-up, report it only.
 
 ## Required Behavior
 
@@ -87,12 +106,14 @@ Recipient: <dock>
 <human-readable local timestamp>
 ```
 
-It is acceptable for `scripts/agent-handoff` to remain target-agnostic if
-`scripts/dock-handoff-clipboard` owns the recipient header. It is also
-acceptable to add a general option to `scripts/agent-handoff` if that produces a
-cleaner contract. In either case, preserve the existing clipboard behavior and
-keep formatting centralized in scripts rather than relying on the model to
-reconstruct it.
+Implement this by adding a `recipient` key to
+`scripts/agent-handoff --options-json`. `scripts/dock-handoff-clipboard` should
+pass the target dock as that option. Do not create a separate recipient header
+format owned only by `scripts/dock-handoff-clipboard`; preserve the invariant
+that `scripts/agent-handoff` owns the full chat-visible handoff shape.
+
+Preserve the existing clipboard behavior and keep formatting centralized in
+scripts rather than relying on the model to reconstruct it.
 
 Clarify docs/SOP wording:
 
@@ -113,6 +134,10 @@ Clarify docs/SOP wording:
 - Do not remove the legacy `/goal ` prefix cleanup unless tests and docs make a
   deliberate replacement contract.
 - Do not route or run the pending Operator live proof in this slice.
+- Do not merge `main` or copy the runtime substrate framing note into this
+  branch solely for this correction round.
+- Do not implement placeholder interpolation as part of this round unless the
+  final solution cannot stay smaller without it.
 
 ## Verification
 
@@ -140,3 +165,5 @@ Report:
 - confirmation that clipboard contents remain raw payload only;
 - exact verification commands and results;
 - any remaining Foreman/operator SOP ambiguity.
+- whether placeholder interpolation should be routed later, if the implemented
+  recipient support exposes a concrete need for it.
