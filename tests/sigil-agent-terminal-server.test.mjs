@@ -52,6 +52,20 @@ describe('Sigil Agent Terminal bridge', () => {
       ],
     );
     writeJsonl(
+      path.join(homeDir, '.codex', 'sessions', '2026', '05', '01', 'rollout-2026-05-01T11-00-00-codex-other-cwd.jsonl'),
+      [
+        {
+          timestamp: '2026-05-01T15:00:00.000Z',
+          type: 'session_meta',
+          payload: {
+            id: 'codex-other-cwd',
+            cwd: path.join(root, 'work', 'other'),
+            git: { branch: 'operator' },
+          },
+        },
+      ],
+    );
+    writeJsonl(
       path.join(homeDir, '.claude', 'projects', '-tmp-work-agent-os', 'claude-session.jsonl'),
       [
         { type: 'user', timestamp: '2026-05-01T14:00:00.000Z', sessionId: 'claude-session', cwd: repoCwd, gitBranch: 'main', message: { role: 'user', content: 'fixture' } },
@@ -118,6 +132,8 @@ describe('Sigil Agent Terminal bridge', () => {
     const response = await fetch(`http://127.0.0.1:${port}/sessions?cwd=${encodeURIComponent(repoCwd)}`);
     assert.equal(response.status, 200);
     const payload = await response.json();
+    assert.equal(payload.scope, 'cwd');
+    assert.equal(payload.cwd_filter, repoCwd);
     assert.deepEqual(
       payload.sessions.map((session) => `${session.provider}:${session.session_id}`).sort(),
       ['claude-code:claude-session', 'codex:codex-drift', 'codex:codex-session'],
@@ -132,6 +148,43 @@ describe('Sigil Agent Terminal bridge', () => {
     const codexResponse = await fetch(`http://127.0.0.1:${port}/sessions?cwd=${encodeURIComponent(repoCwd)}&provider=codex`);
     const codexPayload = await codexResponse.json();
     assert.deepEqual(codexPayload.sessions.map((session) => session.provider), ['codex', 'codex']);
+  });
+
+  it('keeps omitted cwd catalog queries scoped to the bridge default cwd', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/sessions?provider=codex`);
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.scope, 'cwd');
+    assert.equal(payload.cwd_filter, repoCwd);
+    assert.deepEqual(
+      payload.sessions.map((session) => session.session_id).sort(),
+      ['codex-drift', 'codex-session'],
+    );
+  });
+
+  it('supports explicit all-cwd provider catalog queries', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/sessions?provider=codex&all_cwd=true`);
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.scope, 'all_cwd');
+    assert.equal(payload.cwd_filter, null);
+    assert.deepEqual(
+      payload.sessions.map((session) => session.session_id).sort(),
+      ['codex-drift', 'codex-other-cwd', 'codex-session'],
+    );
+    assert.equal(new Set(payload.sessions.map((session) => session.cwd)).size, 2);
+    assert.deepEqual([...new Set(payload.sessions.map((session) => session.provider))], ['codex']);
+  });
+
+  it('filters providers in all-cwd catalog queries', async () => {
+    const response = await fetch(`http://127.0.0.1:${port}/sessions?provider=claude-code&all_cwd=true`);
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.scope, 'all_cwd');
+    assert.deepEqual(
+      payload.sessions.map((session) => `${session.provider}:${session.session_id}`),
+      ['claude-code:claude-session'],
+    );
   });
 
   it('returns sanitized session inspector telemetry for selected sessions', async () => {

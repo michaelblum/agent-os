@@ -343,16 +343,28 @@ function terminalCwdForSession(session) {
   return processSessions.get(session)?.cwd || sessionCommands.get(session)?.cwd || defaultCwd;
 }
 
-function sessionCatalogForUrl(url) {
+function sessionCatalogQueryForUrl(url) {
   const providerParams = url.searchParams.getAll('provider');
   const providers = providerParams.filter((provider) => provider === 'codex' || provider === 'claude-code');
-  return listProviderSessions({
+  const explicitCwd = url.searchParams.get('cwd');
+  const allCwd = url.searchParams.get('all_cwd') === 'true';
+  const cwd = allCwd ? undefined : (explicitCwd || defaultCwd);
+  const sessions = listProviderSessions({
     homeDir: process.env.SIGIL_AGENT_CATALOG_HOME,
     codexRoot: process.env.SIGIL_AGENT_CODEX_ROOT,
     claudeRoot: process.env.SIGIL_AGENT_CLAUDE_ROOT,
-    cwd: url.searchParams.get('cwd') || defaultCwd,
+    cwd,
     providers: providers.length ? providers : undefined,
   });
+  return {
+    sessions,
+    scope: allCwd ? 'all_cwd' : 'cwd',
+    cwd_filter: cwd ?? null,
+  };
+}
+
+function sessionCatalogForUrl(url) {
+  return sessionCatalogQueryForUrl(url).sessions;
 }
 
 function attachExistingProcessSocket(socket, session, record) {
@@ -514,8 +526,7 @@ async function handle(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/sessions') {
-      const sessions = sessionCatalogForUrl(url);
-      json(res, 200, { sessions });
+      json(res, 200, sessionCatalogQueryForUrl(url));
       return;
     }
 
