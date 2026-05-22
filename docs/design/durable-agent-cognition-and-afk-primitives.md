@@ -528,5 +528,16 @@ The next slices should stay reversible:
    explicitly requests all-cwd catalog discovery while omitted `cwd` remains
    scoped to the bridge default cwd. The next proof is a supervised live
    bridge-backed correlation smoke using that explicit all-cwd query.
+   The latest supervised bridge run now proves the corrected process-driver PTY
+   can launch nested `codex --no-alt-screen` from `.docks/gdi`, submit a
+   bounded prompt with one extra Enter when needed, materialize a separate
+   Codex rollout, and feed that live evidence into the stabilized
+   launch-attempt prototype as `provider_session_observed` with exact Codex
+   adapter correlation. The accepted evidence lives in
+   `docs/design/work-cards/operator-afk-launch-attempt-live-codex-record-rerun-v0.md`.
+   The next reversible source slice is to expose the accepted
+   launch-attempt prototype through an experimental `./aos dev` diagnostic
+   command, still without enabling unattended provider launch or final
+   `aos session` command spelling.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
