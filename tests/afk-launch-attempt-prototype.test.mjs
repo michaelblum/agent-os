@@ -308,6 +308,67 @@ test('classifies stale catalog session as current launch not observed', async ()
   assert.deepEqual(record.mismatches.map((mismatch) => mismatch.code), ['catalog_current_launch_not_observed']);
 });
 
+test('preserves unrelated all-cwd current candidate without binding it as launch session', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const unrelatedOperatorCwd = join(repoRoot, '.docks/operator');
+  const unrelatedSessionId = '019e5062-42f2-7340-beda-e2295ebf7f41';
+  const catalogPath = await writeCatalogFixture({
+    sessions: [],
+    all_cwd_sessions: [
+      {
+        provider: 'codex',
+        session_id: unrelatedSessionId,
+        cwd: unrelatedOperatorCwd,
+        updated_at: '2026-05-22T15:54:01.463Z',
+        source_file: '/tmp/operator-codex-session.jsonl',
+        resume_command: `codex resume ${unrelatedSessionId}`,
+        telemetry_observed: true,
+        telemetry_event_refs: ['inline:operator-telemetry-must-not-bind'],
+      },
+    ],
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    '2026-05-22T15:52:38Z',
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.launch_intent.intended_launch_cwd, intendedLaunchCwd);
+  assert.equal(record.provider_acceptance.status, 'not_applicable: no-provider-launch');
+  assert.equal(record.provider_acceptance.provider_session_id, 'not_applicable: no-provider-launch');
+  assert.equal(record.catalog.status, 'catalog_current_launch_not_observed');
+  assert.equal(record.catalog.catalog_record_refs, 'not_observed');
+  assert.equal(record.catalog.match_count, 0);
+  assert.equal(record.catalog.matched_session_id, 'not_observed');
+  assert.equal(record.catalog.launch_observed_at, '2026-05-22T15:52:38Z');
+  assert.deepEqual(record.catalog.unrelated_current_session_refs, [
+    {
+      provider_session_id: unrelatedSessionId,
+      catalog_record_ref: `codex:${unrelatedSessionId}`,
+      cwd: unrelatedOperatorCwd,
+      updated_at: '2026-05-22T15:54:01.463Z',
+    },
+  ]);
+  assert.equal(record.catalog.provider_session_mismatch, 'not_observed');
+  assert.equal(record.telemetry.status, 'telemetry_current_launch_not_observed');
+  assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(record.mismatches.map((mismatch) => mismatch.code), ['catalog_current_launch_not_observed']);
+});
+
 test('classifies observed provider session with wrong cwd as structured mismatch', async () => {
   const packetPath = await writePacket(validPacket());
   const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
