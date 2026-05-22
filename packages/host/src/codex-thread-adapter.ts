@@ -302,7 +302,7 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
   const missingProviderId = hasTerminalSubstrate(input.bridgeVisibility)
     ? [{ code: 'provider_session_id_not_observed' as const, evidence_refs: bridgeEvidence }]
     : [];
-  const candidates = intendedCwd
+  const candidates = intendedCwd && hasUsableTimeWindow(input.timeWindow)
     ? listCandidateThreads({
         ...input,
         projectPath: input.projectPath,
@@ -577,6 +577,17 @@ function hasTerminalSubstrate(bridgeVisibility: CodexBridgeVisibilityInput | und
       || bridgeVisibility?.terminal_substrate?.session_handle
       || bridgeVisibility?.command_argv?.length,
   );
+}
+
+function hasUsableTimeWindow(timeWindow: CodexTimeWindow | undefined): boolean {
+  return Boolean(
+    timeWindow
+      && (isUsableTimeBoundary(timeWindow.after) || isUsableTimeBoundary(timeWindow.before)),
+  );
+}
+
+function isUsableTimeBoundary(value: string | undefined): boolean {
+  return Boolean(value && !Number.isNaN(Date.parse(value)));
 }
 
 function isInsideTimeWindow(timestamp: string, timeWindow: CodexTimeWindow): boolean {
