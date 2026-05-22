@@ -1,6 +1,6 @@
 # Work Card: AFK Bridge Catalog Scope Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
 
 ## Tracker
 
@@ -182,3 +182,41 @@ Report:
   PR changed;
 - remaining gap before the next supervised live bridge correlation proof;
 - local-only state or runtime blockers.
+
+## Foreman Acceptance - 2026-05-22
+
+Accepted commit:
+`e4b1ed89b0899ff62f860878364e67d5ed9c3956`.
+
+Review result:
+
+- Chosen all-cwd query spelling:
+  `/sessions?provider=codex&all_cwd=true`.
+- Default `/sessions?provider=codex` behavior remains scoped to the bridge
+  `defaultCwd`.
+- Explicit `cwd` queries still filter to the requested cwd.
+- Explicit all-cwd mode returns provider records from multiple cwd values and
+  still honors provider filtering.
+- The `/sessions` response now includes small review fields, `scope` and
+  `cwd_filter`, without changing the existing `sessions` payload shape.
+
+Foreman verification:
+
+```bash
+node --test tests/sigil-agent-terminal-server.test.mjs
+git diff --check 62d17f36d8bad9ae52f6d367c8d9e11addf09466..e4b1ed89b0899ff62f860878364e67d5ed9c3956
+./aos dev recommend --json
+```
+
+Results:
+
+- `node --test tests/sigil-agent-terminal-server.test.mjs`: pass, 7/7.
+- Range `git diff --check`: pass.
+- `./aos dev recommend --json`: pass; recommendations are noisy because this
+  branch is stacked on the broader durable workstream base, but the focused
+  bridge test covers this delta.
+
+No live provider session was launched during Foreman acceptance. No real
+provider transcript/config, gateway state, dock profile, hook, GitHub state,
+push, or PR was changed. The remaining gap is a supervised live bridge
+correlation proof using the explicit all-cwd query spelling.
