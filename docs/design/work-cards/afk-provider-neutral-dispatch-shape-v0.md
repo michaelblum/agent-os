@@ -1,6 +1,6 @@
 # Work Card: afk-provider-neutral-dispatch-shape-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -24,6 +24,23 @@ remaining design gap is the adapter boundary that actually starts or resumes
 Codex, Claude, Gemini, or another provider against the same dock/session
 contract without making the scheduler provider-specific or making a dock a
 permanent provider identity.
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-provider-neutral-dispatch-shape-v0`
+- Accepted commit: `324ffe5c07ff9986437a15c39e8dbd22fc9752e2`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/afk-provider-neutral-dispatch-shape-2026-05-21.md`
+- Synthesis update:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman-side verification passed:
+  `git diff --check 17c5a31bc502dcbd57d90d2c21c875e2b7396b02..324ffe5c07ff9986437a15c39e8dbd22fc9752e2`,
+  `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`,
+  and `./aos dev recommend --json`.
+- Recommendation accepted: run a design consolidation/readiness pass across the
+  AFK packet, scheduler, and provider-neutral dispatch sketches before local
+  source prototyping.
 
 ## Fresh Context Contract
 
