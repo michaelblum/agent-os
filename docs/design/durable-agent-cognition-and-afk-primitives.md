@@ -549,6 +549,10 @@ The next slices should stay reversible:
    `docs/design/work-cards/operator-afk-dev-launch-attempt-command-live-wrapper-v0.md`.
    The next reversible slice is to freeze the first implementable session
    trigger/dispatch command contract before adding any final `aos session`
-   source behavior.
+   source behavior. That command-readiness decision now lives at
+   `docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md`;
+   it recommends an experimental dry-run-only
+   `./aos dev afk-session-trigger` source slice and keeps unattended provider
+   launch behind a later explicit work card.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
