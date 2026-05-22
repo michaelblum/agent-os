@@ -1,6 +1,6 @@
 # Work Card: afk-dry-run-prototype-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-22
 **Owner:** GDI
 
 ## Tracker
@@ -23,6 +23,30 @@ The accepted receipt-shape note says no remaining docs-only question blocks a
 deterministic dry-run prototype, as long as the prototype writes only local
 dry-run output or a receipt bundle, starts no provider, changes no schemas, and
 treats command names as experimental.
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-dry-run-prototype-v0`
+- Prototype commit: `5c679dfca00995ad04bb1e598434e63b30c037e5`
+- Accepted correction commit:
+  `51dc02dfbc818d378fe8426b5ab8e9f88cd76bf2`
+- Output files:
+  `scripts/afk-dry-run-prototype.mjs` and
+  `tests/afk-dry-run-prototype.test.mjs`
+- Correction work card:
+  `docs/design/work-cards/afk-dry-run-prototype-cwd-validation-correction-v0.md`
+- Foreman-side verification passed:
+  `node --test tests/afk-dry-run-prototype.test.mjs`,
+  `git diff --check 6b635051ce73a4283c1f874f4fa1ab896c6c327b..51dc02dfbc818d378fe8426b5ab8e9f88cd76bf2`,
+  `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`,
+  `./aos dev recommend --json`, and a manual bad-cwd/bad-worktree probe.
+- Accepted behavior: the prototype remains an experimental standalone script,
+  launches no provider, wires nothing into `./aos`, validates packet/current
+  state/dock/profile/provider dry-run facts, and emits transfer, scheduler,
+  dispatch, work, and evidence receipt sections.
+- Recommended next step: run one bounded manual dry-run against a local packet
+  fixture and capture the receipt output as review evidence before deciding
+  whether to harden the prototype or adjust the contract.
 
 ## Fresh Context Contract
 

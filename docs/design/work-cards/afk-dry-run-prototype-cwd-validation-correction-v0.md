@@ -1,6 +1,6 @@
 # Work Card: afk-dry-run-prototype-cwd-validation-correction-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-22
 **Owner:** GDI
 
 ## Tracker
@@ -21,6 +21,21 @@ Follow-up to GDI output:
 - Changed files under review:
   `scripts/afk-dry-run-prototype.mjs` and
   `tests/afk-dry-run-prototype.test.mjs`
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-dry-run-prototype-v0`
+- Accepted commit: `51dc02dfbc818d378fe8426b5ab8e9f88cd76bf2`
+- Corrected behavior: missing `cwd`/`worktree` values now emit the normal
+  `aos.afk_dry_run_receipt_bundle.prototype` JSON receipt with
+  `final_status: failed`, `scheduler.intake_decision: rejected`, failed
+  `cwd_resolves_to_repo_root` and `worktree_exists` validations, and empty
+  stderr instead of a top-level `prototype_error`.
+- Foreman-side verification passed:
+  `node --test tests/afk-dry-run-prototype.test.mjs`,
+  `git diff --check 95f9ee188a26f0d35c5122d682acf607b4cdeda7..51dc02dfbc818d378fe8426b5ab8e9f88cd76bf2`,
+  `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`,
+  `./aos dev recommend --json`, and a manual bad-cwd/bad-worktree probe.
 
 ## Finding
 
