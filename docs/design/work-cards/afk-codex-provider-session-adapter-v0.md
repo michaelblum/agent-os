@@ -1,6 +1,36 @@
 # AFK Codex Provider Session Adapter V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commits:
+  - `9797450d4ab0980134a3eefca5cc118796168e65`
+  - `af8256c7dc0d6f78c603292268e7f16bde53170d`
+- Correction route:
+  `docs/design/work-cards/afk-codex-provider-session-adapter-time-window-correction-v0.md`
+- Changed files:
+  - `packages/host/src/codex-thread-adapter.ts`
+  - `packages/host/test/codex-thread-adapter.test.ts`
+- Foreman review: accepted after the time-window correction. The adapter now
+  lists, resolves, inspects, correlates, and emits refs for Codex metadata from
+  explicit fixture roots; supports exact id and unique prefix resolution; returns
+  `ambiguous` for ambiguous prefixes; includes archived sessions by default;
+  preserves soft diagnostics for malformed metadata; emits `codex://threads/*`
+  and `codex-thread:*` refs; and does not bind cwd-only fallback candidates
+  without a usable launch time boundary.
+- Foreman verification:
+  - `node --test --experimental-strip-types packages/host/test/codex-thread-adapter.test.ts`
+  - `node --test --experimental-strip-types packages/host/test/session-catalog.test.ts`
+  - `npm --prefix packages/host run check`
+  - `npm --prefix packages/host test`
+  - `git diff --check`
+  - `./aos dev recommend --json`
+- Router note: `./aos dev recommend --json` still reports broad branch-history
+  recommendations from the full durable workstream diff; for this adapter slice,
+  the package-local host tests and typecheck cover the changed files.
+- Local-only boundary confirmed: no real Codex sessions/transcripts, provider
+  config, gateway state, dock profile, hook, GitHub state, push, or PR changed.
 
 ## Transfer Classification
 

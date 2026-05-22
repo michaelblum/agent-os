@@ -1,6 +1,29 @@
 # AFK Codex Provider Session Adapter Time Window Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `af8256c7dc0d6f78c603292268e7f16bde53170d`
+- Changed files:
+  - `packages/host/src/codex-thread-adapter.ts`
+  - `packages/host/test/codex-thread-adapter.test.ts`
+- Foreman review: accepted. `correlateLaunch` now requires an intended cwd or
+  project path plus at least one parseable time-window boundary before cwd/time
+  fallback candidate matching. Without that boundary, no-provider-id correlation
+  returns `not_observed`, `confidence: 'none'`, no `thread`, and no cwd-only
+  candidates while preserving `provider_session_id_not_observed` terminal
+  substrate evidence.
+- Foreman verification:
+  - `node --test --experimental-strip-types packages/host/test/codex-thread-adapter.test.ts`
+  - `node --test --experimental-strip-types packages/host/test/session-catalog.test.ts`
+  - `npm --prefix packages/host run check`
+  - `npm --prefix packages/host test`
+  - `git diff --check`
+  - `./aos dev recommend --json`
+- Local-only boundary confirmed: no real Codex sessions/transcripts, provider
+  config, gateway state, dock profile, hook, GitHub state, push, or PR changed.
 
 ## Transfer Classification
 
