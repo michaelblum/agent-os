@@ -166,6 +166,45 @@ test('fails honestly when required packet facts or current-state validations are
   );
 });
 
+test('emits structured failed receipt for missing cwd and worktree paths', async () => {
+  const missingPath = join(tmpdir(), 'aos-afk-missing-cwd-never-exists');
+  const packetPath = await writePacket(validPacket({
+    packet_id: 'bad-cwd',
+    cwd: missingPath,
+    worktree: missingPath,
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, '');
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.type, 'aos.afk_dry_run_receipt_bundle.prototype');
+  assert.notEqual(receipt.type, 'aos.afk_dry_run_receipt_bundle.prototype_error');
+  assert.equal(receipt.final_status, 'failed');
+  assert.equal(receipt.scheduler.intake_decision, 'rejected');
+  assert.equal(receipt.work.blocker_class, 'validation_failed');
+
+  const cwdValidation = receipt.validations.find((validation) => validation.name === 'cwd_resolves_to_repo_root');
+  assert.equal(cwdValidation.status, 'failed');
+  assert.equal(cwdValidation.cwd, missingPath);
+  assert.match(cwdValidation.reason, /cwd path does not exist/);
+
+  const worktreeValidation = receipt.validations.find((validation) => validation.name === 'worktree_exists');
+  assert.equal(worktreeValidation.status, 'failed');
+  assert.equal(worktreeValidation.path, missingPath);
+  assert.match(worktreeValidation.reason, /worktree_exists path does not exist/);
+});
+
 test('rejects explicit provider launch requests before dispatch facts can imply execution', async () => {
   const packetPath = await writePacket(validPacket());
   const result = runPrototype([

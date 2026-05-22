@@ -63,12 +63,14 @@ function runGit(repoRoot, args) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
+  const stderr = typeof result.stderr === 'string' ? result.stderr : '';
 
   return {
     command: `git ${args.join(' ')}`,
     exitCode: result.status ?? 1,
-    stdout: result.stdout.trim(),
-    stderr: result.stderr.trim(),
+    stdout: stdout.trim(),
+    stderr: (stderr || result.error?.message || '').trim(),
   };
 }
 
@@ -284,6 +286,56 @@ function validationRecord(name, ok, details = {}) {
   };
 }
 
+function validatePathExists(name, path) {
+  if (!path) {
+    return validationRecord(name, false, {
+      path,
+      reason: `${name} path is missing`,
+    });
+  }
+
+  const exists = existsSync(path);
+  return validationRecord(name, exists, {
+    path,
+    reason: exists ? null : `${name} path does not exist: ${path}`,
+  });
+}
+
+function validateCwdResolvesToRepoRoot(cwdPath, repoRoot) {
+  if (!cwdPath) {
+    return validationRecord('cwd_resolves_to_repo_root', false, {
+      cwd: cwdPath,
+      expected_repo_root: repoRoot,
+      reason: 'cwd path is missing',
+    });
+  }
+  if (!existsSync(cwdPath)) {
+    return validationRecord('cwd_resolves_to_repo_root', false, {
+      cwd: cwdPath,
+      expected_repo_root: repoRoot,
+      reason: `cwd path does not exist: ${cwdPath}`,
+    });
+  }
+
+  try {
+    const resolvedRoot = resolveRepoRoot(cwdPath);
+    return validationRecord('cwd_resolves_to_repo_root', resolvedRoot === repoRoot, {
+      cwd: cwdPath,
+      expected_repo_root: repoRoot,
+      resolved_repo_root: resolvedRoot,
+      reason: resolvedRoot === repoRoot
+        ? null
+        : `cwd resolves to ${resolvedRoot}, not expected repo root ${repoRoot}`,
+    });
+  } catch (error) {
+    return validationRecord('cwd_resolves_to_repo_root', false, {
+      cwd: cwdPath,
+      expected_repo_root: repoRoot,
+      reason: error.message,
+    });
+  }
+}
+
 async function buildReceipt(options) {
   if (!options.packet) {
     throw new Error('Missing required --packet');
@@ -315,18 +367,14 @@ async function buildReceipt(options) {
   const evidenceRequirements = normalizeEvidenceRequirements(packet);
   const stopConditions = normalizeStopConditions(packet);
   const cwdPath = repoPath(repoRoot, packet.cwd ?? repoRoot);
-  const worktreeExists = worktree ? existsSync(worktree) : false;
-  const cwdExists = cwdPath ? existsSync(cwdPath) : false;
-  const cwdIsRepo = cwdPath ? resolveRepoRoot(cwdPath) === repoRoot : false;
+  const cwdValidation = validateCwdResolvesToRepoRoot(cwdPath, repoRoot);
+  const worktreeValidation = validatePathExists('worktree_exists', worktree);
 
   const validations = [
     validationRecord('packet_id_or_ref_present', Boolean(packetId), { packet_id_or_ref: packetId ?? null }),
     validationRecord('source_artifact_exists_when_repo_path', source.status === 'present', source),
-    validationRecord('cwd_resolves_to_repo_root', cwdExists && cwdIsRepo, {
-      cwd: cwdPath,
-      expected_repo_root: repoRoot,
-    }),
-    validationRecord('worktree_exists', worktreeExists, { worktree }),
+    cwdValidation,
+    worktreeValidation,
     validationRecord('required_start_ref_resolves', refResolution.status === 'resolved', refResolution),
     validationRecord('dock_profile_exists', dockProfile.status === 'resolved', {
       dock: selectedDock,
