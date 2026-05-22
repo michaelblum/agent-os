@@ -116,10 +116,38 @@ judgment artifact. It answers:
 given these inputs and this evidence, classify/choose/route this way
 ```
 
-It is not a recipe because it is not primarily "run these steps." It is not a
-workflow because it is not orchestration. It is not a work card because it is
-not one assigned round. It is durable judgment that can be reused by Foreman,
-GDI, Operator, a future Researcher, or an unattended scheduler.
+It is durable judgment that can be reused by Foreman, GDI, Operator, a future
+Researcher, or an unattended scheduler. It remains docs-only vocabulary for now:
+do not add a generic Decision Contract schema until at least one second
+non-router candidate proves that the fields below are not only a relabeling of
+the current dev workflow router.
+
+### Artifact Vocabulary
+
+Decision Contract is adjacent to several existing artifact types, but it should
+not absorb them:
+
+| Artifact | Distinction from Decision Contract |
+| --- | --- |
+| Recipe | A reusable bounded procedure: how to do something again. A recipe may contain decision tables, but its primary contract is still a procedure. |
+| Playbook | An agent-operable procedure over live surfaces, usually `see -> resolve -> do -> see -> verify`. It encodes action and verification, not only judgment. |
+| Workflow | Orchestration across actors, sessions, systems, approvals, gates, and artifacts. It may invoke Decision Contracts, but orchestration is the workflow's job. |
+| Work card | One assigned worker round with scope, files, boundaries, verification, and stop conditions. It is a transfer/execution contract, not reusable judgment. |
+| Work record | What happened in one run: intent, execution map, evidence, and health. It records execution history rather than deciding a future route by itself. |
+| Evidence record | Immutable or append-only proof: traces, screenshots, outputs, status, citations, logs, or result links. A Decision Contract depends on evidence; it is not the evidence. |
+| Skill | Repeated agent behavior with judgment, often dock-local or user-managed. A skill may consume a Decision Contract, but it also carries behavioral instructions. |
+| Transfer packet | Minimal fresh-session launch context and result-routing metadata. It moves work between sessions; it does not itself define the reusable classification rule. |
+
+`docs/dev/workflow-rules.json` is the strongest current machine-readable
+candidate because it already takes changed files as inputs and emits routing,
+commands, verification, and notes. It is still the current dev workflow router
+manifest, not a renamed Decision Contract, and should remain under its existing
+schema and command contract for now.
+
+Researcher and synthesis behavior should also stay layered above AOS
+primitives as user or dock configuration. The core platform should provide the
+session, transfer, evidence, and routing primitives that such behavior consumes,
+not hard-code project-specific source logic for a Researcher role.
 
 Candidate fields:
 
