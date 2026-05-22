@@ -1,6 +1,6 @@
 # Work Card: decision-contract-verification-routing-consolidation-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -17,6 +17,21 @@ Foreman cadence note: prior slices intentionally stayed narrow while the term
 was unstable. That is now too fine-grained. This round should combine the next
 candidate mapping with consolidation so Foreman can decide the next workstream
 without another single-note GDI loop.
+
+Accepted evidence:
+
+- GDI branch: `gdi/decision-contract-verification-routing-consolidation-v0`
+- Accepted commit: `bbc84ffc7a10ebe6c33e15a862174e4a508abad2`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/decision-contract-verification-routing-consolidation-2026-05-21.md`
+- Synthesis update:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman-side verification passed:
+  `git diff --check fad562d48e75971903f11b16b5b1f148663462f5..bbc84ffc7a10ebe6c33e15a862174e4a508abad2`
+  and `./aos dev recommend --json`.
+- Recommendation accepted: do not add a committed schema yet; route a broader
+  docs-only Decision Contract descriptor and AFK primitive boundary sketch.
 
 ## Fresh Context Contract
 
