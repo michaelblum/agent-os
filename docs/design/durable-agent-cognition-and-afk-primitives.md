@@ -512,5 +512,9 @@ The next slices should stay reversible:
    provider-session cwd mismatch classification via
    `docs/design/work-cards/afk-provider-session-cwd-mismatch-classification-v0.md`
    before another live correlation proof.
+   That correction is now accepted: observed wrong cwd, missing cwd, stale GDI
+   catalog absence, exact match, and ambiguous current candidates are distinct
+   fixture-backed states. The next proof is another supervised live
+   bridge-backed correlation smoke using the corrected classifier.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
