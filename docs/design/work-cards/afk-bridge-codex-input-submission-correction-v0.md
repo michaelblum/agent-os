@@ -1,6 +1,39 @@
 # AFK Bridge Codex Input Submission Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `63301abec6e6affb7ed793085f55dd4a6c2eff84`
+- Changed files:
+  - `apps/sigil/codex-terminal/server.mjs`
+  - `tests/sigil-agent-terminal-server.test.mjs`
+- Foreman review: accepted. The process-driver bridge now reports bounded
+  `/input` diagnostics for session existence, text byte count, Node stdin write
+  acceptance, and Enter delivery, and reports `/key` diagnostics for key byte
+  count and write acceptance. Process-driver Enter now writes PTY carriage
+  return while tmux and WebSocket input paths are preserved.
+- Deterministic coverage added:
+  - `/input` writes text plus Enter to a process-driver PTY and `/snapshot`
+    observes the submitted line.
+  - `/input` with `enter:false` plus `/key Enter` submits to the same
+    process-driver PTY and `/snapshot` observes the submitted line.
+- Foreman verification:
+  - `node --test tests/sigil-agent-terminal-server.test.mjs`: 9/9
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1
+  - `git diff --check 80eaf4eecfc589e3d64f28aeae2962f5b48fc789..63301abec6e6affb7ed793085f55dd4a6c2eff84`
+  - `./aos dev recommend --json --files apps/sigil/codex-terminal/server.mjs tests/sigil-agent-terminal-server.test.mjs`
+  - `./aos dev recommend --json`: inspected; broad branch-level
+    recommendations are inherited from the long-lived AFK feature branch, while
+    this slice's changed files are covered by the focused checks above.
+- Local cleanup proof: no matching bridge test `pty-proxy.py` or
+  `sigil-agent-terminal-*` processes remained after verification.
+- Local-only boundary confirmed: no live provider, real provider transcript,
+  provider config, gateway state, dock profile, hook, GitHub state, push, or PR
+  changed.
+- Next routed slice:
+  `docs/design/work-cards/operator-afk-bridge-codex-transcript-materialization-rerun-v0.md`.
 
 ## Transfer Classification
 
