@@ -644,6 +644,7 @@ test('adds Codex adapter refs for observed provider session id and matching thre
   assert.equal(record.codex_adapter.matched_thread_id, providerSessionId);
   assert.equal(record.codex_adapter.matched_thread_ref, `codex-thread:${providerSessionId}`);
   assert.equal(record.codex_adapter.matched_deeplink, `codex://threads/${providerSessionId}`);
+  assert.equal(record.codex_adapter.matched_cwd_basis, 'intended_launch_cwd');
   assert.deepEqual(record.codex_adapter.candidate_thread_ids, [providerSessionId]);
   assert.ok(record.codex_adapter.evidence_refs.some((ref) => ref.ref.startsWith(codexHome)));
   assert.ok(record.evidence.observed_refs.includes(`codex://threads/${providerSessionId}`));
@@ -690,8 +691,89 @@ test('records Codex adapter wrong-cwd mismatch without matched thread refs', asy
   assert.deepEqual(record.codex_adapter.candidate_thread_ids, [providerSessionId]);
   assert.equal(record.codex_adapter.matched_thread_ref, 'not_observed');
   assert.equal(record.codex_adapter.matched_deeplink, 'not_observed');
+  assert.equal(record.codex_adapter.matched_cwd_basis, 'not_observed');
   assert.ok(!record.evidence.observed_refs.includes(`codex://threads/${providerSessionId}`));
   assert.ok(record.mismatches.some((mismatch) => mismatch.source === 'codex_adapter' && mismatch.code === 'wrong_cwd'));
+});
+
+test('matches Codex adapter thread whose metadata cwd is the packet worktree root', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const providerSessionId = '019e7000-dddd-7222-8333-444444444444';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: providerSessionId,
+      cwd: repoRoot,
+      timestamp: '2026-05-22T16:01:00.000Z',
+      title: 'Workspace root launch thread',
+    },
+  ]);
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    '2026-05-22T16:02:00.000Z',
+    '--launch-observed-at',
+    '2026-05-22T16:00:00.000Z',
+    '--provider-session-id',
+    providerSessionId,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.launch_intent.intended_launch_cwd, intendedLaunchCwd);
+  assert.equal(record.launch_intent.intended_worktree, repoRoot);
+  assert.equal(record.codex_adapter.correlation_status, 'matched_by_provider_session_id');
+  assert.equal(record.codex_adapter.matched_thread_id, providerSessionId);
+  assert.equal(record.codex_adapter.matched_cwd_basis, 'workspace_root');
+  assert.deepEqual(record.codex_adapter.candidate_thread_ids, [providerSessionId]);
+  assert.ok(record.evidence.observed_refs.includes(`codex://threads/${providerSessionId}`));
+  assert.ok(record.evidence.observed_refs.includes(`codex-thread:${providerSessionId}`));
+});
+
+test('matches workspace-root Codex adapter thread by launch window without provider id', async () => {
+  const packetPath = await writePacket(validPacket());
+  const threadId = '019e7000-eeee-7222-8333-444444444444';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: threadId,
+      cwd: repoRoot,
+      timestamp: '2026-05-22T16:01:00.000Z',
+      title: 'Workspace root fallback thread',
+    },
+  ]);
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    '2026-05-22T16:02:00.000Z',
+    '--launch-observed-at',
+    '2026-05-22T16:00:00.000Z',
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.provider_acceptance.provider_session_id, 'not_applicable: no-provider-launch');
+  assert.equal(record.codex_adapter.correlation_status, 'matched_by_cwd_time_window');
+  assert.equal(record.codex_adapter.matched_thread_id, threadId);
+  assert.equal(record.codex_adapter.matched_cwd_basis, 'workspace_root');
+  assert.ok(record.mismatches.some((mismatch) => mismatch.source === 'codex_adapter' && mismatch.code === 'provider_session_id_not_observed'));
 });
 
 test('uses Codex adapter cwd/time fallback for one current same-cwd thread when provider id is absent', async () => {
@@ -728,6 +810,7 @@ test('uses Codex adapter cwd/time fallback for one current same-cwd thread when 
   assert.equal(record.codex_adapter.correlation_status, 'matched_by_cwd_time_window');
   assert.equal(record.codex_adapter.confidence, 'strong');
   assert.equal(record.codex_adapter.matched_thread_id, threadId);
+  assert.equal(record.codex_adapter.matched_cwd_basis, 'intended_launch_cwd');
   assert.deepEqual(record.codex_adapter.time_window, {
     after: '2026-05-22T16:00:00.000Z',
     before: '2026-05-22T16:02:00.000Z',

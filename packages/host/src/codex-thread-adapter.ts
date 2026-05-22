@@ -118,10 +118,17 @@ export interface CorrelateLaunchInput extends CodexThreadAdapterInput {
   providerSessionId?: string | 'not_observed';
   projectPath?: string;
   intendedCwd?: string;
+  workspaceRoot?: string;
   timeWindow?: CodexTimeWindow;
   bridgeVisibility?: CodexBridgeVisibilityInput;
   catalogRecordRefs?: CodexAdapterEvidenceRef[];
 }
+
+export type CodexCwdMatchBasis =
+  | 'intended_launch_cwd'
+  | 'workspace_root'
+  | 'project_path'
+  | 'not_observed';
 
 export interface CorrelateLaunchResult {
   status:
@@ -134,6 +141,7 @@ export interface CorrelateLaunchResult {
   thread?: CodexThreadRef;
   candidate_threads: CodexThreadRef[];
   confidence: 'exact' | 'strong' | 'weak' | 'none';
+  cwd_match_basis: CodexCwdMatchBasis;
   evidence_refs: CodexAdapterEvidenceRef[];
   mismatches: CodexLaunchMismatch[];
   diagnostics: CodexAdapterDiagnostic[];
@@ -249,6 +257,7 @@ export function resolveProviderSessionId(input: ResolveProviderSessionIdInput): 
 
 export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchResult {
   const intendedCwd = input.intendedCwd ?? input.projectPath;
+  const cwdBases = correlationCwdBases(input);
   const providerSessionId = observedProviderSessionId(input);
   const bridgeEvidence = bridgeEvidenceRefs(input.bridgeVisibility);
   const baseEvidence = [...bridgeEvidence, ...(input.catalogRecordRefs ?? [])];
@@ -262,16 +271,18 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
     if (resolved.status !== 'ok' || !resolved.thread) {
       return emptyCorrelation('not_observed', evidence_refs, resolved.diagnostics);
     }
-    if (intendedCwd && !isSameOrDescendant(resolved.thread.normalized_cwd, normalizeComparablePath(intendedCwd))) {
+    const matchedBasis = matchCwdBasis(resolved.thread.normalized_cwd, cwdBases);
+    if (intendedCwd && matchedBasis === 'not_observed') {
       return {
         status: 'wrong_cwd',
         thread: resolved.thread,
         candidate_threads: [resolved.thread],
         confidence: 'none',
+        cwd_match_basis: 'not_observed',
         evidence_refs,
         mismatches: [{
           code: 'wrong_cwd',
-          expected: normalizeComparablePath(intendedCwd),
+          expected: expectedCwdDescription(cwdBases),
           observed: resolved.thread.normalized_cwd,
           evidence_refs: resolved.evidence_refs,
         }],
@@ -283,6 +294,7 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
         status: 'not_observed',
         candidate_threads: [resolved.thread],
         confidence: 'none',
+        cwd_match_basis: 'not_observed',
         evidence_refs,
         mismatches: [{ code: 'outside_time_window', observed: resolved.thread.timestamp }],
         diagnostics: resolved.diagnostics,
@@ -293,6 +305,7 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
       thread: resolved.thread,
       candidate_threads: [resolved.thread],
       confidence: 'exact',
+      cwd_match_basis: matchedBasis,
       evidence_refs,
       mismatches: [],
       diagnostics: resolved.diagnostics,
@@ -302,19 +315,15 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
   const missingProviderId = hasTerminalSubstrate(input.bridgeVisibility)
     ? [{ code: 'provider_session_id_not_observed' as const, evidence_refs: bridgeEvidence }]
     : [];
-  const candidates = intendedCwd && hasUsableTimeWindow(input.timeWindow)
-    ? listCandidateThreads({
-        ...input,
-        projectPath: input.projectPath,
-        cwd: input.intendedCwd ?? input.projectPath,
-        timeWindow: input.timeWindow,
-      })
+  const candidates = cwdBases.length > 0 && hasUsableTimeWindow(input.timeWindow)
+    ? listCorrelationCandidates(input, cwdBases)
     : undefined;
   if (!candidates) {
     return {
       status: 'not_observed',
       candidate_threads: [],
       confidence: 'none',
+      cwd_match_basis: 'not_observed',
       evidence_refs: baseEvidence,
       mismatches: missingProviderId,
       diagnostics: [],
@@ -326,6 +335,7 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
       status: 'metadata_unreadable',
       candidate_threads: [],
       confidence: 'none',
+      cwd_match_basis: 'not_observed',
       evidence_refs,
       mismatches: missingProviderId,
       diagnostics: candidates.diagnostics,
@@ -337,6 +347,7 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
       thread: candidates.threads[0],
       candidate_threads: candidates.threads,
       confidence: 'strong',
+      cwd_match_basis: candidates.basisByThreadId.get(candidates.threads[0].thread_id) ?? 'not_observed',
       evidence_refs,
       mismatches: missingProviderId,
       diagnostics: candidates.diagnostics,
@@ -346,6 +357,7 @@ export function correlateLaunch(input: CorrelateLaunchInput): CorrelateLaunchRes
     status: candidates.threads.length > 1 ? 'multiple_candidates' : 'not_observed',
     candidate_threads: candidates.threads,
     confidence: 'none',
+    cwd_match_basis: 'not_observed',
     evidence_refs,
     mismatches: missingProviderId,
     diagnostics: candidates.diagnostics,
@@ -555,9 +567,105 @@ function emptyCorrelation(
     status,
     candidate_threads: [],
     confidence: 'none',
+    cwd_match_basis: 'not_observed',
     evidence_refs,
     mismatches: [],
     diagnostics,
+  };
+}
+
+interface CorrelationCwdBasis {
+  basis: Exclude<CodexCwdMatchBasis, 'not_observed'>;
+  cwd: string;
+  match: 'exact' | 'descendant';
+}
+
+interface CorrelationCandidates {
+  status: ListCandidateThreadsResult['status'];
+  threads: CodexThreadRef[];
+  evidence_refs: CodexAdapterEvidenceRef[];
+  diagnostics: CodexAdapterDiagnostic[];
+  basisByThreadId: Map<string, CodexCwdMatchBasis>;
+}
+
+function correlationCwdBases(input: CorrelateLaunchInput): CorrelationCwdBasis[] {
+  const bases: CorrelationCwdBasis[] = [];
+  addCwdBasis(bases, 'intended_launch_cwd', input.intendedCwd, 'descendant');
+  addCwdBasis(bases, 'workspace_root', input.workspaceRoot, 'exact');
+  if (!input.intendedCwd && !input.workspaceRoot) {
+    addCwdBasis(bases, 'project_path', input.projectPath, 'descendant');
+  }
+  return bases;
+}
+
+function addCwdBasis(
+  bases: CorrelationCwdBasis[],
+  basis: CorrelationCwdBasis['basis'],
+  value: string | undefined,
+  match: CorrelationCwdBasis['match'],
+): void {
+  if (!value || !value.trim()) return;
+  const cwd = normalizeComparablePath(value);
+  if (bases.some((existing) => existing.cwd === cwd)) return;
+  bases.push({ basis, cwd, match });
+}
+
+function matchCwdBasis(candidate: string, bases: CorrelationCwdBasis[]): CodexCwdMatchBasis {
+  const match = bases.find((basis) => (
+    basis.match === 'exact'
+      ? normalizeComparablePath(candidate) === basis.cwd
+      : isSameOrDescendant(candidate, basis.cwd)
+  ));
+  return match?.basis ?? 'not_observed';
+}
+
+function expectedCwdDescription(bases: CorrelationCwdBasis[]): string | undefined {
+  if (bases.length === 0) return undefined;
+  if (bases.length === 1) return bases[0].cwd;
+  return bases.map((basis) => `${basis.basis}:${basis.cwd}`).join(', ');
+}
+
+function listCorrelationCandidates(
+  input: CorrelateLaunchInput,
+  bases: CorrelationCwdBasis[],
+): CorrelationCandidates {
+  const byId = new Map<string, CodexThreadRef>();
+  const basisByThreadId = new Map<string, CodexCwdMatchBasis>();
+  const evidence_refs: CodexAdapterEvidenceRef[] = [];
+  const diagnostics: CodexAdapterDiagnostic[] = [];
+  let status: ListCandidateThreadsResult['status'] = 'ok';
+
+  for (const basis of bases) {
+    const result = listCandidateThreads({
+      ...input,
+      projectPath: undefined,
+      cwd: basis.cwd,
+      timeWindow: input.timeWindow,
+    });
+    evidence_refs.push(...result.evidence_refs);
+    diagnostics.push(...result.diagnostics);
+    if (result.status === 'metadata_unreadable' || result.status === 'codex_home_not_found') {
+      status = result.status;
+      continue;
+    }
+    if (result.status === 'partial_index' && status === 'ok') status = 'partial_index';
+    const threads = basis.match === 'exact'
+      ? result.threads.filter((thread) => thread.normalized_cwd === basis.cwd)
+      : result.threads;
+    for (const thread of threads) {
+      if (!byId.has(thread.thread_id)) {
+        byId.set(thread.thread_id, thread);
+        basisByThreadId.set(thread.thread_id, basis.basis);
+      }
+    }
+  }
+
+  return {
+    status,
+    threads: [...byId.values()].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp) || a.thread_id.localeCompare(b.thread_id)),
+    evidence_refs: dedupeEvidence(evidence_refs),
+    diagnostics,
+    basisByThreadId,
   };
 }
 

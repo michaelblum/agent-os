@@ -138,6 +138,40 @@ describe('Codex thread adapter', () => {
     assert.equal(result.mismatches[0].observed, otherCwd);
   });
 
+  it('matches an observed provider session id when Codex reports the explicit workspace root', () => {
+    const dockCwd = path.join(repoCwd, '.docks', 'gdi');
+    writeCodexSession(codexHome, SESSION_ID, repoCwd, '2026-05-22T14:00:00.000Z');
+
+    const result = correlateLaunch({
+      codexHome,
+      providerSessionId: SESSION_ID,
+      intendedCwd: dockCwd,
+      workspaceRoot: repoCwd,
+    });
+
+    assert.equal(result.status, 'matched_by_provider_session_id');
+    assert.equal(result.cwd_match_basis, 'workspace_root');
+    assert.equal(result.thread?.thread_id, SESSION_ID);
+    assert.deepEqual(result.mismatches, []);
+  });
+
+  it('keeps wrong_cwd protection when a thread is outside intended cwd and workspace root', () => {
+    const dockCwd = path.join(repoCwd, '.docks', 'gdi');
+    writeCodexSession(codexHome, SESSION_ID, otherCwd, '2026-05-22T14:00:00.000Z');
+
+    const result = correlateLaunch({
+      codexHome,
+      providerSessionId: SESSION_ID,
+      intendedCwd: dockCwd,
+      workspaceRoot: repoCwd,
+    });
+
+    assert.equal(result.status, 'wrong_cwd');
+    assert.equal(result.cwd_match_basis, 'not_observed');
+    assert.match(result.mismatches[0].expected ?? '', /intended_launch_cwd:/);
+    assert.match(result.mismatches[0].expected ?? '', /workspace_root:/);
+  });
+
   it('preserves provider_session_id_not_observed when terminal substrate exists without a provider id', () => {
     const result = correlateLaunch({
       codexHome,
@@ -186,6 +220,34 @@ describe('Codex thread adapter', () => {
     assert.equal(one.thread?.thread_id, SESSION_ID);
     assert.equal(multiple.status, 'multiple_candidates');
     assert.deepEqual(multiple.candidate_threads.map((thread) => thread.thread_id), [PREFIX_MATCH_ID, SESSION_ID]);
+  });
+
+  it('uses explicit workspace root for cwd/time fallback without binding cwd alone', () => {
+    const dockCwd = path.join(repoCwd, '.docks', 'gdi');
+    writeCodexSession(codexHome, SESSION_ID, repoCwd, '2026-05-22T14:01:00.000Z');
+
+    const matched = correlateLaunch({
+      codexHome,
+      providerSessionId: 'not_observed',
+      intendedCwd: dockCwd,
+      workspaceRoot: repoCwd,
+      timeWindow: {
+        after: '2026-05-22T14:00:00.000Z',
+        before: '2026-05-22T14:02:00.000Z',
+      },
+    });
+    const noWindow = correlateLaunch({
+      codexHome,
+      providerSessionId: 'not_observed',
+      intendedCwd: dockCwd,
+      workspaceRoot: repoCwd,
+    });
+
+    assert.equal(matched.status, 'matched_by_cwd_time_window');
+    assert.equal(matched.cwd_match_basis, 'workspace_root');
+    assert.equal(matched.thread?.thread_id, SESSION_ID);
+    assert.equal(noWindow.status, 'not_observed');
+    assert.equal(noWindow.thread, undefined);
   });
 
   it('does not bind a single same-cwd thread when provider id is not observed and no time window exists', () => {
