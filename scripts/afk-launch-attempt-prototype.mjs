@@ -6,6 +6,7 @@ import { existsSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
@@ -20,7 +21,7 @@ function usage() {
   return `Experimental AFK launch-attempt prototype.
 
 Usage:
-  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--catalog-fixture <path>] [--bridge-visibility-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>]
+  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--catalog-fixture <path>] [--bridge-visibility-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
 This local prototype creates an aos.afk_launch_attempt record, observes terminal substrate through the Sigil codex-terminal bridge, and launches no provider.`;
 }
@@ -171,6 +172,11 @@ function normalizeAllCwdCatalogFixture(value) {
   if (Array.isArray(value.allCwdSessions)) return value.allCwdSessions;
   if (Array.isArray(value.all_cwd_catalog_sessions)) return value.all_cwd_catalog_sessions;
   return [];
+}
+
+function normalizeCodexHomeOption(repoRoot, options) {
+  const codexHome = options.codexHomeFixture ?? options.codexHome;
+  return codexHome ? repoPath(repoRoot, codexHome) : null;
 }
 
 function bridgeFixtureCatalogInput(value) {
@@ -330,6 +336,113 @@ function timestampMs(value) {
   if (!value || value === NOT_OBSERVED) return null;
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? null : ms;
+}
+
+function deriveAdapterTimeWindow(context) {
+  const after = context.launchObservedAtForCorrelation;
+  const afterMs = timestampMs(after);
+  if (afterMs == null) return undefined;
+  const beforeMs = timestampMs(context.timestamp);
+  return {
+    after,
+    ...(beforeMs != null && beforeMs >= afterMs ? { before: context.timestamp } : {}),
+  };
+}
+
+function bridgeVisibilityForAdapter(context) {
+  const commandArgv = context.terminal_substrate?.command
+    ? String(context.terminal_substrate.command).split(/\s+/).filter(Boolean)
+    : context.launch_intent?.command_argv;
+  return {
+    selected_provider: context.selection.selected_provider,
+    command_argv: commandArgv,
+    terminal_substrate: {
+      driver: context.terminal_substrate.driver,
+      session_handle: context.terminal_substrate.session_handle,
+    },
+    provider_acceptance: {
+      provider_session_id: context.provider_acceptance.provider_session_id === NOT_APPLICABLE_NO_PROVIDER
+        ? NOT_OBSERVED
+        : context.provider_acceptance.provider_session_id,
+      provider_reported_cwd: context.provider_acceptance.provider_reported_cwd,
+      provider_reported_branch: context.provider_acceptance.provider_reported_branch,
+      provider_reported_head: context.provider_acceptance.provider_reported_head,
+      provider_version: context.provider_acceptance.provider_version,
+      model: context.provider_acceptance.model,
+    },
+  };
+}
+
+function runCodexAdapterCommand(repoRoot, payload) {
+  const adapterUrl = pathToFileURL(join(repoRoot, 'packages/host/src/codex-thread-adapter.ts')).href;
+  const runner = `
+const payload = JSON.parse(await new Promise((resolve) => {
+  let data = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk) => { data += chunk; });
+  process.stdin.on('end', () => resolve(data));
+}));
+const adapter = await import(${JSON.stringify(adapterUrl)});
+let result;
+if (payload.command === 'correlateLaunch') {
+  result = adapter.correlateLaunch(payload.input);
+} else if (payload.command === 'emitThreadReference') {
+  result = adapter.emitThreadReference(payload.input);
+} else {
+  throw new Error('Unsupported Codex adapter command: ' + payload.command);
+}
+process.stdout.write(JSON.stringify(result));
+`;
+  const result = spawnSync(process.execPath, ['--experimental-strip-types', '--input-type=module', '-e', runner], {
+    cwd: repoRoot,
+    input: JSON.stringify(payload),
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  if (result.status !== 0) {
+    throw new Error(`Codex adapter bridge failed: ${String(result.stderr || result.stdout || result.error?.message || '').trim()}`);
+  }
+  return JSON.parse(result.stdout);
+}
+
+function adapterEvidenceRefStrings(correlation, reference) {
+  const refs = [];
+  if (reference?.status === 'ok') {
+    refs.push(reference.deeplink, reference.local_ref);
+  }
+  return refs.filter(Boolean);
+}
+
+function adapterMismatchObjects(correlation, timestamp) {
+  return correlation.mismatches.map((mismatch) => ({
+    observed_at: timestamp,
+    code: mismatch.code,
+    severity: mismatch.code === 'wrong_cwd' ? 'error' : 'info',
+    source: 'codex_adapter',
+    expected: mismatch.expected ? { value: mismatch.expected } : {},
+    observed: mismatch.observed ? { value: mismatch.observed } : {},
+    effect: correlation.status === 'wrong_cwd' ? 'failed' : 'not_observed',
+    evidence_ref: mismatch.evidence_refs?.[0]?.ref ?? 'inline:codex_adapter.evidence_refs',
+  }));
+}
+
+function buildCodexAdapterRecord({ status, correlation = null, reference = null, codexHome = null, timeWindow = null }) {
+  const matched = correlation?.status === 'matched_by_provider_session_id'
+    || correlation?.status === 'matched_by_cwd_time_window';
+  return {
+    status,
+    codex_home_ref: codexHome ? `fixture:${codexHome}` : NOT_OBSERVED,
+    correlation_status: correlation?.status ?? NOT_OBSERVED,
+    confidence: correlation?.confidence ?? 'none',
+    matched_thread_id: matched ? correlation.thread.thread_id : NOT_OBSERVED,
+    matched_thread_ref: matched ? (reference?.local_ref ?? NOT_OBSERVED) : NOT_OBSERVED,
+    matched_deeplink: matched ? (reference?.deeplink ?? NOT_OBSERVED) : NOT_OBSERVED,
+    candidate_thread_ids: correlation?.candidate_threads?.map((thread) => thread.thread_id) ?? [],
+    time_window: timeWindow ?? NOT_OBSERVED,
+    evidence_refs: correlation?.evidence_refs ?? [],
+    diagnostics: correlation?.diagnostics ?? [],
+    mismatches: correlation?.mismatches ?? [],
+  };
 }
 
 function sessionRef(session) {
@@ -812,6 +925,7 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
 async function buildAttemptContext(options) {
   if (!options.packet) throw new Error('Missing required --packet');
   const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
+  const codexHome = normalizeCodexHomeOption(repoRoot, options);
   const packetPath = repoPath(repoRoot, options.packet);
   const packet = await readJsonFile(packetPath, 'packet');
   const rawCatalogFixture = options.catalogFixture
@@ -904,6 +1018,7 @@ async function buildAttemptContext(options) {
 
   return {
     repoRoot,
+    codexHome,
     packetPath,
     packet,
     packetId,
@@ -930,6 +1045,7 @@ async function buildAttemptContext(options) {
     allCwdCatalogFixture,
     providerSessionId: options.providerSessionId ?? bridgeVisibility?.providerSessionId ?? NOT_OBSERVED,
     launchObservedAt: options.launchObservedAt ?? catalogInput?.launch_observed_at ?? catalogInput?.launchObservedAt ?? options.timestamp ?? NOT_OBSERVED,
+    launchObservedAtForCorrelation: options.launchObservedAt ?? catalogInput?.launch_observed_at ?? catalogInput?.launchObservedAt ?? NOT_OBSERVED,
     validations,
   };
 }
@@ -1011,6 +1127,20 @@ function initialRecord(context, timestamp) {
       matched_session_id: NOT_OBSERVED,
       source_file: NOT_OBSERVED,
       resume_command: NOT_OBSERVED,
+    },
+    codex_adapter: {
+      status: NOT_ATTEMPTED,
+      codex_home_ref: NOT_OBSERVED,
+      correlation_status: NOT_OBSERVED,
+      confidence: 'none',
+      matched_thread_id: NOT_OBSERVED,
+      matched_thread_ref: NOT_OBSERVED,
+      matched_deeplink: NOT_OBSERVED,
+      candidate_thread_ids: [],
+      time_window: NOT_OBSERVED,
+      evidence_refs: [],
+      diagnostics: [],
+      mismatches: [],
     },
     telemetry: {
       status: NOT_OBSERVED,
@@ -1110,10 +1240,54 @@ async function createLaunchAttempt(options) {
       ...observed.mismatch,
     });
   }
+  if (context.provider.selected_provider === 'codex' && context.codexHome) {
+    const timeWindow = deriveAdapterTimeWindow({ ...context, timestamp });
+    const correlation = runCodexAdapterCommand(context.repoRoot, {
+      command: 'correlateLaunch',
+      input: {
+        codexHome: context.codexHome,
+        providerSessionId: record.provider_acceptance.provider_session_id === NOT_APPLICABLE_NO_PROVIDER
+          ? context.providerSessionId
+          : record.provider_acceptance.provider_session_id,
+        intendedCwd: context.intendedLaunchCwd,
+        timeWindow,
+        bridgeVisibility: bridgeVisibilityForAdapter(record),
+      },
+    });
+    const reference = (
+      correlation.status === 'matched_by_provider_session_id'
+      || correlation.status === 'matched_by_cwd_time_window'
+    )
+      ? runCodexAdapterCommand(context.repoRoot, {
+          command: 'emitThreadReference',
+          input: {
+            codexHome: context.codexHome,
+            threadIdOrPrefix: correlation.thread.thread_id,
+            format: 'json',
+          },
+        })
+      : null;
+    record.codex_adapter = buildCodexAdapterRecord({
+      status: 'observed',
+      correlation,
+      reference,
+      codexHome: context.codexHome,
+      timeWindow,
+    });
+    record.evidence.observed_refs.push(...adapterEvidenceRefStrings(correlation, reference));
+    record.mismatches.push(...adapterMismatchObjects(correlation, timestamp));
+  } else {
+    record.codex_adapter = buildCodexAdapterRecord({
+      status: context.provider.selected_provider === 'codex' ? 'not_attempted_no_codex_home_fixture' : 'not_applicable_non_codex_provider',
+    });
+  }
   record.lifecycle_state = 'provider_acceptance_unobserved';
   record.launch_intent.launch_performed = true;
   record.duplicate_handling.bridge_session_started = observed.bridge_session_started;
-  record.evidence.observed_refs = ['inline:terminal_substrate.snapshot_summary'];
+  record.evidence.observed_refs = [...new Set([
+    'inline:terminal_substrate.snapshot_summary',
+    ...record.evidence.observed_refs,
+  ])];
   record.updated_at = timestamp;
   attemptRegistry.set(context.idempotenceKey, structuredClone(record));
   return record;
