@@ -163,6 +163,14 @@ function normalizeCatalogFixture(value) {
   throw new Error('Catalog fixture must be an array or object with sessions');
 }
 
+function normalizeAllCwdCatalogFixture(value) {
+  if (!value || Array.isArray(value)) return [];
+  if (Array.isArray(value.all_cwd_sessions)) return value.all_cwd_sessions;
+  if (Array.isArray(value.allCwdSessions)) return value.allCwdSessions;
+  if (Array.isArray(value.all_cwd_catalog_sessions)) return value.all_cwd_catalog_sessions;
+  return [];
+}
+
 function timestampMs(value) {
   if (!value || value === NOT_OBSERVED) return null;
   const ms = Date.parse(value);
@@ -186,6 +194,7 @@ function sessionTelemetryObserved(session) {
 
 function classifyCatalogAndTelemetry({
   sessions,
+  allCwdSessions = [],
   provider,
   cwd,
   launchObservedAt,
@@ -244,6 +253,23 @@ function classifyCatalogAndTelemetry({
       && resolveObservedSessionCwd(session) === cwd
   ));
   const currentThreshold = timestampMs(launchObservedAt);
+  const allCwdCurrentCandidates = currentThreshold == null
+    ? []
+    : allCwdSessions.filter((session) => {
+      const updatedAt = timestampMs(normalizeSessionUpdatedAt(session));
+      return normalizeSessionProvider(session) === normalizedProvider
+        && updatedAt != null
+        && updatedAt >= currentThreshold;
+    });
+  const unrelatedCurrentSessions = allCwdCurrentCandidates.filter((session) => (
+    resolveObservedSessionCwd(session) !== cwd
+  ));
+  const unrelatedCurrentSessionEvidence = unrelatedCurrentSessions.map((session) => ({
+    provider_session_id: normalizeSessionId(session) ?? NOT_OBSERVED,
+    catalog_record_ref: sessionRef(session),
+    cwd: resolveObservedSessionCwd(session),
+    updated_at: normalizeSessionUpdatedAt(session) ?? NOT_OBSERVED,
+  }));
   const currentCandidates = currentThreshold == null
     ? matchingProviderCwd
     : matchingProviderCwd.filter((session) => {
@@ -276,6 +302,17 @@ function classifyCatalogAndTelemetry({
       },
       effect: 'failed',
       evidence_ref: 'inline:catalog.provider_session_mismatch',
+    };
+  } else if (matchingProviderCwd.length === 0 && unrelatedCurrentSessionEvidence.length > 0) {
+    status = 'catalog_current_launch_not_observed';
+    mismatch = {
+      code: 'catalog_current_launch_not_observed',
+      severity: 'info',
+      source: 'catalog',
+      expected: { cwd, updated_at_or_after: launchObservedAt },
+      observed: { unrelated_current_session_refs: unrelatedCurrentSessionEvidence },
+      effect: 'not_observed',
+      evidence_ref: 'inline:catalog.unrelated_current_session_refs',
     };
   } else if (matchingProviderCwd.length === 0) {
     status = 'catalog_not_observed';
@@ -355,6 +392,9 @@ function classifyCatalogAndTelemetry({
       source_file: matched?.source_file ?? matched?.sourceFile ?? NOT_OBSERVED,
       resume_command: matched?.resume_command ?? matched?.resumeCommand ?? NOT_OBSERVED,
       launch_observed_at: launchObservedAt ?? NOT_OBSERVED,
+      unrelated_current_session_refs: unrelatedCurrentSessionEvidence.length > 0
+        ? unrelatedCurrentSessionEvidence
+        : NOT_OBSERVED,
       provider_session_mismatch: observedProviderSessionWrongCwd
         ? {
           code: 'provider_session_wrong_cwd',
@@ -617,9 +657,11 @@ async function buildAttemptContext(options) {
   const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
   const packetPath = repoPath(repoRoot, options.packet);
   const packet = await readJsonFile(packetPath, 'packet');
-  const catalogFixture = options.catalogFixture
-    ? normalizeCatalogFixture(await readJsonFile(repoPath(repoRoot, options.catalogFixture), 'catalog fixture'))
+  const rawCatalogFixture = options.catalogFixture
+    ? await readJsonFile(repoPath(repoRoot, options.catalogFixture), 'catalog fixture')
     : null;
+  const catalogFixture = rawCatalogFixture ? normalizeCatalogFixture(rawCatalogFixture) : null;
+  const allCwdCatalogFixture = rawCatalogFixture ? normalizeAllCwdCatalogFixture(rawCatalogFixture) : [];
   const packetId = normalizePacketId(packet);
   const sourceArtifact = normalizeSourceArtifact(packet);
   const requiredStartRef = normalizeRef(packet);
@@ -713,6 +755,7 @@ async function buildAttemptContext(options) {
     idempotenceKey,
     command,
     catalogFixture,
+    allCwdCatalogFixture,
     providerSessionId: options.providerSessionId ?? NOT_OBSERVED,
     launchObservedAt: options.launchObservedAt ?? options.timestamp ?? NOT_OBSERVED,
     validations,
@@ -861,6 +904,7 @@ async function createLaunchAttempt(options) {
   });
   const catalogTelemetry = classifyCatalogAndTelemetry({
     sessions: context.catalogFixture,
+    allCwdSessions: context.allCwdCatalogFixture,
     provider: context.provider.selected_provider,
     cwd: context.intendedLaunchCwd,
     launchObservedAt: context.launchObservedAt,

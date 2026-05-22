@@ -189,10 +189,13 @@ built from the all-cwd payload. Use a temp packet with:
 }
 ```
 
-Pass `--provider-session-id <selected-id>` only when exactly one current
-all-cwd candidate is selected, plus `--launch-observed-at <timestamp>`. Report
-`provider_acceptance.status`, `catalog.status`, `telemetry.status`, and
-mismatch codes.
+Pass `--provider-session-id <selected-id>` only when that id was independently
+observed from the bridge-launched provider session, plus
+`--launch-observed-at <timestamp>`. Do not pass an all-cwd current candidate id
+merely because it is the only current all-cwd record; preserve that candidate as
+unrelated all-cwd context instead. Report `provider_acceptance.status`,
+`catalog.status`, `catalog.unrelated_current_session_refs`, `telemetry.status`,
+and mismatch codes.
 
 ## Stop Conditions
 
