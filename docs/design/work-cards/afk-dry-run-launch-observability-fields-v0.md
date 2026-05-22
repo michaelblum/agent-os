@@ -1,6 +1,32 @@
 # Work Card: AFK Dry-Run Launch Observability Fields V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `1175eef40c3f7ffbe6ac6e3670c79a05862ba770`
+- Changed files:
+  - `scripts/afk-dry-run-prototype.mjs`
+  - `tests/afk-dry-run-prototype.test.mjs`
+- Foreman review: accepted. The receipt now exposes explicit
+  `dispatch.launch_observability` facts for selected provider, selected dock,
+  dock launch root, intended cwd/worktree, dry-run command, launch state,
+  terminal substrate, provider session id, catalog, telemetry, mismatch facts,
+  and missing-evidence explanation without implying provider launch.
+- Foreman verification:
+  - `node --test tests/afk-dry-run-prototype.test.mjs`
+  - `git diff --check 412ad0840fb5d04aec4cbb9c34649df212f46399..1175eef40c3f7ffbe6ac6e3670c79a05862ba770`
+  - `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`
+  - `./aos dev recommend --json`
+  - manual `./aos dev afk-dry-run --packet <temp-packet.json> --provider codex --dock gdi --json --timestamp 2026-05-22T01:30:00.000Z`
+- Manual smoke result: `final_status=completed`, selected provider `codex`,
+  selected dock `gdi`, launch root `.docks/gdi`, intended launch cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`, `launch_performed=false`,
+  terminal substrate `not_applicable: dry-run/no-provider-launch`, catalog
+  `not_observed`, telemetry `not_observed`, seven validations passed.
+- Local-only boundary confirmed: no provider session, provider config, gateway
+  state, generated receipt artifact, GitHub state, push, or PR changed.
 
 ## Fresh Context Contract
 
