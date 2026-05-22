@@ -521,6 +521,8 @@ The next slices should stay reversible:
    it exercised the corrected wrong-cwd classifier against live catalog data and
    exposed that bridge `/sessions?provider=codex` is still cwd-scoped by
    default. The next local slice is a read-only bridge catalog-scope correction
+   via
+   `docs/design/work-cards/afk-bridge-catalog-scope-correction-v0.md`
    before another live proof.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
