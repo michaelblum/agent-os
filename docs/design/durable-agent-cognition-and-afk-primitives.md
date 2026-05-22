@@ -448,9 +448,13 @@ The next slices should stay reversible:
    `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`;
    it separates transfer, scheduler, dispatch, work, and evidence receipts,
    defines mandatory review fields, gives temporary manual storage/naming, and
-   recommends a deterministic local dry-run prototype as the next reversible
-   slice.
-7. Distill one real browser/model-control run into a work/evidence record and
+   led to an experimental no-provider dry-run prototype in
+   `scripts/afk-dry-run-prototype.mjs` with focused coverage in
+   `tests/afk-dry-run-prototype.test.mjs`.
+7. Use the dry-run prototype to decide whether the next implementation path is
+   command hardening, receipt contract correction, or a first supervised
+   provider/session launch.
+8. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
-8. Trial a Researcher-compatible role only after the session trigger and async
+9. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
