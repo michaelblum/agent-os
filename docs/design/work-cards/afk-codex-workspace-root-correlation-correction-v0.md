@@ -1,6 +1,46 @@
 # AFK Codex Workspace Root Correlation Correction V0
 
-**Status:** Needs correction 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commits:
+  - `64d52394449fb68eefd03718390b9112a029109a`
+  - `9295f48cdbc86247bc8d85e80b3c7a97fe381de4`
+- Foreman review: accepted. The adapter now accepts an explicit
+  `workspaceRoot`, correlates Codex metadata cwd against either the intended
+  launch cwd or the exact workspace root, and records `cwd_match_basis` in the
+  correlation result. The prototype passes packet worktree as `workspaceRoot`
+  and records `codex_adapter.matched_cwd_basis`.
+- Correction finding resolved: provider-session-id correlation now returns
+  `wrong_cwd` whenever any explicit cwd basis exists and the resolved Codex
+  thread matches none of them, including the `workspaceRoot`-only case.
+- Changed files:
+  - `packages/host/src/codex-thread-adapter.ts`
+  - `packages/host/test/codex-thread-adapter.test.ts`
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: 21/21
+  - `node --test --experimental-strip-types packages/host/test/codex-thread-adapter.test.ts`: 16/16
+  - `node --test --experimental-strip-types packages/host/test/session-catalog.test.ts`: 4/4
+  - `npm --prefix packages/host run check`
+  - `npm --prefix packages/host test`: 63/63
+  - `git diff --check`
+  - `./aos dev recommend --json`
+- Foreman regression repro after correction returned
+  `status=wrong_cwd`, `cwd_match_basis=not_observed`, and a `wrong_cwd`
+  mismatch for observed provider id plus `workspaceRoot` only with a resolved
+  thread outside that workspace.
+- Foreman temp-fixture smoke passed for the primary live shape: no observed
+  provider id, dock launch cwd `.docks/gdi`, workspace-root Codex metadata,
+  `codex_adapter.correlation_status=matched_by_cwd_time_window`,
+  `matched_cwd_basis=workspace_root`, and both `codex://threads/<id>` plus
+  `codex-thread:<id>` refs emitted.
+- Local-only boundary confirmed: no real Codex sessions/transcripts, provider
+  config, gateway state, dock profile, hook, GitHub state, push, or PR changed.
+- Next routed slice:
+  `docs/design/work-cards/operator-afk-codex-workspace-root-live-correlation-v0.md`.
 
 ## Foreman Review
 
