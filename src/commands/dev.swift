@@ -136,6 +136,12 @@ private struct DevAfkSessionTriggerOptions {
     var idempotenceSalt: String?
     var existingReceipt: String?
     var replacementFor: String?
+    var bridgeVisibilityFixture: String?
+    var cleanupProofFixture: String?
+    var providerSessionId: String?
+    var launchObservedAt: String?
+    var codexHomeFixture: String?
+    var codexHome: String?
 }
 
 private struct DevClassifiedFile {
@@ -476,6 +482,24 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     }
     if let replacementFor = options.replacementFor {
         scriptArgs += ["--replacement-for", replacementFor]
+    }
+    if let bridgeVisibilityFixture = options.bridgeVisibilityFixture {
+        scriptArgs += ["--bridge-visibility-fixture", bridgeVisibilityFixture]
+    }
+    if let cleanupProofFixture = options.cleanupProofFixture {
+        scriptArgs += ["--cleanup-proof-fixture", cleanupProofFixture]
+    }
+    if let providerSessionId = options.providerSessionId {
+        scriptArgs += ["--provider-session-id", providerSessionId]
+    }
+    if let launchObservedAt = options.launchObservedAt {
+        scriptArgs += ["--launch-observed-at", launchObservedAt]
+    }
+    if let codexHomeFixture = options.codexHomeFixture {
+        scriptArgs += ["--codex-home-fixture", codexHomeFixture]
+    }
+    if let codexHome = options.codexHome {
+        scriptArgs += ["--codex-home", codexHome]
     }
     if options.json {
         scriptArgs.append("--json")
@@ -1392,6 +1416,42 @@ private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSession
             }
             options.replacementFor = args[i + 1]
             i += 2
+        case "--bridge-visibility-fixture":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--bridge-visibility-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.bridgeVisibilityFixture = args[i + 1]
+            i += 2
+        case "--cleanup-proof-fixture":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--cleanup-proof-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.cleanupProofFixture = args[i + 1]
+            i += 2
+        case "--provider-session-id":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--provider-session-id requires an id", code: "MISSING_ARG")
+            }
+            options.providerSessionId = args[i + 1]
+            i += 2
+        case "--launch-observed-at":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--launch-observed-at requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.launchObservedAt = args[i + 1]
+            i += 2
+        case "--codex-home-fixture":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--codex-home-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.codexHomeFixture = args[i + 1]
+            i += 2
+        case "--codex-home":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--codex-home requires a path", code: "MISSING_ARG")
+            }
+            options.codexHome = args[i + 1]
+            i += 2
         default:
             if arg.hasPrefix("--") {
                 exitError("Unknown dev afk-session-trigger flag: \(arg)", code: "UNKNOWN_FLAG")
@@ -1954,7 +2014,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
     claims.append(auditFormFlagClaim(
         id: "dev-afk-session-trigger-help-flags",
         form: forms["dev-afk-session-trigger"],
-        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--json"],
+        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
         defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",

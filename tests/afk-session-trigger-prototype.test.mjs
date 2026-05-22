@@ -24,6 +24,81 @@ async function writePacket(packet) {
   return packetPath;
 }
 
+async function writeJsonFixture(prefix, name, value) {
+  const dir = await mkdtemp(join(tmpdir(), prefix));
+  const fixturePath = join(dir, name);
+  await writeFile(fixturePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  return fixturePath;
+}
+
+async function writeBridgeVisibilityFixture(providerSessionId = '019e5107-5456-7f22-b08b-b977df1b35f4') {
+  return writeJsonFixture('afk-session-trigger-bridge-', 'bridge.json', {
+    response_marker: 'live-codex-session-trigger-supervised-bridge-launch',
+    bridge: {
+      supervised_live: true,
+      health: {
+        ok: true,
+        defaultSession: 'afk-session-trigger-supervised-bridge-launch',
+        defaultCwd: join(repoRoot, '.docks/gdi'),
+        driver: 'process',
+        terminal: { cols: 80, rows: 24 },
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-session-trigger-supervised-bridge-launch',
+        cwd: join(repoRoot, '.docks/gdi'),
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      resize: {
+        cols: 100,
+        rows: 31,
+        resize_accepted: true,
+        terminal: { cols: 100, rows: 31 },
+      },
+      input: {
+        driver: 'process',
+        session_exists: true,
+        text_bytes: 120,
+        text_accepted: true,
+        enter_sent: true,
+        enter_bytes: 1,
+        enter_accepted: true,
+      },
+      typed_observed: true,
+      submitted_observed: true,
+      snapshot: {
+        session: 'afk-session-trigger-supervised-bridge-launch',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        terminal: { cols: 100, rows: 31 },
+        text: [
+          'Codex CLI 0.133.0',
+          `provider_session_id: ${providerSessionId}`,
+          'cwd /Users/Michael/Code/agent-os/.docks/gdi',
+          'branch gdi/afk-dev-session-trigger-supervised-bridge-launch-v0',
+          'model gpt-5.5',
+          'head a38d0da6',
+          'live-codex-session-trigger-supervised-bridge-launch',
+        ].join('\n'),
+      },
+    },
+  });
+}
+
+async function writeCleanupProofFixture(status = 'verified') {
+  return writeJsonFixture('afk-session-trigger-cleanup-', 'cleanup.json', {
+    status,
+    proof: [
+      'bridge health endpoint unreachable',
+      'no matching codex --no-alt-screen process',
+      'no matching pty-proxy.py process',
+      'no matching bridge server process',
+    ],
+  });
+}
+
 function validPacket(overrides = {}) {
   return {
     packet_id: 'manual-afk-session-trigger-test',
@@ -144,8 +219,10 @@ test('writes the same dry-run receipt to --out', async () => {
   assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), JSON.parse(result.stdout));
 });
 
-test('creates a guarded supervised-live Codex receipt without launching provider work', async () => {
+test('drives fixture-backed supervised-live Codex bridge/provider acceptance and requires cleanup before completion', async () => {
   const packetPath = await writePacket(validPacket());
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
   const result = runPrototype([
     '--packet',
     packetPath,
@@ -160,36 +237,36 @@ test('creates a guarded supervised-live Codex receipt without launching provider
     fixedTimestamp,
     '--idempotence-salt',
     'stable-live-test',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
   ]);
 
   assert.equal(result.status, 0, result.stderr);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.record_type, 'aos.afk_session_trigger_supervised_live');
   assert.equal(receipt.schema_status, 'not_a_schema');
-  assert.equal(receipt.status, 'supervised_live_launch_ready');
+  assert.equal(receipt.status, 'completed');
   assert.equal(receipt.packet.validation_status, 'valid');
   assert.equal(receipt.scheduler.selected_action, 'supervised-live-launch');
-  assert.equal(receipt.scheduler.lifecycle_state, 'accepted_pre_launch');
+  assert.equal(receipt.scheduler.lifecycle_state, 'completed');
   assert.match(receipt.scheduler.idempotence_key, /^[a-f0-9]{32}$/);
   assert.equal(receipt.dispatch.selected_provider, 'codex');
   assert.equal(receipt.dispatch.selected_dock, 'gdi');
   assert.equal(receipt.dispatch.launch_root, '.docks/gdi');
   assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.match(receipt.dispatch.launch_attempt_id, /^launch-attempt-[a-f0-9]{16}$/);
   assert.deepEqual(receipt.dispatch.human_supervision, { required: true, i_am_present: true });
-  assert.deepEqual(receipt.terminal_substrate, {
-    status: 'not_attempted',
-    reason: 'guarded-source-slice-no-live-provider',
-  });
-  assert.equal(receipt.provider_acceptance.status, 'not_attempted');
-  assert.deepEqual(receipt.cleanup, {
-    owner: 'afk-session-trigger-prototype',
-    status: 'not_attempted',
-    proof: 'not_attempted',
-    reason: 'guarded-source-slice-no-live-provider',
-  });
-  assert.equal(receipt.codex_adapter.status, 'not_attempted');
-  assert.equal(receipt.catalog.status, 'not_attempted');
-  assert.equal(receipt.telemetry.status, 'not_attempted');
+  assert.equal(receipt.terminal_substrate.status, 'observed');
+  assert.equal(receipt.terminal_substrate.driver, 'process');
+  assert.equal(receipt.terminal_substrate.geometry.cols, 100);
+  assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.provider_acceptance.provider_reported_cwd, '/Users/Michael/Code/agent-os/.docks/gdi');
+  assert.equal(receipt.cleanup.status, 'verified');
+  assert.equal(receipt.codex_adapter.status, 'not_attempted_no_codex_home_fixture');
+  assert.equal(receipt.catalog.status, 'not_observed');
+  assert.equal(receipt.telemetry.status, 'not_observed');
   assert.equal(receipt.result_route.status, 'not_attempted');
   assert.equal(receipt.work_receipt.status, 'not_attempted');
   assert.equal(receipt.evidence.transcript_body_copied, false);
@@ -259,6 +336,8 @@ test('rejects ambiguous or conflicting live launch flags', async () => {
 
 test('returns duplicate state from a receipt-backed supervised-live attempt', async () => {
   const packetPath = await writePacket(validPacket());
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
   const baseArgs = [
     '--packet',
     packetPath,
@@ -273,6 +352,10 @@ test('returns duplicate state from a receipt-backed supervised-live attempt', as
     fixedTimestamp,
     '--idempotence-salt',
     'duplicate-live-test',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
   ];
   const first = runPrototype(baseArgs);
   assert.equal(first.status, 0, first.stderr);
@@ -299,6 +382,8 @@ test('returns duplicate state from a receipt-backed supervised-live attempt', as
 
 test('treats accepted live receipt states as non-launching duplicates', async () => {
   const packetPath = await writePacket(validPacket());
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
   const baseArgs = [
     '--packet',
     packetPath,
@@ -313,6 +398,10 @@ test('treats accepted live receipt states as non-launching duplicates', async ()
     fixedTimestamp,
     '--idempotence-salt',
     'accepted-live-duplicate-test',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
   ];
   const first = runPrototype(baseArgs);
   assert.equal(first.status, 0, first.stderr);
@@ -342,6 +431,8 @@ test('treats accepted live receipt states as non-launching duplicates', async ()
 
 test('blocks relaunch after rejected or failed receipt unless replacement is explicit', async () => {
   const packetPath = await writePacket(validPacket());
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
   const baseArgs = [
     '--packet',
     packetPath,
@@ -356,6 +447,10 @@ test('blocks relaunch after rejected or failed receipt unless replacement is exp
     fixedTimestamp,
     '--idempotence-salt',
     'blocked-live-test',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
   ];
   const first = runPrototype(baseArgs);
   assert.equal(first.status, 0, first.stderr);
@@ -380,15 +475,14 @@ test('blocks relaunch after rejected or failed receipt unless replacement is exp
   }
 });
 
-test('classifies deterministic cleanup proof failure as cleanup_unverified without launch mutation', async () => {
+test('classifies deterministic cleanup proof failure as cleanup_unverified after bridge/provider evidence', async () => {
   const packetPath = await writePacket(validPacket());
-  const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-cleanup-'));
-  const cleanupFixture = join(dir, 'cleanup.json');
-  await writeFile(cleanupFixture, `${JSON.stringify({
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeJsonFixture('afk-session-trigger-cleanup-', 'cleanup.json', {
     status: 'missing',
     proof: [],
     reason: 'test fixture intentionally omits cleanup proof',
-  }, null, 2)}\n`, 'utf8');
+  });
 
   const result = runPrototype([
     '--packet',
@@ -402,6 +496,8 @@ test('classifies deterministic cleanup proof failure as cleanup_unverified witho
     '--json',
     '--timestamp',
     fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgeFixture,
     '--cleanup-proof-fixture',
     cleanupFixture,
   ]);
@@ -410,13 +506,43 @@ test('classifies deterministic cleanup proof failure as cleanup_unverified witho
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.status, 'cleanup_unverified');
   assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
-  assert.equal(receipt.dispatch.provider_launch_allowed, false);
-  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
-  assert.equal(receipt.provider_acceptance.status, 'not_attempted');
-  assert.equal(receipt.catalog.status, 'not_attempted');
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.equal(receipt.terminal_substrate.status, 'observed');
+  assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.catalog.status, 'not_observed');
   assert.equal(receipt.evidence.transcript_body_copied, false);
   assert.equal(receipt.cleanup.owner, 'afk-session-trigger-prototype');
   assert.equal(receipt.cleanup.status, 'cleanup_unverified');
   assert.deepEqual(receipt.cleanup.proof, []);
   assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'));
+});
+
+test('provider acceptance timeout returns non-completed state even with cleanup proof', async () => {
+  const packetPath = await writePacket(validPacket());
+  const cleanupFixture = await writeCleanupProofFixture();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'provider-timeout-test',
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'provider_acceptance_unobserved');
+  assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
+  assert.equal(receipt.terminal_substrate.status, 'observed');
+  assert.notEqual(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'provider_acceptance_unobserved'));
 });
