@@ -107,7 +107,7 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"} <= set(forms), forms
+assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"} <= set(forms), forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
 recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
@@ -120,6 +120,12 @@ launch_tokens = {arg.get("token") for arg in forms["dev-afk-launch-attempt"]["ar
 assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json", "--duplicate-in-process", "--catalog-fixture", "--bridge-visibility-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home"} <= launch_tokens, launch_tokens
 assert "--allow-provider-launch" not in launch_tokens, launch_tokens
 assert "experimental" in forms["dev-afk-launch-attempt"]["args"][0]["summary"].lower(), forms["dev-afk-launch-attempt"]
+trigger_tokens = {arg.get("token") for arg in forms["dev-afk-session-trigger"]["args"]}
+assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--dry-run", "--json"} <= trigger_tokens, trigger_tokens
+assert "--live" not in trigger_tokens, trigger_tokens
+assert "--launch-provider" not in trigger_tokens, trigger_tokens
+assert "--start" not in trigger_tokens, trigger_tokens
+assert "experimental" in forms["dev-afk-session-trigger"]["args"][0]["summary"].lower(), forms["dev-afk-session-trigger"]
 audit_tokens = {arg.get("token") for arg in forms["dev-audit"]["args"]}
 assert {"--manifest", "--repo", "--json"} <= audit_tokens, audit_tokens
 capability_tokens = {arg.get("token") for arg in forms["dev-capabilities"]["args"]}
@@ -171,6 +177,27 @@ then
     pass "dev afk-launch-attempt help stays experimental and hides provider launch"
 else
     fail "dev afk-launch-attempt help drifted"
+fi
+
+if OUT="$(./aos help dev afk-session-trigger --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+forms = {form["id"]: form for form in data["forms"]}
+form = forms["dev-afk-session-trigger"]
+tokens = {arg.get("token") for arg in form["args"]}
+assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--dry-run", "--json"} <= tokens, tokens
+assert "--live" not in tokens, tokens
+assert "--launch-provider" not in tokens, tokens
+assert "--start" not in tokens, tokens
+assert "session" not in form["usage"].lower().replace("afk-session-trigger", ""), form
+assert "experimental" in json.dumps(form).lower(), form
+PY
+then
+    pass "dev afk-session-trigger help stays experimental and dry-run-only"
+else
+    fail "dev afk-session-trigger help drifted"
 fi
 
 if OUT="$(./aos dev capabilities list --role foreman --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'

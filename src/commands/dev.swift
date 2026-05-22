@@ -121,6 +121,19 @@ private struct DevAfkLaunchAttemptOptions {
     var codexHome: String?
 }
 
+private struct DevAfkSessionTriggerOptions {
+    var json = false
+    var dryRun = false
+    var packet: String?
+    var provider: String?
+    var dock: String?
+    var repo: String?
+    var timestamp: String?
+    var out: String?
+    var resultRoute: String?
+    var idempotenceSalt: String?
+}
+
 private struct DevClassifiedFile {
     let path: String
     let rules: [DevWorkflowRule]
@@ -203,6 +216,8 @@ func devCommand(args: [String]) {
         devAfkDryRunCommand(args: subArgs)
     case "afk-launch-attempt":
         devAfkLaunchAttemptCommand(args: subArgs)
+    case "afk-session-trigger":
+        devAfkSessionTriggerCommand(args: subArgs)
     case "audit":
         devAuditCommand(args: subArgs)
     case "capabilities":
@@ -391,6 +406,57 @@ private func devAfkLaunchAttemptCommand(args: [String]) {
     }
     if let codexHome = options.codexHome {
         scriptArgs += ["--codex-home", codexHome]
+    }
+    if options.json {
+        scriptArgs.append("--json")
+    }
+
+    let result = runProcessCapturingOutput("/usr/bin/env", arguments: ["node"] + scriptArgs, cwd: repoRoot)
+    if !result.stdout.isEmpty {
+        print(result.stdout, terminator: result.stdout.hasSuffix("\n") ? "" : "\n")
+    }
+    if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+    exit(result.exitCode)
+}
+
+private func devAfkSessionTriggerCommand(args: [String]) {
+    let options = parseDevAfkSessionTriggerOptions(args)
+    guard let packet = options.packet else {
+        exitError("dev afk-session-trigger requires --packet <path>", code: "MISSING_ARG")
+    }
+    guard options.dryRun else {
+        exitError("dev afk-session-trigger requires --dry-run", code: "MISSING_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.repo)
+    let script = (repoRoot as NSString).appendingPathComponent("scripts/afk-session-trigger-prototype.mjs")
+    guard FileManager.default.fileExists(atPath: script) else {
+        exitError("Missing AFK session-trigger prototype script: \(script)", code: "MISSING_SCRIPT")
+    }
+
+    var scriptArgs = [script, "--packet", packet, "--dry-run"]
+    if let provider = options.provider {
+        scriptArgs += ["--provider", provider]
+    }
+    if let dock = options.dock {
+        scriptArgs += ["--dock", dock]
+    }
+    if let repo = options.repo {
+        scriptArgs += ["--repo", repo]
+    }
+    if let timestamp = options.timestamp {
+        scriptArgs += ["--timestamp", timestamp]
+    }
+    if let out = options.out {
+        scriptArgs += ["--out", out]
+    }
+    if let resultRoute = options.resultRoute {
+        scriptArgs += ["--result-route", resultRoute]
+    }
+    if let idempotenceSalt = options.idempotenceSalt {
+        scriptArgs += ["--idempotence-salt", idempotenceSalt]
     }
     if options.json {
         scriptArgs.append("--json")
@@ -1229,6 +1295,76 @@ private func parseDevAfkLaunchAttemptOptions(_ args: [String]) -> DevAfkLaunchAt
     return options
 }
 
+private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSessionTriggerOptions {
+    var options = DevAfkSessionTriggerOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--dry-run":
+            options.dryRun = true
+            i += 1
+        case "--packet":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--packet requires a path", code: "MISSING_ARG")
+            }
+            options.packet = args[i + 1]
+            i += 2
+        case "--provider":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--provider requires a provider name", code: "MISSING_ARG")
+            }
+            options.provider = args[i + 1]
+            i += 2
+        case "--dock":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--dock requires a dock name", code: "MISSING_ARG")
+            }
+            options.dock = args[i + 1]
+            i += 2
+        case "--repo":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--timestamp":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--timestamp requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.timestamp = args[i + 1]
+            i += 2
+        case "--out":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--out requires a path", code: "MISSING_ARG")
+            }
+            options.out = args[i + 1]
+            i += 2
+        case "--result-route":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--result-route requires a ref", code: "MISSING_ARG")
+            }
+            options.resultRoute = args[i + 1]
+            i += 2
+        case "--idempotence-salt":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--idempotence-salt requires a value", code: "MISSING_ARG")
+            }
+            options.idempotenceSalt = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev afk-session-trigger flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            exitError("dev afk-session-trigger does not accept positional arguments: \(arg)", code: "UNKNOWN_ARG")
+        }
+    }
+    return options
+}
+
 private func parseDevGhOptions(_ args: [String]) -> DevGhOptions {
     var options = DevGhOptions()
     var i = 0
@@ -1746,7 +1882,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
 
     var claims: [DevAuditClaim] = []
     let forms = Dictionary(uniqueKeysWithValues: dev.forms.map { ($0.id, $0) })
-    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"]
+    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"]
     let observedForms = dev.forms.map { $0.id }.sorted()
     claims.append(auditClaim(
         id: "dev-help-forms",
@@ -1777,6 +1913,11 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
         id: "dev-afk-launch-attempt-help-flags",
         form: forms["dev-afk-launch-attempt"],
         expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json", "--duplicate-in-process", "--catalog-fixture", "--bridge-visibility-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home"],
+        defaultManifestRequired: false))
+    claims.append(auditFormFlagClaim(
+        id: "dev-afk-session-trigger-help-flags",
+        form: forms["dev-afk-session-trigger"],
+        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--dry-run", "--json"],
         defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",
