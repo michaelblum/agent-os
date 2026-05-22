@@ -6,6 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { createLaunchAttempt } from './afk-launch-attempt-prototype.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
@@ -29,9 +30,9 @@ function usage() {
   return `Experimental AFK session-trigger dry-run prototype.
 
 Usage:
-  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>]
+  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
-This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The guarded supervised-live source path is deterministic and does not launch providers, terminals, gateways, or result routes.`;
+This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
 
 function parseArgs(argv) {
@@ -364,15 +365,34 @@ async function buildReceipt(options) {
   const schedulerRunId = `scheduler-${stableHash({ idempotenceKey, kind: 'scheduler' })}`;
   const dispatchAttemptId = `dispatch-${stableHash({ schedulerRunId, idempotenceKey, kind: 'dispatch' })}`;
   const duplicate = options.existingReceipt ? await classifyExistingReceipt(repoRoot, options.existingReceipt, idempotenceKey, options) : null;
-  const cleanup = await classifyCleanup(repoRoot, options, actionSelection.action);
+  const preLaunchMismatchCount = mismatches.length;
+  const preLaunchAllowed = actionSelection.action === 'supervised-live-launch'
+    && preLaunchMismatchCount === 0
+    && !(duplicate?.duplicate && (duplicate.reused_state || duplicate.relaunch_requires_replacement));
+  const launchAttempt = preLaunchAllowed ? await createLaunchAttempt({
+    packet: packetPath,
+    provider: provider.selected_provider,
+    dock: selectedDock,
+    repo: repoRoot,
+    timestamp: createdAt,
+    bridgeVisibilityFixture: options.bridgeVisibilityFixture,
+    providerSessionId: options.providerSessionId,
+    launchObservedAt: options.launchObservedAt,
+    codexHomeFixture: options.codexHomeFixture,
+    codexHome: options.codexHome,
+  }) : null;
+  const cleanup = await classifyCleanup(repoRoot, options, actionSelection.action, launchAttempt);
   if (duplicate?.mismatch) {
     mismatches.push(duplicate.mismatch);
+  }
+  if (launchAttempt) {
+    mismatches.push(...launchAttemptMismatches(launchAttempt));
   }
   if (cleanup.mismatch) {
     mismatches.push(cleanup.mismatch);
   }
   const validationStatus = mismatches.length === 0 ? 'valid' : 'invalid';
-  const status = statusFor(actionSelection.action, mismatches, duplicate);
+  const status = statusFor(actionSelection.action, mismatches, duplicate, launchAttempt, cleanup);
 
   return {
     record_type: actionSelection.action === 'supervised-live-launch'
@@ -400,7 +420,7 @@ async function buildReceipt(options) {
     scheduler: {
       scheduler_run_id: schedulerRunId,
       idempotence_key: idempotenceKey,
-      lifecycle_state: schedulerState(actionSelection.action, mismatches, duplicate),
+      lifecycle_state: schedulerState(actionSelection.action, mismatches, duplicate, launchAttempt, cleanup),
       selected_action: actionSelection.action,
       lease: 'not_enforced',
       duplicate_handling: duplicate ?? {
@@ -416,30 +436,21 @@ async function buildReceipt(options) {
       dock_profile_ref: dockProfile.profile_path ?? NOT_OBSERVED,
       launch_root: dockProfile.launch_root ?? NOT_OBSERVED,
       action: actionSelection.action,
-      provider_launch_allowed: actionSelection.action === 'supervised-live-launch'
-        && mismatches.length === 0
-        && !(duplicate?.duplicate && duplicate.reused_state),
+      provider_launch_allowed: preLaunchAllowed,
       human_supervision: actionSelection.action === 'supervised-live-launch'
         ? { required: true, i_am_present: Boolean(options.iAmPresent) }
         : { required: false, i_am_present: false },
+      launch_attempt_id: launchAttempt?.launch_attempt_id ?? NOT_ATTEMPTED,
     },
-    terminal_substrate: {
-      status: NOT_ATTEMPTED,
-      reason: actionSelection.action === 'supervised-live-launch' ? 'guarded-source-slice-no-live-provider' : 'dry-run-only',
-    },
-    provider_acceptance: {
-      status: NOT_ATTEMPTED,
-      selected_provider: provider.selected_provider,
-    },
+    terminal_substrate: terminalSubstrateSection(actionSelection.action, launchAttempt),
+    provider_acceptance: providerAcceptanceSection(provider.selected_provider, launchAttempt),
     cleanup,
-    codex_adapter: {
-      status: NOT_ATTEMPTED,
-    },
-    catalog: {
+    codex_adapter: codexAdapterSection(launchAttempt),
+    catalog: launchAttempt ? launchAttempt.catalog : {
       status: NOT_ATTEMPTED,
       catalog_record_refs: NOT_ATTEMPTED,
     },
-    telemetry: {
+    telemetry: launchAttempt ? launchAttempt.telemetry : {
       status: NOT_ATTEMPTED,
       telemetry_event_refs: NOT_ATTEMPTED,
     },
@@ -451,7 +462,7 @@ async function buildReceipt(options) {
       status: NOT_ATTEMPTED,
     },
     evidence: {
-      observed_refs: [],
+      observed_refs: launchAttempt?.evidence?.observed_refs ?? [],
       transcript_body_copied: false,
     },
     mismatches,
@@ -493,7 +504,59 @@ async function classifyExistingReceipt(repoRoot, receiptPath, idempotenceKey, op
   };
 }
 
-async function classifyCleanup(repoRoot, options, action) {
+function terminalSubstrateSection(action, launchAttempt) {
+  if (!launchAttempt) {
+    return {
+      status: NOT_ATTEMPTED,
+      reason: action === 'supervised-live-launch' ? 'supervised-live-pre-launch-not-started' : 'dry-run-only',
+    };
+  }
+  return {
+    ...launchAttempt.terminal_substrate,
+    cleanup_status: NOT_OBSERVED,
+    launch_attempt_ref: launchAttempt.launch_attempt_id,
+  };
+}
+
+function providerAcceptanceSection(selectedProvider, launchAttempt) {
+  if (!launchAttempt) {
+    return {
+      status: NOT_ATTEMPTED,
+      selected_provider: selectedProvider,
+    };
+  }
+  return {
+    selected_provider: selectedProvider,
+    ...launchAttempt.provider_acceptance,
+  };
+}
+
+function codexAdapterSection(launchAttempt) {
+  if (!launchAttempt) {
+    return {
+      status: NOT_ATTEMPTED,
+    };
+  }
+  return launchAttempt.codex_adapter;
+}
+
+function launchAttemptMismatches(launchAttempt) {
+  if (!launchAttempt) return [];
+  if (launchAttempt.lifecycle_state === 'provider_acceptance_unobserved') {
+    return [mismatch('provider_acceptance_unobserved', 'Provider acceptance was not observed before the bounded launch-attempt timeout.', {
+      launch_attempt_id: launchAttempt.launch_attempt_id,
+    })];
+  }
+  if (launchAttempt.lifecycle_state === 'rejected' || launchAttempt.lifecycle_state === 'failed') {
+    return [mismatch('launch_attempt_failed', 'Launch-attempt helper did not reach an observable provider state.', {
+      launch_attempt_id: launchAttempt.launch_attempt_id,
+      lifecycle_state: launchAttempt.lifecycle_state,
+    })];
+  }
+  return [];
+}
+
+async function classifyCleanup(repoRoot, options, action, launchAttempt = null) {
   const base = {
     owner: 'afk-session-trigger-prototype',
     status: NOT_ATTEMPTED,
@@ -505,10 +568,21 @@ async function classifyCleanup(repoRoot, options, action) {
       reason: 'dry-run-only',
     };
   }
+  if (launchAttempt && !options.cleanupProofFixture) {
+    return {
+      ...base,
+      status: 'cleanup_unverified',
+      reason: 'cleanup proof is required after terminal substrate/provider launch evidence',
+      launch_attempt_id: launchAttempt.launch_attempt_id,
+      mismatch: mismatch('cleanup_unverified', 'Terminal cleanup proof was missing or insufficient.', {
+        cleanup_status: NOT_OBSERVED,
+      }),
+    };
+  }
   if (!options.cleanupProofFixture) {
     return {
       ...base,
-      reason: 'guarded-source-slice-no-live-provider',
+      reason: 'supervised-live-pre-launch-not-started',
     };
   }
 
@@ -531,17 +605,23 @@ async function classifyCleanup(repoRoot, options, action) {
   };
 }
 
-function schedulerState(action, mismatches, duplicate) {
+function schedulerState(action, mismatches, duplicate, launchAttempt = null, cleanup = null) {
   if (mismatches.length > 0) return 'rejected';
   if (duplicate?.duplicate && duplicate.reused_state) return 'duplicate';
+  if (launchAttempt?.lifecycle_state === 'provider_session_observed' && cleanup?.status === 'verified') return 'completed';
   return action === 'dry-run' ? 'accepted' : 'accepted_pre_launch';
 }
 
-function statusFor(action, mismatches, duplicate) {
+function statusFor(action, mismatches, duplicate, launchAttempt = null, cleanup = null) {
   if (mismatches.some((item) => item.class === 'cleanup_unverified')) return 'cleanup_unverified';
+  if (mismatches.some((item) => item.class === 'provider_acceptance_unobserved')) return 'provider_acceptance_unobserved';
+  if (mismatches.some((item) => item.class === 'launch_attempt_failed')) return 'failed';
   if (mismatches.some((item) => item.class === 'replacement_required_for_prior_attempt')) return 'blocked';
   if (mismatches.length > 0) return 'rejected';
   if (duplicate?.duplicate && duplicate.reused_state) return 'duplicate';
+  if (launchAttempt?.lifecycle_state === 'provider_session_observed' && cleanup?.status === 'verified') {
+    return 'completed';
+  }
   return action === 'dry-run' ? 'dry_run_ready' : 'supervised_live_launch_ready';
 }
 
@@ -584,7 +664,7 @@ async function main() {
       }
     }
     process.stdout.write(output);
-    process.exitCode = ['dry_run_ready', 'supervised_live_launch_ready', 'duplicate'].includes(receipt.status) ? 0 : 1;
+    process.exitCode = ['dry_run_ready', 'supervised_live_launch_ready', 'duplicate', 'completed'].includes(receipt.status) ? 0 : 1;
   } catch (error) {
     const payload = {
       record_type: 'aos.afk_session_trigger_dry_run',

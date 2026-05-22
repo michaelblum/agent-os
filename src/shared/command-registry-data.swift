@@ -1289,7 +1289,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --json"
             ]),
-        InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>]",
+        InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]",
             args: [
                 flag("packet", "--packet", "Manual transfer packet JSON path for the experimental session trigger", required: true),
                 flag("dry-run", "--dry-run", "Dry-run guard; no provider, terminal, gateway, or route is launched", type: .bool),
@@ -1304,6 +1304,12 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("idempotence-salt", "--idempotence-salt", "Optional deterministic idempotence salt for tests"),
                 flag("existing-receipt", "--existing-receipt", "Existing trigger receipt fixture used for duplicate-prevention classification"),
                 flag("replacement-for", "--replacement-for", "Explicit replacement/supersession id for retrying a prior rejected or failed attempt"),
+                flag("bridge-visibility-fixture", "--bridge-visibility-fixture", "Deterministic supervised bridge/provider visibility fixture for trigger launch evidence"),
+                flag("cleanup-proof-fixture", "--cleanup-proof-fixture", "Deterministic cleanup proof fixture required before completed supervised-live receipts"),
+                flag("provider-session-id", "--provider-session-id", "Observed provider session id for deterministic trigger launch evidence"),
+                flag("launch-observed-at", "--launch-observed-at", "ISO timestamp when supervised launch was observed"),
+                flag("codex-home-fixture", "--codex-home-fixture", "Read-only Codex home fixture for deterministic adapter correlation"),
+                flag("codex-home", "--codex-home", "Read-only Codex home path for supervised live evidence correlation"),
                 flag("json", "--json", "Emit machine-readable experimental trigger receipt output", type: .bool)
             ],
             stdin: nil, constraints: nil,
