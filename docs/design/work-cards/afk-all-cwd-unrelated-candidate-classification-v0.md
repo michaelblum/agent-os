@@ -1,6 +1,40 @@
 # AFK All-CWD Unrelated Candidate Classification V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `5eb3706cd751009f4f2d99e68861b47828a9eb48`
+- Changed files:
+  - `docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md`
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman review: accepted. The prototype now accepts separate
+  `all_cwd_sessions` fixture evidence, records unrelated current all-cwd
+  candidates under `catalog.unrelated_current_session_refs`, and keeps the
+  requested `.docks/gdi` launch classified as
+  `catalog_current_launch_not_observed` when no requested-cwd current catalog
+  record exists. Telemetry from the unrelated Operator session does not bind to
+  the bridge-launched GDI session.
+- True observed wrong-cwd behavior remains intact: when a provider session id is
+  independently supplied and that catalog record reports the wrong cwd, the
+  prototype still emits `provider_session_wrong_cwd`,
+  `catalog_provider_session_wrong_cwd`, and
+  `telemetry_not_attempted_wrong_cwd`.
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: 13/13 pass
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1 pass
+  - `git diff --check 4ba478e78708147276c1fd07578cb79cbf994058..5eb3706cd751009f4f2d99e68861b47828a9eb48`: pass
+  - `./aos dev recommend --json`: pass
+  - `./aos dev recommend --json --files docs/design/work-cards/operator-afk-bridge-all-cwd-live-correlation-v0.md scripts/afk-launch-attempt-prototype.mjs tests/afk-launch-attempt-prototype.test.mjs`: pass; no additional slice-local commands
+- Local-only boundary confirmed: no Codex, Claude, Gemini, or other provider
+  session was launched by GDI; no provider config, real provider transcript,
+  gateway state, dock profile, hook, GitHub state, push, or PR changed.
+- Remaining gap: this resolves the Operator partial-pass semantics. The
+  separate follow-up is bridge/provider launch visibility: a bridge-visible
+  `.docks/gdi` Codex process still did not create a current machine-visible
+  provider catalog record or provider session id.
 
 ## Transfer Classification
 
