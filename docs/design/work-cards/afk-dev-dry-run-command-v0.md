@@ -1,6 +1,6 @@
 # Work Card: afk-dev-dry-run-command-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-22
 **Owner:** GDI
 
 ## Tracker
@@ -24,6 +24,34 @@ profile facts, selects a provider only as a dry-run fact, and emits transfer,
 scheduler, dispatch, work, and evidence receipt sections. The next step is to
 make that prototype repeatable through the governed repo-development CLI
 surface while preserving its experimental/no-provider-launch boundary.
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-dev-dry-run-command-v0`
+- Accepted commit: `f71c0aa2d8d2f0649a3b6a5f6f308cce0aa9d142`
+- Output command:
+  `./aos dev afk-dry-run --packet <packet.json> --provider codex --dock gdi --json`
+- Changed files:
+  `src/commands/dev.swift`, `src/shared/command-registry-data.swift`, and
+  `tests/dev-workflow-router.sh`
+- Foreman-side verification passed:
+  `node --test tests/afk-dry-run-prototype.test.mjs`,
+  `./aos dev build --no-restart`,
+  `bash tests/dev-workflow-router.sh`,
+  `./aos help dev --json`,
+  `./aos help dev afk-dry-run --json`,
+  `bash tests/help-contract.sh`,
+  `node --test tests/schemas/dev-workflow-rules.test.mjs tests/schemas/dev-active-profile.test.mjs tests/schemas/dev-workflow-profiles.test.mjs`,
+  `bash tests/dev-audit.sh`,
+  `git diff --check`, `./aos dev recommend --json`, and `./aos ready`.
+- Command smoke passed with a temp packet: emitted
+  `aos.afk_dry_run_receipt_bundle.prototype`, `final_status: completed`,
+  selected `codex` as a dry-run provider fact, and reported
+  `launch_performed: false`.
+- Boundary preserved: no provider launch, no schema mutation, no gateway
+  mutation, no `.docks` mutation, no generated receipt artifacts committed, no
+  final `aos session`/runtime AFK command, no GitHub mutation, no push, and no
+  PR.
 
 ## Fresh Context Contract
 
