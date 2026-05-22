@@ -84,7 +84,7 @@ async function writeCodexSession(codexHome, session) {
       {
         timestamp: new Date(Date.parse(timestamp) + 1000).toISOString(),
         type: 'response_item',
-        payload: { type: 'message', role: 'user', content: 'body text must not be read' },
+        payload: { type: 'message', role: 'user', content: session.content ?? 'body text must not be read' },
       },
     ].map((record) => JSON.stringify(record)).join('\n')}\n`,
     'utf8',
@@ -186,6 +186,131 @@ test('creates a no-provider launch-attempt record with process bridge substrate 
   assert.deepEqual(record.evidence.observed_refs, ['inline:terminal_substrate.snapshot_summary']);
   assert.equal(record.duplicate_handling.bridge_session_started, true);
   assert.ok(record.validations.every((validation) => validation.status === 'passed'));
+});
+
+test('represents accepted supervised live Codex bridge pass from deterministic fixtures', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const providerSessionId = '019e5107-5456-7f22-b08b-b977df1b35f4';
+  const responseMarker = 'live-codex-transcript-materialization-pty-rerun';
+  const launchObservedAt = '2026-05-22T18:51:34.000Z';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: providerSessionId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T18:51:35.420Z',
+      title: 'Live bridge transcript materialization',
+      content: responseMarker,
+    },
+  ]);
+  const bridgePath = await writeBridgeVisibilityFixture({
+    response_marker: responseMarker,
+    bridge: {
+      supervised_live: true,
+      health: {
+        ok: true,
+        defaultSession: 'afk-codex-transcript-materialization-pty-rerun',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+        terminal: { cols: 80, rows: 24 },
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-codex-transcript-materialization-pty-rerun',
+        cwd: intendedLaunchCwd,
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      resize: {
+        cols: 100,
+        rows: 31,
+        resize_accepted: true,
+        terminal: { cols: 100, rows: 31 },
+      },
+      input: {
+        driver: 'process',
+        session_exists: true,
+        text_bytes: 172,
+        text_accepted: true,
+        enter_sent: true,
+        enter_bytes: 1,
+        enter_accepted: true,
+      },
+      key: {
+        key: 'Enter',
+        key_bytes: 1,
+        key_accepted: true,
+      },
+      typed_observed: true,
+      submitted_observed: true,
+      snapshot: {
+        session: 'afk-codex-transcript-materialization-pty-rerun',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        terminal: { cols: 100, rows: 31 },
+        text: [
+          'Codex CLI 0.133.0',
+          `provider_session_id: ${providerSessionId}`,
+          'cwd /Users/Michael/Code/agent-os/.docks/gdi',
+          'branch gdi/afk-launch-attempt-live-codex-record-v0',
+          'model gpt-5.5',
+          'head 4814cdcf',
+          responseMarker,
+        ].join('\n'),
+      },
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    '2026-05-22T18:52:00.000Z',
+    '--launch-observed-at',
+    launchObservedAt,
+    '--bridge-visibility-fixture',
+    bridgePath,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.launch_intent.provider_launch_performed, true);
+  assert.equal(record.lifecycle_state, 'provider_session_observed');
+  assert.equal(record.terminal_substrate.geometry.cols, 100);
+  assert.equal(record.terminal_substrate.geometry.rows, 31);
+  assert.deepEqual(record.terminal_substrate.resize, {
+    status: 'accepted',
+    cols: 100,
+    rows: 31,
+    resize_accepted: true,
+  });
+  assert.equal(record.terminal_substrate.input_submission.text_accepted, true);
+  assert.equal(record.terminal_substrate.input_submission.enter_accepted, true);
+  assert.equal(record.terminal_substrate.input_submission.extra_enter_needed, true);
+  assert.equal(record.terminal_substrate.input_submission.key_accepted, true);
+  assert.equal(record.terminal_substrate.input_submission.response_marker, responseMarker);
+  assert.equal(record.terminal_substrate.input_submission.response_marker_observed, true);
+  assert.equal(record.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(record.provider_acceptance.provider_session_id, providerSessionId);
+  assert.equal(record.codex_adapter.status, 'observed');
+  assert.equal(record.codex_adapter.correlation_status, 'matched_by_provider_session_id');
+  assert.equal(record.codex_adapter.confidence, 'exact');
+  assert.equal(record.codex_adapter.matched_thread_id, providerSessionId);
+  assert.equal(record.codex_adapter.matched_cwd_basis, 'intended_launch_cwd');
+  assert.ok(record.evidence.observed_refs.includes(`codex://threads/${providerSessionId}`));
+  assert.ok(record.evidence.observed_refs.includes(`codex-thread:${providerSessionId}`));
+  assert.equal(record.catalog.status, 'not_observed');
+  assert.equal(record.telemetry.status, 'not_observed');
+  assert.equal(record.result_route.status, 'not_attempted');
+  assert.deepEqual(record.mismatches, []);
 });
 
 test('reuses the in-process attempt for a duplicate idempotence key', async () => {

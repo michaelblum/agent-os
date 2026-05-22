@@ -180,7 +180,9 @@ function normalizeCodexHomeOption(repoRoot, options) {
 }
 
 function bridgeFixtureCatalogInput(value) {
-  return value && typeof value === 'object' && value.catalog ? value.catalog : value;
+  if (!value || typeof value !== 'object') return value;
+  if (value.catalog) return value.catalog;
+  return value.bridge ? null : value;
 }
 
 function bridgeFixtureBridgeInput(value) {
@@ -276,16 +278,32 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
   const bridge = bridgeFixtureBridgeInput(fixture);
   const health = bridge.health ?? {};
   const ensure = bridge.ensure ?? {};
+  const resize = bridge.resize ?? bridge.resize_result ?? bridge.resizeResult ?? null;
+  const input = bridge.input ?? bridge.input_result ?? bridge.inputResult ?? null;
+  const key = bridge.key ?? bridge.key_result ?? bridge.keyResult ?? null;
   const snapshot = bridge.snapshot ?? {};
   const command = bridge.command ?? snapshot.command ?? health.defaultCommand ?? health.command ?? NOT_OBSERVED;
   const cwd = ensure.cwd ?? health.defaultCwd ?? snapshot.cwd ?? fallbackCwd;
   const session = ensure.session ?? snapshot.session ?? health.defaultSession ?? NOT_OBSERVED;
   const driver = ensure.driver ?? snapshot.driver ?? health.driver ?? NOT_OBSERVED;
+  const terminal = snapshot.terminal ?? resize?.terminal ?? health.terminal ?? {};
   const text = fixtureSnapshotText(bridge);
   const parsed = parseBridgeVisibilityText(text);
+  const responseMarker = bridge.response_marker
+    ?? bridge.responseMarker
+    ?? fixture.response_marker
+    ?? fixture.responseMarker
+    ?? NOT_OBSERVED;
+  const markerObserved = responseMarker !== NOT_OBSERVED && text.includes(responseMarker);
   return {
     bridge_session_started: true,
     command,
+    provider_launch_performed: Boolean(
+      bridge.provider_launch_performed
+        ?? bridge.providerLaunchPerformed
+        ?? bridge.supervised_live
+        ?? bridge.supervisedLive,
+    ),
     providerSessionId: parsed.provider_session_id,
     terminal_substrate: {
       status: 'observed',
@@ -294,10 +312,32 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
       cwd,
       command,
       snapshot_ref: text ? 'inline:terminal_substrate.synthetic_snapshot' : NOT_OBSERVED,
+      geometry: {
+        cols: terminal.cols ?? terminal.columns ?? health.terminal?.cols ?? NOT_OBSERVED,
+        rows: terminal.rows ?? health.terminal?.rows ?? NOT_OBSERVED,
+      },
+      resize: resize ? {
+        status: resize.resize_accepted ?? resize.resizeAccepted ? 'accepted' : 'not_accepted',
+        cols: resize.cols ?? resize.columns ?? resize.requested?.cols ?? NOT_OBSERVED,
+        rows: resize.rows ?? resize.requested?.rows ?? NOT_OBSERVED,
+        resize_accepted: resize.resize_accepted ?? resize.resizeAccepted ?? false,
+      } : NOT_OBSERVED,
+      input_submission: input || key || markerObserved ? {
+        text_accepted: input?.text_accepted ?? input?.textAccepted ?? NOT_OBSERVED,
+        enter_sent: input?.enter_sent ?? input?.enterSent ?? NOT_OBSERVED,
+        enter_accepted: input?.enter_accepted ?? input?.enterAccepted ?? NOT_OBSERVED,
+        extra_enter_needed: Boolean(key?.key_accepted ?? key?.keyAccepted ?? false),
+        key_accepted: key?.key_accepted ?? key?.keyAccepted ?? NOT_OBSERVED,
+        typed_observed: bridge.typed_observed ?? bridge.typedObserved ?? NOT_OBSERVED,
+        submitted_observed: bridge.submitted_observed ?? bridge.submittedObserved ?? NOT_OBSERVED,
+        response_marker: responseMarker,
+        response_marker_observed: markerObserved,
+      } : NOT_OBSERVED,
       snapshot_summary: {
         session,
         driver,
         command: snapshot.command ?? command,
+        includes_marker: markerObserved,
         text_excerpt: text.split('\n').slice(0, 6).join('\n'),
       },
       bridge_health: {
@@ -305,6 +345,7 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
         default_session: health.defaultSession ?? NOT_OBSERVED,
         default_cwd: health.defaultCwd ?? NOT_OBSERVED,
         driver: health.driver ?? driver,
+        terminal: health.terminal ?? NOT_OBSERVED,
       },
     },
     provider_acceptance: {
@@ -318,6 +359,8 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
       provider_version: parsed.provider_version,
       model: parsed.model,
     },
+    catalog_status: NOT_OBSERVED,
+    telemetry_status: NOT_OBSERVED,
     mismatch: parsed.provider_session_id === NOT_OBSERVED
       ? {
         code: 'provider_session_id_not_observed',
@@ -330,6 +373,20 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
       }
       : null,
   };
+}
+
+function deriveLifecycleState(record) {
+  if (record.lifecycle_state === 'rejected') return 'rejected';
+  if (record.mismatches.some((mismatch) => mismatch.effect === 'failed')) return 'failed';
+  if (record.result_route.status === 'delivered' || record.result_route.status === 'completed') return 'completed';
+  if (record.catalog.status === 'catalog_matched') return 'catalog_matched';
+  if (
+    record.provider_acceptance.status === 'provider_session_observed'
+    || record.codex_adapter.correlation_status === 'matched_by_provider_session_id'
+  ) {
+    return 'provider_session_observed';
+  }
+  return 'provider_acceptance_unobserved';
 }
 
 function timestampMs(value) {
@@ -1042,6 +1099,7 @@ async function buildAttemptContext(options) {
     idempotenceKey,
     command,
     bridgeVisibility,
+    providerLaunchPerformed: bridgeVisibility?.provider_launch_performed ?? false,
     catalogFixture,
     allCwdCatalogFixture,
     providerSessionId: options.providerSessionId ?? bridgeVisibility?.providerSessionId ?? NOT_OBSERVED,
@@ -1215,6 +1273,7 @@ async function createLaunchAttempt(options) {
     providerSessionId: context.providerSessionId,
   });
   record.terminal_substrate = observed.terminal_substrate;
+  record.launch_intent.provider_launch_performed = Boolean(observed.provider_launch_performed);
   if (observed.provider_acceptance) {
     record.provider_acceptance = observed.provider_acceptance;
   }
@@ -1284,13 +1343,13 @@ async function createLaunchAttempt(options) {
       status: context.provider.selected_provider === 'codex' ? 'not_attempted_no_codex_home_fixture' : 'not_applicable_non_codex_provider',
     });
   }
-  record.lifecycle_state = 'provider_acceptance_unobserved';
   record.launch_intent.launch_performed = true;
   record.duplicate_handling.bridge_session_started = observed.bridge_session_started;
   record.evidence.observed_refs = [...new Set([
     'inline:terminal_substrate.snapshot_summary',
     ...record.evidence.observed_refs,
   ])];
+  record.lifecycle_state = deriveLifecycleState(record);
   record.updated_at = timestamp;
   attemptRegistry.set(context.idempotenceKey, structuredClone(record));
   return record;
