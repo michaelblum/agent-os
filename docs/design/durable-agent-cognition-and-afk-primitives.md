@@ -541,10 +541,14 @@ The next slices should stay reversible:
    prototype, preserves fixture-backed diagnostic correlation, and has
    provider-free plus fixture-backed command-level smoke coverage in
    `docs/design/work-cards/afk-dev-launch-attempt-command-v0.md`.
-   The remaining immediate blocker before live-dependent follow-up is repo-mode
-   AOS TCC/Input Monitoring readiness for `/Users/Michael/Code/agent-os/aos`;
-   run the repo-standard permission reset/setup path and confirm
-   `./aos ready --post-permission` before routing another live provider session
-   slice.
+   A supervised live wrapper proof now also passes: the bridge launched nested
+   Codex from `.docks/gdi`, materialized a separate Codex rollout, and the
+   `./aos dev afk-launch-attempt` wrapper emitted
+   `provider_session_observed` with exact Codex adapter correlation. The
+   accepted evidence lives in
+   `docs/design/work-cards/operator-afk-dev-launch-attempt-command-live-wrapper-v0.md`.
+   The next reversible slice is to freeze the first implementable session
+   trigger/dispatch command contract before adding any final `aos session`
+   source behavior.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.

@@ -1,6 +1,60 @@
 # Operator AFK Dev Launch Attempt Command Live Wrapper V0
 
-**Status:** Routed 2026-05-22
+**Status:** Pass accepted 2026-05-22
+
+## Result
+
+- Classification: `pass`.
+- Foreman review: accepted. Branch/ref gates passed with `HEAD` and
+  `docs/durable-agent-cognition-v0` both at
+  `5195fc0d7e4f53db2bf038a6cbf4923127618aea`, the repo worktree stayed clean,
+  `./aos ready` reported `ready=true mode=repo daemon=reachable tap=active`,
+  and the bridge cleanup checks found port `17866` unreachable with no matching
+  nested `codex --no-alt-screen`, `pty-proxy.py`, or bridge server process
+  remaining.
+- Bridge evidence: process-driver bridge ran on port `17866` with
+  `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`, `driver=process`, and
+  terminal geometry `80x24`; `/ensure` created process session
+  `afk-dev-launch-attempt-command-live-wrapper`; `launch_observed_at` was
+  `2026-05-22T20:08:55Z`.
+- Process evidence: nested process tree was observed as bridge server,
+  `pty-proxy.py`, `node codex --no-alt-screen`, and vendor
+  `codex --no-alt-screen`, all rooted at
+  `/Users/Michael/Code/agent-os/.docks/gdi`.
+- PTY/input evidence: `/resize` to `100x31` was accepted; `/input` accepted
+  text and Enter; one extra Enter was needed and accepted; the response marker
+  `live-codex-dev-launch-attempt-command-wrapper` was observed in the
+  post-key snapshot.
+- Transcript evidence: a separate bridge-launched Codex rollout materialized at
+  `/Users/Michael/.codex/sessions/2026/05/22/rollout-2026-05-22T16-08-57-019e514e-2824-7331-9efc-76e0fbede5a2.jsonl`.
+  Foreman bounded verification confirmed size `66301`, mtime
+  `2026-05-22T20:09:46.737Z`, session id
+  `019e514e-2824-7331-9efc-76e0fbede5a2`, timestamp
+  `2026-05-22T20:08:57.161Z`, cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`, and marker presence. Full
+  transcript content was not pasted or mutated.
+- Wrapper evidence: `./aos dev afk-launch-attempt` consumed the live bridge
+  fixture plus read-only `/Users/Michael/.codex` correlation and emitted
+  `provider_launch_performed=true`,
+  `lifecycle_state=provider_session_observed`, terminal geometry `100x31`,
+  accepted resize/input/extra Enter, response marker observed,
+  `provider_acceptance.status=provider_session_observed`, provider session id
+  `019e514e-2824-7331-9efc-76e0fbede5a2`,
+  `codex_adapter.status=observed`,
+  `correlation_status=matched_by_provider_session_id`, `confidence=exact`,
+  `matched_thread_ref=codex-thread:019e514e-2824-7331-9efc-76e0fbede5a2`,
+  `matched_deeplink=codex://threads/019e514e-2824-7331-9efc-76e0fbede5a2`,
+  `matched_cwd_basis=intended_launch_cwd`, catalog and telemetry
+  `not_observed`, result route `not_attempted`, and no mismatch codes.
+- Cleanup proof: bridge process stopped, `http://127.0.0.1:17866/health` was
+  unreachable, temporary packet/fixture/output files were removed, and
+  provider-owned Codex rollout metadata was left untouched.
+- Local-only boundary confirmed: no source, docs, config, provider config,
+  gateway, dock profile, hook, GitHub, push, or PR changes were made by
+  Operator. Provider-owned Codex transcript/catalog files were created and read
+  only as allowed diagnostic evidence.
+- Next routed slice:
+  `docs/design/work-cards/afk-session-trigger-command-readiness-v0.md`.
 
 ## Transfer Classification
 
