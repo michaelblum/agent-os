@@ -248,18 +248,36 @@ function capture(session, lines) {
   return { session, command, driver: 'tmux', text: textOutput.replace(/\s+$/g, '') };
 }
 
+function writeProcessStdin(record, data) {
+  const payload = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
+  const accepted = record.child.stdin.write(payload);
+  return {
+    bytes: payload.length,
+    accepted,
+  };
+}
+
 function writeProcessInput(session, textValue, enter = true) {
   const existing = processSessions.get(session);
   if (!existing || existing.exited) throw new Error(`session is not running: ${session}`);
-  existing.child.stdin.write(textValue);
-  if (enter) existing.child.stdin.write('\n');
+  const textWrite = writeProcessStdin(existing, textValue);
+  const enterWrite = enter ? writeProcessStdin(existing, '\r') : null;
+  return {
+    driver: 'process',
+    session_exists: true,
+    text_bytes: textWrite.bytes,
+    text_accepted: textWrite.accepted,
+    enter_sent: enter,
+    enter_bytes: enterWrite?.bytes ?? 0,
+    enter_accepted: enterWrite?.accepted ?? null,
+  };
 }
 
 function writeProcessKey(session, key) {
   const existing = processSessions.get(session);
   if (!existing || existing.exited) throw new Error(`session is not running: ${session}`);
   const sequence = {
-    Enter: '\n',
+    Enter: '\r',
     'C-c': '\x03',
     'C-d': '\x04',
     Up: '\x1b[A',
@@ -270,7 +288,14 @@ function writeProcessKey(session, key) {
     Escape: '\x1b',
     Backspace: '\x7f',
   }[key];
-  existing.child.stdin.write(sequence);
+  const write = writeProcessStdin(existing, sequence);
+  return {
+    driver: 'process',
+    session_exists: true,
+    key,
+    key_bytes: write.bytes,
+    key_accepted: write.accepted,
+  };
 }
 
 function wsFrame(data, opcode = 1) {
@@ -577,8 +602,8 @@ async function handle(req, res) {
       const session = cleanSession(body.session);
       const textValue = String(body.text || '');
       if (processSessions.has(session)) {
-        writeProcessInput(session, textValue, body.enter !== false);
-        json(res, 200, { ok: true });
+        const result = writeProcessInput(session, textValue, body.enter !== false);
+        json(res, 200, { ok: true, ...result });
         return;
       }
       const parts = textValue.split('\n');
@@ -600,8 +625,8 @@ async function handle(req, res) {
         return;
       }
       if (processSessions.has(session)) {
-        writeProcessKey(session, key);
-        json(res, 200, { ok: true });
+        const result = writeProcessKey(session, key);
+        json(res, 200, { ok: true, ...result });
         return;
       }
       if (!tmuxAvailable) throw new Error(`session is not running: ${session}`);

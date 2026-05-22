@@ -243,6 +243,80 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.equal(payload.ok, true);
     assert.equal(payload.driver, 'process');
   });
+
+  it('submits process-driver /input text with Enter to the PTY', async () => {
+    const session = 'sigil-agent-terminal-input-test';
+    await ensureInteractiveEchoSession(port, session, repoCwd);
+
+    const inputResponse = await fetch(`http://127.0.0.1:${port}/input`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        text: 'input-marker',
+      }),
+    });
+    assert.equal(inputResponse.status, 200);
+    const inputPayload = await inputResponse.json();
+    assert.equal(inputPayload.ok, true);
+    assert.equal(inputPayload.driver, 'process');
+    assert.equal(inputPayload.session_exists, true);
+    assert.equal(inputPayload.text_bytes, Buffer.byteLength('input-marker'));
+    assert.equal(inputPayload.text_accepted, true);
+    assert.equal(inputPayload.enter_sent, true);
+    assert.equal(inputPayload.enter_bytes, 1);
+    assert.equal(inputPayload.enter_accepted, true);
+
+    const snapshot = await waitForSnapshot(port, session, 'got:input-marker');
+    assert.equal(snapshot.driver, 'process');
+    assert.match(snapshot.text, /got:input-marker/);
+  });
+
+  it('submits process-driver text through /input enter=false plus /key Enter', async () => {
+    const session = 'sigil-agent-terminal-key-test';
+    await ensureInteractiveEchoSession(port, session, repoCwd);
+
+    const inputResponse = await fetch(`http://127.0.0.1:${port}/input`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        text: 'key-marker',
+        enter: false,
+      }),
+    });
+    assert.equal(inputResponse.status, 200);
+    const inputPayload = await inputResponse.json();
+    assert.equal(inputPayload.ok, true);
+    assert.equal(inputPayload.driver, 'process');
+    assert.equal(inputPayload.session_exists, true);
+    assert.equal(inputPayload.text_bytes, Buffer.byteLength('key-marker'));
+    assert.equal(inputPayload.text_accepted, true);
+    assert.equal(inputPayload.enter_sent, false);
+    assert.equal(inputPayload.enter_bytes, 0);
+    assert.equal(inputPayload.enter_accepted, null);
+
+    const keyResponse = await fetch(`http://127.0.0.1:${port}/key`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        key: 'Enter',
+      }),
+    });
+    assert.equal(keyResponse.status, 200);
+    const keyPayload = await keyResponse.json();
+    assert.equal(keyPayload.ok, true);
+    assert.equal(keyPayload.driver, 'process');
+    assert.equal(keyPayload.session_exists, true);
+    assert.equal(keyPayload.key, 'Enter');
+    assert.equal(keyPayload.key_bytes, 1);
+    assert.equal(keyPayload.key_accepted, true);
+
+    const snapshot = await waitForSnapshot(port, session, 'got:key-marker');
+    assert.equal(snapshot.driver, 'process');
+    assert.match(snapshot.text, /got:key-marker/);
+  });
 });
 
 function writeJsonl(file, records) {
@@ -269,4 +343,44 @@ async function waitForHealth(activePort, readOutput) {
     }
   }
   throw new Error(`bridge did not become healthy:\n${readOutput()}`);
+}
+
+async function ensureInteractiveEchoSession(activePort, session, cwd) {
+  const command = [
+    'node',
+    '-e',
+    [
+      "const readline = require('node:readline');",
+      'const rl = readline.createInterface({ input: process.stdin });',
+      "rl.on('line', (line) => console.log(`got:${line}`));",
+      'setTimeout(() => {}, 10000);',
+    ].join(' '),
+  ];
+  const response = await fetch(`http://127.0.0.1:${activePort}/ensure`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      session,
+      cwd,
+      command,
+      force: true,
+    }),
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.ok, true);
+  assert.equal(payload.driver, 'process');
+}
+
+async function waitForSnapshot(activePort, session, marker) {
+  const url = `http://127.0.0.1:${activePort}/snapshot?session=${encodeURIComponent(session)}&lines=80`;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const response = await fetch(url);
+    if (response.ok) {
+      const snapshot = await response.json();
+      if (snapshot.text.includes(marker)) return snapshot;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`snapshot did not include ${marker}`);
 }
