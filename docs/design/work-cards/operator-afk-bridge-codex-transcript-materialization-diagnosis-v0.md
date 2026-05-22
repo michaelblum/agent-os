@@ -1,6 +1,42 @@
 # Operator AFK Bridge Codex Transcript Materialization Diagnosis V0
 
-**Status:** Routed 2026-05-22
+**Status:** Partial pass 2026-05-22
+
+## Result
+
+- Classification: `partial_pass:input_not_submitted`.
+- Foreman review: accepted as a partial diagnostic result. The branch/ref gate
+  passed with `HEAD` and `docs/durable-agent-cognition-v0` both at
+  `cacc51733c9ff146e9d1381be47f4c45f665e021`, the repo worktree remained
+  clean, `./aos ready` passed, and the two required deterministic test commands
+  passed.
+- Bridge evidence: process driver bridge ran on port `17866` with
+  `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`; `/ensure` created
+  session `afk-codex-transcript-materialization` for
+  `codex --no-alt-screen`; `launch_observed_at=2026-05-22T18:12:16Z`.
+- Process evidence: the bridge launched `pty-proxy.py`, `node .../bin/codex
+  --no-alt-screen`, and the native Codex binary, all with cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`.
+- Input evidence: `/input` returned HTTP 200 `{"ok":true}` and the one allowed
+  `/key Enter` returned HTTP 200 `{"ok":true}`, but snapshots continued to show
+  only Codex startup/TUI tip output. The bounded prompt was not observed as
+  typed, submitted, or answered.
+- Transcript evidence: the only new or modified rollout after launch was the
+  current Operator session under `.docks/operator`; the submitted marker was
+  present there because Operator issued the probe. No separate bridge-launched
+  `.docks/gdi` Codex rollout materialized, so the prototype probe was skipped
+  per this card.
+- Cleanup proof: bridge stopped, port `17866` was no longer reachable, no
+  listener remained, no matching `codex --no-alt-screen` or `pty-proxy.py`
+  bridge processes remained, and `git status --short --branch` was clean.
+- Foreman follow-up smoke: a provider-free process-driver bridge on port
+  `17867` with a harmless stdin echo command proved generic `/input` delivery
+  reaches the process-driver PTY (`got:foreman-marker` appeared in
+  `/snapshot`). Cleanup left port `17867` down and no matching smoke processes.
+  This narrows the next slice toward Codex TUI readiness/submission semantics
+  or missing observability, not a blanket process-driver stdin failure.
+- Next routed slice:
+  `docs/design/work-cards/afk-bridge-codex-input-submission-correction-v0.md`.
 
 ## Transfer Classification
 
