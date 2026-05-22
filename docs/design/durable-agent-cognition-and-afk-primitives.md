@@ -428,7 +428,16 @@ The next slices should stay reversible:
    leases, heartbeats, lifecycle state, and result-route updates while leaving
    provider-specific launch mechanics to provider-neutral dispatch.
 4. Design provider-neutral dispatch over the dock/session contract.
-5. Distill one real browser/model-control run into a work/evidence record and
+   The dispatch shape now lives at
+   `docs/design/notes/afk-provider-neutral-dispatch-shape-2026-05-21.md`;
+   it keeps dispatch focused on translating a scheduler-selected start, resume,
+   dry-run, or rejection into provider CLI/session facts while leaving
+   lifecycle, proof semantics, gateway state, and dock role policy to their own
+   surfaces.
+5. Run a design consolidation/readiness pass across the AFK packet,
+   scheduler, and dispatch sketches before prototyping, so the first source
+   slice has a minimal shared vocabulary instead of a single-provider shortcut.
+6. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
-6. Trial a Researcher-compatible role only after the session trigger and async
+7. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
