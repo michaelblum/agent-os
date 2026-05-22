@@ -1,6 +1,6 @@
 # Work Card: afk-transfer-packet-result-route-shape-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -23,6 +23,22 @@ is now bounded enough to emit selected packet fields and proof requirements
 without owning session launch or results. The remaining uncertainty is the AFK
 handoff surface between provider ingress, AOS session control, work/evidence
 records, and notification routes.
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-transfer-packet-result-route-shape-v0`
+- Accepted commit: `e762e76a4906b88c9a819e7019b3d06dba1020ca`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/afk-transfer-packet-result-route-shape-2026-05-21.md`
+- Synthesis update:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman-side verification passed:
+  `git diff --check f44660580b36759723aaf661bbc9efc5848c527a..e762e76a4906b88c9a819e7019b3d06dba1020ca`,
+  `git diff --cached --check`, and `./aos dev recommend --json`.
+- Recommendation accepted: design the session trigger/scheduler primitive
+  before provider-neutral dispatch, work/evidence record trials, or a local
+  prototype.
 
 ## Fresh Context Contract
 
