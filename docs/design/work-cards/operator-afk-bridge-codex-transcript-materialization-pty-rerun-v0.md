@@ -1,6 +1,56 @@
 # Operator AFK Bridge Codex Transcript Materialization PTY Rerun V0
 
-**Status:** Routed 2026-05-22
+**Status:** Pass accepted 2026-05-22
+
+## Result
+
+- Classification: `pass`.
+- Foreman review: accepted. The branch/ref gate passed with `HEAD` and
+  `docs/durable-agent-cognition-v0` both at
+  `4814cdcfdd065ed107a20df656164ae89ae10440`, the repo worktree remained
+  clean, `./aos ready` passed, and Operator reported all required focused tests
+  passing.
+- Bridge evidence: process-driver bridge ran on port `17866` with
+  `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`, `driver=process`, and
+  terminal geometry `80x24`; `/ensure` created session
+  `afk-codex-transcript-materialization-pty-rerun` for
+  `codex --no-alt-screen`; `launch_observed_at=2026-05-22T18:51:34Z`.
+- PTY evidence: `/resize` to `100x31` returned `resize_accepted=true`, and the
+  post-resize snapshot reported terminal geometry `100x31`.
+- Input evidence: `/input` returned accepted process-driver diagnostics:
+  `session_exists=true`, `text_bytes=172`, `text_accepted=true`,
+  `enter_sent=true`, `enter_bytes=1`, and `enter_accepted=true`. The immediate
+  and short-wait snapshots showed the prompt typed but not submitted; one
+  allowed `/key Enter` returned `key_accepted=true`.
+- Snapshot evidence: the final snapshot showed submission and the bounded model
+  response marker:
+  `live-codex-transcript-materialization-pty-rerun`.
+- Transcript evidence: a separate bridge-launched Codex rollout materialized at
+  `/Users/Michael/.codex/sessions/2026/05/22/rollout-2026-05-22T14-51-35-019e5107-5456-7f22-b08b-b977df1b35f4.jsonl`.
+  Foreman corroborated the file metadata and `session_meta` fields:
+  `id=019e5107-5456-7f22-b08b-b977df1b35f4`,
+  `timestamp=2026-05-22T18:51:35.420Z`, and
+  `cwd=/Users/Michael/Code/agent-os/.docks/gdi`; a bounded grep found the
+  submitted marker.
+- Prototype evidence: the corrected launch-attempt prototype, run with
+  `--codex-home /Users/Michael/.codex`, `--launch-observed-at
+  2026-05-22T18:51:34Z`, and provider session id
+  `019e5107-5456-7f22-b08b-b977df1b35f4`, reported
+  `codex_adapter.status=observed`,
+  `correlation_status=matched_by_provider_session_id`, `confidence=exact`,
+  `matched_thread_ref=codex-thread:019e5107-5456-7f22-b08b-b977df1b35f4`,
+  `matched_deeplink=codex://threads/019e5107-5456-7f22-b08b-b977df1b35f4`,
+  and `matched_cwd_basis=intended_launch_cwd`.
+- Cleanup proof: Foreman confirmed port `17866` had no listener and no matching
+  `codex --no-alt-screen` or `pty-proxy.py` processes remained after Operator
+  stopped the bridge. Operator reported temporary prototype packet/output
+  cleanup complete.
+- Local-only boundary confirmed: no source, docs, config, provider config,
+  gateway state, dock profile, hook, GitHub state, push, or PR changes were
+  made by Operator. Provider-owned Codex transcript/catalog files were created
+  and read only as allowed evidence for this supervised diagnostic.
+- Next routed slice:
+  `docs/design/work-cards/afk-launch-attempt-live-codex-record-v0.md`.
 
 ## Transfer Classification
 
