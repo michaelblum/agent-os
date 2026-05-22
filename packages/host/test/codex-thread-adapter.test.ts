@@ -188,6 +188,26 @@ describe('Codex thread adapter', () => {
     assert.deepEqual(multiple.candidate_threads.map((thread) => thread.thread_id), [PREFIX_MATCH_ID, SESSION_ID]);
   });
 
+  it('does not bind a single same-cwd thread when provider id is not observed and no time window exists', () => {
+    writeCodexSession(codexHome, SESSION_ID, repoCwd, '2026-05-22T14:01:00.000Z');
+
+    const result = correlateLaunch({
+      codexHome,
+      providerSessionId: 'not_observed',
+      intendedCwd: repoCwd,
+      bridgeVisibility: {
+        command_argv: ['codex', '--no-alt-screen'],
+        terminal_substrate: { driver: 'process', session_handle: 'afk-bridge-fixture' },
+      },
+    });
+
+    assert.equal(result.status, 'not_observed');
+    assert.equal(result.confidence, 'none');
+    assert.equal(result.thread, undefined);
+    assert.equal(result.candidate_threads.length, 0);
+    assert.equal(result.mismatches[0].code, 'provider_session_id_not_observed');
+  });
+
   it('emits stable Codex deeplink and local evidence refs', () => {
     writeCodexSession(codexHome, SESSION_ID, repoCwd, '2026-05-22T14:00:00.000Z');
 
