@@ -366,7 +366,7 @@ test('rejects unsupported provider before terminal substrate work', async () => 
   assert.equal(record.launch_intent.provider_launch_performed, false);
   assert.deepEqual(record.mismatches.map((mismatch) => mismatch.code), ['unsupported_provider']);
   assert.equal(
-    record.validations.find((validation) => validation.name === 'selected_provider_supported_without_launch').status,
+    record.validations.find((validation) => validation.name === 'selected_provider_supported').status,
     'failed',
   );
 });
