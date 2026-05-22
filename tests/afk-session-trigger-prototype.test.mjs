@@ -181,6 +181,12 @@ test('creates a guarded supervised-live Codex receipt without launching provider
     reason: 'guarded-source-slice-no-live-provider',
   });
   assert.equal(receipt.provider_acceptance.status, 'not_attempted');
+  assert.deepEqual(receipt.cleanup, {
+    owner: 'afk-session-trigger-prototype',
+    status: 'not_attempted',
+    proof: 'not_attempted',
+    reason: 'guarded-source-slice-no-live-provider',
+  });
   assert.equal(receipt.codex_adapter.status, 'not_attempted');
   assert.equal(receipt.catalog.status, 'not_attempted');
   assert.equal(receipt.telemetry.status, 'not_attempted');
@@ -291,7 +297,50 @@ test('returns duplicate state from a receipt-backed supervised-live attempt', as
   assert.equal(receipt.dispatch.provider_launch_allowed, false);
 });
 
-test('blocks relaunch after rejected receipt unless replacement is explicit', async () => {
+test('treats accepted live receipt states as non-launching duplicates', async () => {
+  const packetPath = await writePacket(validPacket());
+  const baseArgs = [
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'accepted-live-duplicate-test',
+  ];
+  const first = runPrototype(baseArgs);
+  assert.equal(first.status, 0, first.stderr);
+  const firstReceipt = JSON.parse(first.stdout);
+  const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-live-states-'));
+
+  for (const state of ['terminal_started', 'provider_acceptance_unobserved', 'provider_session_observed', 'completed', 'running']) {
+    const existingPath = join(dir, `${state}.json`);
+    await writeFile(existingPath, `${JSON.stringify({
+      scheduler: {
+        idempotence_key: firstReceipt.scheduler.idempotence_key,
+        lifecycle_state: state,
+      },
+    }, null, 2)}\n`, 'utf8');
+
+    const duplicate = runPrototype([...baseArgs, '--existing-receipt', existingPath]);
+    assert.equal(duplicate.status, 0, `${state}: ${duplicate.stderr}`);
+    const receipt = JSON.parse(duplicate.stdout);
+    assert.equal(receipt.status, 'duplicate', state);
+    assert.equal(receipt.scheduler.lifecycle_state, 'duplicate', state);
+    assert.equal(receipt.scheduler.duplicate_handling.duplicate, true, state);
+    assert.equal(receipt.scheduler.duplicate_handling.existing_state, state);
+    assert.equal(receipt.scheduler.duplicate_handling.reused_state, true, state);
+    assert.equal(receipt.dispatch.provider_launch_allowed, false, state);
+  }
+});
+
+test('blocks relaunch after rejected or failed receipt unless replacement is explicit', async () => {
   const packetPath = await writePacket(validPacket());
   const baseArgs = [
     '--packet',
@@ -312,19 +361,62 @@ test('blocks relaunch after rejected receipt unless replacement is explicit', as
   assert.equal(first.status, 0, first.stderr);
   const firstReceipt = JSON.parse(first.stdout);
   const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-rejected-'));
-  const existingPath = join(dir, 'existing.json');
-  await writeFile(existingPath, `${JSON.stringify({
-    scheduler: {
-      idempotence_key: firstReceipt.scheduler.idempotence_key,
-      lifecycle_state: 'rejected',
-    },
+  for (const state of ['rejected', 'failed']) {
+    const existingPath = join(dir, `${state}.json`);
+    await writeFile(existingPath, `${JSON.stringify({
+      scheduler: {
+        idempotence_key: firstReceipt.scheduler.idempotence_key,
+        lifecycle_state: state,
+      },
+    }, null, 2)}\n`, 'utf8');
+
+    const blocked = runPrototype([...baseArgs, '--existing-receipt', existingPath]);
+    assert.equal(blocked.status, 1, state);
+    const receipt = JSON.parse(blocked.stdout);
+    assert.equal(receipt.status, 'blocked', state);
+    assert.equal(receipt.dispatch.provider_launch_allowed, false, state);
+    assert.equal(receipt.scheduler.duplicate_handling.relaunch_requires_replacement, true, state);
+    assert.ok(receipt.mismatches.some((item) => item.class === 'replacement_required_for_prior_attempt'), state);
+  }
+});
+
+test('classifies deterministic cleanup proof failure as cleanup_unverified without launch mutation', async () => {
+  const packetPath = await writePacket(validPacket());
+  const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-cleanup-'));
+  const cleanupFixture = join(dir, 'cleanup.json');
+  await writeFile(cleanupFixture, `${JSON.stringify({
+    status: 'missing',
+    proof: [],
+    reason: 'test fixture intentionally omits cleanup proof',
   }, null, 2)}\n`, 'utf8');
 
-  const blocked = runPrototype([...baseArgs, '--existing-receipt', existingPath]);
-  assert.equal(blocked.status, 1);
-  const receipt = JSON.parse(blocked.stdout);
-  assert.equal(receipt.status, 'blocked');
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'cleanup_unverified');
+  assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
   assert.equal(receipt.dispatch.provider_launch_allowed, false);
-  assert.equal(receipt.scheduler.duplicate_handling.relaunch_requires_replacement, true);
-  assert.ok(receipt.mismatches.some((item) => item.class === 'replacement_required_for_prior_attempt'));
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.equal(receipt.provider_acceptance.status, 'not_attempted');
+  assert.equal(receipt.catalog.status, 'not_attempted');
+  assert.equal(receipt.evidence.transcript_body_copied, false);
+  assert.equal(receipt.cleanup.owner, 'afk-session-trigger-prototype');
+  assert.equal(receipt.cleanup.status, 'cleanup_unverified');
+  assert.deepEqual(receipt.cleanup.proof, []);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'));
 });
