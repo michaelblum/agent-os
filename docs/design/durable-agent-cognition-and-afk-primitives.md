@@ -535,9 +535,16 @@ The next slices should stay reversible:
    launch-attempt prototype as `provider_session_observed` with exact Codex
    adapter correlation. The accepted evidence lives in
    `docs/design/work-cards/operator-afk-launch-attempt-live-codex-record-rerun-v0.md`.
-   The next reversible source slice is to expose the accepted
-   launch-attempt prototype through an experimental `./aos dev` diagnostic
-   command, still without enabling unattended provider launch or final
-   `aos session` command spelling.
+   The accepted launch-attempt prototype is now exposed through experimental
+   `./aos dev afk-launch-attempt`, still without enabling unattended provider
+   launch or final `aos session` command spelling. The wrapper delegates to the
+   prototype, preserves fixture-backed diagnostic correlation, and has
+   provider-free plus fixture-backed command-level smoke coverage in
+   `docs/design/work-cards/afk-dev-launch-attempt-command-v0.md`.
+   The remaining immediate blocker before live-dependent follow-up is repo-mode
+   AOS TCC/Input Monitoring readiness for `/Users/Michael/Code/agent-os/aos`;
+   run the repo-standard permission reset/setup path and confirm
+   `./aos ready --post-permission` before routing another live provider session
+   slice.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
