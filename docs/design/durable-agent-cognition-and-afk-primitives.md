@@ -555,5 +555,12 @@ The next slices should stay reversible:
    `./aos dev afk-session-trigger` source slice and keeps unattended provider
    launch behind a later explicit work card. The next routed source slice is
    `docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md`.
+   That dry-run command is now accepted: it validates a local transfer packet,
+   models scheduler intake and dispatch intent, resolves `.docks/gdi`, and
+   emits `aos.afk_session_trigger_dry_run` with
+   `provider_launch_allowed=false`, terminal substrate `not_attempted`, and
+   result route `not_attempted`. Live-dependent follow-up is paused until the
+   repo-mode AOS TCC/Input Monitoring readiness blocker is repaired and
+   `./aos ready --post-permission` reports ready.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.

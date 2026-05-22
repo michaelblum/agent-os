@@ -1,6 +1,6 @@
 # Work Card: AFK Dev Session Trigger Dry-Run Command V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
 
 ## Transfer Classification
 
@@ -289,3 +289,56 @@ Report:
   read, gateway mutation, result-route delivery, GitHub state, push, or PR
   occurred;
 - remaining gap before any supervised or unattended live session trigger mode.
+
+## Foreman Acceptance
+
+Accepted on 2026-05-22 at GDI commit
+`f7873d96a6430608f545ca4f9d14f59afb8f1b08`.
+
+Review summary:
+
+- Scope matched the card: the implementation adds experimental
+  `./aos dev afk-session-trigger` only, delegates to
+  `scripts/afk-session-trigger-prototype.mjs`, and keeps final
+  `aos session` spelling deferred.
+- Launch policy is preserved: the command requires `--dry-run`, exposes no
+  `--live`, `--launch-provider`, `--start`, or equivalent launch flag, and the
+  receipt reports `provider_launch_allowed=false`,
+  `terminal_substrate.status=not_attempted`, and
+  `result_route.status=not_attempted`.
+- Changed files were limited to the expected dev command, registry, tests, and
+  focused prototype/test paths.
+- Provider-free wrapper smoke produced
+  `record_type=aos.afk_session_trigger_dry_run`, `status=dry_run_ready`,
+  scheduler lifecycle `accepted`, selected action `dry-run`, selected
+  provider/dock `codex`/`gdi`, launch root `.docks/gdi`,
+  `provider_launch_allowed=false`, terminal substrate `not_attempted`, result
+  route `not_attempted`, and zero mismatches.
+
+Foreman verification:
+
+```bash
+node --test tests/afk-session-trigger-prototype.test.mjs
+bash tests/dev-workflow-router.sh
+bash tests/help-contract.sh
+./aos dev build --no-restart
+node --test tests/afk-dry-run-prototype.test.mjs tests/afk-launch-attempt-prototype.test.mjs
+./aos dev audit --json
+node --test tests/schemas/dev-workflow-rules.test.mjs
+node --test tests/schemas/dev-active-profile.test.mjs
+node --test tests/schemas/dev-workflow-profiles.test.mjs
+bash tests/dev-audit.sh
+./aos dev afk-session-trigger --packet <temp-packet.json> --provider codex --dock gdi --dry-run --json --timestamp 2026-05-22T20:40:00.000Z --idempotence-salt foreman-smoke
+./aos dev afk-session-trigger --packet
+./aos dev afk-session-trigger --dry-run --json
+./aos dev afk-session-trigger --packet /tmp/nope.json --provider codex --dock gdi --json
+git diff --check c8b6c612c399099c1cbe5bbcebad09201e94d24b..HEAD
+./aos dev recommend --json --paths src/commands/dev.swift,src/shared/command-registry-data.swift,tests/dev-workflow-router.sh,tests/help-contract.sh,scripts/afk-session-trigger-prototype.mjs,tests/afk-session-trigger-prototype.test.mjs
+```
+
+All deterministic checks passed. `./aos ready` after the Swift build reported
+`human_required` with `daemon_tcc_grant_stale_or_missing` for the repo-mode
+`/Users/Michael/Code/agent-os/aos` runtime. This is an environment permission
+blocker, not an acceptance failure for the dry-run command. Do not route
+live-dependent follow-up until the repo-standard permission reset/setup path has
+completed and `./aos ready --post-permission` reports ready.
