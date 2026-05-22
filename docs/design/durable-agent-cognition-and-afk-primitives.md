@@ -572,6 +572,11 @@ The next slices should stay reversible:
    `--supervised-live-launch` plus `--i-am-present` human-supervision flags,
    limits the first source slice to Codex from `.docks/gdi`, and preserves
    duplicate prevention, cleanup proof, and provider-owned transcript/catalog
-   boundaries before any final session command spelling.
+   boundaries before any final session command spelling. The next routed source
+   slice is
+   `docs/design/work-cards/afk-dev-session-trigger-guarded-live-codex-launch-v0.md`;
+   it should implement deterministic guarded-live behavior without running the
+   supervised live Codex proof, which remains an Operator follow-up after source
+   review.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
