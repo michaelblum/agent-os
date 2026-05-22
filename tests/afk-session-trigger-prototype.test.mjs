@@ -273,6 +273,38 @@ test('drives fixture-backed supervised-live Codex bridge/provider acceptance and
   assert.deepEqual(receipt.mismatches, []);
 });
 
+test('selects provider-shaped Codex command for accepted no-fixture supervised launch without executing provider in tests', async () => {
+  const packetPath = await writePacket(validPacket());
+  const cleanupFixture = await writeCleanupProofFixture();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'no-fixture-provider-command-test',
+    '--provider-launch-dry-run',
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.equal(receipt.status, 'provider_acceptance_unobserved');
+  assert.equal(receipt.terminal_substrate.status, 'observed');
+  assert.equal(receipt.terminal_substrate.command, 'codex --no-alt-screen');
+  assert.equal(receipt.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'provider_acceptance_unobserved'));
+});
+
 test('rejects supervised-live pre-launch guard failures before side effects', async () => {
   const packetPath = await writePacket(validPacket());
   const result = runPrototype([
@@ -534,6 +566,7 @@ test('provider acceptance timeout returns non-completed state even with cleanup 
     fixedTimestamp,
     '--idempotence-salt',
     'provider-timeout-test',
+    '--provider-launch-dry-run',
     '--cleanup-proof-fixture',
     cleanupFixture,
   ]);

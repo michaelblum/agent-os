@@ -59,6 +59,10 @@ function parseArgs(argv) {
       options.iAmPresent = true;
       continue;
     }
+    if (arg === '--provider-launch-dry-run') {
+      options.providerLaunchDryRun = true;
+      continue;
+    }
     if (arg === '--help' || arg === '-h') {
       options.help = true;
       continue;
@@ -375,6 +379,8 @@ async function buildReceipt(options) {
     dock: selectedDock,
     repo: repoRoot,
     timestamp: createdAt,
+    launchMode: 'supervised-provider',
+    providerLaunchDryRun: options.providerLaunchDryRun,
     bridgeVisibilityFixture: options.bridgeVisibilityFixture,
     providerSessionId: options.providerSessionId,
     launchObservedAt: options.launchObservedAt,

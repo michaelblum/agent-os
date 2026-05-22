@@ -23,7 +23,7 @@ function usage() {
 Usage:
   node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--catalog-fixture <path>] [--bridge-visibility-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
-This local prototype creates an aos.afk_launch_attempt record, observes terminal substrate through the Sigil codex-terminal bridge, and launches no provider.`;
+This local prototype creates an aos.afk_launch_attempt record, observes terminal substrate through the Sigil codex-terminal bridge, and launches no provider unless an internal supervised provider launch mode is supplied by the guarded session trigger.`;
 }
 
 function parseArgs(argv) {
@@ -851,6 +851,15 @@ function harmlessCommand(session, cwd) {
   return `node -e ${JSON.stringify(`console.log(Buffer.from(${JSON.stringify(encoded)}, 'base64').toString('utf8'));`)}`;
 }
 
+function providerCommand(provider) {
+  if (provider === 'codex') return 'codex --no-alt-screen';
+  throw new Error(`Provider launch command is not defined for ${provider}`);
+}
+
+function launchModeFor(options) {
+  return options.launchMode ?? (options.supervisedProviderLaunch ? 'supervised-provider' : 'no-provider');
+}
+
 function assertNoProviderCommand(command) {
   if (PROVIDER_BINARY_PATTERN.test(command)) {
     throw new Error('Refusing command path that would execute a provider binary');
@@ -980,6 +989,150 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
   }
 }
 
+function dryRunProviderTerminalSubstrate({ session, launchCwd, command }) {
+  return {
+    bridge_session_started: true,
+    command,
+    provider_launch_performed: true,
+    terminal_substrate: {
+      status: 'observed',
+      driver: 'process',
+      session_handle: session,
+      cwd: launchCwd,
+      command,
+      snapshot_ref: 'inline:terminal_substrate.provider_launch_dry_run',
+      geometry: {
+        cols: NOT_OBSERVED,
+        rows: NOT_OBSERVED,
+      },
+      resize: NOT_OBSERVED,
+      input_submission: NOT_OBSERVED,
+      snapshot_summary: {
+        session,
+        driver: 'process',
+        command,
+        includes_marker: false,
+        text_excerpt: 'provider launch dry-run: command not executed',
+      },
+      bridge_health: {
+        ok: NOT_OBSERVED,
+        default_session: session,
+        default_cwd: launchCwd,
+        driver: 'process',
+      },
+    },
+    provider_acceptance: {
+      status: 'provider_acceptance_unobserved',
+      provider_session_id: NOT_OBSERVED,
+      provider_reported_cwd: NOT_OBSERVED,
+      provider_reported_branch: NOT_OBSERVED,
+      provider_reported_head: NOT_OBSERVED,
+      provider_version: NOT_OBSERVED,
+      model: NOT_OBSERVED,
+    },
+    catalog_status: NOT_OBSERVED,
+    telemetry_status: NOT_OBSERVED,
+    mismatch: {
+      code: 'provider_session_id_not_observed',
+      severity: 'info',
+      source: 'provider_acceptance',
+      expected: { provider_session_id: 'parseable from bridge snapshot/title' },
+      observed: { terminal_substrate: 'provider_launch_dry_run' },
+      effect: 'not_observed',
+      evidence_ref: 'inline:terminal_substrate.provider_launch_dry_run',
+    },
+  };
+}
+
+async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, command }) {
+  const port = await freePort();
+  const defaultSession = `afk-launch-${idempotenceKey.slice(0, 12)}`;
+  let output = '';
+  const bridge = spawn(process.execPath, ['apps/sigil/codex-terminal/server.mjs'], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      SIGIL_AGENT_TERMINAL_PORT: String(port),
+      SIGIL_AGENT_TERMINAL_DRIVER: 'process',
+      SIGIL_AGENT_TMUX_SESSION: defaultSession,
+      SIGIL_AGENT_CWD: launchCwd,
+      SIGIL_AGENT_COMMAND: command,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  bridge.stdout.on('data', (chunk) => { output += chunk.toString('utf8'); });
+  bridge.stderr.on('data', (chunk) => { output += chunk.toString('utf8'); });
+
+  try {
+    const health = await waitForHealth(port, () => output);
+    const ensureResponse = await fetch(`http://127.0.0.1:${port}/ensure`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session: defaultSession,
+        cwd: launchCwd,
+        command,
+        force: true,
+      }),
+    });
+    if (!ensureResponse.ok) {
+      throw new Error(`bridge /ensure failed: ${await ensureResponse.text()}`);
+    }
+    const ensured = await ensureResponse.json();
+    return {
+      bridge_session_started: true,
+      command,
+      provider_launch_performed: true,
+      terminal_substrate: {
+        status: 'observed',
+        driver: ensured.driver,
+        session_handle: ensured.session,
+        cwd: launchCwd,
+        command,
+        snapshot_ref: NOT_OBSERVED,
+        snapshot_summary: {
+          session: ensured.session,
+          driver: ensured.driver,
+          command,
+          includes_marker: false,
+          text_excerpt: NOT_OBSERVED,
+        },
+        bridge_health: {
+          ok: health.ok,
+          default_session: health.defaultSession,
+          default_cwd: health.defaultCwd,
+          driver: health.driver,
+        },
+      },
+      provider_acceptance: {
+        status: 'provider_acceptance_unobserved',
+        provider_session_id: NOT_OBSERVED,
+        provider_reported_cwd: NOT_OBSERVED,
+        provider_reported_branch: NOT_OBSERVED,
+        provider_reported_head: NOT_OBSERVED,
+        provider_version: NOT_OBSERVED,
+        model: NOT_OBSERVED,
+      },
+      catalog_status: NOT_OBSERVED,
+      telemetry_status: NOT_OBSERVED,
+      mismatch: {
+        code: 'provider_session_id_not_observed',
+        severity: 'info',
+        source: 'provider_acceptance',
+        expected: { provider_session_id: 'parseable from bridge snapshot/title' },
+        observed: { terminal_substrate: 'observed' },
+        effect: 'not_observed',
+        evidence_ref: NOT_OBSERVED,
+      },
+    };
+  } finally {
+    if (bridge.exitCode == null) {
+      bridge.kill('SIGTERM');
+      await new Promise((resolvePromise) => bridge.once('exit', resolvePromise));
+    }
+  }
+}
+
 async function buildAttemptContext(options) {
   if (!options.packet) throw new Error('Missing required --packet');
   const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
@@ -1030,6 +1183,7 @@ async function buildAttemptContext(options) {
     selectedProvider: provider.selected_provider,
   }, 16)}`;
   const action = 'start';
+  const launchMode = launchModeFor(options);
   const idempotenceKey = stableHash({
     packet_id_or_ref: packetId,
     scheduler_run_id: schedulerRunId,
@@ -1040,10 +1194,15 @@ async function buildAttemptContext(options) {
     required_start_ref: requiredStartRef,
     result_route_refs: resultRoutes,
     action,
+    launch_mode: launchMode,
   });
   const session = `afk-launch-${idempotenceKey.slice(0, 12)}`;
-  const command = harmlessCommand(session, intendedLaunchCwd);
-  assertNoProviderCommand(command);
+  const command = launchMode === 'supervised-provider'
+    ? providerCommand(provider.selected_provider)
+    : harmlessCommand(session, intendedLaunchCwd);
+  if (launchMode === 'no-provider') {
+    assertNoProviderCommand(command);
+  }
   const bridgeVisibility = normalizeBridgeVisibilityFixture(rawBridgeVisibilityFixture, intendedLaunchCwd);
 
   const validations = [
@@ -1061,15 +1220,37 @@ async function buildAttemptContext(options) {
       profile_path: dockProfile.profile_path ?? null,
       reason: dockProfile.reason ?? null,
     }),
-    validationRecord('selected_provider_supported_without_launch', provider.status === 'selected_no_provider_launch', {
+    validationRecord('selected_provider_supported', provider.status === 'selected_no_provider_launch', {
       selected_provider: provider.selected_provider,
       reason: provider.status === 'selected_no_provider_launch' ? null : provider.status,
     }),
-    validationRecord('provider_binary_not_in_command', !PROVIDER_BINARY_PATTERN.test(command), {
-      command,
+    validationRecord(
+      launchMode === 'supervised-provider' ? 'provider_binary_in_command_for_supervised_launch' : 'provider_binary_not_in_command',
+      launchMode === 'supervised-provider' ? PROVIDER_BINARY_PATTERN.test(command) : !PROVIDER_BINARY_PATTERN.test(command),
+      {
+        launch_mode: launchMode,
+        selected_provider: provider.selected_provider,
+        selected_dock: selectedDock,
+        command,
+      },
+    ),
+    validationRecord('supervised_provider_launch_limited_to_codex_gdi', launchMode !== 'supervised-provider' || (provider.selected_provider === 'codex' && selectedDock === 'gdi'), {
+      launch_mode: launchMode,
+      selected_provider: provider.selected_provider,
+      selected_dock: selectedDock,
+    }),
+    validationRecord('provider_launch_dry_run_not_fixture_backed', !options.providerLaunchDryRun || !rawBridgeVisibilityFixture, {
+      launch_mode: launchMode,
+      provider_launch_dry_run: Boolean(options.providerLaunchDryRun),
+      bridge_visibility_fixture: rawBridgeVisibilityFixture ? 'present' : NOT_OBSERVED,
+    }),
+    validationRecord('provider_launch_dry_run_requires_supervised_mode', !options.providerLaunchDryRun || launchMode === 'supervised-provider', {
+      launch_mode: launchMode,
+      provider_launch_dry_run: Boolean(options.providerLaunchDryRun),
     }),
     validationRecord('bridge_visibility_fixture_provider_command_not_executed', true, {
-      command: bridgeVisibility?.command ?? NOT_APPLICABLE_NO_PROVIDER,
+      selected_command: command,
+      fixture_command: bridgeVisibility?.command ?? NOT_APPLICABLE_NO_PROVIDER,
       fixture: rawBridgeVisibilityFixture ? 'synthetic_bridge_visibility' : NOT_APPLICABLE_NO_PROVIDER,
     }),
   ];
@@ -1096,10 +1277,12 @@ async function buildAttemptContext(options) {
     schedulerRunId,
     dispatchAttemptId,
     action,
+    launchMode,
     idempotenceKey,
     command,
     bridgeVisibility,
     providerLaunchPerformed: bridgeVisibility?.provider_launch_performed ?? false,
+    providerLaunchDryRun: Boolean(options.providerLaunchDryRun),
     catalogFixture,
     allCwdCatalogFixture,
     providerSessionId: options.providerSessionId ?? bridgeVisibility?.providerSessionId ?? NOT_OBSERVED,
@@ -1147,16 +1330,24 @@ function initialRecord(context, timestamp) {
     },
     launch_intent: {
       action: context.action,
+      launch_mode: context.launchMode,
       intended_worktree: context.worktree,
       intended_launch_cwd: context.intendedLaunchCwd,
       intended_branch: context.gitFacts.branch,
       intended_head: context.gitFacts.head,
-      command_argv: ['node', '-e', '<harmless marker command>'],
+      command_argv: context.launchMode === 'supervised-provider'
+        ? ['codex', '--no-alt-screen']
+        : ['node', '-e', '<harmless marker command>'],
       command: context.command,
-      command_env_refs: [
-        'SIGIL_AGENT_TERMINAL_DRIVER=process',
-        'SIGIL_AGENT_COMMAND=<harmless-node-command>',
-      ],
+      command_env_refs: context.launchMode === 'supervised-provider'
+        ? [
+            'SIGIL_AGENT_TERMINAL_DRIVER=process',
+            'SIGIL_AGENT_COMMAND=codex --no-alt-screen',
+          ]
+        : [
+            'SIGIL_AGENT_TERMINAL_DRIVER=process',
+            'SIGIL_AGENT_COMMAND=<harmless-node-command>',
+          ],
       deadline_or_lease: context.packet.timeout_or_lease ?? context.packet.timeoutOrLease ?? NOT_OBSERVED,
       launch_requested: true,
       launch_performed: false,
@@ -1258,12 +1449,29 @@ async function createLaunchAttempt(options) {
     return record;
   }
 
-  const observed = context.bridgeVisibility ?? await observeTerminalSubstrate({
-    repoRoot: context.repoRoot,
-    idempotenceKey: context.idempotenceKey,
-    launchCwd: context.intendedLaunchCwd,
-    command: context.command,
-  });
+  const observed = context.bridgeVisibility ?? (
+    context.launchMode === 'supervised-provider'
+      ? (
+          context.providerLaunchDryRun
+            ? dryRunProviderTerminalSubstrate({
+                session: `afk-launch-${context.idempotenceKey.slice(0, 12)}`,
+                launchCwd: context.intendedLaunchCwd,
+                command: context.command,
+              })
+            : await observeProviderTerminalSubstrate({
+                repoRoot: context.repoRoot,
+                idempotenceKey: context.idempotenceKey,
+                launchCwd: context.intendedLaunchCwd,
+                command: context.command,
+              })
+        )
+      : await observeTerminalSubstrate({
+          repoRoot: context.repoRoot,
+          idempotenceKey: context.idempotenceKey,
+          launchCwd: context.intendedLaunchCwd,
+          command: context.command,
+        })
+  );
   const catalogTelemetry = classifyCatalogAndTelemetry({
     sessions: context.catalogFixture,
     allCwdSessions: context.allCwdCatalogFixture,
