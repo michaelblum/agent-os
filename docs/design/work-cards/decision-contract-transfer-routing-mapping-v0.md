@@ -1,6 +1,6 @@
 # Work Card: decision-contract-transfer-routing-mapping-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -16,6 +16,20 @@ The accepted vocabulary pass says a schema should wait until at least one
 second non-router candidate proves the generic fields. This round maps transfer
 routing as that second candidate without adding a schema or automating session
 launch.
+
+Accepted evidence:
+
+- GDI branch: `gdi/decision-contract-transfer-routing-mapping-v0`
+- Accepted commit: `163a48605b810d304bf731fc984c6cdf7d756470`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/decision-contract-transfer-routing-mapping-2026-05-21.md`
+- Foreman-side verification passed:
+  `git diff --check 2abf72ea5720cb72662cb1f6eecf59926bbcedfa..163a48605b810d304bf731fc984c6cdf7d756470`
+  and `./aos dev recommend --json`.
+- Recommendation accepted with cadence adjustment: transfer routing is a
+  credible second docs-backed candidate, but the next GDI slice should be
+  broader than another single-note mapping.
 
 ## Fresh Context Contract
 
