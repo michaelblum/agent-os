@@ -1,6 +1,6 @@
 # Work Card: afk-design-consolidation-readiness-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -24,6 +24,22 @@ session, and back to lifecycle/result routes. The next risk is not another
 primitive sketch; it is whether the notes use one coherent vocabulary and
 whether a first manual or local prototype can produce enough work/evidence
 receipts without prematurely adding schemas or command behavior.
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-design-consolidation-readiness-v0`
+- Accepted commit: `fd5063273360b9240417d3efdd527806ac8214d9`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/afk-design-consolidation-readiness-2026-05-21.md`
+- Synthesis update:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman-side verification passed:
+  `git diff --check 04a8f7f7b120a24781d69dda55ebca7595438147..fd5063273360b9240417d3efdd527806ac8214d9`,
+  `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`,
+  and `./aos dev recommend --json`.
+- Recommendation accepted: route a docs-only work/evidence receipt shape before
+  a deterministic local dry-run prototype.
 
 ## Fresh Context Contract
 
