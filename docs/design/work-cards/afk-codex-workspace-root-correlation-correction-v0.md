@@ -1,6 +1,64 @@
 # AFK Codex Workspace Root Correlation Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Needs correction 2026-05-22
+
+## Foreman Review
+
+- Reviewed output commit:
+  `64d52394449fb68eefd03718390b9112a029109a`
+- Branch:
+  `gdi/afk-codex-workspace-root-correlation-correction-v0`
+- Base:
+  `287a76214b5d092868f1912fbcb22c1d2bff4f2e`
+- Local verification passed:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: 21/21
+  - `node --test --experimental-strip-types packages/host/test/codex-thread-adapter.test.ts`: 15/15
+  - `node --test --experimental-strip-types packages/host/test/session-catalog.test.ts`: 4/4
+  - `npm --prefix packages/host run check`
+  - `npm --prefix packages/host test`: 62/62
+  - `git diff --check`
+  - `./aos dev recommend --json`
+- Foreman temp-fixture smoke passed for the primary live shape: no observed
+  provider id, dock launch cwd `.docks/gdi`, workspace-root Codex metadata,
+  `codex_adapter.correlation_status=matched_by_cwd_time_window`,
+  `matched_cwd_basis=workspace_root`, and both
+  `codex://threads/<id>` plus `codex-thread:<id>` refs emitted.
+
+### Correction Finding
+
+`correlateLaunch` can still falsely accept a provider-session-id match when
+`workspaceRoot` is the only cwd basis and the resolved Codex thread is outside
+that workspace root.
+
+Observed from a Foreman read-only temp fixture:
+
+```json
+{
+  "status": "matched_by_provider_session_id",
+  "cwd_match_basis": "not_observed",
+  "mismatches": []
+}
+```
+
+The triggering code is in `packages/host/src/codex-thread-adapter.ts`: after
+`matchCwdBasis(...)` returns `not_observed`, the wrong-cwd branch is gated by
+`intendedCwd` instead of by the presence of any explicit cwd basis. This violates
+the required behavior that a provider-id-resolved thread outside both the
+intended launch cwd and explicit workspace/project root remains `wrong_cwd`.
+
+Required correction:
+
+- Treat `workspaceRoot` as an explicit cwd basis for provider-id wrong-cwd
+  protection even when `intendedCwd` is absent.
+- Add a focused adapter test where `providerSessionId` is observed,
+  `workspaceRoot` is supplied, `intendedCwd` is absent, and the resolved thread
+  cwd is outside the workspace root. Expected result: `wrong_cwd`,
+  `cwd_match_basis=not_observed`, and a `wrong_cwd` mismatch.
+- Preserve the accepted primary behavior and the existing deterministic test
+  results.
+
+Continue from the current correction branch/work surface. Do not restart from
+the durable accepted base for this follow-up.
 
 ## Transfer Classification
 
