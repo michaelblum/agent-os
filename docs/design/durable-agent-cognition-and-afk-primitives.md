@@ -565,5 +565,13 @@ The next slices should stay reversible:
    `docs/design/work-cards/afk-session-trigger-guarded-live-mode-readiness-v0.md`
    before any source command is allowed to perform a supervised provider
    launch.
+   That guarded-live readiness decision now lives at
+   `docs/design/notes/afk-session-trigger-guarded-live-mode-readiness-2026-05-22.md`;
+   it keeps the first live provider launch under experimental
+   `./aos dev afk-session-trigger`, requires explicit
+   `--supervised-live-launch` plus `--i-am-present` human-supervision flags,
+   limits the first source slice to Codex from `.docks/gdi`, and preserves
+   duplicate prevention, cleanup proof, and provider-owned transcript/catalog
+   boundaries before any final session command spelling.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
