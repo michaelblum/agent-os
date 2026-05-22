@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const DEFAULT_TIMESTAMP = null;
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
+const DRY_RUN_NO_PROVIDER_LAUNCH = 'not_applicable: dry-run/no-provider-launch';
 
 function usage() {
   return `Experimental AFK dry-run prototype.
@@ -243,6 +244,10 @@ function resolveProviderFact({ explicitProvider, packetProviderHint, noProviderL
       launch_requested: !noProviderLaunch,
       launch_performed: false,
       reason: 'no --provider or packet provider_hint supplied',
+      auth_status: DRY_RUN_NO_PROVIDER_LAUNCH,
+      catalog_record_refs: 'not_observed',
+      telemetry_event_refs: 'not_observed',
+      mismatch_facts: ['missing_provider_selection'],
     };
   }
 
@@ -253,7 +258,7 @@ function resolveProviderFact({ explicitProvider, packetProviderHint, noProviderL
     availability_status: SUPPORTED_PROVIDERS.has(normalized) ? 'selected_dry_run_not_launched' : 'unsupported',
     launch_requested: !noProviderLaunch,
     launch_performed: false,
-    auth_status: 'not_applicable: dry-run/no-provider-launch',
+    auth_status: DRY_RUN_NO_PROVIDER_LAUNCH,
     catalog_record_refs: 'not_observed',
     telemetry_event_refs: 'not_observed',
     mismatch_facts: SUPPORTED_PROVIDERS.has(normalized) ? [] : [`unsupported_provider:${normalized}`],
@@ -422,6 +427,27 @@ async function buildReceipt(options) {
     repoRoot,
     timestamp: options.timestamp,
   });
+  const intendedLaunchCwd = dockProfile.launch_root
+    ? resolve(repoRoot, dockProfile.launch_root)
+    : resolve(repoRoot, '.docks', selectedDock);
+  const missingEvidenceExplanation = 'catalog and telemetry are absent by design unless provider transcript or statusline parsing actually runs';
+  const launchObservability = {
+    selected_provider: providerFact.selected_provider,
+    selected_dock: selectedDock,
+    selected_dock_launch_root: dockProfile.launch_root ?? `missing_with_reason: .docks/${selectedDock}`,
+    intended_launch_cwd: intendedLaunchCwd,
+    intended_worktree: worktree,
+    intended_provider_command: DRY_RUN_NO_PROVIDER_LAUNCH,
+    dry_run_command: dryRunCommand,
+    launch_requested: providerFact.launch_requested,
+    launch_performed: false,
+    terminal_substrate: DRY_RUN_NO_PROVIDER_LAUNCH,
+    provider_session_id: DRY_RUN_NO_PROVIDER_LAUNCH,
+    catalog_record_refs: 'not_observed',
+    telemetry_event_refs: 'not_observed',
+    provider_mismatch_facts: providerFact.mismatch_facts ?? [],
+    missing_evidence_explanation: missingEvidenceExplanation,
+  };
 
   return {
     type: 'aos.afk_dry_run_receipt_bundle.prototype',
@@ -474,11 +500,20 @@ async function buildReceipt(options) {
       selected_provider: providerFact.selected_provider,
       provider_selection: providerFact,
       selected_dock_profile: dockProfile,
-      terminal_substrate: 'not_applicable: dry-run/no-provider-terminal',
+      launch_observability: launchObservability,
+      selected_dock: selectedDock,
+      selected_dock_launch_root: launchObservability.selected_dock_launch_root,
+      intended_launch_cwd: launchObservability.intended_launch_cwd,
+      intended_worktree: launchObservability.intended_worktree,
+      intended_provider_command: launchObservability.intended_provider_command,
+      dry_run_command: dryRunCommand,
+      launch_requested: providerFact.launch_requested,
+      launch_performed: false,
+      terminal_substrate: DRY_RUN_NO_PROVIDER_LAUNCH,
       launch_root: dockProfile.launch_root ?? `missing_with_reason: .docks/${selectedDock}`,
       command_or_dry_run_command: dryRunCommand,
       availability_auth_status: providerFact.auth_status ?? providerFact.availability_status,
-      provider_session_id: 'not_applicable: dry-run/no-provider-launch',
+      provider_session_id: DRY_RUN_NO_PROVIDER_LAUNCH,
       catalog_record_refs: providerFact.catalog_record_refs ?? 'not_observed',
       telemetry_event_refs: providerFact.telemetry_event_refs ?? 'not_observed',
       mismatch_facts: providerFact.mismatch_facts ?? [],
@@ -552,7 +587,7 @@ async function buildReceipt(options) {
       route_notification_response_refs: 'not_applicable: local dry-run/no-route-mutation',
       human_needed_refs: 'not_observed',
       missing_evidence_explanations: [
-        'provider catalog and telemetry are absent by design because this prototype never launches or resumes a provider',
+        missingEvidenceExplanation,
         'route responses are absent by design because this prototype does not mutate gateway, notification, GitHub, or broker routes',
       ],
     },
