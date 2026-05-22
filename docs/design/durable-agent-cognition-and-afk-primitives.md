@@ -500,5 +500,10 @@ The next slices should stay reversible:
    correction via
    `docs/design/work-cards/afk-bridge-current-launch-observability-correction-v0.md`
    before supervised real-launch attempt integration.
+   That correction is now accepted: the prototype fixture path distinguishes
+   empty, stale-only, one-current-candidate, exact-match, and ambiguous catalog
+   states, and prevents stale telemetry from binding to the current launch. The
+   next proof is a supervised live bridge-backed correlation smoke using those
+   classifications.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.

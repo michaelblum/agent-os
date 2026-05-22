@@ -1,6 +1,36 @@
 # Work Card: AFK Bridge Current-Launch Observability Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `89f38803d61dff18d124941b3aa5adae44795286`
+- Changed files:
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman review: accepted. The prototype now classifies fixture-backed
+  provider catalog evidence for current-launch observation without overclaiming
+  stale sessions or stale telemetry. It distinguishes empty catalog, stale-only
+  catalog, one current candidate without a known provider session id, exact
+  provider-session-id match, and multiple current candidates. Telemetry is only
+  reported for the matched/current catalog session.
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`
+  - `git diff --check 795f68f412dc669991e82892a6d968144e4bbcb7..89f38803d61dff18d124941b3aa5adae44795286`
+  - `./aos dev recommend --json`
+- Key fixture proof: the Operator stale case is covered with launch observed
+  around `2026-05-22T12:58Z`, a stale Codex catalog session updated at
+  `2026-05-22T06:11:41Z`, catalog status
+  `catalog_current_launch_not_observed`, and telemetry status
+  `telemetry_current_launch_not_observed`.
+- Local-only boundary confirmed: no Codex, Claude, Gemini, or other provider
+  was launched; no provider config, real provider transcript, gateway state,
+  dock profile, hook, GitHub state, push, or PR changed.
+- Remaining gap: fixture-backed current-launch classification still needs a
+  supervised live bridge-backed correlation proof before supervised
+  real-launch attempt integration.
 
 ## Tracker
 
