@@ -91,6 +91,7 @@ test('emits deterministic receipt bundle for a valid dry run without provider la
   assert.equal(receipt.transfer.required_start_ref, 'docs/durable-agent-cognition-v0');
   assert.match(receipt.transfer.start_ref_sha, /^[a-f0-9]{40}$/);
   assert.equal(receipt.dispatch.selected_provider, 'codex');
+  assert.equal(receipt.dispatch.selected_dock, 'gdi');
   assert.equal(receipt.dispatch.provider_selection.launch_performed, false);
   assert.equal(receipt.dispatch.provider_session_id, 'not_applicable: dry-run/no-provider-launch');
   assert.equal(receipt.dispatch.selected_dock_profile.dock, 'gdi');
@@ -98,6 +99,46 @@ test('emits deterministic receipt bundle for a valid dry run without provider la
   assert.equal(receipt.dispatch.selected_dock_profile.default_entry_path, 'aos_developer');
   assert.ok(receipt.dispatch.selected_dock_profile.allowed_entry_paths.includes('testing'));
   assert.equal(receipt.dispatch.selected_dock_profile.launch_root, '.docks/gdi');
+  assert.equal(receipt.dispatch.selected_dock_launch_root, '.docks/gdi');
+  assert.equal(receipt.dispatch.intended_launch_cwd, join(repoRoot, '.docks/gdi'));
+  assert.equal(receipt.dispatch.intended_worktree, repoRoot);
+  assert.equal(receipt.dispatch.intended_provider_command, 'not_applicable: dry-run/no-provider-launch');
+  assert.deepEqual(receipt.dispatch.dry_run_command, [
+    'node',
+    'scripts/afk-dry-run-prototype.mjs',
+    '--packet',
+    receipt.dispatch.dry_run_command[3],
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+  assert.equal(receipt.dispatch.launch_requested, false);
+  assert.equal(receipt.dispatch.launch_performed, false);
+  assert.equal(receipt.dispatch.terminal_substrate, 'not_applicable: dry-run/no-provider-launch');
+  assert.equal(receipt.dispatch.catalog_record_refs, 'not_observed');
+  assert.equal(receipt.dispatch.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(receipt.dispatch.mismatch_facts, []);
+  assert.deepEqual(receipt.dispatch.launch_observability, {
+    selected_provider: 'codex',
+    selected_dock: 'gdi',
+    selected_dock_launch_root: '.docks/gdi',
+    intended_launch_cwd: join(repoRoot, '.docks/gdi'),
+    intended_worktree: repoRoot,
+    intended_provider_command: 'not_applicable: dry-run/no-provider-launch',
+    dry_run_command: receipt.dispatch.dry_run_command,
+    launch_requested: false,
+    launch_performed: false,
+    terminal_substrate: 'not_applicable: dry-run/no-provider-launch',
+    provider_session_id: 'not_applicable: dry-run/no-provider-launch',
+    catalog_record_refs: 'not_observed',
+    telemetry_event_refs: 'not_observed',
+    provider_mismatch_facts: [],
+    missing_evidence_explanation: 'catalog and telemetry are absent by design unless provider transcript or statusline parsing actually runs',
+  });
   assert.deepEqual(receipt.scheduler.lifecycle_state_transitions, [
     'queued',
     'accepted',
@@ -106,7 +147,7 @@ test('emits deterministic receipt bundle for a valid dry run without provider la
   ]);
   assert.deepEqual(receipt.work.changed_paths, []);
   assert.ok(receipt.work.artifacts_deliberately_not_created.includes('provider session'));
-  assert.ok(receipt.evidence.missing_evidence_explanations.some((entry) => entry.includes('never launches')));
+  assert.ok(receipt.evidence.missing_evidence_explanations.some((entry) => entry.includes('transcript or statusline parsing')));
   assert.ok(receipt.validations.every((validation) => validation.status === 'passed'));
 });
 
@@ -203,6 +244,38 @@ test('emits structured failed receipt for missing cwd and worktree paths', async
   assert.equal(worktreeValidation.status, 'failed');
   assert.equal(worktreeValidation.path, missingPath);
   assert.match(worktreeValidation.reason, /worktree_exists path does not exist/);
+  assert.equal(receipt.dispatch.launch_observability.launch_performed, false);
+  assert.equal(receipt.dispatch.launch_observability.terminal_substrate, 'not_applicable: dry-run/no-provider-launch');
+});
+
+test('reports unsupported provider mismatch facts without implying launch', async () => {
+  const packetPath = await writePacket(validPacket());
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'unsupported-provider',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, '');
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.final_status, 'failed');
+  assert.equal(receipt.dispatch.provider_selection.availability_status, 'unsupported');
+  assert.deepEqual(receipt.dispatch.mismatch_facts, ['unsupported_provider:unsupported-provider']);
+  assert.deepEqual(receipt.dispatch.launch_observability.provider_mismatch_facts, [
+    'unsupported_provider:unsupported-provider',
+  ]);
+  assert.equal(receipt.dispatch.launch_observability.launch_requested, false);
+  assert.equal(receipt.dispatch.launch_observability.launch_performed, false);
+  assert.equal(receipt.dispatch.launch_observability.provider_session_id, 'not_applicable: dry-run/no-provider-launch');
+  assert.equal(receipt.dispatch.launch_observability.catalog_record_refs, 'not_observed');
+  assert.equal(receipt.dispatch.launch_observability.telemetry_event_refs, 'not_observed');
 });
 
 test('rejects explicit provider launch requests before dispatch facts can imply execution', async () => {
