@@ -451,10 +451,15 @@ The next slices should stay reversible:
    led to an experimental no-provider dry-run prototype in
    `scripts/afk-dry-run-prototype.mjs` with focused coverage in
    `tests/afk-dry-run-prototype.test.mjs`.
-7. Use the dry-run prototype to decide whether the next implementation path is
-   command hardening, receipt contract correction, or a first supervised
-   provider/session launch.
-8. Distill one real browser/model-control run into a work/evidence record and
+7. Expose the dry-run prototype through the governed repo-development surface.
+   The experimental command is now
+   `./aos dev afk-dry-run --packet <packet.json> --provider codex --dock gdi --json`;
+   it delegates to the no-provider prototype and keeps AFK runtime/session
+   command spelling deferred.
+8. Use the dev dry-run command to decide whether the next implementation path
+   is receipt contract correction or a first supervised provider/session
+   launch.
+9. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
-9. Trial a Researcher-compatible role only after the session trigger and async
+10. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
