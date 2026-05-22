@@ -553,6 +553,7 @@ The next slices should stay reversible:
    `docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md`;
    it recommends an experimental dry-run-only
    `./aos dev afk-session-trigger` source slice and keeps unattended provider
-   launch behind a later explicit work card.
+   launch behind a later explicit work card. The next routed source slice is
+   `docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md`.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
