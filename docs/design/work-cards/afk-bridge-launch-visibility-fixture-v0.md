@@ -1,6 +1,40 @@
 # AFK Bridge Launch Visibility Fixture V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `ee786994b02aeb62e9492c742f5ff38338d49427`
+- Changed files:
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman review: accepted. The prototype now supports
+  `--bridge-visibility-fixture`, treats provider-shaped bridge commands as
+  synthetic fixture evidence rather than executed commands, emits explicit
+  launch-side `provider_acceptance` facts, records
+  `provider_acceptance_unobserved` with `provider_session_id: not_observed`
+  when no id is parseable, and binds a synthetic provider session id to a
+  requested-cwd catalog match when the fixture supplies both sides.
+- Existing catalog behavior remains intact: requested-cwd current absence stays
+  `catalog_current_launch_not_observed`, unrelated all-cwd candidates remain in
+  `catalog.unrelated_current_session_refs`, unrelated telemetry does not bind,
+  and true wrong-cwd provider session behavior remains covered.
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: 15/15 pass
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1 pass
+  - `git diff --check d288f242..ee786994`: pass
+  - `./aos dev recommend --json --files scripts/afk-launch-attempt-prototype.mjs tests/afk-launch-attempt-prototype.test.mjs`: pass; focused changed test already run
+  - `./aos dev recommend --json`: pass; broader branch-level recommendations
+    are inherited from the long-lived feature branch, not this slice
+- Local-only boundary confirmed: no live provider session was launched; no
+  provider config, real provider transcript, gateway state, dock profile, hook,
+  GitHub state, push, or PR changed.
+- Remaining gap: define the repo-owned Codex provider-session/thread adapter
+  contract that can resolve, inspect, correlate, and deeplink Codex sessions
+  without depending on ad hoc skill behavior.
+- Routed follow-up:
+  `docs/design/work-cards/afk-codex-provider-session-adapter-inventory-v0.md`.
 
 ## Transfer Classification
 
