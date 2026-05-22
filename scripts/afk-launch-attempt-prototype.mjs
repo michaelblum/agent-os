@@ -295,6 +295,10 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
     ?? fixture.responseMarker
     ?? NOT_OBSERVED;
   const markerObserved = responseMarker !== NOT_OBSERVED && text.includes(responseMarker);
+  const cleanup = normalizeCleanupProofFixture(
+    fixture.cleanup ?? fixture.cleanup_proof ?? fixture.cleanupProof ?? bridge.cleanup ?? bridge.cleanup_proof ?? bridge.cleanupProof,
+    { session, command },
+  );
   return {
     bridge_session_started: true,
     command,
@@ -361,6 +365,7 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
     },
     catalog_status: NOT_OBSERVED,
     telemetry_status: NOT_OBSERVED,
+    cleanup,
     mismatch: parsed.provider_session_id === NOT_OBSERVED
       ? {
         code: 'provider_session_id_not_observed',
@@ -900,6 +905,58 @@ async function waitForSnapshot(port, session, marker) {
   throw new Error(`snapshot did not include ${marker}`);
 }
 
+async function waitForBridgeUnreachable(port) {
+  const url = `http://127.0.0.1:${port}/health`;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      await fetch(url);
+    } catch {
+      return true;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  }
+  return false;
+}
+
+function cleanupProofFromStatus({
+  owner = 'afk-launch-attempt-prototype',
+  status,
+  proof = [],
+  reason = null,
+  session = NOT_OBSERVED,
+  command = NOT_OBSERVED,
+  port = NOT_OBSERVED,
+}) {
+  const verified = status === 'verified' || status === 'complete' || status === 'completed';
+  return {
+    owner,
+    status: verified ? 'verified' : 'cleanup_unverified',
+    proof,
+    reason: verified ? null : (reason ?? 'helper-owned bridge/provider cleanup was not verified'),
+    scope: {
+      owned_bridge_session: session,
+      owned_command: command,
+      owned_bridge_port: port,
+      unrelated_provider_processes: 'not_classified',
+    },
+  };
+}
+
+function normalizeCleanupProofFixture(cleanup, fallback = {}) {
+  if (!cleanup) return null;
+  const status = cleanup.status ?? cleanup.cleanup_status ?? cleanup.cleanupStatus ?? NOT_OBSERVED;
+  const proof = cleanup.proof ?? cleanup.cleanup_proof ?? cleanup.cleanupProof ?? [];
+  return cleanupProofFromStatus({
+    owner: cleanup.owner ?? 'afk-launch-attempt-prototype',
+    status,
+    proof,
+    reason: cleanup.reason,
+    session: cleanup.session ?? fallback.session,
+    command: cleanup.command ?? fallback.command,
+    port: cleanup.port ?? fallback.port,
+  });
+}
+
 async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, command }) {
   assertNoProviderCommand(command);
   const tempRoot = mkdtempSync(join(tmpdir(), 'afk-launch-attempt-'));
@@ -912,6 +969,7 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
   const port = await freePort();
   const defaultSession = `afk-launch-${idempotenceKey.slice(0, 12)}`;
   let output = '';
+  let observed = null;
   const bridge = spawn(process.execPath, ['apps/sigil/codex-terminal/server.mjs'], {
     cwd: repoRoot,
     env: {
@@ -954,7 +1012,7 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
     const inspectorResponse = await fetch(
       `http://127.0.0.1:${port}/session-inspector?cwd=${encodeURIComponent(launchCwd)}&provider=codex&session_id=${defaultSession}`,
     );
-    return {
+    observed = {
       bridge_session_started: true,
       terminal_substrate: {
         status: 'observed',
@@ -980,10 +1038,33 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
       catalog_status: catalog.sessions.length === 0 ? NOT_OBSERVED : 'fixture_only_unexpected',
       telemetry_status: inspectorResponse.status === 404 ? NOT_OBSERVED : 'fixture_only_unexpected',
     };
+    return observed;
   } finally {
     if (bridge.exitCode == null) {
       bridge.kill('SIGTERM');
       await new Promise((resolvePromise) => bridge.once('exit', resolvePromise));
+    }
+    if (observed) {
+      observed.cleanup = cleanupProofFromStatus({
+        status: await waitForBridgeUnreachable(port) ? 'verified' : 'cleanup_unverified',
+        proof: [
+          {
+            kind: 'owned_bridge_process_exit',
+            session: defaultSession,
+            command,
+            exit_observed: bridge.exitCode !== null,
+            signal: bridge.signalCode ?? NOT_OBSERVED,
+          },
+          {
+            kind: 'owned_bridge_health_unreachable_after_teardown',
+            port,
+          },
+        ],
+        reason: bridge.exitCode === null ? 'bridge process exit was not observed' : null,
+        session: defaultSession,
+        command,
+        port,
+      });
     }
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -1032,6 +1113,18 @@ function dryRunProviderTerminalSubstrate({ session, launchCwd, command }) {
     },
     catalog_status: NOT_OBSERVED,
     telemetry_status: NOT_OBSERVED,
+    cleanup: cleanupProofFromStatus({
+      status: 'verified',
+      proof: [
+        {
+          kind: 'provider_launch_dry_run_no_helper_process_started',
+          session,
+          command,
+        },
+      ],
+      session,
+      command,
+    }),
     mismatch: {
       code: 'provider_session_id_not_observed',
       severity: 'info',
@@ -1048,6 +1141,7 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
   const port = await freePort();
   const defaultSession = `afk-launch-${idempotenceKey.slice(0, 12)}`;
   let output = '';
+  let observed = null;
   const bridge = spawn(process.execPath, ['apps/sigil/codex-terminal/server.mjs'], {
     cwd: repoRoot,
     env: {
@@ -1079,7 +1173,7 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
       throw new Error(`bridge /ensure failed: ${await ensureResponse.text()}`);
     }
     const ensured = await ensureResponse.json();
-    return {
+    observed = {
       bridge_session_started: true,
       command,
       provider_launch_performed: true,
@@ -1125,10 +1219,33 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
         evidence_ref: NOT_OBSERVED,
       },
     };
+    return observed;
   } finally {
     if (bridge.exitCode == null) {
       bridge.kill('SIGTERM');
       await new Promise((resolvePromise) => bridge.once('exit', resolvePromise));
+    }
+    if (observed) {
+      observed.cleanup = cleanupProofFromStatus({
+        status: await waitForBridgeUnreachable(port) ? 'verified' : 'cleanup_unverified',
+        proof: [
+          {
+            kind: 'owned_bridge_process_exit',
+            session: defaultSession,
+            command,
+            exit_observed: bridge.exitCode !== null,
+            signal: bridge.signalCode ?? NOT_OBSERVED,
+          },
+          {
+            kind: 'owned_bridge_health_unreachable_after_teardown',
+            port,
+          },
+        ],
+        reason: bridge.exitCode === null ? 'bridge process exit was not observed' : null,
+        session: defaultSession,
+        command,
+        port,
+      });
     }
   }
 }
@@ -1406,6 +1523,13 @@ function initialRecord(context, timestamp) {
       delivered_refs: [],
       failure: NOT_OBSERVED,
     },
+    cleanup: {
+      owner: NOT_OBSERVED,
+      status: NOT_OBSERVED,
+      proof: NOT_OBSERVED,
+      reason: NOT_OBSERVED,
+      scope: NOT_OBSERVED,
+    },
     mismatches: context.provider.mismatch_facts.map((fact) => ({
       code: fact.split(':')[0],
       severity: 'error',
@@ -1481,6 +1605,9 @@ async function createLaunchAttempt(options) {
     providerSessionId: context.providerSessionId,
   });
   record.terminal_substrate = observed.terminal_substrate;
+  if (observed.cleanup) {
+    record.cleanup = observed.cleanup;
+  }
   record.launch_intent.provider_launch_performed = Boolean(observed.provider_launch_performed);
   if (observed.provider_acceptance) {
     record.provider_acceptance = observed.provider_acceptance;

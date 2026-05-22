@@ -32,6 +32,10 @@ async function writeJsonFixture(prefix, name, value) {
 }
 
 async function writeBridgeVisibilityFixture(providerSessionId = '019e5107-5456-7f22-b08b-b977df1b35f4') {
+  const overrides = typeof providerSessionId === 'object' && providerSessionId !== null ? providerSessionId : {};
+  const sessionId = typeof providerSessionId === 'string'
+    ? providerSessionId
+    : (overrides.providerSessionId ?? '019e5107-5456-7f22-b08b-b977df1b35f4');
   return writeJsonFixture('afk-session-trigger-bridge-', 'bridge.json', {
     response_marker: 'live-codex-session-trigger-supervised-bridge-launch',
     bridge: {
@@ -75,7 +79,7 @@ async function writeBridgeVisibilityFixture(providerSessionId = '019e5107-5456-7
         terminal: { cols: 100, rows: 31 },
         text: [
           'Codex CLI 0.133.0',
-          `provider_session_id: ${providerSessionId}`,
+          `provider_session_id: ${sessionId}`,
           'cwd /Users/Michael/Code/agent-os/.docks/gdi',
           'branch gdi/afk-dev-session-trigger-supervised-bridge-launch-v0',
           'model gpt-5.5',
@@ -83,7 +87,9 @@ async function writeBridgeVisibilityFixture(providerSessionId = '019e5107-5456-7
           'live-codex-session-trigger-supervised-bridge-launch',
         ].join('\n'),
       },
+      ...(overrides.bridge ?? {}),
     },
+    ...(overrides.cleanup ? { cleanup: overrides.cleanup } : {}),
   });
 }
 
@@ -275,7 +281,6 @@ test('drives fixture-backed supervised-live Codex bridge/provider acceptance and
 
 test('selects provider-shaped Codex command for accepted no-fixture supervised launch without executing provider in tests', async () => {
   const packetPath = await writePacket(validPacket());
-  const cleanupFixture = await writeCleanupProofFixture();
   const result = runPrototype([
     '--packet',
     packetPath,
@@ -291,8 +296,6 @@ test('selects provider-shaped Codex command for accepted no-fixture supervised l
     '--idempotence-salt',
     'no-fixture-provider-command-test',
     '--provider-launch-dry-run',
-    '--cleanup-proof-fixture',
-    cleanupFixture,
   ]);
 
   assert.equal(result.status, 1);
@@ -302,7 +305,11 @@ test('selects provider-shaped Codex command for accepted no-fixture supervised l
   assert.equal(receipt.terminal_substrate.status, 'observed');
   assert.equal(receipt.terminal_substrate.command, 'codex --no-alt-screen');
   assert.equal(receipt.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.equal(receipt.cleanup.status, 'verified');
+  assert.equal(receipt.cleanup.source_ref, 'inline:launch_attempt.cleanup');
+  assert.equal(receipt.terminal_substrate.cleanup_status, 'verified');
   assert.ok(receipt.mismatches.some((item) => item.class === 'provider_acceptance_unobserved'));
+  assert.equal(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'), false);
 });
 
 test('rejects supervised-live pre-launch guard failures before side effects', async () => {
@@ -546,6 +553,79 @@ test('classifies deterministic cleanup proof failure as cleanup_unverified after
   assert.equal(receipt.cleanup.owner, 'afk-session-trigger-prototype');
   assert.equal(receipt.cleanup.status, 'cleanup_unverified');
   assert.deepEqual(receipt.cleanup.proof, []);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'));
+});
+
+test('classifies missing source-owned cleanup proof as cleanup_unverified after no-fixture bridge/provider evidence', async () => {
+  const packetPath = await writePacket(validPacket());
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'cleanup_unverified');
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.equal(receipt.terminal_substrate.status, 'observed');
+  assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.cleanup.status, 'cleanup_unverified');
+  assert.equal(receipt.cleanup.source_ref, 'inline:launch_attempt.cleanup');
+  assert.equal(receipt.cleanup.reason, 'cleanup proof is required after terminal substrate/provider launch evidence');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'));
+});
+
+test('classifies failed source-owned cleanup proof as cleanup_unverified without fixture override', async () => {
+  const packetPath = await writePacket(validPacket());
+  const bridgeFixture = await writeBridgeVisibilityFixture({
+    cleanup: {
+      status: 'cleanup_unverified',
+      reason: 'owned bridge health endpoint still responded',
+      proof: [
+        {
+          kind: 'owned_bridge_health_unreachable_after_teardown',
+          port: 48123,
+          unreachable: false,
+        },
+      ],
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'cleanup_unverified');
+  assert.equal(receipt.cleanup.status, 'cleanup_unverified');
+  assert.equal(receipt.cleanup.source_ref, 'inline:launch_attempt.cleanup');
+  assert.equal(receipt.cleanup.reason, 'owned bridge health endpoint still responded');
   assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'));
 });
 

@@ -519,7 +519,7 @@ function terminalSubstrateSection(action, launchAttempt) {
   }
   return {
     ...launchAttempt.terminal_substrate,
-    cleanup_status: NOT_OBSERVED,
+    cleanup_status: launchAttempt.cleanup?.status ?? NOT_OBSERVED,
     launch_attempt_ref: launchAttempt.launch_attempt_id,
   };
 }
@@ -575,13 +575,30 @@ async function classifyCleanup(repoRoot, options, action, launchAttempt = null) 
     };
   }
   if (launchAttempt && !options.cleanupProofFixture) {
+    const launchCleanup = launchAttempt.cleanup;
+    if (launchCleanup?.status === 'verified') {
+      return {
+        owner: launchCleanup.owner ?? 'afk-launch-attempt-prototype',
+        status: 'verified',
+        proof: launchCleanup.proof ?? [],
+        reason: null,
+        launch_attempt_id: launchAttempt.launch_attempt_id,
+        source_ref: 'inline:launch_attempt.cleanup',
+        scope: launchCleanup.scope ?? NOT_OBSERVED,
+      };
+    }
     return {
       ...base,
       status: 'cleanup_unverified',
-      reason: 'cleanup proof is required after terminal substrate/provider launch evidence',
+      proof: launchCleanup?.proof ?? base.proof,
+      reason: launchCleanup?.reason && launchCleanup.reason !== NOT_OBSERVED
+        ? launchCleanup.reason
+        : 'cleanup proof is required after terminal substrate/provider launch evidence',
       launch_attempt_id: launchAttempt.launch_attempt_id,
+      source_ref: launchCleanup ? 'inline:launch_attempt.cleanup' : NOT_OBSERVED,
+      scope: launchCleanup?.scope ?? NOT_OBSERVED,
       mismatch: mismatch('cleanup_unverified', 'Terminal cleanup proof was missing or insufficient.', {
-        cleanup_status: NOT_OBSERVED,
+        cleanup_status: launchCleanup?.status ?? NOT_OBSERVED,
       }),
     };
   }

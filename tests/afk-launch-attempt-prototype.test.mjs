@@ -729,6 +729,140 @@ test('binds synthetic bridge-observed provider session id to requested-cwd catal
   assert.deepEqual(record.mismatches, []);
 });
 
+test('records source-owned cleanup proof from synthetic provider bridge evidence', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const providerSessionId = '019e7000-5555-7222-8333-444444444444';
+  const bridgePath = await writeBridgeVisibilityFixture({
+    bridge: {
+      health: {
+        ok: true,
+        defaultSession: 'afk-bridge-cleanup-proof',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-bridge-cleanup-proof',
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      snapshot: {
+        session: 'afk-bridge-cleanup-proof',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        text: [
+          'Codex CLI 0.133.0',
+          `provider_session_id: ${providerSessionId}`,
+          'cwd .docks/gdi',
+        ].join('\n'),
+      },
+    },
+    cleanup: {
+      status: 'verified',
+      proof: [
+        {
+          kind: 'owned_bridge_process_exit',
+          session: 'afk-bridge-cleanup-proof',
+          exit_observed: true,
+        },
+        {
+          kind: 'owned_bridge_health_unreachable_after_teardown',
+          port: 48123,
+        },
+      ],
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgePath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.terminal_substrate.status, 'observed');
+  assert.equal(record.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(record.cleanup.owner, 'afk-launch-attempt-prototype');
+  assert.equal(record.cleanup.status, 'verified');
+  assert.equal(record.cleanup.scope.owned_bridge_session, 'afk-bridge-cleanup-proof');
+  assert.equal(record.cleanup.scope.owned_command, 'codex --no-alt-screen');
+  assert.deepEqual(record.cleanup.proof.map((item) => item.kind), [
+    'owned_bridge_process_exit',
+    'owned_bridge_health_unreachable_after_teardown',
+  ]);
+});
+
+test('records failed source-owned cleanup proof without classifying unrelated provider processes', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const bridgePath = await writeBridgeVisibilityFixture({
+    bridge: {
+      health: {
+        ok: true,
+        defaultSession: 'afk-bridge-cleanup-failed',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-bridge-cleanup-failed',
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      snapshot: {
+        session: 'afk-bridge-cleanup-failed',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        text: 'Codex CLI 0.133.0\ncwd .docks/gdi',
+      },
+    },
+    cleanup: {
+      status: 'cleanup_unverified',
+      reason: 'owned bridge health endpoint still responded',
+      proof: [
+        {
+          kind: 'owned_bridge_health_unreachable_after_teardown',
+          port: 48124,
+          unreachable: false,
+        },
+      ],
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgePath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.equal(record.cleanup.status, 'cleanup_unverified');
+  assert.equal(record.cleanup.reason, 'owned bridge health endpoint still responded');
+  assert.equal(record.cleanup.scope.unrelated_provider_processes, 'not_classified');
+});
+
 test('adds Codex adapter refs for observed provider session id and matching thread cwd', async () => {
   const packetPath = await writePacket(validPacket());
   const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
