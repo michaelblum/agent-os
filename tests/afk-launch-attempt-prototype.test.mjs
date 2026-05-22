@@ -770,6 +770,17 @@ test('records source-owned cleanup proof from synthetic provider bridge evidence
         {
           kind: 'owned_bridge_health_unreachable_after_teardown',
           port: 48123,
+          unreachable: true,
+        },
+        {
+          kind: 'owned_process_driver_child_exit',
+          session: 'afk-bridge-cleanup-proof',
+          exit_observed: true,
+        },
+        {
+          kind: 'owned_provider_command_child_exit',
+          session: 'afk-bridge-cleanup-proof',
+          exit_observed: true,
         },
       ],
     },
@@ -800,6 +811,8 @@ test('records source-owned cleanup proof from synthetic provider bridge evidence
   assert.deepEqual(record.cleanup.proof.map((item) => item.kind), [
     'owned_bridge_process_exit',
     'owned_bridge_health_unreachable_after_teardown',
+    'owned_process_driver_child_exit',
+    'owned_provider_command_child_exit',
   ]);
 });
 
@@ -861,6 +874,68 @@ test('records failed source-owned cleanup proof without classifying unrelated pr
   assert.equal(record.cleanup.status, 'cleanup_unverified');
   assert.equal(record.cleanup.reason, 'owned bridge health endpoint still responded');
   assert.equal(record.cleanup.scope.unrelated_provider_processes, 'not_classified');
+});
+
+test('does not verify fake-provider cleanup while the helper-owned provider command child remains observable', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const bridgePath = await writeBridgeVisibilityFixture({
+    bridge: {
+      health: {
+        ok: true,
+        defaultSession: 'afk-fake-provider-retained',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-fake-provider-retained',
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      snapshot: {
+        session: 'afk-fake-provider-retained',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        text: 'fake codex ready\ncwd .docks/gdi',
+      },
+    },
+    cleanup: {
+      status: 'verified',
+      reason: 'owned provider command child still observable after bridge teardown',
+      proof: [
+        { kind: 'owned_bridge_process_exit', exit_observed: true },
+        { kind: 'owned_bridge_health_unreachable_after_teardown', unreachable: true },
+        { kind: 'owned_process_driver_child_exit', exit_observed: true },
+        { kind: 'owned_provider_command_child_exit', exit_observed: false },
+      ],
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgePath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.equal(record.cleanup.status, 'cleanup_unverified');
+  assert.equal(record.cleanup.reason, 'owned provider command child still observable after bridge teardown');
+  assert.equal(record.cleanup.scope.unrelated_provider_processes, 'not_classified');
+  assert.ok(record.cleanup.proof.some((item) => (
+    item.kind === 'owned_provider_command_child_exit' && item.exit_observed === false
+  )));
 });
 
 test('adds Codex adapter refs for observed provider session id and matching thread cwd', async () => {

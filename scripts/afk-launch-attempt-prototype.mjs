@@ -905,6 +905,18 @@ async function waitForSnapshot(port, session, marker) {
   throw new Error(`snapshot did not include ${marker}`);
 }
 
+async function waitForSessionProcessSnapshot(port, session) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const response = await fetch(`http://127.0.0.1:${port}/snapshot?session=${encodeURIComponent(session)}`);
+    if (response.ok) {
+      const snapshot = await response.json();
+      if (snapshot.command_child_pid) return snapshot;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  }
+  return null;
+}
+
 async function waitForBridgeUnreachable(port) {
   const url = `http://127.0.0.1:${port}/health`;
   for (let attempt = 0; attempt < 20; attempt += 1) {
@@ -912,6 +924,42 @@ async function waitForBridgeUnreachable(port) {
       await fetch(url);
     } catch {
       return true;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  }
+  return false;
+}
+
+async function waitForPidGone(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      process.kill(pid, 0);
+    } catch {
+      return true;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  }
+  return false;
+}
+
+async function waitForProcessGroupGone(pgid) {
+  if (!Number.isInteger(pgid) || pgid <= 0) return false;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const result = spawnSync('ps', ['-axo', 'pid=,pgid='], { encoding: 'utf8' });
+    if (result.status === 0) {
+      const groupMembers = result.stdout.trim().split('\n').filter((line) => {
+        const [, observedPgid] = line.trim().split(/\s+/).map(Number);
+        return observedPgid === pgid;
+      });
+      if (groupMembers.length === 0) return true;
+    }
+    if (result.status !== 0) {
+      try {
+        process.kill(-pgid, 0);
+      } catch {
+        return true;
+      }
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   }
@@ -942,15 +990,89 @@ function cleanupProofFromStatus({
   };
 }
 
+function proofItemText(item) {
+  return typeof item === 'string' ? item : `${item?.kind ?? ''} ${JSON.stringify(item ?? {})}`;
+}
+
+function cleanupProofCoversBridgeAndChild(proof) {
+  if (!Array.isArray(proof)) return false;
+  if (proof.some((item) => item && typeof item === 'object' && item.exit_observed === false)) return false;
+  if (proof.some((item) => item && typeof item === 'object' && item.unreachable === false)) return false;
+  const texts = proof.map(proofItemText);
+  if (texts.some((text) => text.includes('provider_launch_dry_run_no_helper_process_started'))) return true;
+  const bridgeExit = texts.some((text) => text.includes('owned_bridge_process_exit') || text.includes('bridge server process') || text.includes('bridge process'));
+  const bridgeUnreachable = texts.some((text) => text.includes('owned_bridge_health_unreachable_after_teardown') || text.includes('bridge health endpoint unreachable'));
+  const childExit = texts.some((text) => (
+    text.includes('owned_process_driver_child_exit')
+    || text.includes('owned_provider_command_child_exit')
+    || text.includes('pty-proxy.py process')
+    || text.includes('codex --no-alt-screen process')
+  ));
+  return bridgeExit && bridgeUnreachable && childExit;
+}
+
+async function helperOwnedCleanupProof({ bridge, port, session, command, processChildPid = null, commandChildPid = null }) {
+  const bridgeUnreachable = await waitForBridgeUnreachable(port);
+  const childGone = processChildPid ? await waitForPidGone(processChildPid) : false;
+  const commandGone = commandChildPid ? await waitForProcessGroupGone(commandChildPid) : false;
+  const verified = bridge.exitCode !== null && bridgeUnreachable && childGone && commandGone;
+  const reason = verified
+    ? null
+    : (bridge.exitCode === null
+      ? 'bridge process exit was not observed'
+      : (!bridgeUnreachable
+        ? 'owned bridge health endpoint still responded'
+        : (!childGone
+          ? 'owned process-driver child still observable after bridge teardown'
+          : 'owned provider command child still observable after bridge teardown')));
+  return cleanupProofFromStatus({
+    status: verified ? 'verified' : 'cleanup_unverified',
+    proof: [
+      {
+        kind: 'owned_bridge_process_exit',
+        session,
+        command,
+        exit_observed: bridge.exitCode !== null,
+        signal: bridge.signalCode ?? NOT_OBSERVED,
+      },
+      {
+        kind: 'owned_bridge_health_unreachable_after_teardown',
+        port,
+        unreachable: bridgeUnreachable,
+      },
+      {
+        kind: 'owned_process_driver_child_exit',
+        session,
+        command,
+        pid: processChildPid ?? NOT_OBSERVED,
+        exit_observed: childGone,
+      },
+      {
+        kind: 'owned_provider_command_child_exit',
+        session,
+        command,
+        process_group_id: commandChildPid ?? NOT_OBSERVED,
+        exit_observed: commandGone,
+      },
+    ],
+    reason,
+    session,
+    command,
+    port,
+  });
+}
+
 function normalizeCleanupProofFixture(cleanup, fallback = {}) {
   if (!cleanup) return null;
   const status = cleanup.status ?? cleanup.cleanup_status ?? cleanup.cleanupStatus ?? NOT_OBSERVED;
   const proof = cleanup.proof ?? cleanup.cleanup_proof ?? cleanup.cleanupProof ?? [];
+  const verified = (status === 'verified' || status === 'complete' || status === 'completed')
+    && cleanupProofCoversBridgeAndChild(proof);
   return cleanupProofFromStatus({
     owner: cleanup.owner ?? 'afk-launch-attempt-prototype',
-    status,
+    status: verified ? 'verified' : 'cleanup_unverified',
     proof,
-    reason: cleanup.reason,
+    reason: cleanup.reason ?? (verified ? null : 'cleanup proof must include helper-owned bridge and child/session teardown'),
     session: cleanup.session ?? fallback.session,
     command: cleanup.command ?? fallback.command,
     port: cleanup.port ?? fallback.port,
@@ -1018,6 +1140,8 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
         status: 'observed',
         driver: ensured.driver,
         session_handle: ensured.session,
+        process_child_pid: ensured.child_pid ?? NOT_OBSERVED,
+        command_child_pid: snapshot.command_child_pid ?? NOT_OBSERVED,
         cwd: launchCwd,
         command,
         snapshot_ref: 'inline:terminal_substrate.snapshot_summary',
@@ -1045,25 +1169,13 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
       await new Promise((resolvePromise) => bridge.once('exit', resolvePromise));
     }
     if (observed) {
-      observed.cleanup = cleanupProofFromStatus({
-        status: await waitForBridgeUnreachable(port) ? 'verified' : 'cleanup_unverified',
-        proof: [
-          {
-            kind: 'owned_bridge_process_exit',
-            session: defaultSession,
-            command,
-            exit_observed: bridge.exitCode !== null,
-            signal: bridge.signalCode ?? NOT_OBSERVED,
-          },
-          {
-            kind: 'owned_bridge_health_unreachable_after_teardown',
-            port,
-          },
-        ],
-        reason: bridge.exitCode === null ? 'bridge process exit was not observed' : null,
+      observed.cleanup = await helperOwnedCleanupProof({
+        bridge,
+        port,
         session: defaultSession,
         command,
-        port,
+        processChildPid: observed.terminal_substrate.process_child_pid,
+        commandChildPid: observed.terminal_substrate.command_child_pid,
       });
     }
     rmSync(tempRoot, { recursive: true, force: true });
@@ -1173,6 +1285,7 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
       throw new Error(`bridge /ensure failed: ${await ensureResponse.text()}`);
     }
     const ensured = await ensureResponse.json();
+    const processSnapshot = await waitForSessionProcessSnapshot(port, defaultSession);
     observed = {
       bridge_session_started: true,
       command,
@@ -1181,6 +1294,8 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
         status: 'observed',
         driver: ensured.driver,
         session_handle: ensured.session,
+        process_child_pid: ensured.child_pid ?? NOT_OBSERVED,
+        command_child_pid: processSnapshot?.command_child_pid ?? NOT_OBSERVED,
         cwd: launchCwd,
         command,
         snapshot_ref: NOT_OBSERVED,
@@ -1189,7 +1304,7 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
           driver: ensured.driver,
           command,
           includes_marker: false,
-          text_excerpt: NOT_OBSERVED,
+          text_excerpt: processSnapshot?.text?.split('\n').slice(0, 4).join('\n') ?? NOT_OBSERVED,
         },
         bridge_health: {
           ok: health.ok,
@@ -1226,25 +1341,13 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
       await new Promise((resolvePromise) => bridge.once('exit', resolvePromise));
     }
     if (observed) {
-      observed.cleanup = cleanupProofFromStatus({
-        status: await waitForBridgeUnreachable(port) ? 'verified' : 'cleanup_unverified',
-        proof: [
-          {
-            kind: 'owned_bridge_process_exit',
-            session: defaultSession,
-            command,
-            exit_observed: bridge.exitCode !== null,
-            signal: bridge.signalCode ?? NOT_OBSERVED,
-          },
-          {
-            kind: 'owned_bridge_health_unreachable_after_teardown',
-            port,
-          },
-        ],
-        reason: bridge.exitCode === null ? 'bridge process exit was not observed' : null,
+      observed.cleanup = await helperOwnedCleanupProof({
+        bridge,
+        port,
         session: defaultSession,
         command,
-        port,
+        processChildPid: observed.terminal_substrate.process_child_pid,
+        commandChildPid: observed.terminal_substrate.command_child_pid,
       });
     }
   }

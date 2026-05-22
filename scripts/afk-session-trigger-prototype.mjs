@@ -576,7 +576,7 @@ async function classifyCleanup(repoRoot, options, action, launchAttempt = null) 
   }
   if (launchAttempt && !options.cleanupProofFixture) {
     const launchCleanup = launchAttempt.cleanup;
-    if (launchCleanup?.status === 'verified') {
+    if (launchCleanup?.status === 'verified' && cleanupProofCoversBridgeAndChild(launchCleanup.proof ?? [])) {
       return {
         owner: launchCleanup.owner ?? 'afk-launch-attempt-prototype',
         status: 'verified',
@@ -593,7 +593,7 @@ async function classifyCleanup(repoRoot, options, action, launchAttempt = null) 
       proof: launchCleanup?.proof ?? base.proof,
       reason: launchCleanup?.reason && launchCleanup.reason !== NOT_OBSERVED
         ? launchCleanup.reason
-        : 'cleanup proof is required after terminal substrate/provider launch evidence',
+        : 'cleanup proof must include helper-owned bridge and child/session teardown',
       launch_attempt_id: launchAttempt.launch_attempt_id,
       source_ref: launchCleanup ? 'inline:launch_attempt.cleanup' : NOT_OBSERVED,
       scope: launchCleanup?.scope ?? NOT_OBSERVED,
@@ -613,7 +613,8 @@ async function classifyCleanup(repoRoot, options, action, launchAttempt = null) 
   const fixture = await readJsonFile(resolved, 'cleanup proof fixture');
   const status = fixture.status ?? fixture.cleanup_status ?? fixture.cleanupStatus ?? NOT_OBSERVED;
   const proof = fixture.proof ?? fixture.cleanup_proof ?? fixture.cleanupProof ?? [];
-  const verified = status === 'verified' || status === 'complete' || status === 'completed';
+  const verified = (status === 'verified' || status === 'complete' || status === 'completed')
+    && cleanupProofCoversBridgeAndChild(proof);
   return {
     owner: fixture.owner ?? 'afk-session-trigger-prototype',
     status: verified ? 'verified' : 'cleanup_unverified',
@@ -626,6 +627,27 @@ async function classifyCleanup(repoRoot, options, action, launchAttempt = null) 
         cleanup_status: status,
       }),
   };
+}
+
+function proofItemText(item) {
+  return typeof item === 'string' ? item : `${item?.kind ?? ''} ${JSON.stringify(item ?? {})}`;
+}
+
+function cleanupProofCoversBridgeAndChild(proof) {
+  if (!Array.isArray(proof)) return false;
+  if (proof.some((item) => item && typeof item === 'object' && item.exit_observed === false)) return false;
+  if (proof.some((item) => item && typeof item === 'object' && item.unreachable === false)) return false;
+  const texts = proof.map(proofItemText);
+  if (texts.some((text) => text.includes('provider_launch_dry_run_no_helper_process_started'))) return true;
+  const bridgeExit = texts.some((text) => text.includes('owned_bridge_process_exit') || text.includes('bridge server process') || text.includes('bridge process'));
+  const bridgeUnreachable = texts.some((text) => text.includes('owned_bridge_health_unreachable_after_teardown') || text.includes('bridge health endpoint unreachable'));
+  const childExit = texts.some((text) => (
+    text.includes('owned_process_driver_child_exit')
+    || text.includes('owned_provider_command_child_exit')
+    || text.includes('pty-proxy.py process')
+    || text.includes('codex --no-alt-screen process')
+  ));
+  return bridgeExit && bridgeUnreachable && childExit;
 }
 
 function schedulerState(action, mismatches, duplicate, launchAttempt = null, cleanup = null) {
