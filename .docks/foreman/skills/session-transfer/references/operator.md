@@ -20,6 +20,16 @@ An Operator transfer should include:
 - stop condition for permission/TCC blockers;
 - evidence to return to Foreman.
 
+For non-trivial or long Operator runs, write these slots into a Markdown work
+card under `docs/design/work-cards/operator-<card>.md` and copy only:
+
+```text
+follow the instructions in docs/design/work-cards/operator-<card>.md
+```
+
+Use direct clipboard instructions only for short self-contained checks that are
+comfortably under the CLI goal limit.
+
 ## When To Use Operator
 
 Prefer Operator when:
