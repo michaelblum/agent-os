@@ -317,6 +317,88 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.equal(snapshot.driver, 'process');
     assert.match(snapshot.text, /got:key-marker/);
   });
+
+  it('submits input and Enter to a raw no-echo full-screen-ish PTY fixture', async () => {
+    const session = 'sigil-agent-terminal-raw-test';
+    await ensureRawTuiSession(port, session, repoCwd);
+
+    const readySnapshot = await waitForSnapshot(port, session, 'size:');
+    assert.equal(readySnapshot.driver, 'process');
+    assert.deepEqual(readySnapshot.terminal, { cols: 80, rows: 24 });
+    assert.match(readySnapshot.text, /size:80x24/);
+
+    const inputResponse = await fetch(`http://127.0.0.1:${port}/input`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        text: 'raw-marker',
+      }),
+    });
+    assert.equal(inputResponse.status, 200);
+    const inputPayload = await inputResponse.json();
+    assert.equal(inputPayload.ok, true);
+    assert.equal(inputPayload.text_bytes, Buffer.byteLength('raw-marker'));
+    assert.equal(inputPayload.enter_sent, true);
+    assert.equal(inputPayload.enter_bytes, 1);
+
+    const snapshot = await waitForSnapshot(port, session, 'raw-submit:raw-marker');
+    assert.doesNotMatch(snapshot.text, /raw-markerraw-submit/);
+    assert.match(snapshot.text, /raw-submit:raw-marker/);
+  });
+
+  it('resizes a process-driver PTY and preserves key delivery after enter=false input', async () => {
+    const session = 'sigil-agent-terminal-raw-resize-test';
+    await ensureRawTuiSession(port, session, repoCwd);
+    await waitForSnapshot(port, session, 'size:');
+
+    const resizeResponse = await fetch(`http://127.0.0.1:${port}/resize`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        cols: 100,
+        rows: 31,
+      }),
+    });
+    assert.equal(resizeResponse.status, 200);
+    const resizePayload = await resizeResponse.json();
+    assert.equal(resizePayload.ok, true);
+    assert.equal(resizePayload.driver, 'process');
+    assert.equal(resizePayload.cols, 100);
+    assert.equal(resizePayload.rows, 31);
+    assert.equal(resizePayload.resize_accepted, true);
+
+    const inputResponse = await fetch(`http://127.0.0.1:${port}/input`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        text: 'raw-key-marker',
+        enter: false,
+      }),
+    });
+    assert.equal(inputResponse.status, 200);
+    const inputPayload = await inputResponse.json();
+    assert.equal(inputPayload.enter_sent, false);
+
+    const keyResponse = await fetch(`http://127.0.0.1:${port}/key`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        key: 'Enter',
+      }),
+    });
+    assert.equal(keyResponse.status, 200);
+    const keyPayload = await keyResponse.json();
+    assert.equal(keyPayload.key_accepted, true);
+
+    const snapshot = await waitForSnapshot(port, session, 'raw-submit:raw-key-marker');
+    assert.deepEqual(snapshot.terminal, { cols: 100, rows: 31 });
+    assert.match(snapshot.text, /resize:100x31/);
+    assert.match(snapshot.text, /raw-submit:raw-key-marker/);
+  });
 });
 
 function writeJsonl(file, records) {
@@ -353,6 +435,47 @@ async function ensureInteractiveEchoSession(activePort, session, cwd) {
       "const readline = require('node:readline');",
       'const rl = readline.createInterface({ input: process.stdin });',
       "rl.on('line', (line) => console.log(`got:${line}`));",
+      'setTimeout(() => {}, 10000);',
+    ].join(' '),
+  ];
+  const response = await fetch(`http://127.0.0.1:${activePort}/ensure`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      session,
+      cwd,
+      command,
+      force: true,
+    }),
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.ok, true);
+  assert.equal(payload.driver, 'process');
+}
+
+async function ensureRawTuiSession(activePort, session, cwd) {
+  const command = [
+    'node',
+    '-e',
+    [
+      'process.stdin.setEncoding("utf8");',
+      'if (process.stdin.isTTY) process.stdin.setRawMode(true);',
+      'const renderSize = (label) => process.stdout.write(`\\x1b[2J\\x1b[H${label}:${process.stdout.columns}x${process.stdout.rows}\\r\\n`);',
+      'renderSize("size");',
+      'process.stdout.write("raw-ready\\r\\n");',
+      'let buffer = "";',
+      'process.stdout.on("resize", () => renderSize("resize"));',
+      'process.stdin.on("data", (chunk) => {',
+      '  for (const char of chunk) {',
+      '    if (char === "\\r" || char === "\\n") {',
+      '      process.stdout.write(`raw-submit:${buffer}\\r\\n`);',
+      '      buffer = "";',
+      '    } else {',
+      '      buffer += char;',
+      '    }',
+      '  }',
+      '});',
       'setTimeout(() => {}, 10000);',
     ].join(' '),
   ];

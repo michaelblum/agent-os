@@ -16,6 +16,10 @@ const defaultCommand = process.env.SIGIL_AGENT_COMMAND || process.env.SIGIL_CODE
 const requestedDriver = process.env.SIGIL_AGENT_TERMINAL_DRIVER || process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
 const processSessions = new Map();
 const sessionCommands = new Map();
+const defaultTerminalSize = {
+  cols: boundedInt(process.env.SIGIL_AGENT_TERMINAL_COLS || process.env.SIGIL_CODEX_TERMINAL_COLS, 80, 20, 300),
+  rows: boundedInt(process.env.SIGIL_AGENT_TERMINAL_ROWS || process.env.SIGIL_CODEX_TERMINAL_ROWS, 24, 8, 120),
+};
 const allowedKeys = new Set([
   'Enter',
   'C-c',
@@ -86,6 +90,12 @@ function commandText(value) {
 function commandExists(command) {
   const result = spawnSync('sh', ['-lc', `command -v ${JSON.stringify(command)} >/dev/null 2>&1`]);
   return result.status === 0;
+}
+
+function boundedInt(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(parsed)));
 }
 
 const tmuxAvailable = commandExists('tmux');
@@ -165,12 +175,18 @@ function ensureProcessSession(session, cwd, command, force = false) {
   const child = spawn(pythonAvailable ? 'python3' : 'sh', args, {
     cwd: cwd || defaultCwd,
     stdio: 'pipe',
-    env: { ...process.env, TERM: process.env.TERM || 'xterm-256color' },
+    env: {
+      ...process.env,
+      TERM: process.env.TERM || 'xterm-256color',
+      SIGIL_AGENT_TERMINAL_COLS: String(defaultTerminalSize.cols),
+      SIGIL_AGENT_TERMINAL_ROWS: String(defaultTerminalSize.rows),
+    },
   });
   const record = {
     child,
     command: shellCommand,
     cwd: cwd || defaultCwd,
+    terminalSize: { ...defaultTerminalSize },
     buffer: `$ ${shellCommand}\n`,
     clients: new Set(),
     exited: false,
@@ -236,6 +252,10 @@ function capture(session, lines) {
       session,
       command: existing.exited ? 'exited' : 'process',
       driver: 'process',
+      terminal: {
+        cols: existing.terminalSize.cols,
+        rows: existing.terminalSize.rows,
+      },
       text: textOutput.replace(/\s+$/g, ''),
     };
   }
@@ -255,6 +275,10 @@ function writeProcessStdin(record, data) {
     bytes: payload.length,
     accepted,
   };
+}
+
+function writeProcessControl(record, message) {
+  return writeProcessStdin(record, `\0${JSON.stringify(message)}`);
 }
 
 function writeProcessInput(session, textValue, enter = true) {
@@ -295,6 +319,23 @@ function writeProcessKey(session, key) {
     key,
     key_bytes: write.bytes,
     key_accepted: write.accepted,
+  };
+}
+
+function resizeProcessSession(session, colsValue, rowsValue) {
+  const existing = processSessions.get(session);
+  if (!existing || existing.exited) throw new Error(`session is not running: ${session}`);
+  const cols = boundedInt(colsValue, existing.terminalSize.cols, 20, 300);
+  const rows = boundedInt(rowsValue, existing.terminalSize.rows, 8, 120);
+  const write = writeProcessControl(existing, { type: 'resize', cols, rows });
+  existing.terminalSize = { cols, rows };
+  return {
+    driver: 'process',
+    session_exists: true,
+    cols,
+    rows,
+    resize_bytes: write.bytes,
+    resize_accepted: write.accepted,
   };
 }
 
@@ -418,7 +459,18 @@ function attachExistingProcessSocket(socket, session, record) {
       }
       if (frame.opcode === 1 || frame.opcode === 2) {
         const payload = frame.payload.toString('utf8');
-        if (frame.opcode === 1 && payload.charCodeAt(0) === 0) continue;
+        if (frame.opcode === 1 && payload.charCodeAt(0) === 0) {
+          let message = null;
+          try {
+            message = JSON.parse(payload.slice(1));
+          } catch {
+            continue;
+          }
+          if (message?.type === 'resize') {
+            resizeProcessSession(session, message.cols, message.rows);
+          }
+          continue;
+        }
         record.child.stdin.write(frame.payload);
       }
     }
@@ -546,6 +598,7 @@ async function handle(req, res) {
         tmuxAvailable,
         scriptAvailable,
         pythonAvailable,
+        terminal: activeDriver() === 'process' ? { ...defaultTerminalSize } : null,
       });
       return;
     }
@@ -594,6 +647,22 @@ async function handle(req, res) {
         body.force === true,
       );
       json(res, 200, { ok: true, session, ...result });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/resize') {
+      const body = await readBody(req);
+      const session = cleanSession(body.session);
+      if (processSessions.has(session)) {
+        const result = resizeProcessSession(session, body.cols, body.rows);
+        json(res, 200, { ok: true, ...result });
+        return;
+      }
+      if (!tmuxAvailable) throw new Error(`session is not running: ${session}`);
+      const cols = boundedInt(body.cols, 80, 20, 300);
+      const rows = boundedInt(body.rows, 24, 8, 120);
+      run('tmux', ['resize-window', '-t', session, '-x', String(cols), '-y', String(rows)]);
+      json(res, 200, { ok: true, driver: 'tmux', cols, rows });
       return;
     }
 

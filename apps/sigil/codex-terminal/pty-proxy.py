@@ -3,11 +3,58 @@
 
 import os
 import pty
+import json
 import select
 import signal
 import subprocess
 import sys
 import time
+import fcntl
+import struct
+import termios
+
+
+DEFAULT_COLS = 80
+DEFAULT_ROWS = 24
+
+
+def bounded_int(value: str | None, default: int, lower: int, upper: int) -> int:
+    try:
+        parsed = int(value or "")
+    except ValueError:
+        return default
+    return min(upper, max(lower, parsed))
+
+
+def set_window_size(fd: int, rows: int, cols: int) -> None:
+    packed = struct.pack("HHHH", rows, cols, 0, 0)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, packed)
+
+
+def handle_control_frame(master_fd: int, data: bytes) -> bool:
+    if not data.startswith(b"\0"):
+        return False
+    try:
+        message = json.loads(data[1:].decode("utf8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return True
+    if message.get("type") != "resize":
+        return True
+    cols = bounded_int(str(message.get("cols", "")), DEFAULT_COLS, 20, 300)
+    rows = bounded_int(str(message.get("rows", "")), DEFAULT_ROWS, 8, 120)
+    set_window_size(master_fd, rows, cols)
+    return True
+
+
+def child_preexec(slave_fd: int):
+    def prepare_child() -> None:
+        os.setsid()
+        try:
+            fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+        except OSError:
+            pass
+
+    return prepare_child
 
 
 def main() -> int:
@@ -17,6 +64,9 @@ def main() -> int:
 
     command = sys.argv[1]
     master_fd, slave_fd = pty.openpty()
+    cols = bounded_int(os.environ.get("SIGIL_AGENT_TERMINAL_COLS"), DEFAULT_COLS, 20, 300)
+    rows = bounded_int(os.environ.get("SIGIL_AGENT_TERMINAL_ROWS"), DEFAULT_ROWS, 8, 120)
+    set_window_size(slave_fd, rows, cols)
     process = subprocess.Popen(
         command,
         shell=True,
@@ -24,7 +74,7 @@ def main() -> int:
         stdout=slave_fd,
         stderr=slave_fd,
         close_fds=True,
-        preexec_fn=os.setsid,
+        preexec_fn=child_preexec(slave_fd),
     )
     os.close(slave_fd)
     os.set_blocking(master_fd, False)
@@ -50,6 +100,8 @@ def main() -> int:
                 except BlockingIOError:
                     data = b""
                 if data:
+                    if handle_control_frame(master_fd, data):
+                        continue
                     os.write(master_fd, data)
 
             if process.poll() is not None:
