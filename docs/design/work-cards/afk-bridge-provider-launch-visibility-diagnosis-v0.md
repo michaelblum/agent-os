@@ -1,6 +1,30 @@
 # AFK Bridge Provider Launch Visibility Diagnosis V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `8cf12323bc909fc6cd78769f5561ca703c179bd7`
+- Changed files:
+  - `docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`
+- Foreman review: accepted. The diagnosis classifies the remaining gap as
+  `provider_acceptance_unobserved_before_catalog_match` with medium-high
+  confidence. It distinguishes the accepted all-cwd scope behavior from the
+  remaining provider-launch visibility problem and recommends a provider-free
+  bridge launch-visibility fixture as the next GDI implementation slice.
+- Foreman verification:
+  - Spot-checked `packages/host/src/session-catalog.ts`; Codex catalog records
+    require discoverable `rollout-*.jsonl` files with `session_meta`, cwd, an
+    id, updated time, and resume command before `finalizeRecord` keeps them.
+  - `git diff --check 1dc23e7b660992f0a6c319b24669527e48cce944..8cf12323bc909fc6cd78769f5561ca703c179bd7`: pass
+  - `./aos dev recommend --json`: pass
+  - `./aos dev recommend --json --files docs/design/notes/afk-bridge-provider-launch-visibility-diagnosis-2026-05-22.md`: pass; docs-only, no next commands
+- Local-only boundary confirmed: no source/test code changed, no live provider
+  session was launched, and no provider config, real provider transcript,
+  gateway state, dock profile, hook, GitHub state, push, or PR changed.
+- Routed follow-up:
+  `docs/design/work-cards/afk-bridge-launch-visibility-fixture-v0.md`.
 
 ## Transfer Classification
 
