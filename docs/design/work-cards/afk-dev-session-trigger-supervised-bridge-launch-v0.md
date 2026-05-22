@@ -1,6 +1,93 @@
 # Work Card: AFK Dev Session Trigger Supervised Bridge Launch V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted final branch head:
+`d885742b61dc95cccde9d40a416e5a8f46ea2fa4`
+(`fix(afk): launch supervised Codex provider command`).
+
+The first GDI output at
+`f501072779344a22222f45cf49e94cbed5dbe7aa` added the supervised bridge launch
+plumbing, but Foreman rejected that output because the no-fixture guarded path
+still selected the harmless no-provider marker command. The accepted final head
+includes the follow-up correction from
+`docs/design/work-cards/afk-dev-session-trigger-supervised-bridge-provider-command-correction-v0.md`.
+
+Accepted behavior:
+
+- preserves the accepted dry-run receipt path and guarded live pre-launch
+  checks;
+- keeps provider launch unavailable unless
+  `--supervised-live-launch`, `--i-am-present`, `--json`,
+  `--provider codex`, and `--dock gdi` all pass;
+- performs duplicate suppression before bridge/provider launch;
+- keeps fixture-backed deterministic tests provider-free;
+- adds an internal supervised-provider launch mode for the accepted trigger path
+  so the no-fixture live branch selects `codex --no-alt-screen` from
+  `.docks/gdi` instead of the harmless no-provider marker command;
+- keeps no-provider marker behavior available for launch-attempt diagnostics;
+- reports unobserved provider acceptance as non-completed;
+- keeps cleanup proof required before `completed`.
+
+Foreman verification:
+
+```text
+git status --short --branch
+## gdi/afk-dev-session-trigger-supervised-bridge-launch-v0
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+12 tests passed
+
+node --test tests/afk-launch-attempt-prototype.test.mjs
+22 tests passed
+
+bash tests/dev-workflow-router.sh
+all checks passed
+
+bash tests/help-contract.sh
+all checks passed
+
+./aos dev build --no-restart
+passed; ./aos was up to date
+
+git diff --check
+passed
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+```
+
+Foreman targeted smoke of the no-fixture guarded path used the internal
+provider-launch dry-run hook to avoid starting Codex while proving the command
+shape:
+
+```json
+{
+  "exit": 1,
+  "status": "provider_acceptance_unobserved",
+  "provider_launch_allowed": true,
+  "terminal_command": "codex --no-alt-screen",
+  "provider_acceptance_status": "provider_acceptance_unobserved",
+  "terminal_status": "observed",
+  "mismatch_classes": [
+    "provider_acceptance_unobserved"
+  ]
+}
+```
+
+No live Codex, Claude, Gemini, tmux, provider terminal, or real bridge session
+was launched during Foreman acceptance. No real `~/.codex` transcript bodies,
+provider configs, provider session files, provider transcripts, provider
+catalogs, telemetry stores, gateway state, dock profiles/hooks, GitHub state,
+pushes, PRs, or external publication were mutated.
+
+Next routed step:
+`docs/design/work-cards/operator-afk-dev-session-trigger-supervised-bridge-live-v0.md`.
 
 ## Transfer Classification
 

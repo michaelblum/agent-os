@@ -583,5 +583,15 @@ The next slices should stay reversible:
    accepted slice is still a guarded launch-intent path rather than a
    provider-launching command, the next routed source slice is
    `docs/design/work-cards/afk-dev-session-trigger-supervised-bridge-launch-v0.md`.
+   That supervised bridge source slice is now accepted after a provider-command
+   correction: the guarded no-fixture path still requires
+   `--supervised-live-launch --i-am-present --json --provider codex --dock gdi`,
+   suppresses duplicates before launch, keeps fixture-backed tests
+   provider-free, and now selects `codex --no-alt-screen` from `.docks/gdi`
+   instead of the old harmless marker command. The next reversible proof is a
+   supervised Operator run at
+   `docs/design/work-cards/operator-afk-dev-session-trigger-supervised-bridge-live-v0.md`
+   to observe the live command path and cleanup boundary before further source
+   promotion.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
