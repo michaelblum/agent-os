@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 
 const repoRoot = resolve(new URL('..', import.meta.url).pathname);
@@ -38,6 +38,57 @@ async function writeBridgeVisibilityFixture(fixture) {
   const fixturePath = join(dir, 'bridge-visibility.json');
   await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
   return fixturePath;
+}
+
+async function createCodexHomeFixture(sessions) {
+  const codexHome = await mkdtemp(join(tmpdir(), 'afk-launch-attempt-codex-home-'));
+  await writeFile(
+    join(codexHome, '.codex-global-state.json'),
+    `${JSON.stringify({
+      'thread-titles': {
+        titles: Object.fromEntries(sessions.map((session) => [session.id, session.title ?? `Fixture ${session.id}`])),
+        order: sessions.map((session) => session.id),
+      },
+    }, null, 2)}\n`,
+    'utf8',
+  );
+  for (const session of sessions) {
+    await writeCodexSession(codexHome, session);
+  }
+  return codexHome;
+}
+
+async function writeCodexSession(codexHome, session) {
+  const timestamp = session.timestamp;
+  const file = join(
+    codexHome,
+    'sessions',
+    timestamp.slice(0, 4),
+    timestamp.slice(5, 7),
+    timestamp.slice(8, 10),
+    `rollout-${timestamp.slice(0, 19).replaceAll(':', '-')}-${session.id}.jsonl`,
+  );
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(
+    file,
+    `${[
+      {
+        timestamp,
+        type: 'session_meta',
+        payload: {
+          id: session.id,
+          cwd: session.cwd,
+          timestamp,
+        },
+      },
+      {
+        timestamp: new Date(Date.parse(timestamp) + 1000).toISOString(),
+        type: 'response_item',
+        payload: { type: 'message', role: 'user', content: 'body text must not be read' },
+      },
+    ].map((record) => JSON.stringify(record)).join('\n')}\n`,
+    'utf8',
+  );
 }
 
 function validPacket(overrides = {}) {
@@ -551,6 +602,174 @@ test('binds synthetic bridge-observed provider session id to requested-cwd catal
   assert.equal(record.telemetry.status, 'telemetry_observed');
   assert.deepEqual(record.telemetry.telemetry_event_refs, ['inline:synthetic-current-session:tokens']);
   assert.deepEqual(record.mismatches, []);
+});
+
+test('adds Codex adapter refs for observed provider session id and matching thread cwd', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const providerSessionId = '019e7000-1111-7222-8333-444444444444';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: providerSessionId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T16:01:00.000Z',
+      title: 'Matching launch thread',
+    },
+  ]);
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    '2026-05-22T16:00:00.000Z',
+    '--provider-session-id',
+    providerSessionId,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.codex_adapter.status, 'observed');
+  assert.equal(record.codex_adapter.codex_home_ref, `fixture:${codexHome}`);
+  assert.equal(record.codex_adapter.correlation_status, 'matched_by_provider_session_id');
+  assert.equal(record.codex_adapter.confidence, 'exact');
+  assert.equal(record.codex_adapter.matched_thread_id, providerSessionId);
+  assert.equal(record.codex_adapter.matched_thread_ref, `codex-thread:${providerSessionId}`);
+  assert.equal(record.codex_adapter.matched_deeplink, `codex://threads/${providerSessionId}`);
+  assert.deepEqual(record.codex_adapter.candidate_thread_ids, [providerSessionId]);
+  assert.ok(record.codex_adapter.evidence_refs.some((ref) => ref.ref.startsWith(codexHome)));
+  assert.ok(record.evidence.observed_refs.includes(`codex://threads/${providerSessionId}`));
+  assert.ok(record.evidence.observed_refs.includes(`codex-thread:${providerSessionId}`));
+});
+
+test('records Codex adapter wrong-cwd mismatch without matched thread refs', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const wrongCwd = join(repoRoot, '.docks/operator');
+  const providerSessionId = '019e7000-aaaa-7222-8333-444444444444';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: providerSessionId,
+      cwd: wrongCwd,
+      timestamp: '2026-05-22T16:01:00.000Z',
+      title: 'Wrong cwd launch thread',
+    },
+  ]);
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    '2026-05-22T16:00:00.000Z',
+    '--provider-session-id',
+    providerSessionId,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.launch_intent.intended_launch_cwd, intendedLaunchCwd);
+  assert.equal(record.codex_adapter.correlation_status, 'wrong_cwd');
+  assert.equal(record.codex_adapter.matched_thread_id, 'not_observed');
+  assert.deepEqual(record.codex_adapter.candidate_thread_ids, [providerSessionId]);
+  assert.equal(record.codex_adapter.matched_thread_ref, 'not_observed');
+  assert.equal(record.codex_adapter.matched_deeplink, 'not_observed');
+  assert.ok(!record.evidence.observed_refs.includes(`codex://threads/${providerSessionId}`));
+  assert.ok(record.mismatches.some((mismatch) => mismatch.source === 'codex_adapter' && mismatch.code === 'wrong_cwd'));
+});
+
+test('uses Codex adapter cwd/time fallback for one current same-cwd thread when provider id is absent', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const threadId = '019e7000-bbbb-7222-8333-444444444444';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: threadId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T16:01:00.000Z',
+      title: 'Fallback launch thread',
+    },
+  ]);
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    '2026-05-22T16:02:00.000Z',
+    '--launch-observed-at',
+    '2026-05-22T16:00:00.000Z',
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.codex_adapter.correlation_status, 'matched_by_cwd_time_window');
+  assert.equal(record.codex_adapter.confidence, 'strong');
+  assert.equal(record.codex_adapter.matched_thread_id, threadId);
+  assert.deepEqual(record.codex_adapter.time_window, {
+    after: '2026-05-22T16:00:00.000Z',
+    before: '2026-05-22T16:02:00.000Z',
+  });
+  assert.ok(record.mismatches.some((mismatch) => mismatch.source === 'codex_adapter' && mismatch.code === 'provider_session_id_not_observed'));
+});
+
+test('does not bind same-cwd Codex adapter thread without usable launch time window', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const threadId = '019e7000-cccc-7222-8333-444444444444';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: threadId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T16:01:00.000Z',
+      title: 'No time window must not bind',
+    },
+  ]);
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.codex_adapter.correlation_status, 'not_observed');
+  assert.equal(record.codex_adapter.confidence, 'none');
+  assert.equal(record.codex_adapter.matched_thread_id, 'not_observed');
+  assert.deepEqual(record.codex_adapter.candidate_thread_ids, []);
+  assert.equal(record.codex_adapter.time_window, 'not_observed');
+  assert.ok(!record.evidence.observed_refs.includes(`codex://threads/${threadId}`));
 });
 
 test('classifies observed provider session with wrong cwd as structured mismatch', async () => {
