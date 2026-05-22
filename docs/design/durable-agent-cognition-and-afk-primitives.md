@@ -491,6 +491,12 @@ The next slices should stay reversible:
    The no-provider launch-attempt prototype now creates a local
    `aos.afk_launch_attempt` record, proves terminal substrate with a harmless
    process-driver command, and enforces idempotence without starting a provider;
-   the next proof is a supervised bridge-backed provider launch smoke.
+   a supervised bridge-backed provider launch smoke now has a partial manual
+   receipt at
+   `docs/design/notes/manual-afk-receipts/2026-05-22-bridge-backed-provider-launch-gdi-partial.md`.
+   It validated visible Codex launch through the bridge from `.docks/gdi` with
+   no mutations, but the current launch was not matched in the provider catalog
+   or telemetry path; the next local slice is current-launch observability
+   correction before supervised real-launch attempt integration.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
