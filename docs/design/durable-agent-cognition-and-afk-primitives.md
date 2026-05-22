@@ -117,10 +117,13 @@ given these inputs and this evidence, classify/choose/route this way
 ```
 
 It is durable judgment that can be reused by Foreman, GDI, Operator, a future
-Researcher, or an unattended scheduler. It remains docs-only vocabulary for now:
-do not add a generic Decision Contract schema until at least one second
-non-router candidate proves that the fields below are not only a relabeling of
-the current dev workflow router.
+Researcher, or an unattended scheduler. It remains docs-only vocabulary for
+now. The inventory, shape sketch, transfer routing mapping, and verification
+routing consolidation show the concept is useful across one machine-readable
+router and two docs-backed policy clusters, but they also show that a generic
+schema should wait until AFK/session primitives define where transfer packets,
+work records, evidence records, and current-state runtime proof belong. See
+`docs/design/notes/decision-contract-verification-routing-consolidation-2026-05-21.md`.
 
 ### Artifact Vocabulary
 
@@ -173,11 +176,11 @@ Existing hidden examples:
 - `docs/recipes/context-doc-maintenance.md`: proposed context change in,
   adopt/adapt/reject/defer out.
 
-The inventory and shape sketch in
-`docs/design/notes/decision-contract-inventory-2026-05-21.md` and
-`docs/design/notes/decision-contract-shape-sketch-2026-05-21.md` keep this as
-docs-only vocabulary for now. A schema should wait until at least one second
-non-router candidate proves the generic fields.
+The inventory, shape sketch, transfer routing mapping, and verification routing
+consolidation keep this as docs-only vocabulary for now. A schema should wait
+until a design-only descriptor sketch has separated stable Decision Contract
+metadata from transfer-packet outputs, work/evidence records, and volatile
+runtime evidence.
 
 ## AFK Primitives
 
@@ -332,11 +335,17 @@ human-supervision posture.
 1. Write this design note for durable agent cognition and token economics.
 2. Inventory hidden decision contracts, starting with `docs/dev/workflow-rules.json`.
 3. Define a Decision Contract shape and invalidation model.
-4. Add role-kind vocabulary over Foreman, GDI, and Operator without renaming.
-5. Design the session trigger/scheduler primitive.
-6. Design background dispatch with async result routing.
-7. Trial Researcher on a real community-signal intake.
-8. Extend the evidence-record model for live browser/model/canvas control runs.
+4. Consolidate Decision Contract field guidance across dev workflow routing,
+   transfer routing, and live-versus-deterministic verification routing.
+5. Sketch a docs-only Decision Contract descriptor and its boundaries with
+   transfer packets, work records, evidence records, and AFK/session
+   primitives.
+6. Add role-kind vocabulary over Foreman, GDI, and Operator without renaming.
+7. Design the session trigger/scheduler primitive.
+8. Design background dispatch with async result routing.
+9. Trial Researcher on a real community-signal intake.
+10. Extend the evidence-record model for live browser/model/canvas control
+    runs.
 
 Researcher is intentionally after the AFK primitives. Without session trigger
 and async result routing, Researcher is just another manually launched dock and
@@ -390,10 +399,11 @@ implications connect without asking agents to reread large prose documents.
 
 ## Near-Term Validation
 
-The next small slices should stay reversible:
+The next slices should stay reversible:
 
-1. Inventory hidden decision contracts and classify whether each one is docs
-   policy, executable manifest, or future schema candidate.
+1. Sketch a docs-only Decision Contract descriptor from the consolidated
+   candidate guidance, without adding a committed schema or migrating existing
+   manifests.
 2. Sketch one transfer packet/result route shape that can connect an integration
    job to a docked provider session.
 3. Distill one real browser/model-control run into a work/evidence record and
