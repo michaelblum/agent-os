@@ -1,6 +1,38 @@
 # Work Card: AFK Launch Attempt Prototype No-Provider V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `ea94a44f2f40790741a88d2f6ba4524925bd50e0`
+- Changed files:
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman review: accepted. The prototype creates local
+  `aos.afk_launch_attempt` records, validates packet/source/cwd/worktree/ref/
+  provider/dock before terminal work, observes process-driver terminal
+  substrate through the existing Sigil codex-terminal bridge with a harmless
+  Node command, handles duplicate in-process idempotence without starting a
+  second bridge session, and leaves provider acceptance, catalog, telemetry,
+  and route fields honest for the no-provider case.
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`
+  - `git diff --check da3477c79eb5c34cd0c4ed100d6e11a252823eac..ea94a44f2f40790741a88d2f6ba4524925bd50e0`
+  - `./aos dev recommend --json`
+  - manual `node scripts/afk-launch-attempt-prototype.mjs --packet <temp-packet.json> --provider codex --dock gdi --json --timestamp 2026-05-22T02:15:00.000Z --out <temp-output.json>`
+- Manual smoke result: lifecycle `provider_acceptance_unobserved`,
+  idempotence key `116d82a253495a1d21d0b1f8cf77a4ab`, selected provider/dock
+  `codex`/`gdi`, terminal driver `process`, terminal session
+  `afk-launch-116d82a25349`, terminal cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`, provider acceptance
+  `not_applicable: no-provider-launch`, catalog `not_observed`, telemetry
+  `not_observed`, route `not_attempted`, provider launch performed `false`,
+  eight validations passed.
+- Local-only boundary confirmed: no provider session, provider config, gateway
+  state, generated committed receipt artifact, GitHub state, push, or PR
+  changed.
 
 ## Fresh Context Contract
 
