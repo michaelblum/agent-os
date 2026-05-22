@@ -1,6 +1,61 @@
 # Operator AFK Bridge All-CWD Live Correlation V0
 
-**Status:** Routed 2026-05-22
+**Status:** Completed partial_pass 2026-05-22
+
+## Foreman Acceptance
+
+- Result accepted as `partial_pass`.
+- Operator branch/head:
+  `gdi/dock-handoff-chat-shape-correction-v0` at
+  `df00e8e33219371eb95ba33d501617d39622b77f`.
+- `docs/durable-agent-cognition-v0` matched HEAD at run start.
+- Worktree before and after was clean.
+- Required verification passed:
+  - `./aos ready`: `ready=true mode=repo daemon=reachable tap=active`
+  - `node --test tests/sigil-agent-terminal-server.test.mjs`: 7/7
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: 12/12
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1
+- Bridge run:
+  - port: `17865`
+  - default cwd: `/Users/Michael/Code/agent-os/.docks/gdi`
+  - driver: `process`
+  - ensure result: `{"ok":true,"session":"afk-bridge-all-cwd-proof","created":true,"driver":"process"}`
+  - `launch_observed_at`: `2026-05-22T15:52:38Z`
+- Catalog result:
+  - requested cwd `/sessions?cwd=/Users/Michael/Code/agent-os/.docks/gdi&provider=codex`
+    returned 310 records, newest
+    `019e5058-3743-79c1-bf67-476fcbf0fd72` updated
+    `2026-05-22T15:44:25.259Z`; no current record relative to launch.
+  - all-cwd `/sessions?provider=codex&all_cwd=true` returned 1557 records and
+    found one current candidate outside `.docks/gdi`:
+    `019e5062-42f2-7340-beda-e2295ebf7f41` at
+    `/Users/Michael/Code/agent-os/.docks/operator`, updated
+    `2026-05-22T15:54:01.463Z`.
+  - `/session-inspector` for that current all-cwd candidate reported cwd
+    `/Users/Michael/Code/agent-os/.docks/operator`, branch
+    `gdi/dock-handoff-chat-shape-correction-v0`, model `gpt-5.5`,
+    diagnostics `[]`, and telemetry present.
+- Cleanup succeeded: bridge stopped, port 17865 was no longer reachable, temp
+  classifier fixture was removed, and no leftover bridge or
+  `codex --no-alt-screen` process from the run remained.
+- No source, docs, config, gateway, dock profile, hook, GitHub, push, or PR
+  changes were made by Operator. Provider-owned Codex transcript/catalog
+  evidence was created by the supervised run.
+
+## Foreman Follow-Up
+
+The all-cwd endpoint behavior is accepted. The remaining gap is not another
+all-cwd scope fix: the bridge-launched `.docks/gdi` Codex process did not create
+a current visible provider catalog record.
+
+The optional classifier result from this Operator run is treated as a caveat,
+not final truth. It passed the all-cwd Operator candidate id as
+`--provider-session-id`, which makes the current prototype classify
+`provider_session_wrong_cwd`. That status is correct only when the launched
+provider session id was independently observed from the launch. In this run the
+current all-cwd candidate was the supervising Operator session, so the next GDI
+slice should prevent unrelated current all-cwd candidates from being promoted
+into bridge-observed provider session ids.
 
 ## Transfer Classification
 
