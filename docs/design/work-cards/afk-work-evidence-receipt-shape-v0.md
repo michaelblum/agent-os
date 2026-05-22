@@ -1,6 +1,6 @@
 # Work Card: afk-work-evidence-receipt-shape-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-22
 **Owner:** GDI
 
 ## Tracker
@@ -23,6 +23,23 @@ reviewed without a receipt contract. Receipt fields are currently spread across
 packet, scheduler, dispatch, final report, work-record, and evidence-record
 language. This slice should consolidate that into one reviewable docs-only
 receipt shape before any source prototype.
+
+Accepted evidence:
+
+- GDI branch: `gdi/afk-work-evidence-receipt-shape-v0`
+- Accepted commit: `6b6c344df21e4271bdde97c89fbabd33b9237aef`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/afk-work-evidence-receipt-shape-2026-05-21.md`
+- Synthesis update:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman-side verification passed:
+  `git diff --check 1eae080bfa6704de68fae334a9cbd0d5fb911163..6b6c344df21e4271bdde97c89fbabd33b9237aef`,
+  `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`,
+  and `./aos dev recommend --json`.
+- Recommendation accepted: route a deterministic local dry-run prototype that
+  writes only local dry-run output or a receipt bundle, starts no provider,
+  changes no schemas, and treats command names as experimental.
 
 ## Fresh Context Contract
 
