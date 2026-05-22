@@ -121,7 +121,7 @@ assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "-
 assert "--allow-provider-launch" not in launch_tokens, launch_tokens
 assert "experimental" in forms["dev-afk-launch-attempt"]["args"][0]["summary"].lower(), forms["dev-afk-launch-attempt"]
 trigger_tokens = {arg.get("token") for arg in forms["dev-afk-session-trigger"]["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--dry-run", "--json"} <= trigger_tokens, trigger_tokens
+assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--json"} <= trigger_tokens, trigger_tokens
 assert "--live" not in trigger_tokens, trigger_tokens
 assert "--launch-provider" not in trigger_tokens, trigger_tokens
 assert "--start" not in trigger_tokens, trigger_tokens
@@ -187,15 +187,15 @@ data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
 form = forms["dev-afk-session-trigger"]
 tokens = {arg.get("token") for arg in form["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--dry-run", "--json"} <= tokens, tokens
+assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--json"} <= tokens, tokens
 assert "--live" not in tokens, tokens
 assert "--launch-provider" not in tokens, tokens
 assert "--start" not in tokens, tokens
-assert "session" not in form["usage"].lower().replace("afk-session-trigger", ""), form
+assert "--supervised-live-launch" in form["usage"], form
 assert "experimental" in json.dumps(form).lower(), form
 PY
 then
-    pass "dev afk-session-trigger help stays experimental and dry-run-only"
+    pass "dev afk-session-trigger help stays experimental and exposes guarded live launch"
 else
     fail "dev afk-session-trigger help drifted"
 fi

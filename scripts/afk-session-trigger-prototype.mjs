@@ -11,14 +11,16 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
 const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
+const LIVE_TERMINAL_STATES = new Set(['terminal', 'running', 'observed', 'completed', 'provider_session_observed']);
+const RELAUNCH_REQUIRES_REPLACEMENT_STATES = new Set(['rejected', 'failed', 'expired', 'blocked']);
 
 function usage() {
   return `Experimental AFK session-trigger dry-run prototype.
 
 Usage:
-  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> --dry-run --json [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>]
+  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>]
 
-This local prototype validates one transfer packet and emits a scheduler/dispatch dry-run receipt. It does not launch providers, terminals, gateways, or result routes.`;
+This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The guarded supervised-live source path is deterministic and does not launch providers, terminals, gateways, or result routes.`;
 }
 
 function parseArgs(argv) {
@@ -35,6 +37,14 @@ function parseArgs(argv) {
     }
     if (arg === '--dry-run') {
       options.dryRun = true;
+      continue;
+    }
+    if (arg === '--supervised-live-launch') {
+      options.supervisedLiveLaunch = true;
+      continue;
+    }
+    if (arg === '--i-am-present') {
+      options.iAmPresent = true;
       continue;
     }
     if (arg === '--help' || arg === '-h') {
@@ -214,6 +224,15 @@ function mismatch(mismatchClass, message, details = {}) {
   return { class: mismatchClass, message, ...details };
 }
 
+function selectedAction(options) {
+  if (options.dryRun && options.supervisedLiveLaunch) {
+    return { action: 'invalid', mismatch: mismatch('conflicting_action_flags', 'Do not combine --dry-run and --supervised-live-launch.') };
+  }
+  if (options.supervisedLiveLaunch) return { action: 'supervised-live-launch', mismatch: null };
+  if (options.dryRun) return { action: 'dry-run', mismatch: null };
+  return { action: 'missing', mismatch: mismatch('missing_action_flag', 'Expected --dry-run or --supervised-live-launch.') };
+}
+
 function resolveProvider(explicitProvider, packetProviderHint) {
   const selected = explicitProvider ?? packetProviderHint ?? null;
   if (!selected) {
@@ -242,9 +261,7 @@ async function buildReceipt(options) {
   if (!options.packet) {
     throw Object.assign(new Error('Missing required --packet'), { mismatchClass: 'missing_packet' });
   }
-  if (!options.dryRun) {
-    throw Object.assign(new Error('Missing required --dry-run'), { mismatchClass: 'launch_policy_violation' });
-  }
+  const actionSelection = selectedAction(options);
 
   const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
   const packetPath = repoPath(repoRoot, options.packet);
@@ -268,6 +285,15 @@ async function buildReceipt(options) {
   const resultRoutes = normalizeResultRoutes(packet, options.resultRoute);
   const worktreeFacts = currentWorktreeFacts(repoRoot);
   const mismatches = [];
+  if (actionSelection.mismatch) {
+    mismatches.push(actionSelection.mismatch);
+  }
+  if (actionSelection.action === 'supervised-live-launch' && !options.iAmPresent) {
+    mismatches.push(mismatch('human_presence_required', '--i-am-present is required for supervised live launch.'));
+  }
+  if (actionSelection.action === 'supervised-live-launch' && !options.json) {
+    mismatches.push(mismatch('json_required_for_supervised_live', '--json is required for supervised live launch receipts.'));
+  }
 
   if (sourceArtifact === NOT_OBSERVED || !sourcePath || !existsSync(sourcePath)) {
     mismatches.push(mismatch('missing_source_artifact', 'Packet source artifact was missing or not present in the current worktree.', {
@@ -298,6 +324,16 @@ async function buildReceipt(options) {
   if (resultRoutes.length === 0) {
     mismatches.push(mismatch('result_route_missing', 'Packet did not include a result route and --result-route was not supplied.'));
   }
+  if (actionSelection.action === 'supervised-live-launch' && provider.selected_provider !== 'codex') {
+    mismatches.push(mismatch('provider_unsupported_for_supervised_live', 'Supervised live launch is currently available only for --provider codex.', {
+      selected_provider: provider.selected_provider,
+    }));
+  }
+  if (actionSelection.action === 'supervised-live-launch' && selectedDock !== 'gdi') {
+    mismatches.push(mismatch('dock_mismatch_for_supervised_live', 'Supervised live launch is currently available only for --dock gdi.', {
+      selected_dock: selectedDock,
+    }));
+  }
 
   const idempotenceMaterial = {
     packetId,
@@ -309,17 +345,24 @@ async function buildReceipt(options) {
     selectedProvider: provider.selected_provider,
     launchRoot: dockProfile.launch_root,
     resultRoutes,
-    action: 'dry-run',
+    action: actionSelection.action,
+    humanGate: actionSelection.action === 'supervised-live-launch' ? Boolean(options.iAmPresent) : false,
     salt: options.idempotenceSalt ?? null,
   };
   const idempotenceKey = stableHash(idempotenceMaterial, 32);
   const schedulerRunId = `scheduler-${stableHash({ idempotenceKey, kind: 'scheduler' })}`;
   const dispatchAttemptId = `dispatch-${stableHash({ schedulerRunId, idempotenceKey, kind: 'dispatch' })}`;
+  const duplicate = options.existingReceipt ? await classifyExistingReceipt(repoRoot, options.existingReceipt, idempotenceKey, options) : null;
+  if (duplicate?.mismatch) {
+    mismatches.push(duplicate.mismatch);
+  }
   const validationStatus = mismatches.length === 0 ? 'valid' : 'invalid';
-  const status = mismatches.length === 0 ? 'dry_run_ready' : 'rejected';
+  const status = statusFor(actionSelection.action, mismatches, duplicate);
 
   return {
-    record_type: 'aos.afk_session_trigger_dry_run',
+    record_type: actionSelection.action === 'supervised-live-launch'
+      ? 'aos.afk_session_trigger_supervised_live'
+      : 'aos.afk_session_trigger_dry_run',
     schema_status: 'not_a_schema',
     status,
     created_at: createdAt,
@@ -342,9 +385,14 @@ async function buildReceipt(options) {
     scheduler: {
       scheduler_run_id: schedulerRunId,
       idempotence_key: idempotenceKey,
-      lifecycle_state: mismatches.length === 0 ? 'accepted' : 'rejected',
-      selected_action: 'dry-run',
+      lifecycle_state: schedulerState(actionSelection.action, mismatches, duplicate),
+      selected_action: actionSelection.action,
       lease: 'not_enforced',
+      duplicate_handling: duplicate ?? {
+        duplicate: false,
+        existing_receipt_ref: NOT_OBSERVED,
+        relaunch_requires_replacement: false,
+      },
     },
     dispatch: {
       dispatch_attempt_id: dispatchAttemptId,
@@ -352,19 +400,94 @@ async function buildReceipt(options) {
       selected_dock: selectedDock,
       dock_profile_ref: dockProfile.profile_path ?? NOT_OBSERVED,
       launch_root: dockProfile.launch_root ?? NOT_OBSERVED,
-      action: 'dry-run',
-      provider_launch_allowed: false,
+      action: actionSelection.action,
+      provider_launch_allowed: actionSelection.action === 'supervised-live-launch'
+        && mismatches.length === 0
+        && !(duplicate?.duplicate && duplicate.reused_state),
+      human_supervision: actionSelection.action === 'supervised-live-launch'
+        ? { required: true, i_am_present: Boolean(options.iAmPresent) }
+        : { required: false, i_am_present: false },
     },
     terminal_substrate: {
       status: NOT_ATTEMPTED,
-      reason: 'dry-run-only',
+      reason: actionSelection.action === 'supervised-live-launch' ? 'guarded-source-slice-no-live-provider' : 'dry-run-only',
+    },
+    provider_acceptance: {
+      status: NOT_ATTEMPTED,
+      selected_provider: provider.selected_provider,
+    },
+    codex_adapter: {
+      status: NOT_ATTEMPTED,
+    },
+    catalog: {
+      status: NOT_ATTEMPTED,
+      catalog_record_refs: NOT_ATTEMPTED,
+    },
+    telemetry: {
+      status: NOT_ATTEMPTED,
+      telemetry_event_refs: NOT_ATTEMPTED,
     },
     result_route: {
       status: NOT_ATTEMPTED,
       refs: resultRoutes,
     },
+    work_receipt: {
+      status: NOT_ATTEMPTED,
+    },
+    evidence: {
+      observed_refs: [],
+      transcript_body_copied: false,
+    },
     mismatches,
   };
+}
+
+async function classifyExistingReceipt(repoRoot, receiptPath, idempotenceKey, options) {
+  const resolved = repoPath(repoRoot, receiptPath);
+  const receipt = await readJsonFile(resolved, 'existing receipt');
+  const existingKey = receipt.scheduler?.idempotence_key ?? receipt.idempotence_key ?? NOT_OBSERVED;
+  const existingState = receipt.scheduler?.lifecycle_state ?? receipt.lifecycle_state ?? receipt.status ?? NOT_OBSERVED;
+  if (existingKey !== idempotenceKey) {
+    return {
+      duplicate: false,
+      existing_receipt_ref: relIfRepo(repoRoot, resolved),
+      existing_idempotence_key: existingKey,
+      relaunch_requires_replacement: false,
+    };
+  }
+  if (RELAUNCH_REQUIRES_REPLACEMENT_STATES.has(existingState) && !options.replacementFor && !options.supersedes) {
+    return {
+      duplicate: true,
+      existing_receipt_ref: relIfRepo(repoRoot, resolved),
+      existing_idempotence_key: existingKey,
+      existing_state: existingState,
+      relaunch_requires_replacement: true,
+      mismatch: mismatch('replacement_required_for_prior_attempt', 'Prior terminal non-success attempt requires explicit replacement before relaunch.', {
+        existing_state: existingState,
+      }),
+    };
+  }
+  return {
+    duplicate: LIVE_TERMINAL_STATES.has(existingState) || existingState === 'accepted',
+    existing_receipt_ref: relIfRepo(repoRoot, resolved),
+    existing_idempotence_key: existingKey,
+    existing_state: existingState,
+    relaunch_requires_replacement: false,
+    reused_state: LIVE_TERMINAL_STATES.has(existingState) || existingState === 'accepted',
+  };
+}
+
+function schedulerState(action, mismatches, duplicate) {
+  if (mismatches.length > 0) return 'rejected';
+  if (duplicate?.duplicate && duplicate.reused_state) return 'duplicate';
+  return action === 'dry-run' ? 'accepted' : 'accepted_pre_launch';
+}
+
+function statusFor(action, mismatches, duplicate) {
+  if (mismatches.some((item) => item.class === 'replacement_required_for_prior_attempt')) return 'blocked';
+  if (mismatches.length > 0) return 'rejected';
+  if (duplicate?.duplicate && duplicate.reused_state) return 'duplicate';
+  return action === 'dry-run' ? 'dry_run_ready' : 'supervised_live_launch_ready';
 }
 
 function toMarkdown(receipt) {
@@ -390,7 +513,8 @@ async function main() {
     }
 
     const receipt = await buildReceipt(options);
-    const output = options.json ? `${JSON.stringify(receipt, null, 2)}\n` : toMarkdown(receipt);
+    const outputAsJson = options.json || options.supervisedLiveLaunch;
+    const output = outputAsJson ? `${JSON.stringify(receipt, null, 2)}\n` : toMarkdown(receipt);
     if (options.out) {
       try {
         await writeFile(resolve(options.out), output, 'utf8');
@@ -399,13 +523,13 @@ async function main() {
         receipt.mismatches.push(mismatch('receipt_write_failed', `Unable to write receipt: ${error.message}`, {
           out: options.out,
         }));
-        process.stdout.write(options.json ? `${JSON.stringify(receipt, null, 2)}\n` : toMarkdown(receipt));
+        process.stdout.write(outputAsJson ? `${JSON.stringify(receipt, null, 2)}\n` : toMarkdown(receipt));
         process.exitCode = 1;
         return;
       }
     }
     process.stdout.write(output);
-    process.exitCode = receipt.status === 'dry_run_ready' ? 0 : 1;
+    process.exitCode = ['dry_run_ready', 'supervised_live_launch_ready', 'duplicate'].includes(receipt.status) ? 0 : 1;
   } catch (error) {
     const payload = {
       record_type: 'aos.afk_session_trigger_dry_run',

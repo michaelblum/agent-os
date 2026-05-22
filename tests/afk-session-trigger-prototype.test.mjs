@@ -143,3 +143,188 @@ test('writes the same dry-run receipt to --out', async () => {
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), JSON.parse(result.stdout));
 });
+
+test('creates a guarded supervised-live Codex receipt without launching provider work', async () => {
+  const packetPath = await writePacket(validPacket());
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'stable-live-test',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_supervised_live');
+  assert.equal(receipt.schema_status, 'not_a_schema');
+  assert.equal(receipt.status, 'supervised_live_launch_ready');
+  assert.equal(receipt.packet.validation_status, 'valid');
+  assert.equal(receipt.scheduler.selected_action, 'supervised-live-launch');
+  assert.equal(receipt.scheduler.lifecycle_state, 'accepted_pre_launch');
+  assert.match(receipt.scheduler.idempotence_key, /^[a-f0-9]{32}$/);
+  assert.equal(receipt.dispatch.selected_provider, 'codex');
+  assert.equal(receipt.dispatch.selected_dock, 'gdi');
+  assert.equal(receipt.dispatch.launch_root, '.docks/gdi');
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.deepEqual(receipt.dispatch.human_supervision, { required: true, i_am_present: true });
+  assert.deepEqual(receipt.terminal_substrate, {
+    status: 'not_attempted',
+    reason: 'guarded-source-slice-no-live-provider',
+  });
+  assert.equal(receipt.provider_acceptance.status, 'not_attempted');
+  assert.equal(receipt.codex_adapter.status, 'not_attempted');
+  assert.equal(receipt.catalog.status, 'not_attempted');
+  assert.equal(receipt.telemetry.status, 'not_attempted');
+  assert.equal(receipt.result_route.status, 'not_attempted');
+  assert.equal(receipt.work_receipt.status, 'not_attempted');
+  assert.equal(receipt.evidence.transcript_body_copied, false);
+  assert.deepEqual(receipt.mismatches, []);
+});
+
+test('rejects supervised-live pre-launch guard failures before side effects', async () => {
+  const packetPath = await writePacket(validPacket());
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'claude',
+    '--dock',
+    'operator',
+    '--supervised-live-launch',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_supervised_live');
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.deepEqual(new Set(receipt.mismatches.map((item) => item.class)), new Set([
+    'human_presence_required',
+    'json_required_for_supervised_live',
+    'provider_unsupported_for_supervised_live',
+    'dock_mismatch_for_supervised_live',
+  ]));
+});
+
+test('rejects ambiguous or conflicting live launch flags', async () => {
+  const packetPath = await writePacket(validPacket());
+  const alias = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--live',
+    '--json',
+  ]);
+  assert.equal(alias.status, 1);
+  assert.match(alias.stderr, /Unexpected|Unknown|Missing value|live/);
+
+  const conflicting = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+  ]);
+  assert.equal(conflicting.status, 1);
+  const receipt = JSON.parse(conflicting.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'conflicting_action_flags'));
+});
+
+test('returns duplicate state from a receipt-backed supervised-live attempt', async () => {
+  const packetPath = await writePacket(validPacket());
+  const baseArgs = [
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'duplicate-live-test',
+  ];
+  const first = runPrototype(baseArgs);
+  assert.equal(first.status, 0, first.stderr);
+  const firstReceipt = JSON.parse(first.stdout);
+  const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-existing-'));
+  const existingPath = join(dir, 'existing.json');
+  await writeFile(existingPath, `${JSON.stringify({
+    record_type: 'aos.afk_session_trigger_supervised_live',
+    scheduler: {
+      idempotence_key: firstReceipt.scheduler.idempotence_key,
+      lifecycle_state: 'running',
+    },
+  }, null, 2)}\n`, 'utf8');
+
+  const duplicate = runPrototype([...baseArgs, '--existing-receipt', existingPath]);
+  assert.equal(duplicate.status, 0, duplicate.stderr);
+  const receipt = JSON.parse(duplicate.stdout);
+  assert.equal(receipt.status, 'duplicate');
+  assert.equal(receipt.scheduler.lifecycle_state, 'duplicate');
+  assert.equal(receipt.scheduler.duplicate_handling.duplicate, true);
+  assert.equal(receipt.scheduler.duplicate_handling.reused_state, true);
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+});
+
+test('blocks relaunch after rejected receipt unless replacement is explicit', async () => {
+  const packetPath = await writePacket(validPacket());
+  const baseArgs = [
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'blocked-live-test',
+  ];
+  const first = runPrototype(baseArgs);
+  assert.equal(first.status, 0, first.stderr);
+  const firstReceipt = JSON.parse(first.stdout);
+  const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-rejected-'));
+  const existingPath = join(dir, 'existing.json');
+  await writeFile(existingPath, `${JSON.stringify({
+    scheduler: {
+      idempotence_key: firstReceipt.scheduler.idempotence_key,
+      lifecycle_state: 'rejected',
+    },
+  }, null, 2)}\n`, 'utf8');
+
+  const blocked = runPrototype([...baseArgs, '--existing-receipt', existingPath]);
+  assert.equal(blocked.status, 1);
+  const receipt = JSON.parse(blocked.stdout);
+  assert.equal(receipt.status, 'blocked');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.scheduler.duplicate_handling.relaunch_requires_replacement, true);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'replacement_required_for_prior_attempt'));
+});
