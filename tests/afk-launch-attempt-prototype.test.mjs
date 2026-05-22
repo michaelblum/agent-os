@@ -308,6 +308,84 @@ test('classifies stale catalog session as current launch not observed', async ()
   assert.deepEqual(record.mismatches.map((mismatch) => mismatch.code), ['catalog_current_launch_not_observed']);
 });
 
+test('classifies observed provider session with wrong cwd as structured mismatch', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const observedWrongCwd = join(repoRoot, '.docks/operator');
+  const providerSessionId = '019e4fdc-7236-7db0-9f77-29f8f4108b3f';
+  const catalogPath = await writeCatalogFixture({
+    sessions: [
+      {
+        provider: 'codex',
+        session_id: providerSessionId,
+        cwd: observedWrongCwd,
+        updated_at: '2026-05-22T13:26:14.000Z',
+        source_file: '/tmp/wrong-cwd-codex-session.jsonl',
+        resume_command: `codex resume ${providerSessionId}`,
+        telemetry_observed: true,
+        telemetry_event_refs: ['inline:wrong-cwd-telemetry-must-not-bind'],
+      },
+    ],
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    '2026-05-22T13:26:14.000Z',
+    '--provider-session-id',
+    providerSessionId,
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.provider_acceptance.status, 'provider_session_wrong_cwd');
+  assert.equal(record.provider_acceptance.provider_session_id, providerSessionId);
+  assert.equal(record.provider_acceptance.provider_reported_cwd, observedWrongCwd);
+  assert.equal(record.catalog.status, 'catalog_provider_session_wrong_cwd');
+  assert.deepEqual(record.catalog.catalog_record_refs, [`codex:${providerSessionId}`]);
+  assert.equal(record.catalog.match_count, 0);
+  assert.equal(record.catalog.matched_session_id, 'not_observed');
+  assert.deepEqual(record.catalog.provider_session_mismatch, {
+    code: 'provider_session_wrong_cwd',
+    expected_cwd: intendedLaunchCwd,
+    observed_cwd: observedWrongCwd,
+    provider_session_id: providerSessionId,
+    catalog_record_ref: `codex:${providerSessionId}`,
+    lifecycle_state: 'failed',
+  });
+  assert.equal(record.telemetry.status, 'telemetry_not_attempted_wrong_cwd');
+  assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(record.mismatches, [
+    {
+      observed_at: fixedTimestamp,
+      code: 'provider_session_wrong_cwd',
+      severity: 'error',
+      source: 'catalog',
+      expected: {
+        provider_session_id: providerSessionId,
+        cwd: intendedLaunchCwd,
+      },
+      observed: {
+        provider_session_id: providerSessionId,
+        cwd: observedWrongCwd,
+        catalog_record_ref: `codex:${providerSessionId}`,
+      },
+      effect: 'failed',
+      evidence_ref: 'inline:catalog.provider_session_mismatch',
+    },
+  ]);
+});
+
 test('classifies empty provider cwd catalog as not observed with telemetry not attempted', async () => {
   const packetPath = await writePacket(validPacket());
   const catalogPath = await writeCatalogFixture({ sessions: [] });

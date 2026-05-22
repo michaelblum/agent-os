@@ -208,6 +208,27 @@ function classifyCatalogAndTelemetry({
   }
 
   const normalizedProvider = String(provider).toLowerCase();
+  const matchingProviderSessionId = providerSessionId && providerSessionId !== NOT_OBSERVED
+    ? sessions.filter((session) => (
+      normalizeSessionProvider(session) === normalizedProvider
+        && normalizeSessionId(session) === providerSessionId
+    ))
+    : [];
+  const observedProviderSession = matchingProviderSessionId.length === 1
+    ? matchingProviderSessionId[0]
+    : null;
+  const observedProviderSessionCwd = observedProviderSession
+    ? resolve(normalizeSessionCwd(observedProviderSession) ?? '')
+    : NOT_OBSERVED;
+  const providerAcceptance = providerSessionId && providerSessionId !== NOT_OBSERVED
+    ? {
+      status: observedProviderSession && observedProviderSessionCwd !== cwd
+        ? 'provider_session_wrong_cwd'
+        : 'provider_session_observed',
+      provider_session_id: providerSessionId,
+      provider_reported_cwd: observedProviderSessionCwd,
+    }
+    : null;
   const matchingProviderCwd = sessions.filter((session) => (
     normalizeSessionProvider(session) === normalizedProvider
       && resolve(normalizeSessionCwd(session) ?? '') === cwd
@@ -220,12 +241,34 @@ function classifyCatalogAndTelemetry({
       return updatedAt != null && updatedAt >= currentThreshold;
     });
   const catalogRecordRefs = matchingProviderCwd.map(sessionRef);
+  const observedProviderSessionWrongCwd = Boolean(observedProviderSession && observedProviderSessionCwd !== cwd);
+  const reviewableCatalogRecordRefs = observedProviderSessionWrongCwd
+    ? [sessionRef(observedProviderSession)]
+    : catalogRecordRefs;
 
   let status;
   let matched = null;
   let mismatch = null;
 
-  if (matchingProviderCwd.length === 0) {
+  if (observedProviderSessionWrongCwd) {
+    status = 'catalog_provider_session_wrong_cwd';
+    mismatch = {
+      code: 'provider_session_wrong_cwd',
+      severity: 'error',
+      source: 'catalog',
+      expected: {
+        provider_session_id: providerSessionId,
+        cwd,
+      },
+      observed: {
+        provider_session_id: providerSessionId,
+        cwd: observedProviderSessionCwd,
+        catalog_record_ref: sessionRef(observedProviderSession),
+      },
+      effect: 'failed',
+      evidence_ref: 'inline:catalog.provider_session_mismatch',
+    };
+  } else if (matchingProviderCwd.length === 0) {
     status = 'catalog_not_observed';
   } else if (providerSessionId && providerSessionId !== NOT_OBSERVED) {
     const exactMatches = matchingProviderCwd.filter((session) => normalizeSessionId(session) === providerSessionId);
@@ -284,20 +327,35 @@ function classifyCatalogAndTelemetry({
 
   const telemetryStatus = matched
     ? (sessionTelemetryObserved(matched) ? 'telemetry_observed' : 'telemetry_not_observed')
-    : (status === 'catalog_not_observed' ? 'telemetry_not_attempted_no_catalog_match' : 'telemetry_current_launch_not_observed');
+    : (
+      status === 'catalog_provider_session_wrong_cwd'
+        ? 'telemetry_not_attempted_wrong_cwd'
+        : (status === 'catalog_not_observed' ? 'telemetry_not_attempted_no_catalog_match' : 'telemetry_current_launch_not_observed')
+    );
   const telemetryEventRefs = matched && sessionTelemetryObserved(matched)
     ? (matched.telemetry_event_refs ?? matched.telemetryEventRefs ?? [`inline:catalog:${sessionRef(matched)}:telemetry`])
     : NOT_OBSERVED;
 
   return {
+    provider_acceptance: providerAcceptance,
     catalog: {
       status,
-      catalog_record_refs: catalogRecordRefs.length > 0 ? catalogRecordRefs : NOT_OBSERVED,
+      catalog_record_refs: reviewableCatalogRecordRefs.length > 0 ? reviewableCatalogRecordRefs : NOT_OBSERVED,
       match_count: matched ? 1 : currentCandidates.length,
       matched_session_id: matched ? normalizeSessionId(matched) : NOT_OBSERVED,
       source_file: matched?.source_file ?? matched?.sourceFile ?? NOT_OBSERVED,
       resume_command: matched?.resume_command ?? matched?.resumeCommand ?? NOT_OBSERVED,
       launch_observed_at: launchObservedAt ?? NOT_OBSERVED,
+      provider_session_mismatch: observedProviderSessionWrongCwd
+        ? {
+          code: 'provider_session_wrong_cwd',
+          expected_cwd: cwd,
+          observed_cwd: observedProviderSessionCwd,
+          provider_session_id: providerSessionId,
+          catalog_record_ref: sessionRef(observedProviderSession),
+          lifecycle_state: 'failed',
+        }
+        : NOT_OBSERVED,
     },
     telemetry: {
       status: telemetryStatus,
@@ -800,6 +858,12 @@ async function createLaunchAttempt(options) {
     providerSessionId: context.providerSessionId,
   });
   record.terminal_substrate = observed.terminal_substrate;
+  if (catalogTelemetry.provider_acceptance) {
+    record.provider_acceptance = {
+      ...record.provider_acceptance,
+      ...catalogTelemetry.provider_acceptance,
+    };
+  }
   record.catalog = context.catalogFixture ? catalogTelemetry.catalog : {
     ...record.catalog,
     status: observed.catalog_status,
