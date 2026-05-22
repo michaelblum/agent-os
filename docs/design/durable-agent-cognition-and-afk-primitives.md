@@ -173,8 +173,11 @@ Existing hidden examples:
 - `docs/recipes/context-doc-maintenance.md`: proposed context change in,
   adopt/adapt/reject/defer out.
 
-The first implementation should probably inventory these examples before
-adding a schema.
+The inventory and shape sketch in
+`docs/design/notes/decision-contract-inventory-2026-05-21.md` and
+`docs/design/notes/decision-contract-shape-sketch-2026-05-21.md` keep this as
+docs-only vocabulary for now. A schema should wait until at least one second
+non-router candidate proves the generic fields.
 
 ## AFK Primitives
 

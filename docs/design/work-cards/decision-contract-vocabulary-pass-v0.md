@@ -1,6 +1,6 @@
 # Work Card: decision-contract-vocabulary-pass-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -15,6 +15,23 @@ Follow-up to:
 The accepted shape sketch recommends a docs vocabulary pass before any schema
 slice. This round should make the vocabulary discoverable without changing
 executable artifacts.
+
+Accepted evidence:
+
+- GDI branch: `gdi/decision-contract-vocabulary-pass-v0`
+- Accepted commit: `04fa584e930927d1fccb81ba61852d8ed3825611`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Changed docs:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md` and
+  `docs/recipes/README.md`.
+- Foreman-side verification passed:
+  `git diff --check 8ae5d23efcabba963029bd610716de96bddb5da8..04fa584e930927d1fccb81ba61852d8ed3825611`
+  and `./aos dev recommend --json`.
+- Foreman added one tiny hygiene edit after acceptance to replace stale
+  forward-looking inventory wording with links to the accepted inventory and
+  shape-sketch notes.
+- Recommendation accepted: map a second non-router candidate before any schema
+  slice.
 
 ## Fresh Context Contract
 
