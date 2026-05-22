@@ -1,6 +1,23 @@
 # Work Card: AFK Launch Attempt Record Shape V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `0d4d3f168b2b7c505b49b100b229b75bc8a3c6e7`
+- Output note:
+  `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`
+- Foreman review: accepted. The note defines the pre-schema
+  `aos.afk_launch_attempt` record shape, field ownership, lifecycle states,
+  mismatch representation, idempotence key, neighbor-artifact relationships,
+  first real-launch acceptance evidence, and the next prototype slice.
+- Foreman verification:
+  - `git diff --check dc3d1a763b5e8dcf0b27de2457d3fd6252198084..0d4d3f168b2b7c505b49b100b229b75bc8a3c6e7`
+  - `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`
+  - `./aos dev recommend --json`
+- Local-only boundary confirmed: no provider session, provider config, gateway
+  state, generated receipt artifact, GitHub state, push, or PR changed.
 
 ## Fresh Context Contract
 

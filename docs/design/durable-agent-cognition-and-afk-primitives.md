@@ -484,5 +484,9 @@ The next slices should stay reversible:
    AOS-owned launch-attempt/session record that can bind selected provider,
    terminal handle, provider session id, catalog match, telemetry, and result
    route after a real launch.
+   The launch-attempt record shape now lives at
+   `docs/design/notes/afk-launch-attempt-record-shape-2026-05-22.md`; it keeps
+   the record pre-schema and recommends a local no-schema prototype before
+   unattended provider launch.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
