@@ -1,6 +1,26 @@
 # Work Card: AFK Provider Session Observability Map V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commit:
+  `bd49a3a62b0addb34330e139142f8a590cdf3437`
+- Output note:
+  `docs/design/notes/afk-provider-session-observability-map-2026-05-22.md`
+- Updated synthesis pointer:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman review: accepted. The note answers the required observability
+  questions, separates direct dock-root human-visible facts from
+  agent-terminal/codex-terminal bridge facts, preserves catalog and telemetry
+  as `not_observed` when not actually parsed, and recommends a concrete
+  no-provider dry-run receipt-field follow-up.
+- Foreman verification:
+  - `git diff --check 53d8d6697b5dbdb6ffc7c7f04bfbc57184129a87..bd49a3a62b0addb34330e139142f8a590cdf3437`
+  - `git diff --check c20c85d9e0efd239a2112b5899a8ed164ab745d7..HEAD`
+  - `./aos dev recommend --json`
+- Local-only boundary confirmed: no provider session, provider config, gateway
+  state, GitHub state, push, or PR changed.
 
 ## Fresh Context Contract
 
