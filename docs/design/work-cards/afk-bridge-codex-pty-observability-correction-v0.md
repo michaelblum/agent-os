@@ -1,6 +1,60 @@
 # AFK Bridge Codex PTY Observability Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Needs correction 2026-05-22
+
+## Foreman Review
+
+- Reviewed output commit:
+  `fad05c8132d1045a8298a77a44854adf277753b8`
+- Branch:
+  `gdi/afk-bridge-codex-pty-observability-correction-v0`
+- Base:
+  `5d34f294aaaa295fe3ac51324eb3e6a7d7d7257e`
+- Local verification passed:
+  - `node --test tests/sigil-agent-terminal-server.test.mjs`: 11/11
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1
+  - `git diff --check 5d34f294aaaa295fe3ac51324eb3e6a7d7d7257e..fad05c8132d1045a8298a77a44854adf277753b8`
+  - `./aos dev recommend --json --files apps/sigil/codex-terminal/server.mjs apps/sigil/codex-terminal/pty-proxy.py tests/sigil-agent-terminal-server.test.mjs`
+- Review result: needs correction. The output proves the simple line-oriented
+  and raw/full-screen-ish happy paths, but the new process-driver control path
+  can still drop user input when control and input bytes are coalesced in the
+  same `pty-proxy.py` stdin read.
+
+### Correction Finding
+
+`pty-proxy.py` treats any stdin chunk starting with NUL as a whole control
+frame. If a resize control write and following input bytes are coalesced by the
+pipe, `handle_control_frame(...)` attempts to parse the combined bytes as JSON,
+swallows the parse failure as handled control, and never forwards the trailing
+input to the child PTY.
+
+Foreman reproduced this with a provider-free local probe that wrote one stdin
+chunk shaped like:
+
+```text
+\0{"type":"resize","cols":100,"rows":31}coalesced-marker\r
+```
+
+The child process did not emit `got:coalesced-marker`, confirming the input was
+lost before the PTY child could read it.
+
+Required correction:
+
+- Make the process-driver control channel robust against pipe coalescing and
+  partial reads. A resize/control message must not consume trailing user input
+  bytes, and user input following a control message must still be forwarded to
+  the PTY.
+- Add deterministic coverage for a coalesced control-plus-input path. It can be
+  a direct `pty-proxy.py` fixture or a bridge-level test that triggers
+  immediate resize plus input and proves the raw fixture receives the input.
+- Preserve the accepted behavior from `fad05c8132d1045a8298a77a44854adf277753b8`:
+  initialized 80x24 size, controlling terminal setup, process snapshot geometry,
+  `/resize`, process WebSocket resize application, raw no-echo input
+  acknowledgement, and existing line-oriented `/input` and `/key` coverage.
+- Do not launch live providers or change Codex adapter correlation rules.
+
+Continue from the current branch/work surface. Do not restart from the durable
+accepted base for this follow-up.
 
 ## Transfer Classification
 
