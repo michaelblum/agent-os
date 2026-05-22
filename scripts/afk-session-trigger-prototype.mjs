@@ -11,7 +11,18 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
 const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
-const LIVE_TERMINAL_STATES = new Set(['terminal', 'running', 'observed', 'completed', 'provider_session_observed']);
+const LIVE_TERMINAL_STATES = new Set([
+  'accepted',
+  'accepted_pre_launch',
+  'terminal',
+  'terminal_started',
+  'running',
+  'observed',
+  'provider_acceptance_unobserved',
+  'provider_acceptance_observed',
+  'provider_session_observed',
+  'completed',
+]);
 const RELAUNCH_REQUIRES_REPLACEMENT_STATES = new Set(['rejected', 'failed', 'expired', 'blocked']);
 
 function usage() {
@@ -353,8 +364,12 @@ async function buildReceipt(options) {
   const schedulerRunId = `scheduler-${stableHash({ idempotenceKey, kind: 'scheduler' })}`;
   const dispatchAttemptId = `dispatch-${stableHash({ schedulerRunId, idempotenceKey, kind: 'dispatch' })}`;
   const duplicate = options.existingReceipt ? await classifyExistingReceipt(repoRoot, options.existingReceipt, idempotenceKey, options) : null;
+  const cleanup = await classifyCleanup(repoRoot, options, actionSelection.action);
   if (duplicate?.mismatch) {
     mismatches.push(duplicate.mismatch);
+  }
+  if (cleanup.mismatch) {
+    mismatches.push(cleanup.mismatch);
   }
   const validationStatus = mismatches.length === 0 ? 'valid' : 'invalid';
   const status = statusFor(actionSelection.action, mismatches, duplicate);
@@ -416,6 +431,7 @@ async function buildReceipt(options) {
       status: NOT_ATTEMPTED,
       selected_provider: provider.selected_provider,
     },
+    cleanup,
     codex_adapter: {
       status: NOT_ATTEMPTED,
     },
@@ -468,12 +484,50 @@ async function classifyExistingReceipt(repoRoot, receiptPath, idempotenceKey, op
     };
   }
   return {
-    duplicate: LIVE_TERMINAL_STATES.has(existingState) || existingState === 'accepted',
+    duplicate: LIVE_TERMINAL_STATES.has(existingState),
     existing_receipt_ref: relIfRepo(repoRoot, resolved),
     existing_idempotence_key: existingKey,
     existing_state: existingState,
     relaunch_requires_replacement: false,
-    reused_state: LIVE_TERMINAL_STATES.has(existingState) || existingState === 'accepted',
+    reused_state: LIVE_TERMINAL_STATES.has(existingState),
+  };
+}
+
+async function classifyCleanup(repoRoot, options, action) {
+  const base = {
+    owner: 'afk-session-trigger-prototype',
+    status: NOT_ATTEMPTED,
+    proof: NOT_ATTEMPTED,
+  };
+  if (action !== 'supervised-live-launch') {
+    return {
+      ...base,
+      reason: 'dry-run-only',
+    };
+  }
+  if (!options.cleanupProofFixture) {
+    return {
+      ...base,
+      reason: 'guarded-source-slice-no-live-provider',
+    };
+  }
+
+  const resolved = repoPath(repoRoot, options.cleanupProofFixture);
+  const fixture = await readJsonFile(resolved, 'cleanup proof fixture');
+  const status = fixture.status ?? fixture.cleanup_status ?? fixture.cleanupStatus ?? NOT_OBSERVED;
+  const proof = fixture.proof ?? fixture.cleanup_proof ?? fixture.cleanupProof ?? [];
+  const verified = status === 'verified' || status === 'complete' || status === 'completed';
+  return {
+    owner: fixture.owner ?? 'afk-session-trigger-prototype',
+    status: verified ? 'verified' : 'cleanup_unverified',
+    proof,
+    fixture_ref: relIfRepo(repoRoot, resolved),
+    reason: verified ? null : fixture.reason ?? 'cleanup proof fixture did not prove terminal cleanup',
+    mismatch: verified
+      ? null
+      : mismatch('cleanup_unverified', 'Terminal cleanup proof was missing or insufficient.', {
+        cleanup_status: status,
+      }),
   };
 }
 
@@ -484,6 +538,7 @@ function schedulerState(action, mismatches, duplicate) {
 }
 
 function statusFor(action, mismatches, duplicate) {
+  if (mismatches.some((item) => item.class === 'cleanup_unverified')) return 'cleanup_unverified';
   if (mismatches.some((item) => item.class === 'replacement_required_for_prior_attempt')) return 'blocked';
   if (mismatches.length > 0) return 'rejected';
   if (duplicate?.duplicate && duplicate.reused_state) return 'duplicate';
