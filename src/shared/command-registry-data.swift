@@ -1265,6 +1265,30 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos dev afk-dry-run --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
                 "aos dev afk-dry-run --packet /tmp/manual-afk-packet.json --json"
             ]),
+        InvocationForm(id: "dev-afk-launch-attempt", usage: "aos dev afk-launch-attempt --packet <packet.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--json]",
+            args: [
+                flag("packet", "--packet", "Manual AFK packet JSON path for the experimental launch-attempt diagnostic", required: true),
+                flag("provider", "--provider", "Provider name to select as an intent fact; no provider is launched by this wrapper"),
+                flag("dock", "--dock", "Dock name to resolve for launch-attempt facts"),
+                flag("repo", "--repo", "Repository root path"),
+                flag("timestamp", "--timestamp", "Fixed ISO timestamp for deterministic launch-attempt output"),
+                flag("out", "--out", "Optional local launch-attempt record output path"),
+                flag("duplicate-in-process", "--duplicate-in-process", "Model duplicate handling inside this diagnostic process", type: .bool),
+                flag("catalog-fixture", "--catalog-fixture", "Fixture path for provider catalog correlation"),
+                flag("bridge-visibility-fixture", "--bridge-visibility-fixture", "Fixture path for supervised bridge visibility evidence"),
+                flag("provider-session-id", "--provider-session-id", "Observed provider session id for fixture-backed correlation"),
+                flag("launch-observed-at", "--launch-observed-at", "Observed launch timestamp for deterministic fixture correlation"),
+                flag("codex-home-fixture", "--codex-home-fixture", "Fixture Codex home path for read-only adapter correlation"),
+                flag("codex-home", "--codex-home", "Explicit real Codex home path for read-only diagnostic correlation"),
+                flag("json", "--json", "Emit machine-readable experimental launch-attempt output", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: [
+                "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
+                "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --json"
+            ]),
         InvocationForm(id: "dev-audit", usage: "aos dev audit [--manifest <path>] [--repo <path>] [--json]",
             args: [
                 flag("manifest", "--manifest", "Workflow rules manifest path", default: .string("docs/dev/workflow-rules.json")),
