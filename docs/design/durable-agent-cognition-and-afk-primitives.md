@@ -437,6 +437,11 @@ The next slices should stay reversible:
 5. Run a design consolidation/readiness pass across the AFK packet,
    scheduler, and dispatch sketches before prototyping, so the first source
    slice has a minimal shared vocabulary instead of a single-provider shortcut.
+   The consolidation/readiness map now lives at
+   `docs/design/notes/afk-design-consolidation-readiness-2026-05-21.md`;
+   it assigns duplicate field ownership, defines the minimum manual-trial
+   receipt trail, and recommends a docs-only work/evidence receipt shape before
+   a deterministic local dry-run prototype.
 6. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
 7. Trial a Researcher-compatible role only after the session trigger and async
