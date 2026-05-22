@@ -1,6 +1,62 @@
 # Operator AFK Codex Adapter Live Correlation V0
 
-**Status:** Routed 2026-05-22
+**Status:** Partial accepted 2026-05-22
+
+## Foreman Review
+
+- Result classification: `partial_pass`.
+- Accepted evidence: Operator launched one supervised bridge-backed Codex
+  process from `.docks/gdi`, verified bridge health and cleanup, then exercised
+  the accepted prototype correlation path against explicit read-only
+  `/Users/Michael/.codex` metadata.
+- Branch/ref evidence:
+  - branch: `gdi/afk-launch-attempt-codex-adapter-integration-v0`
+  - HEAD: `dc0de0d8456e1360ed2e516f25df4bac4c87a4fe`
+  - `docs/durable-agent-cognition-v0`:
+    `dc0de0d8456e1360ed2e516f25df4bac4c87a4fe`
+  - final worktree: clean
+- Verification reported by Operator:
+  - `./aos ready`: passed, `ready=true mode=repo daemon=reachable tap=active`
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`: passed, 19/19
+  - `node --test tests/sigil-agent-terminal-server.test.mjs`: passed, 7/7
+- Live bridge evidence:
+  - port: `17866`
+  - `launch_observed_at`: `2026-05-22T17:18:38Z`
+  - `/health`: `defaultCwd=/Users/Michael/Code/agent-os/.docks/gdi`,
+    `driver=process`
+  - `/ensure`: `session=afk-codex-adapter-live`, `created=true`,
+    `driver=process`
+  - provider session id independently observed: no
+- Prototype result summary:
+  - `lifecycle_state`: `provider_acceptance_unobserved`
+  - `provider_acceptance.status`: `provider_acceptance_unobserved`
+  - `provider_acceptance.provider_session_id`: `not_observed`
+  - `codex_adapter.status`: `observed`
+  - `codex_adapter.correlation_status`: `not_observed`
+  - `codex_adapter.matched_thread_id`: `not_observed`
+  - `codex_adapter.candidate_thread_ids`: `[]`
+  - `evidence.observed_refs`: `["inline:terminal_substrate.snapshot_summary"]`
+  - `catalog.status`: `catalog_current_launch_not_observed`
+  - `telemetry.status`: `telemetry_current_launch_not_observed`
+  - mismatch codes: `catalog_current_launch_not_observed`,
+    `provider_session_id_not_observed` from provider acceptance, and
+    `provider_session_id_not_observed` from the Codex adapter
+- Cleanup accepted:
+  - bridge stopped
+  - port `17866` verified unreachable
+  - temp packet, fixture, and output directory removed
+  - no source, docs, config, provider config, gateway, dock profile, hook,
+    GitHub, push, or PR changes were made by Operator
+  - provider-owned Codex transcript/catalog files were not edited, deleted,
+    moved, or cleaned
+- Foreman local follow-up check: read-only adapter listing against explicit
+  `/Users/Michael/.codex` found no post-launch candidates for
+  `/Users/Michael/Code/agent-os/.docks/gdi`, but found one post-launch Codex
+  thread for `/Users/Michael/Code/agent-os` at `2026-05-22T17:20:48.588Z`.
+  This indicates the live Codex metadata may record the workspace/repo root
+  instead of the dock launch cwd.
+- Next routed slice:
+  `docs/design/work-cards/afk-codex-workspace-root-correlation-correction-v0.md`.
 
 ## Transfer Classification
 
