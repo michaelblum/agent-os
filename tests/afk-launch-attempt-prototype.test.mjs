@@ -33,6 +33,13 @@ async function writeCatalogFixture(fixture) {
   return fixturePath;
 }
 
+async function writeBridgeVisibilityFixture(fixture) {
+  const dir = await mkdtemp(join(tmpdir(), 'afk-launch-attempt-bridge-'));
+  const fixturePath = join(dir, 'bridge-visibility.json');
+  await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  return fixturePath;
+}
+
 function validPacket(overrides = {}) {
   return {
     packet_id: 'manual-afk-launch-attempt-test',
@@ -367,6 +374,183 @@ test('preserves unrelated all-cwd current candidate without binding it as launch
   assert.equal(record.telemetry.status, 'telemetry_current_launch_not_observed');
   assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
   assert.deepEqual(record.mismatches.map((mismatch) => mismatch.code), ['catalog_current_launch_not_observed']);
+});
+
+test('classifies provider-shaped bridge visibility with no provider session id', async () => {
+  const packetPath = await writePacket(validPacket({ provider_hint: undefined }));
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const unrelatedOperatorCwd = join(repoRoot, '.docks/operator');
+  const unrelatedSessionId = '019e5062-42f2-7340-beda-e2295ebf7f41';
+  const bridgePath = await writeBridgeVisibilityFixture({
+    bridge: {
+      health: {
+        ok: true,
+        defaultSession: 'afk-bridge-all-cwd-proof',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-bridge-all-cwd-proof',
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      snapshot: {
+        session: 'afk-bridge-all-cwd-proof',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        title: 'Codex CLI 0.133.0 | cwd .docks/gdi | branch gdi/afk-launch | model gpt-5.5 | head 81af5f0e',
+        text: [
+          'Codex CLI 0.133.0',
+          'cwd .docks/gdi',
+          'branch gdi/afk-launch',
+          'model gpt-5.5',
+          'head 81af5f0e',
+        ].join('\n'),
+      },
+    },
+    catalog: {
+      requested_cwd_sessions: [],
+      all_cwd_sessions: [
+        {
+          provider: 'codex',
+          session_id: unrelatedSessionId,
+          cwd: unrelatedOperatorCwd,
+          updated_at: '2026-05-22T15:54:01.463Z',
+          telemetry_observed: true,
+          telemetry_event_refs: ['inline:operator-telemetry-must-not-bind'],
+        },
+      ],
+      launch_observed_at: '2026-05-22T15:52:38Z',
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgePath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.selection.selected_provider, 'codex');
+  assert.equal(record.selection.provider_selection_source, 'bridge_command');
+  assert.equal(record.launch_intent.provider_launch_performed, false);
+  assert.equal(record.terminal_substrate.status, 'observed');
+  assert.equal(record.terminal_substrate.driver, 'process');
+  assert.equal(record.terminal_substrate.session_handle, 'afk-bridge-all-cwd-proof');
+  assert.equal(record.terminal_substrate.cwd, intendedLaunchCwd);
+  assert.equal(record.terminal_substrate.command, 'codex --no-alt-screen');
+  assert.equal(record.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.equal(record.provider_acceptance.provider_session_id, 'not_observed');
+  assert.equal(record.provider_acceptance.provider_reported_cwd, '.docks/gdi');
+  assert.equal(record.provider_acceptance.provider_reported_branch, 'gdi/afk-launch');
+  assert.equal(record.provider_acceptance.provider_reported_head, '81af5f0e');
+  assert.equal(record.provider_acceptance.provider_version, '0.133.0');
+  assert.equal(record.provider_acceptance.model, 'gpt-5.5');
+  assert.equal(record.catalog.status, 'catalog_current_launch_not_observed');
+  assert.equal(record.catalog.matched_session_id, 'not_observed');
+  assert.deepEqual(record.catalog.unrelated_current_session_refs, [
+    {
+      provider_session_id: unrelatedSessionId,
+      catalog_record_ref: `codex:${unrelatedSessionId}`,
+      cwd: unrelatedOperatorCwd,
+      updated_at: '2026-05-22T15:54:01.463Z',
+    },
+  ]);
+  assert.equal(record.telemetry.status, 'telemetry_current_launch_not_observed');
+  assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(
+    record.mismatches.map((mismatch) => mismatch.code),
+    ['catalog_current_launch_not_observed', 'provider_session_id_not_observed'],
+  );
+});
+
+test('binds synthetic bridge-observed provider session id to requested-cwd catalog match', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const providerSessionId = '019e5062-aaaa-7340-beda-e2295ebf7f41';
+  const bridgePath = await writeBridgeVisibilityFixture({
+    bridge: {
+      health: {
+        ok: true,
+        defaultSession: 'afk-bridge-all-cwd-proof',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-bridge-all-cwd-proof',
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      snapshot: {
+        session: 'afk-bridge-all-cwd-proof',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        text: [
+          'Codex CLI 0.133.0',
+          `provider_session_id: ${providerSessionId}`,
+          'cwd .docks/gdi',
+          'branch gdi/afk-launch',
+          'model gpt-5.5',
+          'head 81af5f0e',
+        ].join('\n'),
+      },
+    },
+    catalog: {
+      requested_cwd_sessions: [
+        {
+          provider: 'codex',
+          session_id: providerSessionId,
+          cwd: intendedLaunchCwd,
+          updated_at: '2026-05-22T15:53:01.000Z',
+          source_file: '/tmp/synthetic-current-codex-session.jsonl',
+          resume_command: `codex resume ${providerSessionId}`,
+          telemetry_observed: true,
+          telemetry_event_refs: ['inline:synthetic-current-session:tokens'],
+        },
+      ],
+      all_cwd_sessions: [],
+      launch_observed_at: '2026-05-22T15:52:38Z',
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgePath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.terminal_substrate.status, 'observed');
+  assert.equal(record.terminal_substrate.command, 'codex --no-alt-screen');
+  assert.equal(record.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(record.provider_acceptance.provider_session_id, providerSessionId);
+  assert.equal(record.provider_acceptance.provider_reported_cwd, '.docks/gdi');
+  assert.equal(record.catalog.status, 'catalog_matched');
+  assert.equal(record.catalog.matched_session_id, providerSessionId);
+  assert.equal(record.catalog.source_file, '/tmp/synthetic-current-codex-session.jsonl');
+  assert.equal(record.telemetry.status, 'telemetry_observed');
+  assert.deepEqual(record.telemetry.telemetry_event_refs, ['inline:synthetic-current-session:tokens']);
+  assert.deepEqual(record.mismatches, []);
 });
 
 test('classifies observed provider session with wrong cwd as structured mismatch', async () => {
