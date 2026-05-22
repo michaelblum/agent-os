@@ -1,6 +1,41 @@
 # Work Card: AFK Provider Session CWD Mismatch Classification V0
 
-**Status:** Correction Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Acceptance
+
+- Accepted output commits:
+  - `c5a3508d9d72a562cc735274af09bea5ff30ad7f`
+  - `50b74f413a79ef4a2e56a326ee37b937fb40dec2`
+- Changed files:
+  - `scripts/afk-launch-attempt-prototype.mjs`
+  - `tests/afk-launch-attempt-prototype.test.mjs`
+- Foreman review: accepted after correction. The prototype now classifies an
+  observed provider-session cwd mismatch as structured
+  `provider_session_wrong_cwd` and `catalog_provider_session_wrong_cwd`, keeps
+  wrong-cwd telemetry from binding, and preserves the observed provider session
+  id and reported cwd in `provider_acceptance`. The follow-up correction
+  prevents missing cwd metadata from being converted into a false wrong-cwd
+  signal; absent cwd stays `not_observed`, and sessions without cwd metadata
+  are ignored for cwd matching.
+- Foreman verification:
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs`
+  - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`
+  - `git diff --check 29b500790e15ccd59939ca4b90f17abf0e0043a5..50b74f413a79ef4a2e56a326ee37b937fb40dec2`
+  - `./aos dev recommend --json`
+- Key fixture proofs:
+  - Operator wrong-cwd case records provider session id
+    `019e4fdc-7236-7db0-9f77-29f8f4108b3f`, expected `.docks/gdi`, observed
+    `.docks/operator`, `catalog_provider_session_wrong_cwd`, and
+    `telemetry_not_attempted_wrong_cwd`.
+  - Missing provider-session cwd keeps `provider_reported_cwd: not_observed`,
+    does not emit wrong-cwd statuses or mismatches, and does not bind telemetry.
+  - Earlier stale-GDI current-launch absence behavior still passes.
+- Local-only boundary confirmed: no Codex, Claude, Gemini, or other provider
+  was launched; no provider config, real provider transcript, gateway state,
+  dock profile, hook, GitHub state, push, or PR changed.
+- Remaining gap: fixture-backed classification needs another supervised live
+  bridge correlation proof before supervised real-launch attempt integration.
 
 ## Foreman Review Finding
 
