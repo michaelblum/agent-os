@@ -1,6 +1,6 @@
 # Work Card: decision-contract-descriptor-afk-boundary-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -18,6 +18,22 @@ The consolidation concluded that Decision Contract is useful docs vocabulary,
 but a committed schema is premature. The next slice should be one larger
 docs-only descriptor and boundary sketch that separates Decision Contract from
 transfer packets, work records, evidence records, and AFK/session primitives.
+
+Accepted evidence:
+
+- GDI branch: `gdi/decision-contract-descriptor-afk-boundary-v0`
+- Accepted commit: `56adbf9bc6baa7c7c924ad44e638e754611f8d7e`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/decision-contract-descriptor-and-afk-boundary-2026-05-21.md`
+- Synthesis update:
+  `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- Foreman-side verification passed:
+  `git diff --check 87c3536517078d0f6a579878ef494787680f84d0..56adbf9bc6baa7c7c924ad44e638e754611f8d7e`
+  and `./aos dev recommend --json`.
+- Recommendation accepted: design one transfer packet and async result-route
+  shape that connects an integration job to a docked provider session before
+  considering a prototype session trigger or source-backed descriptor schema.
 
 ## Fresh Context Contract
 
