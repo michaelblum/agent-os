@@ -1,6 +1,6 @@
 # Work Card: decision-contract-inventory-v0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-21
 **Owner:** GDI
 
 ## Tracker
@@ -13,6 +13,20 @@ Validation follow-up for:
 This card validates the design note's claim that agent-os already has hidden
 Decision Contract / Inference Block examples. It should produce a compact
 inventory and recommendation, not implement new schemas or command surfaces.
+
+Accepted evidence:
+
+- GDI branch: `gdi/decision-contract-inventory-v0`
+- Accepted commit: `057be101bc4697725e5dc6aa836c751566bb5b34`
+- Fast-forwarded into local branch `docs/durable-agent-cognition-v0`.
+- Output note:
+  `docs/design/notes/decision-contract-inventory-2026-05-21.md`
+- Foreman-side verification passed:
+  `git diff --check 0bba4c894b84003656d3fa947bed7956c96ba91f..057be101bc4697725e5dc6aa836c751566bb5b34`
+  and `./aos dev recommend --json`.
+- Hidden-example hypothesis accepted as confirmed. Recommended next slice:
+  sketch Decision Contract shape against `docs/dev/workflow-rules.json` as
+  docs-only vocabulary; do not add a schema yet.
 
 ## Fresh Context Contract
 
