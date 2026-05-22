@@ -461,7 +461,14 @@ The next slices should stay reversible:
    launch. Apply
    `docs/recipes/workstream-checkpoint-continuation.md` so this is a Foreman
    routing decision, not a human-managed preference choice.
+   A supervised Operator smoke now has a manual receipt at
+   `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-gdi-completed.md`;
+   it validated dry-run preflight plus one Codex GDI launch and exposed
+   provider catalog and telemetry as the next observability gap.
 9. Distill one real browser/model-control run into a work/evidence record and
    decide whether it wants a skill, recipe, playbook, or decision contract.
-10. Trial a Researcher-compatible role only after the session trigger and async
+10. Map provider-session observability before automating provider launch, so
+   dispatch can report session id, catalog, telemetry, and terminal facts
+   without relying on human-visible shutdown text.
+11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
