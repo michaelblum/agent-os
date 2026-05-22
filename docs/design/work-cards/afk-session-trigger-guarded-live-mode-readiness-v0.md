@@ -1,6 +1,48 @@
 # Work Card: AFK Session Trigger Guarded Live Mode Readiness V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted GDI output commit:
+`1f5fa5733ed152d4990d885cb6d5a2dab82c6b7e`
+(`docs(afk): decide guarded live trigger readiness`).
+
+Accepted output:
+
+- added
+  `docs/design/notes/afk-session-trigger-guarded-live-mode-readiness-2026-05-22.md`;
+- updated the durable AFK tracker with the guarded-live readiness decision;
+- kept the decision docs-only, with no source behavior, schema, provider file,
+  gateway state, dock profile/hook, GitHub state, push, PR, or live provider
+  launch changes.
+
+Foreman review:
+
+- branch/base verified: `gdi/afk-session-trigger-guarded-live-mode-readiness-v0`
+  was one docs-only commit ahead of `docs/durable-agent-cognition-v0`;
+- diff reviewed against
+  `7d53fb287005b670f389589775f395dc910dfcf7`;
+- readiness note explicitly answers the command surface, human-supervised guard,
+  Codex/GDI scope, duplicate/idempotence, cleanup, transcript/catalog boundary,
+  receipt-extension, helper-reuse, verification, Operator evidence, and next
+  source-slice decisions required by this card.
+
+Verification:
+
+```text
+git diff --check docs/durable-agent-cognition-v0..HEAD
+passed
+
+./aos dev recommend --json --paths docs/design/notes/afk-session-trigger-guarded-live-mode-readiness-2026-05-22.md,docs/design/durable-agent-cognition-and-afk-primitives.md
+passed; docs-only, docs_review only, no next commands
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+```
+
+Next routed source slice:
+`docs/design/work-cards/afk-dev-session-trigger-guarded-live-codex-launch-v0.md`.
 
 ## Transfer Classification
 
