@@ -1,6 +1,6 @@
 # Work Card: AFK Session Trigger Command Readiness V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
 
 ## Transfer Classification
 
@@ -178,3 +178,32 @@ Report:
 - checks run and exact results;
 - confirmation that no source behavior, schema, provider files, gateway state,
   dock profiles/hooks, GitHub state, push, or PR changed.
+
+## Foreman Acceptance
+
+Accepted on 2026-05-22 at GDI commit
+`fe1cef33aab1e49480c5f3d2968de7a8efd6d115`.
+
+Review summary:
+
+- Scope matched the card: the output was docs-only, added
+  `docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md`,
+  and updated the durable AFK tracker pointer.
+- The note explicitly keeps the first source surface under experimental
+  `./aos dev afk-session-trigger`, not final `aos session ...` spelling.
+- The launch policy is dry-run-only and disallows unattended provider launch,
+  provider terminal startup, live bridge startup, gateway mutation, schemas, and
+  real provider transcript reads.
+- The next source slice is concrete enough to route as
+  `docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md`.
+
+Foreman verification:
+
+```bash
+git diff --check 768e9bd394f7f8564c71f15c7ef37cc50278089a..HEAD
+./aos dev recommend --json --paths docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md,docs/design/durable-agent-cognition-and-afk-primitives.md
+./aos dev recommend --json --paths docs/design/work-cards/afk-session-trigger-command-readiness-v0.md,docs/design/notes/afk-session-trigger-command-readiness-2026-05-22.md,docs/design/durable-agent-cognition-and-afk-primitives.md
+```
+
+All checks passed. The dev router classified the changed files as docs-only and
+recommended docs review with no runtime verification.
