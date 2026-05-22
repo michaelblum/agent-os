@@ -146,6 +146,11 @@ function normalizeSessionCwd(session) {
   return session.cwd ?? session.worktree ?? session.launch_cwd ?? session.launchCwd;
 }
 
+function resolveObservedSessionCwd(session) {
+  const sessionCwd = normalizeSessionCwd(session);
+  return sessionCwd ? resolve(sessionCwd) : NOT_OBSERVED;
+}
+
 function normalizeSessionProvider(session) {
   return session.provider ? String(session.provider).toLowerCase() : null;
 }
@@ -218,11 +223,16 @@ function classifyCatalogAndTelemetry({
     ? matchingProviderSessionId[0]
     : null;
   const observedProviderSessionCwd = observedProviderSession
-    ? resolve(normalizeSessionCwd(observedProviderSession) ?? '')
+    ? resolveObservedSessionCwd(observedProviderSession)
     : NOT_OBSERVED;
+  const observedProviderSessionWrongCwd = Boolean(
+    observedProviderSession
+      && observedProviderSessionCwd !== NOT_OBSERVED
+      && observedProviderSessionCwd !== cwd,
+  );
   const providerAcceptance = providerSessionId && providerSessionId !== NOT_OBSERVED
     ? {
-      status: observedProviderSession && observedProviderSessionCwd !== cwd
+      status: observedProviderSessionWrongCwd
         ? 'provider_session_wrong_cwd'
         : 'provider_session_observed',
       provider_session_id: providerSessionId,
@@ -231,7 +241,7 @@ function classifyCatalogAndTelemetry({
     : null;
   const matchingProviderCwd = sessions.filter((session) => (
     normalizeSessionProvider(session) === normalizedProvider
-      && resolve(normalizeSessionCwd(session) ?? '') === cwd
+      && resolveObservedSessionCwd(session) === cwd
   ));
   const currentThreshold = timestampMs(launchObservedAt);
   const currentCandidates = currentThreshold == null
@@ -241,7 +251,6 @@ function classifyCatalogAndTelemetry({
       return updatedAt != null && updatedAt >= currentThreshold;
     });
   const catalogRecordRefs = matchingProviderCwd.map(sessionRef);
-  const observedProviderSessionWrongCwd = Boolean(observedProviderSession && observedProviderSessionCwd !== cwd);
   const reviewableCatalogRecordRefs = observedProviderSessionWrongCwd
     ? [sessionRef(observedProviderSession)]
     : catalogRecordRefs;
