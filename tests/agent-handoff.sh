@@ -32,6 +32,21 @@ if out != expected:
     raise SystemExit(f"FAIL: output mismatch: {out!r}")
 PY
 
+recipient_options='{"recipient":"gdi","timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
+out="$(AOS_HANDOFF_PBCOPY="$fake_pbcopy" AOS_FAKE_CLIPBOARD_FILE="$clipboard" AOS_HANDOFF_TIMESTAMP='Fri May 8 6:47AM' scripts/agent-handoff --text "$message" --options-json "$recipient_options")"
+python3 - "$message" "$out" "$clipboard" <<'PY'
+import pathlib
+import sys
+
+message, out, clipboard_path = sys.argv[1:]
+clipboard = pathlib.Path(clipboard_path).read_text()
+expected = f"Recipient: gdi\n----- BEGIN HANDOFF -----\n{message}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+if clipboard != message:
+    raise SystemExit(f"FAIL: recipient clipboard mismatch: {clipboard!r}")
+if out != expected:
+    raise SystemExit(f"FAIL: recipient output mismatch: {out!r}")
+PY
+
 custom_options='{"timestamp":false,"gateStringStart":"<<< HANDOFF","gateStringEnd":"HANDOFF >>>","addPostInstructions":"ready for paste","addHRTimestamp":true}'
 out="$(printf '%s' "$message" | AOS_HANDOFF_PBCOPY="$fake_pbcopy" AOS_FAKE_CLIPBOARD_FILE="$clipboard" AOS_HANDOFF_TIMESTAMP='Fri May 8 6:47AM' scripts/agent-handoff --options-json "$custom_options")"
 python3 - "$message" "$out" "$clipboard" <<'PY'

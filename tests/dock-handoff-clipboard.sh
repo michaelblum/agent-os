@@ -28,7 +28,7 @@ import sys
 message, out, clipboard_path = sys.argv[1:]
 clipboard = pathlib.Path(clipboard_path).read_text()
 payload = message
-expected_out = f"----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+expected_out = f"Recipient: gdi\n----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: GDI clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:
@@ -43,7 +43,7 @@ import sys
 message, out, clipboard_path = sys.argv[1:]
 payload = message
 clipboard = pathlib.Path(clipboard_path).read_text()
-expected_out = f"----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+expected_out = f"Recipient: foreman\n----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: Foreman clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:
@@ -58,7 +58,7 @@ import sys
 message, out, clipboard_path = sys.argv[1:]
 payload = message
 clipboard = pathlib.Path(clipboard_path).read_text()
-expected_out = f"----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+expected_out = f"Recipient: operator\n----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: Operator clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:
@@ -76,7 +76,7 @@ import sys
 _, out, clipboard_path = sys.argv[1:]
 payload = "Already prefixed."
 clipboard = pathlib.Path(clipboard_path).read_text()
-expected_out = f"----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+expected_out = f"Recipient: gdi\n----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: GDI accidental legacy-command strip clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:
@@ -91,7 +91,7 @@ import sys
 out, clipboard_path = sys.argv[1:]
 payload = "Already prefixed."
 clipboard = pathlib.Path(clipboard_path).read_text()
-expected_out = f"----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
+expected_out = f"Recipient: operator\n----- BEGIN HANDOFF -----\n{payload}\n----- END HANDOFF -----\n\n(copied to clipboard)\nFri May 8 6:47AM"
 if clipboard != payload:
     raise SystemExit(f"FAIL: Operator accidental legacy-command strip clipboard payload mismatch: {clipboard!r}")
 if out != expected_out:

@@ -8,6 +8,7 @@ Usage: scripts/dock-handoff-clipboard --target-dock <dock>
 Reads a handoff message from stdin, applies dock compatibility cleanup, then
 delegates clipboard and chat output to scripts/agent-handoff:
 
+  Recipient: <dock>
   ----- BEGIN HANDOFF -----
   <clipboard payload>
   ----- END HANDOFF -----
@@ -17,6 +18,7 @@ delegates clipboard and chat output to scripts/agent-handoff:
 
 Rules:
   - Handoff payloads are copied as plain instructions.
+  - The recipient line is printed only; it is not copied.
   - One accidental legacy command prefix is removed for every target dock.
   - The parenthetical and timestamp are printed only; they are not copied.
 
@@ -61,5 +63,18 @@ if [[ "$payload" == "$legacy_command_prefix"* ]]; then
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-options_json='{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
+options_json="$(python3 - "$target_dock" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "recipient": sys.argv[1],
+    "timestamp": True,
+    "gateStringStart": "----- BEGIN HANDOFF -----",
+    "gateStringEnd": "----- END HANDOFF -----",
+    "addPostInstructions": "(copied to clipboard)",
+    "addHRTimestamp": True,
+}))
+PY
+)"
 "$script_dir/agent-handoff" --text "$payload" --options-json "$options_json"

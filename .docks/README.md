@@ -115,10 +115,12 @@ printf '%s' "$transfer_payload" | scripts/dock-handoff-clipboard --target-dock f
 printf '%s' "$transfer_payload" | scripts/dock-handoff-clipboard --target-dock operator
 ```
 
-`scripts/agent-handoff` copies only the transfer payload. It then prints that same
-raw payload between `----- BEGIN HANDOFF -----` and `----- END HANDOFF -----`
-markers for chat, followed by `(copied to clipboard)` and a human-readable local
-timestamp. Clipboard transfer payloads are plain instructions for every dock.
+`scripts/agent-handoff` copies only the transfer payload. It then prints that
+same raw payload between `----- BEGIN HANDOFF -----` and `----- END HANDOFF
+-----` markers for chat, followed by `(copied to clipboard)` and a
+human-readable local timestamp. When `recipient` is supplied in
+`--options-json`, the printed chat block starts with `Recipient: <dock>`.
+Clipboard transfer payloads are plain instructions for every dock.
 Individual docks may wrap the generic tool for their own default payload
 construction, but formatting and clipboard behavior should stay centralized in
 the generic tool.
@@ -128,7 +130,7 @@ Use the transfer kind to choose durable storage:
 | Transfer kind | Normal storage |
 | --- | --- |
 | Foreman successor handoff | Clipboard/chat or a temp file from `mktemp -t foreman-handoff-XXXXXX.md`; do not commit it. |
-| GDI work card | `docs/design/work-cards/<card>.md`, with a thin clipboard dispatch pointing at the card. |
+| GDI work card | `docs/design/work-cards/<card>.md`, with a concise clipboard dispatch pointing at the card. |
 | Operator run | Clipboard/chat unless a durable capture plan is explicitly needed. |
 | Human-needed packet | Clipboard/chat unless the recovery path should become reusable SOP. |
 
@@ -152,7 +154,7 @@ or design note and reference it from the handoff.
   own git/GitHub or implementation scope unless a transfer explicitly says so.
 
 For non-trivial GDI work, Foreman should prefer a Markdown work card under
-`docs/design/work-cards/` plus a thin GDI dispatch such as:
+`docs/design/work-cards/` plus a concise GDI dispatch such as:
 
 ```text
 follow the instructions in docs/design/work-cards/<card>.md

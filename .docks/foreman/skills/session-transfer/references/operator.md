@@ -28,7 +28,7 @@ follow the instructions in docs/design/work-cards/operator-<card>.md
 ```
 
 Use direct clipboard instructions only for short self-contained checks that are
-comfortably under the CLI goal limit.
+comfortably under the observed 4,000-character CLI goal limit.
 
 ## When To Use Operator
 
