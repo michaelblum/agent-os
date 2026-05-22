@@ -404,6 +404,11 @@ The next slices should stay reversible:
 1. Sketch a docs-only Decision Contract descriptor from the consolidated
    candidate guidance, without adding a committed schema or migrating existing
    manifests.
+   The descriptor and AFK boundary sketch now lives at
+   `docs/design/notes/decision-contract-descriptor-and-afk-boundary-2026-05-21.md`;
+   it keeps Decision Contract as reusable judgment metadata and leaves launch
+   context, run receipts, session scheduling, provider dispatch, and async
+   notification in their own primitives.
 2. Sketch one transfer packet/result route shape that can connect an integration
    job to a docked provider session.
 3. Distill one real browser/model-control run into a work/evidence record and
