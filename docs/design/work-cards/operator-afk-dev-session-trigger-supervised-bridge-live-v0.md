@@ -1,6 +1,50 @@
 # Operator AFK Dev Session Trigger Supervised Bridge Live V0
 
-**Status:** Routed 2026-05-22
+**Status:** Partial pass accepted 2026-05-22
+
+## Result
+
+- Classification: `partial_pass:cleanup_unverified_expected`.
+- Foreman review: accepted as the intended live command-shape and cleanup-boundary
+  proof. Branch/ref gates passed with `HEAD` and
+  `docs/durable-agent-cognition-v0` both at
+  `6ff5ccaf7f7ce233144edc5bce3bdd6b7583a141`; the worktree stayed clean, and
+  final `./aos ready` reported
+  `ready=true mode=repo daemon=reachable tap=active`.
+- Preflight passed: `./aos ready`, `node --test
+  tests/afk-session-trigger-prototype.test.mjs` with 12/12 passing,
+  `node --test tests/afk-launch-attempt-prototype.test.mjs` with 22/22
+  passing, and `bash tests/dev-workflow-router.sh`.
+- Trigger receipt: exit code `1`,
+  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=.docks/gdi`,
+  `terminal_substrate.status=observed`,
+  `terminal_substrate.driver=process`,
+  `terminal_substrate.cwd=/Users/Michael/Code/agent-os/.docks/gdi`,
+  `terminal_substrate.command=codex --no-alt-screen`,
+  `terminal_substrate.bridge_health.ok=true`,
+  `provider_acceptance.status=provider_acceptance_unobserved`,
+  `cleanup.status=cleanup_unverified`,
+  `codex_adapter.status=not_attempted_no_codex_home_fixture`,
+  `catalog.status=not_observed`, `telemetry.status=not_observed`, and mismatch
+  classes `provider_acceptance_unobserved` and `cleanup_unverified`.
+- Process evidence: Operator saw the same baseline process set before and
+  after the trigger run. Three node/native Codex pairs were pre-existing, one
+  already rooted in `.docks/gdi`; Operator did not kill pre-existing provider
+  sessions. No new `pty-proxy.py`, bridge server, or nested
+  `codex --no-alt-screen` process remained after the trigger command returned.
+- Transcript evidence: no separate bridge-launched rollout transcript
+  materialized. The only rollout modified after trigger time was the Operator
+  session's own transcript, with session id
+  `019e51e8-bf90-7881-9dc6-5e32f26a135e` and cwd
+  `/Users/Michael/Code/agent-os/.docks/operator`.
+- Cleanup proof: Operator removed temporary packet/receipt files, left
+  provider-owned Codex transcript/catalog files untouched, and final readiness
+  passed.
+- Local-only boundary confirmed: no source, docs, config, provider config,
+  gateway, dock profile, hook, GitHub, push, or PR changes were made by
+  Operator.
+- Next routed slice:
+  `docs/design/work-cards/afk-dev-session-trigger-live-cleanup-proof-v0.md`.
 
 ## Transfer Classification
 
