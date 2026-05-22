@@ -20,7 +20,7 @@ function usage() {
   return `Experimental AFK launch-attempt prototype.
 
 Usage:
-  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process]
+  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--catalog-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>]
 
 This local prototype creates an aos.afk_launch_attempt record, observes terminal substrate through the Sigil codex-terminal bridge, and launches no provider.`;
 }
@@ -132,6 +132,182 @@ function normalizeResultRoutes(packet) {
 
 function normalizeProviderHint(packet) {
   return packet.provider_hint ?? packet.providerHint ?? packet.provider;
+}
+
+function normalizeSessionId(session) {
+  return session.session_id ?? session.sessionId ?? session.id;
+}
+
+function normalizeSessionUpdatedAt(session) {
+  return session.updated_at ?? session.updatedAt ?? session.last_updated_at ?? session.lastUpdatedAt;
+}
+
+function normalizeSessionCwd(session) {
+  return session.cwd ?? session.worktree ?? session.launch_cwd ?? session.launchCwd;
+}
+
+function normalizeSessionProvider(session) {
+  return session.provider ? String(session.provider).toLowerCase() : null;
+}
+
+function normalizeCatalogFixture(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value.sessions)) return value.sessions;
+  if (Array.isArray(value.catalog_sessions)) return value.catalog_sessions;
+  throw new Error('Catalog fixture must be an array or object with sessions');
+}
+
+function timestampMs(value) {
+  if (!value || value === NOT_OBSERVED) return null;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function sessionRef(session) {
+  const provider = normalizeSessionProvider(session) ?? NOT_OBSERVED;
+  const id = normalizeSessionId(session) ?? NOT_OBSERVED;
+  return `${provider}:${id}`;
+}
+
+function sessionTelemetryObserved(session) {
+  return Boolean(
+    session.telemetry_observed
+      ?? session.telemetryObserved
+      ?? session.telemetry?.observed
+      ?? (Array.isArray(session.telemetry_event_refs) && session.telemetry_event_refs.length > 0),
+  );
+}
+
+function classifyCatalogAndTelemetry({
+  sessions,
+  provider,
+  cwd,
+  launchObservedAt,
+  providerSessionId,
+}) {
+  if (!sessions) {
+    return {
+      catalog: {
+        status: NOT_OBSERVED,
+        catalog_record_refs: NOT_OBSERVED,
+        match_count: NOT_OBSERVED,
+        matched_session_id: NOT_OBSERVED,
+        source_file: NOT_OBSERVED,
+        resume_command: NOT_OBSERVED,
+      },
+      telemetry: {
+        status: NOT_OBSERVED,
+        telemetry_event_refs: NOT_OBSERVED,
+        lifecycle_event_refs: NOT_OBSERVED,
+        capability_event_refs: NOT_OBSERVED,
+        mismatch_refs: [],
+      },
+      mismatches: [],
+    };
+  }
+
+  const normalizedProvider = String(provider).toLowerCase();
+  const matchingProviderCwd = sessions.filter((session) => (
+    normalizeSessionProvider(session) === normalizedProvider
+      && resolve(normalizeSessionCwd(session) ?? '') === cwd
+  ));
+  const currentThreshold = timestampMs(launchObservedAt);
+  const currentCandidates = currentThreshold == null
+    ? matchingProviderCwd
+    : matchingProviderCwd.filter((session) => {
+      const updatedAt = timestampMs(normalizeSessionUpdatedAt(session));
+      return updatedAt != null && updatedAt >= currentThreshold;
+    });
+  const catalogRecordRefs = matchingProviderCwd.map(sessionRef);
+
+  let status;
+  let matched = null;
+  let mismatch = null;
+
+  if (matchingProviderCwd.length === 0) {
+    status = 'catalog_not_observed';
+  } else if (providerSessionId && providerSessionId !== NOT_OBSERVED) {
+    const exactMatches = matchingProviderCwd.filter((session) => normalizeSessionId(session) === providerSessionId);
+    if (exactMatches.length === 1) {
+      status = 'catalog_matched';
+      [matched] = exactMatches;
+    } else if (exactMatches.length > 1) {
+      status = 'multiple_catalog_candidates';
+      mismatch = {
+        code: 'multiple_catalog_matches',
+        severity: 'warn',
+        source: 'catalog',
+        expected: { provider_session_id: providerSessionId },
+        observed: { match_count: exactMatches.length },
+        effect: 'ambiguous',
+        evidence_ref: 'inline:catalog.catalog_record_refs',
+      };
+    } else {
+      status = 'catalog_current_launch_not_observed';
+      mismatch = {
+        code: 'catalog_match_not_observed',
+        severity: 'info',
+        source: 'catalog',
+        expected: { provider_session_id: providerSessionId },
+        observed: { catalog_record_refs: catalogRecordRefs },
+        effect: 'not_observed',
+        evidence_ref: 'inline:catalog.catalog_record_refs',
+      };
+    }
+  } else if (currentCandidates.length === 0) {
+    status = 'catalog_current_launch_not_observed';
+    mismatch = {
+      code: 'catalog_current_launch_not_observed',
+      severity: 'info',
+      source: 'catalog',
+      expected: { updated_at_or_after: launchObservedAt },
+      observed: { catalog_record_refs: catalogRecordRefs },
+      effect: 'not_observed',
+      evidence_ref: 'inline:catalog.catalog_record_refs',
+    };
+  } else if (currentCandidates.length === 1) {
+    status = 'catalog_candidate_current_launch_observed';
+    [matched] = currentCandidates;
+  } else {
+    status = 'multiple_catalog_candidates';
+    mismatch = {
+      code: 'multiple_catalog_candidates',
+      severity: 'warn',
+      source: 'catalog',
+      expected: { current_candidate_count: 1 },
+      observed: { current_candidate_count: currentCandidates.length },
+      effect: 'ambiguous',
+      evidence_ref: 'inline:catalog.catalog_record_refs',
+    };
+  }
+
+  const telemetryStatus = matched
+    ? (sessionTelemetryObserved(matched) ? 'telemetry_observed' : 'telemetry_not_observed')
+    : (status === 'catalog_not_observed' ? 'telemetry_not_attempted_no_catalog_match' : 'telemetry_current_launch_not_observed');
+  const telemetryEventRefs = matched && sessionTelemetryObserved(matched)
+    ? (matched.telemetry_event_refs ?? matched.telemetryEventRefs ?? [`inline:catalog:${sessionRef(matched)}:telemetry`])
+    : NOT_OBSERVED;
+
+  return {
+    catalog: {
+      status,
+      catalog_record_refs: catalogRecordRefs.length > 0 ? catalogRecordRefs : NOT_OBSERVED,
+      match_count: matched ? 1 : currentCandidates.length,
+      matched_session_id: matched ? normalizeSessionId(matched) : NOT_OBSERVED,
+      source_file: matched?.source_file ?? matched?.sourceFile ?? NOT_OBSERVED,
+      resume_command: matched?.resume_command ?? matched?.resumeCommand ?? NOT_OBSERVED,
+      launch_observed_at: launchObservedAt ?? NOT_OBSERVED,
+    },
+    telemetry: {
+      status: telemetryStatus,
+      telemetry_event_refs: telemetryEventRefs,
+      lifecycle_event_refs: matched?.lifecycle_event_refs ?? matched?.lifecycleEventRefs ?? NOT_OBSERVED,
+      capability_event_refs: matched?.capability_event_refs ?? matched?.capabilityEventRefs ?? NOT_OBSERVED,
+      mismatch_refs: [],
+    },
+    mismatches: mismatch ? [mismatch] : [],
+  };
 }
 
 function normalizeWorktree(packet, repoRoot) {
@@ -374,6 +550,9 @@ async function buildAttemptContext(options) {
   const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
   const packetPath = repoPath(repoRoot, options.packet);
   const packet = await readJsonFile(packetPath, 'packet');
+  const catalogFixture = options.catalogFixture
+    ? normalizeCatalogFixture(await readJsonFile(repoPath(repoRoot, options.catalogFixture), 'catalog fixture'))
+    : null;
   const packetId = normalizePacketId(packet);
   const sourceArtifact = normalizeSourceArtifact(packet);
   const requiredStartRef = normalizeRef(packet);
@@ -466,6 +645,9 @@ async function buildAttemptContext(options) {
     action,
     idempotenceKey,
     command,
+    catalogFixture,
+    providerSessionId: options.providerSessionId ?? NOT_OBSERVED,
+    launchObservedAt: options.launchObservedAt ?? options.timestamp ?? NOT_OBSERVED,
     validations,
   };
 }
@@ -610,9 +792,26 @@ async function createLaunchAttempt(options) {
     launchCwd: context.intendedLaunchCwd,
     command: context.command,
   });
+  const catalogTelemetry = classifyCatalogAndTelemetry({
+    sessions: context.catalogFixture,
+    provider: context.provider.selected_provider,
+    cwd: context.intendedLaunchCwd,
+    launchObservedAt: context.launchObservedAt,
+    providerSessionId: context.providerSessionId,
+  });
   record.terminal_substrate = observed.terminal_substrate;
-  record.catalog.status = observed.catalog_status;
-  record.telemetry.status = observed.telemetry_status;
+  record.catalog = context.catalogFixture ? catalogTelemetry.catalog : {
+    ...record.catalog,
+    status: observed.catalog_status,
+  };
+  record.telemetry = context.catalogFixture ? catalogTelemetry.telemetry : {
+    ...record.telemetry,
+    status: observed.telemetry_status,
+  };
+  record.mismatches.push(...catalogTelemetry.mismatches.map((mismatch) => ({
+    observed_at: timestamp,
+    ...mismatch,
+  })));
   record.lifecycle_state = 'provider_acceptance_unobserved';
   record.launch_intent.launch_performed = true;
   record.duplicate_handling.bridge_session_started = observed.bridge_session_started;

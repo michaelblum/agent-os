@@ -9,6 +9,7 @@ import { test } from 'node:test';
 const repoRoot = resolve(new URL('..', import.meta.url).pathname);
 const scriptPath = join(repoRoot, 'scripts', 'afk-launch-attempt-prototype.mjs');
 const fixedTimestamp = '2026-05-22T02:00:00.000Z';
+const operatorLaunchObservedAt = '2026-05-22T12:58:00.000Z';
 
 function runPrototype(args) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
@@ -23,6 +24,13 @@ async function writePacket(packet) {
   const packetPath = join(dir, 'packet.json');
   await writeFile(packetPath, `${JSON.stringify(packet, null, 2)}\n`, 'utf8');
   return packetPath;
+}
+
+async function writeCatalogFixture(fixture) {
+  const dir = await mkdtemp(join(tmpdir(), 'afk-launch-attempt-catalog-'));
+  const fixturePath = join(dir, 'catalog.json');
+  await writeFile(fixturePath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+  return fixturePath;
 }
 
 function validPacket(overrides = {}) {
@@ -252,4 +260,213 @@ test('writes an explicit local output path without creating committed artifacts'
   const fromStdout = JSON.parse(result.stdout);
   const fromFile = JSON.parse(await readFile(outPath, 'utf8'));
   assert.deepEqual(fromFile, fromStdout);
+});
+
+test('classifies stale catalog session as current launch not observed', async () => {
+  const packetPath = await writePacket(validPacket());
+  const launchCwd = join(repoRoot, '.docks/gdi');
+  const catalogPath = await writeCatalogFixture({
+    sessions: [
+      {
+        provider: 'codex',
+        session_id: '019e4e49-9d18-7531-9859-3b834f034d14',
+        cwd: launchCwd,
+        updated_at: '2026-05-22T06:11:41.000Z',
+        source_file: '/tmp/stale-codex-session.jsonl',
+        resume_command: 'codex resume 019e4e49-9d18-7531-9859-3b834f034d14',
+        telemetry_observed: true,
+        telemetry_event_refs: ['inline:stale-telemetry-must-not-bind'],
+      },
+    ],
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    operatorLaunchObservedAt,
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.catalog.status, 'catalog_current_launch_not_observed');
+  assert.deepEqual(record.catalog.catalog_record_refs, ['codex:019e4e49-9d18-7531-9859-3b834f034d14']);
+  assert.equal(record.catalog.match_count, 0);
+  assert.equal(record.catalog.matched_session_id, 'not_observed');
+  assert.equal(record.catalog.launch_observed_at, operatorLaunchObservedAt);
+  assert.equal(record.telemetry.status, 'telemetry_current_launch_not_observed');
+  assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(record.mismatches.map((mismatch) => mismatch.code), ['catalog_current_launch_not_observed']);
+});
+
+test('classifies empty provider cwd catalog as not observed with telemetry not attempted', async () => {
+  const packetPath = await writePacket(validPacket());
+  const catalogPath = await writeCatalogFixture({ sessions: [] });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    operatorLaunchObservedAt,
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.catalog.status, 'catalog_not_observed');
+  assert.equal(record.catalog.catalog_record_refs, 'not_observed');
+  assert.equal(record.catalog.match_count, 0);
+  assert.equal(record.telemetry.status, 'telemetry_not_attempted_no_catalog_match');
+  assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(record.mismatches, []);
+});
+
+test('classifies one current catalog candidate without known provider session id', async () => {
+  const packetPath = await writePacket(validPacket());
+  const launchCwd = join(repoRoot, '.docks/gdi');
+  const catalogPath = await writeCatalogFixture({
+    sessions: [
+      {
+        provider: 'codex',
+        session_id: 'candidate-current-session',
+        cwd: launchCwd,
+        updated_at: '2026-05-22T12:58:30.000Z',
+        telemetry_observed: false,
+      },
+    ],
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    operatorLaunchObservedAt,
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.catalog.status, 'catalog_candidate_current_launch_observed');
+  assert.equal(record.catalog.match_count, 1);
+  assert.equal(record.catalog.matched_session_id, 'candidate-current-session');
+  assert.equal(record.telemetry.status, 'telemetry_not_observed');
+  assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
+  assert.deepEqual(record.mismatches, []);
+});
+
+test('classifies exact catalog match with telemetry when provider session id is known', async () => {
+  const packetPath = await writePacket(validPacket());
+  const launchCwd = join(repoRoot, '.docks/gdi');
+  const catalogPath = await writeCatalogFixture({
+    sessions: [
+      {
+        provider: 'codex',
+        session_id: 'current-known-session',
+        cwd: launchCwd,
+        updated_at: '2026-05-22T12:59:00.000Z',
+        source_file: '/tmp/current-known-session.jsonl',
+        resume_command: 'codex resume current-known-session',
+        telemetry_observed: true,
+        telemetry_event_refs: ['inline:current-known-session:tokens'],
+      },
+    ],
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    operatorLaunchObservedAt,
+    '--provider-session-id',
+    'current-known-session',
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.catalog.status, 'catalog_matched');
+  assert.equal(record.catalog.match_count, 1);
+  assert.equal(record.catalog.matched_session_id, 'current-known-session');
+  assert.equal(record.catalog.source_file, '/tmp/current-known-session.jsonl');
+  assert.equal(record.telemetry.status, 'telemetry_observed');
+  assert.deepEqual(record.telemetry.telemetry_event_refs, ['inline:current-known-session:tokens']);
+  assert.deepEqual(record.mismatches, []);
+});
+
+test('classifies multiple current catalog candidates as ambiguous', async () => {
+  const packetPath = await writePacket(validPacket());
+  const launchCwd = join(repoRoot, '.docks/gdi');
+  const catalogPath = await writeCatalogFixture({
+    sessions: [
+      {
+        provider: 'codex',
+        session_id: 'candidate-one',
+        cwd: launchCwd,
+        updated_at: '2026-05-22T12:58:30.000Z',
+      },
+      {
+        provider: 'codex',
+        session_id: 'candidate-two',
+        cwd: launchCwd,
+        updated_at: '2026-05-22T12:59:00.000Z',
+      },
+    ],
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--launch-observed-at',
+    operatorLaunchObservedAt,
+    '--catalog-fixture',
+    catalogPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.catalog.status, 'multiple_catalog_candidates');
+  assert.equal(record.catalog.match_count, 2);
+  assert.equal(record.catalog.matched_session_id, 'not_observed');
+  assert.equal(record.telemetry.status, 'telemetry_current_launch_not_observed');
+  assert.deepEqual(record.mismatches.map((mismatch) => mismatch.code), ['multiple_catalog_candidates']);
 });
