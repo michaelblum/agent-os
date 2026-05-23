@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { providerObservationFromBridgeSnapshot } from '../scripts/afk-launch-attempt-prototype.mjs';
 
 const repoRoot = resolve(new URL('..', import.meta.url).pathname);
 const scriptPath = join(repoRoot, 'scripts', 'afk-launch-attempt-prototype.mjs');
@@ -311,6 +312,60 @@ test('represents accepted supervised live Codex bridge pass from deterministic f
   assert.equal(record.telemetry.status, 'not_observed');
   assert.equal(record.result_route.status, 'not_attempted');
   assert.deepEqual(record.mismatches, []);
+});
+
+test('promotes live terminal snapshot provider session text to observed provider acceptance', () => {
+  const providerSessionId = '019e5107-5456-7f22-b08b-b977df1b35f4';
+  const observation = providerObservationFromBridgeSnapshot({
+    session: 'afk-live-provider-observation',
+    driver: 'process',
+    command: 'codex --no-alt-screen',
+    text: [
+      'Codex CLI 0.133.0',
+      `provider_session_id: ${providerSessionId}`,
+      'cwd /Users/Michael/Code/agent-os/.docks/gdi',
+      'branch gdi/afk-dev-session-trigger-supervised-bridge-launch-v0',
+      'model gpt-5.5',
+      'head a38d0da6',
+      'live-codex-session-trigger-supervised-bridge-launch',
+    ].join('\n'),
+  });
+
+  assert.equal(observation.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(observation.provider_acceptance.provider_session_id, providerSessionId);
+  assert.equal(observation.provider_acceptance.provider_reported_cwd, '/Users/Michael/Code/agent-os/.docks/gdi');
+  assert.equal(observation.provider_acceptance.provider_reported_branch, 'gdi/afk-dev-session-trigger-supervised-bridge-launch-v0');
+  assert.equal(observation.provider_acceptance.provider_reported_head, 'a38d0da6');
+  assert.equal(observation.provider_acceptance.provider_version, '0.133.0');
+  assert.equal(observation.provider_acceptance.model, 'gpt-5.5');
+  assert.equal(observation.snapshot_ref, 'inline:terminal_substrate.snapshot_summary');
+  assert.match(observation.snapshot_summary.text_excerpt, /provider_session_id/);
+  assert.equal(observation.mismatch, null);
+});
+
+test('keeps live terminal snapshot provider acceptance unobserved when no provider session id is parseable', () => {
+  const observation = providerObservationFromBridgeSnapshot({
+    session: 'afk-live-provider-unobserved',
+    driver: 'process',
+    command: 'codex --no-alt-screen',
+    text: [
+      'Codex CLI 0.133.0',
+      'cwd /Users/Michael/Code/agent-os/.docks/gdi',
+      'branch gdi/afk-dev-session-trigger-supervised-bridge-launch-v0',
+      'model gpt-5.5',
+      'head a38d0da6',
+    ].join('\n'),
+  });
+
+  assert.equal(observation.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.equal(observation.provider_acceptance.provider_session_id, 'not_observed');
+  assert.equal(observation.provider_acceptance.provider_reported_cwd, '/Users/Michael/Code/agent-os/.docks/gdi');
+  assert.equal(observation.provider_acceptance.provider_reported_branch, 'gdi/afk-dev-session-trigger-supervised-bridge-launch-v0');
+  assert.equal(observation.provider_acceptance.provider_reported_head, 'a38d0da6');
+  assert.equal(observation.provider_acceptance.provider_version, '0.133.0');
+  assert.equal(observation.provider_acceptance.model, 'gpt-5.5');
+  assert.equal(observation.mismatch.code, 'provider_session_id_not_observed');
+  assert.equal(observation.mismatch.effect, 'not_observed');
 });
 
 test('reuses the in-process attempt for a duplicate idempotence key', async () => {

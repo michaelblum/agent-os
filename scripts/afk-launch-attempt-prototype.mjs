@@ -273,6 +273,47 @@ function mergeProviderAcceptance(current, next) {
   return merged;
 }
 
+function boundedSnapshotExcerpt(text, lineLimit = 6) {
+  return String(text || '').split('\n').slice(0, lineLimit).join('\n') || NOT_OBSERVED;
+}
+
+function providerObservationFromBridgeSnapshot(snapshot, fallback = {}) {
+  const text = compactLines(snapshot?.text, snapshot?.title, snapshot?.status);
+  const parsed = parseBridgeVisibilityText(text);
+  const snapshotRef = text ? 'inline:terminal_substrate.snapshot_summary' : NOT_OBSERVED;
+  const observed = parsed.provider_session_id !== NOT_OBSERVED;
+  return {
+    provider_acceptance: {
+      status: observed ? 'provider_session_observed' : 'provider_acceptance_unobserved',
+      provider_session_id: parsed.provider_session_id,
+      provider_reported_cwd: parsed.provider_reported_cwd,
+      provider_reported_branch: parsed.provider_reported_branch,
+      provider_reported_head: parsed.provider_reported_head,
+      provider_version: parsed.provider_version,
+      model: parsed.model,
+    },
+    snapshot_ref: snapshotRef,
+    snapshot_summary: {
+      session: snapshot?.session ?? fallback.session ?? NOT_OBSERVED,
+      driver: snapshot?.driver ?? fallback.driver ?? NOT_OBSERVED,
+      command: snapshot?.command ?? fallback.command ?? NOT_OBSERVED,
+      includes_marker: fallback.responseMarker ? text.includes(fallback.responseMarker) : false,
+      text_excerpt: boundedSnapshotExcerpt(text),
+    },
+    mismatch: observed
+      ? null
+      : {
+        code: 'provider_session_id_not_observed',
+        severity: 'info',
+        source: 'provider_acceptance',
+        expected: { provider_session_id: 'parseable from bridge snapshot/title' },
+        observed: { terminal_substrate: fallback.observedTerminalSubstrate ?? 'observed' },
+        effect: 'not_observed',
+        evidence_ref: snapshotRef,
+      },
+  };
+}
+
 function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
   if (!fixture) return null;
   const bridge = bridgeFixtureBridgeInput(fixture);
@@ -288,12 +329,21 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
   const driver = ensure.driver ?? snapshot.driver ?? health.driver ?? NOT_OBSERVED;
   const terminal = snapshot.terminal ?? resize?.terminal ?? health.terminal ?? {};
   const text = fixtureSnapshotText(bridge);
-  const parsed = parseBridgeVisibilityText(text);
   const responseMarker = bridge.response_marker
     ?? bridge.responseMarker
     ?? fixture.response_marker
     ?? fixture.responseMarker
     ?? NOT_OBSERVED;
+  const providerObservation = providerObservationFromBridgeSnapshot(
+    { ...snapshot, text },
+    {
+      session,
+      driver,
+      command,
+      responseMarker,
+      observedTerminalSubstrate: 'observed',
+    },
+  );
   const markerObserved = responseMarker !== NOT_OBSERVED && text.includes(responseMarker);
   const cleanup = normalizeCleanupProofFixture(
     fixture.cleanup ?? fixture.cleanup_proof ?? fixture.cleanupProof ?? bridge.cleanup ?? bridge.cleanup_proof ?? bridge.cleanupProof,
@@ -308,7 +358,7 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
         ?? bridge.supervised_live
         ?? bridge.supervisedLive,
     ),
-    providerSessionId: parsed.provider_session_id,
+    providerSessionId: providerObservation.provider_acceptance.provider_session_id,
     terminal_substrate: {
       status: 'observed',
       driver,
@@ -342,7 +392,7 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
         driver,
         command: snapshot.command ?? command,
         includes_marker: markerObserved,
-        text_excerpt: text.split('\n').slice(0, 6).join('\n'),
+        text_excerpt: boundedSnapshotExcerpt(text),
       },
       bridge_health: {
         ok: health.ok ?? NOT_OBSERVED,
@@ -352,28 +402,13 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
         terminal: health.terminal ?? NOT_OBSERVED,
       },
     },
-    provider_acceptance: {
-      status: parsed.provider_session_id === NOT_OBSERVED
-        ? 'provider_acceptance_unobserved'
-        : 'provider_session_observed',
-      provider_session_id: parsed.provider_session_id,
-      provider_reported_cwd: parsed.provider_reported_cwd,
-      provider_reported_branch: parsed.provider_reported_branch,
-      provider_reported_head: parsed.provider_reported_head,
-      provider_version: parsed.provider_version,
-      model: parsed.model,
-    },
+    provider_acceptance: providerObservation.provider_acceptance,
     catalog_status: NOT_OBSERVED,
     telemetry_status: NOT_OBSERVED,
     cleanup,
-    mismatch: parsed.provider_session_id === NOT_OBSERVED
+    mismatch: providerObservation.mismatch
       ? {
-        code: 'provider_session_id_not_observed',
-        severity: 'info',
-        source: 'provider_acceptance',
-        expected: { provider_session_id: 'parseable from bridge snapshot/title' },
-        observed: { terminal_substrate: 'observed' },
-        effect: 'not_observed',
+        ...providerObservation.mismatch,
         evidence_ref: text ? 'inline:terminal_substrate.synthetic_snapshot' : NOT_OBSERVED,
       }
       : null,
@@ -905,16 +940,24 @@ async function waitForSnapshot(port, session, marker) {
   throw new Error(`snapshot did not include ${marker}`);
 }
 
-async function waitForSessionProcessSnapshot(port, session) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const response = await fetch(`http://127.0.0.1:${port}/snapshot?session=${encodeURIComponent(session)}`);
+async function waitForProviderObservationSnapshot(port, session, fallback) {
+  let last = null;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const response = await fetch(`http://127.0.0.1:${port}/snapshot?session=${encodeURIComponent(session)}&lines=80`);
     if (response.ok) {
       const snapshot = await response.json();
-      if (snapshot.command_child_pid) return snapshot;
+      const observation = providerObservationFromBridgeSnapshot(snapshot, fallback);
+      last = { snapshot, observation };
+      if (
+        snapshot.command_child_pid
+        && observation.provider_acceptance.status === 'provider_session_observed'
+      ) {
+        return last;
+      }
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   }
-  return null;
+  return last;
 }
 
 async function waitForBridgeUnreachable(port) {
@@ -1285,7 +1328,20 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
       throw new Error(`bridge /ensure failed: ${await ensureResponse.text()}`);
     }
     const ensured = await ensureResponse.json();
-    const processSnapshot = await waitForSessionProcessSnapshot(port, defaultSession);
+    const providerObservationSnapshot = await waitForProviderObservationSnapshot(port, defaultSession, {
+      session: ensured.session,
+      driver: ensured.driver,
+      command,
+      observedTerminalSubstrate: 'observed',
+    });
+    const processSnapshot = providerObservationSnapshot?.snapshot ?? null;
+    const providerObservation = providerObservationSnapshot?.observation
+      ?? providerObservationFromBridgeSnapshot(null, {
+        session: ensured.session,
+        driver: ensured.driver,
+        command,
+        observedTerminalSubstrate: 'observed',
+      });
     observed = {
       bridge_session_started: true,
       command,
@@ -1298,14 +1354,8 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
         command_child_pid: processSnapshot?.command_child_pid ?? NOT_OBSERVED,
         cwd: launchCwd,
         command,
-        snapshot_ref: NOT_OBSERVED,
-        snapshot_summary: {
-          session: ensured.session,
-          driver: ensured.driver,
-          command,
-          includes_marker: false,
-          text_excerpt: processSnapshot?.text?.split('\n').slice(0, 4).join('\n') ?? NOT_OBSERVED,
-        },
+        snapshot_ref: providerObservation.snapshot_ref,
+        snapshot_summary: providerObservation.snapshot_summary,
         bridge_health: {
           ok: health.ok,
           default_session: health.defaultSession,
@@ -1313,26 +1363,10 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
           driver: health.driver,
         },
       },
-      provider_acceptance: {
-        status: 'provider_acceptance_unobserved',
-        provider_session_id: NOT_OBSERVED,
-        provider_reported_cwd: NOT_OBSERVED,
-        provider_reported_branch: NOT_OBSERVED,
-        provider_reported_head: NOT_OBSERVED,
-        provider_version: NOT_OBSERVED,
-        model: NOT_OBSERVED,
-      },
+      provider_acceptance: providerObservation.provider_acceptance,
       catalog_status: NOT_OBSERVED,
       telemetry_status: NOT_OBSERVED,
-      mismatch: {
-        code: 'provider_session_id_not_observed',
-        severity: 'info',
-        source: 'provider_acceptance',
-        expected: { provider_session_id: 'parseable from bridge snapshot/title' },
-        observed: { terminal_substrate: 'observed' },
-        effect: 'not_observed',
-        evidence_ref: NOT_OBSERVED,
-      },
+      mismatch: providerObservation.mismatch,
     };
     return observed;
   } finally {
@@ -1705,7 +1739,9 @@ async function createLaunchAttempt(options) {
     provider: context.provider.selected_provider,
     cwd: context.intendedLaunchCwd,
     launchObservedAt: context.launchObservedAt,
-    providerSessionId: context.providerSessionId,
+    providerSessionId: observed.provider_acceptance?.provider_session_id === NOT_OBSERVED
+      ? context.providerSessionId
+      : (observed.provider_acceptance?.provider_session_id ?? context.providerSessionId),
   });
   record.terminal_substrate = observed.terminal_substrate;
   if (observed.cleanup) {
@@ -1866,4 +1902,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 export {
   createLaunchAttempt,
   parseArgs,
+  providerObservationFromBridgeSnapshot,
 };
