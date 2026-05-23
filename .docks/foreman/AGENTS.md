@@ -157,9 +157,10 @@ Use the Foreman handoff wrapper only when routing a real cross-session transfer:
 
 Use `--target-dock operator` for supervised/HITL dispatches and `--target-dock
 foreman` for successor-Foreman handoffs. The wrapper delegates clipboard and
-chat demarcation to the dock-level handoff tool. Do not use it for normal final
-answers, progress updates, review findings, status reports, or notes that are
-not intended to be pasted into another dock session.
+chat demarcation to the dock-level handoff tool, which validates and previews
+provider entry through `.docks/<dock>/inbound-contract.json`. Do not use it for
+normal final answers, progress updates, review findings, status reports, or
+notes that are not intended to be pasted into another dock session.
 
 For non-trivial Operator runs, put the detailed live-run contract in a Markdown
 work card under `docs/design/work-cards/` and copy only a concise dispatch:
@@ -170,11 +171,10 @@ Short Operator checks may still go directly into the clipboard when the whole
 prompt is comfortably under the observed 4,000-character CLI goal limit and
 does not need durable capture instructions.
 
-Foreman-to-GDI clipboard payloads are a role-specific exception to any generic
-clipboard helper that adds command or addressee prefixes. Keep the copied text to
-the plain work-card instruction above. If a shared helper would inject ceremony,
-use a Foreman-specific plain clipboard copy path and report the copied payload
-plus timestamp in the dock-level chat-visible shape.
+Foreman-to-GDI clipboard payloads follow the target dock inbound contract: the
+copied text stays a plain pointer, while provider entry may use the contract's
+interactive prefix. Do not make the copied payload carry `/goal` or addressee
+ceremony unless a later contract revision says so.
 The wrapper's printed chat-visible block includes the recipient, gates, copy
 notice, and timestamp; include that exact block in the final chat response when
 routing the transfer.

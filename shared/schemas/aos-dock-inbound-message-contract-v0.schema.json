@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-dock-inbound-message-contract-v0.schema.json",
+  "title": "AOS Dock Inbound Message Contract v0",
+  "description": "Dock-local, provider-aware contract for formatting and validating inbound messages before they are copied or entered into a provider CLI.",
+  "type": "object",
+  "required": [
+    "type",
+    "schema_version",
+    "dock",
+    "role",
+    "providers"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "type": {
+      "const": "aos.dock_inbound_message_contract"
+    },
+    "schema_version": {
+      "const": "2026-05-dock-inbound-message-contract-v0"
+    },
+    "dock": {
+      "$ref": "#/$defs/id"
+    },
+    "role": {
+      "$ref": "#/$defs/id"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "providers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/provider_contract"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]*$"
+    },
+    "non_empty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload_policy": {
+      "enum": [
+        "plain_pointer",
+        "plain_instruction",
+        "plain_handoff"
+      ]
+    },
+    "severity": {
+      "enum": [
+        "error",
+        "warning"
+      ]
+    },
+    "provider_contract": {
+      "type": "object",
+      "required": [
+        "provider",
+        "context_reset_command",
+        "stale_goal_recovery_command",
+        "clipboard_payload_policy",
+        "provider_entry_prefix",
+        "allowed_payloads",
+        "forbidden_prompt_shapes",
+        "loop_recovery_guidance"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/id"
+        },
+        "context_reset_command": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "stale_goal_recovery_command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "clipboard_payload_policy": {
+          "$ref": "#/$defs/payload_policy"
+        },
+        "provider_entry_prefix": {
+          "type": "string"
+        },
+        "allowed_payloads": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "description",
+              "examples"
+            ],
+            "properties": {
+              "kind": {
+                "$ref": "#/$defs/id"
+              },
+              "description": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "examples": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/non_empty_string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "forbidden_prompt_shapes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "code",
+              "severity",
+              "description",
+              "match"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/$defs/id"
+              },
+              "severity": {
+                "$ref": "#/$defs/severity"
+              },
+              "description": {
+                "$ref": "#/$defs/non_empty_string"
+              },
+              "match": {
+                "$ref": "#/$defs/non_empty_string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "loop_recovery_guidance": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

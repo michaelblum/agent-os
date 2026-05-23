@@ -1,0 +1,45 @@
+{
+  "$schema": "../../shared/schemas/aos-dock-inbound-message-contract-v0.schema.json",
+  "type": "aos.dock_inbound_message_contract",
+  "schema_version": "2026-05-dock-inbound-message-contract-v0",
+  "dock": "foreman",
+  "role": "foreman",
+  "summary": "Foreman Codex dispatches are plain successor handoffs or coordination tasks.",
+  "providers": {
+    "codex": {
+      "provider": "codex",
+      "context_reset_command": "/clear",
+      "stale_goal_recovery_command": null,
+      "clipboard_payload_policy": "plain_handoff",
+      "provider_entry_prefix": "",
+      "allowed_payloads": [
+        {
+          "kind": "successor_handoff_pointer",
+          "description": "Plain successor-Foreman handoff or state compression payload.",
+          "examples": [
+            "Continue Foreman work from this handoff and inspect the current repo state before acting."
+          ]
+        },
+        {
+          "kind": "coordination_task",
+          "description": "Plain coordination, review, or routing task.",
+          "examples": [
+            "Review the latest GDI completion report and route the next bounded step."
+          ]
+        }
+      ],
+      "forbidden_prompt_shapes": [
+        {
+          "code": "foreman_provider_goal_prefix",
+          "severity": "warning",
+          "description": "Foreman successor handoffs should stay plain unless a future provider contract says otherwise.",
+          "match": "^/goal\\s+"
+        }
+      ],
+      "loop_recovery_guidance": [
+        "Run /clear to reset provider context.",
+        "Read current repo and coordination state before selecting the next action."
+      ]
+    }
+  }
+}

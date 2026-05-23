@@ -6,6 +6,12 @@ Use the current assigned transfer or instruction as the task. GDI performs
 bounded deterministic implementation work from plain work-card dispatches. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
+GDI's inbound provider syntax is declared in `.docks/gdi/inbound-contract.json`.
+For Codex, copied transfer payloads remain plain durable pointers, while
+interactive work-goal entry uses `/goal `. If a stale or repeated goal-mode loop
+appears, run `/goal clear`, then `/clear`, then wait for a real Foreman pointer
+instead of satisfying a one-shot proof prompt again.
+
 ## Role Ownership
 
 GDI owns deterministic implementation for the assigned goal:

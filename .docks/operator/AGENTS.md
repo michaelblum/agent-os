@@ -6,6 +6,11 @@ Use the current assigned transfer or instruction as the task. Operator dispatche
 are plain supervised instructions, not command-prefixed goals. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
+Operator's inbound provider syntax is declared in
+`.docks/operator/inbound-contract.json`. Do not invent GDI `/goal` prompts from
+Operator. When deterministic implementation or branch strategy is needed, route
+that work back through Foreman so GDI receives a contract-valid pointer.
+
 Operator handles supervised human-in-the-loop execution where visual judgment,
 page interaction, selector approval, consent/login/CAPTCHA/paywall decisions, or
 capture-plan transfers are explicitly required. Focus on bounded execution and

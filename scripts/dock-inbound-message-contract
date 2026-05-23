@@ -1,0 +1,155 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import process from 'node:process';
+
+function usage() {
+  console.error(`Usage:
+  scripts/dock-inbound-message-contract --target-dock <dock> [--provider codex] [--payload <text>] [--json]
+  printf '%s' "$payload" | scripts/dock-inbound-message-contract --target-dock gdi --json
+
+Formats and validates an inbound dock message without writing to the clipboard.`);
+}
+
+function parseArgs(argv) {
+  const args = {
+    provider: 'codex',
+    json: false,
+    payloadSet: false,
+    payload: '',
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--target-dock') {
+      args.targetDock = argv[++index] ?? '';
+    } else if (arg === '--provider') {
+      args.provider = argv[++index] ?? '';
+    } else if (arg === '--payload') {
+      args.payload = argv[++index] ?? '';
+      args.payloadSet = true;
+    } else if (arg === '--json') {
+      args.json = true;
+    } else if (arg === '--help' || arg === '-h') {
+      usage();
+      process.exit(0);
+    } else {
+      throw new Error(`unknown argument: ${arg}`);
+    }
+  }
+  if (!args.targetDock) {
+    throw new Error('--target-dock is required');
+  }
+  return args;
+}
+
+function readStdin() {
+  return fs.readFileSync(0, 'utf8');
+}
+
+function repoRootFromScript() {
+  return path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+}
+
+function loadContract(repoRoot, dock) {
+  const contractPath = path.join(repoRoot, '.docks', dock, 'inbound-contract.json');
+  const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
+  return { contractPath, contract };
+}
+
+function cleanLegacyPrefix(payload, providerContract) {
+  const prefix = providerContract.provider_entry_prefix ?? '';
+  if (prefix && payload.startsWith(prefix)) {
+    return {
+      payload: payload.slice(prefix.length),
+      cleanup: {
+        code: 'legacy_provider_entry_prefix_stripped',
+        message: `Removed leading provider entry prefix ${JSON.stringify(prefix)} from clipboard payload.`,
+      },
+    };
+  }
+  return { payload, cleanup: null };
+}
+
+function evaluateForbiddenShapes(payload, providerContract) {
+  const diagnostics = [];
+  for (const shape of providerContract.forbidden_prompt_shapes ?? []) {
+    const regex = new RegExp(shape.match, 'i');
+    if (regex.test(payload)) {
+      diagnostics.push({
+        code: shape.code,
+        severity: shape.severity,
+        message: shape.description,
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function validate({ repoRoot, targetDock, provider, payload }) {
+  const { contractPath, contract } = loadContract(repoRoot, targetDock);
+  const providerContract = contract.providers?.[provider];
+  if (!providerContract) {
+    throw new Error(`provider ${provider} is not declared by ${path.relative(repoRoot, contractPath)}`);
+  }
+
+  const cleaned = cleanLegacyPrefix(payload, providerContract);
+  const diagnostics = evaluateForbiddenShapes(cleaned.payload, providerContract);
+  if (cleaned.cleanup) {
+    diagnostics.push({
+      severity: 'warning',
+      ...cleaned.cleanup,
+    });
+  }
+
+  const errors = diagnostics.filter((diagnostic) => diagnostic.severity === 'error');
+  const prefix = providerContract.provider_entry_prefix ?? '';
+  return {
+    ok: errors.length === 0,
+    target_dock: targetDock,
+    provider,
+    contract_path: path.relative(repoRoot, contractPath),
+    clipboard_payload: cleaned.payload,
+    provider_entry_prefix: prefix,
+    provider_entry_preview: `${prefix}${cleaned.payload}`,
+    context_reset_command: providerContract.context_reset_command,
+    stale_goal_recovery_command: providerContract.stale_goal_recovery_command,
+    clipboard_payload_policy: providerContract.clipboard_payload_policy,
+    diagnostics,
+  };
+}
+
+function printText(result) {
+  console.log(`ok=${result.ok}`);
+  console.log(`target_dock=${result.target_dock}`);
+  console.log(`provider=${result.provider}`);
+  console.log(`clipboard_payload=${result.clipboard_payload}`);
+  console.log(`provider_entry_prefix=${result.provider_entry_prefix}`);
+  console.log(`provider_entry_preview=${result.provider_entry_preview}`);
+  console.log(`context_reset_command=${result.context_reset_command}`);
+  console.log(`stale_goal_recovery_command=${result.stale_goal_recovery_command ?? ''}`);
+  for (const diagnostic of result.diagnostics) {
+    console.log(`${diagnostic.severity}:${diagnostic.code}:${diagnostic.message}`);
+  }
+}
+
+try {
+  const args = parseArgs(process.argv.slice(2));
+  const repoRoot = repoRootFromScript();
+  const payload = args.payloadSet ? args.payload : readStdin();
+  const result = validate({
+    repoRoot,
+    targetDock: args.targetDock,
+    provider: args.provider,
+    payload,
+  });
+  if (args.json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    printText(result);
+  }
+  process.exit(result.ok ? 0 : 1);
+} catch (error) {
+  console.error(`FAIL: ${error.message}`);
+  usage();
+  process.exit(2);
+}

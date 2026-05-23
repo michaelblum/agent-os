@@ -72,6 +72,13 @@ the owning dock, for example `.docks/foreman/skills/session-transfer/SKILL.md`.
 The `.docks` path is what makes the skill repo-native and role-local; provider
 or user-managed global skill registries are separate housekeeping surfaces.
 
+Dock-local inbound message contracts live at
+`.docks/<dock>/inbound-contract.json`. They are the AOS-owned source for
+provider-specific entry syntax such as Codex `/goal ` prefixes, context reset
+commands, stale-goal recovery commands, allowed payload shapes, and rejected
+prompt shapes. Foreman and other senders should format dispatches through the
+target dock contract instead of hardcoding provider slash syntax in role docs.
+
 Dock-local bespoke Stop behavior belongs in executable scripts named
 `pre-stop.sh` or `post-stop.sh` under the dock's `hooks/` directory. The shared
 runner invokes those scripts if present and still emits Codex hook success JSON.

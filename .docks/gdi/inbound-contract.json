@@ -1,0 +1,58 @@
+{
+  "$schema": "../../shared/schemas/aos-dock-inbound-message-contract-v0.schema.json",
+  "type": "aos.dock_inbound_message_contract",
+  "schema_version": "2026-05-dock-inbound-message-contract-v0",
+  "dock": "gdi",
+  "role": "gdi",
+  "summary": "GDI Codex work goals use /goal interactively while copied transfer payloads remain plain durable pointers.",
+  "providers": {
+    "codex": {
+      "provider": "codex",
+      "context_reset_command": "/clear",
+      "stale_goal_recovery_command": "/goal clear",
+      "clipboard_payload_policy": "plain_pointer",
+      "provider_entry_prefix": "/goal ",
+      "allowed_payloads": [
+        {
+          "kind": "transfer_packet_pointer",
+          "description": "Pointer to a Foreman transfer packet plus an explicit start ref.",
+          "examples": [
+            "follow the transfer packet in .docks/foreman/packets/to-gdi-example-v0.json; start from origin/main"
+          ]
+        },
+        {
+          "kind": "work_card_pointer",
+          "description": "Pointer to a durable GDI work card plus an explicit start ref when needed.",
+          "examples": [
+            "follow the instructions in docs/design/work-cards/example-v0.md; start from origin/main"
+          ]
+        }
+      ],
+      "forbidden_prompt_shapes": [
+        {
+          "code": "forbidden_goal_prompt_shape",
+          "severity": "error",
+          "description": "One-shot reply-exactly goals can satisfy stale goal state repeatedly instead of advancing a durable work contract.",
+          "match": "\\breply\\s+(with\\s+)?exactly\\b"
+        },
+        {
+          "code": "ralph_loop_risk",
+          "severity": "error",
+          "description": "Status-only proof goals must point to a durable work card or transfer packet before GDI accepts them.",
+          "match": "\\bproof\\s+only\\b"
+        },
+        {
+          "code": "gdi_self_acceptance_risk",
+          "severity": "error",
+          "description": "GDI must not self-accept architecture, product, or coordination decisions.",
+          "match": "\\bself-accept\\b|\\bdecide\\s+(architecture|product|branch strategy)\\b"
+        }
+      ],
+      "loop_recovery_guidance": [
+        "Run /goal clear to clear stale goal-mode state.",
+        "Run /clear to reset provider context.",
+        "Wait for a real Foreman pointer before starting another GDI goal."
+      ]
+    }
+  }
+}
