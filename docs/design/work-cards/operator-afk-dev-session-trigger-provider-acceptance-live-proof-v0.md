@@ -1,6 +1,63 @@
 # Operator AFK Dev Session Trigger Provider Acceptance Live Proof V0
 
-**Status:** Routed 2026-05-23
+**Status:** Partial pass accepted 2026-05-23
+
+## Result
+
+- Classification: `provider_acceptance_unobserved_still_open`.
+- Foreman review: accepted as live evidence that the accepted snapshot parser
+  change is not sufficient to close provider acceptance in the real no-fixture
+  trigger path.
+- Branch/ref gates passed on
+  `foreman/afk-provider-acceptance-live-proof-v0` at
+  `682a56ba5ceeeba1678fda6a35d5382fb845efc6`, with accepted source SHA
+  `1a1eba69db7e8a00976c6daddadee35b0f5502b5`.
+- Preflight passed: `./aos ready`; `node --test
+  tests/afk-session-trigger-prototype.test.mjs` with 15/15 passing;
+  `node --test tests/afk-launch-attempt-prototype.test.mjs` with 27/27
+  passing; and `node --test tests/sigil-agent-terminal-server.test.mjs` with
+  14/14 passing.
+- Trigger receipt: exit code `1`, top-level
+  `status=provider_acceptance_unobserved`,
+  `packet.validation_status=valid`, `scheduler.lifecycle_state=rejected`,
+  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=.docks/gdi`,
+  `terminal_substrate.status=observed`, driver `process`, cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`, command
+  `codex --no-alt-screen`,
+  `terminal_substrate.snapshot_ref=inline:terminal_substrate.snapshot_summary`,
+  `provider_acceptance.status=provider_acceptance_unobserved`, and mismatch
+  class `provider_acceptance_unobserved`.
+- Snapshot evidence: bounded snapshot showed live Codex UI from `.docks/gdi`
+  (`OpenAI Codex v0.133.0`, model loading / `gpt-5.5 low`), but did not expose
+  a parseable provider session id. The model field parser captured the
+  ANSI-styled loading text, which is not a session identity.
+- Cleanup proof passed: `cleanup.status=verified`, with
+  `owned_bridge_process_exit`,
+  `owned_bridge_health_unreachable_after_teardown`,
+  `owned_process_driver_child_exit`, and
+  `owned_provider_command_child_exit`. The owned bridge session was
+  `afk-launch-51b2cc33b254`; the owned bridge port was `63794`.
+- Post-run process comparison matched baseline except the inspection `rg`
+  process itself. No new bridge server, `pty-proxy.py`, owned process group, or
+  nested `codex --no-alt-screen` process remained.
+- Bounded provider metadata: the only modified rollout file in the window was
+  `/Users/Michael/.codex/sessions/2026/05/23/rollout-2026-05-23T01-43-46-019e535c-6c78-7d83-a95e-c00fe13e7aef.jsonl`,
+  with `session_meta.payload.cwd` equal to
+  `/Users/Michael/Code/agent-os/.docks/operator`. No `.docks/gdi` rollout was
+  observed, and no transcript bodies were copied.
+- Final `./aos ready` reported
+  `ready=true mode=repo daemon=reachable tap=active`; final git status was
+  clean on `foreman/afk-provider-acceptance-live-proof-v0`; temporary
+  packet/output files were removed.
+- Boundary confirmed: no source, docs, provider config/session/catalog,
+  telemetry, gateway, dock profile/hook, GitHub state, push, PR, merge,
+  external publication, provider transcript body mutation, or async result
+  routing happened.
+- Foreman source reading after the report found the likely missing bridge step:
+  `observeProviderTerminalSubstrate()` starts `codex --no-alt-screen` and polls
+  `/snapshot`, but does not submit the packet goal/prompt to the provider. The
+  next source correction is
+  `docs/design/work-cards/afk-dev-session-trigger-live-prompt-submission-observation-v0.md`.
 
 ## Transfer Classification
 
