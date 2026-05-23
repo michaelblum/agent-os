@@ -1550,6 +1550,7 @@ test('uses Codex adapter cwd/time fallback for one current same-cwd thread when 
     before: '2026-05-22T16:02:00.000Z',
   });
   assert.ok(record.mismatches.some((mismatch) => mismatch.source === 'codex_adapter' && mismatch.code === 'provider_session_id_not_observed'));
+  assert.ok(record.codex_adapter.mismatches.some((mismatch) => mismatch.code === 'provider_session_id_not_observed'));
 });
 
 test('promotes metadata-backed Codex cwd/time match after supervised prompt submission', async () => {
@@ -1649,6 +1650,7 @@ test('promotes metadata-backed Codex cwd/time match after supervised prompt subm
   assert.equal(record.codex_adapter.correlation_status, 'matched_by_cwd_time_window');
   assert.equal(record.codex_adapter.matched_thread_id, threadId);
   assert.equal(record.mismatches.some((mismatch) => mismatch.code === 'provider_session_id_not_observed'), false);
+  assert.equal(record.codex_adapter.mismatches.some((mismatch) => mismatch.code === 'provider_session_id_not_observed'), false);
   assert.equal(record.mismatches.some((mismatch) => mismatch.code === 'provider_acceptance_unobserved'), false);
 });
 

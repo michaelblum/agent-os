@@ -741,6 +741,11 @@ function promoteCodexMetadataProviderAcceptance(record, correlation, reference, 
     )
     || mismatch.code === 'provider_execution_unobserved'
   ));
+  if (Array.isArray(record.codex_adapter?.mismatches)) {
+    record.codex_adapter.mismatches = record.codex_adapter.mismatches.filter(
+      (mismatch) => mismatch.code !== 'provider_session_id_not_observed',
+    );
+  }
   if (record.terminal_substrate?.input_submission && record.terminal_substrate.input_submission !== NOT_OBSERVED) {
     record.terminal_substrate.input_submission.provider_execution_observed = true;
   }
