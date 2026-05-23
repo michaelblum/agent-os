@@ -1883,6 +1883,8 @@ async function buildAttemptContext(options) {
       sourceArtifact,
       requiredStartRef,
       worktree,
+      selectedProvider: provider.selected_provider,
+      selectedDock,
       goal: packet.goal ?? packet.objective ?? packet.single_next_goal ?? NOT_OBSERVED,
     },
     bridgeVisibility,
@@ -2265,6 +2267,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export {
+  buildAttemptContext,
   buildLiveProviderPrompt,
   createLaunchAttempt,
   LIVE_INPUT_TIMING_PROFILE,

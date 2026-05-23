@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import {
+  buildAttemptContext,
   buildLiveProviderPrompt,
   LIVE_INPUT_TIMING_PROFILE,
   providerObservationFromBridgeSnapshot,
@@ -576,6 +577,66 @@ test('submits live provider pointer prompt with startup settle and isolated Ente
   assert.equal(submission.prompt_summary.source_artifact, 'docs/design/work-cards/live-prompt.md');
   assert.match(submission.prompt_summary.prompt_sha256, /^[a-f0-9]{64}$/);
   assert.equal(submission.prompt_summary.prompt_bytes, Buffer.byteLength(prompt));
+});
+
+test('actual live provider prompt source carries Codex GDI prompt profile into submission receipt', async () => {
+  const packetPath = await writePacket(validPacket({
+    packet_id: 'packet-live-prompt-source-boundary',
+    source_artifact: 'docs/design/work-cards/afk-launch-attempt-prototype-no-provider-v0.md',
+    provider_hint: 'codex',
+    requested_recipient: 'gdi',
+  }));
+  const context = await buildAttemptContext({
+    packet: packetPath,
+    provider: 'codex',
+    dock: 'gdi',
+    launchMode: 'supervised-provider',
+    providerLaunchDryRun: true,
+  });
+
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url, body });
+    return {
+      ok: true,
+      async json() {
+        return /\/key$/.test(url)
+          ? { ok: true, key: body.key, key_accepted: true }
+          : { ok: true, text_accepted: true, enter_sent: false, enter_accepted: false };
+      },
+    };
+  };
+
+  assert.equal(
+    context.liveProviderPrompt,
+    '/goal Your work card is at docs/design/work-cards/afk-launch-attempt-prototype-no-provider-v0.md. Read it first, then begin.',
+  );
+  assert.deepEqual(
+    {
+      selectedProvider: context.liveProviderPromptSource.selectedProvider,
+      selectedDock: context.liveProviderPromptSource.selectedDock,
+    },
+    {
+      selectedProvider: 'codex',
+      selectedDock: 'gdi',
+    },
+  );
+
+  const submission = await submitLiveProviderPrompt({
+    port: 48123,
+    session: 'afk-live-prompt-source-boundary',
+    prompt: context.liveProviderPrompt,
+    promptSource: context.liveProviderPromptSource,
+    fetchImpl,
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(requests[0].body.text, '/');
+  assert.equal(submission.status, 'submitted');
+  assert.equal(submission.provider_prompt_mode, 'codex_goal');
+  assert.equal(submission.provider_prompt_prefix, '/goal ');
+  assert.equal(submission.prompt_ref, 'docs/design/work-cards/afk-launch-attempt-prototype-no-provider-v0.md');
 });
 
 test('keeps bridge byte delivery separate from provider execution observation', async () => {
