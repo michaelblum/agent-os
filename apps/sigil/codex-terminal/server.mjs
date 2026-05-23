@@ -472,11 +472,12 @@ function terminalCwdForSession(session) {
 function dockTerminalSessionForUrl(url) {
   const dock = url.searchParams.get('dock') || process.env.SIGIL_AGENT_DOCK || 'gdi';
   const session = cleanSession(url.searchParams.get('session') || defaultSession);
-  const command = sessionCommands.get(session)?.command || defaultCommand;
+  const command = terminalCommandForSession(session);
+  const explicitDockCwd = url.searchParams.get('cwd') || process.env.SIGIL_AGENT_DOCK_CWD || undefined;
   const receipt = createDockTerminalSessionReceipt({
     repoRoot: defaultRepoRoot,
     dock,
-    cwd: url.searchParams.get('cwd') || process.env.SIGIL_AGENT_DOCK_CWD || undefined,
+    cwd: explicitDockCwd || terminalCwdForSession(session),
     provider: url.searchParams.get('provider') || 'codex',
     providerCommand: command,
     ptyHandle: session,
