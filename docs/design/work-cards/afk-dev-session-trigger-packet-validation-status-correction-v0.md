@@ -1,6 +1,60 @@
 # Work Card: AFK Dev Session Trigger Packet Validation Status Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted correction commit:
+`8b65c536ae12fbd827632e17f8f8e38cabe11490`
+(`fix(afk): separate packet validation from runtime status`).
+
+The correction satisfies Foreman's packet-validation finding:
+
+- `packet.validation_status` is now based on packet/current-state/pre-launch
+  intake mismatches captured before duplicate/runtime/provider/cleanup
+  mismatches are appended;
+- runtime outcomes such as `provider_acceptance_unobserved` and
+  `cleanup_unverified` remain visible in top-level `status`,
+  `scheduler.lifecycle_state`, and `mismatches`;
+- valid supervised provider timeout receipts with verified cleanup now keep
+  `packet.validation_status=valid`;
+- valid cleanup-failure receipts now keep `packet.validation_status=valid`
+  while still returning `status=cleanup_unverified`;
+- guard failures and invalid intake facts still return
+  `packet.validation_status=invalid` and do not permit launch.
+
+Verification:
+
+```text
+git status --short --branch
+## gdi/afk-dev-session-trigger-packet-validation-status-correction-v0
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+15 tests passed
+
+git diff --check 37f81c517522255bad56ed57f1ef8a914f994c81..HEAD
+passed
+```
+
+Foreman reran the deterministic repro that found the issue. With a valid
+packet, present source artifact, resolving durable ref, internal provider
+dry-run, and verified cleanup fixture, the receipt now returns:
+
+```json
+{
+  "status": "provider_acceptance_unobserved",
+  "packet_validation_status": "valid",
+  "cleanup_status": "verified",
+  "mismatch_classes": ["provider_acceptance_unobserved"]
+}
+```
+
+No live provider launch, real transcript read, provider config/session/catalog
+mutation, gateway state, dock profile/hook mutation, GitHub state, push, PR, or
+external publication happened during Foreman acceptance.
 
 ## Transfer Classification
 

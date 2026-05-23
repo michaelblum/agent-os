@@ -631,5 +631,13 @@ The next slices should stay reversible:
    currently folded into the packet validation field. The next routed source
    correction is
    `docs/design/work-cards/afk-dev-session-trigger-packet-validation-status-correction-v0.md`.
+   That correction is now accepted at
+   `8b65c536ae12fbd827632e17f8f8e38cabe11490`: packet validation is based on
+   pre-launch packet/current-state intake mismatches, while runtime outcomes
+   such as `provider_acceptance_unobserved` and `cleanup_unverified` remain in
+   the top-level status, scheduler lifecycle, and mismatch list. Foreman
+   reproduced the earlier deterministic packet-validation bug after the fix and
+   confirmed the receipt now keeps `packet.validation_status=valid` for a valid
+   provider-timeout receipt with verified cleanup.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.
