@@ -1,0 +1,36 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T16:53:05-04:00",
+  "updated_at": "2026-05-23T16:53:05-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "correction_round",
+  "single_next_goal": "Refine the AOS dock inbound message contract so provider/dock mechanics stay in the contract while Foreman routing judgment owns when GDI is the right tool.",
+  "work_card_ref": "docs/design/work-cards/aos-dock-inbound-message-contract-policy-split-v0.md",
+  "required_start_ref": "gdi/aos-dock-inbound-message-contract-v0",
+  "branch_from": "gdi/aos-dock-inbound-message-contract-v0",
+  "expected_output_branch": "gdi/aos-dock-inbound-message-contract-policy-split-v0",
+  "accepted_source_head": "64764f19d38e3f4a5e1c5c70acc186dd4bb554e2",
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-aos-dock-inbound-message-contract-policy-split-v0.json; start from the current local gdi/aos-dock-inbound-message-contract-v0 routing head",
+  "required_evidence": [
+    "Contract/schema/docs distinguish provider mechanics and dock role boundaries from Foreman routing judgment",
+    "GDI reply-exactly or proof-only prompts are not blanket-forbidden solely because they are trivial; loop-prone shapes are surfaced as warnings or policy diagnostics unless a true dock/protocol boundary is violated",
+    "Foreman routing policy/prose says GDI should be used when /goal adds autonomous iteration value, and ordinary one-shot coordination should stay with Foreman/Operator unless deliberately testing the contract",
+    "Warnings from dock-inbound-message-contract remain visible to callers such as dock-handoff-clipboard before or during clipboard output",
+    "Regression tests cover valid GDI pointer payloads, warning/diagnostic behavior for one-shot reply-exactly prompts, and valid Operator plain payloads",
+    "Statement that no live provider launch, real terminal drive, transcript body read, provider mutation, GitHub mutation, async routing, or unsupervised trigger behavior occurred"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires driving real dock terminals or launching live providers",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires gateway/broker, Slack, GitHub, Foreman inbox, notifier route mutation, async result routing, or removing --i-am-present",
+    "the corrected boundary requires human product direction beyond this contract/policy split"
+  ],
+  "human_notes": [
+    "This is a correction to an accepted useful slice, not a restart.",
+    "The transfer packet and work card live on the current local gdi/aos-dock-inbound-message-contract-v0 routing head.",
+    "The previous hard rejection solved the Ralph loop incident but overfit the dock contract; preserve the protection as visible warning/policy unless the shape is mechanically invalid."
+  ]
+}
