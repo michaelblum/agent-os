@@ -607,6 +607,10 @@ test('completes warm dock TUI reuse without source-owned provider teardown', asy
   assert.equal(receipt.terminal_substrate.status, 'warm_tui_reused');
   assert.equal(receipt.terminal_substrate.input_submission.context_reset_command, '/clear');
   assert.equal(receipt.terminal_substrate.input_submission.provider_prompt_prefix, '/goal ');
+  assert.equal(receipt.terminal_substrate.input_submission.provider_prompt_contract_path, '.docks/gdi/inbound-contract.json');
+  assert.match(receipt.terminal_substrate.input_submission.provider_entry_preview, /^\/goal Your work card is at /);
+  assert.deepEqual(receipt.terminal_substrate.input_submission.provider_prompt_diagnostics, []);
+  assert.equal(receipt.terminal_substrate.input_submission.stale_goal_recovery_command, '/goal clear');
   assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
   assert.equal(receipt.provider_acceptance.provider_session_id, newSessionId);
   assert.equal(receipt.cleanup.status, 'returned_to_idle');

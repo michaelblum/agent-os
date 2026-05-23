@@ -8,6 +8,7 @@ import { homedir, tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import http from 'node:http';
+import { validateDockInboundMessage } from './lib/dock-inbound-message-contract.mjs';
 
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
 const PROVIDER_BINARY_PATTERN = /(^|[/\s'"`])(codex|claude|gemini)(\s|$)/i;
@@ -17,7 +18,6 @@ const NOT_ATTEMPTED = 'not_attempted';
 const LOCAL_ARTIFACT_PATH = 'local_artifact_path';
 const NOT_APPLICABLE_NO_PROVIDER = 'not_applicable: no-provider-launch';
 const WARM_DOCK_TUI_REUSE = 'warm_dock_tui_reuse';
-const CONTEXT_RESET_COMMAND = '/clear';
 const LIVE_INPUT_TIMING_PROFILE = Object.freeze({
   startupSettleMs: 2000,
   charDelayMs: 10,
@@ -377,14 +377,21 @@ function configuredProviderPromptPrefix(context) {
     ?? null;
 }
 
+function liveProviderPromptPayload(context) {
+  if (typeof context.providerPromptPayload === 'string') return context.providerPromptPayload;
+  if (typeof context.provider_prompt_payload === 'string') return context.provider_prompt_payload;
+  const sourceArtifact = context.sourceArtifact ?? normalizeSourceArtifact(context.packet) ?? NOT_OBSERVED;
+  return `Your work card is at ${sourceArtifact}. Read it first, then begin.`;
+}
+
+function providerPromptMode(provider, dock, prefix) {
+  if (!prefix) return 'plain';
+  if (provider === 'codex' && dock === 'gdi' && prefix === '/goal ') return 'codex_goal';
+  return 'configured_prefix';
+}
+
 function providerPromptProfile(context = {}) {
   const configuredPrefix = configuredProviderPromptPrefix(context);
-  if (typeof configuredPrefix === 'string') {
-    return {
-      mode: configuredPrefix ? 'configured_prefix' : 'plain',
-      prefix: configuredPrefix,
-    };
-  }
   const selectedProvider = String(
     context.selectedProvider
       ?? context.selected_provider
@@ -403,22 +410,54 @@ function providerPromptProfile(context = {}) {
       ?? context.packet?.dock
       ?? '',
   ).toLowerCase();
-  if (selectedProvider === 'codex' && selectedDock === 'gdi') {
+  if (typeof configuredPrefix === 'string') {
     return {
-      mode: 'codex_goal',
-      prefix: '/goal ',
+      ok: true,
+      mode: providerPromptMode(selectedProvider, selectedDock, configuredPrefix),
+      prefix: configuredPrefix,
+      contract_path: NOT_OBSERVED,
+      provider_entry_preview: `${configuredPrefix}${context.providerPromptPayload ?? liveProviderPromptPayload(context)}`,
+      context_reset_command: context.contextResetCommand ?? '/clear',
+      stale_goal_recovery_command: null,
+      diagnostics: [],
     };
   }
+
+  if (context.repoRoot && selectedProvider && selectedDock && SUPPORTED_PROVIDERS.has(selectedProvider)) {
+    const contract = validateDockInboundMessage({
+      repoRoot: context.repoRoot,
+      targetDock: selectedDock,
+      provider: selectedProvider,
+      payload: context.providerPromptPayload ?? liveProviderPromptPayload(context),
+    });
+    return {
+      ok: contract.ok,
+      mode: providerPromptMode(selectedProvider, selectedDock, contract.provider_entry_prefix),
+      prefix: contract.provider_entry_prefix,
+      contract_path: contract.contract_path,
+      provider_entry_preview: contract.provider_entry_preview,
+      context_reset_command: contract.context_reset_command,
+      stale_goal_recovery_command: contract.stale_goal_recovery_command,
+      diagnostics: contract.diagnostics,
+    };
+  }
+
   return {
+    ok: true,
     mode: 'plain',
     prefix: '',
+    contract_path: NOT_OBSERVED,
+    provider_entry_preview: liveProviderPromptPayload(context),
+    context_reset_command: '/clear',
+    stale_goal_recovery_command: null,
+    diagnostics: [],
   };
 }
 
 function buildLiveProviderPrompt(context) {
-  const sourceArtifact = context.sourceArtifact ?? normalizeSourceArtifact(context.packet) ?? NOT_OBSERVED;
-  const profile = providerPromptProfile(context);
-  return `${profile.prefix}Your work card is at ${sourceArtifact}. Read it first, then begin.`;
+  const providerPromptPayload = liveProviderPromptPayload(context);
+  const profile = providerPromptProfile({ ...context, providerPromptPayload });
+  return profile.provider_entry_preview ?? `${profile.prefix}${providerPromptPayload}`;
 }
 
 function firstDispatchCharacter(prompt) {
@@ -442,6 +481,11 @@ function inputSubmissionRecord({
     prompt_ref: promptSource.sourceArtifact ?? NOT_OBSERVED,
     provider_prompt_mode: providerPrompt.mode,
     provider_prompt_prefix: providerPrompt.prefix,
+    provider_prompt_contract_path: providerPrompt.contract_path ?? NOT_OBSERVED,
+    provider_entry_preview: providerPrompt.provider_entry_preview ?? prompt,
+    provider_prompt_diagnostics: providerPrompt.diagnostics ?? [],
+    context_reset_command: providerPrompt.context_reset_command ?? NOT_OBSERVED,
+    stale_goal_recovery_command: providerPrompt.stale_goal_recovery_command ?? null,
     first_dispatch_character: firstDispatchCharacter(prompt),
     pointer_prompt_bytes: Buffer.byteLength(prompt),
     startup_settle_ms: timing.startupSettleMs,
@@ -664,10 +708,14 @@ function warmDockTuiReuseObservation(context) {
     prompt_transport: input.prompt_transport ?? input.promptTransport ?? 'warm_tui_direct_input',
     prompt_ref: context.sourceArtifact ?? NOT_OBSERVED,
     context_reset_submitted: true,
-    context_reset_command: CONTEXT_RESET_COMMAND,
+    context_reset_command: promptProfile.context_reset_command ?? '/clear',
     context_reset_expected_provider_boundary: true,
     provider_prompt_mode: input.provider_prompt_mode ?? input.providerPromptMode ?? promptProfile.mode,
     provider_prompt_prefix: input.provider_prompt_prefix ?? input.providerPromptPrefix ?? promptProfile.prefix,
+    provider_prompt_contract_path: promptProfile.contract_path ?? NOT_OBSERVED,
+    provider_entry_preview: promptProfile.provider_entry_preview ?? context.liveProviderPrompt,
+    provider_prompt_diagnostics: promptProfile.diagnostics ?? [],
+    stale_goal_recovery_command: promptProfile.stale_goal_recovery_command ?? null,
     first_dispatch_character: input.first_dispatch_character
       ?? input.firstDispatchCharacter
       ?? firstDispatchCharacter(context.liveProviderPrompt),
@@ -1482,6 +1530,18 @@ async function submitLiveProviderPrompt({
   timing = LIVE_INPUT_TIMING_PROFILE,
   sleepImpl = sleep,
 }) {
+  const providerPrompt = providerPromptProfile(promptSource);
+  if (providerPrompt.ok === false) {
+    return inputSubmissionRecord({
+      prompt,
+      promptSource,
+      inputResult: { ok: false, text_accepted: false },
+      keyResult: { ok: false, key_accepted: false },
+      timing,
+      typedCharacterCount: 0,
+      providerPrompt,
+    });
+  }
   await sleepImpl(timing.startupSettleMs);
   const inputResult = await typeCharacters({
     port,
@@ -1508,7 +1568,7 @@ async function submitLiveProviderPrompt({
     keyResult,
     timing,
     typedCharacterCount: inputResult.typed_character_count,
-    providerPrompt: providerPromptProfile(promptSource),
+    providerPrompt,
   });
 }
 
@@ -2049,6 +2109,7 @@ async function buildAttemptContext(options) {
     codexHome = join(homedir(), '.codex');
   }
   const promptContext = {
+    repoRoot,
     packet,
     packetId,
     sourceArtifact,
@@ -2142,6 +2203,7 @@ async function buildAttemptContext(options) {
     command,
     liveProviderPrompt,
     liveProviderPromptSource: {
+      repoRoot,
       packetId,
       sourceArtifact,
       requiredStartRef,
@@ -2233,7 +2295,9 @@ function initialRecord(context, timestamp) {
       provider_launch_performed: false,
       provider_process_reused: context.launchMode === WARM_DOCK_TUI_REUSE,
       provider_process_launch_performed: false,
-      context_reset_command: context.launchMode === WARM_DOCK_TUI_REUSE ? CONTEXT_RESET_COMMAND : NOT_APPLICABLE_NO_PROVIDER,
+      context_reset_command: context.launchMode === WARM_DOCK_TUI_REUSE
+        ? providerPromptProfile(context.liveProviderPromptSource).context_reset_command
+        : NOT_APPLICABLE_NO_PROVIDER,
       context_reset_expected_provider_boundary: context.launchMode === WARM_DOCK_TUI_REUSE,
     },
     terminal_substrate: {

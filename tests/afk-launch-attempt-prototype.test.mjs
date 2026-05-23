@@ -497,6 +497,7 @@ test('builds bounded file-backed live provider pointer prompt from source artifa
 
 test('builds Codex GDI live provider prompt with provider-owned goal prefix', () => {
   const prompt = buildLiveProviderPrompt({
+    repoRoot,
     packet: validPacket({
       packet_id: 'packet-live-prompt',
       source_artifact: 'docs/design/work-cards/live-prompt.md',
@@ -511,6 +512,168 @@ test('builds Codex GDI live provider prompt with provider-owned goal prefix', ()
 
   assert.equal(prompt, '/goal Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.');
   assert.ok(Buffer.byteLength(prompt) < 400);
+});
+
+test('builds Codex GDI live provider prompt through dock inbound contract', async () => {
+  const sourceArtifact = 'docs/design/work-cards/live-prompt.md';
+  const promptSource = {
+    repoRoot,
+    packet: validPacket({
+      packet_id: 'packet-live-prompt',
+      source_artifact: sourceArtifact,
+      provider_hint: 'codex',
+      requested_recipient: 'gdi',
+    }),
+    packetId: 'packet-live-prompt',
+    sourceArtifact,
+    selectedProvider: 'codex',
+    selectedDock: 'gdi',
+  };
+  const prompt = buildLiveProviderPrompt(promptSource);
+  const submission = await submitLiveProviderPrompt({
+    port: 48123,
+    session: 'afk-live-prompt-contract',
+    prompt,
+    promptSource,
+    fetchImpl: async (url, options) => ({
+      ok: true,
+      async json() {
+        const body = JSON.parse(options.body);
+        return /\/key$/.test(url)
+          ? { ok: true, key: body.key, key_accepted: true }
+          : { ok: true, text_accepted: true, enter_sent: false, enter_accepted: false };
+      },
+    }),
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(prompt, `/goal Your work card is at ${sourceArtifact}. Read it first, then begin.`);
+  assert.equal(submission.provider_prompt_mode, 'codex_goal');
+  assert.equal(submission.provider_prompt_prefix, '/goal ');
+  assert.equal(submission.provider_prompt_contract_path, '.docks/gdi/inbound-contract.json');
+  assert.equal(submission.provider_entry_preview, prompt);
+  assert.deepEqual(submission.provider_prompt_diagnostics, []);
+  assert.equal(submission.context_reset_command, '/clear');
+  assert.equal(submission.stale_goal_recovery_command, '/goal clear');
+});
+
+test('builds Operator Codex live provider prompt through plain dock inbound contract', async () => {
+  const sourceArtifact = 'docs/design/work-cards/operator-live-prompt.md';
+  const promptSource = {
+    repoRoot,
+    packet: validPacket({
+      packet_id: 'operator-live-prompt',
+      source_artifact: sourceArtifact,
+      provider_hint: 'codex',
+      requested_recipient: 'operator',
+    }),
+    packetId: 'operator-live-prompt',
+    sourceArtifact,
+    selectedProvider: 'codex',
+    selectedDock: 'operator',
+  };
+  const prompt = buildLiveProviderPrompt(promptSource);
+  const submission = await submitLiveProviderPrompt({
+    port: 48123,
+    session: 'afk-operator-live-prompt-contract',
+    prompt,
+    promptSource,
+    fetchImpl: async (url, options) => ({
+      ok: true,
+      async json() {
+        const body = JSON.parse(options.body);
+        return /\/key$/.test(url)
+          ? { ok: true, key: body.key, key_accepted: true }
+          : { ok: true, text_accepted: true, enter_sent: false, enter_accepted: false };
+      },
+    }),
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(prompt, `Your work card is at ${sourceArtifact}. Read it first, then begin.`);
+  assert.equal(submission.provider_prompt_mode, 'plain');
+  assert.equal(submission.provider_prompt_prefix, '');
+  assert.equal(submission.provider_prompt_contract_path, '.docks/operator/inbound-contract.json');
+  assert.equal(submission.provider_entry_preview, prompt);
+  assert.deepEqual(submission.provider_prompt_diagnostics, []);
+  assert.equal(submission.context_reset_command, '/clear');
+  assert.equal(submission.stale_goal_recovery_command, null);
+});
+
+test('preserves GDI contract warnings while allowing prompt submission', async () => {
+  const promptSource = {
+    repoRoot,
+    packet: validPacket({
+      packet_id: 'warning-live-prompt',
+      source_artifact: 'docs/design/work-cards/live-prompt.md',
+      provider_hint: 'codex',
+      requested_recipient: 'gdi',
+    }),
+    packetId: 'warning-live-prompt',
+    sourceArtifact: 'docs/design/work-cards/live-prompt.md',
+    selectedProvider: 'codex',
+    selectedDock: 'gdi',
+    providerPromptPayload: 'Warm TUI reuse live proof only. Reply with exactly: PASS',
+  };
+  const prompt = buildLiveProviderPrompt(promptSource);
+  const submission = await submitLiveProviderPrompt({
+    port: 48123,
+    session: 'afk-warning-live-prompt-contract',
+    prompt,
+    promptSource,
+    fetchImpl: async (url, options) => ({
+      ok: true,
+      async json() {
+        const body = JSON.parse(options.body);
+        return /\/key$/.test(url)
+          ? { ok: true, key: body.key, key_accepted: true }
+          : { ok: true, text_accepted: true, enter_sent: false, enter_accepted: false };
+      },
+    }),
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(prompt, '/goal Warm TUI reuse live proof only. Reply with exactly: PASS');
+  assert.equal(submission.status, 'submitted');
+  assert.ok(submission.provider_prompt_diagnostics.some((diagnostic) => diagnostic.code === 'gdi_one_shot_reply_exactly_risk'));
+  assert.ok(submission.provider_prompt_diagnostics.some((diagnostic) => diagnostic.code === 'repeated_completion_loop_risk'));
+  assert.ok(submission.provider_prompt_diagnostics.every((diagnostic) => diagnostic.severity === 'warning'));
+});
+
+test('blocks GDI contract errors before bridge typing path', async () => {
+  const requests = [];
+  const promptSource = {
+    repoRoot,
+    packet: validPacket({
+      packet_id: 'error-live-prompt',
+      source_artifact: 'docs/design/work-cards/live-prompt.md',
+      provider_hint: 'codex',
+      requested_recipient: 'gdi',
+    }),
+    packetId: 'error-live-prompt',
+    sourceArtifact: 'docs/design/work-cards/live-prompt.md',
+    selectedProvider: 'codex',
+    selectedDock: 'gdi',
+    providerPromptPayload: 'GDI should self-accept this architecture decision and report done.',
+  };
+  const prompt = buildLiveProviderPrompt(promptSource);
+  const submission = await submitLiveProviderPrompt({
+    port: 48123,
+    session: 'afk-error-live-prompt-contract',
+    prompt,
+    promptSource,
+    fetchImpl: async (url, options) => {
+      requests.push({ url, body: JSON.parse(options.body) });
+      return { ok: true, async json() { return { ok: true }; } };
+    },
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(requests.length, 0);
+  assert.equal(submission.status, 'prompt_submission_unobserved');
+  assert.equal(submission.typed_character_count, 0);
+  assert.equal(submission.provider_prompt_contract_path, '.docks/gdi/inbound-contract.json');
+  assert.ok(submission.provider_prompt_diagnostics.some((diagnostic) => diagnostic.code === 'gdi_self_acceptance_risk'));
 });
 
 test('types every live provider prompt character through one input path', async () => {
@@ -614,6 +777,7 @@ test('submits live provider pointer prompt with startup settle and isolated Ente
     session: 'afk-live-prompt-test',
     prompt,
     promptSource: {
+      repoRoot,
       packetId: 'packet-live-prompt',
       sourceArtifact: 'docs/design/work-cards/live-prompt.md',
       goal: 'deterministic prompt submission',
