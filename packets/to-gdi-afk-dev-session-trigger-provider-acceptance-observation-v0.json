@@ -1,0 +1,38 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T00:00:00-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "gdi_implementation_round",
+  "single_next_goal": "Make the guarded live Codex/GDI trigger path parse live terminal snapshot text and promote provider_acceptance.status to provider_session_observed when the provider session is observed.",
+  "work_card_ref": "docs/design/work-cards/afk-dev-session-trigger-provider-acceptance-observation-v0.md",
+  "required_start_ref": "foreman/afk-provider-acceptance-observation-v0",
+  "branch_from": "foreman/afk-provider-acceptance-observation-v0",
+  "expected_output_branch": "gdi/afk-dev-session-trigger-provider-acceptance-observation-v0",
+  "clipboard_prompt": "follow the transfer packet in packets/to-gdi-afk-dev-session-trigger-provider-acceptance-observation-v0.json",
+  "source_artifacts": [
+    "tests/afk-session-trigger-prototype.test.mjs",
+    "scripts/afk-launch-attempt-prototype.mjs",
+    "scripts/afk-session-trigger-prototype.mjs",
+    "docs/design/work-cards/afk-dev-session-trigger-packet-validation-status-correction-v0.md"
+  ],
+  "required_evidence": [
+    "Changed paths and head SHA",
+    "Deterministic tests showing live snapshot parsing promotes provider acceptance without executing Codex",
+    "Exact receipt/status behavior for observed and unobserved provider acceptance",
+    "Verification command results",
+    "AOS readiness or human-needed blocker",
+    "Statement whether Operator supervised live proof remains required"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires a live Codex launch",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "scope expands into async result routing, final session command design, or removing --i-am-present"
+  ],
+  "human_notes": [
+    "This packet adopts the short-pointer convention. The detailed task contract is the referenced work card.",
+    "Do not start async result routing until provider_acceptance_unobserved is closed and Foreman accepts the evidence."
+  ]
+}
