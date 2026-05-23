@@ -1033,6 +1033,129 @@ test('records warm dock TUI reuse with /clear boundary and Codex metadata sessio
   assert.deepEqual(record.mismatches, []);
 });
 
+test('uses Agent Terminal dock session fixture facts for warm dock TUI reuse substrate only', async () => {
+  const previousSessionId = '019e7200-eeee-7222-8333-444444444444';
+  const newSessionId = '019e7200-ffff-7222-8333-444444444444';
+  const packetPath = await writePacket(validPacket({
+    requested_recipient: 'gdi',
+    provider_hint: 'codex',
+    previous_provider_session_id: previousSessionId,
+  }));
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: previousSessionId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T22:29:00.000Z',
+      title: 'Previous Agent Terminal warm TUI session',
+    },
+    {
+      id: newSessionId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T22:30:30.000Z',
+      title: 'Post clear Agent Terminal warm TUI session',
+    },
+  ]);
+  const bridgePath = await writeBridgeVisibilityFixture({
+    warm_tui_reuse: {
+      previous_provider_session_id: previousSessionId,
+    },
+    dock_terminal_session: {
+      record_type: 'aos.dock_terminal_session',
+      dock: 'gdi',
+      dock_terminal_session_id: 'dock-terminal:gdi:agent-terminal-fixture',
+      session_id: 'dock-terminal:gdi:agent-terminal-fixture',
+      cwd: intendedLaunchCwd,
+      provider: 'codex',
+      provider_command: ['node', '-e', 'setTimeout(() => {}, 100)'],
+      pty: {
+        driver: 'aos_pty_process_fixture',
+        handle: 'sigil-agent-terminal-test',
+        cols: 132,
+        rows: 43,
+      },
+      lifecycle: {
+        state: 'running',
+        started_at: '2026-05-22T22:00:00.000Z',
+      },
+      lease: {
+        holder: 'agent_terminal',
+        purpose: 'observation',
+        disposition: 'returned_to_idle',
+      },
+    },
+    agent_terminal_observation: {
+      record_type: 'aos.agent_terminal_observation',
+      dock_terminal_session_id: 'dock-terminal:gdi:agent-terminal-fixture',
+      dock: 'gdi',
+      rendered_by: 'agent_terminal',
+      attach_state: 'attached',
+      cwd: intendedLaunchCwd,
+      command: ['node', '-e', 'setTimeout(() => {}, 100)'],
+      geometry: { cols: 132, rows: 43 },
+      lease: {
+        holder: 'agent_terminal',
+        purpose: 'observation',
+        disposition: 'returned_to_idle',
+      },
+      rail: {
+        provider_sessions_visible: true,
+        selected_provider_session_id: newSessionId,
+      },
+      acceptance_role: 'human_observability_only',
+      provider_acceptance: {
+        status: 'not_evidence',
+        reason: 'Agent Terminal visual state is not provider acceptance evidence',
+      },
+    },
+    bridge: {
+      input: {
+        text_accepted: true,
+        enter_accepted: true,
+      },
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--launch-mode',
+    'warm_dock_tui_reuse',
+    '--json',
+    '--timestamp',
+    '2026-05-22T22:31:00.000Z',
+    '--launch-observed-at',
+    '2026-05-22T22:30:00.000Z',
+    '--bridge-visibility-fixture',
+    bridgePath,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.terminal_substrate.owner, 'aos.dock_terminal_session');
+  assert.equal(record.terminal_substrate.dock_terminal_session_id, 'dock-terminal:gdi:agent-terminal-fixture');
+  assert.equal(record.terminal_substrate.driver, 'aos_pty_process_fixture');
+  assert.equal(record.terminal_substrate.session_handle, 'sigil-agent-terminal-test');
+  assert.equal(record.terminal_substrate.cwd, intendedLaunchCwd);
+  assert.deepEqual(record.terminal_substrate.geometry, { cols: 132, rows: 43 });
+  assert.equal(record.terminal_substrate.lease_disposition, 'returned_to_idle');
+  assert.deepEqual(record.terminal_substrate.provider_command, ['node', '-e', 'setTimeout(() => {}, 100)']);
+  assert.equal(record.terminal_substrate.command, 'warm-dock-tui-reuse');
+  assert.equal(record.terminal_substrate.agent_terminal_observation.acceptance_role, 'human_observability_only');
+  assert.equal(record.terminal_substrate.agent_terminal_observation.provider_acceptance.status, 'not_evidence');
+  assert.equal(record.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(record.provider_acceptance.provider_session_id, newSessionId);
+  assert.equal(record.provider_acceptance.observation_source, 'codex_adapter_metadata');
+  assert.equal(record.warm_tui_reuse.status, 'context_boundary_observed');
+  assert.deepEqual(record.mismatches, []);
+});
+
 test('reports warm dock TUI reuse mismatch when post-reset metadata resolves to previous session', async () => {
   const previousSessionId = '019e7200-cccc-7222-8333-444444444444';
   const packetPath = await writePacket(validPacket({

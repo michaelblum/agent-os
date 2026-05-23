@@ -698,6 +698,75 @@ function warmReuseFixtureInput(fixture) {
   return fixture.warm_tui_reuse ?? fixture.warmTuiReuse ?? fixture.warm_dock_tui_reuse ?? fixture.warmDockTuiReuse ?? fixture;
 }
 
+function dockTerminalSessionFixtureInput(fixture) {
+  if (!fixture || typeof fixture !== 'object') return null;
+  const source = fixture.dock_terminal_session_fixture
+    ?? fixture.dockTerminalSessionFixture
+    ?? fixture.agent_terminal
+    ?? fixture.agentTerminal
+    ?? fixture;
+  if (!source || typeof source !== 'object') return null;
+  const dockTerminalSession = source.dock_terminal_session ?? source.dockTerminalSession ?? null;
+  const agentTerminalObservation = source.agent_terminal_observation ?? source.agentTerminalObservation ?? null;
+  if (!dockTerminalSession && !agentTerminalObservation) return null;
+  return {
+    dock_terminal_session: dockTerminalSession,
+    agent_terminal_observation: agentTerminalObservation,
+  };
+}
+
+function dockTerminalFixtureGeometry(dockTerminalSession, agentTerminalObservation) {
+  return dockTerminalSession?.geometry
+    ?? dockTerminalSession?.pty
+    ?? agentTerminalObservation?.geometry
+    ?? agentTerminalObservation?.terminal
+    ?? {};
+}
+
+function normalizeDockTerminalSessionFixture(fixture, context, fallback = {}) {
+  const input = dockTerminalSessionFixtureInput(fixture);
+  if (!input?.dock_terminal_session) return null;
+  const dockTerminalSession = input.dock_terminal_session;
+  const agentTerminalObservation = input.agent_terminal_observation ?? null;
+  const pty = dockTerminalSession.pty ?? {};
+  const lease = dockTerminalSession.lease ?? agentTerminalObservation?.lease ?? {};
+  return createDockTerminalSessionReceipt({
+    repoRoot: context.repoRoot,
+    dock: dockTerminalSession.dock ?? agentTerminalObservation?.dock ?? context.selectedDock,
+    cwd: dockTerminalSession.cwd ?? agentTerminalObservation?.cwd ?? fallback.cwd,
+    provider: dockTerminalSession.provider ?? context.provider.selected_provider,
+    providerCommand: dockTerminalSession.provider_command
+      ?? dockTerminalSession.providerCommand
+      ?? agentTerminalObservation?.command
+      ?? fallback.providerCommand,
+    ptyHandle: pty.handle
+      ?? pty.session_handle
+      ?? pty.sessionHandle
+      ?? dockTerminalSession.pty_handle
+      ?? dockTerminalSession.ptyHandle
+      ?? dockTerminalSession.session_handle
+      ?? dockTerminalSession.sessionHandle
+      ?? fallback.ptyHandle,
+    ptyDriver: pty.driver ?? dockTerminalSession.driver ?? fallback.ptyDriver,
+    geometry: dockTerminalFixtureGeometry(dockTerminalSession, agentTerminalObservation),
+    lifecycle: dockTerminalSession.lifecycle ?? agentTerminalObservation?.lifecycle ?? fallback.lifecycle,
+    lease: {
+      holder: lease.holder ?? fallback.lease?.holder,
+      purpose: lease.purpose ?? fallback.lease?.purpose,
+      disposition: lease.disposition
+        ?? lease.cleanup_disposition
+        ?? lease.cleanupDisposition
+        ?? fallback.lease?.disposition,
+    },
+    dockTerminalSessionId: dockTerminalSession.dock_terminal_session_id
+      ?? dockTerminalSession.dockTerminalSessionId
+      ?? dockTerminalSession.session_id
+      ?? agentTerminalObservation?.dock_terminal_session_id
+      ?? agentTerminalObservation?.dockTerminalSessionId
+      ?? fallback.dockTerminalSessionId,
+  });
+}
+
 function normalizePreviousProviderSessionId(context, fixture) {
   const warm = warmReuseFixtureInput(fixture) ?? {};
   return context.options?.previousProviderSessionId
@@ -728,7 +797,21 @@ function warmDockTuiReuseObservation(context) {
     : NOT_OBSERVED;
   const input = bridge.input ?? {};
   const key = bridge.key ?? {};
-  const dockTerminalSession = createDockTerminalSessionReceipt({
+  const dockTerminalFixture = dockTerminalSessionFixtureInput(fixture);
+  const dockTerminalSession = normalizeDockTerminalSessionFixture(fixture, context, {
+    cwd: base?.terminal_substrate?.cwd ?? warm.cwd ?? warm.dock_cwd ?? context.intendedLaunchCwd,
+    providerCommand: warm.provider_command ?? warm.providerCommand ?? ['codex', '--no-alt-screen'],
+    ptyHandle: base?.terminal_substrate?.session_handle ?? warm.session_handle ?? warm.sessionHandle,
+    ptyDriver: base?.terminal_substrate?.driver ?? warm.driver ?? 'aos_pty',
+    geometry: base?.terminal_substrate?.geometry ?? warm.geometry,
+    lifecycle: warm.lifecycle,
+    lease: {
+      holder: warm.lease_holder ?? warm.leaseHolder ?? 'afk',
+      purpose: warm.lease_purpose ?? warm.leasePurpose ?? 'dispatch',
+      disposition: warm.cleanup_disposition ?? warm.cleanupDisposition ?? 'returned_to_idle',
+    },
+    dockTerminalSessionId: warm.dock_terminal_session_id ?? warm.dockTerminalSessionId,
+  }) ?? createDockTerminalSessionReceipt({
     repoRoot: context.repoRoot,
     dock: context.selectedDock,
     cwd: base?.terminal_substrate?.cwd ?? warm.cwd ?? warm.dock_cwd ?? context.intendedLaunchCwd,
@@ -781,15 +864,26 @@ function warmDockTuiReuseObservation(context) {
       owner: 'aos.dock_terminal_session',
       dock_terminal_session_id: dockTerminalSession.dock_terminal_session_id,
       status: 'warm_tui_reused',
-      driver: base?.terminal_substrate?.driver ?? 'manual_tui',
-      session_handle: base?.terminal_substrate?.session_handle ?? warm.session_handle ?? warm.sessionHandle ?? NOT_OBSERVED,
+      driver: dockTerminalSession.pty.driver,
+      session_handle: dockTerminalSession.pty.handle ?? NOT_OBSERVED,
       cwd: dockTerminalSession.cwd,
       geometry: {
         cols: dockTerminalSession.pty.cols,
         rows: dockTerminalSession.pty.rows,
       },
       lease_disposition: dockTerminalSession.lease.disposition,
+      provider_command: dockTerminalSession.provider_command,
       command: 'warm-dock-tui-reuse',
+      ...(dockTerminalFixture?.agent_terminal_observation ? {
+        agent_terminal_observation: {
+          ...dockTerminalFixture.agent_terminal_observation,
+          acceptance_role: dockTerminalFixture.agent_terminal_observation.acceptance_role ?? 'human_observability_only',
+          provider_acceptance: {
+            ...(dockTerminalFixture.agent_terminal_observation.provider_acceptance ?? {}),
+            status: dockTerminalFixture.agent_terminal_observation.provider_acceptance?.status ?? 'not_evidence',
+          },
+        },
+      } : {}),
       input_submission: inputSubmission,
       bridge_health: base?.terminal_substrate?.bridge_health ?? NOT_OBSERVED,
     },

@@ -626,6 +626,94 @@ test('completes warm dock TUI reuse without source-owned provider teardown', asy
   assert.deepEqual(receipt.mismatches, []);
 });
 
+test('preserves Agent Terminal dock session fixture facts in warm dock TUI reuse receipt', async () => {
+  const previousSessionId = '019e7300-cccc-7222-8333-444444444444';
+  const newSessionId = '019e7300-dddd-7222-8333-444444444444';
+  const packetPath = await writePacket(validPacket({
+    previous_provider_session_id: previousSessionId,
+  }));
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const bridgeFixture = await writeJsonFixture('afk-session-trigger-bridge-', 'bridge.json', {
+    providerSessionId: newSessionId,
+    warm_tui_reuse: {
+      previous_provider_session_id: previousSessionId,
+      new_provider_session_id: newSessionId,
+    },
+    dock_terminal_session: {
+      record_type: 'aos.dock_terminal_session',
+      dock: 'gdi',
+      dock_terminal_session_id: 'dock-terminal:gdi:session-trigger-agent-terminal',
+      cwd: intendedLaunchCwd,
+      provider: 'codex',
+      provider_command: ['node', '-e', 'setTimeout(() => {}, 100)'],
+      pty: {
+        driver: 'aos_pty_process_fixture',
+        handle: 'sigil-agent-terminal-test',
+        cols: 132,
+        rows: 43,
+      },
+      lifecycle: { state: 'running' },
+      lease: {
+        holder: 'agent_terminal',
+        purpose: 'observation',
+        disposition: 'returned_to_idle',
+      },
+    },
+    agent_terminal_observation: {
+      record_type: 'aos.agent_terminal_observation',
+      dock_terminal_session_id: 'dock-terminal:gdi:session-trigger-agent-terminal',
+      dock: 'gdi',
+      rendered_by: 'agent_terminal',
+      attach_state: 'attached',
+      cwd: intendedLaunchCwd,
+      command: ['node', '-e', 'setTimeout(() => {}, 100)'],
+      geometry: { cols: 132, rows: 43 },
+      acceptance_role: 'human_observability_only',
+      provider_acceptance: { status: 'not_evidence' },
+    },
+    bridge: {
+      provider_launch_performed: false,
+      input: {
+        text_accepted: true,
+        enter_accepted: true,
+      },
+    },
+  });
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--warm-dock-tui-reuse',
+    '--json',
+    '--timestamp',
+    '2026-05-22T20:20:00.000Z',
+    '--idempotence-salt',
+    'warm-tui-reuse-agent-terminal-session-trigger',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.terminal_substrate.owner, 'aos.dock_terminal_session');
+  assert.equal(receipt.terminal_substrate.dock_terminal_session_id, 'dock-terminal:gdi:session-trigger-agent-terminal');
+  assert.equal(receipt.terminal_substrate.driver, 'aos_pty_process_fixture');
+  assert.equal(receipt.terminal_substrate.session_handle, 'sigil-agent-terminal-test');
+  assert.deepEqual(receipt.terminal_substrate.geometry, { cols: 132, rows: 43 });
+  assert.deepEqual(receipt.terminal_substrate.provider_command, ['node', '-e', 'setTimeout(() => {}, 100)']);
+  assert.equal(receipt.terminal_substrate.command, 'warm-dock-tui-reuse');
+  assert.equal(receipt.terminal_substrate.agent_terminal_observation.acceptance_role, 'human_observability_only');
+  assert.equal(receipt.terminal_substrate.agent_terminal_observation.provider_acceptance.status, 'not_evidence');
+  assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.provider_acceptance.provider_session_id, newSessionId);
+  assert.equal(receipt.warm_tui_reuse.provider_session_changed, true);
+  assert.deepEqual(receipt.mismatches, []);
+});
+
 test('rejects supervised-live pre-launch guard failures before side effects', async () => {
   const packetPath = await writePacket(validPacket());
   const result = runPrototype([
