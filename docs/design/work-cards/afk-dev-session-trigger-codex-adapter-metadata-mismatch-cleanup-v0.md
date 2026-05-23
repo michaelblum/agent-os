@@ -1,6 +1,33 @@
 # Work Card: AFK Dev Session Trigger Codex Adapter Metadata Mismatch Cleanup V0
 
-**Status:** Routed 2026-05-23
+**Status:** Accepted 2026-05-23
+
+## Result
+
+- Foreman review: accepted.
+- Branch/ref gates passed on
+  `gdi/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0` at
+  `e4e029f406ae2c452ee61181d9286565d9740ae2`, based on
+  `9541e5e8a402c95656bf0a0f66c626bed2d24873`.
+- Diff was scoped to:
+  - `scripts/afk-launch-attempt-prototype.mjs`;
+  - `tests/afk-launch-attempt-prototype.test.mjs`.
+- Behavior accepted: metadata-promoted Codex receipts remove stale nested
+  `codex_adapter.mismatches[].code=provider_session_id_not_observed` while
+  preserving the raw adapter diagnostic in non-promoted cwd/time fallback
+  cases.
+- Verification rerun by Foreman passed:
+  - `./aos ready` returned
+    `ready=true mode=repo daemon=reachable tap=active`;
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs` with 35/35
+    passing;
+  - `node --test tests/afk-session-trigger-prototype.test.mjs` with 16/16
+    passing;
+  - `cd packages/host && npm test` with 63/63 passing;
+  - `git diff --check`.
+- No live provider launch, transcript body read, provider store/catalog/telemetry
+  mutation, gateway/dock runtime mutation, GitHub issue/PR/main mutation, main
+  merge, PR creation, or async result routing occurred during this correction.
 
 ## Transfer Classification
 
