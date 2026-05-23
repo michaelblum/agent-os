@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos-dock-terminal-session-v0.schema.json",
+  "title": "AOS Dock Terminal Session v0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_type",
+    "dock",
+    "dock_terminal_session_id",
+    "session_id",
+    "cwd",
+    "provider",
+    "provider_command",
+    "pty",
+    "lifecycle",
+    "lease"
+  ],
+  "properties": {
+    "record_type": { "const": "aos.dock_terminal_session" },
+    "dock": { "enum": ["foreman", "gdi", "operator"] },
+    "dock_terminal_session_id": {
+      "type": "string",
+      "pattern": "^dock-terminal:(foreman|gdi|operator):[a-f0-9]{16,}$"
+    },
+    "session_id": { "type": "string" },
+    "cwd": { "type": "string", "minLength": 1 },
+    "provider": { "type": "string", "minLength": 1 },
+    "provider_command": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "pty": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["driver", "handle", "cols", "rows"],
+      "properties": {
+        "driver": { "type": "string", "minLength": 1 },
+        "handle": { "type": "string", "minLength": 1 },
+        "cols": { "type": "integer", "minimum": 20, "maximum": 300 },
+        "rows": { "type": "integer", "minimum": 8, "maximum": 120 }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "started_at", "last_attached_at", "last_detached_at", "retired_at"],
+      "properties": {
+        "state": { "type": "string", "minLength": 1 },
+        "started_at": { "type": ["string", "null"] },
+        "last_attached_at": { "type": ["string", "null"] },
+        "last_detached_at": { "type": ["string", "null"] },
+        "retired_at": { "type": ["string", "null"] }
+      }
+    },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["holder", "purpose", "disposition"],
+      "properties": {
+        "holder": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 },
+        "disposition": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

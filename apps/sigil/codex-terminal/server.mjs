@@ -6,6 +6,10 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listProviderSessions } from '../../../packages/host/src/session-catalog.ts';
 import { buildSessionInspector } from './session-inspector.mjs';
+import {
+  createAgentTerminalObservation,
+  createDockTerminalSessionReceipt,
+} from '../../../scripts/lib/dock-terminal-session-registry.mjs';
 
 const port = Number(process.env.SIGIL_AGENT_TERMINAL_PORT || process.env.SIGIL_CODEX_TERMINAL_PORT || process.env.PORT || 17761);
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -13,6 +17,7 @@ const ptyProxyPath = path.join(scriptDir, 'pty-proxy.py');
 const defaultSession = process.env.SIGIL_AGENT_TMUX_SESSION || process.env.SIGIL_CODEX_TMUX_SESSION || 'sigil-agent-terminal-agent-os';
 const defaultCwd = process.env.SIGIL_AGENT_CWD || process.env.SIGIL_CODEX_CWD || process.cwd();
 const defaultCommand = process.env.SIGIL_AGENT_COMMAND || process.env.SIGIL_CODEX_COMMAND || 'codex --no-alt-screen';
+const defaultRepoRoot = process.env.SIGIL_AGENT_REPO_ROOT || process.env.SIGIL_CODEX_REPO_ROOT || process.cwd();
 const requestedDriver = process.env.SIGIL_AGENT_TERMINAL_DRIVER || process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
 const processSessions = new Map();
 const ownedTmuxSessions = new Set();
@@ -464,6 +469,33 @@ function terminalCwdForSession(session) {
   return processSessions.get(session)?.cwd || sessionCommands.get(session)?.cwd || defaultCwd;
 }
 
+function dockTerminalSessionForUrl(url) {
+  const dock = url.searchParams.get('dock') || process.env.SIGIL_AGENT_DOCK || 'gdi';
+  const session = cleanSession(url.searchParams.get('session') || defaultSession);
+  const command = sessionCommands.get(session)?.command || defaultCommand;
+  const receipt = createDockTerminalSessionReceipt({
+    repoRoot: defaultRepoRoot,
+    dock,
+    cwd: url.searchParams.get('cwd') || process.env.SIGIL_AGENT_DOCK_CWD || undefined,
+    provider: url.searchParams.get('provider') || 'codex',
+    providerCommand: command,
+    ptyHandle: session,
+    ptyDriver: activeDriver() === 'process' ? 'aos_pty_process_fixture' : 'aos_pty_tmux_fixture',
+    geometry: processSessions.get(session)?.terminalSize ?? defaultTerminalSize,
+    lease: {
+      holder: url.searchParams.get('lease_holder') || 'agent_terminal',
+      purpose: url.searchParams.get('lease_purpose') || 'observation',
+      disposition: url.searchParams.get('lease_disposition') || 'returned_to_idle',
+    },
+  });
+  return {
+    dock_terminal_session: receipt,
+    agent_terminal_observation: createAgentTerminalObservation(receipt, {
+      selectedProviderSessionId: url.searchParams.get('provider_session_id') || null,
+    }),
+  };
+}
+
 function sessionCatalogQueryForUrl(url) {
   const providerParams = url.searchParams.getAll('provider');
   const providers = providerParams.filter((provider) => provider === 'codex' || provider === 'claude-code');
@@ -660,6 +692,11 @@ async function handle(req, res) {
 
     if (req.method === 'GET' && url.pathname === '/sessions') {
       json(res, 200, sessionCatalogQueryForUrl(url));
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/dock-terminal-session') {
+      json(res, 200, dockTerminalSessionForUrl(url));
       return;
     }
 

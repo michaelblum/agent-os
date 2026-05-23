@@ -604,7 +604,12 @@ test('completes warm dock TUI reuse without source-owned provider teardown', asy
   assert.equal(receipt.scheduler.selected_action, 'warm-dock-tui-reuse');
   assert.equal(receipt.scheduler.lifecycle_state, 'completed');
   assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.equal(receipt.terminal_substrate.owner, 'aos.dock_terminal_session');
+  assert.match(receipt.terminal_substrate.dock_terminal_session_id, /^dock-terminal:gdi:[a-f0-9]{16}$/);
   assert.equal(receipt.terminal_substrate.status, 'warm_tui_reused');
+  assert.equal(receipt.terminal_substrate.cwd, intendedLaunchCwd);
+  assert.deepEqual(receipt.terminal_substrate.geometry, { cols: 100, rows: 31 });
+  assert.equal(receipt.terminal_substrate.lease_disposition, 'returned_to_idle');
   assert.equal(receipt.terminal_substrate.input_submission.context_reset_command, '/clear');
   assert.equal(receipt.terminal_substrate.input_submission.provider_prompt_prefix, '/goal ');
   assert.equal(receipt.terminal_substrate.input_submission.provider_prompt_contract_path, '.docks/gdi/inbound-contract.json');

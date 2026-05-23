@@ -1009,7 +1009,12 @@ test('records warm dock TUI reuse with /clear boundary and Codex metadata sessio
   assert.equal(record.launch_intent.provider_launch_performed, false);
   assert.equal(record.launch_intent.context_reset_command, '/clear');
   assert.equal(record.launch_intent.context_reset_expected_provider_boundary, true);
+  assert.equal(record.terminal_substrate.owner, 'aos.dock_terminal_session');
+  assert.match(record.terminal_substrate.dock_terminal_session_id, /^dock-terminal:gdi:[a-f0-9]{16}$/);
   assert.equal(record.terminal_substrate.status, 'warm_tui_reused');
+  assert.equal(record.terminal_substrate.cwd, intendedLaunchCwd);
+  assert.deepEqual(record.terminal_substrate.geometry, { cols: 80, rows: 24 });
+  assert.equal(record.terminal_substrate.lease_disposition, 'returned_to_idle');
   assert.equal(record.terminal_substrate.input_submission.context_reset_submitted, true);
   assert.equal(record.terminal_substrate.input_submission.context_reset_command, '/clear');
   assert.equal(record.terminal_substrate.input_submission.provider_prompt_mode, 'codex_goal');

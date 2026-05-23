@@ -163,6 +163,24 @@ describe('Sigil Agent Terminal bridge', () => {
     );
   });
 
+  it('exposes dock terminal session observation without provider acceptance authority', async () => {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/dock-terminal-session?dock=gdi&session=sigil-agent-terminal-test&provider_session_id=codex-session`,
+    );
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.dock_terminal_session.record_type, 'aos.dock_terminal_session');
+    assert.equal(payload.dock_terminal_session.dock, 'gdi');
+    assert.match(payload.dock_terminal_session.dock_terminal_session_id, /^dock-terminal:gdi:[a-f0-9]{16}$/);
+    assert.equal(payload.dock_terminal_session.cwd, path.join(process.cwd(), '.docks/gdi'));
+    assert.deepEqual(payload.dock_terminal_session.provider_command, ['node', '-e', 'setTimeout(() => {}, 100)']);
+    assert.deepEqual(payload.agent_terminal_observation.geometry, { cols: 80, rows: 24 });
+    assert.equal(payload.agent_terminal_observation.lease.disposition, 'returned_to_idle');
+    assert.equal(payload.agent_terminal_observation.acceptance_role, 'human_observability_only');
+    assert.equal(payload.agent_terminal_observation.provider_acceptance.status, 'not_evidence');
+    assert.equal(payload.agent_terminal_observation.rail.selected_provider_session_id, 'codex-session');
+  });
+
   it('supports explicit all-cwd provider catalog queries', async () => {
     const response = await fetch(`http://127.0.0.1:${port}/sessions?provider=codex&all_cwd=true`);
     assert.equal(response.status, 200);

@@ -9,6 +9,7 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import http from 'node:http';
 import { validateDockInboundMessage } from './lib/dock-inbound-message-contract.mjs';
+import { createDockTerminalSessionReceipt } from './lib/dock-terminal-session-registry.mjs';
 
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
 const PROVIDER_BINARY_PATTERN = /(^|[/\s'"`])(codex|claude|gemini)(\s|$)/i;
@@ -727,6 +728,23 @@ function warmDockTuiReuseObservation(context) {
     : NOT_OBSERVED;
   const input = bridge.input ?? {};
   const key = bridge.key ?? {};
+  const dockTerminalSession = createDockTerminalSessionReceipt({
+    repoRoot: context.repoRoot,
+    dock: context.selectedDock,
+    cwd: base?.terminal_substrate?.cwd ?? warm.cwd ?? warm.dock_cwd ?? context.intendedLaunchCwd,
+    provider: context.provider.selected_provider,
+    providerCommand: warm.provider_command ?? warm.providerCommand ?? ['codex', '--no-alt-screen'],
+    ptyHandle: base?.terminal_substrate?.session_handle ?? warm.session_handle ?? warm.sessionHandle,
+    ptyDriver: base?.terminal_substrate?.driver ?? warm.driver ?? 'aos_pty',
+    geometry: base?.terminal_substrate?.geometry ?? warm.geometry,
+    lifecycle: warm.lifecycle,
+    lease: {
+      holder: warm.lease_holder ?? warm.leaseHolder ?? 'afk',
+      purpose: warm.lease_purpose ?? warm.leasePurpose ?? 'dispatch',
+      disposition: warm.cleanup_disposition ?? warm.cleanupDisposition ?? 'returned_to_idle',
+    },
+    dockTerminalSessionId: warm.dock_terminal_session_id ?? warm.dockTerminalSessionId,
+  });
   const inputSubmission = {
     status: input.status ?? key.status ?? 'submitted',
     prompt_transport: input.prompt_transport ?? input.promptTransport ?? 'warm_tui_direct_input',
@@ -760,10 +778,17 @@ function warmDockTuiReuseObservation(context) {
     provider_launch_performed: false,
     terminal_substrate: {
       ...(base?.terminal_substrate ?? {}),
+      owner: 'aos.dock_terminal_session',
+      dock_terminal_session_id: dockTerminalSession.dock_terminal_session_id,
       status: 'warm_tui_reused',
       driver: base?.terminal_substrate?.driver ?? 'manual_tui',
       session_handle: base?.terminal_substrate?.session_handle ?? warm.session_handle ?? warm.sessionHandle ?? NOT_OBSERVED,
-      cwd: base?.terminal_substrate?.cwd ?? context.intendedLaunchCwd,
+      cwd: dockTerminalSession.cwd,
+      geometry: {
+        cols: dockTerminalSession.pty.cols,
+        rows: dockTerminalSession.pty.rows,
+      },
+      lease_disposition: dockTerminalSession.lease.disposition,
       command: 'warm-dock-tui-reuse',
       input_submission: inputSubmission,
       bridge_health: base?.terminal_substrate?.bridge_health ?? NOT_OBSERVED,
