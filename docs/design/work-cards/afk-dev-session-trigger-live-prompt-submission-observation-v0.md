@@ -1,6 +1,6 @@
 # Work Card: AFK Dev Session Trigger Live Prompt Submission Observation V0
 
-**Status:** Routed 2026-05-23
+**Status:** Correction required 2026-05-23
 
 ## Transfer Classification
 
@@ -29,6 +29,27 @@
   required start ref. Commit and push that GDI branch when verification passes,
   per the active `agentic_relay` profile. Do not open a PR, merge, close issues,
   mutate GitHub state beyond the branch push, or start async result routing.
+
+## Foreman Review Result
+
+GDI completed this round at
+`b8808a50e6b718a943bdcd1e8853a02a3f446b10`. Deterministic verification passed:
+
+```bash
+./aos ready
+node --test tests/afk-session-trigger-prototype.test.mjs
+node --test tests/afk-launch-attempt-prototype.test.mjs
+node --test tests/sigil-agent-terminal-server.test.mjs
+git diff --check a3930e8f5197a9a50beb729310a74717e79496de..b8808a50e6b718a943bdcd1e8853a02a3f446b10
+```
+
+Foreman did not accept the slice as closing provider acceptance. The new
+Codex metadata fallback records `matched_by_cwd_time_window`, but
+`deriveLifecycleState()` only treats `provider_session_observed` or
+`matched_by_provider_session_id` as closing the gate. Existing tests also assert
+the fallback match while preserving the `provider_session_id_not_observed`
+mismatch. Route the correction in
+`docs/design/work-cards/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0.md`.
 
 ## Fresh Context Contract
 

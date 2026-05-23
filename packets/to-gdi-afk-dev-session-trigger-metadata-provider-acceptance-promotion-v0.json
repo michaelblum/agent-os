@@ -1,0 +1,36 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T02:11:20-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "correction_round",
+  "single_next_goal": "Promote strong metadata-backed Codex thread correlation into provider_acceptance.status=provider_session_observed for the guarded live Codex/GDI path after successful prompt submission.",
+  "work_card_ref": "docs/design/work-cards/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0.md",
+  "required_start_ref": "foreman/afk-provider-metadata-acceptance-promotion-v0",
+  "branch_from": "foreman/afk-provider-metadata-acceptance-promotion-v0",
+  "expected_output_branch": "gdi/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0",
+  "prompt_submission_source_head": "b8808a50e6b718a943bdcd1e8853a02a3f446b10",
+  "prompt_submission_source_base": "a3930e8f5197a9a50beb729310a74717e79496de",
+  "clipboard_prompt": "follow the transfer packet in packets/to-gdi-afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0.json; start from foreman/afk-provider-metadata-acceptance-promotion-v0",
+  "review_finding": "The prompt-submission branch records matched_by_cwd_time_window but deriveLifecycleState only closes provider acceptance for provider_session_observed or matched_by_provider_session_id, leaving live no-session-id runs provider_acceptance_unobserved even when a concrete metadata thread is found.",
+  "required_evidence": [
+    "Provider acceptance is promoted from a strong matched_by_cwd_time_window Codex adapter correlation after successful prompt submission",
+    "Promoted provider_session_id is the matched Codex thread id with bounded metadata evidence refs",
+    "Lifecycle becomes provider_session_observed for the promoted metadata identity",
+    "Session-trigger receipt can complete when promoted provider acceptance and cleanup proof are both present",
+    "Unobserved, wrong-cwd, multiple-candidate, no-window, and failed-prompt paths remain rejected or failed as before",
+    "Verification command results",
+    "Statement that Operator supervised live proof remains required"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires a live Codex launch",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "scope expands into async result routing, final session command design, GitHub mutation, PR creation, or removing --i-am-present"
+  ],
+  "human_notes": [
+    "Do not start async result routing until provider acceptance closes and Foreman accepts the live proof.",
+    "Foreman will route the next supervised Operator proof after accepting this deterministic correction."
+  ]
+}
