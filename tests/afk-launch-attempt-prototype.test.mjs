@@ -7,8 +7,10 @@ import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import {
   buildLiveProviderPrompt,
+  LIVE_INPUT_TIMING_PROFILE,
   providerObservationFromBridgeSnapshot,
   submitLiveProviderPrompt,
+  typeCharacters,
 } from '../scripts/afk-launch-attempt-prototype.mjs';
 
 const repoRoot = resolve(new URL('..', import.meta.url).pathname);
@@ -298,9 +300,15 @@ test('represents accepted supervised live Codex bridge pass from deterministic f
     resize_accepted: true,
   });
   assert.equal(record.terminal_substrate.input_submission.text_accepted, true);
-  assert.equal(record.terminal_substrate.input_submission.enter_accepted, true);
+  assert.equal(record.terminal_substrate.input_submission.enter_accepted, false);
   assert.equal(record.terminal_substrate.input_submission.extra_enter_needed, true);
   assert.equal(record.terminal_substrate.input_submission.key_accepted, true);
+  assert.equal(record.terminal_substrate.input_submission.prompt_transport, 'file_pointer');
+  assert.equal(record.terminal_substrate.input_submission.startup_settle_ms, 2000);
+  assert.equal(record.terminal_substrate.input_submission.char_delay_ms, 10);
+  assert.equal(record.terminal_substrate.input_submission.pre_submit_delay_ms, 300);
+  assert.equal(record.terminal_substrate.input_submission.submit_key_separate_write, true);
+  assert.equal(record.terminal_substrate.input_submission.provider_execution_observed, true);
   assert.equal(record.terminal_substrate.input_submission.response_marker, responseMarker);
   assert.equal(record.terminal_substrate.input_submission.response_marker_observed, true);
   assert.equal(record.provider_acceptance.status, 'provider_session_observed');
@@ -372,7 +380,7 @@ test('keeps live terminal snapshot provider acceptance unobserved when no provid
   assert.equal(observation.mismatch.effect, 'not_observed');
 });
 
-test('builds bounded live provider prompt from packet goal and source artifact', () => {
+test('builds bounded file-backed live provider pointer prompt from source artifact', () => {
   const prompt = buildLiveProviderPrompt({
     packet: validPacket({
       packet_id: 'packet-live-prompt',
@@ -386,35 +394,84 @@ test('builds bounded live provider prompt from packet goal and source artifact',
     worktree: repoRoot,
   });
 
-  assert.match(prompt, /Goal: submit this transfer packet goal/);
-  assert.match(prompt, /Packet: packet-live-prompt/);
-  assert.match(prompt, /Source artifact: docs\/design\/work-cards\/live-prompt\.md/);
-  assert.match(prompt, /Required start ref: foreman\/live-prompt/);
+  assert.equal(prompt, 'Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.');
+  assert.ok(Buffer.byteLength(prompt) < 400);
+  assert.match(prompt, /docs\/design\/work-cards\/live-prompt\.md/);
+  assert.doesNotMatch(prompt, /Goal:/);
+  assert.doesNotMatch(prompt, /Packet:/);
+  assert.doesNotMatch(prompt, /Required start ref:/);
+  assert.doesNotMatch(prompt, /submit this transfer packet goal/);
   assert.doesNotMatch(prompt, /body text must not be read/);
 });
 
-test('submits live provider prompt through bridge input without executing Codex', async () => {
+test('types every live provider prompt character through one input path', async () => {
   const requests = [];
+  const delays = [];
   const fetchImpl = async (url, options) => {
-    requests.push({ url, options });
+    requests.push({ url, body: JSON.parse(options.body) });
     return {
       ok: true,
       async json() {
         return {
           ok: true,
-          driver: 'process',
-          session_exists: true,
-          text_bytes: Buffer.byteLength(JSON.parse(options.body).text ?? ''),
           text_accepted: true,
-          enter_sent: true,
-          enter_bytes: 1,
-          enter_accepted: true,
         };
       },
     };
   };
 
-  const prompt = 'Goal: deterministic prompt submission';
+  const result = await typeCharacters({
+    port: 48123,
+    session: 'afk-live-prompt-test',
+    text: 'ABC',
+    fetchImpl,
+    charDelayMs: 10,
+    sleepImpl: async (ms) => {
+      delays.push(ms);
+    },
+  });
+
+  assert.equal(result.text_accepted, true);
+  assert.equal(result.typed_character_count, 3);
+  assert.deepEqual(delays, [10, 10, 10]);
+  assert.deepEqual(requests.map((request) => request.body), [
+    { session: 'afk-live-prompt-test', text: 'A', enter: false },
+    { session: 'afk-live-prompt-test', text: 'B', enter: false },
+    { session: 'afk-live-prompt-test', text: 'C', enter: false },
+  ]);
+  assert.ok(requests.every((request) => /\/input$/.test(request.url)));
+});
+
+test('submits live provider pointer prompt with startup settle and isolated Enter key', async () => {
+  const requests = [];
+  const delays = [];
+  const fetchImpl = async (url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push({ url, body });
+    return {
+      ok: true,
+      async json() {
+        if (/\/key$/.test(url)) {
+          return {
+            ok: true,
+            key: body.key,
+            key_accepted: true,
+          };
+        }
+        return {
+          ok: true,
+          driver: 'process',
+          session_exists: true,
+          text_bytes: Buffer.byteLength(body.text ?? ''),
+          text_accepted: true,
+          enter_sent: false,
+          enter_accepted: false,
+        };
+      },
+    };
+  };
+
+  const prompt = 'Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.';
   const submission = await submitLiveProviderPrompt({
     port: 48123,
     session: 'afk-live-prompt-test',
@@ -425,22 +482,122 @@ test('submits live provider prompt through bridge input without executing Codex'
       goal: 'deterministic prompt submission',
     },
     fetchImpl,
+    sleepImpl: async (ms) => {
+      delays.push(ms);
+    },
   });
 
-  assert.equal(requests.length, 1);
-  assert.match(requests[0].url, /\/input$/);
-  assert.deepEqual(JSON.parse(requests[0].options.body), {
+  assert.deepEqual(LIVE_INPUT_TIMING_PROFILE, {
+    startupSettleMs: 2000,
+    charDelayMs: 10,
+    preSubmitDelayMs: 300,
+  });
+  assert.equal(requests.length, [...prompt].length + 1);
+  assert.deepEqual(delays, [2000, ...Array.from({ length: [...prompt].length }, () => 10), 300]);
+  assert.deepEqual(requests[0].body, {
     session: 'afk-live-prompt-test',
-    text: prompt,
-    enter: true,
+    text: prompt[0],
+    enter: false,
+  });
+  assert.deepEqual(requests.at(-1), {
+    url: 'http://127.0.0.1:48123/key',
+    body: {
+      session: 'afk-live-prompt-test',
+      key: 'Enter',
+    },
   });
   assert.equal(submission.status, 'submitted');
+  assert.equal(submission.prompt_transport, 'file_pointer');
+  assert.equal(submission.prompt_ref, 'docs/design/work-cards/live-prompt.md');
+  assert.equal(submission.pointer_prompt_bytes, Buffer.byteLength(prompt));
+  assert.equal(submission.startup_settle_ms, 2000);
+  assert.equal(submission.char_delay_ms, 10);
+  assert.equal(submission.typed_character_count, [...prompt].length);
+  assert.equal(submission.pre_submit_delay_ms, 300);
+  assert.equal(submission.submit_key_separate_write, true);
   assert.equal(submission.text_accepted, true);
-  assert.equal(submission.enter_accepted, true);
+  assert.equal(submission.enter_sent, false);
+  assert.equal(submission.enter_accepted, false);
+  assert.equal(submission.key_accepted, true);
+  assert.equal(submission.provider_execution_observed, false);
   assert.equal(submission.prompt_summary.packet_id_or_ref, 'packet-live-prompt');
   assert.equal(submission.prompt_summary.source_artifact, 'docs/design/work-cards/live-prompt.md');
   assert.match(submission.prompt_summary.prompt_sha256, /^[a-f0-9]{64}$/);
   assert.equal(submission.prompt_summary.prompt_bytes, Buffer.byteLength(prompt));
+});
+
+test('keeps bridge byte delivery separate from provider execution observation', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const bridgePath = await writeBridgeVisibilityFixture({
+    response_marker: 'prompt-visible-but-not-executed',
+    bridge: {
+      supervised_live: true,
+      health: {
+        ok: true,
+        defaultSession: 'afk-provider-execution-unobserved',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-provider-execution-unobserved',
+        cwd: intendedLaunchCwd,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      input: {
+        prompt_transport: 'file_pointer',
+        prompt_ref: 'docs/design/work-cards/live-prompt.md',
+        pointer_prompt_bytes: 88,
+        typed_character_count: 88,
+        text_accepted: true,
+      },
+      key: {
+        key: 'Enter',
+        key_accepted: true,
+      },
+      typed_observed: true,
+      submitted_observed: true,
+      snapshot: {
+        session: 'afk-provider-execution-unobserved',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        text: [
+          'Codex CLI 0.133.0',
+          'cwd /Users/Michael/Code/agent-os/.docks/gdi',
+          'Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.',
+        ].join('\n'),
+      },
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--launch-mode',
+    'supervised-provider',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--bridge-visibility-fixture',
+    bridgePath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.terminal_substrate.input_submission.status, 'submitted');
+  assert.equal(record.terminal_substrate.input_submission.text_accepted, true);
+  assert.equal(record.terminal_substrate.input_submission.key_accepted, true);
+  assert.equal(record.terminal_substrate.input_submission.provider_execution_observed, false);
+  assert.equal(record.provider_acceptance.status, 'provider_acceptance_unobserved');
+  assert.equal(record.provider_acceptance.provider_session_id, 'not_observed');
+  assert.ok(record.mismatches.some((mismatch) => mismatch.code === 'provider_execution_unobserved'));
+  assert.equal(record.lifecycle_state, 'provider_acceptance_unobserved');
 });
 
 test('reuses the in-process attempt for a duplicate idempotence key', async () => {

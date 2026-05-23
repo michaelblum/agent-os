@@ -15,6 +15,11 @@ const DEFAULT_TIMESTAMP = null;
 const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
 const NOT_APPLICABLE_NO_PROVIDER = 'not_applicable: no-provider-launch';
+const LIVE_INPUT_TIMING_PROFILE = Object.freeze({
+  startupSettleMs: 2000,
+  charDelayMs: 10,
+  preSubmitDelayMs: 300,
+});
 const attemptRegistry = new Map();
 
 function usage() {
@@ -284,26 +289,30 @@ function boundedInlineText(value, limit = 240) {
 }
 
 function buildLiveProviderPrompt(context) {
-  const goal = context.packet.goal ?? context.packet.objective ?? context.packet.single_next_goal ?? NOT_OBSERVED;
-  const lines = [
-    '# AOS GDI transfer',
-    `Goal: ${boundedInlineText(goal, 600)}`,
-    `Packet: ${context.packetId ?? NOT_OBSERVED}`,
-    `Source artifact: ${context.sourceArtifact ?? NOT_OBSERVED}`,
-    `Required start ref: ${context.requiredStartRef ?? NOT_OBSERVED}`,
-    `Worktree: ${context.worktree ?? NOT_OBSERVED}`,
-    '',
-    'Follow the packet goal and repo instructions. Keep output bounded and report deterministic evidence.',
-  ];
-  return lines.join('\n').trim();
+  const sourceArtifact = context.sourceArtifact ?? normalizeSourceArtifact(context.packet) ?? NOT_OBSERVED;
+  return `Your work card is at ${sourceArtifact}. Read it first, then begin.`;
 }
 
-function inputSubmissionRecord({ prompt, inputResult = null, keyResult = null, promptSource = {} }) {
-  const inputOk = inputResult?.ok === true;
+function inputSubmissionRecord({
+  prompt,
+  inputResult = null,
+  keyResult = null,
+  promptSource = {},
+  timing = LIVE_INPUT_TIMING_PROFILE,
+  typedCharacterCount = Buffer.byteLength(prompt),
+}) {
+  const inputOk = inputResult?.ok === true || inputResult?.text_accepted === true || inputResult?.textAccepted === true;
   const keyOk = keyResult?.ok === true;
   return {
-    status: inputOk ? 'submitted' : 'prompt_submission_unobserved',
-    prompt_ref: 'inline:terminal_substrate.input_submission.prompt_summary',
+    status: inputOk && keyOk ? 'submitted' : 'prompt_submission_unobserved',
+    prompt_transport: 'file_pointer',
+    prompt_ref: promptSource.sourceArtifact ?? NOT_OBSERVED,
+    pointer_prompt_bytes: Buffer.byteLength(prompt),
+    startup_settle_ms: timing.startupSettleMs,
+    char_delay_ms: timing.charDelayMs,
+    typed_character_count: typedCharacterCount,
+    pre_submit_delay_ms: timing.preSubmitDelayMs,
+    submit_key_separate_write: true,
     prompt_summary: {
       packet_id_or_ref: promptSource.packetId ?? NOT_OBSERVED,
       source_artifact: promptSource.sourceArtifact ?? NOT_OBSERVED,
@@ -312,14 +321,15 @@ function inputSubmissionRecord({ prompt, inputResult = null, keyResult = null, p
       prompt_bytes: Buffer.byteLength(prompt),
     },
     text_accepted: inputResult?.text_accepted ?? inputResult?.textAccepted ?? inputOk,
-    enter_sent: inputResult?.enter_sent ?? inputResult?.enterSent ?? true,
-    enter_accepted: inputResult?.enter_accepted ?? inputResult?.enterAccepted ?? inputOk,
-    extra_enter_needed: keyResult ? true : false,
+    enter_sent: false,
+    enter_accepted: false,
+    extra_enter_needed: true,
     key_accepted: keyResult
       ? (keyResult.key_accepted ?? keyResult.keyAccepted ?? keyOk)
       : NOT_OBSERVED,
     typed_observed: NOT_OBSERVED,
-    submitted_observed: inputOk,
+    submitted_observed: inputOk && keyOk,
+    provider_execution_observed: false,
     response_marker: NOT_OBSERVED,
     response_marker_observed: false,
   };
@@ -425,13 +435,25 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
         resize_accepted: resize.resize_accepted ?? resize.resizeAccepted ?? false,
       } : NOT_OBSERVED,
       input_submission: input || key || markerObserved ? {
+        status: (input?.text_accepted ?? input?.textAccepted) && (key?.key_accepted ?? key?.keyAccepted)
+          ? 'submitted'
+          : 'prompt_submission_unobserved',
+        prompt_transport: input?.prompt_transport ?? input?.promptTransport ?? 'file_pointer',
+        prompt_ref: input?.prompt_ref ?? input?.promptRef ?? NOT_OBSERVED,
+        pointer_prompt_bytes: input?.pointer_prompt_bytes ?? input?.pointerPromptBytes ?? NOT_OBSERVED,
+        startup_settle_ms: input?.startup_settle_ms ?? input?.startupSettleMs ?? LIVE_INPUT_TIMING_PROFILE.startupSettleMs,
+        char_delay_ms: input?.char_delay_ms ?? input?.charDelayMs ?? LIVE_INPUT_TIMING_PROFILE.charDelayMs,
+        typed_character_count: input?.typed_character_count ?? input?.typedCharacterCount ?? NOT_OBSERVED,
+        pre_submit_delay_ms: input?.pre_submit_delay_ms ?? input?.preSubmitDelayMs ?? LIVE_INPUT_TIMING_PROFILE.preSubmitDelayMs,
+        submit_key_separate_write: input?.submit_key_separate_write ?? input?.submitKeySeparateWrite ?? Boolean(key),
         text_accepted: input?.text_accepted ?? input?.textAccepted ?? NOT_OBSERVED,
-        enter_sent: input?.enter_sent ?? input?.enterSent ?? NOT_OBSERVED,
-        enter_accepted: input?.enter_accepted ?? input?.enterAccepted ?? NOT_OBSERVED,
-        extra_enter_needed: Boolean(key?.key_accepted ?? key?.keyAccepted ?? false),
+        enter_sent: false,
+        enter_accepted: false,
+        extra_enter_needed: true,
         key_accepted: key?.key_accepted ?? key?.keyAccepted ?? NOT_OBSERVED,
         typed_observed: bridge.typed_observed ?? bridge.typedObserved ?? NOT_OBSERVED,
         submitted_observed: bridge.submitted_observed ?? bridge.submittedObserved ?? NOT_OBSERVED,
+        provider_execution_observed: providerObservation.provider_acceptance.status === 'provider_session_observed',
         response_marker: responseMarker,
         response_marker_observed: markerObserved,
       } : NOT_OBSERVED,
@@ -603,8 +625,32 @@ function promptSubmissionSucceeded(record) {
     || inputSubmission.submitted_observed === true
     || (
       inputSubmission.text_accepted === true
-      && inputSubmission.enter_accepted === true
+      && inputSubmission.submit_key_separate_write === true
+      && inputSubmission.key_accepted === true
     );
+}
+
+function providerExecutionUnobservedMismatch(record, timestamp) {
+  if (
+    !promptSubmissionSucceeded(record)
+    || record.provider_acceptance.status === 'provider_session_observed'
+  ) {
+    return null;
+  }
+  return {
+    observed_at: timestamp,
+    code: 'provider_execution_unobserved',
+    severity: 'info',
+    source: 'provider_acceptance',
+    expected: { provider_execution: 'snapshot provider session id or metadata-backed Codex thread identity' },
+    observed: {
+      bridge_byte_delivery: 'accepted',
+      key_accepted: record.terminal_substrate.input_submission.key_accepted,
+      provider_acceptance: record.provider_acceptance.status,
+    },
+    effect: 'not_observed',
+    evidence_ref: 'inline:terminal_substrate.input_submission',
+  };
 }
 
 function shouldPromoteCodexMetadataProviderAcceptance(record, correlation) {
@@ -637,9 +683,15 @@ function promoteCodexMetadataProviderAcceptance(record, correlation, reference, 
     observation_source: 'codex_adapter_metadata',
   };
   record.mismatches = record.mismatches.filter((mismatch) => !(
-    mismatch.code === 'provider_session_id_not_observed'
-    && (mismatch.source === 'provider_acceptance' || mismatch.source === 'codex_adapter')
+    (
+      mismatch.code === 'provider_session_id_not_observed'
+      && (mismatch.source === 'provider_acceptance' || mismatch.source === 'codex_adapter')
+    )
+    || mismatch.code === 'provider_execution_unobserved'
   ));
+  if (record.terminal_substrate?.input_submission && record.terminal_substrate.input_submission !== NOT_OBSERVED) {
+    record.terminal_substrate.input_submission.provider_execution_observed = true;
+  }
 }
 
 function sessionRef(session) {
@@ -1073,34 +1125,80 @@ async function waitForProviderObservationSnapshot(port, session, fallback) {
   return last;
 }
 
-async function submitLiveProviderPrompt({ port, session, prompt, promptSource = {}, fetchImpl = fetch, sendExtraEnter = false }) {
-  const inputResponse = await fetchImpl(`http://127.0.0.1:${port}/input`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      session,
-      text: prompt,
-      enter: true,
-    }),
-  });
-  const inputResult = inputResponse.ok ? await inputResponse.json() : { ok: false, status: inputResponse.status };
-  let keyResult = null;
-  if (sendExtraEnter) {
-    const keyResponse = await fetchImpl(`http://127.0.0.1:${port}/key`, {
+function sleep(ms) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
+}
+
+async function typeCharacters({
+  port,
+  session,
+  text,
+  fetchImpl = fetch,
+  charDelayMs = LIVE_INPUT_TIMING_PROFILE.charDelayMs,
+  sleepImpl = sleep,
+}) {
+  let lastResult = null;
+  let accepted = true;
+  for (const char of text) {
+    const inputResponse = await fetchImpl(`http://127.0.0.1:${port}/input`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         session,
-        key: 'Enter',
+        text: char,
+        enter: false,
       }),
     });
-    keyResult = keyResponse.ok ? await keyResponse.json() : { ok: false, status: keyResponse.status };
+    lastResult = inputResponse.ok ? await inputResponse.json() : { ok: false, status: inputResponse.status };
+    accepted = accepted && (lastResult.ok === true || lastResult.text_accepted === true || lastResult.textAccepted === true);
+    if (charDelayMs > 0) {
+      await sleepImpl(charDelayMs);
+    }
   }
+  return {
+    ok: accepted,
+    text_accepted: accepted,
+    typed_character_count: [...text].length,
+    text_bytes: Buffer.byteLength(text),
+    last_result: lastResult,
+  };
+}
+
+async function submitLiveProviderPrompt({
+  port,
+  session,
+  prompt,
+  promptSource = {},
+  fetchImpl = fetch,
+  timing = LIVE_INPUT_TIMING_PROFILE,
+  sleepImpl = sleep,
+}) {
+  await sleepImpl(timing.startupSettleMs);
+  const inputResult = await typeCharacters({
+    port,
+    session,
+    text: prompt,
+    fetchImpl,
+    charDelayMs: timing.charDelayMs,
+    sleepImpl,
+  });
+  await sleepImpl(timing.preSubmitDelayMs);
+  const keyResponse = await fetchImpl(`http://127.0.0.1:${port}/key`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      session,
+      key: 'Enter',
+    }),
+  });
+  const keyResult = keyResponse.ok ? await keyResponse.json() : { ok: false, status: keyResponse.status };
   return inputSubmissionRecord({
     prompt,
     promptSource,
     inputResult,
     keyResult,
+    timing,
+    typedCharacterCount: inputResult.typed_character_count,
   });
 }
 
@@ -1110,7 +1208,7 @@ function promptSubmissionMismatch(inputSubmission) {
     code: 'provider_prompt_submission_unobserved',
     severity: 'error',
     source: 'terminal_substrate',
-    expected: { input_submission: 'prompt text and Enter accepted by bridge /input' },
+    expected: { input_submission: 'prompt text accepted by bridge /input and isolated /key Enter accepted' },
     observed: { input_submission: inputSubmission?.status ?? NOT_OBSERVED },
     effect: 'not_observed',
     evidence_ref: 'inline:terminal_substrate.input_submission',
@@ -1506,6 +1604,8 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
         command,
         observedTerminalSubstrate: 'observed',
       });
+    inputSubmission.provider_execution_observed =
+      providerObservation.provider_acceptance.status === 'provider_session_observed';
     observed = {
       bridge_session_started: true,
       command,
@@ -2023,6 +2123,10 @@ async function createLaunchAttempt(options) {
       status: context.provider.selected_provider === 'codex' ? 'not_attempted_no_codex_home_fixture' : 'not_applicable_non_codex_provider',
     });
   }
+  const executionMismatch = providerExecutionUnobservedMismatch(record, timestamp);
+  if (executionMismatch) {
+    record.mismatches.push(executionMismatch);
+  }
   record.launch_intent.launch_performed = true;
   record.duplicate_handling.bridge_session_started = observed.bridge_session_started;
   record.evidence.observed_refs = [...new Set([
@@ -2108,7 +2212,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 export {
   buildLiveProviderPrompt,
   createLaunchAttempt,
+  LIVE_INPUT_TIMING_PROFILE,
   parseArgs,
   providerObservationFromBridgeSnapshot,
   submitLiveProviderPrompt,
+  typeCharacters,
 };
