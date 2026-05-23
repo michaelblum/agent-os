@@ -1,0 +1,36 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T15:19:34-04:00",
+  "updated_at": "2026-05-23T15:19:34-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "correction_round",
+  "single_next_goal": "Normalize existing --result-route <ref> CLI fallback strings into local_artifact_path routes so stdout/local path overrides are delivered instead of reported unsupported.",
+  "work_card_ref": "docs/design/work-cards/afk-session-trigger-result-route-override-normalization-v0.md",
+  "required_start_ref": "gdi/afk-session-trigger-local-result-route-delivery-v0",
+  "branch_from": "gdi/afk-session-trigger-local-result-route-delivery-v0",
+  "expected_output_branch": "gdi/afk-session-trigger-result-route-override-normalization-v0",
+  "accepted_local_route_source_head": "319e46db15fe6973dd0ead5784e0bd3e1ff64ab7",
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-afk-session-trigger-result-route-override-normalization-v0.json; start from the current local head of gdi/afk-session-trigger-local-result-route-delivery-v0",
+  "review_finding": "--result-route stdout currently normalizes to kind=not_observed/ref=not_observed and result_route.status=unsupported despite being the existing local route fallback.",
+  "required_evidence": [
+    "--result-route stdout delivers as local_artifact_path stdout",
+    "--result-route <path> with matching --out <path> delivers as a local artifact route if supported",
+    "Object-shaped unsupported route kinds remain unsupported",
+    "Top-level lifecycle remains separate from result_route status",
+    "Verification command results",
+    "Statement that no non-local async routing or unsupervised trigger behavior was implemented"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires a live Codex launch",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires gateway/broker, Slack, GitHub, Foreman inbox, or notifier route mutation",
+    "scope expands into durable work/evidence records, unsupervised triggers, GitHub issue/PR/main mutation, PR creation, or removing --i-am-present"
+  ],
+  "human_notes": [
+    "The object-shaped local result route layer is accepted; this is a small command-surface compatibility correction.",
+    "Do not broaden into gateway/external notifier routing until Foreman accepts this correction."
+  ]
+}

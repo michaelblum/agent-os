@@ -1,6 +1,41 @@
 # Work Card: AFK Session Trigger Local Result Route Delivery V0
 
-**Status:** Routed 2026-05-23
+**Status:** Accepted with compatibility follow-up 2026-05-23
+
+## Result
+
+- Foreman review: accepted for object-shaped local result routes.
+- Branch/ref gates passed on
+  `gdi/afk-session-trigger-local-result-route-delivery-v0` at
+  `319e46db15fe6973dd0ead5784e0bd3e1ff64ab7`, based on
+  `c6e31b77a13c02d9282d53fb3041abdd3153d436`.
+- Diff was scoped to:
+  - `scripts/afk-launch-attempt-prototype.mjs`;
+  - `scripts/afk-session-trigger-prototype.mjs`;
+  - `tests/afk-launch-attempt-prototype.test.mjs`;
+  - `tests/afk-session-trigger-prototype.test.mjs`.
+- Behavior accepted: object-shaped `local_artifact_path` routes now record
+  attempts and delivered refs for stdout and confirmed `--out` writes;
+  unsupported/external route kinds remain explicit and non-completed; result
+  route completion does not promote the launch-attempt lifecycle state.
+- Verification rerun by Foreman passed:
+  - `./aos ready` returned
+    `ready=true mode=repo daemon=reachable tap=active`;
+  - `node --test tests/afk-session-trigger-prototype.test.mjs` with 18/18
+    passing;
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs` with 37/37
+    passing;
+  - `git diff --check`.
+- Follow-up routed: `--result-route <ref>` is still part of the command surface
+  but currently normalizes a string override such as `stdout` to
+  `kind=not_observed`, `ref=not_observed`, and `result_route.status=unsupported`.
+  Foreman routed
+  `docs/design/work-cards/afk-session-trigger-result-route-override-normalization-v0.md`
+  before gateway/external route work.
+- No live provider launch, transcript body read, provider store/catalog/telemetry
+  mutation, gateway/dock runtime mutation, GitHub issue/PR/main mutation, main
+  merge, PR creation, external notifier, durable work/evidence record,
+  unsupervised trigger, or non-local async routing occurred during this slice.
 
 ## Transfer Classification
 
