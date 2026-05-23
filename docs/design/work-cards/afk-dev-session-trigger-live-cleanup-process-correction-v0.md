@@ -1,6 +1,70 @@
 # Work Card: AFK Dev Session Trigger Live Cleanup Process Correction V0
 
-**Status:** Routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted correction commit:
+`dd7ce32f5d39e16d226a7a97ffcea9ce57758f3e`
+(`fix(afk): require helper child cleanup proof`).
+
+The correction satisfies Foreman's process-cleanup finding:
+
+- the process bridge now tracks the owned process-driver child PID and the PTY
+  command child/process-group id for the selected command;
+- bridge shutdown now terminates owned process/tmux sessions before the bridge
+  exits;
+- no-fixture supervised provider cleanup proof now requires bridge process exit,
+  bridge health unreachable, process-driver child exit, and provider command
+  child/process-group absence before reporting `cleanup.status=verified`;
+- fixture-backed cleanup proof is downgraded to `cleanup_unverified` when the
+  proof says an owned child/session remains observable;
+- provider acceptance timeout plus verified cleanup still reports
+  `provider_acceptance_unobserved`, while timeout plus failed cleanup reports
+  `cleanup_unverified`;
+- guard failures and duplicate states remain non-launching.
+
+Verification:
+
+```text
+git status --short --branch
+## gdi/afk-dev-session-trigger-live-cleanup-proof-v0
+
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+15 tests passed
+
+node --test tests/afk-launch-attempt-prototype.test.mjs
+25 tests passed
+
+node --test tests/sigil-agent-terminal-server.test.mjs
+12 tests passed
+
+git diff --check ab42d86afa01b1be050e7a7e7f8c391ceab09dbe..HEAD
+passed
+```
+
+Foreman reran the fake non-provider `codex` smoke on the real no-fixture
+guarded trigger path. The adversarial fake returned exit code `1`,
+`receipt.status=provider_acceptance_unobserved`,
+`provider_acceptance.status=provider_acceptance_unobserved`,
+`cleanup.status=verified`, and terminal command `codex --no-alt-screen`.
+The cleanup proof included `owned_bridge_process_exit`,
+`owned_bridge_health_unreachable_after_teardown`,
+`owned_process_driver_child_exit`, and
+`owned_provider_command_child_exit`. Post-run process checks found no lingering
+fake `codex`, owned process group, or real `pty-proxy.py codex --no-alt-screen`
+process. Temporary fake-provider artifacts were removed.
+
+No live provider launch, real transcript read, provider config/session/catalog
+mutation, gateway state, dock profile/hook mutation, GitHub state, push, PR, or
+external publication happened during Foreman acceptance.
+
+The source branch is ready for a supervised Operator no-fixture live evidence
+run at
+`docs/design/work-cards/operator-afk-dev-session-trigger-cleanup-proof-live-v0.md`.
 
 ## Transfer Classification
 

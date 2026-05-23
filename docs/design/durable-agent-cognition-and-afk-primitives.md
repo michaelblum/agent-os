@@ -608,5 +608,19 @@ The next slices should stay reversible:
    was still visible immediately after the trigger returned. The routed
    correction is
    `docs/design/work-cards/afk-dev-session-trigger-live-cleanup-process-correction-v0.md`.
+   That correction is now accepted at
+   `dd7ce32f5d39e16d226a7a97ffcea9ce57758f3e`: the helper records the owned
+   process-driver PID and command child/process-group id, terminates owned
+   sessions during bridge shutdown, and reports cleanup verified only after
+   bridge exit, bridge health unreachable, process-driver child exit, and
+   provider command child/group absence are all proven. Foreman reran the
+   focused trigger, launch-attempt, and Sigil terminal bridge tests plus a
+   fake non-provider `codex` no-fixture smoke; the smoke returned
+   `provider_acceptance_unobserved` with verified cleanup and left no
+   lingering fake `codex`, owned process group, or
+   `pty-proxy.py codex --no-alt-screen` process. The next proof is a
+   supervised Operator no-fixture run at
+   `docs/design/work-cards/operator-afk-dev-session-trigger-cleanup-proof-live-v0.md`
+   to collect live receipt cleanup evidence from the real command path.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.

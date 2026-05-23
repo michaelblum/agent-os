@@ -1,6 +1,26 @@
 # Work Card: AFK Dev Session Trigger Live Cleanup Proof V0
 
-**Status:** Correction routed 2026-05-22
+**Status:** Accepted 2026-05-22
+
+## Foreman Acceptance
+
+Accepted after the process-cleanup correction in
+`docs/design/work-cards/afk-dev-session-trigger-live-cleanup-process-correction-v0.md`.
+
+Accepted correction commit:
+`dd7ce32f5d39e16d226a7a97ffcea9ce57758f3e`
+(`fix(afk): require helper child cleanup proof`).
+
+The accepted source behavior keeps the guarded live trigger Codex/GDI scoped,
+selects `codex --no-alt-screen` only after the supervised-live gates pass, and
+now reports source-owned cleanup proof only after the helper-owned bridge,
+process-driver child, and provider command child/process group are proven gone.
+Provider acceptance timeout with verified cleanup remains
+`provider_acceptance_unobserved`; failed or insufficient cleanup proof remains
+`cleanup_unverified`.
+
+Next routed proof:
+`docs/design/work-cards/operator-afk-dev-session-trigger-cleanup-proof-live-v0.md`.
 
 ## Foreman Review Finding
 
