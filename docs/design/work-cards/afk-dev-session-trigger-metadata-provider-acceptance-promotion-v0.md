@@ -1,6 +1,34 @@
 # Work Card: AFK Dev Session Trigger Metadata Provider Acceptance Promotion V0
 
-**Status:** Routed 2026-05-23
+**Status:** Accepted 2026-05-23
+
+## Foreman Review Result
+
+GDI completed this correction at
+`f94bc43bb50b5d5bb274ef8e2d2a8a4c6990f223` from base
+`28282bdfcc11097117a9dcd0d4eb42900b670583`.
+
+Foreman accepted the deterministic source slice. The implementation promotes a
+strong `matched_by_cwd_time_window` Codex adapter match into
+`provider_acceptance.status=provider_session_observed` only after supervised
+Codex prompt submission succeeds, carries the matched thread id and bounded
+evidence refs, and removes the stale `provider_session_id_not_observed`
+mismatch. The launch-attempt and session-trigger tests now cover promotion and
+completion with cleanup proof.
+
+Verification passed locally:
+
+```bash
+./aos ready
+node --test tests/afk-session-trigger-prototype.test.mjs
+node --test tests/afk-launch-attempt-prototype.test.mjs
+node --test tests/sigil-agent-terminal-server.test.mjs
+git diff --check 28282bdfcc11097117a9dcd0d4eb42900b670583..f94bc43bb50b5d5bb274ef8e2d2a8a4c6990f223
+cd packages/host && npm test
+```
+
+The next gate is a supervised Operator live proof, routed in
+`docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v1.md`.
 
 ## Transfer Classification
 
