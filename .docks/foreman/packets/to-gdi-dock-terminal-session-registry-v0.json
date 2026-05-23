@@ -1,0 +1,36 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T18:01:52-04:00",
+  "updated_at": "2026-05-23T18:01:52-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "gdi_round",
+  "single_next_goal": "Implement a deterministic dock terminal session registry/receipt slice so AFK warm reuse and Agent Terminal can reference an AOS-owned dock PTY substrate without live provider driving.",
+  "work_card_ref": "docs/design/work-cards/dock-terminal-session-registry-v0.md",
+  "required_start_ref": "current local gdi/dock-terminal-session-agent-terminal-contract-v0 routing head",
+  "branch_from": "current local gdi/dock-terminal-session-agent-terminal-contract-v0 routing head",
+  "expected_output_branch": "gdi/dock-terminal-session-registry-v0",
+  "accepted_source_head": "0f50360c4e779deae2d10bb13243df31b62e26d7",
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-dock-terminal-session-registry-v0.json; start from the current local gdi/dock-terminal-session-agent-terminal-contract-v0 routing head",
+  "required_evidence": [
+    "A schema/docs or equivalent first-class artifact defines aos.dock_terminal_session registry receipt fields",
+    "A deterministic helper can create fixture-backed dock terminal session receipts for foreman, gdi, and operator without launching providers",
+    "AFK warm dock TUI reuse receipts reference owner=aos.dock_terminal_session and dock_terminal_session_id while preserving provider metadata acceptance behavior",
+    "Agent Terminal server/API can expose or consume dock terminal session identity, cwd, command, geometry, lifecycle, and lease disposition without claiming provider acceptance from visual state",
+    "Tests cover fixture-backed dock terminal session receipts for all three docks, Agent Terminal observation/read API, and AFK warm reuse receipt references",
+    "Cold bridge launch, PTY input, resize, and provider metadata acceptance regressions still pass",
+    "Statement that no live provider launch, real terminal drive, transcript body read, provider mutation, GitHub mutation, async routing, or unsupervised trigger behavior occurred"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires driving real dock terminals or launching live providers",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires gateway/broker, Slack, GitHub, Foreman inbox, notifier route mutation, async result routing, or removing --i-am-present",
+    "the registry implementation requires choosing durable daemon storage semantics beyond fixture-backed deterministic receipts"
+  ],
+  "human_notes": [
+    "This is the first implementation slice after the Agent Terminal headful observability contract.",
+    "Keep it deterministic and fixture-backed; do not route Operator live proof or async result routing."
+  ]
+}
