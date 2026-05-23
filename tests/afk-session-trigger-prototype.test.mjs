@@ -557,6 +557,66 @@ test('completes when metadata-backed provider acceptance and cleanup proof are p
   assert.deepEqual(receipt.mismatches, []);
 });
 
+test('completes warm dock TUI reuse without source-owned provider teardown', async () => {
+  const previousSessionId = '019e7300-aaaa-7222-8333-444444444444';
+  const newSessionId = '019e7300-bbbb-7222-8333-444444444444';
+  const packetPath = await writePacket(validPacket({
+    previous_provider_session_id: previousSessionId,
+  }));
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const bridgeFixture = await writeBridgeVisibilityFixture({
+    providerSessionId: newSessionId,
+    bridge: {
+      provider_launch_performed: false,
+      ensure: {
+        session: 'gdi-warm-codex',
+        cwd: intendedLaunchCwd,
+        driver: 'manual_tui',
+      },
+      input: {
+        text_accepted: true,
+        enter_accepted: true,
+      },
+    },
+    cleanup: undefined,
+  });
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--warm-dock-tui-reuse',
+    '--json',
+    '--timestamp',
+    '2026-05-22T20:10:00.000Z',
+    '--idempotence-salt',
+    'warm-tui-reuse-session-trigger',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_warm_dock_tui_reuse');
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.scheduler.selected_action, 'warm-dock-tui-reuse');
+  assert.equal(receipt.scheduler.lifecycle_state, 'completed');
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.equal(receipt.terminal_substrate.status, 'warm_tui_reused');
+  assert.equal(receipt.terminal_substrate.input_submission.context_reset_command, '/clear');
+  assert.equal(receipt.terminal_substrate.input_submission.provider_prompt_prefix, '/goal ');
+  assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.provider_acceptance.provider_session_id, newSessionId);
+  assert.equal(receipt.cleanup.status, 'returned_to_idle');
+  assert.equal(receipt.cleanup.proof[0].kind, 'warm_tui_lease_disposition');
+  assert.equal(receipt.warm_tui_reuse.status, 'context_boundary_observed');
+  assert.equal(receipt.warm_tui_reuse.provider_session_changed, true);
+  assert.equal(receipt.result_route.status, 'completed');
+  assert.deepEqual(receipt.mismatches, []);
+});
+
 test('rejects supervised-live pre-launch guard failures before side effects', async () => {
   const packetPath = await writePacket(validPacket());
   const result = runPrototype([

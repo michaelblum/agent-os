@@ -727,6 +727,172 @@ test('actual live provider prompt source carries Codex GDI prompt profile into s
   assert.equal(submission.prompt_ref, 'docs/design/work-cards/afk-launch-attempt-prototype-no-provider-v0.md');
 });
 
+test('records warm dock TUI reuse with /clear boundary and Codex metadata session change', async () => {
+  const previousSessionId = '019e7200-aaaa-7222-8333-444444444444';
+  const newSessionId = '019e7200-bbbb-7222-8333-444444444444';
+  const packetPath = await writePacket(validPacket({
+    requested_recipient: 'gdi',
+    provider_hint: 'codex',
+    previous_provider_session_id: previousSessionId,
+  }));
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: previousSessionId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T21:59:00.000Z',
+      title: 'Previous warm TUI session',
+    },
+    {
+      id: newSessionId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T22:00:30.000Z',
+      title: 'Post clear warm TUI session',
+    },
+  ]);
+  const bridgePath = await writeBridgeVisibilityFixture({
+    warm_tui_reuse: {
+      previous_provider_session_id: previousSessionId,
+      cleanup_disposition: 'returned_to_idle',
+    },
+    bridge: {
+      ensure: {
+        session: 'gdi-warm-codex',
+        cwd: intendedLaunchCwd,
+        driver: 'manual_tui',
+      },
+      input: {
+        text_accepted: true,
+        enter_accepted: true,
+      },
+      typed_observed: true,
+      submitted_observed: true,
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--launch-mode',
+    'warm_dock_tui_reuse',
+    '--json',
+    '--timestamp',
+    '2026-05-22T22:01:00.000Z',
+    '--launch-observed-at',
+    '2026-05-22T22:00:00.000Z',
+    '--bridge-visibility-fixture',
+    bridgePath,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.launch_intent.launch_mode, 'warm_dock_tui_reuse');
+  assert.equal(record.launch_intent.provider_process_reused, true);
+  assert.equal(record.launch_intent.provider_process_launch_performed, false);
+  assert.equal(record.launch_intent.provider_launch_performed, false);
+  assert.equal(record.launch_intent.context_reset_command, '/clear');
+  assert.equal(record.launch_intent.context_reset_expected_provider_boundary, true);
+  assert.equal(record.terminal_substrate.status, 'warm_tui_reused');
+  assert.equal(record.terminal_substrate.input_submission.context_reset_submitted, true);
+  assert.equal(record.terminal_substrate.input_submission.context_reset_command, '/clear');
+  assert.equal(record.terminal_substrate.input_submission.provider_prompt_mode, 'codex_goal');
+  assert.equal(record.terminal_substrate.input_submission.provider_prompt_prefix, '/goal ');
+  assert.equal(record.terminal_substrate.input_submission.first_dispatch_character, '/');
+  assert.equal(record.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(record.provider_acceptance.provider_session_id, newSessionId);
+  assert.equal(record.provider_acceptance.observation_source, 'codex_adapter_metadata');
+  assert.equal(record.warm_tui_reuse.status, 'context_boundary_observed');
+  assert.equal(record.warm_tui_reuse.previous_provider_session_id, previousSessionId);
+  assert.equal(record.warm_tui_reuse.new_provider_session_id, newSessionId);
+  assert.equal(record.warm_tui_reuse.provider_session_changed, true);
+  assert.equal(record.warm_tui_reuse.cleanup_disposition, 'returned_to_idle');
+  assert.equal(record.cleanup.status, 'returned_to_idle');
+  assert.equal(record.cleanup.proof[0].kind, 'warm_tui_lease_disposition');
+  assert.deepEqual(record.mismatches, []);
+});
+
+test('reports warm dock TUI reuse mismatch when post-reset metadata resolves to previous session', async () => {
+  const previousSessionId = '019e7200-cccc-7222-8333-444444444444';
+  const packetPath = await writePacket(validPacket({
+    requested_recipient: 'gdi',
+    provider_hint: 'codex',
+    previous_provider_session_id: previousSessionId,
+  }));
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: previousSessionId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T22:10:30.000Z',
+      title: 'Unchanged warm TUI session',
+    },
+  ]);
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--launch-mode',
+    'warm_dock_tui_reuse',
+    '--json',
+    '--timestamp',
+    '2026-05-22T22:11:00.000Z',
+    '--launch-observed-at',
+    '2026-05-22T22:10:00.000Z',
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.lifecycle_state, 'failed');
+  assert.equal(record.provider_acceptance.provider_session_id, previousSessionId);
+  assert.equal(record.warm_tui_reuse.status, 'context_boundary_mismatch');
+  assert.equal(record.warm_tui_reuse.provider_session_changed, false);
+  assert.ok(record.mismatches.some((mismatch) => mismatch.code === 'warm_tui_context_boundary_mismatch'));
+});
+
+test('keeps Operator warm dock TUI reuse dispatch plain after /clear', async () => {
+  const providerSessionId = '019e7200-dddd-7222-8333-444444444444';
+  const packetPath = await writePacket(validPacket({
+    requested_recipient: 'operator',
+    provider_hint: 'codex',
+    source_artifact: 'docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v0.md',
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'operator',
+    '--launch-mode',
+    'warm_dock_tui_reuse',
+    '--provider-session-id',
+    providerSessionId,
+    '--json',
+    '--timestamp',
+    '2026-05-22T22:20:00.000Z',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.terminal_substrate.input_submission.context_reset_command, '/clear');
+  assert.equal(record.terminal_substrate.input_submission.provider_prompt_mode, 'plain');
+  assert.equal(record.terminal_substrate.input_submission.provider_prompt_prefix, '');
+  assert.equal(record.terminal_substrate.input_submission.first_dispatch_character, 'Y');
+  assert.equal(record.provider_acceptance.provider_session_id, providerSessionId);
+});
+
 test('keeps bridge byte delivery separate from provider execution observation', async () => {
   const packetPath = await writePacket(validPacket());
   const intendedLaunchCwd = join(repoRoot, '.docks/gdi');

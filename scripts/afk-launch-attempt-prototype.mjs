@@ -16,6 +16,8 @@ const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
 const LOCAL_ARTIFACT_PATH = 'local_artifact_path';
 const NOT_APPLICABLE_NO_PROVIDER = 'not_applicable: no-provider-launch';
+const WARM_DOCK_TUI_REUSE = 'warm_dock_tui_reuse';
+const CONTEXT_RESET_COMMAND = '/clear';
 const LIVE_INPUT_TIMING_PROFILE = Object.freeze({
   startupSettleMs: 2000,
   charDelayMs: 10,
@@ -27,7 +29,7 @@ function usage() {
   return `Experimental AFK launch-attempt prototype.
 
 Usage:
-  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--catalog-fixture <path>] [--bridge-visibility-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
+  node scripts/afk-launch-attempt-prototype.mjs --packet <packet.json> --provider <name> --dock <dock> --json [--repo <path>] [--timestamp <iso>] [--out <path>] [--duplicate-in-process] [--launch-mode <mode>] [--catalog-fixture <path>] [--bridge-visibility-fixture <path>] [--provider-session-id <id>] [--previous-provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
 This local prototype creates an aos.afk_launch_attempt record, observes terminal substrate through the Sigil codex-terminal bridge, and launches no provider unless an internal supervised provider launch mode is supplied by the guarded session trigger.`;
 }
@@ -419,6 +421,10 @@ function buildLiveProviderPrompt(context) {
   return `${profile.prefix}Your work card is at ${sourceArtifact}. Read it first, then begin.`;
 }
 
+function firstDispatchCharacter(prompt) {
+  return [...String(prompt ?? '')][0] ?? NOT_OBSERVED;
+}
+
 function inputSubmissionRecord({
   prompt,
   inputResult = null,
@@ -436,6 +442,7 @@ function inputSubmissionRecord({
     prompt_ref: promptSource.sourceArtifact ?? NOT_OBSERVED,
     provider_prompt_mode: providerPrompt.mode,
     provider_prompt_prefix: providerPrompt.prefix,
+    first_dispatch_character: firstDispatchCharacter(prompt),
     pointer_prompt_bytes: Buffer.byteLength(prompt),
     startup_settle_ms: timing.startupSettleMs,
     char_delay_ms: timing.charDelayMs,
@@ -571,6 +578,7 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
         prompt_ref: input?.prompt_ref ?? input?.promptRef ?? NOT_OBSERVED,
         provider_prompt_mode: input?.provider_prompt_mode ?? input?.providerPromptMode ?? NOT_OBSERVED,
         provider_prompt_prefix: input?.provider_prompt_prefix ?? input?.providerPromptPrefix ?? NOT_OBSERVED,
+        first_dispatch_character: input?.first_dispatch_character ?? input?.firstDispatchCharacter ?? NOT_OBSERVED,
         pointer_prompt_bytes: input?.pointer_prompt_bytes ?? input?.pointerPromptBytes ?? NOT_OBSERVED,
         startup_settle_ms: input?.startup_settle_ms ?? input?.startupSettleMs ?? LIVE_INPUT_TIMING_PROFILE.startupSettleMs,
         char_delay_ms: input?.char_delay_ms ?? input?.charDelayMs ?? LIVE_INPUT_TIMING_PROFILE.charDelayMs,
@@ -612,6 +620,135 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
         ...providerObservation.mismatch,
         evidence_ref: text ? 'inline:terminal_substrate.synthetic_snapshot' : NOT_OBSERVED,
       }
+      : null,
+  };
+}
+
+function warmReuseFixtureInput(fixture) {
+  if (!fixture) return null;
+  return fixture.warm_tui_reuse ?? fixture.warmTuiReuse ?? fixture.warm_dock_tui_reuse ?? fixture.warmDockTuiReuse ?? fixture;
+}
+
+function normalizePreviousProviderSessionId(context, fixture) {
+  const warm = warmReuseFixtureInput(fixture) ?? {};
+  return context.options?.previousProviderSessionId
+    ?? context.packet.previous_provider_session_id
+    ?? context.packet.previousProviderSessionId
+    ?? warm.previous_provider_session_id
+    ?? warm.previousProviderSessionId
+    ?? NOT_OBSERVED;
+}
+
+function warmDockTuiReuseObservation(context) {
+  const fixture = context.rawBridgeVisibilityFixture ?? {};
+  const bridge = bridgeFixtureBridgeInput(fixture);
+  const warm = warmReuseFixtureInput(fixture) ?? {};
+  const base = normalizeBridgeVisibilityFixture(fixture, context.intendedLaunchCwd);
+  const promptProfile = providerPromptProfile(context.liveProviderPromptSource);
+  const previousProviderSessionId = normalizePreviousProviderSessionId(context, fixture);
+  const observedProviderSessionId = base?.provider_acceptance?.provider_session_id !== NOT_OBSERVED
+    ? base.provider_acceptance.provider_session_id
+    : (
+        context.providerSessionId !== NOT_OBSERVED
+          ? context.providerSessionId
+          : (warm.new_provider_session_id ?? warm.newProviderSessionId ?? NOT_OBSERVED)
+      );
+  const providerSessionChanged = previousProviderSessionId !== NOT_OBSERVED
+    && observedProviderSessionId !== NOT_OBSERVED
+    ? observedProviderSessionId !== previousProviderSessionId
+    : NOT_OBSERVED;
+  const input = bridge.input ?? {};
+  const key = bridge.key ?? {};
+  const inputSubmission = {
+    status: input.status ?? key.status ?? 'submitted',
+    prompt_transport: input.prompt_transport ?? input.promptTransport ?? 'warm_tui_direct_input',
+    prompt_ref: context.sourceArtifact ?? NOT_OBSERVED,
+    context_reset_submitted: true,
+    context_reset_command: CONTEXT_RESET_COMMAND,
+    context_reset_expected_provider_boundary: true,
+    provider_prompt_mode: input.provider_prompt_mode ?? input.providerPromptMode ?? promptProfile.mode,
+    provider_prompt_prefix: input.provider_prompt_prefix ?? input.providerPromptPrefix ?? promptProfile.prefix,
+    first_dispatch_character: input.first_dispatch_character
+      ?? input.firstDispatchCharacter
+      ?? firstDispatchCharacter(context.liveProviderPrompt),
+    pointer_prompt_bytes: Buffer.byteLength(context.liveProviderPrompt),
+    text_accepted: input.text_accepted ?? input.textAccepted ?? true,
+    enter_sent: input.enter_sent ?? input.enterSent ?? true,
+    enter_accepted: input.enter_accepted ?? input.enterAccepted ?? true,
+    key_accepted: key.key_accepted ?? key.keyAccepted ?? true,
+    typed_observed: bridge.typed_observed ?? bridge.typedObserved ?? true,
+    submitted_observed: bridge.submitted_observed ?? bridge.submittedObserved ?? true,
+    provider_execution_observed: observedProviderSessionId !== NOT_OBSERVED,
+    response_marker: base?.terminal_substrate?.input_submission?.response_marker ?? NOT_OBSERVED,
+    response_marker_observed: base?.terminal_substrate?.input_submission?.response_marker_observed ?? false,
+  };
+  return {
+    bridge_session_started: false,
+    command: 'warm-dock-tui-reuse',
+    provider_launch_performed: false,
+    terminal_substrate: {
+      ...(base?.terminal_substrate ?? {}),
+      status: 'warm_tui_reused',
+      driver: base?.terminal_substrate?.driver ?? 'manual_tui',
+      session_handle: base?.terminal_substrate?.session_handle ?? warm.session_handle ?? warm.sessionHandle ?? NOT_OBSERVED,
+      cwd: base?.terminal_substrate?.cwd ?? context.intendedLaunchCwd,
+      command: 'warm-dock-tui-reuse',
+      input_submission: inputSubmission,
+      bridge_health: base?.terminal_substrate?.bridge_health ?? NOT_OBSERVED,
+    },
+    provider_acceptance: observedProviderSessionId === NOT_OBSERVED
+      ? {
+          status: 'provider_acceptance_unobserved',
+          provider_session_id: NOT_OBSERVED,
+          provider_reported_cwd: NOT_OBSERVED,
+          provider_reported_branch: NOT_OBSERVED,
+          provider_reported_head: NOT_OBSERVED,
+          provider_version: NOT_OBSERVED,
+          model: NOT_OBSERVED,
+        }
+      : {
+          ...(base?.provider_acceptance ?? {}),
+          status: 'provider_session_observed',
+          provider_session_id: observedProviderSessionId,
+          observation_source: base?.provider_acceptance?.provider_session_id !== NOT_OBSERVED
+            ? 'bridge_visibility_fixture'
+            : 'warm_tui_reuse_fixture',
+        },
+    catalog_status: NOT_OBSERVED,
+    telemetry_status: NOT_OBSERVED,
+    cleanup: {
+      owner: 'warm_dock_tui_reuse',
+      status: warm.cleanup_disposition ?? warm.cleanupDisposition ?? 'returned_to_idle',
+      proof: [{
+        kind: 'warm_tui_lease_disposition',
+        provider_process_reused: true,
+        provider_process_launch_performed: false,
+      }],
+      reason: null,
+      scope: {
+        provider_process_reused: true,
+        source_owned_provider_command_child: false,
+      },
+    },
+    warm_tui_reuse: {
+      status: providerSessionChanged === false ? 'context_boundary_mismatch' : (
+        providerSessionChanged === true ? 'context_boundary_observed' : 'context_boundary_unverified'
+      ),
+      previous_provider_session_id: previousProviderSessionId,
+      new_provider_session_id: observedProviderSessionId,
+      provider_session_changed: providerSessionChanged,
+      cleanup_disposition: warm.cleanup_disposition ?? warm.cleanupDisposition ?? 'returned_to_idle',
+    },
+    mismatch: providerSessionChanged === false
+      ? {
+          code: 'warm_tui_context_boundary_mismatch',
+          severity: 'error',
+          source: 'warm_tui_reuse',
+          expected: { new_provider_session_id: 'different from previous provider session id after /clear' },
+          observed: { previous_provider_session_id: previousProviderSessionId, new_provider_session_id: observedProviderSessionId },
+          effect: 'failed',
+          evidence_ref: 'inline:warm_tui_reuse',
+        }
       : null,
   };
 }
@@ -785,8 +922,13 @@ function providerExecutionUnobservedMismatch(record, timestamp) {
 
 function shouldPromoteCodexMetadataProviderAcceptance(record, correlation) {
   return record.selection.selected_provider === 'codex'
-    && record.launch_intent.launch_mode === 'supervised-provider'
-    && record.launch_intent.provider_launch_performed === true
+    && (
+      (
+        record.launch_intent.launch_mode === 'supervised-provider'
+        && record.launch_intent.provider_launch_performed === true
+      )
+      || record.launch_intent.launch_mode === WARM_DOCK_TUI_REUSE
+    )
     && promptSubmissionSucceeded(record)
     && record.provider_acceptance.status === 'provider_acceptance_unobserved'
     && correlation?.status === 'matched_by_cwd_time_window'
@@ -827,6 +969,37 @@ function promoteCodexMetadataProviderAcceptance(record, correlation, reference, 
   if (record.terminal_substrate?.input_submission && record.terminal_substrate.input_submission !== NOT_OBSERVED) {
     record.terminal_substrate.input_submission.provider_execution_observed = true;
   }
+  if (record.launch_intent.launch_mode === WARM_DOCK_TUI_REUSE && record.warm_tui_reuse && record.warm_tui_reuse !== NOT_APPLICABLE_NO_PROVIDER) {
+    record.warm_tui_reuse.new_provider_session_id = thread.thread_id;
+    if (record.warm_tui_reuse.previous_provider_session_id !== NOT_OBSERVED) {
+      record.warm_tui_reuse.provider_session_changed =
+        record.warm_tui_reuse.previous_provider_session_id !== thread.thread_id;
+      record.warm_tui_reuse.status = record.warm_tui_reuse.provider_session_changed
+        ? 'context_boundary_observed'
+        : 'context_boundary_mismatch';
+    }
+  }
+}
+
+function warmTuiReuseBoundaryMismatch(record, timestamp) {
+  if (record.launch_intent.launch_mode !== WARM_DOCK_TUI_REUSE) return null;
+  if (!record.warm_tui_reuse || record.warm_tui_reuse === NOT_APPLICABLE_NO_PROVIDER) return null;
+  const previous = record.warm_tui_reuse.previous_provider_session_id;
+  const next = record.provider_acceptance.provider_session_id;
+  if (previous === NOT_OBSERVED || next === NOT_OBSERVED || previous !== next) return null;
+  record.warm_tui_reuse.status = 'context_boundary_mismatch';
+  record.warm_tui_reuse.new_provider_session_id = next;
+  record.warm_tui_reuse.provider_session_changed = false;
+  return {
+    observed_at: timestamp,
+    code: 'warm_tui_context_boundary_mismatch',
+    severity: 'error',
+    source: 'warm_tui_reuse',
+    expected: { new_provider_session_id: 'different from previous provider session id after /clear' },
+    observed: { previous_provider_session_id: previous, new_provider_session_id: next },
+    effect: 'failed',
+    evidence_ref: 'inline:warm_tui_reuse',
+  };
 }
 
 function sessionRef(session) {
@@ -1183,7 +1356,8 @@ function providerCommand(provider) {
 }
 
 function launchModeFor(options) {
-  return options.launchMode ?? (options.supervisedProviderLaunch ? 'supervised-provider' : 'no-provider');
+  const configured = options.launchMode ?? (options.supervisedProviderLaunch ? 'supervised-provider' : 'no-provider');
+  return configured === 'warm-dock-tui-reuse' ? WARM_DOCK_TUI_REUSE : configured;
 }
 
 function assertNoProviderCommand(command) {
@@ -1860,7 +2034,7 @@ async function buildAttemptContext(options) {
   const session = `afk-launch-${idempotenceKey.slice(0, 12)}`;
   const command = launchMode === 'supervised-provider'
     ? providerCommand(provider.selected_provider)
-    : harmlessCommand(session, intendedLaunchCwd);
+    : (launchMode === WARM_DOCK_TUI_REUSE ? 'warm-dock-tui-reuse' : harmlessCommand(session, intendedLaunchCwd));
   if (launchMode === 'no-provider') {
     assertNoProviderCommand(command);
   }
@@ -1919,6 +2093,11 @@ async function buildAttemptContext(options) {
       selected_provider: provider.selected_provider,
       selected_dock: selectedDock,
     }),
+    validationRecord('warm_dock_tui_reuse_limited_to_codex_docks', launchMode !== WARM_DOCK_TUI_REUSE || provider.selected_provider === 'codex', {
+      launch_mode: launchMode,
+      selected_provider: provider.selected_provider,
+      selected_dock: selectedDock,
+    }),
     validationRecord('provider_launch_dry_run_not_fixture_backed', !options.providerLaunchDryRun || !rawBridgeVisibilityFixture, {
       launch_mode: launchMode,
       provider_launch_dry_run: Boolean(options.providerLaunchDryRun),
@@ -1940,6 +2119,7 @@ async function buildAttemptContext(options) {
     codexHome,
     packetPath,
     packet,
+    options,
     packetId,
     sourceArtifact,
     requiredStartRef,
@@ -1971,6 +2151,7 @@ async function buildAttemptContext(options) {
       goal: packet.goal ?? packet.objective ?? packet.single_next_goal ?? NOT_OBSERVED,
     },
     bridgeVisibility,
+    rawBridgeVisibilityFixture,
     providerLaunchPerformed: bridgeVisibility?.provider_launch_performed ?? false,
     providerLaunchDryRun: Boolean(options.providerLaunchDryRun),
     catalogFixture,
@@ -2032,21 +2213,28 @@ function initialRecord(context, timestamp) {
       intended_head: context.gitFacts.head,
       command_argv: context.launchMode === 'supervised-provider'
         ? ['codex', '--no-alt-screen']
-        : ['node', '-e', '<harmless marker command>'],
+        : (context.launchMode === WARM_DOCK_TUI_REUSE ? ['<existing-codex-tui>'] : ['node', '-e', '<harmless marker command>']),
       command: context.command,
       command_env_refs: context.launchMode === 'supervised-provider'
         ? [
             'SIGIL_AGENT_TERMINAL_DRIVER=process',
             'SIGIL_AGENT_COMMAND=codex --no-alt-screen',
           ]
-        : [
+        : (context.launchMode === WARM_DOCK_TUI_REUSE ? [
+            'provider_process_reused=true',
+            'provider_process_launch_performed=false',
+          ] : [
             'SIGIL_AGENT_TERMINAL_DRIVER=process',
             'SIGIL_AGENT_COMMAND=<harmless-node-command>',
-          ],
+          ]),
       deadline_or_lease: context.packet.timeout_or_lease ?? context.packet.timeoutOrLease ?? NOT_OBSERVED,
       launch_requested: true,
       launch_performed: false,
       provider_launch_performed: false,
+      provider_process_reused: context.launchMode === WARM_DOCK_TUI_REUSE,
+      provider_process_launch_performed: false,
+      context_reset_command: context.launchMode === WARM_DOCK_TUI_REUSE ? CONTEXT_RESET_COMMAND : NOT_APPLICABLE_NO_PROVIDER,
+      context_reset_expected_provider_boundary: context.launchMode === WARM_DOCK_TUI_REUSE,
     },
     terminal_substrate: {
       status: NOT_OBSERVED,
@@ -2103,6 +2291,13 @@ function initialRecord(context, timestamp) {
       reason: NOT_OBSERVED,
       scope: NOT_OBSERVED,
     },
+    warm_tui_reuse: context.launchMode === WARM_DOCK_TUI_REUSE ? {
+      status: NOT_OBSERVED,
+      previous_provider_session_id: normalizePreviousProviderSessionId(context, context.rawBridgeVisibilityFixture),
+      new_provider_session_id: NOT_OBSERVED,
+      provider_session_changed: NOT_OBSERVED,
+      cleanup_disposition: NOT_OBSERVED,
+    } : NOT_APPLICABLE_NO_PROVIDER,
     mismatches: context.provider.mismatch_facts.map((fact) => ({
       code: fact.split(':')[0],
       severity: 'error',
@@ -2146,8 +2341,10 @@ async function createLaunchAttempt(options) {
     return record;
   }
 
-  const observed = context.bridgeVisibility ?? (
-    context.launchMode === 'supervised-provider'
+  const observed = context.launchMode === WARM_DOCK_TUI_REUSE
+    ? warmDockTuiReuseObservation(context)
+    : (context.bridgeVisibility ?? (
+      context.launchMode === 'supervised-provider'
       ? (
           context.providerLaunchDryRun
             ? dryRunProviderTerminalSubstrate({
@@ -2170,7 +2367,7 @@ async function createLaunchAttempt(options) {
           launchCwd: context.intendedLaunchCwd,
           command: context.command,
         })
-  );
+    ));
   const catalogTelemetry = classifyCatalogAndTelemetry({
     sessions: context.catalogFixture,
     allCwdSessions: context.allCwdCatalogFixture,
@@ -2184,6 +2381,9 @@ async function createLaunchAttempt(options) {
   record.terminal_substrate = observed.terminal_substrate;
   if (observed.cleanup) {
     record.cleanup = observed.cleanup;
+  }
+  if (observed.warm_tui_reuse) {
+    record.warm_tui_reuse = observed.warm_tui_reuse;
   }
   record.launch_intent.provider_launch_performed = Boolean(observed.provider_launch_performed);
   if (observed.provider_acceptance) {
@@ -2257,6 +2457,10 @@ async function createLaunchAttempt(options) {
     record.codex_adapter = buildCodexAdapterRecord({
       status: context.provider.selected_provider === 'codex' ? 'not_attempted_no_codex_home_fixture' : 'not_applicable_non_codex_provider',
     });
+  }
+  const warmBoundaryMismatch = warmTuiReuseBoundaryMismatch(record, timestamp);
+  if (warmBoundaryMismatch && !record.mismatches.some((mismatch) => mismatch.code === warmBoundaryMismatch.code)) {
+    record.mismatches.push(warmBoundaryMismatch);
   }
   const executionMismatch = providerExecutionUnobservedMismatch(record, timestamp);
   if (executionMismatch) {

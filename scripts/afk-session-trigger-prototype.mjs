@@ -31,7 +31,7 @@ function usage() {
   return `Experimental AFK session-trigger dry-run prototype.
 
 Usage:
-  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
+  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--warm-dock-tui-reuse --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
 This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
@@ -54,6 +54,10 @@ function parseArgs(argv) {
     }
     if (arg === '--supervised-live-launch') {
       options.supervisedLiveLaunch = true;
+      continue;
+    }
+    if (arg === '--warm-dock-tui-reuse') {
+      options.warmDockTuiReuse = true;
       continue;
     }
     if (arg === '--i-am-present') {
@@ -321,12 +325,14 @@ function mismatch(mismatchClass, message, details = {}) {
 }
 
 function selectedAction(options) {
-  if (options.dryRun && options.supervisedLiveLaunch) {
-    return { action: 'invalid', mismatch: mismatch('conflicting_action_flags', 'Do not combine --dry-run and --supervised-live-launch.') };
+  const selected = [options.dryRun, options.supervisedLiveLaunch, options.warmDockTuiReuse].filter(Boolean).length;
+  if (selected > 1) {
+    return { action: 'invalid', mismatch: mismatch('conflicting_action_flags', 'Select only one of --dry-run, --supervised-live-launch, or --warm-dock-tui-reuse.') };
   }
   if (options.supervisedLiveLaunch) return { action: 'supervised-live-launch', mismatch: null };
+  if (options.warmDockTuiReuse) return { action: 'warm-dock-tui-reuse', mismatch: null };
   if (options.dryRun) return { action: 'dry-run', mismatch: null };
-  return { action: 'missing', mismatch: mismatch('missing_action_flag', 'Expected --dry-run or --supervised-live-launch.') };
+  return { action: 'missing', mismatch: mismatch('missing_action_flag', 'Expected --dry-run, --supervised-live-launch, or --warm-dock-tui-reuse.') };
 }
 
 function resolveProvider(explicitProvider, packetProviderHint) {
@@ -430,6 +436,11 @@ async function buildReceipt(options) {
       selected_dock: selectedDock,
     }));
   }
+  if (actionSelection.action === 'warm-dock-tui-reuse' && provider.selected_provider !== 'codex') {
+    mismatches.push(mismatch('provider_unsupported_for_warm_dock_tui_reuse', 'Warm dock TUI reuse is currently available only for --provider codex.', {
+      selected_provider: provider.selected_provider,
+    }));
+  }
 
   const idempotenceMaterial = {
     packetId,
@@ -450,16 +461,19 @@ async function buildReceipt(options) {
   const dispatchAttemptId = `dispatch-${stableHash({ schedulerRunId, idempotenceKey, kind: 'dispatch' })}`;
   const duplicate = options.existingReceipt ? await classifyExistingReceipt(repoRoot, options.existingReceipt, idempotenceKey, options) : null;
   const intakeMismatchCount = mismatches.length;
-  const preLaunchAllowed = actionSelection.action === 'supervised-live-launch'
+  const launchAllowed = (
+    actionSelection.action === 'supervised-live-launch'
+    || actionSelection.action === 'warm-dock-tui-reuse'
+  )
     && intakeMismatchCount === 0
     && !(duplicate?.duplicate && (duplicate.reused_state || duplicate.relaunch_requires_replacement));
-  const launchAttempt = preLaunchAllowed ? await createLaunchAttempt({
+  const launchAttempt = launchAllowed ? await createLaunchAttempt({
     packet: packetPath,
     provider: provider.selected_provider,
     dock: selectedDock,
     repo: repoRoot,
     timestamp: createdAt,
-    launchMode: 'supervised-provider',
+    launchMode: actionSelection.action === 'warm-dock-tui-reuse' ? 'warm_dock_tui_reuse' : 'supervised-provider',
     providerLaunchDryRun: options.providerLaunchDryRun,
     bridgeVisibilityFixture: options.bridgeVisibilityFixture,
     providerSessionId: options.providerSessionId,
@@ -483,7 +497,9 @@ async function buildReceipt(options) {
   return {
     record_type: actionSelection.action === 'supervised-live-launch'
       ? 'aos.afk_session_trigger_supervised_live'
-      : 'aos.afk_session_trigger_dry_run',
+      : (actionSelection.action === 'warm-dock-tui-reuse'
+          ? 'aos.afk_session_trigger_warm_dock_tui_reuse'
+          : 'aos.afk_session_trigger_dry_run'),
     schema_status: 'not_a_schema',
     status,
     created_at: createdAt,
@@ -522,7 +538,7 @@ async function buildReceipt(options) {
       dock_profile_ref: dockProfile.profile_path ?? NOT_OBSERVED,
       launch_root: dockProfile.launch_root ?? NOT_OBSERVED,
       action: actionSelection.action,
-      provider_launch_allowed: preLaunchAllowed,
+      provider_launch_allowed: launchAllowed,
       human_supervision: actionSelection.action === 'supervised-live-launch'
         ? { required: true, i_am_present: Boolean(options.iAmPresent) }
         : { required: false, i_am_present: false },
@@ -531,6 +547,7 @@ async function buildReceipt(options) {
     terminal_substrate: terminalSubstrateSection(actionSelection.action, launchAttempt),
     provider_acceptance: providerAcceptanceSection(provider.selected_provider, launchAttempt),
     cleanup,
+    warm_tui_reuse: launchAttempt?.warm_tui_reuse ?? NOT_ATTEMPTED,
     codex_adapter: codexAdapterSection(launchAttempt),
     catalog: launchAttempt ? launchAttempt.catalog : {
       status: NOT_ATTEMPTED,
@@ -646,6 +663,13 @@ async function classifyCleanup(repoRoot, options, action, launchAttempt = null) 
     proof: NOT_ATTEMPTED,
   };
   if (action !== 'supervised-live-launch') {
+    if (action === 'warm-dock-tui-reuse' && launchAttempt?.cleanup) {
+      return {
+        ...launchAttempt.cleanup,
+        launch_attempt_id: launchAttempt.launch_attempt_id,
+        source_ref: 'inline:launch_attempt.cleanup',
+      };
+    }
     return {
       ...base,
       reason: 'dry-run-only',
@@ -730,6 +754,7 @@ function cleanupProofCoversBridgeAndChild(proof) {
 function schedulerState(action, mismatches, duplicate, launchAttempt = null, cleanup = null) {
   if (mismatches.length > 0) return 'rejected';
   if (duplicate?.duplicate && duplicate.reused_state) return 'duplicate';
+  if (action === 'warm-dock-tui-reuse' && launchAttempt?.lifecycle_state === 'provider_session_observed') return 'completed';
   if (launchAttempt?.lifecycle_state === 'provider_session_observed' && cleanup?.status === 'verified') return 'completed';
   return action === 'dry-run' ? 'accepted' : 'accepted_pre_launch';
 }
@@ -741,6 +766,9 @@ function statusFor(action, mismatches, duplicate, launchAttempt = null, cleanup 
   if (mismatches.some((item) => item.class === 'replacement_required_for_prior_attempt')) return 'blocked';
   if (mismatches.length > 0) return 'rejected';
   if (duplicate?.duplicate && duplicate.reused_state) return 'duplicate';
+  if (action === 'warm-dock-tui-reuse' && launchAttempt?.lifecycle_state === 'provider_session_observed') {
+    return 'completed';
+  }
   if (launchAttempt?.lifecycle_state === 'provider_session_observed' && cleanup?.status === 'verified') {
     return 'completed';
   }
