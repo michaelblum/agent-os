@@ -1,15 +1,15 @@
 # Work Card: AFK Dev Session Trigger Provider Prompt Execution Observation V0
 
-**Status:** Routed 2026-05-23
+**Status:** Revised and routed 2026-05-23
 
 ## Transfer Classification
 
 - Recipient: GDI
 - Transfer kind: correction round
-- Single next goal: make the guarded live Codex/GDI path prove provider-level
-  prompt execution, not just bridge byte delivery, so a real no-fixture launch
-  creates observable `.docks/gdi` Codex session identity and can close provider
-  acceptance.
+- Single next goal: change live Codex/GDI prompt submission from concatenated
+  prompt-plus-submit delivery to prompt text delivery followed by a delayed
+  separate submit key, while still proving provider acceptance only from
+  snapshot identity or Codex metadata.
 - Source artifacts:
   - `docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v1.md`
   - `docs/design/work-cards/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0.md`
@@ -82,13 +82,44 @@ Do not treat the Codex UI displaying the prompt text as successful provider
 acceptance. The prompt must be submitted to the provider and produce a concrete
 live session/thread signal.
 
+## Narrow Hypothesis
+
+The likely root cause is submit timing/semantics, not provider config:
+
+- The bridge writes prompt text and final submit too close together for Codex's
+  TUI.
+- The PTY accepts both writes.
+- Codex interprets the final carriage return as part of paste/composer input,
+  or otherwise fails to treat it as a standalone submit key.
+- The symptom matches Operator v1: the snapshot showed the transfer prompt in
+  the UI, but no `.docks/gdi` Codex rollout was created.
+
+Lead with the smallest reversible correction: split prompt body delivery from
+the final submit key and insert a bounded delay. Do not mutate Codex provider
+config or keymaps in this GDI round. If the split-write proof still fails, a
+separate follow-up can investigate a Codex config/keymap path such as
+`ctrl-enter`.
+
 ## Required Behavior
 
 - Distinguish bridge byte delivery from provider prompt execution in the live
   record.
-- Make the live Codex/GDI submission path robust enough that the no-fixture
-  Operator run can submit the prompt to Codex, not merely leave the prompt text
-  visible in the composer.
+- For live Codex/GDI prompt submission, do not concatenate the final submit
+  with the body. Use:
+  1. bridge `/input` with the prompt body and `enter:false`;
+  2. a bounded delay, initially `150ms`;
+  3. bridge `/key` with `key:"Enter"` as a separate PTY write.
+- Keep any prompt-body newlines as body content only. The actual submit must be
+  the separate final key event.
+- Record the split-submit shape in the receipt, including fields equivalent to:
+  - `submit_key_separate_write=true`;
+  - `submit_delay_ms=150`;
+  - `key_accepted=true` when `/key Enter` is accepted.
+- Provider acceptance must remain gated on snapshot identity or Codex metadata,
+  not on key acceptance alone.
+- Make the live Codex/GDI submission path robust enough that the next
+  no-fixture Operator run can submit the prompt to Codex, not merely leave the
+  prompt text visible in the composer.
 - After provider-level submission, observe one of:
   - a parseable provider session id from live snapshot text; or
   - a metadata-backed Codex adapter match for `.docks/gdi` in the launch window,
@@ -160,9 +191,8 @@ Determine why the live Codex prompt stayed visible rather than executing. Plausi
 areas to check:
 
 - Multi-line prompt shape: Codex TUI may treat embedded newlines differently
-  from a final submit key. Consider using a single-line bounded prompt, a
-  provider-specific paste/submit sequence, or an explicit final `/key Enter`
-  after input when the UI requires it.
+  from a final submit key. Keep prompt-body newlines as body content, but make
+  the actual submit a delayed separate `/key Enter`.
 - Bridge semantics: `/input` currently means "write bytes to PTY"; it should not
   be the only evidence for provider-level submission.
 - Snapshot polling: a post-submit snapshot should detect whether the prompt is
@@ -175,16 +205,17 @@ not executed until the correct final submit action" before changing live logic.
 
 ## Suggested Implementation Areas
 
-- Consider making `buildLiveProviderPrompt()` generate a single-line bounded
-  prompt for the live Codex TUI, while preserving enough packet pointer context.
-- Consider adding a provider-specific submit helper that sends text with
-  `enter:false`, then sends the exact final key sequence needed to execute in
-  Codex, and records both bridge write acceptance and provider execution
-  observation separately.
+- Add a provider-specific submit helper for live Codex that sends text with
+  `enter:false`, waits `150ms`, then sends `/key Enter`.
+- Record both bridge write acceptance and separate submit-key acceptance:
+  `submit_key_separate_write=true`, `submit_delay_ms=150`, and bounded key
+  result fields.
 - Consider adding snapshot classification for "prompt still visible in
   composer" versus "provider has begun executing/responding".
 - Keep Codex metadata access bounded to session metadata and refs. Do not read
   or copy transcript bodies.
+- Do not mutate Codex config, keymaps, provider settings, or global provider
+  state in this GDI round.
 
 ## Deterministic Tests To Add Or Update
 
@@ -192,8 +223,12 @@ not executed until the correct final submit action" before changing live logic.
   execution/session metadata appears. It should not be considered provider
   accepted, and it should carry a structured provider-execution-unobserved
   mismatch.
-- Add a test for the corrected submit sequence or prompt shape that models a
-  TUI requiring the final execution action after text delivery.
+- Add deterministic coverage proving live Codex submission uses `/input` with
+  `enter:false`, then waits the bounded delay, then sends `/key Enter` as a
+  separate submit write. Assert receipt fields equivalent to
+  `submit_key_separate_write=true` and `submit_delay_ms=150`.
+- Add or update a fixture that models a TUI requiring the final execution action
+  after text delivery.
 - Preserve the existing metadata promotion tests and ensure promotion only
   happens after provider-level prompt execution is observed or after the
   metadata thread appears for the intended `.docks/gdi` launch.
@@ -223,6 +258,8 @@ the next Operator supervised proof after accepting the deterministic correction.
 - The correction requires a live Codex launch.
 - The correction requires provider transcript body reads or provider-owned store
   mutation.
+- The correction requires Codex config/keymap mutation. Report that as a
+  fallback candidate for a separate Foreman-routed follow-up.
 - Scope expands into async result routing, final session command design,
   GitHub mutation, PR creation, or removing `--i-am-present`.
 

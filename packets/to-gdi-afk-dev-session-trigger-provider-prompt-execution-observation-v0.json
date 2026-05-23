@@ -3,9 +3,10 @@
   "packet_type": "foreman_transfer_packet",
   "packet_version": 0,
   "created_at": "2026-05-23T12:02:16-04:00",
+  "updated_at": "2026-05-23T12:19:56-04:00",
   "recipient": "gdi",
   "transfer_kind": "correction_round",
-  "single_next_goal": "Make the guarded live Codex/GDI path prove provider-level prompt execution instead of only bridge byte delivery, so a real no-fixture launch can create observable .docks/gdi Codex session identity and close provider acceptance.",
+  "single_next_goal": "Change live Codex/GDI prompt submission to write prompt text with enter:false, wait 150ms, then send /key Enter as a separate submit write, while keeping provider acceptance gated on snapshot identity or Codex metadata.",
   "work_card_ref": "docs/design/work-cards/afk-dev-session-trigger-provider-prompt-execution-observation-v0.md",
   "required_start_ref": "foreman/afk-provider-prompt-execution-observation-v0",
   "branch_from": "foreman/afk-provider-prompt-execution-observation-v0",
@@ -13,12 +14,13 @@
   "accepted_source_head": "f94bc43bb50b5d5bb274ef8e2d2a8a4c6990f223",
   "operator_live_proof_head": "746c18a032c438d0e9b236d6672e7ddddab18885",
   "clipboard_prompt": "follow the transfer packet in packets/to-gdi-afk-dev-session-trigger-provider-prompt-execution-observation-v0.json; start from foreman/afk-provider-prompt-execution-observation-v0",
-  "review_finding": "Operator v1 proved bridge /input delivered the transfer prompt into the Codex terminal, but the prompt remained visible and no .docks/gdi Codex metadata thread appeared. Bridge write acceptance is not provider prompt execution.",
+  "review_finding": "Operator v1 proved bridge /input delivered the transfer prompt into the Codex terminal, but the prompt remained visible and no .docks/gdi Codex metadata thread appeared. Likely root cause: prompt body and submit were written too close together, so Codex treated the final carriage return as paste/composer input rather than a standalone submit key.",
   "required_evidence": [
     "Bridge byte delivery is distinguished from provider-level prompt execution in the receipt",
-    "Live Codex submit path changed to execute the prompt instead of leaving text in the composer",
+    "Live Codex submit path uses /input enter:false, waits 150ms, then sends /key Enter as a separate PTY write",
+    "Receipt records submit_key_separate_write=true, submit_delay_ms=150, and key acceptance fields",
     "A deterministic test models text accepted but provider execution unobserved",
-    "A deterministic test covers the corrected submit sequence or prompt shape",
+    "A deterministic test proves the corrected split-write submit sequence",
     "Provider acceptance still requires snapshot identity or metadata-backed Codex thread identity",
     "Verification command results",
     "Statement that Operator supervised live proof remains required"
@@ -27,6 +29,7 @@
     "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
     "implementation requires a live Codex launch",
     "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires Codex config/keymap mutation",
     "scope expands into async result routing, final session command design, GitHub mutation, PR creation, or removing --i-am-present"
   ],
   "human_notes": [
