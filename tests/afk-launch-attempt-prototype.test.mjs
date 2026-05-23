@@ -5,7 +5,11 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { providerObservationFromBridgeSnapshot } from '../scripts/afk-launch-attempt-prototype.mjs';
+import {
+  buildLiveProviderPrompt,
+  providerObservationFromBridgeSnapshot,
+  submitLiveProviderPrompt,
+} from '../scripts/afk-launch-attempt-prototype.mjs';
 
 const repoRoot = resolve(new URL('..', import.meta.url).pathname);
 const scriptPath = join(repoRoot, 'scripts', 'afk-launch-attempt-prototype.mjs');
@@ -366,6 +370,77 @@ test('keeps live terminal snapshot provider acceptance unobserved when no provid
   assert.equal(observation.provider_acceptance.model, 'gpt-5.5');
   assert.equal(observation.mismatch.code, 'provider_session_id_not_observed');
   assert.equal(observation.mismatch.effect, 'not_observed');
+});
+
+test('builds bounded live provider prompt from packet goal and source artifact', () => {
+  const prompt = buildLiveProviderPrompt({
+    packet: validPacket({
+      packet_id: 'packet-live-prompt',
+      source_artifact: 'docs/design/work-cards/live-prompt.md',
+      required_start_ref: 'foreman/live-prompt',
+      goal: 'submit this transfer packet goal to the launched provider without reading transcripts',
+    }),
+    packetId: 'packet-live-prompt',
+    sourceArtifact: 'docs/design/work-cards/live-prompt.md',
+    requiredStartRef: 'foreman/live-prompt',
+    worktree: repoRoot,
+  });
+
+  assert.match(prompt, /Goal: submit this transfer packet goal/);
+  assert.match(prompt, /Packet: packet-live-prompt/);
+  assert.match(prompt, /Source artifact: docs\/design\/work-cards\/live-prompt\.md/);
+  assert.match(prompt, /Required start ref: foreman\/live-prompt/);
+  assert.doesNotMatch(prompt, /body text must not be read/);
+});
+
+test('submits live provider prompt through bridge input without executing Codex', async () => {
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    requests.push({ url, options });
+    return {
+      ok: true,
+      async json() {
+        return {
+          ok: true,
+          driver: 'process',
+          session_exists: true,
+          text_bytes: Buffer.byteLength(JSON.parse(options.body).text ?? ''),
+          text_accepted: true,
+          enter_sent: true,
+          enter_bytes: 1,
+          enter_accepted: true,
+        };
+      },
+    };
+  };
+
+  const prompt = 'Goal: deterministic prompt submission';
+  const submission = await submitLiveProviderPrompt({
+    port: 48123,
+    session: 'afk-live-prompt-test',
+    prompt,
+    promptSource: {
+      packetId: 'packet-live-prompt',
+      sourceArtifact: 'docs/design/work-cards/live-prompt.md',
+      goal: 'deterministic prompt submission',
+    },
+    fetchImpl,
+  });
+
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /\/input$/);
+  assert.deepEqual(JSON.parse(requests[0].options.body), {
+    session: 'afk-live-prompt-test',
+    text: prompt,
+    enter: true,
+  });
+  assert.equal(submission.status, 'submitted');
+  assert.equal(submission.text_accepted, true);
+  assert.equal(submission.enter_accepted, true);
+  assert.equal(submission.prompt_summary.packet_id_or_ref, 'packet-live-prompt');
+  assert.equal(submission.prompt_summary.source_artifact, 'docs/design/work-cards/live-prompt.md');
+  assert.match(submission.prompt_summary.prompt_sha256, /^[a-f0-9]{64}$/);
+  assert.equal(submission.prompt_summary.prompt_bytes, Buffer.byteLength(prompt));
 });
 
 test('reuses the in-process attempt for a duplicate idempotence key', async () => {

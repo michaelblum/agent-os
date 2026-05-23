@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, mkdirSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import http from 'node:http';
@@ -277,6 +277,54 @@ function boundedSnapshotExcerpt(text, lineLimit = 6) {
   return String(text || '').split('\n').slice(0, lineLimit).join('\n') || NOT_OBSERVED;
 }
 
+function boundedInlineText(value, limit = 240) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!text) return NOT_OBSERVED;
+  return text.length > limit ? `${text.slice(0, limit - 3)}...` : text;
+}
+
+function buildLiveProviderPrompt(context) {
+  const goal = context.packet.goal ?? context.packet.objective ?? context.packet.single_next_goal ?? NOT_OBSERVED;
+  const lines = [
+    '# AOS GDI transfer',
+    `Goal: ${boundedInlineText(goal, 600)}`,
+    `Packet: ${context.packetId ?? NOT_OBSERVED}`,
+    `Source artifact: ${context.sourceArtifact ?? NOT_OBSERVED}`,
+    `Required start ref: ${context.requiredStartRef ?? NOT_OBSERVED}`,
+    `Worktree: ${context.worktree ?? NOT_OBSERVED}`,
+    '',
+    'Follow the packet goal and repo instructions. Keep output bounded and report deterministic evidence.',
+  ];
+  return lines.join('\n').trim();
+}
+
+function inputSubmissionRecord({ prompt, inputResult = null, keyResult = null, promptSource = {} }) {
+  const inputOk = inputResult?.ok === true;
+  const keyOk = keyResult?.ok === true;
+  return {
+    status: inputOk ? 'submitted' : 'prompt_submission_unobserved',
+    prompt_ref: 'inline:terminal_substrate.input_submission.prompt_summary',
+    prompt_summary: {
+      packet_id_or_ref: promptSource.packetId ?? NOT_OBSERVED,
+      source_artifact: promptSource.sourceArtifact ?? NOT_OBSERVED,
+      goal_excerpt: boundedInlineText(promptSource.goal, 160),
+      prompt_sha256: createHash('sha256').update(prompt).digest('hex'),
+      prompt_bytes: Buffer.byteLength(prompt),
+    },
+    text_accepted: inputResult?.text_accepted ?? inputResult?.textAccepted ?? inputOk,
+    enter_sent: inputResult?.enter_sent ?? inputResult?.enterSent ?? true,
+    enter_accepted: inputResult?.enter_accepted ?? inputResult?.enterAccepted ?? inputOk,
+    extra_enter_needed: keyResult ? true : false,
+    key_accepted: keyResult
+      ? (keyResult.key_accepted ?? keyResult.keyAccepted ?? keyOk)
+      : NOT_OBSERVED,
+    typed_observed: NOT_OBSERVED,
+    submitted_observed: inputOk,
+    response_marker: NOT_OBSERVED,
+    response_marker_observed: false,
+  };
+}
+
 function providerObservationFromBridgeSnapshot(snapshot, fallback = {}) {
   const text = compactLines(snapshot?.text, snapshot?.title, snapshot?.status);
   const parsed = parseBridgeVisibilityText(text);
@@ -442,7 +490,7 @@ function deriveAdapterTimeWindow(context) {
   const beforeMs = timestampMs(context.timestamp);
   return {
     after,
-    ...(beforeMs != null && beforeMs >= afterMs ? { before: context.timestamp } : {}),
+  ...(beforeMs != null && beforeMs > afterMs ? { before: context.timestamp } : {}),
   };
 }
 
@@ -526,9 +574,14 @@ function adapterMismatchObjects(correlation, timestamp) {
 function buildCodexAdapterRecord({ status, correlation = null, reference = null, codexHome = null, timeWindow = null }) {
   const matched = correlation?.status === 'matched_by_provider_session_id'
     || correlation?.status === 'matched_by_cwd_time_window';
+  const codexHomeRef = codexHome
+    ? (resolve(codexHome).startsWith(resolve(homedir()))
+        ? `codex-home:${codexHome}`
+        : `fixture:${codexHome}`)
+    : NOT_OBSERVED;
   return {
     status,
-    codex_home_ref: codexHome ? `fixture:${codexHome}` : NOT_OBSERVED,
+    codex_home_ref: codexHomeRef,
     correlation_status: correlation?.status ?? NOT_OBSERVED,
     confidence: correlation?.confidence ?? 'none',
     matched_thread_id: matched ? correlation.thread.thread_id : NOT_OBSERVED,
@@ -940,6 +993,20 @@ async function waitForSnapshot(port, session, marker) {
   throw new Error(`snapshot did not include ${marker}`);
 }
 
+async function waitForSessionReadySnapshot(port, session) {
+  let last = null;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const response = await fetch(`http://127.0.0.1:${port}/snapshot?session=${encodeURIComponent(session)}&lines=80`);
+    if (response.ok) {
+      const snapshot = await response.json();
+      last = snapshot;
+      if (snapshot.command_child_pid || snapshot.text || snapshot.command) return snapshot;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+  }
+  return last;
+}
+
 async function waitForProviderObservationSnapshot(port, session, fallback) {
   let last = null;
   for (let attempt = 0; attempt < 40; attempt += 1) {
@@ -958,6 +1025,50 @@ async function waitForProviderObservationSnapshot(port, session, fallback) {
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   }
   return last;
+}
+
+async function submitLiveProviderPrompt({ port, session, prompt, promptSource = {}, fetchImpl = fetch, sendExtraEnter = false }) {
+  const inputResponse = await fetchImpl(`http://127.0.0.1:${port}/input`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      session,
+      text: prompt,
+      enter: true,
+    }),
+  });
+  const inputResult = inputResponse.ok ? await inputResponse.json() : { ok: false, status: inputResponse.status };
+  let keyResult = null;
+  if (sendExtraEnter) {
+    const keyResponse = await fetchImpl(`http://127.0.0.1:${port}/key`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        key: 'Enter',
+      }),
+    });
+    keyResult = keyResponse.ok ? await keyResponse.json() : { ok: false, status: keyResponse.status };
+  }
+  return inputSubmissionRecord({
+    prompt,
+    promptSource,
+    inputResult,
+    keyResult,
+  });
+}
+
+function promptSubmissionMismatch(inputSubmission) {
+  if (inputSubmission?.status === 'submitted') return null;
+  return {
+    code: 'provider_prompt_submission_unobserved',
+    severity: 'error',
+    source: 'terminal_substrate',
+    expected: { input_submission: 'prompt text and Enter accepted by bridge /input' },
+    observed: { input_submission: inputSubmission?.status ?? NOT_OBSERVED },
+    effect: 'not_observed',
+    evidence_ref: 'inline:terminal_substrate.input_submission',
+  };
 }
 
 async function waitForBridgeUnreachable(port) {
@@ -1292,7 +1403,7 @@ function dryRunProviderTerminalSubstrate({ session, launchCwd, command }) {
   };
 }
 
-async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, command }) {
+async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, command, prompt, promptSource }) {
   const port = await freePort();
   const defaultSession = `afk-launch-${idempotenceKey.slice(0, 12)}`;
   let output = '';
@@ -1328,6 +1439,13 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
       throw new Error(`bridge /ensure failed: ${await ensureResponse.text()}`);
     }
     const ensured = await ensureResponse.json();
+    const readySnapshot = await waitForSessionReadySnapshot(port, defaultSession);
+    const inputSubmission = await submitLiveProviderPrompt({
+      port,
+      session: defaultSession,
+      prompt,
+      promptSource,
+    });
     const providerObservationSnapshot = await waitForProviderObservationSnapshot(port, defaultSession, {
       session: ensured.session,
       driver: ensured.driver,
@@ -1355,6 +1473,7 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
         cwd: launchCwd,
         command,
         snapshot_ref: providerObservation.snapshot_ref,
+        input_submission: inputSubmission,
         snapshot_summary: providerObservation.snapshot_summary,
         bridge_health: {
           ok: health.ok,
@@ -1366,8 +1485,14 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
       provider_acceptance: providerObservation.provider_acceptance,
       catalog_status: NOT_OBSERVED,
       telemetry_status: NOT_OBSERVED,
-      mismatch: providerObservation.mismatch,
+      mismatch: promptSubmissionMismatch(inputSubmission) ?? providerObservation.mismatch,
     };
+    if (
+      observed.terminal_substrate.command_child_pid === NOT_OBSERVED
+      && readySnapshot?.command_child_pid
+    ) {
+      observed.terminal_substrate.command_child_pid = readySnapshot.command_child_pid;
+    }
     return observed;
   } finally {
     if (bridge.exitCode == null) {
@@ -1390,7 +1515,7 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
 async function buildAttemptContext(options) {
   if (!options.packet) throw new Error('Missing required --packet');
   const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
-  const codexHome = normalizeCodexHomeOption(repoRoot, options);
+  let codexHome = normalizeCodexHomeOption(repoRoot, options);
   const packetPath = repoPath(repoRoot, options.packet);
   const packet = await readJsonFile(packetPath, 'packet');
   const rawCatalogFixture = options.catalogFixture
@@ -1458,6 +1583,23 @@ async function buildAttemptContext(options) {
     assertNoProviderCommand(command);
   }
   const bridgeVisibility = normalizeBridgeVisibilityFixture(rawBridgeVisibilityFixture, intendedLaunchCwd);
+  if (
+    !codexHome
+    && launchMode === 'supervised-provider'
+    && provider.selected_provider === 'codex'
+    && !options.providerLaunchDryRun
+    && !rawBridgeVisibilityFixture
+  ) {
+    codexHome = join(homedir(), '.codex');
+  }
+  const promptContext = {
+    packet,
+    packetId,
+    sourceArtifact,
+    requiredStartRef,
+    worktree,
+  };
+  const liveProviderPrompt = buildLiveProviderPrompt(promptContext);
 
   const validations = [
     validationRecord('packet_id_or_ref_present', Boolean(packetId), { packet_id_or_ref: packetId ?? null }),
@@ -1534,6 +1676,14 @@ async function buildAttemptContext(options) {
     launchMode,
     idempotenceKey,
     command,
+    liveProviderPrompt,
+    liveProviderPromptSource: {
+      packetId,
+      sourceArtifact,
+      requiredStartRef,
+      worktree,
+      goal: packet.goal ?? packet.objective ?? packet.single_next_goal ?? NOT_OBSERVED,
+    },
     bridgeVisibility,
     providerLaunchPerformed: bridgeVisibility?.provider_launch_performed ?? false,
     providerLaunchDryRun: Boolean(options.providerLaunchDryRun),
@@ -1541,7 +1691,12 @@ async function buildAttemptContext(options) {
     allCwdCatalogFixture,
     providerSessionId: options.providerSessionId ?? bridgeVisibility?.providerSessionId ?? NOT_OBSERVED,
     launchObservedAt: options.launchObservedAt ?? catalogInput?.launch_observed_at ?? catalogInput?.launchObservedAt ?? options.timestamp ?? NOT_OBSERVED,
-    launchObservedAtForCorrelation: options.launchObservedAt ?? catalogInput?.launch_observed_at ?? catalogInput?.launchObservedAt ?? NOT_OBSERVED,
+    launchObservedAtForCorrelation: options.launchObservedAt
+      ?? catalogInput?.launch_observed_at
+      ?? catalogInput?.launchObservedAt
+      ?? (launchMode === 'supervised-provider' && !options.providerLaunchDryRun && !rawBridgeVisibilityFixture
+        ? options.timestamp
+        : NOT_OBSERVED),
     validations,
   };
 }
@@ -1724,6 +1879,8 @@ async function createLaunchAttempt(options) {
                 idempotenceKey: context.idempotenceKey,
                 launchCwd: context.intendedLaunchCwd,
                 command: context.command,
+                prompt: context.liveProviderPrompt,
+                promptSource: context.liveProviderPromptSource,
               })
         )
       : await observeTerminalSubstrate({
@@ -1900,7 +2057,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export {
+  buildLiveProviderPrompt,
   createLaunchAttempt,
   parseArgs,
   providerObservationFromBridgeSnapshot,
+  submitLiveProviderPrompt,
 };
