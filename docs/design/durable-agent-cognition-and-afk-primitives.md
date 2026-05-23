@@ -622,5 +622,14 @@ The next slices should stay reversible:
    supervised Operator no-fixture run at
    `docs/design/work-cards/operator-afk-dev-session-trigger-cleanup-proof-live-v0.md`
    to collect live receipt cleanup evidence from the real command path.
+   That Operator run produced an accepted partial pass: the real no-fixture
+   trigger path returned `provider_acceptance_unobserved`, recorded verified
+   cleanup with all required bridge and child proof kinds, and left no new
+   bridge, PTY, owned process group, or nested `codex --no-alt-screen` process
+   behind. One source follow-up remains: the receipt set
+   `packet.validation_status=invalid` because runtime/provider mismatches are
+   currently folded into the packet validation field. The next routed source
+   correction is
+   `docs/design/work-cards/afk-dev-session-trigger-packet-validation-status-correction-v0.md`.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.

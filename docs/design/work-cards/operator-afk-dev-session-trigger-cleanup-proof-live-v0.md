@@ -1,6 +1,53 @@
 # Operator AFK Dev Session Trigger Cleanup Proof Live V0
 
-**Status:** Routed 2026-05-22
+**Status:** Partial pass accepted 2026-05-22
+
+## Result
+
+- Classification: `partial_pass`.
+- Foreman review: accepted as the intended live cleanup-proof evidence. Branch
+  and ref gates passed with `HEAD` and `docs/durable-agent-cognition-v0` both at
+  `98f043ee9aec224e6e1bed5cf05b5af0fe5e2650`; final worktree status was clean,
+  and final `./aos ready` reported
+  `ready=true mode=repo daemon=reachable tap=active`.
+- Preflight passed: `./aos ready`, `node --test
+  tests/afk-session-trigger-prototype.test.mjs` with 15/15 passing,
+  `node --test tests/afk-launch-attempt-prototype.test.mjs` with 25/25
+  passing, and `node --test tests/sigil-agent-terminal-server.test.mjs` with
+  12/12 passing.
+- Trigger receipt: wrapper observed exit `1`; top-level
+  `status=provider_acceptance_unobserved`;
+  `scheduler.lifecycle_state=rejected`;
+  `terminal_substrate.status=observed`; `terminal_substrate.driver=process`;
+  `terminal_substrate.cwd=/Users/Michael/Code/agent-os/.docks/gdi`;
+  `terminal_substrate.command=codex --no-alt-screen`;
+  `provider_acceptance.status=provider_acceptance_unobserved`;
+  `cleanup.status=verified`; `cleanup.reason=null`; mismatch classes:
+  `provider_acceptance_unobserved`.
+- Cleanup proof included all required kinds:
+  `owned_bridge_process_exit`,
+  `owned_bridge_health_unreachable_after_teardown`,
+  `owned_process_driver_child_exit`, and
+  `owned_provider_command_child_exit`.
+- Process cleanup accepted: baseline and post-run snapshots matched for
+  persistent pre-existing Codex app/helper processes; no new bridge server,
+  `pty-proxy.py`, owned bridge process, owned process group, or nested
+  `codex --no-alt-screen` remained. Receipt PIDs `75861` and `75863`, and
+  bridge port `63663`, were no longer observable.
+- Boundary confirmed: temporary packet/output directory removed; no source,
+  docs, config, provider config/session/catalog, gateway, dock profile, hook,
+  GitHub, push, PR, external publication, or provider transcript body
+  read/mutation happened.
+- Follow-up finding: the live receipt reported
+  `packet.validation_status=invalid` even though the packet source artifact was
+  present, the durable start ref resolved, the guarded launch path proceeded,
+  and cleanup proof was verified. Foreman reproduced this deterministically
+  without a live provider: a valid packet plus internal provider-launch dry-run
+  and verified cleanup fixture still returned
+  `packet.validation_status=invalid` solely because the runtime mismatch list
+  contained `provider_acceptance_unobserved`.
+- Next routed source correction:
+  `docs/design/work-cards/afk-dev-session-trigger-packet-validation-status-correction-v0.md`.
 
 ## Transfer Classification
 
