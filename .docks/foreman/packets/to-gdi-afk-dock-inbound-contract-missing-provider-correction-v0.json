@@ -1,0 +1,41 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T17:28:53-04:00",
+  "updated_at": "2026-05-23T17:28:53-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "correction_round",
+  "single_next_goal": "Prevent missing dock inbound provider declarations from crashing AFK prompt construction before existing structured guard receipts can run.",
+  "work_card_ref": "docs/design/work-cards/afk-dock-inbound-contract-missing-provider-correction-v0.md",
+  "required_start_ref": "gdi/afk-dock-inbound-contract-prompt-source-v0",
+  "branch_from": "gdi/afk-dock-inbound-contract-prompt-source-v0",
+  "expected_output_branch": "gdi/afk-dock-inbound-contract-missing-provider-correction-v0",
+  "reviewed_head": "ceaf38ef267c20b1f8f3ffd6d4db39a8d7ca64ad",
+  "review_finding": {
+    "severity": "correction_required",
+    "path": "scripts/afk-launch-attempt-prototype.mjs",
+    "line": 426,
+    "summary": "providerPromptProfile calls validateDockInboundMessage for any supported provider/dock. Because current dock contracts only declare codex, supported non-Codex providers such as claude/operator now throw before the existing structured pre-launch guard receipt can run."
+  },
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-afk-dock-inbound-contract-missing-provider-correction-v0.json; start from gdi/afk-dock-inbound-contract-prompt-source-v0 at ceaf38ef267c20b1f8f3ffd6d4db39a8d7ca64ad",
+  "required_evidence": [
+    "Missing provider declaration in a dock inbound contract is handled as structured prompt-contract evidence, not an uncaught exception from buildLiveProviderPrompt/buildAttemptContext",
+    "Existing unsupported or unsupported-for-live provider guard receipts keep returning structured JSON in the established stdout/stderr shape expected by tests",
+    "Codex/GDI contract-backed prompt behavior remains unchanged",
+    "Contract-declared GDI self-acceptance errors still block before typed input",
+    "Regression test covers a supported non-Codex provider/dock combination whose contract provider is absent, such as claude/operator, without crashing before guard classification",
+    "Statement that no live provider launch, real terminal drive, transcript body read, provider mutation, GitHub mutation, async routing, or unsupervised trigger behavior occurred"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires driving real dock terminals or launching live providers",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires gateway/broker, Slack, GitHub, Foreman inbox, notifier route mutation, async result routing, or removing --i-am-present",
+    "the right fix requires adding full Claude/Gemini dock inbound provider contracts instead of preserving current Codex-only semantics"
+  ],
+  "human_notes": [
+    "The reviewed implementation is directionally right but not accepted yet.",
+    "After this correction is accepted, Foreman should route the Agent Terminal headful observability design/contract slice."
+  ]
+}
