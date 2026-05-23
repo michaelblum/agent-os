@@ -369,9 +369,9 @@ async function buildReceipt(options) {
   const schedulerRunId = `scheduler-${stableHash({ idempotenceKey, kind: 'scheduler' })}`;
   const dispatchAttemptId = `dispatch-${stableHash({ schedulerRunId, idempotenceKey, kind: 'dispatch' })}`;
   const duplicate = options.existingReceipt ? await classifyExistingReceipt(repoRoot, options.existingReceipt, idempotenceKey, options) : null;
-  const preLaunchMismatchCount = mismatches.length;
+  const intakeMismatchCount = mismatches.length;
   const preLaunchAllowed = actionSelection.action === 'supervised-live-launch'
-    && preLaunchMismatchCount === 0
+    && intakeMismatchCount === 0
     && !(duplicate?.duplicate && (duplicate.reused_state || duplicate.relaunch_requires_replacement));
   const launchAttempt = preLaunchAllowed ? await createLaunchAttempt({
     packet: packetPath,
@@ -397,7 +397,7 @@ async function buildReceipt(options) {
   if (cleanup.mismatch) {
     mismatches.push(cleanup.mismatch);
   }
-  const validationStatus = mismatches.length === 0 ? 'valid' : 'invalid';
+  const validationStatus = intakeMismatchCount === 0 ? 'valid' : 'invalid';
   const status = statusFor(actionSelection.action, mismatches, duplicate, launchAttempt, cleanup);
 
   return {

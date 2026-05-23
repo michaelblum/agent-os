@@ -302,6 +302,7 @@ test('selects provider-shaped Codex command for accepted no-fixture supervised l
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.dispatch.provider_launch_allowed, true);
   assert.equal(receipt.status, 'provider_acceptance_unobserved');
+  assert.equal(receipt.packet.validation_status, 'valid');
   assert.equal(receipt.terminal_substrate.status, 'observed');
   assert.equal(receipt.terminal_substrate.command, 'codex --no-alt-screen');
   assert.equal(receipt.provider_acceptance.status, 'provider_acceptance_unobserved');
@@ -330,6 +331,7 @@ test('rejects supervised-live pre-launch guard failures before side effects', as
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.record_type, 'aos.afk_session_trigger_supervised_live');
   assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.packet.validation_status, 'invalid');
   assert.equal(receipt.dispatch.provider_launch_allowed, false);
   assert.equal(receipt.terminal_substrate.status, 'not_attempted');
   assert.deepEqual(new Set(receipt.mismatches.map((item) => item.class)), new Set([
@@ -460,6 +462,7 @@ test('treats accepted live receipt states as non-launching duplicates', async ()
     assert.equal(duplicate.status, 0, `${state}: ${duplicate.stderr}`);
     const receipt = JSON.parse(duplicate.stdout);
     assert.equal(receipt.status, 'duplicate', state);
+    assert.equal(receipt.packet.validation_status, 'valid', state);
     assert.equal(receipt.scheduler.lifecycle_state, 'duplicate', state);
     assert.equal(receipt.scheduler.duplicate_handling.duplicate, true, state);
     assert.equal(receipt.scheduler.duplicate_handling.existing_state, state);
@@ -544,6 +547,7 @@ test('classifies deterministic cleanup proof failure as cleanup_unverified after
   assert.equal(result.status, 1);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.status, 'cleanup_unverified');
+  assert.equal(receipt.packet.validation_status, 'valid');
   assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
   assert.equal(receipt.dispatch.provider_launch_allowed, true);
   assert.equal(receipt.terminal_substrate.status, 'observed');
@@ -654,6 +658,7 @@ test('provider acceptance timeout returns non-completed state even with cleanup 
   assert.equal(result.status, 1);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.status, 'provider_acceptance_unobserved');
+  assert.equal(receipt.packet.validation_status, 'valid');
   assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
   assert.equal(receipt.terminal_substrate.status, 'observed');
   assert.notEqual(receipt.provider_acceptance.status, 'provider_session_observed');
@@ -696,6 +701,7 @@ test('provider acceptance timeout with failed cleanup reports cleanup_unverified
   assert.equal(result.status, 1);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.status, 'cleanup_unverified');
+  assert.equal(receipt.packet.validation_status, 'valid');
   assert.equal(receipt.scheduler.lifecycle_state, 'rejected');
   assert.equal(receipt.provider_acceptance.status, 'provider_acceptance_unobserved');
   assert.equal(receipt.cleanup.status, 'cleanup_unverified');
