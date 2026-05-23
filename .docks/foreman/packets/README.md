@@ -1,7 +1,7 @@
-# Transfer Packets
+# Foreman Transfer Packets
 
-`packets/` holds Foreman-authored transfer packet files for active cross-session
-handoffs.
+`.docks/foreman/packets/` holds Foreman-authored transfer packet files for
+active cross-session handoffs.
 
 This directory is a coordination convention, not a runtime store and not a
 product schema. The packet files keep copied prompts short while preserving the
@@ -12,14 +12,7 @@ detailed transfer contract on disk.
 Use:
 
 ```text
-packets/to-<dock>-<slug>.json
-```
-
-Examples:
-
-```text
-packets/to-gdi-afk-dev-session-trigger-codex-goal-prefix-transport-v0.json
-packets/to-operator-afk-dev-session-trigger-provider-acceptance-live-proof-v1.json
+.docks/foreman/packets/to-<dock>-<slug>.json
 ```
 
 ## Contents
@@ -46,7 +39,7 @@ Detailed implementation or live-run instructions still belong in
 Clipboard prompts should stay short and pointer-only, for example:
 
 ```text
-follow the transfer packet in packets/to-gdi-<slug>.json; start from <ref>
+follow the transfer packet in .docks/foreman/packets/to-gdi-<slug>.json; start from <ref>
 ```
 
 Do not paste large work cards or transfer payloads directly into the clipboard
@@ -66,5 +59,5 @@ During Foreman hygiene, do one of the following for each packet:
 - promote the convention into product docs before relying on it as a stable
   repo-wide mechanism.
 
-If a packet remains in the repo, it should be intentionally reviewable and tied
-to an active or recently accepted work card.
+If a packet remains in this directory, it should be intentionally reviewable and
+tied to an active or recently accepted work card.
