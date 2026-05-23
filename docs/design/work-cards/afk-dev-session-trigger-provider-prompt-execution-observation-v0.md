@@ -1,6 +1,37 @@
 # Work Card: AFK Dev Session Trigger Provider Prompt Execution Observation V0
 
-**Status:** Revised with input timing contract and routed 2026-05-23
+**Status:** Accepted with follow-up 2026-05-23
+
+## Foreman Review Result
+
+GDI completed this correction at
+`47647c316d6d78a98ce525641ecb4aa05c7fc72e` from base
+`9e80f6de66bbeb419840ce3b1c438fcfb24df2ef`.
+
+Foreman accepted the source slice against the written input-timing contract. The
+live Codex prompt is now a short file-backed pointer, timing constants are
+centralized, prompt text is typed character by character from the first
+character, final submit is an isolated `/key Enter`, and receipt evidence
+separates bridge byte/key acceptance from provider execution. The launch-attempt
+tests now cover the pointer prompt, timing profile, isolated submit, and
+`provider_execution_unobserved`.
+
+Verification passed locally:
+
+```bash
+./aos ready
+node --test tests/afk-session-trigger-prototype.test.mjs
+node --test tests/afk-launch-attempt-prototype.test.mjs
+node --test tests/sigil-agent-terminal-server.test.mjs
+cd packages/host && npm test
+git diff --check 9e80f6de66bbeb419840ce3b1c438fcfb24df2ef..47647c316d6d78a98ce525641ecb4aa05c7fc72e
+```
+
+Foreman is not routing Operator live proof yet. A narrower follow-up is needed
+first because AFK Codex/GDI transport should use the provider-native `/goal`
+prefix. The older "do not add `/goal`" rule is scoped to Foreman/human
+clipboard dispatches, not AFK PTY automation. Route the correction in
+`docs/design/work-cards/afk-dev-session-trigger-codex-goal-prefix-transport-v0.md`.
 
 ## Transfer Classification
 
