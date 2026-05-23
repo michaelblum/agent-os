@@ -1,0 +1,36 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T16:25:00-04:00",
+  "updated_at": "2026-05-23T16:25:00-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "gdi_round",
+  "single_next_goal": "Implement an AOS-owned dock inbound message contract so target docks declare provider-specific entry syntax and Ralph-loop-prone one-shot GDI goals are rejected deterministically.",
+  "work_card_ref": "docs/design/work-cards/aos-dock-inbound-message-contract-v0.md",
+  "required_start_ref": "gdi/afk-warm-dock-tui-reuse-contract-v0",
+  "branch_from": "gdi/afk-warm-dock-tui-reuse-contract-v0",
+  "expected_output_branch": "gdi/aos-dock-inbound-message-contract-v0",
+  "foreman_routing_head": "8b690ed9c655007c8e76b7f0ee0750a2e2493f41",
+  "blocked_operator_live_proof_ref": "docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v0.md",
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-aos-dock-inbound-message-contract-v0.json; start from local commit 8b690ed9c655007c8e76b7f0ee0750a2e2493f41",
+  "required_evidence": [
+    "AOS-owned dock inbound message contract schema/docs or equivalent first-class contract artifact",
+    "Dock-local inbound contracts for Foreman, GDI, and Operator",
+    "Formatter/validator proof for valid GDI pointer payloads and valid Operator plain payloads",
+    "Deterministic rejection or warning for GDI reply-exactly one-shot goal prompts",
+    "Handoff/schema tests and git diff check",
+    "Statement that no live provider launch, real terminal drive, transcript body read, provider mutation, GitHub mutation, async routing, or unsupervised trigger behavior occurred"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires driving real dock terminals or launching live providers",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires gateway/broker, Slack, GitHub, Foreman inbox, notifier route mutation, async result routing, or removing --i-am-present",
+    "the correct contract boundary requires human product direction beyond the work card"
+  ],
+  "human_notes": [
+    "Use this as a substantial GDI /goal round, not a one-shot proof prompt.",
+    "The triggering defect was a Ralph loop from a /goal Reply exactly... proof prompt; the contract should make that invalid for GDI."
+  ]
+}
