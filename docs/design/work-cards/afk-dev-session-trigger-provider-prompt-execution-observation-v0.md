@@ -1,15 +1,15 @@
 # Work Card: AFK Dev Session Trigger Provider Prompt Execution Observation V0
 
-**Status:** Revised and routed 2026-05-23
+**Status:** Revised with input timing contract and routed 2026-05-23
 
 ## Transfer Classification
 
 - Recipient: GDI
 - Transfer kind: correction round
-- Single next goal: change live Codex/GDI prompt submission from concatenated
-  prompt-plus-submit delivery to prompt text delivery followed by a delayed
-  separate submit key, while still proving provider acceptance only from
-  snapshot identity or Codex metadata.
+- Single next goal: change live Codex/GDI prompt submission to use a
+  file-backed pointer prompt, centralized input timing, character-by-character
+  typing, startup settle, and an isolated submit key, while still proving
+  provider acceptance only from snapshot identity or Codex metadata.
 - Source artifacts:
   - `docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v1.md`
   - `docs/design/work-cards/afk-dev-session-trigger-metadata-provider-acceptance-promotion-v0.md`
@@ -94,29 +94,74 @@ The likely root cause is submit timing/semantics, not provider config:
 - The symptom matches Operator v1: the snapshot showed the transfer prompt in
   the UI, but no `.docks/gdi` Codex rollout was created.
 
-Lead with the smallest reversible correction: split prompt body delivery from
-the final submit key and insert a bounded delay. Do not mutate Codex provider
-config or keymaps in this GDI round. If the split-write proof still fails, a
-separate follow-up can investigate a Codex config/keymap path such as
-`ctrl-enter`.
+Lead with the smallest reversible input-layer correction. Do not mutate Codex
+provider config or keymaps in this GDI round. If the revised pointer-prompt and
+timed character input proof still fails, a separate follow-up can investigate a
+Codex config/keymap path such as `ctrl-enter`.
+
+## Input Layer Requirements
+
+- Keep the detailed payload file-backed. The PTY prompt must be a short
+  plain-prose pointer to the work card, not the full transfer payload. Use a
+  simple newline-safe envelope such as:
+
+```text
+Your work card is at docs/design/work-cards/<slug>.md. Read it first, then begin.
+```
+
+- Keep the pointer prompt under about 400 characters. This avoids bracketed
+  paste risk, avoids the observed CLI goal-length problem, and keeps the trigger
+  transport provider-agnostic.
+- Introduce one centralized live input timing config location, with V0 defaults:
+
+```js
+{
+  startupSettleMs: 2000,
+  charDelayMs: 10,
+  preSubmitDelayMs: 300,
+}
+```
+
+- Do not scatter these values across dispatch logic. Do not add random variance
+  for V0; deterministic timing is easier to test and compare across live proofs.
+- Add one `typeCharacters(prompt, opts)` path for PTY prompt text delivery.
+  Every PTY prompt write should use it from the first character. Do not keep a
+  fast path for short prompts.
+- After the terminal ready signal, wait `startupSettleMs` before typing the
+  first character. The current readiness check proves render, not input-handler
+  readiness. Stable empty-composer polling can be a future refinement, but do
+  not block this slice on it.
+- Type the pointer prompt character by character with `charDelayMs` between
+  characters.
+- After typing, wait `preSubmitDelayMs`, then send `/key Enter` as the final
+  isolated submit event.
+- Do not concatenate the final submit with the body. Keep any prompt-body
+  newlines as body content only; the actual submit must be a separate final key
+  event.
 
 ## Required Behavior
 
 - Distinguish bridge byte delivery from provider prompt execution in the live
   record.
-- For live Codex/GDI prompt submission, do not concatenate the final submit
-  with the body. Use:
-  1. bridge `/input` with the prompt body and `enter:false`;
-  2. a bounded delay, initially `150ms`;
-  3. bridge `/key` with `key:"Enter"` as a separate PTY write.
-- Keep any prompt-body newlines as body content only. The actual submit must be
-  the separate final key event.
-- Record the split-submit shape in the receipt, including fields equivalent to:
+- Live Codex/GDI prompt submission should use the file-backed pointer prompt
+  and the centralized timing profile:
+  1. wait `startupSettleMs` after the terminal ready signal;
+  2. type the pointer prompt with `typeCharacters()` and `charDelayMs`;
+  3. wait `preSubmitDelayMs`;
+  4. send bridge `/key` with `key:"Enter"` as a separate PTY write.
+- Record the input timing and submit shape in the receipt, including fields
+  equivalent to:
+  - `prompt_transport=file_pointer`;
+  - `prompt_ref=docs/design/work-cards/<slug>.md`;
+  - `pointer_prompt_bytes`;
+  - `startup_settle_ms=2000`;
+  - `char_delay_ms=10`;
+  - `typed_character_count`;
+  - `pre_submit_delay_ms=300`;
   - `submit_key_separate_write=true`;
-  - `submit_delay_ms=150`;
   - `key_accepted=true` when `/key Enter` is accepted.
 - Provider acceptance must remain gated on snapshot identity or Codex metadata,
-  not on key acceptance alone.
+  not on typing completion or key acceptance alone.
 - Make the live Codex/GDI submission path robust enough that the next
   no-fixture Operator run can submit the prompt to Codex, not merely leave the
   prompt text visible in the composer.
@@ -190,9 +235,13 @@ Only continue if it reports ready.
 Determine why the live Codex prompt stayed visible rather than executing. Plausible
 areas to check:
 
-- Multi-line prompt shape: Codex TUI may treat embedded newlines differently
-  from a final submit key. Keep prompt-body newlines as body content, but make
-  the actual submit a delayed separate `/key Enter`.
+- Prompt shape: the live PTY prompt should be a short pointer to the work card,
+  not the full packet or goal payload.
+- Incremental input: Codex and other TUIs may route input differently when bytes
+  arrive as a chunk versus as keystrokes. Use the same character-by-character
+  path for all prompt text.
+- Startup readiness: rendering a marker does not prove the composer input
+  handler is ready. Add the fixed post-ready settle delay for V0.
 - Bridge semantics: `/input` currently means "write bytes to PTY"; it should not
   be the only evidence for provider-level submission.
 - Snapshot polling: a post-submit snapshot should detect whether the prompt is
@@ -205,11 +254,14 @@ not executed until the correct final submit action" before changing live logic.
 
 ## Suggested Implementation Areas
 
-- Add a provider-specific submit helper for live Codex that sends text with
-  `enter:false`, waits `150ms`, then sends `/key Enter`.
-- Record both bridge write acceptance and separate submit-key acceptance:
-  `submit_key_separate_write=true`, `submit_delay_ms=150`, and bounded key
-  result fields.
+- Replace the full PTY prompt body with a pointer to this work card. Keep the
+  packet/work-card detail on disk.
+- Add or reuse a provider-agnostic `typeCharacters(prompt, opts)` helper and
+  route every PTY prompt text write through it.
+- Add one centralized live input timing config with `startupSettleMs=2000`,
+  `charDelayMs=10`, and `preSubmitDelayMs=300`.
+- Record bridge write acceptance, character typing timing, startup settle,
+  pre-submit delay, and separate submit-key acceptance.
 - Consider adding snapshot classification for "prompt still visible in
   composer" versus "provider has begun executing/responding".
 - Keep Codex metadata access bounded to session metadata and refs. Do not read
@@ -223,10 +275,17 @@ not executed until the correct final submit action" before changing live logic.
   execution/session metadata appears. It should not be considered provider
   accepted, and it should carry a structured provider-execution-unobserved
   mismatch.
-- Add deterministic coverage proving live Codex submission uses `/input` with
-  `enter:false`, then waits the bounded delay, then sends `/key Enter` as a
-  separate submit write. Assert receipt fields equivalent to
-  `submit_key_separate_write=true` and `submit_delay_ms=150`.
+- Add deterministic coverage proving the live PTY prompt is a file-backed work
+  card pointer, remains under about 400 characters, and does not serialize the
+  full transfer payload into the terminal.
+- Add deterministic coverage proving all PTY prompt writes go through
+  `typeCharacters()` from the first character, with no short-prompt fast path.
+- Add deterministic coverage for the centralized timing profile:
+  `startupSettleMs=2000`, `charDelayMs=10`, and `preSubmitDelayMs=300`.
+- Add deterministic coverage proving the final submit is a separate `/key
+  Enter` after `preSubmitDelayMs`. Assert receipt fields equivalent to
+  `submit_key_separate_write=true`, `pre_submit_delay_ms=300`,
+  `startup_settle_ms=2000`, and `char_delay_ms=10`.
 - Add or update a fixture that models a TUI requiring the final execution action
   after text delivery.
 - Preserve the existing metadata promotion tests and ensure promotion only
@@ -272,6 +331,8 @@ Return:
 - files changed;
 - tests run and pass/fail counts;
 - exact behavior change;
+- how file-backed pointer prompts, startup settle, character typing, and
+  isolated submit are represented in the receipt;
 - how bridge byte delivery is now distinguished from provider prompt execution;
 - whether live no-fixture provider acceptance should now be able to close from
   snapshot or metadata;
