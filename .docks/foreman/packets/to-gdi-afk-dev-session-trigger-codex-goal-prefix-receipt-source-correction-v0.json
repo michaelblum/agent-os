@@ -1,0 +1,37 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T14:27:10-04:00",
+  "updated_at": "2026-05-23T14:27:10-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "correction_round",
+  "single_next_goal": "Repair the real live Codex/GDI AFK prompt submission receipt source so /goal prompt submissions record provider_prompt_mode=codex_goal and provider_prompt_prefix=/goal .",
+  "work_card_ref": "docs/design/work-cards/afk-dev-session-trigger-codex-goal-prefix-receipt-source-correction-v0.md",
+  "required_start_ref": "gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0",
+  "branch_from": "gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0",
+  "expected_output_branch": "gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0",
+  "required_implementation_input_head": "6d83b6ee07dbffd6d9e93b6101caf288674c3aca",
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-afk-dev-session-trigger-codex-goal-prefix-receipt-source-correction-v0.json; start from the current local gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0 branch head that contains the correction card",
+  "review_finding": "The current implementation builds the prompt with /goal, but liveProviderPromptSource omits selectedProvider/selectedDock before submitLiveProviderPrompt records providerPromptProfile(promptSource), so the real live submission receipt can report mode=plain and prefix empty.",
+  "required_evidence": [
+    "Actual live submission receipt source records provider_prompt_mode=codex_goal for Codex/GDI",
+    "Actual live submission receipt source records provider_prompt_prefix=/goal ",
+    "Deterministic regression coverage exercises the source boundary that failed, not only a direct helper call with manually supplied provider/dock fields",
+    "Slash prefix remains typed through the same character-by-character path from the first character",
+    "Provider acceptance still requires snapshot identity or metadata-backed Codex thread identity",
+    "Verification command results",
+    "Statement that Operator supervised live proof remains required"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires a live Codex launch",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires Codex config/keymap mutation",
+    "scope expands into async result routing, final session command design, GitHub issue/PR/main mutation, PR creation, or removing --i-am-present"
+  ],
+  "human_notes": [
+    "Do not start async result routing until provider acceptance closes and Foreman accepts the live proof.",
+    "Foreman will route the next supervised Operator proof after accepting this deterministic correction."
+  ]
+}
