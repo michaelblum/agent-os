@@ -14,6 +14,7 @@ const PROVIDER_BINARY_PATTERN = /(^|[/\s'"`])(codex|claude|gemini)(\s|$)/i;
 const DEFAULT_TIMESTAMP = null;
 const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
+const LOCAL_ARTIFACT_PATH = 'local_artifact_path';
 const NOT_APPLICABLE_NO_PROVIDER = 'not_applicable: no-provider-launch';
 const LIVE_INPUT_TIMING_PROFILE = Object.freeze({
   startupSettleMs: 2000,
@@ -134,6 +135,82 @@ function normalizeResultRoutes(packet) {
   const route = packet.result_route ?? packet.resultRoute ?? packet.result_routes ?? packet.resultRoutes;
   if (Array.isArray(route)) return route;
   return route ? [route] : [];
+}
+
+function classifyLocalResultRoutes({ repoRoot, routes, stdoutDelivered = false, outPath = null, outWriteConfirmed = false }) {
+  const attemptRefs = [];
+  const deliveredRefs = [];
+  const failures = [];
+  const resolvedOutPath = outPath ? resolve(outPath) : null;
+
+  for (const route of routes) {
+    const kind = route?.kind ?? NOT_OBSERVED;
+    const ref = route?.ref ?? route?.path ?? route?.artifact_path ?? route?.artifactPath ?? NOT_OBSERVED;
+    const routeRef = typeof route === 'object' && route !== null ? { ...route, ref } : { kind, ref };
+    attemptRefs.push(routeRef);
+
+    if (kind !== LOCAL_ARTIFACT_PATH) {
+      failures.push({
+        route: routeRef,
+        code: 'result_route_unsupported',
+        reason: `Unsupported result route kind: ${kind}`,
+      });
+      continue;
+    }
+    if (ref === 'stdout') {
+      if (stdoutDelivered) {
+        deliveredRefs.push(routeRef);
+      } else {
+        failures.push({
+          route: routeRef,
+          code: 'result_route_stdout_not_emitted',
+          reason: 'stdout route was configured but stdout emission was not confirmed',
+        });
+      }
+      continue;
+    }
+
+    const resolvedRef = repoPath(repoRoot, ref);
+    if (!resolvedRef) {
+      failures.push({
+        route: routeRef,
+        code: 'result_route_ref_missing',
+        reason: 'local_artifact_path route did not include ref/path',
+      });
+      continue;
+    }
+    if (outWriteConfirmed && resolvedOutPath && resolve(resolvedRef) === resolvedOutPath) {
+      deliveredRefs.push({
+        ...routeRef,
+        ref,
+        resolved_path: isWithinRepo(repoRoot, resolvedRef) ? relative(repoRoot, resolvedRef) || '.' : resolvedRef,
+      });
+      continue;
+    }
+    failures.push({
+      route: {
+        ...routeRef,
+        ref,
+        resolved_path: isWithinRepo(repoRoot, resolvedRef) ? relative(repoRoot, resolvedRef) || '.' : resolvedRef,
+      },
+      code: 'result_route_write_not_confirmed',
+      reason: 'local artifact route was not delivered because no matching confirmed --out write occurred',
+    });
+  }
+
+  let status = NOT_ATTEMPTED;
+  if (attemptRefs.length > 0) {
+    status = failures.length === 0 && deliveredRefs.length > 0
+      ? 'completed'
+      : (deliveredRefs.length > 0 ? 'attempted' : (failures.some((failure) => failure.code === 'result_route_unsupported') ? 'unsupported' : 'failed'));
+  }
+
+  return {
+    status,
+    attempt_refs: attemptRefs,
+    delivered_refs: deliveredRefs,
+    failure: failures.length > 0 ? failures : NOT_OBSERVED,
+  };
 }
 
 function normalizeProviderHint(packet) {
@@ -540,7 +617,6 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
 function deriveLifecycleState(record) {
   if (record.lifecycle_state === 'rejected') return 'rejected';
   if (record.mismatches.some((mismatch) => mismatch.effect === 'failed')) return 'failed';
-  if (record.result_route.status === 'delivered' || record.result_route.status === 'completed') return 'completed';
   if (record.catalog.status === 'catalog_matched') return 'catalog_matched';
   if (
     record.provider_acceptance.status === 'provider_session_observed'
@@ -2017,12 +2093,7 @@ function initialRecord(context, timestamp) {
       capability_event_refs: NOT_OBSERVED,
       mismatch_refs: [],
     },
-    result_route: {
-      status: NOT_ATTEMPTED,
-      attempt_refs: [],
-      delivered_refs: [],
-      failure: NOT_OBSERVED,
-    },
+    result_route: classifyLocalResultRoutes({ repoRoot: context.repoRoot, routes: context.resultRoutes }),
     cleanup: {
       owner: NOT_OBSERVED,
       status: NOT_OBSERVED,
@@ -2229,12 +2300,27 @@ async function main() {
     }
 
     const record = await createLaunchAttempt(options);
-    const output = options.json ? JSON.stringify(record, null, 2) : toMarkdown(record);
     if (options.out) {
-      await writeFile(options.out, `${output}\n`, 'utf8');
+      record.result_route = classifyLocalResultRoutes({
+        repoRoot: record.launch_intent.intended_worktree,
+        routes: record.transfer.result_route_refs === NOT_OBSERVED ? [] : record.transfer.result_route_refs,
+        stdoutDelivered: true,
+        outPath: options.out,
+        outWriteConfirmed: true,
+      });
+      record.lifecycle_state = deriveLifecycleState(record);
+      const output = options.json ? JSON.stringify(record, null, 2) : toMarkdown(record);
+      await writeFile(resolve(options.out), `${output}\n`, 'utf8');
+    } else {
+      record.result_route = classifyLocalResultRoutes({
+        repoRoot: record.launch_intent.intended_worktree,
+        routes: record.transfer.result_route_refs === NOT_OBSERVED ? [] : record.transfer.result_route_refs,
+        stdoutDelivered: true,
+      });
+      record.lifecycle_state = deriveLifecycleState(record);
     }
 
-    let finalOutput = output;
+    let finalOutput = options.json ? JSON.stringify(record, null, 2) : toMarkdown(record);
     let finalExitCode = exitCodeFor(record);
     if (options.duplicateInProcess) {
       const duplicate = await createLaunchAttempt(options);

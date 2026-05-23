@@ -210,8 +210,11 @@ test('creates a dry-run-ready scheduler and dispatch receipt without launch side
     status: 'not_attempted',
     reason: 'dry-run-only',
   });
-  assert.equal(receipt.result_route.status, 'not_attempted');
+  assert.equal(receipt.result_route.status, 'completed');
   assert.deepEqual(receipt.result_route.refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.deepEqual(receipt.result_route.attempt_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.deepEqual(receipt.result_route.delivered_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.equal(receipt.result_route.failure, 'not_observed');
   assert.deepEqual(receipt.mismatches, []);
 });
 
@@ -267,6 +270,67 @@ test('writes the same dry-run receipt to --out', async () => {
   assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), JSON.parse(result.stdout));
 });
 
+test('accounts for explicit --out local artifact delivery after confirmed file write', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-local-route-'));
+  const outPath = join(dir, 'receipt.json');
+  const packetPath = await writePacket(validPacket({
+    result_route: [
+      { kind: 'local_artifact_path', ref: outPath },
+    ],
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    outPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), receipt);
+  assert.equal(receipt.status, 'dry_run_ready');
+  assert.equal(receipt.scheduler.lifecycle_state, 'accepted');
+  assert.equal(receipt.result_route.status, 'completed');
+  assert.equal(receipt.result_route.delivered_refs[0].ref, outPath);
+  assert.equal(receipt.result_route.delivered_refs[0].resolved_path, outPath);
+  assert.equal(receipt.result_route.failure, 'not_observed');
+});
+
+test('keeps unsupported result routes explicit and non-completed', async () => {
+  const packetPath = await writePacket(validPacket({
+    result_route: [
+      { kind: 'gateway_notifier', ref: 'slack-thread-123' },
+    ],
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'dry_run_ready');
+  assert.equal(receipt.result_route.status, 'unsupported');
+  assert.deepEqual(receipt.result_route.delivered_refs, []);
+  assert.equal(receipt.result_route.failure[0].code, 'result_route_unsupported');
+});
+
 test('drives fixture-backed supervised-live Codex bridge/provider acceptance and requires cleanup before completion', async () => {
   const packetPath = await writePacket(validPacket());
   const bridgeFixture = await writeBridgeVisibilityFixture();
@@ -317,7 +381,7 @@ test('drives fixture-backed supervised-live Codex bridge/provider acceptance and
   assert.equal(receipt.codex_adapter.status, 'not_attempted_no_codex_home_fixture');
   assert.equal(receipt.catalog.status, 'not_observed');
   assert.equal(receipt.telemetry.status, 'not_observed');
-  assert.equal(receipt.result_route.status, 'not_attempted');
+  assert.equal(receipt.result_route.status, 'completed');
   assert.equal(receipt.work_receipt.status, 'not_attempted');
   assert.equal(receipt.evidence.transcript_body_copied, false);
   assert.deepEqual(receipt.mismatches, []);

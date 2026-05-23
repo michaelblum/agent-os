@@ -189,7 +189,11 @@ test('creates a no-provider launch-attempt record with process bridge substrate 
   assert.equal(record.catalog.catalog_record_refs, 'not_observed');
   assert.equal(record.telemetry.status, 'not_observed');
   assert.equal(record.telemetry.telemetry_event_refs, 'not_observed');
-  assert.equal(record.result_route.status, 'not_attempted');
+  assert.equal(record.result_route.status, 'completed');
+  assert.deepEqual(record.result_route.attempt_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.deepEqual(record.result_route.delivered_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.equal(record.result_route.failure, 'not_observed');
+  assert.equal(record.lifecycle_state, 'provider_acceptance_unobserved');
   assert.deepEqual(record.mismatches, []);
   assert.deepEqual(record.evidence.observed_refs, ['inline:terminal_substrate.snapshot_summary']);
   assert.equal(record.duplicate_handling.bridge_session_started, true);
@@ -323,8 +327,66 @@ test('represents accepted supervised live Codex bridge pass from deterministic f
   assert.ok(record.evidence.observed_refs.includes(`codex-thread:${providerSessionId}`));
   assert.equal(record.catalog.status, 'not_observed');
   assert.equal(record.telemetry.status, 'not_observed');
-  assert.equal(record.result_route.status, 'not_attempted');
+  assert.equal(record.result_route.status, 'completed');
   assert.deepEqual(record.mismatches, []);
+});
+
+test('accounts for --out local artifact result route without completing lifecycle', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'afk-launch-attempt-local-route-'));
+  const outPath = join(dir, 'launch-attempt.json');
+  const packetPath = await writePacket(validPacket({
+    result_route: [
+      { kind: 'local_artifact_path', ref: outPath },
+    ],
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    outPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), record);
+  assert.equal(record.result_route.status, 'completed');
+  assert.equal(record.result_route.delivered_refs[0].ref, outPath);
+  assert.equal(record.result_route.delivered_refs[0].resolved_path, outPath);
+  assert.equal(record.result_route.failure, 'not_observed');
+  assert.equal(record.lifecycle_state, 'provider_acceptance_unobserved');
+});
+
+test('keeps unsupported launch-attempt result routes explicit and non-completed', async () => {
+  const packetPath = await writePacket(validPacket({
+    result_route: [
+      { kind: 'gateway_notifier', ref: 'slack-thread-123' },
+    ],
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.result_route.status, 'unsupported');
+  assert.deepEqual(record.result_route.delivered_refs, []);
+  assert.equal(record.result_route.failure[0].code, 'result_route_unsupported');
+  assert.equal(record.lifecycle_state, 'provider_acceptance_unobserved');
 });
 
 test('promotes live terminal snapshot provider session text to observed provider acceptance', () => {

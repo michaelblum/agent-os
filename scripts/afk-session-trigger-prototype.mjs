@@ -12,6 +12,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
 const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
+const LOCAL_ARTIFACT_PATH = 'local_artifact_path';
 const LIVE_TERMINAL_STATES = new Set([
   'accepted',
   'accepted_pre_launch',
@@ -170,6 +171,83 @@ function normalizeResultRoutes(packet, override) {
   if (Array.isArray(route)) return route;
   if (route) return [route];
   return override ? [override] : [];
+}
+
+function classifyLocalResultRoutes({ repoRoot, routes, stdoutDelivered = false, outPath = null, outWriteConfirmed = false }) {
+  const attemptRefs = [];
+  const deliveredRefs = [];
+  const failures = [];
+  const resolvedOutPath = outPath ? resolve(outPath) : null;
+
+  for (const route of routes) {
+    const kind = route?.kind ?? NOT_OBSERVED;
+    const ref = route?.ref ?? route?.path ?? route?.artifact_path ?? route?.artifactPath ?? NOT_OBSERVED;
+    const routeRef = typeof route === 'object' && route !== null ? { ...route, ref } : { kind, ref };
+    attemptRefs.push(routeRef);
+
+    if (kind !== LOCAL_ARTIFACT_PATH) {
+      failures.push({
+        route: routeRef,
+        code: 'result_route_unsupported',
+        reason: `Unsupported result route kind: ${kind}`,
+      });
+      continue;
+    }
+    if (ref === 'stdout') {
+      if (stdoutDelivered) {
+        deliveredRefs.push(routeRef);
+      } else {
+        failures.push({
+          route: routeRef,
+          code: 'result_route_stdout_not_emitted',
+          reason: 'stdout route was configured but stdout emission was not confirmed',
+        });
+      }
+      continue;
+    }
+
+    const resolvedRef = repoPath(repoRoot, ref);
+    if (!resolvedRef) {
+      failures.push({
+        route: routeRef,
+        code: 'result_route_ref_missing',
+        reason: 'local_artifact_path route did not include ref/path',
+      });
+      continue;
+    }
+    if (outWriteConfirmed && resolvedOutPath && resolve(resolvedRef) === resolvedOutPath) {
+      deliveredRefs.push({
+        ...routeRef,
+        ref,
+        resolved_path: relIfRepo(repoRoot, resolvedRef),
+      });
+      continue;
+    }
+    failures.push({
+      route: {
+        ...routeRef,
+        ref,
+        resolved_path: relIfRepo(repoRoot, resolvedRef),
+      },
+      code: 'result_route_write_not_confirmed',
+      reason: 'local artifact route was not delivered because no matching confirmed --out write occurred',
+    });
+  }
+
+  let status = NOT_ATTEMPTED;
+  if (attemptRefs.length > 0) {
+    status = failures.length === 0 && deliveredRefs.length > 0
+      ? 'completed'
+      : (deliveredRefs.length > 0 ? 'attempted' : (failures.some((failure) => failure.code === 'result_route_unsupported') ? 'unsupported' : 'failed'));
+  }
+
+  return {
+    status,
+    refs: routes,
+    attempt_refs: attemptRefs,
+    delivered_refs: deliveredRefs,
+    failure: failures.length > 0 ? failures : NOT_OBSERVED,
+  };
 }
 
 function normalizeBranchPolicy(packet) {
@@ -460,10 +538,7 @@ async function buildReceipt(options) {
       status: NOT_ATTEMPTED,
       telemetry_event_refs: NOT_ATTEMPTED,
     },
-    result_route: {
-      status: NOT_ATTEMPTED,
-      refs: resultRoutes,
-    },
+    result_route: classifyLocalResultRoutes({ repoRoot, routes: resultRoutes }),
     work_receipt: {
       status: NOT_ATTEMPTED,
     },
@@ -694,12 +769,29 @@ async function main() {
 
     const receipt = await buildReceipt(options);
     const outputAsJson = options.json || options.supervisedLiveLaunch;
-    const output = outputAsJson ? `${JSON.stringify(receipt, null, 2)}\n` : toMarkdown(receipt);
     if (options.out) {
       try {
+        receipt.result_route = classifyLocalResultRoutes({
+          repoRoot: receipt.current_state.repo_root,
+          routes: receipt.result_route.refs,
+          stdoutDelivered: true,
+          outPath: options.out,
+          outWriteConfirmed: true,
+        });
+        const output = outputAsJson ? `${JSON.stringify(receipt, null, 2)}\n` : toMarkdown(receipt);
         await writeFile(resolve(options.out), output, 'utf8');
       } catch (error) {
         receipt.status = 'failed';
+        receipt.result_route = {
+          ...classifyLocalResultRoutes({
+            repoRoot: receipt.current_state.repo_root,
+            routes: receipt.result_route.refs,
+            stdoutDelivered: true,
+            outPath: options.out,
+            outWriteConfirmed: false,
+          }),
+          status: 'failed',
+        };
         receipt.mismatches.push(mismatch('receipt_write_failed', `Unable to write receipt: ${error.message}`, {
           out: options.out,
         }));
@@ -707,7 +799,14 @@ async function main() {
         process.exitCode = 1;
         return;
       }
+    } else {
+      receipt.result_route = classifyLocalResultRoutes({
+        repoRoot: receipt.current_state.repo_root,
+        routes: receipt.result_route.refs,
+        stdoutDelivered: true,
+      });
     }
+    const output = outputAsJson ? `${JSON.stringify(receipt, null, 2)}\n` : toMarkdown(receipt);
     process.stdout.write(output);
     process.exitCode = ['dry_run_ready', 'supervised_live_launch_ready', 'duplicate', 'completed'].includes(receipt.status) ? 0 : 1;
   } catch (error) {
