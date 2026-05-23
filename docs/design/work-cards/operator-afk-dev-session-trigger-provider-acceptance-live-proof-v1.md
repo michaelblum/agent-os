@@ -1,6 +1,71 @@
 # Operator AFK Dev Session Trigger Provider Acceptance Live Proof V1
 
-**Status:** Routed 2026-05-23
+**Status:** Partial pass accepted 2026-05-23
+
+## Result
+
+- Classification: `provider_acceptance_unobserved_still_open`.
+- Foreman review: accepted as live evidence that deterministic prompt
+  submission and metadata promotion are still not enough to close provider
+  acceptance in the real no-fixture path.
+- Branch/ref gates passed on
+  `foreman/afk-provider-acceptance-live-proof-v1` at
+  `746c18a032c438d0e9b236d6672e7ddddab18885`, with accepted source SHA
+  `f94bc43bb50b5d5bb274ef8e2d2a8a4c6990f223`.
+- Preflight passed: `./aos ready`; `node --test
+  tests/afk-session-trigger-prototype.test.mjs` with 16/16 passing;
+  `node --test tests/afk-launch-attempt-prototype.test.mjs` with 30/30
+  passing; `node --test tests/sigil-agent-terminal-server.test.mjs` with 14/14
+  passing; and `cd packages/host && npm test` with 63/63 passing.
+- Trigger receipt: exit code `1`, top-level
+  `status=provider_acceptance_unobserved`,
+  `packet.validation_status=valid`, `scheduler.lifecycle_state=rejected`,
+  `dispatch.provider_launch_allowed=true`, `dispatch.launch_root=.docks/gdi`,
+  `terminal_substrate.status=observed`, driver `process`, cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`, command
+  `codex --no-alt-screen`, and
+  `terminal_substrate.snapshot_ref=inline:terminal_substrate.snapshot_summary`.
+- Input submission evidence: `status=submitted`, `text_accepted=true`,
+  `enter_sent=true`, `enter_accepted=true`, and
+  `submitted_observed=true`.
+- Snapshot evidence: bounded excerpt showed the AOS GDI transfer prompt with
+  the expected goal, packet id, source artifact, and required start ref. That
+  proves bridge byte delivery into the terminal, but not provider prompt
+  execution.
+- Provider acceptance remained unobserved:
+  `provider_acceptance.status=provider_acceptance_unobserved`,
+  `provider_session_id=not_observed`, provider cwd/branch/head/version all
+  `not_observed`, and model was only `loading`.
+- Codex adapter remained unobserved:
+  `codex_adapter.status=observed`,
+  `codex_adapter.correlation_status=not_observed`,
+  `matched_thread_id=not_observed`, and `candidate_thread_ids=[]`.
+- Mismatch: `provider_session_id_not_observed`.
+- Bounded provider metadata: the only modified rollout in the trigger window
+  was
+  `/Users/Michael/.codex/sessions/2026/05/23/rollout-2026-05-23T11-52-21-019e5589-992e-71b2-85ee-6695b2d1bb8a.jsonl`,
+  with `session_meta.payload.cwd` equal to
+  `/Users/Michael/Code/agent-os/.docks/operator`. No `.docks/gdi` rollout was
+  observed, and no transcript bodies were copied.
+- Cleanup proof passed: `cleanup.status=verified`, with
+  `owned_bridge_process_exit`,
+  `owned_bridge_health_unreachable_after_teardown`,
+  `owned_process_driver_child_exit`, and
+  `owned_provider_command_child_exit`. Owned process child PID `87312` and
+  provider command process group `87313` exited. No owned `codex
+  --no-alt-screen`, bridge `server.mjs`, or `pty-proxy.py` remained.
+- Final `./aos ready` reported
+  `ready=true mode=repo daemon=reachable tap=active`; final git status was
+  clean on `foreman/afk-provider-acceptance-live-proof-v1`; temporary
+  packet/output files were removed.
+- Boundary confirmed: no source, docs, config, provider config/session/catalog,
+  telemetry, gateway, dock profile, hook, GitHub, push, PR, merge, external
+  publication mutation, or async result routing occurred.
+- Foreman source reading after the report found the remaining gap: the current
+  bridge `/input` result proves bytes and Enter were written to the PTY, but the
+  live Codex UI still showed the prompt text rather than an executing session.
+  The next source correction is
+  `docs/design/work-cards/afk-dev-session-trigger-provider-prompt-execution-observation-v0.md`.
 
 ## Transfer Classification
 
