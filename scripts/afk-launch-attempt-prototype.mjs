@@ -288,9 +288,56 @@ function boundedInlineText(value, limit = 240) {
   return text.length > limit ? `${text.slice(0, limit - 3)}...` : text;
 }
 
+function configuredProviderPromptPrefix(context) {
+  return context.providerPromptPrefix
+    ?? context.provider_prompt_prefix
+    ?? context.packet?.provider_prompt_prefix
+    ?? context.packet?.providerPromptPrefix
+    ?? null;
+}
+
+function providerPromptProfile(context = {}) {
+  const configuredPrefix = configuredProviderPromptPrefix(context);
+  if (typeof configuredPrefix === 'string') {
+    return {
+      mode: configuredPrefix ? 'configured_prefix' : 'plain',
+      prefix: configuredPrefix,
+    };
+  }
+  const selectedProvider = String(
+    context.selectedProvider
+      ?? context.selected_provider
+      ?? context.provider
+      ?? context.packet?.provider_hint
+      ?? context.packet?.providerHint
+      ?? context.packet?.provider
+      ?? '',
+  ).toLowerCase();
+  const selectedDock = String(
+    context.selectedDock
+      ?? context.selected_dock
+      ?? context.dock
+      ?? context.packet?.requested_recipient
+      ?? context.packet?.requestedRecipient
+      ?? context.packet?.dock
+      ?? '',
+  ).toLowerCase();
+  if (selectedProvider === 'codex' && selectedDock === 'gdi') {
+    return {
+      mode: 'codex_goal',
+      prefix: '/goal ',
+    };
+  }
+  return {
+    mode: 'plain',
+    prefix: '',
+  };
+}
+
 function buildLiveProviderPrompt(context) {
   const sourceArtifact = context.sourceArtifact ?? normalizeSourceArtifact(context.packet) ?? NOT_OBSERVED;
-  return `Your work card is at ${sourceArtifact}. Read it first, then begin.`;
+  const profile = providerPromptProfile(context);
+  return `${profile.prefix}Your work card is at ${sourceArtifact}. Read it first, then begin.`;
 }
 
 function inputSubmissionRecord({
@@ -300,6 +347,7 @@ function inputSubmissionRecord({
   promptSource = {},
   timing = LIVE_INPUT_TIMING_PROFILE,
   typedCharacterCount = Buffer.byteLength(prompt),
+  providerPrompt = providerPromptProfile(promptSource),
 }) {
   const inputOk = inputResult?.ok === true || inputResult?.text_accepted === true || inputResult?.textAccepted === true;
   const keyOk = keyResult?.ok === true;
@@ -307,6 +355,8 @@ function inputSubmissionRecord({
     status: inputOk && keyOk ? 'submitted' : 'prompt_submission_unobserved',
     prompt_transport: 'file_pointer',
     prompt_ref: promptSource.sourceArtifact ?? NOT_OBSERVED,
+    provider_prompt_mode: providerPrompt.mode,
+    provider_prompt_prefix: providerPrompt.prefix,
     pointer_prompt_bytes: Buffer.byteLength(prompt),
     startup_settle_ms: timing.startupSettleMs,
     char_delay_ms: timing.charDelayMs,
@@ -440,6 +490,8 @@ function normalizeBridgeVisibilityFixture(fixture, fallbackCwd) {
           : 'prompt_submission_unobserved',
         prompt_transport: input?.prompt_transport ?? input?.promptTransport ?? 'file_pointer',
         prompt_ref: input?.prompt_ref ?? input?.promptRef ?? NOT_OBSERVED,
+        provider_prompt_mode: input?.provider_prompt_mode ?? input?.providerPromptMode ?? NOT_OBSERVED,
+        provider_prompt_prefix: input?.provider_prompt_prefix ?? input?.providerPromptPrefix ?? NOT_OBSERVED,
         pointer_prompt_bytes: input?.pointer_prompt_bytes ?? input?.pointerPromptBytes ?? NOT_OBSERVED,
         startup_settle_ms: input?.startup_settle_ms ?? input?.startupSettleMs ?? LIVE_INPUT_TIMING_PROFILE.startupSettleMs,
         char_delay_ms: input?.char_delay_ms ?? input?.charDelayMs ?? LIVE_INPUT_TIMING_PROFILE.charDelayMs,
@@ -1199,6 +1251,7 @@ async function submitLiveProviderPrompt({
     keyResult,
     timing,
     typedCharacterCount: inputResult.typed_character_count,
+    providerPrompt: providerPromptProfile(promptSource),
   });
 }
 
@@ -1744,6 +1797,8 @@ async function buildAttemptContext(options) {
     sourceArtifact,
     requiredStartRef,
     worktree,
+    selectedProvider: provider.selected_provider,
+    selectedDock,
   };
   const liveProviderPrompt = buildLiveProviderPrompt(promptContext);
 

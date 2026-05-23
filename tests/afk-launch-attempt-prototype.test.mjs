@@ -392,6 +392,8 @@ test('builds bounded file-backed live provider pointer prompt from source artifa
     sourceArtifact: 'docs/design/work-cards/live-prompt.md',
     requiredStartRef: 'foreman/live-prompt',
     worktree: repoRoot,
+    selectedProvider: 'operator',
+    selectedDock: 'operator',
   });
 
   assert.equal(prompt, 'Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.');
@@ -402,6 +404,24 @@ test('builds bounded file-backed live provider pointer prompt from source artifa
   assert.doesNotMatch(prompt, /Required start ref:/);
   assert.doesNotMatch(prompt, /submit this transfer packet goal/);
   assert.doesNotMatch(prompt, /body text must not be read/);
+});
+
+test('builds Codex GDI live provider prompt with provider-owned goal prefix', () => {
+  const prompt = buildLiveProviderPrompt({
+    packet: validPacket({
+      packet_id: 'packet-live-prompt',
+      source_artifact: 'docs/design/work-cards/live-prompt.md',
+      provider_hint: 'codex',
+      requested_recipient: 'gdi',
+    }),
+    packetId: 'packet-live-prompt',
+    sourceArtifact: 'docs/design/work-cards/live-prompt.md',
+    selectedProvider: 'codex',
+    selectedDock: 'gdi',
+  });
+
+  assert.equal(prompt, '/goal Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.');
+  assert.ok(Buffer.byteLength(prompt) < 400);
 });
 
 test('types every live provider prompt character through one input path', async () => {
@@ -442,6 +462,34 @@ test('types every live provider prompt character through one input path', async 
   assert.ok(requests.every((request) => /\/input$/.test(request.url)));
 });
 
+test('types slash-prefixed live provider prompt through the same character path', async () => {
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    requests.push({ url, body: JSON.parse(options.body) });
+    return {
+      ok: true,
+      async json() {
+        return {
+          ok: true,
+          text_accepted: true,
+        };
+      },
+    };
+  };
+
+  const result = await typeCharacters({
+    port: 48123,
+    session: 'afk-live-prompt-test',
+    text: '/goal X',
+    fetchImpl,
+    charDelayMs: 0,
+  });
+
+  assert.equal(result.text_accepted, true);
+  assert.deepEqual(requests.map((request) => request.body.text), ['/', 'g', 'o', 'a', 'l', ' ', 'X']);
+  assert.ok(requests.every((request) => /\/input$/.test(request.url)));
+});
+
 test('submits live provider pointer prompt with startup settle and isolated Enter key', async () => {
   const requests = [];
   const delays = [];
@@ -471,7 +519,7 @@ test('submits live provider pointer prompt with startup settle and isolated Ente
     };
   };
 
-  const prompt = 'Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.';
+  const prompt = '/goal Your work card is at docs/design/work-cards/live-prompt.md. Read it first, then begin.';
   const submission = await submitLiveProviderPrompt({
     port: 48123,
     session: 'afk-live-prompt-test',
@@ -480,6 +528,8 @@ test('submits live provider pointer prompt with startup settle and isolated Ente
       packetId: 'packet-live-prompt',
       sourceArtifact: 'docs/design/work-cards/live-prompt.md',
       goal: 'deterministic prompt submission',
+      selectedProvider: 'codex',
+      selectedDock: 'gdi',
     },
     fetchImpl,
     sleepImpl: async (ms) => {
@@ -496,7 +546,7 @@ test('submits live provider pointer prompt with startup settle and isolated Ente
   assert.deepEqual(delays, [2000, ...Array.from({ length: [...prompt].length }, () => 10), 300]);
   assert.deepEqual(requests[0].body, {
     session: 'afk-live-prompt-test',
-    text: prompt[0],
+    text: '/',
     enter: false,
   });
   assert.deepEqual(requests.at(-1), {
@@ -509,6 +559,8 @@ test('submits live provider pointer prompt with startup settle and isolated Ente
   assert.equal(submission.status, 'submitted');
   assert.equal(submission.prompt_transport, 'file_pointer');
   assert.equal(submission.prompt_ref, 'docs/design/work-cards/live-prompt.md');
+  assert.equal(submission.provider_prompt_mode, 'codex_goal');
+  assert.equal(submission.provider_prompt_prefix, '/goal ');
   assert.equal(submission.pointer_prompt_bytes, Buffer.byteLength(prompt));
   assert.equal(submission.startup_settle_ms, 2000);
   assert.equal(submission.char_delay_ms, 10);

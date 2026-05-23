@@ -66,6 +66,8 @@ async function writeBridgeVisibilityFixture(providerSessionId = '019e5107-5456-7
         session_exists: true,
         text_bytes: 120,
         text_accepted: true,
+        provider_prompt_mode: 'codex_goal',
+        provider_prompt_prefix: '/goal ',
         enter_sent: true,
         enter_bytes: 1,
         enter_accepted: true,
@@ -307,6 +309,8 @@ test('drives fixture-backed supervised-live Codex bridge/provider acceptance and
   assert.equal(receipt.terminal_substrate.status, 'observed');
   assert.equal(receipt.terminal_substrate.driver, 'process');
   assert.equal(receipt.terminal_substrate.geometry.cols, 100);
+  assert.equal(receipt.terminal_substrate.input_submission.provider_prompt_mode, 'codex_goal');
+  assert.equal(receipt.terminal_substrate.input_submission.provider_prompt_prefix, '/goal ');
   assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
   assert.equal(receipt.provider_acceptance.provider_reported_cwd, '/Users/Michael/Code/agent-os/.docks/gdi');
   assert.equal(receipt.cleanup.status, 'verified');
