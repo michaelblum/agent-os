@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import { appendProcessStderr } from '../apps/sigil/codex-terminal/server.mjs';
 
 describe('Sigil Agent Terminal bridge', () => {
   let root;
@@ -453,6 +454,75 @@ describe('Sigil Agent Terminal bridge', () => {
         await new Promise((resolve) => proxy.once('exit', resolve));
       }
     }
+  });
+
+  it('drops oversized malformed pty-proxy control frames and resumes stdin forwarding', async () => {
+    const script = [
+      'process.stdin.setEncoding("utf8");',
+      'if (process.stdin.isTTY) process.stdin.setRawMode(true);',
+      'let buffer = "";',
+      'process.stdout.write("raw-ready\\r\\n");',
+      'process.stdin.on("data", (chunk) => {',
+      '  for (const char of chunk) {',
+      '    if (char === "\\r" || char === "\\n") {',
+      '      process.stdout.write(`raw-submit:${buffer.slice(-32)}\\r\\n`);',
+      '      buffer = "";',
+      '    } else {',
+      '      buffer += char;',
+      '    }',
+      '  }',
+      '});',
+      'setTimeout(() => {}, 10000);',
+    ].join(' ');
+    const proxy = spawn('python3', [
+      'apps/sigil/codex-terminal/pty-proxy.py',
+      `${shellQuote(process.execPath)} -e ${shellQuote(script)}`,
+    ], {
+      cwd: path.resolve('.'),
+      env: {
+        ...process.env,
+        SIGIL_AGENT_TERMINAL_COLS: '80',
+        SIGIL_AGENT_TERMINAL_ROWS: '24',
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let proxyOutput = '';
+    proxy.stdout.on('data', (chunk) => { proxyOutput += chunk.toString('utf8'); });
+    proxy.stderr.on('data', (chunk) => { proxyOutput += chunk.toString('utf8'); });
+
+    try {
+      await waitForText(() => proxyOutput, 'raw-ready');
+      proxy.stdin.write(Buffer.concat([
+        Buffer.from('\0{"type":"resize","cols":100,"rows":', 'utf8'),
+        Buffer.alloc(4100, 'x'),
+      ]));
+      proxy.stdin.write(Buffer.alloc(4100, 'x'));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      proxy.stdin.write(Buffer.from('oversize-marker\r', 'utf8'));
+      await waitForText(() => proxyOutput, 'raw-submit:oversize-marker');
+    } finally {
+      if (proxy.exitCode == null) {
+        proxy.kill('SIGTERM');
+        await new Promise((resolve) => proxy.once('exit', resolve));
+      }
+    }
+  });
+});
+
+describe('Sigil Agent Terminal PTY child PID marker parsing', () => {
+  it('sets commandPid once and surfaces later marker-shaped stderr as output', () => {
+    const record = {
+      buffer: '',
+      clients: new Set(),
+      commandPid: null,
+    };
+    appendProcessStderr(record, Buffer.from('SIGIL_AGENT_PTY_CHILD_PID=111\n', 'utf8'));
+    assert.equal(record.commandPid, 111);
+    assert.equal(record.buffer, '');
+
+    appendProcessStderr(record, Buffer.from('SIGIL_AGENT_PTY_CHILD_PID=222\nordinary stderr\n', 'utf8'));
+    assert.equal(record.commandPid, 111);
+    assert.equal(record.buffer, 'SIGIL_AGENT_PTY_CHILD_PID=222\nordinary stderr\n');
   });
 });
 

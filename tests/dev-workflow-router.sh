@@ -153,6 +153,7 @@ assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "-
 assert "--allow-provider-launch" not in tokens, tokens
 assert "session" not in form["usage"].lower(), form
 assert "experimental" in json.dumps(form).lower(), form
+assert "prototype" in json.dumps(form).lower(), form
 PY
 then
     pass "dev afk-dry-run help stays experimental and hides provider launch"
@@ -172,6 +173,7 @@ assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "-
 assert "--allow-provider-launch" not in tokens, tokens
 assert "session" not in form["usage"].lower(), form
 assert "experimental" in json.dumps(form).lower(), form
+assert "prototype" in json.dumps(form).lower(), form
 PY
 then
     pass "dev afk-launch-attempt help stays experimental and hides provider launch"
@@ -193,6 +195,7 @@ assert "--launch-provider" not in tokens, tokens
 assert "--start" not in tokens, tokens
 assert "--supervised-live-launch" in form["usage"], form
 assert "experimental" in json.dumps(form).lower(), form
+assert "prototype" in json.dumps(form).lower(), form
 PY
 then
     pass "dev afk-session-trigger help stays experimental and exposes guarded live launch"

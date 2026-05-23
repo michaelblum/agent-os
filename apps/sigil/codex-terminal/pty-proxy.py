@@ -16,6 +16,7 @@ import termios
 
 DEFAULT_COLS = 80
 DEFAULT_ROWS = 24
+MAX_CONTROL_FRAME_BYTES = 8 * 1024
 
 
 def bounded_int(value: str | None, default: int, lower: int, upper: int) -> int:
@@ -82,6 +83,8 @@ def forward_stdin(master_fd: int, data: bytes, pending_control: bytearray) -> No
         pending_control.extend(data)
         frame_end = json_object_end(bytes(pending_control[1:]))
         if frame_end is None:
+            if len(pending_control) > MAX_CONTROL_FRAME_BYTES:
+                pending_control.clear()
             return
         apply_control_frame(master_fd, bytes(pending_control[1 : frame_end + 1]))
         trailing = bytes(pending_control[frame_end + 1 :])
@@ -96,6 +99,8 @@ def forward_stdin(master_fd: int, data: bytes, pending_control: bytearray) -> No
 
     frame_end = json_object_end(data[1:])
     if frame_end is None:
+        if len(data) > MAX_CONTROL_FRAME_BYTES:
+            return
         pending_control.extend(data)
         return
     apply_control_frame(master_fd, data[1 : frame_end + 1])

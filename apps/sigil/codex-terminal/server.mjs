@@ -3,7 +3,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listProviderSessions } from '../../../packages/host/src/session-catalog.ts';
 import { buildSessionInspector } from './session-inspector.mjs';
 
@@ -168,8 +168,11 @@ function appendProcessStderr(record, chunk) {
   const remaining = textChunk.split('\n').filter((line) => {
     const match = line.match(/^SIGIL_AGENT_PTY_CHILD_PID=(\d+)$/);
     if (match) {
-      record.commandPid = Number(match[1]);
-      return false;
+      if (record.commandPid == null) {
+        record.commandPid = Number(match[1]);
+        return false;
+      }
+      return true;
     }
     return line.length > 0;
   }).join('\n');
@@ -763,43 +766,51 @@ async function handle(req, res) {
   }
 }
 
-const server = http.createServer((req, res) => {
-  handle(req, res).catch(error => text(res, 500, error.message || String(error)));
-});
+function startServer() {
+  const server = http.createServer((req, res) => {
+    handle(req, res).catch(error => text(res, 500, error.message || String(error)));
+  });
 
-server.on('upgrade', (req, socket) => {
-  try {
-    const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
-    if (url.pathname !== '/terminal') {
-      socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
-      return;
+  server.on('upgrade', (req, socket) => {
+    try {
+      const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
+      if (url.pathname !== '/terminal') {
+        socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
+        return;
+      }
+      attachTerminalSocket(socket, req);
+    } catch (error) {
+      socket.end(`HTTP/1.1 500 Internal Server Error\r\n\r\n${error.message || error}`);
     }
-    attachTerminalSocket(socket, req);
-  } catch (error) {
-    socket.end(`HTTP/1.1 500 Internal Server Error\r\n\r\n${error.message || error}`);
+  });
+
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`sigil-agent-terminal bridge listening on http://127.0.0.1:${port} (${activeDriver()})`);
+  });
+
+  let shuttingDown = false;
+
+  function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    server.close(() => {});
+    terminateOwnedSessions()
+      .then(() => {
+        process.exit(0);
+      })
+      .catch((error) => {
+        console.error(`sigil-agent-terminal shutdown failed: ${error.message || error}`);
+        process.exit(1);
+      });
+    setTimeout(() => process.exit(1), 2500).unref();
   }
-});
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`sigil-agent-terminal bridge listening on http://127.0.0.1:${port} (${activeDriver()})`);
-});
-
-let shuttingDown = false;
-
-function shutdown(signal) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  server.close(() => {});
-  terminateOwnedSessions()
-    .then(() => {
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error(`sigil-agent-terminal shutdown failed: ${error.message || error}`);
-      process.exit(1);
-    });
-  setTimeout(() => process.exit(1), 2500).unref();
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  startServer();
+}
+
+export { appendProcessStderr };

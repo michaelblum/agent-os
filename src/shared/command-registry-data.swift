@@ -1250,13 +1250,13 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             examples: ["aos dev build --no-restart", "aos dev build --no-restart --json"]),
         InvocationForm(id: "dev-afk-dry-run", usage: "aos dev afk-dry-run --packet <packet.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--json]",
             args: [
-                flag("packet", "--packet", "Manual AFK packet JSON path for the experimental dry-run prototype", required: true),
+                flag("packet", "--packet", "Manual AFK packet JSON path for the experimental prototype dry-run diagnostic", required: true),
                 flag("provider", "--provider", "Provider name to select as a dry-run fact; no provider is launched"),
                 flag("dock", "--dock", "Dock name to resolve for dry-run receipt facts"),
                 flag("repo", "--repo", "Repository root path"),
                 flag("timestamp", "--timestamp", "Fixed ISO timestamp for deterministic dry-run output"),
                 flag("out", "--out", "Optional local receipt output path"),
-                flag("json", "--json", "Emit machine-readable experimental receipt output", type: .bool)
+                flag("json", "--json", "Emit machine-readable experimental prototype receipt output", type: .bool)
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
@@ -1267,7 +1267,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ]),
         InvocationForm(id: "dev-afk-launch-attempt", usage: "aos dev afk-launch-attempt --packet <packet.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--json]",
             args: [
-                flag("packet", "--packet", "Manual AFK packet JSON path for the experimental launch-attempt diagnostic", required: true),
+                flag("packet", "--packet", "Manual AFK packet JSON path for the experimental prototype launch-attempt diagnostic", required: true),
                 flag("provider", "--provider", "Provider name to select as an intent fact; no provider is launched by this wrapper"),
                 flag("dock", "--dock", "Dock name to resolve for launch-attempt facts"),
                 flag("repo", "--repo", "Repository root path"),
@@ -1280,7 +1280,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("launch-observed-at", "--launch-observed-at", "Observed launch timestamp for deterministic fixture correlation"),
                 flag("codex-home-fixture", "--codex-home-fixture", "Fixture Codex home path for read-only adapter correlation"),
                 flag("codex-home", "--codex-home", "Explicit real Codex home path for read-only diagnostic correlation"),
-                flag("json", "--json", "Emit machine-readable experimental launch-attempt output", type: .bool)
+                flag("json", "--json", "Emit machine-readable experimental prototype launch-attempt output", type: .bool)
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),
@@ -1291,7 +1291,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             ]),
         InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]",
             args: [
-                flag("packet", "--packet", "Manual transfer packet JSON path for the experimental session trigger", required: true),
+                flag("packet", "--packet", "Manual transfer packet JSON path for the experimental prototype session-trigger diagnostic", required: true),
                 flag("dry-run", "--dry-run", "Dry-run guard; no provider, terminal, gateway, or route is launched", type: .bool),
                 flag("supervised-live-launch", "--supervised-live-launch", "Guarded supervised live launch intent for Codex/GDI source receipts", type: .bool),
                 flag("i-am-present", "--i-am-present", "Required human-presence guard for supervised live launch", type: .bool),
@@ -1310,7 +1310,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 flag("launch-observed-at", "--launch-observed-at", "ISO timestamp when supervised launch was observed"),
                 flag("codex-home-fixture", "--codex-home-fixture", "Read-only Codex home fixture for deterministic adapter correlation"),
                 flag("codex-home", "--codex-home", "Read-only Codex home path for supervised live evidence correlation"),
-                flag("json", "--json", "Emit machine-readable experimental trigger receipt output", type: .bool)
+                flag("json", "--json", "Emit machine-readable experimental prototype trigger receipt output", type: .bool)
             ],
             stdin: nil, constraints: nil,
             execution: execReadOnly(),

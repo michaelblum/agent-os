@@ -245,6 +245,7 @@ assert "--live" not in tokens, tokens
 assert "--launch-provider" not in tokens, tokens
 assert "--start" not in tokens, tokens
 assert "experimental" in json.dumps(form).lower(), form
+assert "prototype" in json.dumps(form).lower(), form
 assert "no provider" in json.dumps(form).lower(), form
 PY
 then
