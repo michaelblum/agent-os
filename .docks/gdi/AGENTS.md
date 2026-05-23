@@ -12,6 +12,12 @@ interactive work-goal entry uses `/goal `. If a stale or repeated goal-mode loop
 appears, run `/goal clear`, then `/clear`, then wait for a real Foreman pointer
 instead of satisfying a one-shot proof prompt again.
 
+For deterministic work-card startup, `.docks/gdi/scripts/pickup` delegates to
+the shared `.docks/harness/session-pickup` primitive and emits machine-readable
+JSON for branch preparation, card metadata, readiness, and TCC stall routing.
+The manual Git boundary below remains authoritative when the helper reports
+`blocked`, `misrouted`, or `human_needed`.
+
 ## Role Ownership
 
 GDI owns deterministic implementation for the assigned goal:
