@@ -1,6 +1,43 @@
 # Work Card: AFK Warm Dock TUI Reuse Contract V0
 
-**Status:** Routed 2026-05-23
+**Status:** Accepted 2026-05-23
+
+## Result
+
+- Foreman review: accepted.
+- Branch/ref gates passed on `gdi/afk-warm-dock-tui-reuse-contract-v0` at
+  `0d826e0860bff02dbf7dcb2c1f7d550a7750433c`, based on
+  `96b9c289b86125cad19ed3deb9a7f2d31e7b9b6d`.
+- Diff was scoped to:
+  - `scripts/afk-launch-attempt-prototype.mjs`;
+  - `scripts/afk-session-trigger-prototype.mjs`;
+  - `tests/afk-launch-attempt-prototype.test.mjs`;
+  - `tests/afk-session-trigger-prototype.test.mjs`.
+- Behavior accepted: warm TUI reuse is represented as
+  `launch_mode=warm_dock_tui_reuse` with `context_reset_command="/clear"`,
+  provider process reuse separated from provider conversation/session identity,
+  Codex/GDI `/goal ` dispatch, Operator plain dispatch, metadata-backed session
+  boundary observation, and explicit mismatch when the post-reset metadata
+  resolves to the previous session id.
+- Verification rerun by Foreman passed:
+  - `./aos ready` returned
+    `ready=true mode=repo daemon=reachable tap=active`;
+  - `node --test tests/afk-session-trigger-prototype.test.mjs` with 21/21
+    passing;
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs` with 41/41
+    passing;
+  - `node --test packages/host/test/codex-thread-adapter.test.ts` with 16/16
+    passing;
+  - `git diff --check`.
+- Follow-up routed:
+  `docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v0.md`
+  for a supervised proof against the real long-lived GDI and Operator terminals.
+- No real dock terminal was driven by Foreman, no live provider launch occurred,
+  no transcript body was read, no provider store/catalog/telemetry mutation
+  occurred, no gateway/dock runtime mutation occurred, no GitHub issue/PR/main
+  mutation occurred, no external notifier or non-local async routing was
+  implemented, and no unsupervised trigger behavior occurred during Foreman
+  acceptance.
 
 ## Transfer Classification
 
