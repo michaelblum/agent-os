@@ -798,6 +798,13 @@ function warmDockTuiReuseObservation(context) {
   const input = bridge.input ?? {};
   const key = bridge.key ?? {};
   const dockTerminalFixture = dockTerminalSessionFixtureInput(fixture);
+  const hasDockTerminalSessionFixture = Boolean(dockTerminalFixture?.dock_terminal_session);
+  const exposedDriver = hasDockTerminalSessionFixture
+    ? null
+    : (base?.terminal_substrate?.driver ?? warm.driver ?? 'manual_tui');
+  const exposedSessionHandle = hasDockTerminalSessionFixture
+    ? null
+    : (base?.terminal_substrate?.session_handle ?? warm.session_handle ?? warm.sessionHandle ?? NOT_OBSERVED);
   const dockTerminalSession = normalizeDockTerminalSessionFixture(fixture, context, {
     cwd: base?.terminal_substrate?.cwd ?? warm.cwd ?? warm.dock_cwd ?? context.intendedLaunchCwd,
     providerCommand: warm.provider_command ?? warm.providerCommand ?? ['codex', '--no-alt-screen'],
@@ -817,8 +824,8 @@ function warmDockTuiReuseObservation(context) {
     cwd: base?.terminal_substrate?.cwd ?? warm.cwd ?? warm.dock_cwd ?? context.intendedLaunchCwd,
     provider: context.provider.selected_provider,
     providerCommand: warm.provider_command ?? warm.providerCommand ?? ['codex', '--no-alt-screen'],
-    ptyHandle: base?.terminal_substrate?.session_handle ?? warm.session_handle ?? warm.sessionHandle,
-    ptyDriver: base?.terminal_substrate?.driver ?? warm.driver ?? 'aos_pty',
+    ptyHandle: exposedSessionHandle,
+    ptyDriver: exposedDriver,
     geometry: base?.terminal_substrate?.geometry ?? warm.geometry,
     lifecycle: warm.lifecycle,
     lease: {
@@ -864,8 +871,8 @@ function warmDockTuiReuseObservation(context) {
       owner: 'aos.dock_terminal_session',
       dock_terminal_session_id: dockTerminalSession.dock_terminal_session_id,
       status: 'warm_tui_reused',
-      driver: dockTerminalSession.pty.driver,
-      session_handle: dockTerminalSession.pty.handle ?? NOT_OBSERVED,
+      driver: hasDockTerminalSessionFixture ? dockTerminalSession.pty.driver : exposedDriver,
+      session_handle: hasDockTerminalSessionFixture ? (dockTerminalSession.pty.handle ?? NOT_OBSERVED) : exposedSessionHandle,
       cwd: dockTerminalSession.cwd,
       geometry: {
         cols: dockTerminalSession.pty.cols,
@@ -877,10 +884,10 @@ function warmDockTuiReuseObservation(context) {
       ...(dockTerminalFixture?.agent_terminal_observation ? {
         agent_terminal_observation: {
           ...dockTerminalFixture.agent_terminal_observation,
-          acceptance_role: dockTerminalFixture.agent_terminal_observation.acceptance_role ?? 'human_observability_only',
+          acceptance_role: 'human_observability_only',
           provider_acceptance: {
             ...(dockTerminalFixture.agent_terminal_observation.provider_acceptance ?? {}),
-            status: dockTerminalFixture.agent_terminal_observation.provider_acceptance?.status ?? 'not_evidence',
+            status: 'not_evidence',
           },
         },
       } : {}),

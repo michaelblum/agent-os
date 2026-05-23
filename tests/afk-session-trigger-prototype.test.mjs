@@ -607,6 +607,8 @@ test('completes warm dock TUI reuse without source-owned provider teardown', asy
   assert.equal(receipt.terminal_substrate.owner, 'aos.dock_terminal_session');
   assert.match(receipt.terminal_substrate.dock_terminal_session_id, /^dock-terminal:gdi:[a-f0-9]{16}$/);
   assert.equal(receipt.terminal_substrate.status, 'warm_tui_reused');
+  assert.equal(receipt.terminal_substrate.driver, 'manual_tui');
+  assert.equal(receipt.terminal_substrate.session_handle, 'gdi-warm-codex');
   assert.equal(receipt.terminal_substrate.cwd, intendedLaunchCwd);
   assert.deepEqual(receipt.terminal_substrate.geometry, { cols: 100, rows: 31 });
   assert.equal(receipt.terminal_substrate.lease_disposition, 'returned_to_idle');
@@ -669,7 +671,11 @@ test('preserves Agent Terminal dock session fixture facts in warm dock TUI reuse
       command: ['node', '-e', 'setTimeout(() => {}, 100)'],
       geometry: { cols: 132, rows: 43 },
       acceptance_role: 'human_observability_only',
-      provider_acceptance: { status: 'not_evidence' },
+      provider_acceptance: {
+        status: 'provider_session_observed',
+        provider_session_id: newSessionId,
+        reason: 'Agent Terminal visual state is not provider acceptance evidence',
+      },
     },
     bridge: {
       provider_launch_performed: false,
@@ -708,6 +714,10 @@ test('preserves Agent Terminal dock session fixture facts in warm dock TUI reuse
   assert.equal(receipt.terminal_substrate.command, 'warm-dock-tui-reuse');
   assert.equal(receipt.terminal_substrate.agent_terminal_observation.acceptance_role, 'human_observability_only');
   assert.equal(receipt.terminal_substrate.agent_terminal_observation.provider_acceptance.status, 'not_evidence');
+  assert.equal(
+    receipt.terminal_substrate.agent_terminal_observation.provider_acceptance.reason,
+    'Agent Terminal visual state is not provider acceptance evidence',
+  );
   assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
   assert.equal(receipt.provider_acceptance.provider_session_id, newSessionId);
   assert.equal(receipt.warm_tui_reuse.provider_session_changed, true);

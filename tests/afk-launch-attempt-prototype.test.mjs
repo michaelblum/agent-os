@@ -1012,6 +1012,8 @@ test('records warm dock TUI reuse with /clear boundary and Codex metadata sessio
   assert.equal(record.terminal_substrate.owner, 'aos.dock_terminal_session');
   assert.match(record.terminal_substrate.dock_terminal_session_id, /^dock-terminal:gdi:[a-f0-9]{16}$/);
   assert.equal(record.terminal_substrate.status, 'warm_tui_reused');
+  assert.equal(record.terminal_substrate.driver, 'manual_tui');
+  assert.equal(record.terminal_substrate.session_handle, 'gdi-warm-codex');
   assert.equal(record.terminal_substrate.cwd, intendedLaunchCwd);
   assert.deepEqual(record.terminal_substrate.geometry, { cols: 80, rows: 24 });
   assert.equal(record.terminal_substrate.lease_disposition, 'returned_to_idle');
@@ -1104,7 +1106,8 @@ test('uses Agent Terminal dock session fixture facts for warm dock TUI reuse sub
       },
       acceptance_role: 'human_observability_only',
       provider_acceptance: {
-        status: 'not_evidence',
+        status: 'provider_session_observed',
+        provider_session_id: newSessionId,
         reason: 'Agent Terminal visual state is not provider acceptance evidence',
       },
     },
@@ -1149,6 +1152,10 @@ test('uses Agent Terminal dock session fixture facts for warm dock TUI reuse sub
   assert.equal(record.terminal_substrate.command, 'warm-dock-tui-reuse');
   assert.equal(record.terminal_substrate.agent_terminal_observation.acceptance_role, 'human_observability_only');
   assert.equal(record.terminal_substrate.agent_terminal_observation.provider_acceptance.status, 'not_evidence');
+  assert.equal(
+    record.terminal_substrate.agent_terminal_observation.provider_acceptance.reason,
+    'Agent Terminal visual state is not provider acceptance evidence',
+  );
   assert.equal(record.provider_acceptance.status, 'provider_session_observed');
   assert.equal(record.provider_acceptance.provider_session_id, newSessionId);
   assert.equal(record.provider_acceptance.observation_source, 'codex_adapter_metadata');
