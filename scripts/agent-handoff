@@ -12,6 +12,7 @@ chat-visible handoff block that agents can append to their final response.
 
 Default options:
   {
+    "recipient": null,
     "timestamp": true,
     "gateStringStart": "----- BEGIN HANDOFF -----",
     "gateStringEnd": "----- END HANDOFF -----",
@@ -118,6 +119,7 @@ if not isinstance(parsed, dict):
     raise SystemExit("FAIL: --options-json must be a JSON object")
 
 options = {
+    "recipient": None,
     "timestamp": True,
     "gateStringStart": "----- BEGIN HANDOFF -----",
     "gateStringEnd": "----- END HANDOFF -----",
@@ -128,12 +130,16 @@ options.update(parsed)
 
 start = str(options.get("gateStringStart") or "")
 end = str(options.get("gateStringEnd") or "")
+recipient = options.get("recipient")
+recipient = "" if recipient is None else str(recipient).strip()
 post = options.get("addPostInstructions")
 post = "" if post is None else str(post)
 include_timestamp = bool(options.get("timestamp", True)) and bool(options.get("addHRTimestamp", True))
 
 payload = payload_path.read_text()
 parts = []
+if recipient:
+    parts.append(f"Recipient: {recipient}")
 if start:
     parts.append(start)
 parts.append(payload)

@@ -89,7 +89,7 @@ Use path and storage as part of the contract:
 | --- | --- | --- |
 | Successor handoff | Temporary `mktemp -t foreman-handoff-XXXXXX.md` file only, unless the user requests chat-only. Do not commit it. | Full compact handoff via `.docks/foreman/scripts/handoff --target-dock foreman` when another session should start from it. |
 | GDI round | `docs/design/work-cards/<card>.md` for non-trivial implementation or validation contracts. | Thin dispatch: `follow the instructions in docs/design/work-cards/<card>.md`. |
-| Operator run | Usually no durable Markdown. Use a design note or capture plan only when the evidence plan must persist. | Concrete supervised run instructions. |
+| Operator run | `docs/design/work-cards/operator-<card>.md` for non-trivial or long supervised run contracts. Use chat/clipboard only for short self-contained checks. | Thin dispatch: `follow the instructions in docs/design/work-cards/operator-<card>.md`. |
 | Relay packet | GitHub-visible issue, PR, branch report, or explicitly named durable artifact. | The minimal pointer needed to start the relay. |
 | Human-needed packet | Usually chat and clipboard only. Durable docs only when the recovery path becomes reusable SOP. | Exact blocker and bounded recovery command path. |
 
@@ -100,8 +100,13 @@ card with a GDI round contract.
 
 ## Output Discipline
 
-Keep clipboard dispatches thin. Put durable task detail in the referenced work
-card or issue. Put successor-Foreman state in the successor handoff, not in
+Keep clipboard dispatches concise. Detailed instructions may be long, but they
+should live in the referenced work card, capture plan, issue, or another durable
+artifact. For any dispatch that approaches the observed 4,000-character CLI goal
+limit, move the instructions into a file and copy only `follow the instructions
+in <path>`. Put successor-Foreman state in the successor handoff, not in
 `docs/design/work-cards/`. Do not use successor handoff content to author
 recipient work without first reclassifying it as a GDI, Operator, relay,
-correction, or human-needed transfer.
+correction, or human-needed transfer. When a handoff tool prints a chat-visible
+block, include that exact block in the final response, including recipient,
+gates, copy notice, and timestamp.

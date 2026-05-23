@@ -94,6 +94,56 @@ private struct DevGhOptions {
     var positionals: [String] = []
 }
 
+private struct DevAfkDryRunOptions {
+    var json = false
+    var packet: String?
+    var provider: String?
+    var dock: String?
+    var repo: String?
+    var timestamp: String?
+    var out: String?
+}
+
+private struct DevAfkLaunchAttemptOptions {
+    var json = false
+    var duplicateInProcess = false
+    var packet: String?
+    var provider: String?
+    var dock: String?
+    var repo: String?
+    var timestamp: String?
+    var out: String?
+    var catalogFixture: String?
+    var bridgeVisibilityFixture: String?
+    var providerSessionId: String?
+    var launchObservedAt: String?
+    var codexHomeFixture: String?
+    var codexHome: String?
+}
+
+private struct DevAfkSessionTriggerOptions {
+    var json = false
+    var dryRun = false
+    var supervisedLiveLaunch = false
+    var iAmPresent = false
+    var packet: String?
+    var provider: String?
+    var dock: String?
+    var repo: String?
+    var timestamp: String?
+    var out: String?
+    var resultRoute: String?
+    var idempotenceSalt: String?
+    var existingReceipt: String?
+    var replacementFor: String?
+    var bridgeVisibilityFixture: String?
+    var cleanupProofFixture: String?
+    var providerSessionId: String?
+    var launchObservedAt: String?
+    var codexHomeFixture: String?
+    var codexHome: String?
+}
+
 private struct DevClassifiedFile {
     let path: String
     let rules: [DevWorkflowRule]
@@ -172,6 +222,12 @@ func devCommand(args: [String]) {
         devRecommendCommand(args: subArgs)
     case "build":
         devBuildCommand(args: subArgs)
+    case "afk-dry-run":
+        devAfkDryRunCommand(args: subArgs)
+    case "afk-launch-attempt":
+        devAfkLaunchAttemptCommand(args: subArgs)
+    case "afk-session-trigger":
+        devAfkSessionTriggerCommand(args: subArgs)
     case "audit":
         devAuditCommand(args: subArgs)
     case "capabilities":
@@ -266,6 +322,195 @@ private func devBuildCommand(args: [String]) {
         if result.exitCode == 0 {
             print("Next: ./aos ready")
         }
+    }
+    exit(result.exitCode)
+}
+
+private func devAfkDryRunCommand(args: [String]) {
+    let options = parseDevAfkDryRunOptions(args)
+    guard let packet = options.packet else {
+        exitError("dev afk-dry-run requires --packet <path>", code: "MISSING_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.repo)
+    let script = (repoRoot as NSString).appendingPathComponent("scripts/afk-dry-run-prototype.mjs")
+    guard FileManager.default.fileExists(atPath: script) else {
+        exitError("Missing AFK dry-run prototype script: \(script)", code: "MISSING_SCRIPT")
+    }
+
+    var scriptArgs = [script, "--packet", packet]
+    if let provider = options.provider {
+        scriptArgs += ["--provider", provider]
+    }
+    if let dock = options.dock {
+        scriptArgs += ["--dock", dock]
+    }
+    if let repo = options.repo {
+        scriptArgs += ["--repo", repo]
+    }
+    if let timestamp = options.timestamp {
+        scriptArgs += ["--timestamp", timestamp]
+    }
+    if let out = options.out {
+        scriptArgs += ["--out", out]
+    }
+    if options.json {
+        scriptArgs.append("--json")
+    }
+
+    let result = runProcessCapturingOutput("/usr/bin/env", arguments: ["node"] + scriptArgs, cwd: repoRoot)
+    if !result.stdout.isEmpty {
+        print(result.stdout, terminator: result.stdout.hasSuffix("\n") ? "" : "\n")
+    }
+    if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+    exit(result.exitCode)
+}
+
+private func devAfkLaunchAttemptCommand(args: [String]) {
+    let options = parseDevAfkLaunchAttemptOptions(args)
+    guard let packet = options.packet else {
+        exitError("dev afk-launch-attempt requires --packet <path>", code: "MISSING_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.repo)
+    let script = (repoRoot as NSString).appendingPathComponent("scripts/afk-launch-attempt-prototype.mjs")
+    guard FileManager.default.fileExists(atPath: script) else {
+        exitError("Missing AFK launch-attempt prototype script: \(script)", code: "MISSING_SCRIPT")
+    }
+
+    var scriptArgs = [script, "--packet", packet]
+    if let provider = options.provider {
+        scriptArgs += ["--provider", provider]
+    }
+    if let dock = options.dock {
+        scriptArgs += ["--dock", dock]
+    }
+    if let repo = options.repo {
+        scriptArgs += ["--repo", repo]
+    }
+    if let timestamp = options.timestamp {
+        scriptArgs += ["--timestamp", timestamp]
+    }
+    if let out = options.out {
+        scriptArgs += ["--out", out]
+    }
+    if options.duplicateInProcess {
+        scriptArgs.append("--duplicate-in-process")
+    }
+    if let catalogFixture = options.catalogFixture {
+        scriptArgs += ["--catalog-fixture", catalogFixture]
+    }
+    if let bridgeVisibilityFixture = options.bridgeVisibilityFixture {
+        scriptArgs += ["--bridge-visibility-fixture", bridgeVisibilityFixture]
+    }
+    if let providerSessionId = options.providerSessionId {
+        scriptArgs += ["--provider-session-id", providerSessionId]
+    }
+    if let launchObservedAt = options.launchObservedAt {
+        scriptArgs += ["--launch-observed-at", launchObservedAt]
+    }
+    if let codexHomeFixture = options.codexHomeFixture {
+        scriptArgs += ["--codex-home-fixture", codexHomeFixture]
+    }
+    if let codexHome = options.codexHome {
+        scriptArgs += ["--codex-home", codexHome]
+    }
+    if options.json {
+        scriptArgs.append("--json")
+    }
+
+    let result = runProcessCapturingOutput("/usr/bin/env", arguments: ["node"] + scriptArgs, cwd: repoRoot)
+    if !result.stdout.isEmpty {
+        print(result.stdout, terminator: result.stdout.hasSuffix("\n") ? "" : "\n")
+    }
+    if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+    exit(result.exitCode)
+}
+
+private func devAfkSessionTriggerCommand(args: [String]) {
+    let options = parseDevAfkSessionTriggerOptions(args)
+    guard let packet = options.packet else {
+        exitError("dev afk-session-trigger requires --packet <path>", code: "MISSING_ARG")
+    }
+    guard options.dryRun || options.supervisedLiveLaunch else {
+        exitError("dev afk-session-trigger requires --dry-run or --supervised-live-launch", code: "MISSING_ARG")
+    }
+
+    let repoRoot = resolveRepoRoot(options.repo)
+    let script = (repoRoot as NSString).appendingPathComponent("scripts/afk-session-trigger-prototype.mjs")
+    guard FileManager.default.fileExists(atPath: script) else {
+        exitError("Missing AFK session-trigger prototype script: \(script)", code: "MISSING_SCRIPT")
+    }
+
+    var scriptArgs = [script, "--packet", packet]
+    if options.dryRun {
+        scriptArgs.append("--dry-run")
+    }
+    if options.supervisedLiveLaunch {
+        scriptArgs.append("--supervised-live-launch")
+    }
+    if options.iAmPresent {
+        scriptArgs.append("--i-am-present")
+    }
+    if let provider = options.provider {
+        scriptArgs += ["--provider", provider]
+    }
+    if let dock = options.dock {
+        scriptArgs += ["--dock", dock]
+    }
+    if let repo = options.repo {
+        scriptArgs += ["--repo", repo]
+    }
+    if let timestamp = options.timestamp {
+        scriptArgs += ["--timestamp", timestamp]
+    }
+    if let out = options.out {
+        scriptArgs += ["--out", out]
+    }
+    if let resultRoute = options.resultRoute {
+        scriptArgs += ["--result-route", resultRoute]
+    }
+    if let idempotenceSalt = options.idempotenceSalt {
+        scriptArgs += ["--idempotence-salt", idempotenceSalt]
+    }
+    if let existingReceipt = options.existingReceipt {
+        scriptArgs += ["--existing-receipt", existingReceipt]
+    }
+    if let replacementFor = options.replacementFor {
+        scriptArgs += ["--replacement-for", replacementFor]
+    }
+    if let bridgeVisibilityFixture = options.bridgeVisibilityFixture {
+        scriptArgs += ["--bridge-visibility-fixture", bridgeVisibilityFixture]
+    }
+    if let cleanupProofFixture = options.cleanupProofFixture {
+        scriptArgs += ["--cleanup-proof-fixture", cleanupProofFixture]
+    }
+    if let providerSessionId = options.providerSessionId {
+        scriptArgs += ["--provider-session-id", providerSessionId]
+    }
+    if let launchObservedAt = options.launchObservedAt {
+        scriptArgs += ["--launch-observed-at", launchObservedAt]
+    }
+    if let codexHomeFixture = options.codexHomeFixture {
+        scriptArgs += ["--codex-home-fixture", codexHomeFixture]
+    }
+    if let codexHome = options.codexHome {
+        scriptArgs += ["--codex-home", codexHome]
+    }
+    if options.json {
+        scriptArgs.append("--json")
+    }
+
+    let result = runProcessCapturingOutput("/usr/bin/env", arguments: ["node"] + scriptArgs, cwd: repoRoot)
+    if !result.stdout.isEmpty {
+        print(result.stdout, terminator: result.stdout.hasSuffix("\n") ? "" : "\n")
+    }
+    if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
+        FileHandle.standardError.write(data)
     }
     exit(result.exitCode)
 }
@@ -944,6 +1189,279 @@ private func parseDevDocksOptions(_ args: [String]) -> DevDocksOptions {
     return options
 }
 
+private func parseDevAfkDryRunOptions(_ args: [String]) -> DevAfkDryRunOptions {
+    var options = DevAfkDryRunOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--packet":
+            guard i + 1 < args.count else {
+                exitError("--packet requires a path", code: "MISSING_ARG")
+            }
+            options.packet = args[i + 1]
+            i += 2
+        case "--provider":
+            guard i + 1 < args.count else {
+                exitError("--provider requires a provider name", code: "MISSING_ARG")
+            }
+            options.provider = args[i + 1]
+            i += 2
+        case "--dock":
+            guard i + 1 < args.count else {
+                exitError("--dock requires a dock name", code: "MISSING_ARG")
+            }
+            options.dock = args[i + 1]
+            i += 2
+        case "--repo":
+            guard i + 1 < args.count else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--timestamp":
+            guard i + 1 < args.count else {
+                exitError("--timestamp requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.timestamp = args[i + 1]
+            i += 2
+        case "--out":
+            guard i + 1 < args.count else {
+                exitError("--out requires a path", code: "MISSING_ARG")
+            }
+            options.out = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev afk-dry-run flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            exitError("dev afk-dry-run does not accept positional arguments: \(arg)", code: "UNKNOWN_ARG")
+        }
+    }
+    return options
+}
+
+private func parseDevAfkLaunchAttemptOptions(_ args: [String]) -> DevAfkLaunchAttemptOptions {
+    var options = DevAfkLaunchAttemptOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--duplicate-in-process":
+            options.duplicateInProcess = true
+            i += 1
+        case "--packet":
+            guard i + 1 < args.count else {
+                exitError("--packet requires a path", code: "MISSING_ARG")
+            }
+            options.packet = args[i + 1]
+            i += 2
+        case "--provider":
+            guard i + 1 < args.count else {
+                exitError("--provider requires a provider name", code: "MISSING_ARG")
+            }
+            options.provider = args[i + 1]
+            i += 2
+        case "--dock":
+            guard i + 1 < args.count else {
+                exitError("--dock requires a dock name", code: "MISSING_ARG")
+            }
+            options.dock = args[i + 1]
+            i += 2
+        case "--repo":
+            guard i + 1 < args.count else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--timestamp":
+            guard i + 1 < args.count else {
+                exitError("--timestamp requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.timestamp = args[i + 1]
+            i += 2
+        case "--out":
+            guard i + 1 < args.count else {
+                exitError("--out requires a path", code: "MISSING_ARG")
+            }
+            options.out = args[i + 1]
+            i += 2
+        case "--catalog-fixture":
+            guard i + 1 < args.count else {
+                exitError("--catalog-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.catalogFixture = args[i + 1]
+            i += 2
+        case "--bridge-visibility-fixture":
+            guard i + 1 < args.count else {
+                exitError("--bridge-visibility-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.bridgeVisibilityFixture = args[i + 1]
+            i += 2
+        case "--provider-session-id":
+            guard i + 1 < args.count else {
+                exitError("--provider-session-id requires an id", code: "MISSING_ARG")
+            }
+            options.providerSessionId = args[i + 1]
+            i += 2
+        case "--launch-observed-at":
+            guard i + 1 < args.count else {
+                exitError("--launch-observed-at requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.launchObservedAt = args[i + 1]
+            i += 2
+        case "--codex-home-fixture":
+            guard i + 1 < args.count else {
+                exitError("--codex-home-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.codexHomeFixture = args[i + 1]
+            i += 2
+        case "--codex-home":
+            guard i + 1 < args.count else {
+                exitError("--codex-home requires a path", code: "MISSING_ARG")
+            }
+            options.codexHome = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev afk-launch-attempt flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            exitError("dev afk-launch-attempt does not accept positional arguments: \(arg)", code: "UNKNOWN_ARG")
+        }
+    }
+    return options
+}
+
+private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSessionTriggerOptions {
+    var options = DevAfkSessionTriggerOptions()
+    var i = 0
+    while i < args.count {
+        let arg = args[i]
+        switch arg {
+        case "--json":
+            options.json = true
+            i += 1
+        case "--dry-run":
+            options.dryRun = true
+            i += 1
+        case "--supervised-live-launch":
+            options.supervisedLiveLaunch = true
+            i += 1
+        case "--i-am-present":
+            options.iAmPresent = true
+            i += 1
+        case "--packet":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--packet requires a path", code: "MISSING_ARG")
+            }
+            options.packet = args[i + 1]
+            i += 2
+        case "--provider":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--provider requires a provider name", code: "MISSING_ARG")
+            }
+            options.provider = args[i + 1]
+            i += 2
+        case "--dock":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--dock requires a dock name", code: "MISSING_ARG")
+            }
+            options.dock = args[i + 1]
+            i += 2
+        case "--repo":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--repo requires a path", code: "MISSING_ARG")
+            }
+            options.repo = args[i + 1]
+            i += 2
+        case "--timestamp":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--timestamp requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.timestamp = args[i + 1]
+            i += 2
+        case "--out":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--out requires a path", code: "MISSING_ARG")
+            }
+            options.out = args[i + 1]
+            i += 2
+        case "--result-route":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--result-route requires a ref", code: "MISSING_ARG")
+            }
+            options.resultRoute = args[i + 1]
+            i += 2
+        case "--idempotence-salt":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--idempotence-salt requires a value", code: "MISSING_ARG")
+            }
+            options.idempotenceSalt = args[i + 1]
+            i += 2
+        case "--existing-receipt":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--existing-receipt requires a path", code: "MISSING_ARG")
+            }
+            options.existingReceipt = args[i + 1]
+            i += 2
+        case "--replacement-for":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--replacement-for requires an id", code: "MISSING_ARG")
+            }
+            options.replacementFor = args[i + 1]
+            i += 2
+        case "--bridge-visibility-fixture":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--bridge-visibility-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.bridgeVisibilityFixture = args[i + 1]
+            i += 2
+        case "--cleanup-proof-fixture":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--cleanup-proof-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.cleanupProofFixture = args[i + 1]
+            i += 2
+        case "--provider-session-id":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--provider-session-id requires an id", code: "MISSING_ARG")
+            }
+            options.providerSessionId = args[i + 1]
+            i += 2
+        case "--launch-observed-at":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--launch-observed-at requires an ISO timestamp", code: "MISSING_ARG")
+            }
+            options.launchObservedAt = args[i + 1]
+            i += 2
+        case "--codex-home-fixture":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--codex-home-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.codexHomeFixture = args[i + 1]
+            i += 2
+        case "--codex-home":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--codex-home requires a path", code: "MISSING_ARG")
+            }
+            options.codexHome = args[i + 1]
+            i += 2
+        default:
+            if arg.hasPrefix("--") {
+                exitError("Unknown dev afk-session-trigger flag: \(arg)", code: "UNKNOWN_FLAG")
+            }
+            exitError("dev afk-session-trigger does not accept positional arguments: \(arg)", code: "UNKNOWN_ARG")
+        }
+    }
+    return options
+}
+
 private func parseDevGhOptions(_ args: [String]) -> DevGhOptions {
     var options = DevGhOptions()
     var i = 0
@@ -1461,7 +1979,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
 
     var claims: [DevAuditClaim] = []
     let forms = Dictionary(uniqueKeysWithValues: dev.forms.map { ($0.id, $0) })
-    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"]
+    let expectedForms = ["dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"]
     let observedForms = dev.forms.map { $0.id }.sorted()
     claims.append(auditClaim(
         id: "dev-help-forms",
@@ -1483,6 +2001,21 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
         form: forms["dev-recommend"],
         expectedFlags: workflowFlags,
         defaultManifestRequired: true))
+    claims.append(auditFormFlagClaim(
+        id: "dev-afk-dry-run-help-flags",
+        form: forms["dev-afk-dry-run"],
+        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json"],
+        defaultManifestRequired: false))
+    claims.append(auditFormFlagClaim(
+        id: "dev-afk-launch-attempt-help-flags",
+        form: forms["dev-afk-launch-attempt"],
+        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--json", "--duplicate-in-process", "--catalog-fixture", "--bridge-visibility-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home"],
+        defaultManifestRequired: false))
+    claims.append(auditFormFlagClaim(
+        id: "dev-afk-session-trigger-help-flags",
+        form: forms["dev-afk-session-trigger"],
+        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
+        defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",
         form: forms["dev-audit"],

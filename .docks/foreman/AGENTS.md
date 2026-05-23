@@ -132,7 +132,7 @@ Transfer storage is part of the contract:
 | --- | --- |
 | successor handoff | temp file from `mktemp -t foreman-handoff-XXXXXX.md`, chat, or clipboard; do not commit |
 | GDI round or correction round | `docs/design/work-cards/<card>.md` for non-trivial implementation/validation contracts |
-| Operator run | clipboard/chat unless a durable capture plan is explicitly needed |
+| Operator run | `docs/design/work-cards/operator-<card>.md` for non-trivial or long supervised run contracts; clipboard/chat only for short self-contained checks |
 | relay packet | GitHub-visible issue, PR, branch report, or named durable artifact |
 | human-needed packet | clipboard/chat unless the recovery path becomes reusable SOP |
 
@@ -144,8 +144,8 @@ GDI/correction work card with a single-round contract.
 ## Work-Card Routing
 
 For non-trivial GDI implementation or validation work, create or update a
-Markdown work card under `docs/design/work-cards/` and copy only a thin plain
-dispatch:
+Markdown work card under `docs/design/work-cards/` and copy only a concise
+plain dispatch:
 
 `follow the instructions in docs/design/work-cards/<card>.md`
 
@@ -161,11 +161,23 @@ chat demarcation to the dock-level handoff tool. Do not use it for normal final
 answers, progress updates, review findings, status reports, or notes that are
 not intended to be pasted into another dock session.
 
+For non-trivial Operator runs, put the detailed live-run contract in a Markdown
+work card under `docs/design/work-cards/` and copy only a concise dispatch:
+
+`follow the instructions in docs/design/work-cards/operator-<card>.md`
+
+Short Operator checks may still go directly into the clipboard when the whole
+prompt is comfortably under the observed 4,000-character CLI goal limit and
+does not need durable capture instructions.
+
 Foreman-to-GDI clipboard payloads are a role-specific exception to any generic
 clipboard helper that adds command or addressee prefixes. Keep the copied text to
 the plain work-card instruction above. If a shared helper would inject ceremony,
 use a Foreman-specific plain clipboard copy path and report the copied payload
 plus timestamp in the dock-level chat-visible shape.
+The wrapper's printed chat-visible block includes the recipient, gates, copy
+notice, and timestamp; include that exact block in the final chat response when
+routing the transfer.
 
 Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 as the flexible authoring shape: fresh context, read-first files, state
@@ -175,10 +187,10 @@ When dirty worktrees or large proof artifacts would make review harder, ask for
 the reference's path-scoped completion summary; skip that extra shape for tiny
 fixes where it adds noise.
 
-Do not paste long implementation instructions directly into the clipboard goal
-unless the task is genuinely small. If Foreman creates draft evidence, label it
-clearly in the work card so GDI knows whether to retain, amend, supersede, or
-revert it.
+Do not paste long implementation, validation, or live-run instructions directly
+into the clipboard goal unless the task is genuinely small. If Foreman creates
+draft evidence, label it clearly in the work card so the recipient knows
+whether to retain, amend, supersede, or revert it.
 
 When the GDI work card, report, fixture, or prerequisite commit is not on
 `origin/main`, include a Branch/Base section in the card with
@@ -197,8 +209,8 @@ repo-standard stall path in the card:
 `./aos ready --post-permission` after the human returns.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
-the thin plain work-card instruction, then add human-facing manual steps in Foreman's
-chat response. The default helper is:
+the concise plain work-card instruction, then add human-facing manual steps in
+Foreman's chat response. The default helper is:
 
 - paste/send the clipboard contents to GDI;
 - after GDI reports completion, optionally send `/review` in that same GDI

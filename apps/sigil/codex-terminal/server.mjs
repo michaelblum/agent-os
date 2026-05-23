@@ -3,7 +3,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { listProviderSessions } from '../../../packages/host/src/session-catalog.ts';
 import { buildSessionInspector } from './session-inspector.mjs';
 
@@ -15,7 +15,12 @@ const defaultCwd = process.env.SIGIL_AGENT_CWD || process.env.SIGIL_CODEX_CWD ||
 const defaultCommand = process.env.SIGIL_AGENT_COMMAND || process.env.SIGIL_CODEX_COMMAND || 'codex --no-alt-screen';
 const requestedDriver = process.env.SIGIL_AGENT_TERMINAL_DRIVER || process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
 const processSessions = new Map();
+const ownedTmuxSessions = new Set();
 const sessionCommands = new Map();
+const defaultTerminalSize = {
+  cols: boundedInt(process.env.SIGIL_AGENT_TERMINAL_COLS || process.env.SIGIL_CODEX_TERMINAL_COLS, 80, 20, 300),
+  rows: boundedInt(process.env.SIGIL_AGENT_TERMINAL_ROWS || process.env.SIGIL_CODEX_TERMINAL_ROWS, 24, 8, 120),
+};
 const allowedKeys = new Set([
   'Enter',
   'C-c',
@@ -88,6 +93,12 @@ function commandExists(command) {
   return result.status === 0;
 }
 
+function boundedInt(value, fallback, min, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(min, Math.min(max, Math.trunc(parsed)));
+}
+
 const tmuxAvailable = commandExists('tmux');
 const scriptAvailable = commandExists('script');
 const pythonAvailable = commandExists('python3');
@@ -152,6 +163,22 @@ function appendProcessOutput(record, chunk) {
   }
 }
 
+function appendProcessStderr(record, chunk) {
+  const textChunk = chunk.toString('utf8');
+  const remaining = textChunk.split('\n').filter((line) => {
+    const match = line.match(/^SIGIL_AGENT_PTY_CHILD_PID=(\d+)$/);
+    if (match) {
+      if (record.commandPid == null) {
+        record.commandPid = Number(match[1]);
+        return false;
+      }
+      return true;
+    }
+    return line.length > 0;
+  }).join('\n');
+  if (remaining) appendProcessOutput(record, `${remaining}\n`);
+}
+
 function ensureProcessSession(session, cwd, command, force = false) {
   const existing = processSessions.get(session);
   if (existing && !existing.exited && !force) return { created: false, driver: 'process' };
@@ -165,20 +192,27 @@ function ensureProcessSession(session, cwd, command, force = false) {
   const child = spawn(pythonAvailable ? 'python3' : 'sh', args, {
     cwd: cwd || defaultCwd,
     stdio: 'pipe',
-    env: { ...process.env, TERM: process.env.TERM || 'xterm-256color' },
+    env: {
+      ...process.env,
+      TERM: process.env.TERM || 'xterm-256color',
+      SIGIL_AGENT_TERMINAL_COLS: String(defaultTerminalSize.cols),
+      SIGIL_AGENT_TERMINAL_ROWS: String(defaultTerminalSize.rows),
+    },
   });
   const record = {
     child,
     command: shellCommand,
     cwd: cwd || defaultCwd,
+    terminalSize: { ...defaultTerminalSize },
     buffer: `$ ${shellCommand}\n`,
     clients: new Set(),
     exited: false,
+    commandPid: null,
   };
   processSessions.set(session, record);
   sessionCommands.set(session, { command: shellCommand, cwd: cwd || defaultCwd });
   child.stdout.on('data', chunk => appendProcessOutput(record, chunk));
-  child.stderr.on('data', chunk => appendProcessOutput(record, chunk));
+  child.stderr.on('data', chunk => appendProcessStderr(record, chunk));
   child.on('exit', (code, signal) => {
     record.exited = true;
     const message = `\n[process exited: ${signal || (code ?? 0)}]\n`;
@@ -201,7 +235,7 @@ function ensureProcessSession(session, cwd, command, force = false) {
       }
     }
   });
-  return { created: true, driver: 'process' };
+  return { created: true, driver: 'process', child_pid: child.pid };
 }
 
 function ensureTmuxSession(session, cwd, command, force = false) {
@@ -217,7 +251,42 @@ function ensureTmuxSession(session, cwd, command, force = false) {
   args.push(command || defaultCommand);
   run('tmux', args);
   sessionCommands.set(session, { command: command || defaultCommand, cwd: cwd || defaultCwd });
+  ownedTmuxSessions.add(session);
   return { created: true, driver: 'tmux' };
+}
+
+function terminateProcessSession(session, record, signal = 'SIGTERM') {
+  if (!record || record.exited) return Promise.resolve({ session, exited: true, signal: null });
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(killTimer);
+      resolve({ session, exited: record.exited, signal: record.child.signalCode ?? null });
+    };
+    const killTimer = setTimeout(() => {
+      if (!record.exited) record.child.kill('SIGKILL');
+      setTimeout(finish, 100);
+    }, 1000);
+    record.child.once('exit', finish);
+    record.child.kill(signal);
+  });
+}
+
+async function terminateOwnedSessions() {
+  const processStops = [...processSessions.entries()]
+    .map(([session, record]) => terminateProcessSession(session, record));
+  const tmuxStops = [];
+  if (tmuxAvailable) {
+    for (const session of ownedTmuxSessions) {
+      tmuxStops.push(Promise.resolve().then(() => {
+        if (hasSession(session)) run('tmux', ['kill-session', '-t', session]);
+        return { session, exited: !hasSession(session), driver: 'tmux' };
+      }));
+    }
+  }
+  return Promise.all([...processStops, ...tmuxStops]);
 }
 
 function ensureSession(session, cwd, command, force = false) {
@@ -236,6 +305,12 @@ function capture(session, lines) {
       session,
       command: existing.exited ? 'exited' : 'process',
       driver: 'process',
+      process_child_pid: existing.child.pid,
+      command_child_pid: existing.commandPid,
+      terminal: {
+        cols: existing.terminalSize.cols,
+        rows: existing.terminalSize.rows,
+      },
       text: textOutput.replace(/\s+$/g, ''),
     };
   }
@@ -248,18 +323,40 @@ function capture(session, lines) {
   return { session, command, driver: 'tmux', text: textOutput.replace(/\s+$/g, '') };
 }
 
+function writeProcessStdin(record, data) {
+  const payload = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'utf8');
+  const accepted = record.child.stdin.write(payload);
+  return {
+    bytes: payload.length,
+    accepted,
+  };
+}
+
+function writeProcessControl(record, message) {
+  return writeProcessStdin(record, `\0${JSON.stringify(message)}`);
+}
+
 function writeProcessInput(session, textValue, enter = true) {
   const existing = processSessions.get(session);
   if (!existing || existing.exited) throw new Error(`session is not running: ${session}`);
-  existing.child.stdin.write(textValue);
-  if (enter) existing.child.stdin.write('\n');
+  const textWrite = writeProcessStdin(existing, textValue);
+  const enterWrite = enter ? writeProcessStdin(existing, '\r') : null;
+  return {
+    driver: 'process',
+    session_exists: true,
+    text_bytes: textWrite.bytes,
+    text_accepted: textWrite.accepted,
+    enter_sent: enter,
+    enter_bytes: enterWrite?.bytes ?? 0,
+    enter_accepted: enterWrite?.accepted ?? null,
+  };
 }
 
 function writeProcessKey(session, key) {
   const existing = processSessions.get(session);
   if (!existing || existing.exited) throw new Error(`session is not running: ${session}`);
   const sequence = {
-    Enter: '\n',
+    Enter: '\r',
     'C-c': '\x03',
     'C-d': '\x04',
     Up: '\x1b[A',
@@ -270,7 +367,31 @@ function writeProcessKey(session, key) {
     Escape: '\x1b',
     Backspace: '\x7f',
   }[key];
-  existing.child.stdin.write(sequence);
+  const write = writeProcessStdin(existing, sequence);
+  return {
+    driver: 'process',
+    session_exists: true,
+    key,
+    key_bytes: write.bytes,
+    key_accepted: write.accepted,
+  };
+}
+
+function resizeProcessSession(session, colsValue, rowsValue) {
+  const existing = processSessions.get(session);
+  if (!existing || existing.exited) throw new Error(`session is not running: ${session}`);
+  const cols = boundedInt(colsValue, existing.terminalSize.cols, 20, 300);
+  const rows = boundedInt(rowsValue, existing.terminalSize.rows, 8, 120);
+  const write = writeProcessControl(existing, { type: 'resize', cols, rows });
+  existing.terminalSize = { cols, rows };
+  return {
+    driver: 'process',
+    session_exists: true,
+    cols,
+    rows,
+    resize_bytes: write.bytes,
+    resize_accepted: write.accepted,
+  };
 }
 
 function wsFrame(data, opcode = 1) {
@@ -343,16 +464,28 @@ function terminalCwdForSession(session) {
   return processSessions.get(session)?.cwd || sessionCommands.get(session)?.cwd || defaultCwd;
 }
 
-function sessionCatalogForUrl(url) {
+function sessionCatalogQueryForUrl(url) {
   const providerParams = url.searchParams.getAll('provider');
   const providers = providerParams.filter((provider) => provider === 'codex' || provider === 'claude-code');
-  return listProviderSessions({
+  const explicitCwd = url.searchParams.get('cwd');
+  const allCwd = url.searchParams.get('all_cwd') === 'true';
+  const cwd = allCwd ? undefined : (explicitCwd || defaultCwd);
+  const sessions = listProviderSessions({
     homeDir: process.env.SIGIL_AGENT_CATALOG_HOME,
     codexRoot: process.env.SIGIL_AGENT_CODEX_ROOT,
     claudeRoot: process.env.SIGIL_AGENT_CLAUDE_ROOT,
-    cwd: url.searchParams.get('cwd') || defaultCwd,
+    cwd,
     providers: providers.length ? providers : undefined,
   });
+  return {
+    sessions,
+    scope: allCwd ? 'all_cwd' : 'cwd',
+    cwd_filter: cwd ?? null,
+  };
+}
+
+function sessionCatalogForUrl(url) {
+  return sessionCatalogQueryForUrl(url).sessions;
 }
 
 function attachExistingProcessSocket(socket, session, record) {
@@ -381,7 +514,18 @@ function attachExistingProcessSocket(socket, session, record) {
       }
       if (frame.opcode === 1 || frame.opcode === 2) {
         const payload = frame.payload.toString('utf8');
-        if (frame.opcode === 1 && payload.charCodeAt(0) === 0) continue;
+        if (frame.opcode === 1 && payload.charCodeAt(0) === 0) {
+          let message = null;
+          try {
+            message = JSON.parse(payload.slice(1));
+          } catch {
+            continue;
+          }
+          if (message?.type === 'resize') {
+            resizeProcessSession(session, message.cols, message.rows);
+          }
+          continue;
+        }
         record.child.stdin.write(frame.payload);
       }
     }
@@ -509,13 +653,13 @@ async function handle(req, res) {
         tmuxAvailable,
         scriptAvailable,
         pythonAvailable,
+        terminal: activeDriver() === 'process' ? { ...defaultTerminalSize } : null,
       });
       return;
     }
 
     if (req.method === 'GET' && url.pathname === '/sessions') {
-      const sessions = sessionCatalogForUrl(url);
-      json(res, 200, { sessions });
+      json(res, 200, sessionCatalogQueryForUrl(url));
       return;
     }
 
@@ -561,13 +705,29 @@ async function handle(req, res) {
       return;
     }
 
+    if (req.method === 'POST' && url.pathname === '/resize') {
+      const body = await readBody(req);
+      const session = cleanSession(body.session);
+      if (processSessions.has(session)) {
+        const result = resizeProcessSession(session, body.cols, body.rows);
+        json(res, 200, { ok: true, ...result });
+        return;
+      }
+      if (!tmuxAvailable) throw new Error(`session is not running: ${session}`);
+      const cols = boundedInt(body.cols, 80, 20, 300);
+      const rows = boundedInt(body.rows, 24, 8, 120);
+      run('tmux', ['resize-window', '-t', session, '-x', String(cols), '-y', String(rows)]);
+      json(res, 200, { ok: true, driver: 'tmux', cols, rows });
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/input') {
       const body = await readBody(req);
       const session = cleanSession(body.session);
       const textValue = String(body.text || '');
       if (processSessions.has(session)) {
-        writeProcessInput(session, textValue, body.enter !== false);
-        json(res, 200, { ok: true });
+        const result = writeProcessInput(session, textValue, body.enter !== false);
+        json(res, 200, { ok: true, ...result });
         return;
       }
       const parts = textValue.split('\n');
@@ -589,8 +749,8 @@ async function handle(req, res) {
         return;
       }
       if (processSessions.has(session)) {
-        writeProcessKey(session, key);
-        json(res, 200, { ok: true });
+        const result = writeProcessKey(session, key);
+        json(res, 200, { ok: true, ...result });
         return;
       }
       if (!tmuxAvailable) throw new Error(`session is not running: ${session}`);
@@ -606,23 +766,51 @@ async function handle(req, res) {
   }
 }
 
-const server = http.createServer((req, res) => {
-  handle(req, res).catch(error => text(res, 500, error.message || String(error)));
-});
+function startServer() {
+  const server = http.createServer((req, res) => {
+    handle(req, res).catch(error => text(res, 500, error.message || String(error)));
+  });
 
-server.on('upgrade', (req, socket) => {
-  try {
-    const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
-    if (url.pathname !== '/terminal') {
-      socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
-      return;
+  server.on('upgrade', (req, socket) => {
+    try {
+      const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
+      if (url.pathname !== '/terminal') {
+        socket.end('HTTP/1.1 404 Not Found\r\n\r\n');
+        return;
+      }
+      attachTerminalSocket(socket, req);
+    } catch (error) {
+      socket.end(`HTTP/1.1 500 Internal Server Error\r\n\r\n${error.message || error}`);
     }
-    attachTerminalSocket(socket, req);
-  } catch (error) {
-    socket.end(`HTTP/1.1 500 Internal Server Error\r\n\r\n${error.message || error}`);
-  }
-});
+  });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`sigil-agent-terminal bridge listening on http://127.0.0.1:${port} (${activeDriver()})`);
-});
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`sigil-agent-terminal bridge listening on http://127.0.0.1:${port} (${activeDriver()})`);
+  });
+
+  let shuttingDown = false;
+
+  function shutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    server.close(() => {});
+    terminateOwnedSessions()
+      .then(() => {
+        process.exit(0);
+      })
+      .catch((error) => {
+        console.error(`sigil-agent-terminal shutdown failed: ${error.message || error}`);
+        process.exit(1);
+      });
+    setTimeout(() => process.exit(1), 2500).unref();
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  startServer();
+}
+
+export { appendProcessStderr };
