@@ -28,8 +28,9 @@ target dock + provider + payload -> clipboard payload + provider entry preview +
   instructions.
 - `allowed_payloads` lists the durable pointer or supervised instruction shapes
   expected by the dock.
-- `forbidden_prompt_shapes` lists prompt shapes that must be rejected or
-  surfaced as warnings before dispatch.
+- `forbidden_prompt_shapes` lists prompt shapes that must be rejected when they
+  violate a dock or provider boundary, or surfaced as warnings before dispatch
+  when they are policy risks.
 - `loop_recovery_guidance` records the deterministic recovery sequence when a
   provider loop or stale goal state is observed.
 
@@ -47,5 +48,14 @@ branch strategy.
 Foreman/Codex receives plain successor handoff or coordination payloads.
 
 GDI one-shot proof prompts such as `Reply exactly...` or `Reply with exactly...`
-are a forbidden V0 prompt shape because they can repeatedly satisfy a stale
-goal without advancing a durable work contract.
+are loop-prone V0 prompt shapes because they can repeatedly satisfy a stale goal
+without advancing a durable work contract. The contract surfaces those shapes as
+warnings unless they also violate a true dock or provider boundary. They may be
+valid when Foreman is deliberately testing the contract or live mechanics and
+the prompt carries clear success and stop criteria.
+
+Foreman routing policy, not the dock contract, decides whether GDI is the right
+tool for a slice. GDI is the right target when `/goal` adds value through
+autonomous iteration, verification, or durable work-card execution. Ordinary
+one-shot coordination should stay with Foreman or Operator unless the one-shot
+prompt is itself the object of a deliberate contract or liveness test.

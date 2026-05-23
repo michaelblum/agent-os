@@ -179,6 +179,15 @@ The wrapper's printed chat-visible block includes the recipient, gates, copy
 notice, and timestamp; include that exact block in the final chat response when
 routing the transfer.
 
+The dock inbound contract owns provider mechanics, dock role boundaries, reset
+semantics, stop-condition reminders, and evidence/reporting expectations.
+Foreman owns routing judgment. Use GDI when `/goal` adds value through
+autonomous iteration, verification, or durable work-card execution. Keep
+ordinary one-shot coordination with Foreman or Operator unless the one-shot
+prompt deliberately tests the contract or live provider mechanics. Loop-prone
+GDI shapes such as reply-exactly proof prompts should be visible warnings or
+policy diagnostics unless they cross a real dock/protocol boundary.
+
 Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 as the flexible authoring shape: fresh context, read-first files, state
 rediscovery, exact files to inspect, hard boundaries, verification, and

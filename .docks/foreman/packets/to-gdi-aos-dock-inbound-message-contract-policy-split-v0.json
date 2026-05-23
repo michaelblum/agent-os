@@ -31,6 +31,6 @@
   "human_notes": [
     "This is a correction to an accepted useful slice, not a restart.",
     "The transfer packet and work card live on the current local gdi/aos-dock-inbound-message-contract-v0 routing head.",
-    "The previous hard rejection solved the Ralph loop incident but overfit the dock contract; preserve the protection as visible warning/policy unless the shape is mechanically invalid."
+    "The previous hard rejection solved the repeated completion loop incident but overfit the dock contract; preserve the protection as visible warning/policy unless the shape is mechanically invalid."
   ]
 }

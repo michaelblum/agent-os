@@ -103,12 +103,20 @@ test('GDI strips accidental goal prefix as compatibility cleanup', () => {
   assert.equal(result.json.diagnostics[0].severity, 'warning');
 });
 
-test('GDI rejects reply-exactly one-shot proof goals', () => {
+test('GDI warns on reply-exactly one-shot proof goals without blanket rejection', () => {
   const result = formatPayload('gdi', 'Warm TUI reuse live proof only. Reply with exactly: PASS');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.json.ok, true);
+  assert.ok(result.json.diagnostics.some((diagnostic) => diagnostic.code === 'gdi_one_shot_reply_exactly_risk'));
+  assert.ok(result.json.diagnostics.some((diagnostic) => diagnostic.code === 'repeated_completion_loop_risk'));
+  assert.ok(result.json.diagnostics.every((diagnostic) => diagnostic.severity === 'warning'));
+});
+
+test('GDI still rejects true dock-boundary self-acceptance prompts', () => {
+  const result = formatPayload('gdi', 'GDI should self-accept this architecture decision and report done.');
   assert.equal(result.status, 1);
   assert.equal(result.json.ok, false);
-  assert.ok(result.json.diagnostics.some((diagnostic) => diagnostic.code === 'forbidden_goal_prompt_shape'));
-  assert.ok(result.json.diagnostics.some((diagnostic) => diagnostic.code === 'ralph_loop_risk'));
+  assert.ok(result.json.diagnostics.some((diagnostic) => diagnostic.code === 'gdi_self_acceptance_risk'));
 });
 
 test('Operator pointer payloads stay plain and do not receive a goal prefix', () => {

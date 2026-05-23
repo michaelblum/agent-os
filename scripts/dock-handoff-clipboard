@@ -63,6 +63,18 @@ if ! contract_json="$(printf '%s' "$message" | "$script_dir/dock-inbound-message
   exit 1
 fi
 payload="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["clipboard_payload"], end="")' <<<"$contract_json")"
+python3 - "$contract_json" <<'PY' >&2
+import json
+import sys
+
+result = json.loads(sys.argv[1])
+for diagnostic in result.get("diagnostics", []):
+    severity = diagnostic.get("severity", "diagnostic")
+    code = diagnostic.get("code", "unknown")
+    message = diagnostic.get("message", "")
+    if severity != "error":
+        print(f"{severity}:{code}:{message}")
+PY
 options_json="$(python3 - "$target_dock" <<'PY'
 import json
 import sys

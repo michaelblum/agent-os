@@ -7,7 +7,7 @@
 - Operator preflight reached the human-gated GDI proof step.
 - The requested GDI prompt used a one-shot goal shape:
   `/goal Warm TUI reuse live proof only. Reply with exactly: ...`.
-- That prompt triggered a known Codex goal-mode Ralph loop: GDI repeatedly
+- That prompt triggered a known Codex goal-mode repeated completion loop: GDI repeatedly
   emitted `warm-gdi-tui-proof complete`, and the normal GDI Stop hook spoke
   `GDI finished.` after each repeated stop.
 - The human interrupted the loop with Esc. GDI should be cleaned up with
@@ -17,7 +17,7 @@
 - Follow-up routed:
   `docs/design/work-cards/aos-dock-inbound-message-contract-v0.md`. The next
   GDI slice must make dock/provider inbound message contracts AOS-owned and
-  reject Ralph-loop-prone one-shot goal prompts before they reach GDI.
+  reject repeated-completion-prone one-shot goal prompts before they reach GDI.
 
 ## Transfer Classification
 

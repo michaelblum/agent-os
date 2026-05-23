@@ -30,15 +30,15 @@
       ],
       "forbidden_prompt_shapes": [
         {
-          "code": "forbidden_goal_prompt_shape",
-          "severity": "error",
-          "description": "One-shot reply-exactly goals can satisfy stale goal state repeatedly instead of advancing a durable work contract.",
+          "code": "gdi_one_shot_reply_exactly_risk",
+          "severity": "warning",
+          "description": "One-shot reply-exactly goals can satisfy stale goal state repeatedly; Foreman should use them only for deliberate contract or liveness tests with clear success and stop criteria.",
           "match": "\\breply\\s+(with\\s+)?exactly\\b"
         },
         {
-          "code": "ralph_loop_risk",
-          "severity": "error",
-          "description": "Status-only proof goals must point to a durable work card or transfer packet before GDI accepts them.",
+          "code": "repeated_completion_loop_risk",
+          "severity": "warning",
+          "description": "Status-only proof goals can loop in stale goal-mode state; prefer durable work-card or transfer-packet pointers unless deliberately testing live mechanics.",
           "match": "\\bproof\\s+only\\b"
         },
         {

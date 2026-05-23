@@ -8,7 +8,7 @@
 - Transfer kind: GDI round
 - Single next goal: make dock/provider inbound message formatting an AOS-owned,
   dock-declared contract so Foreman and Operator do not carry private knowledge
-  of GDI `/goal` syntax and Ralph-loop-prone prompt shapes are rejected
+  of GDI `/goal` syntax and repeated-completion prompt risks are rejected
   deterministically.
 - Source artifacts:
   - `.docks/README.md`
@@ -56,7 +56,7 @@ Foreman currently knows too much about GDI message shape:
   `follow the transfer packet in ...; start from ...`.
 - Operator improvised a one-shot proof prompt:
   `/goal Warm TUI reuse live proof only. Reply with exactly: ...`.
-- That one-shot goal caused a Ralph loop: GDI repeatedly satisfied the same
+- That one-shot goal caused a repeated completion loop: GDI repeatedly satisfied the same
   objective and the normal Stop hook spoke `GDI finished.` each time.
 
 This means the message contract is currently implicit, scattered across
@@ -75,7 +75,7 @@ tooling/tests so:
   goals;
 - Foreman and Operator can discover the target dock contract instead of
   hardcoding recipient prompt rules;
-- Ralph-loop-prone one-shot GDI goal prompts are rejected or flagged before
+- Repeated-completion-prone one-shot GDI goal prompts are rejected or flagged before
   dispatch;
 - future Claude Code or other providers can add provider-specific entry syntax
   without changing Foreman policy text.
@@ -170,7 +170,7 @@ Required behavior:
   this is cleanup, not the canonical copied payload.
 - For GDI/Codex one-shot `Reply with exactly...` or `Reply exactly...` payloads,
   validation fails or returns an explicit warning/error code such as
-  `forbidden_goal_prompt_shape` or `ralph_loop_risk`.
+  `forbidden_goal_prompt_shape` or `repeated_completion_loop_risk`.
 - For Operator/Codex, plain Operator pointer payloads pass with no `/goal`
   prefix.
 - The tool must not write to the clipboard in validation/format-preview mode
@@ -185,7 +185,7 @@ Update the smallest relevant docs so the new boundary is explicit:
 - `.docks/foreman/AGENTS.md` should stop being the only source of GDI prompt
   formatting truth; it can say Foreman writes transfer artifacts and formats
   dispatches according to the target dock inbound contract.
-- `.docks/gdi/AGENTS.md` should mention the contract file and Ralph-loop
+- `.docks/gdi/AGENTS.md` should mention the contract file and repeated-loop
   recovery: `/goal clear`, then `/clear`, then wait for a real Foreman pointer.
 - `.docks/operator/AGENTS.md` should avoid inventing GDI `/goal` prompts and
   should route GDI work back through Foreman/GDI contract.
