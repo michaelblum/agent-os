@@ -270,6 +270,73 @@ test('writes the same dry-run receipt to --out', async () => {
   assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), JSON.parse(result.stdout));
 });
 
+test('normalizes --result-route stdout override as a local artifact route', async () => {
+  const packetPath = await writePacket(validPacket({
+    result_route: undefined,
+    result_routes: undefined,
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--result-route',
+    'stdout',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'dry_run_ready');
+  assert.equal(receipt.scheduler.lifecycle_state, 'accepted');
+  assert.equal(receipt.result_route.status, 'completed');
+  assert.deepEqual(receipt.result_route.refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.deepEqual(receipt.result_route.attempt_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.deepEqual(receipt.result_route.delivered_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.equal(receipt.result_route.failure, 'not_observed');
+});
+
+test('normalizes matching --result-route path override as confirmed --out delivery', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-route-override-'));
+  const outPath = join(dir, 'receipt.json');
+  const packetPath = await writePacket(validPacket({
+    result_route: undefined,
+    result_routes: undefined,
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    outPath,
+    '--result-route',
+    outPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), receipt);
+  assert.equal(receipt.status, 'dry_run_ready');
+  assert.equal(receipt.scheduler.lifecycle_state, 'accepted');
+  assert.equal(receipt.result_route.status, 'completed');
+  assert.deepEqual(receipt.result_route.refs, [{ kind: 'local_artifact_path', ref: outPath }]);
+  assert.equal(receipt.result_route.delivered_refs[0].ref, outPath);
+  assert.equal(receipt.result_route.delivered_refs[0].resolved_path, outPath);
+  assert.equal(receipt.result_route.failure, 'not_observed');
+});
+
 test('accounts for explicit --out local artifact delivery after confirmed file write', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-local-route-'));
   const outPath = join(dir, 'receipt.json');

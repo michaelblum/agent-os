@@ -133,8 +133,10 @@ function normalizeRequestedDock(packet) {
 
 function normalizeResultRoutes(packet) {
   const route = packet.result_route ?? packet.resultRoute ?? packet.result_routes ?? packet.resultRoutes;
-  if (Array.isArray(route)) return route;
-  return route ? [route] : [];
+  const routes = Array.isArray(route) ? route : (route ? [route] : []);
+  return routes.map((item) => (
+    typeof item === 'string' ? { kind: LOCAL_ARTIFACT_PATH, ref: item } : item
+  ));
 }
 
 function classifyLocalResultRoutes({ repoRoot, routes, stdoutDelivered = false, outPath = null, outWriteConfirmed = false }) {

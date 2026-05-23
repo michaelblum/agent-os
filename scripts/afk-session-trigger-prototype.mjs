@@ -168,9 +168,11 @@ function normalizeWorktree(packet, repoRoot) {
 
 function normalizeResultRoutes(packet, override) {
   const route = packet.result_route ?? packet.resultRoute ?? packet.result_routes ?? packet.resultRoutes;
-  if (Array.isArray(route)) return route;
-  if (route) return [route];
-  return override ? [override] : [];
+  const configuredRoutes = Array.isArray(route) ? route : (route ? [route] : []);
+  const routes = configuredRoutes.length > 0 ? configuredRoutes : (override ? [override] : []);
+  return routes.map((item) => (
+    typeof item === 'string' ? { kind: LOCAL_ARTIFACT_PATH, ref: item } : item
+  ));
 }
 
 function classifyLocalResultRoutes({ repoRoot, routes, stdoutDelivered = false, outPath = null, outWriteConfirmed = false }) {

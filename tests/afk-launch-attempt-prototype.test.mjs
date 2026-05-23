@@ -363,6 +363,32 @@ test('accounts for --out local artifact result route without completing lifecycl
   assert.equal(record.lifecycle_state, 'provider_acceptance_unobserved');
 });
 
+test('normalizes string packet result routes as local artifact routes', async () => {
+  const packetPath = await writePacket(validPacket({
+    result_route: 'stdout',
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.result_route.status, 'completed');
+  assert.deepEqual(record.transfer.result_route_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.deepEqual(record.result_route.attempt_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.deepEqual(record.result_route.delivered_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
+  assert.equal(record.result_route.failure, 'not_observed');
+  assert.equal(record.lifecycle_state, 'provider_acceptance_unobserved');
+});
+
 test('keeps unsupported launch-attempt result routes explicit and non-completed', async () => {
   const packetPath = await writePacket(validPacket({
     result_route: [
