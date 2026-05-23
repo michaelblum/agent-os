@@ -1,6 +1,39 @@
 # Work Card: AFK Session Trigger Result Route Override Normalization V0
 
-**Status:** Routed 2026-05-23
+**Status:** Accepted 2026-05-23
+
+## Result
+
+- Foreman review: accepted.
+- Branch/ref gates passed on
+  `gdi/afk-session-trigger-result-route-override-normalization-v0` at
+  `8265ffc8dfe48f58b1f761657a01c1c9de030ed4`, based on
+  `21a4fdde8ad21dd4edb6d134b375b24bc2a735f5`.
+- Diff was scoped to:
+  - `scripts/afk-launch-attempt-prototype.mjs`;
+  - `scripts/afk-session-trigger-prototype.mjs`;
+  - `tests/afk-launch-attempt-prototype.test.mjs`;
+  - `tests/afk-session-trigger-prototype.test.mjs`.
+- Behavior accepted: string result-route entries and `--result-route <ref>`
+  overrides normalize to `{ kind: "local_artifact_path", ref: <ref> }` before
+  local delivery classification. Object-shaped unsupported/external routes stay
+  explicit and non-completed.
+- Verification rerun by Foreman passed:
+  - `./aos ready` returned
+    `ready=true mode=repo daemon=reachable tap=active`;
+  - `node --test tests/afk-session-trigger-prototype.test.mjs` with 20/20
+    passing;
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs` with 38/38
+    passing;
+  - `git diff --check`.
+- Follow-up routed: model the user's actual long-lived dock terminal workflow
+  as warm TUI reuse with `/clear` as the context boundary before broader async
+  route work.
+- No live provider launch, transcript body read, provider store/catalog/telemetry
+  mutation, gateway/dock runtime mutation, GitHub issue/PR/main mutation, main
+  merge, PR creation, external notifier, durable work/evidence record,
+  unsupervised trigger, or non-local async routing occurred during Foreman
+  acceptance.
 
 ## Transfer Classification
 

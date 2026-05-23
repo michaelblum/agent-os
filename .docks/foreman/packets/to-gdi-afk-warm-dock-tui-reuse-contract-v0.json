@@ -1,0 +1,38 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T15:44:28-04:00",
+  "updated_at": "2026-05-23T15:44:28-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "gdi_round",
+  "single_next_goal": "Add a deterministic AFK warm dock TUI reuse contract so /clear is modeled as the provider conversation boundary while the dock-local Codex process remains warm.",
+  "work_card_ref": "docs/design/work-cards/afk-warm-dock-tui-reuse-contract-v0.md",
+  "required_start_ref": "gdi/afk-session-trigger-result-route-override-normalization-v0",
+  "branch_from": "gdi/afk-session-trigger-result-route-override-normalization-v0",
+  "expected_output_branch": "gdi/afk-warm-dock-tui-reuse-contract-v0",
+  "accepted_local_route_compatibility_source_head": "8265ffc8dfe48f58b1f761657a01c1c9de030ed4",
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-afk-warm-dock-tui-reuse-contract-v0.json; start from the current local head of gdi/afk-session-trigger-result-route-override-normalization-v0",
+  "required_evidence": [
+    "Warm TUI reuse mode records /clear as the context reset command",
+    "Provider process reuse is separate from provider conversation/session freshness",
+    "Codex/GDI dispatch starts with /goal plus one space while Operator dispatch stays plain",
+    "Fixture-backed Codex metadata proves a new session id after reset or reports a mismatch",
+    "Cold supervised-provider cleanup behavior remains unchanged",
+    "Local result-route behavior remains intact",
+    "Verification command results",
+    "Statement that no real dock terminal was driven and no live provider launch occurred"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires driving the user's real Foreman, GDI, or Operator terminal",
+    "implementation requires a live Codex/provider launch",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires gateway/broker, Slack, GitHub, Foreman inbox, or notifier route mutation",
+    "scope expands into unsupervised triggers, GitHub issue/PR/main mutation, PR creation, or removing --i-am-present"
+  ],
+  "human_notes": [
+    "The user's manual workflow is three long-lived dock-local Codex terminals; /clear resets conversation context without restarting Codex.",
+    "This is the deterministic contract slice before an Operator live proof against the real warm dock terminals."
+  ]
+}
