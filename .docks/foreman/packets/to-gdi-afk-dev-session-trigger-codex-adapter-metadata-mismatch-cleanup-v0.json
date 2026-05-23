@@ -1,0 +1,36 @@
+{
+  "schema_status": "not_a_schema",
+  "packet_type": "foreman_transfer_packet",
+  "packet_version": 0,
+  "created_at": "2026-05-23T14:57:00-04:00",
+  "updated_at": "2026-05-23T14:57:00-04:00",
+  "recipient": "gdi",
+  "transfer_kind": "correction_round",
+  "single_next_goal": "Remove stale nested codex_adapter provider_session_id_not_observed mismatch evidence from metadata-promoted completed provider-acceptance receipts without weakening non-promoted diagnostics.",
+  "work_card_ref": "docs/design/work-cards/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0.md",
+  "required_start_ref": "gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0",
+  "branch_from": "gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0",
+  "expected_output_branch": "gdi/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0",
+  "accepted_live_proof_route_head": "09b84c86dda2753f278f9a4079db13b0066a0044",
+  "accepted_implementation_source_head": "9b02689b52894fe8d2770606eeda5190ddde6869",
+  "clipboard_prompt": "follow the transfer packet in .docks/foreman/packets/to-gdi-afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0.json; start from local commit 09b84c86dda2753f278f9a4079db13b0066a0044",
+  "review_finding": "Operator live proof completed with metadata-backed provider acceptance and verified cleanup, but nested codex_adapter.mismatches still contained provider_session_id_not_observed after promotion.",
+  "required_evidence": [
+    "Metadata-promoted completed receipts no longer include codex_adapter.mismatches code=provider_session_id_not_observed",
+    "Top-level mismatches remain clean after metadata promotion",
+    "Non-promoted adapter diagnostics still retain missing provider id evidence where appropriate",
+    "Verification command results",
+    "Statement that async result routing was not started"
+  ],
+  "stop_conditions": [
+    "repo-mode TCC/Input Monitoring readiness blocks after the standard GDI helper",
+    "implementation requires a live Codex launch",
+    "implementation requires provider transcript body reads or provider-owned store mutation",
+    "implementation requires Codex config/keymap mutation",
+    "scope expands into async result routing, final session command design, GitHub issue/PR/main mutation, PR creation, or removing --i-am-present"
+  ],
+  "human_notes": [
+    "The supervised live provider acceptance gate is accepted as closed, but async result routing remains paused until this receipt-hygiene correction is reviewed.",
+    "Do not start unsupervised triggers or async routing in this GDI round."
+  ]
+}

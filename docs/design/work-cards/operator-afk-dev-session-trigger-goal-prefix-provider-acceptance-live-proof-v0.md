@@ -1,6 +1,67 @@
 # Operator AFK Dev Session Trigger Goal Prefix Provider Acceptance Live Proof V0
 
-**Status:** Routed 2026-05-23
+**Status:** Accepted with residual deterministic follow-up 2026-05-23
+
+## Result
+
+- Classification:
+  `provider_acceptance_live_proof_passed_with_residual_adapter_mismatch`.
+- Foreman review: accepted as closing the live provider-acceptance gate for the
+  supervised Codex/GDI path. The run proved provider-native `/goal ` prompt
+  submission, metadata-backed provider acceptance, concrete Codex session
+  identity, verified cleanup, completed top-level receipt state, and clean final
+  readiness.
+- Branch/ref gates passed on
+  `gdi/afk-dev-session-trigger-codex-goal-prefix-transport-v0` at
+  `09b84c86dda2753f278f9a4079db13b0066a0044`, which contains accepted source
+  SHA `9b02689b52894fe8d2770606eeda5190ddde6869`.
+- Preflight passed: `./aos ready`; `node --test
+  tests/afk-session-trigger-prototype.test.mjs` with 16/16 passing; `node
+  --test tests/afk-launch-attempt-prototype.test.mjs` with 35/35 passing;
+  `node --test tests/sigil-agent-terminal-server.test.mjs` with 14/14 passing;
+  and `cd packages/host && npm test` with 63/63 passing.
+- Trigger receipt: exit code `0`; top-level `status=completed`;
+  `packet.validation_status=valid`; `scheduler.lifecycle_state=completed`;
+  `dispatch.provider_launch_allowed=true`; `dispatch.launch_root=.docks/gdi`;
+  terminal driver `process`; cwd `/Users/Michael/Code/agent-os/.docks/gdi`;
+  command `codex --no-alt-screen`.
+- Input submission evidence: submitted with
+  `provider_prompt_mode=codex_goal`, `provider_prompt_prefix="/goal "`,
+  `text_accepted=true`, `key_accepted=true`, and
+  `provider_execution_observed=true`. Bounded prompt evidence confirmed the
+  prompt builder emitted `/goal Your work card is at ...`.
+- Provider acceptance: `provider_acceptance.status=provider_session_observed`;
+  session id `019e562f-2fbd-74d3-8cf8-3dd61a1c7095`; source
+  `codex_adapter_metadata`; `codex_adapter.status=observed`;
+  `codex_adapter.correlation_status=matched_by_cwd_time_window`;
+  `matched_cwd_basis=intended_launch_cwd`; reported cwd
+  `/Users/Michael/Code/agent-os/.docks/gdi`. Branch, head, and version were not
+  observed; model held loading-state text.
+- Residual finding: top-level `mismatches=[]`, but
+  `codex_adapter.mismatches` still contained
+  `provider_session_id_not_observed` from bridge visibility before metadata
+  promotion. The clean-pass criteria required no stale
+  `provider_session_id_not_observed` mismatch, so Foreman routed
+  `docs/design/work-cards/afk-dev-session-trigger-codex-adapter-metadata-mismatch-cleanup-v0.md`.
+- Cleanup proof passed: `cleanup.status=verified`, including
+  `owned_bridge_process_exit`,
+  `owned_bridge_health_unreachable_after_teardown`,
+  `owned_process_driver_child_exit`, and
+  `owned_provider_command_child_exit`. Post-run process comparison showed no
+  remaining `codex --no-alt-screen`, bridge `server.mjs`, or `pty-proxy.py`;
+  only pre-existing Codex app/Sparkle processes remained.
+- Bounded Codex metadata: new matching rollout
+  `/Users/Michael/.codex/sessions/2026/05/23/rollout-2026-05-23T14-53-13-019e562f-2fbd-74d3-8cf8-3dd61a1c7095.jsonl`;
+  mtime `2026-05-23T14:53:16-0400`; size `67823`;
+  `session_meta.payload.id` matched the provider session and matched thread id;
+  `session_meta.payload.cwd=/Users/Michael/Code/agent-os/.docks/gdi`.
+- Final `./aos ready` reported
+  `ready=true mode=repo daemon=reachable tap=active`; final git status was
+  clean on the same branch; temporary packet/output files under
+  `/tmp/aos-operator-afk-live-proof-v0` were removed.
+- Boundary confirmed: async result routing was not started, and Operator made
+  no source, docs, config, provider, GitHub, push, PR, main, or async routing
+  mutation.
 
 ## Transfer Classification
 
