@@ -424,22 +424,46 @@ function providerPromptProfile(context = {}) {
   }
 
   if (context.repoRoot && selectedProvider && selectedDock && SUPPORTED_PROVIDERS.has(selectedProvider)) {
-    const contract = validateDockInboundMessage({
-      repoRoot: context.repoRoot,
-      targetDock: selectedDock,
-      provider: selectedProvider,
-      payload: context.providerPromptPayload ?? liveProviderPromptPayload(context),
-    });
-    return {
-      ok: contract.ok,
-      mode: providerPromptMode(selectedProvider, selectedDock, contract.provider_entry_prefix),
-      prefix: contract.provider_entry_prefix,
-      contract_path: contract.contract_path,
-      provider_entry_preview: contract.provider_entry_preview,
-      context_reset_command: contract.context_reset_command,
-      stale_goal_recovery_command: contract.stale_goal_recovery_command,
-      diagnostics: contract.diagnostics,
-    };
+    try {
+      const contract = validateDockInboundMessage({
+        repoRoot: context.repoRoot,
+        targetDock: selectedDock,
+        provider: selectedProvider,
+        payload: context.providerPromptPayload ?? liveProviderPromptPayload(context),
+      });
+      return {
+        ok: contract.ok,
+        mode: providerPromptMode(selectedProvider, selectedDock, contract.provider_entry_prefix),
+        prefix: contract.provider_entry_prefix,
+        contract_path: contract.contract_path,
+        provider_entry_preview: contract.provider_entry_preview,
+        context_reset_command: contract.context_reset_command,
+        stale_goal_recovery_command: contract.stale_goal_recovery_command,
+        diagnostics: contract.diagnostics,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes(' is not declared by ')) {
+        throw error;
+      }
+      const payload = context.providerPromptPayload ?? liveProviderPromptPayload(context);
+      return {
+        ok: true,
+        mode: 'plain',
+        prefix: '',
+        contract_path: relative(context.repoRoot, join(context.repoRoot, '.docks', selectedDock, 'inbound-contract.json')),
+        provider_entry_preview: payload,
+        context_reset_command: '/clear',
+        stale_goal_recovery_command: null,
+        diagnostics: [{
+          code: 'dock_inbound_provider_not_declared',
+          severity: 'warning',
+          message,
+          selected_provider: selectedProvider,
+          selected_dock: selectedDock,
+        }],
+      };
+    }
   }
 
   return {

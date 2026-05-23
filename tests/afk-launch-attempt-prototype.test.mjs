@@ -600,6 +600,53 @@ test('builds Operator Codex live provider prompt through plain dock inbound cont
   assert.equal(submission.stale_goal_recovery_command, null);
 });
 
+test('keeps missing dock provider contract declaration as prompt diagnostic', async () => {
+  const sourceArtifact = 'docs/design/work-cards/operator-live-prompt.md';
+  const promptSource = {
+    repoRoot,
+    packet: validPacket({
+      packet_id: 'operator-claude-live-prompt',
+      source_artifact: sourceArtifact,
+      provider_hint: 'claude',
+      requested_recipient: 'operator',
+    }),
+    packetId: 'operator-claude-live-prompt',
+    sourceArtifact,
+    selectedProvider: 'claude',
+    selectedDock: 'operator',
+  };
+
+  const prompt = buildLiveProviderPrompt(promptSource);
+  const submission = await submitLiveProviderPrompt({
+    port: 48123,
+    session: 'afk-operator-claude-live-prompt-contract',
+    prompt,
+    promptSource,
+    fetchImpl: async (url, options) => ({
+      ok: true,
+      async json() {
+        const body = JSON.parse(options.body);
+        return /\/key$/.test(url)
+          ? { ok: true, key: body.key, key_accepted: true }
+          : { ok: true, text_accepted: true, enter_sent: false, enter_accepted: false };
+      },
+    }),
+    sleepImpl: async () => {},
+  });
+
+  assert.equal(prompt, `Your work card is at ${sourceArtifact}. Read it first, then begin.`);
+  assert.equal(submission.status, 'submitted');
+  assert.equal(submission.provider_prompt_mode, 'plain');
+  assert.equal(submission.provider_prompt_prefix, '');
+  assert.equal(submission.provider_prompt_contract_path, '.docks/operator/inbound-contract.json');
+  assert.equal(submission.context_reset_command, '/clear');
+  assert.deepEqual(
+    submission.provider_prompt_diagnostics.map((diagnostic) => diagnostic.code),
+    ['dock_inbound_provider_not_declared'],
+  );
+  assert.match(submission.provider_prompt_diagnostics[0].message, /provider claude is not declared/);
+});
+
 test('preserves GDI contract warnings while allowing prompt submission', async () => {
   const promptSource = {
     repoRoot,
@@ -1187,6 +1234,46 @@ test('rejects unsupported provider before terminal substrate work', async () => 
     record.validations.find((validation) => validation.name === 'selected_provider_supported').status,
     'failed',
   );
+});
+
+test('keeps supported provider with missing dock contract declaration on structured launch path', async () => {
+  const packetPath = await writePacket(validPacket({
+    packet_id: 'operator-claude-missing-contract-provider',
+    provider_hint: 'claude',
+    requested_recipient: 'operator',
+    source_artifact: 'docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v0.md',
+  }));
+
+  const context = await buildAttemptContext({
+    packet: packetPath,
+    provider: 'claude',
+    dock: 'operator',
+  });
+  assert.equal(
+    context.liveProviderPrompt,
+    'Your work card is at docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v0.md. Read it first, then begin.',
+  );
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'claude',
+    '--dock',
+    'operator',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.stderr, '');
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.record_type, 'aos.afk_launch_attempt');
+  assert.equal(record.selection.selected_provider, 'claude');
+  assert.equal(record.selection.selected_dock, 'operator');
+  assert.equal(record.lifecycle_state, 'provider_acceptance_unobserved');
+  assert.equal(record.launch_intent.provider_launch_performed, false);
 });
 
 test('rejects missing packet facts and current-state mismatches before bridge start', async () => {
