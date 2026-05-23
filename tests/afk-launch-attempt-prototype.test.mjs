@@ -1282,6 +1282,106 @@ test('uses Codex adapter cwd/time fallback for one current same-cwd thread when 
   assert.ok(record.mismatches.some((mismatch) => mismatch.source === 'codex_adapter' && mismatch.code === 'provider_session_id_not_observed'));
 });
 
+test('promotes metadata-backed Codex cwd/time match after supervised prompt submission', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const threadId = '019e7000-dddd-7222-8333-444444444444';
+  const launchObservedAt = '2026-05-22T16:00:00.000Z';
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: threadId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T16:01:00.000Z',
+      title: 'Prompt accepted metadata match',
+    },
+  ]);
+  const bridgePath = await writeBridgeVisibilityFixture({
+    response_marker: 'metadata-backed-provider-acceptance',
+    bridge: {
+      supervised_live: true,
+      health: {
+        ok: true,
+        defaultSession: 'afk-metadata-promotion',
+        defaultCwd: intendedLaunchCwd,
+        driver: 'process',
+        terminal: { cols: 80, rows: 24 },
+      },
+      ensure: {
+        ok: true,
+        session: 'afk-metadata-promotion',
+        cwd: intendedLaunchCwd,
+        created: true,
+        driver: 'process',
+      },
+      command: 'codex --no-alt-screen',
+      input: {
+        driver: 'process',
+        session_exists: true,
+        text_bytes: 172,
+        text_accepted: true,
+        enter_sent: true,
+        enter_bytes: 1,
+        enter_accepted: true,
+      },
+      typed_observed: true,
+      submitted_observed: true,
+      snapshot: {
+        session: 'afk-metadata-promotion',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        text: [
+          'Codex CLI 0.133.0',
+          'cwd /Users/Michael/Code/agent-os/.docks/gdi',
+          'branch gdi/afk-launch',
+          'model gpt-5.5',
+          'head 81af5f0e',
+          'metadata-backed-provider-acceptance',
+        ].join('\n'),
+      },
+    },
+  });
+
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--launch-mode',
+    'supervised-provider',
+    '--json',
+    '--timestamp',
+    '2026-05-22T16:02:00.000Z',
+    '--launch-observed-at',
+    launchObservedAt,
+    '--bridge-visibility-fixture',
+    bridgePath,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const record = JSON.parse(result.stdout);
+  assert.equal(record.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(record.provider_acceptance.provider_session_id, threadId);
+  assert.equal(record.provider_acceptance.provider_reported_cwd, intendedLaunchCwd);
+  assert.equal(record.provider_acceptance.provider_reported_branch, 'gdi/afk-launch');
+  assert.equal(record.provider_acceptance.provider_reported_head, '81af5f0e');
+  assert.equal(record.provider_acceptance.provider_version, '0.133.0');
+  assert.equal(record.provider_acceptance.model, 'gpt-5.5');
+  assert.equal(record.provider_acceptance.observation_source, 'codex_adapter_metadata');
+  assert.deepEqual(record.provider_acceptance.evidence_refs.slice(0, 2), [
+    `codex-thread:${threadId}`,
+    `codex://threads/${threadId}`,
+  ]);
+  assert.equal(record.lifecycle_state, 'provider_session_observed');
+  assert.equal(record.codex_adapter.correlation_status, 'matched_by_cwd_time_window');
+  assert.equal(record.codex_adapter.matched_thread_id, threadId);
+  assert.equal(record.mismatches.some((mismatch) => mismatch.code === 'provider_session_id_not_observed'), false);
+  assert.equal(record.mismatches.some((mismatch) => mismatch.code === 'provider_acceptance_unobserved'), false);
+});
+
 test('does not bind same-cwd Codex adapter thread without usable launch time window', async () => {
   const packetPath = await writePacket(validPacket());
   const intendedLaunchCwd = join(repoRoot, '.docks/gdi');

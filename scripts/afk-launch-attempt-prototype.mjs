@@ -596,6 +596,52 @@ function buildCodexAdapterRecord({ status, correlation = null, reference = null,
   };
 }
 
+function promptSubmissionSucceeded(record) {
+  const inputSubmission = record.terminal_substrate?.input_submission;
+  if (!inputSubmission || inputSubmission === NOT_OBSERVED) return false;
+  return inputSubmission.status === 'submitted'
+    || inputSubmission.submitted_observed === true
+    || (
+      inputSubmission.text_accepted === true
+      && inputSubmission.enter_accepted === true
+    );
+}
+
+function shouldPromoteCodexMetadataProviderAcceptance(record, correlation) {
+  return record.selection.selected_provider === 'codex'
+    && record.launch_intent.launch_mode === 'supervised-provider'
+    && record.launch_intent.provider_launch_performed === true
+    && promptSubmissionSucceeded(record)
+    && record.provider_acceptance.status === 'provider_acceptance_unobserved'
+    && correlation?.status === 'matched_by_cwd_time_window'
+    && correlation.confidence === 'strong'
+    && correlation.thread?.thread_id;
+}
+
+function promoteCodexMetadataProviderAcceptance(record, correlation, reference, timestamp) {
+  const thread = correlation.thread;
+  const evidenceRefs = [
+    reference?.local_ref,
+    reference?.deeplink,
+    thread.source_ref,
+    ...correlation.evidence_refs.map((ref) => ref.ref),
+  ].filter(Boolean).slice(0, 8);
+  record.provider_acceptance = {
+    ...record.provider_acceptance,
+    status: 'provider_session_observed',
+    provider_session_id: thread.thread_id,
+    provider_reported_cwd: thread.cwd ?? record.provider_acceptance.provider_reported_cwd,
+    evidence_refs: evidenceRefs,
+    evidence_ref: evidenceRefs[0] ?? 'inline:codex_adapter',
+    observed_at: timestamp,
+    observation_source: 'codex_adapter_metadata',
+  };
+  record.mismatches = record.mismatches.filter((mismatch) => !(
+    mismatch.code === 'provider_session_id_not_observed'
+    && (mismatch.source === 'provider_acceptance' || mismatch.source === 'codex_adapter')
+  ));
+}
+
 function sessionRef(session) {
   const provider = normalizeSessionProvider(session) ?? NOT_OBSERVED;
   const id = normalizeSessionId(session) ?? NOT_OBSERVED;
@@ -1969,6 +2015,9 @@ async function createLaunchAttempt(options) {
     });
     record.evidence.observed_refs.push(...adapterEvidenceRefStrings(correlation, reference));
     record.mismatches.push(...adapterMismatchObjects(correlation, timestamp));
+    if (shouldPromoteCodexMetadataProviderAcceptance(record, correlation)) {
+      promoteCodexMetadataProviderAcceptance(record, correlation, reference, timestamp);
+    }
   } else {
     record.codex_adapter = buildCodexAdapterRecord({
       status: context.provider.selected_provider === 'codex' ? 'not_attempted_no_codex_home_fixture' : 'not_applicable_non_codex_provider',

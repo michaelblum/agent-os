@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 
 const repoRoot = resolve(new URL('..', import.meta.url).pathname);
@@ -103,6 +103,46 @@ async function writeCleanupProofFixture(status = 'verified') {
       'no matching bridge server process',
     ],
   });
+}
+
+async function createCodexHomeFixture(sessions) {
+  const codexHome = await mkdtemp(join(tmpdir(), 'afk-session-trigger-codex-home-'));
+  await writeFile(
+    join(codexHome, '.codex-global-state.json'),
+    `${JSON.stringify({
+      'thread-titles': {
+        titles: Object.fromEntries(sessions.map((session) => [session.id, session.title ?? `Fixture ${session.id}`])),
+        order: sessions.map((session) => session.id),
+      },
+    }, null, 2)}\n`,
+    'utf8',
+  );
+  for (const session of sessions) {
+    const timestamp = session.timestamp;
+    const file = join(
+      codexHome,
+      'sessions',
+      timestamp.slice(0, 4),
+      timestamp.slice(5, 7),
+      timestamp.slice(8, 10),
+      `rollout-${timestamp.slice(0, 19).replaceAll(':', '-')}-${session.id}.jsonl`,
+    );
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(
+      file,
+      `${JSON.stringify({
+        timestamp,
+        type: 'session_meta',
+        payload: {
+          id: session.id,
+          cwd: session.cwd,
+          timestamp,
+        },
+      })}\n`,
+      'utf8',
+    );
+  }
+  return codexHome;
 }
 
 function validPacket(overrides = {}) {
@@ -311,6 +351,75 @@ test('selects provider-shaped Codex command for accepted no-fixture supervised l
   assert.equal(receipt.terminal_substrate.cleanup_status, 'verified');
   assert.ok(receipt.mismatches.some((item) => item.class === 'provider_acceptance_unobserved'));
   assert.equal(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'), false);
+});
+
+test('completes when metadata-backed provider acceptance and cleanup proof are present', async () => {
+  const packetPath = await writePacket(validPacket());
+  const intendedLaunchCwd = join(repoRoot, '.docks/gdi');
+  const threadId = '019e7100-dddd-7222-8333-444444444444';
+  const bridgeFixture = await writeBridgeVisibilityFixture({
+    providerSessionId: 'not_observed',
+    bridge: {
+      snapshot: {
+        session: 'afk-session-trigger-supervised-bridge-launch',
+        driver: 'process',
+        command: 'codex --no-alt-screen',
+        terminal: { cols: 100, rows: 31 },
+        text: [
+          'Codex CLI 0.133.0',
+          'cwd /Users/Michael/Code/agent-os/.docks/gdi',
+          'branch gdi/afk-dev-session-trigger-supervised-bridge-launch-v0',
+          'model gpt-5.5',
+          'head a38d0da6',
+          'live-codex-session-trigger-supervised-bridge-launch',
+        ].join('\n'),
+      },
+    },
+  });
+  const cleanupFixture = await writeCleanupProofFixture();
+  const codexHome = await createCodexHomeFixture([
+    {
+      id: threadId,
+      cwd: intendedLaunchCwd,
+      timestamp: '2026-05-22T20:00:30.000Z',
+      title: 'Session trigger metadata acceptance',
+    },
+  ]);
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    '2026-05-22T20:01:00.000Z',
+    '--launch-observed-at',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'metadata-provider-acceptance-test',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+    '--codex-home-fixture',
+    codexHome,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.scheduler.lifecycle_state, 'completed');
+  assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.provider_acceptance.provider_session_id, threadId);
+  assert.equal(receipt.provider_acceptance.observation_source, 'codex_adapter_metadata');
+  assert.equal(receipt.cleanup.status, 'verified');
+  assert.equal(receipt.codex_adapter.correlation_status, 'matched_by_cwd_time_window');
+  assert.equal(receipt.codex_adapter.matched_thread_id, threadId);
+  assert.deepEqual(receipt.mismatches, []);
 });
 
 test('rejects supervised-live pre-launch guard failures before side effects', async () => {
