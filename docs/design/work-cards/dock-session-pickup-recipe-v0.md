@@ -35,7 +35,8 @@ Add a first-class deterministic dock session pickup primitive that makes
 cross-session work-card startup cheap, consistent, and machine-readable without
 moving task judgment out of the model.
 
-The primitive should factor shared pickup mechanics into scripts/config:
+The primitive should factor shared pickup mechanics into `.docks/harness`,
+per-dock scripts, and configuration:
 
 - verify repo root;
 - inspect current branch/status/head;
@@ -47,8 +48,12 @@ The primitive should factor shared pickup mechanics into scripts/config:
 - emit compact structured output that future AFK and dock sessions can consume.
 
 Task-specific intent stays in work cards. Dock entry behavior stays in
-`.docks/<dock>/inbound-contract.json`. The model still owns judgment,
-implementation choices, and tradeoffs after pickup.
+`.docks/<dock>/inbound-contract.json`. Hook behavior stays in
+`.docks/<dock>/hooks`. The model still owns judgment, implementation choices,
+and tradeoffs after pickup.
+
+Provider scope for v0 is Codex only. Do not build a multi-provider abstraction
+while Codex is the only active dock provider path.
 
 ## Branch / Base
 
@@ -67,6 +72,11 @@ reset to `origin/main`; this card exists on a feature branch.
 - `.docks/AGENTS.md`
 - `.docks/gdi/AGENTS.md`
 - `.docks/gdi/inbound-contract.json`
+- `.docks/dock-defaults.json`
+- `.docks/gdi/dock.json`
+- `.docks/harness/dock-hook-runner.sh`
+- `.docks/harness/stop-condition.sh`
+- `.docks/gdi/hooks/stop.sh`
 - `.docks/gdi/scripts/human-needed-tcc-reset`
 - `scripts/dock-handoff-clipboard`
 - `scripts/dock-inbound-message-contract`
@@ -104,6 +114,10 @@ Only continue if it reports ready.
   this primitive should partially automate.
 - `.docks/AGENTS.md` - owns shared dock vocabulary and cross-session transfer
   boundaries.
+- `.docks/harness/dock-hook-runner.sh` and `.docks/harness/stop-condition.sh`
+  - existing shared dock harness primitives and state style.
+- `.docks/gdi/hooks/stop.sh` - example of per-dock hook behavior that should
+  remain hook-owned, not hard-coded into the pickup result.
 - `scripts/dock-handoff-clipboard` and
   `scripts/dock-inbound-message-contract` - examples of shared repo scripts
   with dock-specific behavior and deterministic tests.
@@ -116,11 +130,14 @@ Only continue if it reports ready.
 
 Implement the smallest useful v0 pickup surface:
 
-- Add a shared repo-level script, suggested path:
-  `scripts/dock-session-pickup`.
+- Add a shared dock harness primitive under `.docks/harness`, suggested path:
+  `.docks/harness/session-pickup`.
+- Add a repo-level compatibility entrypoint only if useful for tests or future
+  non-docked callers, suggested path: `scripts/dock-session-pickup`.
+  It should delegate to `.docks/harness/session-pickup`, not own the logic.
 - Add a GDI convenience wrapper, suggested path:
-  `.docks/gdi/scripts/pickup`, that delegates to the shared script with
-  `--dock gdi`.
+  `.docks/gdi/scripts/pickup`, that delegates to the shared harness primitive
+  with `--dock gdi --provider codex` or equivalent Codex-only defaults.
 - The GDI wrapper should support the motivating shape:
 
 ```bash
@@ -132,10 +149,16 @@ Implement the smallest useful v0 pickup surface:
 
 - The shared script should emit compact JSON by default or through `--json`.
   If you choose non-JSON default output, `--json` is still required.
+- The output should be hook-friendly: stable field names, deterministic
+  statuses, and no prose parsing required by `.docks/<dock>/hooks`.
+- Do not make hooks mandatory in v0. If a hook integration is added, keep it
+  behind an explicit option or narrow per-dock wrapper behavior and cover it
+  with tests.
 - The JSON should include at least:
   - `record_type`, for example `aos.dock_session_pickup`;
   - `schema_version`;
   - `dock`;
+  - `provider: "codex"`;
   - `repo_root`;
   - `worktree.branch`, `worktree.head`, and a compact status summary;
   - `card.path`, `card.exists`, and best-effort metadata such as title,
@@ -157,31 +180,37 @@ Implement the smallest useful v0 pickup surface:
   - or refuse with a diagnostic that names the branch and current SHA.
   Do not silently rebase, reset, or delete an existing branch in v0.
 - Do not mutate main.
-- Do not use provider CLI state, provider transcript bodies, or live dock TUI
-  state.
+- Do not use provider CLI state, provider transcript bodies, live dock TUI
+  state, or non-Codex provider configuration.
 
 ## Safety And Scope
 
-- Safety/pickup mechanics belong in scripts/config.
+- Safety/pickup mechanics belong in `.docks/harness`, per-dock scripts, and
+  config.
 - Task-specific intent remains in work cards.
 - Dock entry behavior remains in inbound contracts.
+- Stop/notice behavior remains in `.docks/<dock>/hooks`.
 - Judgment stays with the model.
 - Keep v0 deterministic and local. No GitHub mutation, no PR creation, no live
   provider launch, no Operator live proof.
 - Do not rewrite `.docks/gdi/AGENTS.md` wholesale. A short mention of the new
   helper is fine if useful, but keep the existing prose contract as fallback
   until the primitive has proved itself.
+- Do not generalize for Claude, Slack, or future providers in v0. Record any
+  such need as follow-up if discovered.
 
 ## Suggested Implementation Notes
 
-- Prefer Node or Bash, whichever keeps the code simplest and testable. If using
-  Bash, keep JSON escaping correct; if that becomes awkward, use Node.
+- Prefer Node or Bash, whichever keeps the harness code simplest and testable.
+  If using Bash, keep JSON escaping correct; if that becomes awkward, use Node.
 - Use environment overrides in tests, for example:
   - fake `AOS_DOCK_PICKUP_AOS_BIN` or similar for readiness output;
   - temp git repositories for branch/status behavior.
 - A first slice does not need perfect Markdown parsing. Best-effort extraction
   from common headings and `- key: value` lines is enough if the output clearly
   marks unknown fields.
+- Consider a small shared helper plus thin shell wrappers if that fits the
+  existing `.docks/harness` style better than a single large script.
 
 ## Verification
 
@@ -196,6 +225,7 @@ Run:
 ```bash
 ./aos ready
 bash tests/dock-session-pickup.sh
+bash tests/dock-hook-isolation.sh
 bash tests/dock-handoff-clipboard.sh
 bash tests/foreman-handoff-wrapper.sh
 git diff --check
@@ -215,6 +245,8 @@ Report:
 - base SHA;
 - files changed;
 - pickup command examples and JSON fields implemented;
+- which logic lives in `.docks/harness`, which behavior lives in
+  `.docks/gdi/scripts`, and whether any hook behavior changed;
 - branch-preparation safety behavior;
 - readiness/TCC stall behavior;
 - exact verification commands and results;
