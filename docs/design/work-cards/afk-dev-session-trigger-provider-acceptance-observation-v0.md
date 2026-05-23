@@ -2,6 +2,48 @@
 
 **Status:** Routed 2026-05-23
 
+## Foreman Acceptance
+
+Accepted source commit:
+`1a1eba69db7e8a00976c6daddadee35b0f5502b5`
+(`fix(afk): observe provider acceptance snapshots`).
+
+Foreman reviewed the scoped diff against the routed base
+`9fec9d2b9766dd128e8e92340c02f3c04749dd62` and accepted the slice:
+
+- the live provider branch now polls bounded bridge `/snapshot` output and uses
+  the same snapshot text parser as fixture-backed bridge visibility;
+- parseable provider session text promotes
+  `provider_acceptance.status=provider_session_observed` and carries observed
+  session id, cwd, branch, head, Codex CLI version, and model;
+- unparseable snapshot output preserves
+  `provider_acceptance_unobserved` and the existing mismatch behavior;
+- cleanup remains required before the session trigger can report `completed`;
+- no `--i-am-present` guard removal, async result routing, provider transcript
+  body read, provider store mutation, gateway change, dock profile/hook change,
+  GitHub issue/PR mutation, or main merge occurred.
+
+Foreman verification:
+
+```text
+./aos ready
+ready=true mode=repo daemon=reachable tap=active
+
+node --test tests/afk-session-trigger-prototype.test.mjs
+15/15 passed
+
+node --test tests/afk-launch-attempt-prototype.test.mjs
+27/27 passed
+
+git diff --check 9fec9d2b9766dd128e8e92340c02f3c04749dd62..1a1eba69db7e8a00976c6daddadee35b0f5502b5
+passed
+```
+
+Residual risk: the deterministic tests prove parser promotion and existing
+fixture behavior, but the actual live Codex startup timing still needs one
+supervised no-fixture Operator proof. Next routed proof:
+`docs/design/work-cards/operator-afk-dev-session-trigger-provider-acceptance-live-proof-v0.md`.
+
 ## Transfer Classification
 
 - Recipient: GDI
