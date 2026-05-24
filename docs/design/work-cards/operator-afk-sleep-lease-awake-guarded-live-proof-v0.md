@@ -1,6 +1,69 @@
 # Work Card: Operator AFK Sleep Lease Awake Guarded Live Proof V0
 
-**Status:** Ready for Operator
+**Status:** Accepted
+
+## Result
+
+- Classification: `pass`.
+- Foreman review: accepted as the short awake guarded-live sleep-lease proof
+  required before designing the first true overnight run.
+- Branch/ref gates passed on `main` at
+  `970fd0aea5611f2f2db0c9380a1797114aaed8fa`, matching `origin/main` before
+  and after. The worktree stayed clean.
+- Readiness before and after reported
+  `ready=true mode=repo daemon=reachable tap=active`.
+- Preflight passed:
+  - `node --test tests/afk-session-trigger-prototype.test.mjs` with 36/36
+    passing;
+  - `git diff --check`.
+- Live proof receipt:
+  - command exit code `0`;
+  - top-level `status=completed`;
+  - `packet.validation_status=valid`;
+  - `scheduler.lifecycle_state=completed`;
+  - `scheduler.lease.status=accepted`;
+  - `sleep_lease.status=accepted`;
+  - `dispatch.provider_launch_allowed=true`;
+  - `dispatch.launch_root=.docks/gdi`;
+  - terminal substrate driver `process`, cwd
+    `/Users/Michael/Code/agent-os/.docks/gdi`, command
+    `codex --no-alt-screen`;
+  - input submission used `provider_prompt_mode=codex_goal` with prefix
+    `"/goal "`;
+  - prompt ref/source artifact was
+    `docs/design/work-cards/afk-sleep-lease-awake-guarded-live-provider-sentinel-v0.md`;
+  - provider acceptance `provider_session_observed`;
+  - provider session id `019e5953-561d-7b00-ac50-50251b89bcc2`;
+  - metadata source
+    `/Users/Michael/.codex/sessions/2026/05/24/rollout-2026-05-24T05-31-34-019e5953-561d-7b00-ac50-50251b89bcc2.jsonl`;
+  - correlation `matched_by_cwd_time_window`, matched thread id
+    `019e5953-561d-7b00-ac50-50251b89bcc2`;
+  - cleanup `verified`.
+- Lease:
+  - id
+    `operator-afk-sleep-lease-awake-guarded-live-proof-v0-2026-05-24T09:31:23.501Z`;
+  - authorized `2026-05-24T09:31:23.501Z`;
+  - expired `2026-05-24T09:51:23.501Z`;
+  - max provider launches `1`.
+- Cleanup/process comparison:
+  - baseline had pre-existing Codex.app/Sparkle plus Foreman Sigil Agent
+    Terminal bridge processes;
+  - proof-owned session `afk-launch-feee309705a7`, bridge port `60512`,
+    process child `63745`, and provider command process group `63746` were
+    verified exited or unreachable;
+  - post-run snapshot showed only the same pre-existing long-lived processes.
+- Temporary packet, lease, and output were removed from
+  `/var/folders/hm/d5_18wks38q0lrdhtjpkpw8h0000gq/T/operator-afk-sleep-lease-RQwZU8`.
+- Sentinel proof token
+  `sleep-lease-awake-guarded-live-provider-sentinel-v0` was observed in bounded
+  receipt/prompt fields without transcript body reads.
+- Boundary confirmed: no source, docs, config, provider-store cleanup/edit,
+  GitHub, branch, PR, push, merge, external notifier, durable evidence record,
+  unattended trigger, or non-local async routing mutation occurred during the
+  Operator run.
+
+Next source slice:
+`docs/design/work-cards/afk-sleep-lease-unattended-live-mode-v0.md`.
 
 ## Transfer Classification
 
