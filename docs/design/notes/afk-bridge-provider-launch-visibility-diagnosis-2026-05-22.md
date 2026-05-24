@@ -96,15 +96,17 @@ id or other launch-side evidence binds it.
 
 ### Bridge `/sessions`
 
-`apps/sigil/codex-terminal/server.mjs` exposes `/sessions` by calling
-`listProviderSessions`. By default it filters to the bridge default cwd or the
-explicit `cwd` query. With `all_cwd=true`, it intentionally omits the cwd
+The historical `apps/sigil/codex-terminal/server.mjs` file-path shim delegates
+to the toolkit Agent Terminal bridge server. That bridge exposes `/sessions` by
+calling `listProviderSessions`. By default it filters to the bridge default cwd
+or the explicit `cwd` query. With `all_cwd=true`, it intentionally omits the cwd
 filter and returns all matching provider sessions. The endpoint can report
 `scope` and `cwd_filter`, but it is still a catalog view, not a launch receipt.
 
 ### Bridge Terminal Substrate
 
-`apps/sigil/codex-terminal/server.mjs` can observe `defaultSession`,
+The toolkit bridge server, including when reached through the historical
+`apps/sigil/codex-terminal/server.mjs` shim, can observe `defaultSession`,
 `defaultCwd`, selected driver, `tmuxAvailable`, `scriptAvailable`,
 `pythonAvailable`, `/ensure` session and driver, process/tmux handle, ensured
 cwd, command, and `/snapshot` text. These facts exist before any provider
@@ -132,11 +134,11 @@ session id.
 
 ### Session Inspector And Telemetry
 
-`apps/sigil/codex-terminal/session-inspector.mjs` requires an existing catalog
-record. It reads the record's `source_file` tail and invokes
+The toolkit session inspector server, including when reached through the
+historical `apps/sigil/codex-terminal/session-inspector.mjs` shim, requires an
+existing catalog record. It reads the record's `source_file` tail and invokes
 `packages/host/src/session-telemetry.ts` extractors. For Codex, telemetry comes
-from provider-local transcript records such as
-`payload.type === "token_count"`.
+from provider-local transcript records such as `payload.type === "token_count"`.
 
 The inspector can prove telemetry for catalog-visible sessions. It cannot
 discover or inspect a launched provider session that is not yet catalog-visible.
