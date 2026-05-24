@@ -1,6 +1,47 @@
 # Work Card: AFK Work Queue Dry-Run Validation V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Foreman Acceptance
+
+Accepted on 2026-05-24.
+
+- GDI implementation branch: `gdi/afk-work-queue-dry-run-validation-v0`
+- GDI implementation commit: `ac23815edd4b7c1303d8d7631aa80b7f91c1c4e6`
+- Main merge commit: `e278b5b27ba98e1e91a372029998b305dce179c0`
+
+Accepted behavior:
+
+- Primary command shape:
+  `./aos dev afk-session-trigger --afk-work-queue queue.json --afk-authorization authorization.json --dry-run --json --out receipt.json`
+- Queue JSON shape uses a `queue_id` plus finite ordered `items` containing
+  unique `item_id` values and local `packet_ref` paths.
+- Receipt `record_type` is `aos.afk_work_queue_dry_run`.
+- Accepted queues report `status="dry_run_ready"` and
+  `provider_launch_allowed=false`.
+- Per-item summaries include packet refs, packet IDs, work refs, validation
+  status, authorization status, and mismatch classes.
+- The queue path rejects invalid shape, too many items, duplicate item IDs,
+  invalid packet refs, packet validation failures, and authorization/work-ref
+  mismatches.
+- Existing single-packet `--packet` behavior remains stable.
+
+Foreman verification:
+
+- `./aos dev build`: passed.
+- `./aos ready --post-permission`: ready.
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 49/49 passed.
+- `node --test tests/schemas/dev-workflow-rules.test.mjs
+  tests/schemas/dev-active-profile.test.mjs
+  tests/schemas/dev-workflow-profiles.test.mjs`: 10/10 passed.
+- `bash tests/dev-workflow-router.sh`: passed.
+- `bash tests/help-contract.sh`: passed.
+- `bash tests/dev-audit.sh`: passed.
+- `git diff --check`: passed.
+- Foreman CLI smoke with two temporary packet refs returned
+  `status="dry_run_ready"`, `record_type="aos.afk_work_queue_dry_run"`,
+  `item_count=2`, `provider_launch_allowed=false`, both item statuses `valid`,
+  and zero mismatches.
 
 ## Transfer Classification
 
