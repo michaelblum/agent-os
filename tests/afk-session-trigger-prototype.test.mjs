@@ -301,6 +301,66 @@ test('normalizes --result-route stdout override as a local artifact route', asyn
   assert.equal(receipt.result_route.failure, 'not_observed');
 });
 
+test('normalizes stdout route-object shorthands as local artifact routes', async () => {
+  for (const resultRoute of [
+    { kind: 'stdout' },
+    { ref: 'stdout' },
+    { path: 'stdout' },
+    { artifact_path: 'stdout' },
+  ]) {
+    const packetPath = await writePacket(validPacket({
+      result_route: resultRoute,
+    }));
+    const result = runPrototype([
+      '--packet',
+      packetPath,
+      '--provider',
+      'codex',
+      '--dock',
+      'gdi',
+      '--dry-run',
+      '--json',
+      '--timestamp',
+      fixedTimestamp,
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.status, 'dry_run_ready');
+    assert.equal(receipt.result_route.status, 'completed');
+    assert.deepEqual(receipt.result_route.refs, [{ ...resultRoute, kind: 'local_artifact_path', ref: 'stdout' }]);
+    assert.deepEqual(receipt.result_route.attempt_refs, [{ ...resultRoute, kind: 'local_artifact_path', ref: 'stdout' }]);
+    assert.deepEqual(receipt.result_route.delivered_refs, [{ ...resultRoute, kind: 'local_artifact_path', ref: 'stdout' }]);
+    assert.equal(receipt.result_route.failure, 'not_observed');
+  }
+});
+
+test('keeps arbitrary non-stdout route objects unsupported', async () => {
+  const packetPath = await writePacket(validPacket({
+    result_route: [
+      { ref: 'slack-thread-123' },
+    ],
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.result_route.status, 'unsupported');
+  assert.deepEqual(receipt.result_route.delivered_refs, []);
+  assert.equal(receipt.result_route.failure[0].code, 'result_route_unsupported');
+});
+
 test('normalizes matching --result-route path override as confirmed --out delivery', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'afk-session-trigger-route-override-'));
   const outPath = join(dir, 'receipt.json');

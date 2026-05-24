@@ -174,9 +174,26 @@ function normalizeResultRoutes(packet, override) {
   const route = packet.result_route ?? packet.resultRoute ?? packet.result_routes ?? packet.resultRoutes;
   const configuredRoutes = Array.isArray(route) ? route : (route ? [route] : []);
   const routes = configuredRoutes.length > 0 ? configuredRoutes : (override ? [override] : []);
-  return routes.map((item) => (
-    typeof item === 'string' ? { kind: LOCAL_ARTIFACT_PATH, ref: item } : item
-  ));
+  return routes.map(normalizeResultRoute);
+}
+
+function normalizeResultRoute(route) {
+  if (typeof route === 'string') {
+    return { kind: LOCAL_ARTIFACT_PATH, ref: route };
+  }
+  if (!route || typeof route !== 'object') {
+    return route;
+  }
+
+  const kind = route.kind;
+  const ref = route.ref ?? route.path ?? route.artifact_path ?? route.artifactPath;
+  if ((kind === 'stdout' || kind === undefined) && ref === undefined) {
+    return kind === 'stdout' ? { ...route, kind: LOCAL_ARTIFACT_PATH, ref: 'stdout' } : route;
+  }
+  if ((kind === 'stdout' || kind === undefined) && ref === 'stdout') {
+    return { ...route, kind: LOCAL_ARTIFACT_PATH, ref: 'stdout' };
+  }
+  return route;
 }
 
 function classifyLocalResultRoutes({ repoRoot, routes, stdoutDelivered = false, outPath = null, outWriteConfirmed = false }) {
