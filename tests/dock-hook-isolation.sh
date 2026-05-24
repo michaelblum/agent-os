@@ -16,11 +16,16 @@ if shared.exists():
     raise SystemExit(f"FAIL: shared dock hook directory must stay deleted: {shared}")
 
 runner = root / ".docks" / "harness" / "dock-hook-runner.sh"
+post_tool_runner = root / ".docks" / "harness" / "post-tool-use-runner.sh"
 defaults_path = root / ".docks" / "dock-defaults.json"
 if not runner.exists():
     raise SystemExit("FAIL: missing shared dock hook runner")
 if not os.access(runner, os.X_OK):
     raise SystemExit("FAIL: shared dock hook runner is not executable")
+if not post_tool_runner.exists():
+    raise SystemExit("FAIL: missing shared post-tool-use runner")
+if not os.access(post_tool_runner, os.X_OK):
+    raise SystemExit("FAIL: shared post-tool-use runner is not executable")
 if not defaults_path.exists():
     raise SystemExit("FAIL: missing shared dock defaults")
 defaults = json.loads(defaults_path.read_text())
@@ -52,6 +57,18 @@ if "aos_resolve_session_id" in runner_text:
     raise SystemExit("FAIL: shared dock runner must not require a resolved session id")
 if "voice bind" in runner_text:
     raise SystemExit("FAIL: shared dock runner must not bind voices for Stop notices")
+post_tool_runner_text = post_tool_runner.read_text()
+for required in (
+    "goal_pause_required: repo-mode AOS permission repair",
+    "ready --post-permission --json",
+    "stop-condition.sh",
+    "/goal pause",
+):
+    if required not in post_tool_runner_text:
+        raise SystemExit(f"FAIL: post-tool-use runner missing {required!r}")
+for forbidden in ("ready --repair", "permissions reset-runtime", "git status"):
+    if forbidden in post_tool_runner_text:
+        raise SystemExit(f"FAIL: post-tool-use runner must not run redundant ritual command {forbidden!r}")
 
 expected = {
     "foreman": {
@@ -84,11 +101,14 @@ for role in ("gdi", "foreman", "operator"):
         for hook in matcher.get("hooks", [])
     ]
     expected_stop = f".docks/{role}/hooks/stop.sh"
+    expected_post_tool = f".docks/{role}/hooks/post-tool-use.sh"
     hook_names = set(payload.get("hooks", {}).keys())
-    if hook_names != {"Stop"}:
-        raise SystemExit(f"FAIL: {role} hooks should only declare Stop, got {sorted(hook_names)}")
+    if hook_names != {"Stop", "PostToolUse"}:
+        raise SystemExit(f"FAIL: {role} hooks should only declare Stop and PostToolUse, got {sorted(hook_names)}")
     if not any(expected_stop in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks do not use isolated stop script: {commands}")
+    if not any(expected_post_tool in command for command in commands):
+        raise SystemExit(f"FAIL: {role} hooks do not use isolated post-tool-use script: {commands}")
     if any("session-start.sh" in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks must not require startup hooks: {commands}")
     if any(".docks/hooks/" in command or "AOS_DOCK_ROLE=" in command for command in commands):
@@ -141,6 +161,12 @@ for role in ("gdi", "foreman", "operator"):
         raise SystemExit(f"FAIL: {role} stop.sh still contains dock hook routing")
     if "python3" in script or "resolve_session_id()" in script:
         raise SystemExit(f"FAIL: {role} stop.sh still has duplicated session-id parsing")
+    post_tool_script_path = root / ".docks" / role / "hooks" / "post-tool-use.sh"
+    if not os.access(post_tool_script_path, os.X_OK):
+        raise SystemExit(f"FAIL: {role} post-tool-use.sh is not executable")
+    post_tool_script = post_tool_script_path.read_text()
+    if ".docks/harness/post-tool-use-runner.sh" not in post_tool_script:
+        raise SystemExit(f"FAIL: {role} post-tool-use.sh is not a shared harness wrapper")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 def has_exact_name(path):
@@ -317,6 +343,115 @@ payload = json.loads(sys.argv[1])
 if payload != {"continue": True}:
     raise SystemExit(f"FAIL: expired TCC marker should not affect Stop JSON, got {payload}")
 PY
+
+post_tool_aos="$TMPDIR_ROOT/post-tool-aos"
+post_tool_log="$TMPDIR_ROOT/post-tool-aos.log"
+post_tool_condition_dir="$TMPDIR_ROOT/post-tool-conditions"
+cat >"$post_tool_aos" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'POST_TOOL_AOS:%s\n' "$*" >>"$AOS_FAKE_LOG"
+if [[ "$*" == "ready --post-permission --json" ]]; then
+  case "${AOS_FAKE_READY_MODE:-ready}" in
+    ready)
+      printf '{"ready":true,"mode":"repo","tap":"active"}\n'
+      ;;
+    tcc)
+      printf '{"ready":false,"phase":"human_required","diagnosis":"daemon_tcc_grant_stale_or_missing","mode":"repo","tap":"retrying","blocked":["do","inspect","listen","see"]}\n'
+      ;;
+    other)
+      printf '{"ready":false,"phase":"blocked","diagnosis":"other"}\n'
+      ;;
+  esac
+fi
+SH
+chmod +x "$post_tool_aos"
+
+post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
+ready_post_out="$(printf '%s' "$post_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=ready AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+python3 - "$ready_post_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: ready post-tool hook should continue quietly, got {payload}")
+PY
+grep -q 'POST_TOOL_AOS:ready --post-permission --json' "$post_tool_log" || {
+  echo "FAIL: successful dev build should trigger one bounded post-build readiness check" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+}
+
+: >"$post_tool_log"
+tcc_post_out="$(printf '%s' "$post_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=tcc AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+python3 - "$tcc_post_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not True:
+    raise SystemExit(f"FAIL: TCC post-tool hook should continue with systemMessage, got {payload}")
+message = payload.get("systemMessage", "")
+for required in (
+    "goal_pause_required: repo-mode AOS permission repair",
+    "/goal pause",
+    "./aos permissions setup --once",
+    "./aos ready --post-permission",
+    "Do not run redundant ready/repair/status/helper loops",
+):
+    if required not in message:
+        raise SystemExit(f"FAIL: TCC post-tool hook systemMessage missing {required!r}: {message!r}")
+PY
+if [[ "$(grep -c 'POST_TOOL_AOS:ready --post-permission --json' "$post_tool_log")" != "1" ]]; then
+  echo "FAIL: TCC post-tool hook should run exactly one readiness check" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+fi
+if grep -q 'ready --repair\|permissions reset-runtime\|git status' "$post_tool_log"; then
+  echo "FAIL: TCC post-tool hook ran redundant repair/status ritual" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+fi
+post_tcc_stop_out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/stop.sh")"
+python3 - "$post_tcc_stop_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+message = payload.get("systemMessage", "")
+if "GDI stopped for repo-mode AOS permission repair." not in message:
+    raise SystemExit(f"FAIL: post-tool marker should feed Stop TCC notice, got {payload}")
+PY
+
+: >"$post_tool_log"
+failed_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":1,"output":"compile failed"}}'
+failed_post_out="$(printf '%s' "$failed_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=tcc AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+python3 - "$failed_post_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: failed build post-tool hook should not synthesize TCC pause, got {payload}")
+PY
+if [[ -s "$post_tool_log" ]]; then
+  echo "FAIL: failed dev build should not trigger post-build readiness hook" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+fi
+
+: >"$post_tool_log"
+non_build_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready"},"tool_response":{"exit_code":0}}'
+non_build_out="$(printf '%s' "$non_build_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=tcc AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+python3 - "$non_build_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: non-build post-tool hook should continue quietly, got {payload}")
+PY
+if [[ -s "$post_tool_log" ]]; then
+  echo "FAIL: non-build command should not trigger post-build readiness hook" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+fi
 
 helper_aos="$TMPDIR_ROOT/helper-aos"
 cat >"$helper_aos" <<'SH'

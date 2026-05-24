@@ -1,5 +1,17 @@
 {
   "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/Michael/Code/agent-os/.docks/gdi/hooks/post-tool-use.sh",
+            "statusMessage": "Checking post-build readiness pause guard",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
