@@ -35,9 +35,10 @@ function usage() {
 Usage:
   node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--afk-live-launch --afk-authorization <authorization.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--afk-authorization <authorization.json>] [--sleep-lease <lease.json>] [--sleep-lease-live-launch] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
   node scripts/afk-session-trigger-prototype.mjs --afk-work-queue <queue.json> --afk-authorization <authorization.json> --dry-run --json [--out <receipt.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>]
+  node scripts/afk-session-trigger-prototype.mjs --afk-work-queue <queue.json> --afk-authorization <authorization.json> --afk-live-launch --json --out <receipt.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--existing-receipt <path>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
   node scripts/afk-session-trigger-prototype.mjs --afk-work-queue <queue.json> --afk-authorization <authorization.json> --afk-live-launch --queue-run-fixture <fixture.json> --json --out <receipt.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>]
 
-This local prototype validates one transfer packet, validates a small ordered AFK work queue in dry-run mode, or walks an ordered AFK work queue with deterministic local fixtures. The AFK authorization flags are primary; --sleep-lease and --sleep-lease-live-launch remain compatibility aliases. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
+This local prototype validates one transfer packet, validates a small ordered AFK work queue in dry-run mode, walks an ordered AFK work queue with deterministic local fixtures, or adapts exactly one queued item into the guarded AFK live launch path. The AFK authorization flags are primary; --sleep-lease and --sleep-lease-live-launch remain compatibility aliases. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
 
 function parseArgs(argv) {
@@ -1044,7 +1045,12 @@ async function buildQueueReceipt(options) {
       mismatches.push(mismatch('queue_fixture_run_out_required', '--queue-run-fixture requires --out.'));
     }
   } else if (options.sleepLeaseLiveLaunch && options.afkWorkQueue) {
-    mismatches.push(mismatch('real_queue_execution_not_implemented', 'Real AFK work queue execution is not implemented; pass --queue-run-fixture for deterministic fixture execution.'));
+    if (options.dryRun || options.supervisedLiveLaunch || options.warmDockTuiReuse || options.providerLaunchDryRun) {
+      mismatches.push(mismatch('queue_live_launch_requires_afk_live_launch', 'Live AFK work queue launch requires --afk-live-launch and cannot be combined with other action modes.'));
+    }
+    if (!options.out) {
+      mismatches.push(mismatch('queue_live_launch_out_required', 'Live AFK work queue launch requires --out.'));
+    }
   } else if (!options.dryRun || options.supervisedLiveLaunch || options.sleepLeaseLiveLaunch || options.warmDockTuiReuse || options.providerLaunchDryRun) {
     mismatches.push(mismatch('queue_dry_run_required', '--afk-work-queue is available only with --dry-run.'));
   }
@@ -1238,6 +1244,113 @@ async function buildQueueReceipt(options) {
     }
   }
 
+  const isLiveQueueRun = !isFixtureRun && Boolean(options.sleepLeaseLiveLaunch);
+  if (isLiveQueueRun && Array.isArray(queue?.items) && queue.items.length !== 1) {
+    mismatches.push(mismatch('multi_item_live_queue_not_implemented', 'Live AFK work queue execution currently supports exactly one queued item.', {
+      item_count: queue.items.length,
+    }));
+  }
+
+  if (isLiveQueueRun && mismatches.length === 0 && itemSummaries.length === 1) {
+    const selectedItem = itemSummaries[0];
+    const singlePacketReceipt = await buildSinglePacketReceipt({
+      ...options,
+      packet: repoPath(repoRoot, selectedItem.packet_ref),
+      afkWorkQueue: undefined,
+      dryRun: false,
+      supervisedLiveLaunch: false,
+      sleepLeaseLiveLaunch: true,
+      warmDockTuiReuse: false,
+      providerLaunchDryRun: false,
+    });
+    const worktreeFacts = currentWorktreeFacts(repoRoot);
+    const liveStatus = singlePacketReceipt.status;
+
+    return {
+      record_type: 'aos.afk_work_queue_live_run',
+      schema_status: 'not_a_schema',
+      status: liveStatus,
+      created_at: createdAt,
+      provider_launch_allowed: singlePacketReceipt.dispatch?.provider_launch_allowed ?? false,
+      queue: {
+        queue_ref: queuePath ? relIfRepo(repoRoot, queuePath) : NOT_OBSERVED,
+        queue_id: queue?.queue_id ?? NOT_OBSERVED,
+        item_count: queue.items.length,
+        max_items: MAX_QUEUE_ITEMS,
+        validation_status: singlePacketReceipt.packet?.validation_status ?? 'invalid',
+        selected_item_id: selectedItem.item_id,
+        items: [{
+          ...selectedItem,
+          live_status: liveStatus,
+          lifecycle_state: singlePacketReceipt.scheduler?.lifecycle_state ?? NOT_OBSERVED,
+          provider_session_id: singlePacketReceipt.provider_acceptance?.provider_session_id
+            ?? singlePacketReceipt.terminal_substrate?.provider_session_id
+            ?? NOT_OBSERVED,
+          cleanup_status: singlePacketReceipt.cleanup?.status ?? NOT_OBSERVED,
+          launch_attempt_id: singlePacketReceipt.dispatch?.launch_attempt_id ?? NOT_ATTEMPTED,
+        }],
+      },
+      live_queue_item: {
+        status: liveStatus,
+        selected_item_id: selectedItem.item_id,
+        item_index: selectedItem.index,
+        packet_ref: selectedItem.packet_ref,
+        packet_id: selectedItem.packet_id,
+        work_ref: selectedItem.work_ref,
+        single_packet_record_type: singlePacketReceipt.record_type,
+        single_packet_status: singlePacketReceipt.status,
+        single_packet_scheduler_run_id: singlePacketReceipt.scheduler?.scheduler_run_id ?? NOT_OBSERVED,
+        single_packet_idempotence_key: singlePacketReceipt.scheduler?.idempotence_key ?? NOT_OBSERVED,
+        single_packet_dispatch_attempt_id: singlePacketReceipt.dispatch?.dispatch_attempt_id ?? NOT_OBSERVED,
+        single_packet_launch_attempt_id: singlePacketReceipt.dispatch?.launch_attempt_id ?? NOT_ATTEMPTED,
+        single_packet_receipt: singlePacketReceipt,
+      },
+      current_state: {
+        repo_root: repoRoot,
+        worktree: repoRoot,
+        branch: worktreeFacts.branch,
+        head: worktreeFacts.head,
+      },
+      scheduler: {
+        scheduler_run_id: `scheduler-${stableHash({
+          queueId: queue?.queue_id ?? NOT_OBSERVED,
+          selectedItemId: selectedItem.item_id,
+          singlePacketIdempotenceKey: singlePacketReceipt.scheduler?.idempotence_key ?? NOT_OBSERVED,
+          kind: 'queue-live-scheduler',
+        })}`,
+        idempotence_key: singlePacketReceipt.scheduler?.idempotence_key ?? NOT_OBSERVED,
+        lifecycle_state: singlePacketReceipt.scheduler?.lifecycle_state ?? 'rejected',
+        selected_action: 'queue-live-launch',
+        fixture_backed: false,
+        lease: singlePacketReceipt.scheduler?.lease ?? { status: 'rejected', lease_ref: options.sleepLease ?? NOT_OBSERVED },
+        duplicate_handling: singlePacketReceipt.scheduler?.duplicate_handling ?? {
+          duplicate: false,
+          existing_receipt_ref: NOT_OBSERVED,
+          relaunch_requires_replacement: false,
+        },
+      },
+      dispatch: {
+        ...(singlePacketReceipt.dispatch ?? {}),
+        action: 'queue-live-launch',
+        mode: 'single-item-live',
+      },
+      sleep_lease_live_start_gates: singlePacketReceipt.sleep_lease_live_start_gates ?? NOT_ATTEMPTED,
+      terminal_substrate: singlePacketReceipt.terminal_substrate ?? { status: NOT_ATTEMPTED },
+      provider_acceptance: singlePacketReceipt.provider_acceptance ?? { status: NOT_ATTEMPTED },
+      cleanup: singlePacketReceipt.cleanup ?? { status: NOT_ATTEMPTED },
+      codex_adapter: singlePacketReceipt.codex_adapter ?? { status: NOT_ATTEMPTED },
+      catalog: singlePacketReceipt.catalog ?? { status: NOT_ATTEMPTED },
+      telemetry: singlePacketReceipt.telemetry ?? { status: NOT_ATTEMPTED },
+      result_route: singlePacketReceipt.result_route ?? classifyLocalResultRoutes({ repoRoot, routes: [] }),
+      sleep_lease: singlePacketReceipt.sleep_lease ?? { status: 'rejected', lease_ref: options.sleepLease ?? NOT_OBSERVED },
+      evidence: {
+        ...(singlePacketReceipt.evidence ?? {}),
+        transcript_body_copied: false,
+      },
+      mismatches: singlePacketReceipt.mismatches ?? [],
+    };
+  }
+
   const runItems = [];
   let stopReason = NOT_OBSERVED;
   let stoppedAtItemId = NOT_OBSERVED;
@@ -1381,8 +1494,19 @@ async function buildReceipt(options) {
 async function classifyExistingReceipt(repoRoot, receiptPath, idempotenceKey, options) {
   const resolved = repoPath(repoRoot, receiptPath);
   const receipt = await readJsonFile(resolved, 'existing receipt');
-  const existingKey = receipt.scheduler?.idempotence_key ?? receipt.idempotence_key ?? NOT_OBSERVED;
-  const existingState = receipt.scheduler?.lifecycle_state ?? receipt.lifecycle_state ?? receipt.status ?? NOT_OBSERVED;
+  const candidateReceipts = [
+    receipt,
+    receipt.live_queue_item?.single_packet_receipt,
+  ].filter(Boolean);
+  const matchingReceipt = candidateReceipts.find((candidate) => (
+    candidate.scheduler?.idempotence_key ?? candidate.idempotence_key ?? NOT_OBSERVED
+  ) === idempotenceKey);
+  const existingKey = matchingReceipt
+    ? (matchingReceipt.scheduler?.idempotence_key ?? matchingReceipt.idempotence_key ?? NOT_OBSERVED)
+    : (receipt.scheduler?.idempotence_key ?? receipt.idempotence_key ?? NOT_OBSERVED);
+  const existingState = matchingReceipt
+    ? (matchingReceipt.scheduler?.lifecycle_state ?? matchingReceipt.lifecycle_state ?? matchingReceipt.status ?? NOT_OBSERVED)
+    : (receipt.scheduler?.lifecycle_state ?? receipt.lifecycle_state ?? receipt.status ?? NOT_OBSERVED);
   if (existingKey !== idempotenceKey) {
     return {
       duplicate: false,
