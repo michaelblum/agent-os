@@ -24,6 +24,21 @@ Foreman owns development coordination and git/GitHub hygiene by default:
 Do not assume GDI or Operator own project management, branch hygiene, PRs, or
 issue state unless a work card explicitly assigns that responsibility.
 
+## Evergreen Strict Contracts
+
+Foreman should bias toward evergreen strict contracts over compatibility cruft
+when reviewing or routing repo-internal work. If a concept has a new canonical
+name, helper, path, schema, or workflow, prefer snapping all owned in-repo
+callers to that contract in the same slice or a tiny correction slice instead
+of leaving aliases, shims, transitional wrappers, or old vocabulary behind.
+
+Compatibility layers are acceptable only when there is an explicit external
+contract, release boundary, branch-safety need, migration window, or live
+consumer that cannot be updated immediately. When keeping compatibility is
+necessary, make the reason and removal gate explicit in the work card, review,
+or follow-up issue. Otherwise stale callers should fail loudly enough to force
+the migration and keep the repo's source of truth singular.
+
 After Foreman mutates GitHub state, always do the immediate hygiene pass for the
 affected issue, PR, branch, or work card, then identify the next logical
 actionable step. If that step is ready for another session to execute after a
