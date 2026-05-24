@@ -364,6 +364,9 @@
       createSessionRailModel,
       findMatchingSession,
     } = await import('./session-rail-model.js');
+    const {
+      renderSessionRail,
+    } = await import('./session-rail-view.js');
 
     const params = new URLSearchParams(location.search);
     const port = params.get('port') || '17761';
@@ -503,61 +506,22 @@
     }
 
     function renderSessions() {
-      sessionList.replaceChildren();
-      if (!sessions.length) {
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        empty.textContent = 'No sessions';
-        sessionList.append(empty);
-        return;
-      }
-
       const rows = createSessionRailModel(sessions, {
         selectedSession,
         sortMode: sessionSort.value,
         formatTime,
       });
-      for (const row of rows) {
-        const { record } = row;
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'session-button';
-        if (row.selected) {
-          item.classList.add('selected');
-          item.setAttribute('aria-current', 'true');
-        }
-        item.setAttribute('role', 'listitem');
-        item.setAttribute('aria-label', row.ariaLabel);
-        item.addEventListener('click', () => {
+      renderSessionRail(sessionList, rows, {
+        onSessionClick(row) {
+          const { record } = row;
           selectSession(record, { loadTelemetry: true });
           void runAgentCommand({
             command: record.resume_command,
             cwd: record.cwd,
             label: row.resumeLabel,
           });
-        });
-
-        const main = document.createElement('div');
-        main.className = 'session-main';
-        const badge = document.createElement('span');
-        badge.className = `provider-badge ${record.provider}`;
-        badge.textContent = row.providerLabel;
-        const name = document.createElement('span');
-        name.className = 'session-name';
-        name.textContent = row.workspaceLabel;
-        main.append(badge, name);
-
-        const meta = document.createElement('div');
-        meta.className = 'session-meta';
-        meta.textContent = row.metadataText;
-
-        const id = document.createElement('div');
-        id.className = 'session-id';
-        id.textContent = row.shortId;
-
-        item.append(main, meta, id);
-        sessionList.append(item);
-      }
+        },
+      });
     }
 
     async function loadSessions() {
