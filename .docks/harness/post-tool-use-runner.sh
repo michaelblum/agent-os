@@ -108,6 +108,7 @@ if [[ "$python_result" != "dev_build_success" ]]; then
 fi
 
 "$REPO_ROOT/.docks/harness/stop-condition.sh" write "$REPO_ROOT" "$dock" tcc_permission_reset 600
+"$REPO_ROOT/.docks/harness/goal-pause-control.sh" request "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 
 python3 - "$dock" <<'PY'
 import json

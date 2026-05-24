@@ -64,7 +64,8 @@ hook/harness layer, not as a GDI-only convention:
 - add a dock/Codex hook for `PostToolUse` or the nearest supported tool-result
   event so this applies to all Codex docks, not just GDI;
 - make the hook detect a completed successful `./aos dev build` tool call and
-  stop the loop with a concise instruction to issue `/goal pause`;
+  request an out-of-band GDI `/goal pause` injection through the session
+  supervisor/terminal handle;
 - use the existing Stop hook / stop-condition marker for TTS once the goal
   pauses;
 - avoid repeated ad-hoc `./aos ready`, helper, status, and report loops after a
@@ -191,8 +192,8 @@ That is acceptable.
 After Phase 0, do not perform the old ritual after a successful rebuild. The
 hook-enforced goal-loop rule is:
 
-- if a Codex tool call runs `./aos dev build` and it succeeds, immediately pause
-  the active goal with `/goal pause`;
+- if a Codex tool call runs `./aos dev build` and it succeeds, immediately
+  request `/goal pause` for the active GDI session through the control helper;
 - print only the concise human action and resume command;
 - do not keep polling, do not run redundant status commands, and do not spend
   another cycle proving the same blocker;

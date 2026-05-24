@@ -54,8 +54,9 @@ Responsibilities:
 - inspect the completed tool call and identify successful invocations of
   `./aos dev build` from this repo;
 - write the existing short-lived stop-condition marker for the Stop hook;
-- return a concise system message or hook response that tells Codex to issue
-  `/goal pause` immediately;
+- request an out-of-band GDI control injection of `/goal pause` when a tmux pane
+  handle is available;
+- return a concise system message or hook response as a visible fallback;
 - avoid running `ready --repair`, `permissions reset-runtime`, `git status`, or
   other expensive ritual unless explicitly requested.
 
@@ -65,11 +66,15 @@ The hook packet should begin with a stable token such as
 
 ### 3. Harness Enforcement Layer
 
-If the provider loop still does not pause reliably from hook output alone, add a
-harness-level watcher where available:
+Because the provider loop may continue after advisory hook output, the
+harness-level control path enforces the pause where a terminal handle is
+available:
 
-- detect the stable `goal_pause_required:` token in the GDI session output;
-- send `/goal pause` into the session;
+- the PostToolUse hook writes the stop-condition marker;
+- the hook calls the goal-pause control helper;
+- for GDI, the helper sends `/goal pause` into the session's tmux pane;
+- for non-GDI docks or missing pane handles, the helper exits quietly and leaves
+  the advisory hook message as the fallback;
 - let the existing Stop hook consume the stop-condition marker and speak the
   short TCC notice.
 
@@ -92,6 +97,8 @@ Use fake `./aos` fixtures rather than real TCC:
 - build succeeds: hook prints `goal_pause_required`, writes
   `tcc_permission_reset`, and does not run any `./aos` readiness, repair, or
   status command;
+- build succeeds in GDI with a tmux pane: helper injects `/goal pause` and
+  presses Enter;
 - non-build commands: hook exits quietly and does not request pause;
 - Stop hook still converts the marker into the existing concise TCC stop notice.
 

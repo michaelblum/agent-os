@@ -17,6 +17,7 @@ if shared.exists():
 
 runner = root / ".docks" / "harness" / "dock-hook-runner.sh"
 post_tool_runner = root / ".docks" / "harness" / "post-tool-use-runner.sh"
+goal_pause_control = root / ".docks" / "harness" / "goal-pause-control.sh"
 defaults_path = root / ".docks" / "dock-defaults.json"
 if not runner.exists():
     raise SystemExit("FAIL: missing shared dock hook runner")
@@ -26,6 +27,10 @@ if not post_tool_runner.exists():
     raise SystemExit("FAIL: missing shared post-tool-use runner")
 if not os.access(post_tool_runner, os.X_OK):
     raise SystemExit("FAIL: shared post-tool-use runner is not executable")
+if not goal_pause_control.exists():
+    raise SystemExit("FAIL: missing shared goal-pause control helper")
+if not os.access(goal_pause_control, os.X_OK):
+    raise SystemExit("FAIL: shared goal-pause control helper is not executable")
 if not defaults_path.exists():
     raise SystemExit("FAIL: missing shared dock defaults")
 defaults = json.loads(defaults_path.read_text())
@@ -60,6 +65,7 @@ if "voice bind" in runner_text:
 post_tool_runner_text = post_tool_runner.read_text()
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",
+    "goal-pause-control.sh",
     "stop-condition.sh",
     "/goal pause",
 ):
@@ -344,6 +350,7 @@ if payload != {"continue": True}:
 PY
 
 post_tool_log="$TMPDIR_ROOT/post-tool-aos.log"
+tmux_log="$TMPDIR_ROOT/tmux.log"
 post_tool_condition_dir="$TMPDIR_ROOT/post-tool-conditions"
 post_tool_aos="$TMPDIR_ROOT/post-tool-aos"
 cat >"$post_tool_aos" <<'SH'
@@ -353,9 +360,15 @@ printf 'POST_TOOL_AOS:%s\n' "$*" >>"$AOS_FAKE_LOG"
 exit 1
 SH
 chmod +x "$post_tool_aos"
+cat >"$fake_bin/tmux" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'TMUX:%s\n' "$*" >>"$AOS_FAKE_TMUX_LOG"
+SH
+chmod +x "$fake_bin/tmux"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
-tcc_post_out="$(printf '%s' "$post_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$tcc_post_out" <<'PY'
 import json
 import sys
@@ -378,6 +391,16 @@ if [[ -s "$post_tool_log" ]]; then
   cat "$post_tool_log" >&2
   exit 1
 fi
+grep -q 'TMUX:send-keys -t %42 -l /goal pause' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should inject /goal pause into tmux pane" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should press Enter after /goal pause" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
 post_tcc_stop_out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/stop.sh")"
 python3 - "$post_tcc_stop_out" <<'PY'
 import json
@@ -389,8 +412,9 @@ if "GDI stopped for repo-mode AOS permission repair." not in message:
 PY
 
 : >"$post_tool_log"
+: >"$tmux_log"
 failed_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":1,"output":"compile failed"}}'
-failed_post_out="$(printf '%s' "$failed_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+failed_post_out="$(printf '%s' "$failed_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$failed_post_out" <<'PY'
 import json
 import sys
@@ -403,10 +427,16 @@ if [[ -s "$post_tool_log" ]]; then
   cat "$post_tool_log" >&2
   exit 1
 fi
+if [[ -s "$tmux_log" ]]; then
+  echo "FAIL: failed dev build should not inject /goal pause" >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
 
 : >"$post_tool_log"
+: >"$tmux_log"
 non_build_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready"},"tool_response":{"exit_code":0}}'
-non_build_out="$(printf '%s' "$non_build_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+non_build_out="$(printf '%s' "$non_build_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$non_build_out" <<'PY'
 import json
 import sys
@@ -417,6 +447,11 @@ PY
 if [[ -s "$post_tool_log" ]]; then
   echo "FAIL: non-build command should not trigger post-tool pause guard" >&2
   cat "$post_tool_log" >&2
+  exit 1
+fi
+if [[ -s "$tmux_log" ]]; then
+  echo "FAIL: non-build command should not inject /goal pause" >&2
+  cat "$tmux_log" >&2
   exit 1
 fi
 
