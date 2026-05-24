@@ -1,6 +1,40 @@
 # Work Card: AFK Sleep Lease Result Route Compat Correction V0
 
-**Status:** Ready for GDI correction
+**Status:** Accepted
+
+## Acceptance Result
+
+Accepted on `main` through merge commit
+`eda618f6bd1f98659297cb1e3592d132ac89d7ed`.
+
+Correction head:
+`f6e02c3e15d8023456a5636499050fd4a2a45179`.
+
+Foreman verified that sleep-lease result-route compatibility now requires a
+route normalized to `local_artifact_path` before the lease can be accepted.
+Accepted stdout forms include `"stdout"`, `{ "kind": "stdout" }`,
+`{ "ref": "stdout" }`, `{ "path": "stdout" }`,
+`{ "artifact_path": "stdout" }`, and
+`{ "kind": "local_artifact_path", "ref": "stdout" }`.
+
+The external object `{ "kind": "gateway_notifier", "ref": "stdout" }` now
+produces top-level `status="rejected"`, rejected scheduler and sleep-lease
+status, `provider_launch_allowed=false`, terminal `not_attempted`,
+`result_route.status="unsupported"`, `result_route_unsupported`, and
+`sleep_lease_result_route_mismatch`.
+
+Acceptance gates passed:
+
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 33/33 pass;
+- `bash tests/dev-workflow-router.sh`: pass;
+- `bash tests/help-contract.sh`: pass;
+- `./aos dev build --no-restart`: pass, with pre-existing Swift warnings;
+- `git diff --check`: pass;
+- manual external route mismatch smoke: pass.
+
+Post-build `./aos ready --post-permission` reported
+`human_required` for the repo-mode TCC/input tap grant. Live-dependent follow-up
+work is blocked until the permission reset path is completed.
 
 ## Transfer Classification
 

@@ -1,6 +1,37 @@
 # Work Card: AFK Sleep Lease Dry-Run Validation V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Acceptance Result
+
+Accepted on `main` through merge commit
+`eda618f6bd1f98659297cb1e3592d132ac89d7ed`, after the original GDI head
+`d22bb3e7afef0bc1878d03424ea1649dba7551f8` was corrected by
+`f6e02c3e15d8023456a5636499050fd4a2a45179`.
+
+Foreman accepted the combined dry-run and correction work after verifying:
+
+- sleep-lease dry-run validation emits accepted and rejected receipts;
+- local stdout route shorthands remain accepted;
+- unsupported external route objects such as
+  `{ "kind": "gateway_notifier", "ref": "stdout" }` reject the sleep lease
+  before launch;
+- rejected route mismatch receipts keep `provider_launch_allowed=false`,
+  terminal `not_attempted`, `result_route.status="unsupported"`, and
+  `result_route_unsupported` evidence.
+
+Acceptance gates passed:
+
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 33/33 pass;
+- `bash tests/dev-workflow-router.sh`: pass;
+- `bash tests/help-contract.sh`: pass;
+- `./aos dev build --no-restart`: pass, with pre-existing Swift warnings;
+- `git diff --check`: pass;
+- manual external route mismatch smoke: pass.
+
+Post-build `./aos ready --post-permission` reported
+`human_required` for the repo-mode TCC/input tap grant. Live-dependent follow-up
+work is blocked until the permission reset path is completed.
 
 ## Transfer Classification
 
