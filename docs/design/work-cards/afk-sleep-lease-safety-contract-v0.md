@@ -1,6 +1,33 @@
 # Work Card: AFK Sleep Lease Safety Contract V0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-24
+
+## Result
+
+- Foreman review: accepted.
+- Branch/ref gates passed on `gdi/afk-sleep-lease-safety-contract-v0` at
+  `68fdd1fe8fbced8c7ae57428a3463ba412fa41fb`, based on
+  `bd708c64e530a9ecbf1365b6b4779a02adfce44e`.
+- Diff was scoped to:
+  - `docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md`;
+  - `docs/design/durable-agent-cognition-and-afk-primitives.md`.
+- Behavior accepted: sleep/overnight work is a separate bounded authorization
+  contract, not a relaxation of the current human-present supervised live path.
+  The note defines lease opt-in, expiry/duration/provider-launch/budget
+  boundaries, one-card-first work scope, start gates, runtime guardrails, stop
+  conditions, wake-up report fields, and a staged implementation sequence.
+- Verification rerun by Foreman passed:
+  - `git diff --check origin/main...HEAD`;
+  - `./aos dev recommend --json --paths
+    docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md,docs/design/durable-agent-cognition-and-afk-primitives.md`
+    classified the change as docs-only with no build/tests required.
+- Follow-up routed:
+  `docs/design/work-cards/afk-sleep-lease-dry-run-validation-v0.md`.
+- No source, schema, fixture, generated receipt, provider launch, transcript
+  body read, provider store/catalog/telemetry mutation, gateway/dock runtime
+  mutation, GitHub issue/PR/main mutation, external notifier, durable
+  work/evidence record, unattended trigger, or follow-up routing occurred
+  during the GDI round beyond the expected branch push.
 
 ## Foreman Triage
 
