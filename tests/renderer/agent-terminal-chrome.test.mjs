@@ -149,6 +149,39 @@ test('generic toolkit launcher does not create or require avatar-main', () => {
   assert.doesNotMatch(toolkitLauncher, /SIGIL_CONTENT_ROOT/)
 })
 
+test('toolkit and Sigil launchers pass canonical bridge environment names', () => {
+  const legacySigilAgentEnv = new RegExp('SIGIL' + '_AGENT_')
+  const legacySigilCodexEnv = new RegExp('SIGIL' + '_CODEX_')
+  const legacyCodexCommand = new RegExp('CODEX' + '_COMMAND')
+  for (const launcher of [toolkitLauncher, sigilAgentLauncher]) {
+    assert.match(launcher, /"AGENT_TERMINAL_PORT=" \+ shlex\.quote\(port\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_TMUX_SESSION=" \+ shlex\.quote\(session\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_CWD=" \+ shlex\.quote\(cwd\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_COMMAND=" \+ shlex\.quote\(command\)/)
+    assert.match(launcher, /AGENT_TERMINAL_PORT="\$PORT" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_TMUX_SESSION="\$SESSION" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_CWD="\$CWD_TARGET" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_COMMAND="\$AGENT_COMMAND" \\/)
+    assert.doesNotMatch(launcher, legacySigilAgentEnv)
+    assert.doesNotMatch(launcher, legacySigilCodexEnv)
+    assert.doesNotMatch(launcher, legacyCodexCommand)
+  }
+})
+
+test('bridge substrate no longer contains broad legacy bridge env aliases', () => {
+  const legacySigilAgentEnv = new RegExp('SIGIL' + '_AGENT_')
+  const legacySigilCodexEnv = new RegExp('SIGIL' + '_CODEX_')
+  const legacyCodexCommand = new RegExp('CODEX' + '_COMMAND')
+  for (const source of [toolkitBridgeServer, readFileSync(new URL('pty-proxy.py', toolkitComponentDir), 'utf8')]) {
+    assert.doesNotMatch(source, legacySigilAgentEnv)
+    assert.doesNotMatch(source, legacySigilCodexEnv)
+    assert.doesNotMatch(source, legacyCodexCommand)
+  }
+  assert.match(toolkitBridgeServer, /AGENT_TERMINAL_PTY_CHILD_PID/)
+})
+
 test('generic toolkit launcher starts toolkit-owned bridge substrate', () => {
   assert.match(toolkitLauncher, /BRIDGE_DIR="\$REPO_ROOT\/packages\/toolkit\/components\/agent-terminal"/)
   assert.match(toolkitLauncher, /"\$BRIDGE_DIR\/bridge-server\.mjs"/)

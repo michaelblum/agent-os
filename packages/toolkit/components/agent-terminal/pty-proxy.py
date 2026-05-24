@@ -127,8 +127,8 @@ def main() -> int:
 
     command = sys.argv[1]
     master_fd, slave_fd = pty.openpty()
-    cols = bounded_int(os.environ.get("SIGIL_AGENT_TERMINAL_COLS"), DEFAULT_COLS, 20, 300)
-    rows = bounded_int(os.environ.get("SIGIL_AGENT_TERMINAL_ROWS"), DEFAULT_ROWS, 8, 120)
+    cols = bounded_int(os.environ.get("AGENT_TERMINAL_COLS"), DEFAULT_COLS, 20, 300)
+    rows = bounded_int(os.environ.get("AGENT_TERMINAL_ROWS"), DEFAULT_ROWS, 8, 120)
     set_window_size(slave_fd, rows, cols)
     process = subprocess.Popen(
         command,
@@ -139,7 +139,7 @@ def main() -> int:
         close_fds=True,
         preexec_fn=child_preexec(slave_fd),
     )
-    print(f"SIGIL_AGENT_PTY_CHILD_PID={process.pid}", file=sys.stderr, flush=True)
+    print(f"AGENT_TERMINAL_PTY_CHILD_PID={process.pid}", file=sys.stderr, flush=True)
 
     def terminate_child(signum, _frame):
         try:

@@ -35,14 +35,14 @@ describe('AFK terminal substrate validation without provider launch', () => {
       cwd: repoRoot,
       env: {
         ...process.env,
-        SIGIL_AGENT_TERMINAL_PORT: String(port),
-        SIGIL_AGENT_TERMINAL_DRIVER: 'process',
-        SIGIL_AGENT_TMUX_SESSION: 'afk-terminal-substrate',
-        SIGIL_AGENT_CWD: worktree,
-        SIGIL_AGENT_COMMAND: harmlessCommand('default-afk-session', worktree),
-        SIGIL_AGENT_CATALOG_HOME: homeDir,
-        SIGIL_AGENT_CODEX_ROOT: codexRoot,
-        SIGIL_AGENT_CLAUDE_ROOT: claudeRoot,
+        AGENT_TERMINAL_PORT: String(port),
+        AGENT_TERMINAL_DRIVER: 'process',
+        AGENT_TERMINAL_TMUX_SESSION: 'afk-terminal-substrate',
+        AGENT_TERMINAL_CWD: worktree,
+        AGENT_TERMINAL_COMMAND: harmlessCommand('default-afk-session', worktree),
+        AGENT_TERMINAL_CATALOG_HOME: homeDir,
+        AGENT_TERMINAL_CODEX_ROOT: codexRoot,
+        AGENT_TERMINAL_CLAUDE_ROOT: claudeRoot,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -85,12 +85,11 @@ describe('AFK terminal substrate validation without provider launch', () => {
     });
     assert.equal(ensureResponse.status, 200);
     const ensured = await ensureResponse.json();
-    assert.deepEqual(ensured, {
-      ok: true,
-      session,
-      created: true,
-      driver: 'process',
-    });
+    assert.equal(ensured.ok, true);
+    assert.equal(ensured.session, session);
+    assert.equal(ensured.created, true);
+    assert.equal(ensured.driver, 'process');
+    assert.equal(typeof ensured.child_pid, 'number');
 
     const snapshot = await waitForSnapshot(port, session, 'afk-substrate-marker');
     assert.equal(snapshot.session, session);

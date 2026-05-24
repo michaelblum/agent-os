@@ -193,9 +193,9 @@ Currently observable from the bridge before a provider catalog match:
 
 - selected provider by launch command or wrapper flag, such as
   `codex --no-alt-screen`;
-- intended command from `SIGIL_AGENT_COMMAND`, `/health` defaults, `/ensure`
+- intended command from `AGENT_TERMINAL_COMMAND`, `/health` defaults, `/ensure`
   input, and session command tracking;
-- intended cwd from `SIGIL_AGENT_CWD`, `/health.defaultCwd`, `/ensure.cwd`, and
+- intended cwd from `AGENT_TERMINAL_CWD`, `/health.defaultCwd`, `/ensure.cwd`, and
   process/tmux session tracking;
 - terminal substrate driver, process/tmux handle, session name, and bridge
   health;

@@ -111,12 +111,12 @@ describe('Sigil Agent Terminal bridge', () => {
       cwd: path.resolve('.'),
       env: {
         ...process.env,
-        SIGIL_AGENT_TERMINAL_PORT: String(port),
-        SIGIL_AGENT_TERMINAL_DRIVER: 'process',
-        SIGIL_AGENT_TMUX_SESSION: 'sigil-agent-terminal-test',
-        SIGIL_AGENT_CWD: repoCwd,
-        SIGIL_AGENT_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
-        SIGIL_AGENT_CATALOG_HOME: homeDir,
+        AGENT_TERMINAL_PORT: String(port),
+        AGENT_TERMINAL_DRIVER: 'process',
+        AGENT_TERMINAL_TMUX_SESSION: 'sigil-agent-terminal-test',
+        AGENT_TERMINAL_CWD: repoCwd,
+        AGENT_TERMINAL_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
+        AGENT_TERMINAL_CATALOG_HOME: homeDir,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -199,8 +199,9 @@ describe('Sigil Agent Terminal bridge', () => {
 
   it('passes stable repo root to bridge server startup paths', () => {
     const launcher = fs.readFileSync('apps/sigil/agent-terminal/launch.sh', 'utf8');
-    assert.match(launcher, /"SIGIL_AGENT_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
-    assert.match(launcher, /SIGIL_AGENT_REPO_ROOT="\$REPO_ROOT" \\/);
+    assert.match(launcher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
+    assert.match(launcher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/);
+    assert.doesNotMatch(launcher, new RegExp('SIGIL' + '_AGENT_REPO_ROOT'));
   });
 
   it('supports explicit all-cwd provider catalog queries', async () => {
@@ -466,8 +467,8 @@ describe('Sigil Agent Terminal bridge', () => {
       cwd: path.resolve('.'),
       env: {
         ...process.env,
-        SIGIL_AGENT_TERMINAL_COLS: '80',
-        SIGIL_AGENT_TERMINAL_ROWS: '24',
+        AGENT_TERMINAL_COLS: '80',
+        AGENT_TERMINAL_ROWS: '24',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -521,8 +522,8 @@ describe('Sigil Agent Terminal bridge', () => {
       cwd: path.resolve('.'),
       env: {
         ...process.env,
-        SIGIL_AGENT_TERMINAL_COLS: '80',
-        SIGIL_AGENT_TERMINAL_ROWS: '24',
+        AGENT_TERMINAL_COLS: '80',
+        AGENT_TERMINAL_ROWS: '24',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -556,13 +557,13 @@ describe('Sigil Agent Terminal PTY child PID marker parsing', () => {
       clients: new Set(),
       commandPid: null,
     };
-    appendProcessStderr(record, Buffer.from('SIGIL_AGENT_PTY_CHILD_PID=111\n', 'utf8'));
+    appendProcessStderr(record, Buffer.from('AGENT_TERMINAL_PTY_CHILD_PID=111\n', 'utf8'));
     assert.equal(record.commandPid, 111);
     assert.equal(record.buffer, '');
 
-    appendProcessStderr(record, Buffer.from('SIGIL_AGENT_PTY_CHILD_PID=222\nordinary stderr\n', 'utf8'));
+    appendProcessStderr(record, Buffer.from('AGENT_TERMINAL_PTY_CHILD_PID=222\nordinary stderr\n', 'utf8'));
     assert.equal(record.commandPid, 111);
-    assert.equal(record.buffer, 'SIGIL_AGENT_PTY_CHILD_PID=222\nordinary stderr\n');
+    assert.equal(record.buffer, 'AGENT_TERMINAL_PTY_CHILD_PID=222\nordinary stderr\n');
   });
 });
 
