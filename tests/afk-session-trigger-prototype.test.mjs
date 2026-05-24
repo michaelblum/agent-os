@@ -200,6 +200,14 @@ async function writeSleepLease(lease = validSleepLease()) {
   return writeJsonFixture('afk-sleep-lease-', 'lease.json', lease);
 }
 
+async function writeQueue(items, overrides = {}) {
+  return writeJsonFixture('afk-work-queue-', 'queue.json', {
+    queue_id: 'operator-afk-work-queue-example',
+    items,
+    ...overrides,
+  });
+}
+
 test('creates a dry-run-ready scheduler and dispatch receipt without launch side effects', async () => {
   const packetPath = await writePacket(validPacket());
   const result = runPrototype([
@@ -311,6 +319,147 @@ test('accepts AFK authorization as the primary dry-run flag spelling', async () 
   assert.equal(receipt.scheduler.lease.lease_id, 'sleep-lease-test');
   assert.equal(receipt.sleep_lease.status, 'accepted');
   assert.deepEqual(receipt.mismatches, []);
+});
+
+test('accepts AFK work queue with two valid packet refs', async () => {
+  const firstPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const secondPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-two' }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: firstPacketPath },
+    { item_id: 'two', packet_ref: secondPacketPath },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-work-queue-out-')), 'receipt.json');
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    outPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  const writtenReceipt = JSON.parse(await readFile(outPath, 'utf8'));
+  assert.equal(receipt.record_type, 'aos.afk_work_queue_dry_run');
+  assert.equal(receipt.status, 'dry_run_ready');
+  assert.equal(writtenReceipt.status, 'dry_run_ready');
+  assert.equal(receipt.provider_launch_allowed, false);
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.queue.queue_id, 'operator-afk-work-queue-example');
+  assert.equal(receipt.queue.item_count, 2);
+  assert.deepEqual(receipt.queue.items.map((item) => item.item_id), ['one', 'two']);
+  assert.deepEqual(receipt.queue.items.map((item) => item.validation_status), ['valid', 'valid']);
+  assert.deepEqual(receipt.queue.items.map((item) => item.work_ref), [
+    'docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md',
+    'docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md',
+  ]);
+  assert.equal(receipt.sleep_lease.status, 'accepted');
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.deepEqual(receipt.mismatches, []);
+});
+
+test('rejects AFK work queue with one invalid packet ref', async () => {
+  const packetPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: packetPath },
+    { item_id: 'two', packet_ref: 'https://example.com/packet.json' },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.provider_launch_allowed, false);
+  assert.equal(receipt.queue.items[0].validation_status, 'valid');
+  assert.equal(receipt.queue.items[1].validation_status, 'invalid');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'invalid_packet_ref'), receipt.mismatches);
+});
+
+test('rejects AFK work queue with duplicate item ids', async () => {
+  const firstPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const secondPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-two' }));
+  const queuePath = await writeQueue([
+    { item_id: 'same', packet_ref: firstPacketPath },
+    { item_id: 'same', packet_ref: secondPacketPath },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'duplicate_item_ids'), receipt.mismatches);
+});
+
+test('rejects AFK work queue when an item work ref is not authorized', async () => {
+  const allowedPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const deniedPacketPath = await writePacket(validPacket({
+    packet_id: 'queue-packet-two',
+    source_artifact: 'docs/design/work-cards/other-card.md',
+  }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: allowedPacketPath },
+    { item_id: 'two', packet_ref: deniedPacketPath },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.queue.items[1].work_ref, 'docs/design/work-cards/other-card.md');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'authorization_work_ref_mismatch'), receipt.mismatches);
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
 });
 
 test('accepts sleep lease stdout route-object shorthands for local routes', async () => {
