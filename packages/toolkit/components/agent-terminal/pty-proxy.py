@@ -127,8 +127,18 @@ def main() -> int:
 
     command = sys.argv[1]
     master_fd, slave_fd = pty.openpty()
-    cols = bounded_int(os.environ.get("SIGIL_AGENT_TERMINAL_COLS"), DEFAULT_COLS, 20, 300)
-    rows = bounded_int(os.environ.get("SIGIL_AGENT_TERMINAL_ROWS"), DEFAULT_ROWS, 8, 120)
+    cols = bounded_int(
+        os.environ.get("AGENT_TERMINAL_COLS") or os.environ.get("SIGIL_AGENT_TERMINAL_COLS") or os.environ.get("SIGIL_CODEX_TERMINAL_COLS"),
+        DEFAULT_COLS,
+        20,
+        300,
+    )
+    rows = bounded_int(
+        os.environ.get("AGENT_TERMINAL_ROWS") or os.environ.get("SIGIL_AGENT_TERMINAL_ROWS") or os.environ.get("SIGIL_CODEX_TERMINAL_ROWS"),
+        DEFAULT_ROWS,
+        8,
+        120,
+    )
     set_window_size(slave_fd, rows, cols)
     process = subprocess.Popen(
         command,

@@ -11,20 +11,28 @@ import {
   createDockTerminalSessionReceipt,
 } from '../../../../scripts/lib/dock-terminal-session-registry.mjs';
 
-const port = Number(process.env.SIGIL_AGENT_TERMINAL_PORT || process.env.SIGIL_CODEX_TERMINAL_PORT || process.env.PORT || 17761);
+function envValue(names, fallback) {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value !== undefined && value !== '') return value;
+  }
+  return fallback;
+}
+
+const port = Number(envValue(['AGENT_TERMINAL_PORT', 'SIGIL_AGENT_TERMINAL_PORT', 'SIGIL_CODEX_TERMINAL_PORT', 'PORT'], 17761));
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const ptyProxyPath = path.join(scriptDir, 'pty-proxy.py');
-const defaultSession = process.env.SIGIL_AGENT_TMUX_SESSION || process.env.SIGIL_CODEX_TMUX_SESSION || 'sigil-agent-terminal-agent-os';
-const defaultCwd = process.env.SIGIL_AGENT_CWD || process.env.SIGIL_CODEX_CWD || process.cwd();
-const defaultCommand = process.env.SIGIL_AGENT_COMMAND || process.env.SIGIL_CODEX_COMMAND || 'codex --no-alt-screen';
-const defaultRepoRoot = process.env.SIGIL_AGENT_REPO_ROOT || process.env.SIGIL_CODEX_REPO_ROOT || process.cwd();
-const requestedDriver = process.env.SIGIL_AGENT_TERMINAL_DRIVER || process.env.SIGIL_CODEX_TERMINAL_DRIVER || 'auto';
+const defaultSession = envValue(['AGENT_TERMINAL_TMUX_SESSION', 'SIGIL_AGENT_TMUX_SESSION', 'SIGIL_CODEX_TMUX_SESSION'], 'sigil-agent-terminal-agent-os');
+const defaultCwd = envValue(['AGENT_TERMINAL_CWD', 'SIGIL_AGENT_CWD', 'SIGIL_CODEX_CWD'], process.cwd());
+const defaultCommand = envValue(['AGENT_TERMINAL_COMMAND', 'SIGIL_AGENT_COMMAND', 'SIGIL_CODEX_COMMAND'], 'codex --no-alt-screen');
+const defaultRepoRoot = envValue(['AGENT_TERMINAL_REPO_ROOT', 'SIGIL_AGENT_REPO_ROOT', 'SIGIL_CODEX_REPO_ROOT'], process.cwd());
+const requestedDriver = envValue(['AGENT_TERMINAL_DRIVER', 'SIGIL_AGENT_TERMINAL_DRIVER', 'SIGIL_CODEX_TERMINAL_DRIVER'], 'auto');
 const processSessions = new Map();
 const ownedTmuxSessions = new Set();
 const sessionCommands = new Map();
 const defaultTerminalSize = {
-  cols: boundedInt(process.env.SIGIL_AGENT_TERMINAL_COLS || process.env.SIGIL_CODEX_TERMINAL_COLS, 80, 20, 300),
-  rows: boundedInt(process.env.SIGIL_AGENT_TERMINAL_ROWS || process.env.SIGIL_CODEX_TERMINAL_ROWS, 24, 8, 120),
+  cols: boundedInt(envValue(['AGENT_TERMINAL_COLS', 'SIGIL_AGENT_TERMINAL_COLS', 'SIGIL_CODEX_TERMINAL_COLS'], undefined), 80, 20, 300),
+  rows: boundedInt(envValue(['AGENT_TERMINAL_ROWS', 'SIGIL_AGENT_TERMINAL_ROWS', 'SIGIL_CODEX_TERMINAL_ROWS'], undefined), 24, 8, 120),
 };
 const allowedKeys = new Set([
   'Enter',
@@ -200,6 +208,8 @@ function ensureProcessSession(session, cwd, command, force = false) {
     env: {
       ...process.env,
       TERM: process.env.TERM || 'xterm-256color',
+      AGENT_TERMINAL_COLS: String(defaultTerminalSize.cols),
+      AGENT_TERMINAL_ROWS: String(defaultTerminalSize.rows),
       SIGIL_AGENT_TERMINAL_COLS: String(defaultTerminalSize.cols),
       SIGIL_AGENT_TERMINAL_ROWS: String(defaultTerminalSize.rows),
     },
@@ -470,10 +480,10 @@ function terminalCwdForSession(session) {
 }
 
 function dockTerminalSessionForUrl(url) {
-  const dock = url.searchParams.get('dock') || process.env.SIGIL_AGENT_DOCK || 'gdi';
+  const dock = url.searchParams.get('dock') || envValue(['AGENT_TERMINAL_DOCK', 'SIGIL_AGENT_DOCK'], 'gdi');
   const session = cleanSession(url.searchParams.get('session') || defaultSession);
   const command = terminalCommandForSession(session);
-  const explicitDockCwd = url.searchParams.get('cwd') || process.env.SIGIL_AGENT_DOCK_CWD || undefined;
+  const explicitDockCwd = url.searchParams.get('cwd') || envValue(['AGENT_TERMINAL_DOCK_CWD', 'SIGIL_AGENT_DOCK_CWD'], undefined);
   const receipt = createDockTerminalSessionReceipt({
     repoRoot: defaultRepoRoot,
     dock,
@@ -504,9 +514,9 @@ function sessionCatalogQueryForUrl(url) {
   const allCwd = url.searchParams.get('all_cwd') === 'true';
   const cwd = allCwd ? undefined : (explicitCwd || defaultCwd);
   const sessions = listProviderSessions({
-    homeDir: process.env.SIGIL_AGENT_CATALOG_HOME,
-    codexRoot: process.env.SIGIL_AGENT_CODEX_ROOT,
-    claudeRoot: process.env.SIGIL_AGENT_CLAUDE_ROOT,
+    homeDir: envValue(['AGENT_TERMINAL_CATALOG_HOME', 'SIGIL_AGENT_CATALOG_HOME'], undefined),
+    codexRoot: envValue(['AGENT_TERMINAL_CODEX_ROOT', 'SIGIL_AGENT_CODEX_ROOT'], undefined),
+    claudeRoot: envValue(['AGENT_TERMINAL_CLAUDE_ROOT', 'SIGIL_AGENT_CLAUDE_ROOT'], undefined),
     cwd,
     providers: providers.length ? providers : undefined,
   });

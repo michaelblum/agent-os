@@ -86,11 +86,11 @@ start_bridge() {
 import shlex, sys
 port, session, cwd, repo_root, command, server, log = sys.argv[1:]
 parts = [
-    "SIGIL_AGENT_TERMINAL_PORT=" + shlex.quote(port),
-    "SIGIL_AGENT_TMUX_SESSION=" + shlex.quote(session),
-    "SIGIL_AGENT_CWD=" + shlex.quote(cwd),
-    "SIGIL_AGENT_REPO_ROOT=" + shlex.quote(repo_root),
-    "SIGIL_AGENT_COMMAND=" + shlex.quote(command),
+    "AGENT_TERMINAL_PORT=" + shlex.quote(port),
+    "AGENT_TERMINAL_TMUX_SESSION=" + shlex.quote(session),
+    "AGENT_TERMINAL_CWD=" + shlex.quote(cwd),
+    "AGENT_TERMINAL_REPO_ROOT=" + shlex.quote(repo_root),
+    "AGENT_TERMINAL_COMMAND=" + shlex.quote(command),
     "node",
     shlex.quote(server),
     ">>",
@@ -103,11 +103,11 @@ PY
     : >"$BRIDGE_LOG"
     tmux new-session -d -s "$BRIDGE_SESSION" -c "$REPO_ROOT" "$bridge_cmd"
   else
-    SIGIL_AGENT_TERMINAL_PORT="$PORT" \
-    SIGIL_AGENT_TMUX_SESSION="$SESSION" \
-    SIGIL_AGENT_CWD="$CWD_TARGET" \
-    SIGIL_AGENT_REPO_ROOT="$REPO_ROOT" \
-    SIGIL_AGENT_COMMAND="$AGENT_COMMAND" \
+    AGENT_TERMINAL_PORT="$PORT" \
+    AGENT_TERMINAL_TMUX_SESSION="$SESSION" \
+    AGENT_TERMINAL_CWD="$CWD_TARGET" \
+    AGENT_TERMINAL_REPO_ROOT="$REPO_ROOT" \
+    AGENT_TERMINAL_COMMAND="$AGENT_COMMAND" \
       nohup node "$BRIDGE_DIR/bridge-server.mjs" >"$BRIDGE_LOG" 2>&1 &
   fi
   for _ in $(seq 1 30); do

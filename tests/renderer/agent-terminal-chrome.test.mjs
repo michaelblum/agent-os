@@ -149,6 +149,26 @@ test('generic toolkit launcher does not create or require avatar-main', () => {
   assert.doesNotMatch(toolkitLauncher, /SIGIL_CONTENT_ROOT/)
 })
 
+test('toolkit and Sigil launchers pass neutral bridge environment aliases', () => {
+  for (const launcher of [toolkitLauncher, sigilAgentLauncher]) {
+    assert.match(launcher, /"AGENT_TERMINAL_PORT=" \+ shlex\.quote\(port\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_TMUX_SESSION=" \+ shlex\.quote\(session\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_CWD=" \+ shlex\.quote\(cwd\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/)
+    assert.match(launcher, /"AGENT_TERMINAL_COMMAND=" \+ shlex\.quote\(command\)/)
+    assert.match(launcher, /AGENT_TERMINAL_PORT="\$PORT" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_TMUX_SESSION="\$SESSION" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_CWD="\$CWD_TARGET" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/)
+    assert.match(launcher, /AGENT_TERMINAL_COMMAND="\$AGENT_COMMAND" \\/)
+    assert.doesNotMatch(launcher, /SIGIL_AGENT_TERMINAL_PORT="\$PORT" \\/)
+    assert.doesNotMatch(launcher, /SIGIL_AGENT_TMUX_SESSION="\$SESSION" \\/)
+    assert.doesNotMatch(launcher, /SIGIL_AGENT_CWD="\$CWD_TARGET" \\/)
+    assert.doesNotMatch(launcher, /SIGIL_AGENT_REPO_ROOT="\$REPO_ROOT" \\/)
+    assert.doesNotMatch(launcher, /SIGIL_AGENT_COMMAND="\$AGENT_COMMAND" \\/)
+  }
+})
+
 test('generic toolkit launcher starts toolkit-owned bridge substrate', () => {
   assert.match(toolkitLauncher, /BRIDGE_DIR="\$REPO_ROOT\/packages\/toolkit\/components\/agent-terminal"/)
   assert.match(toolkitLauncher, /"\$BRIDGE_DIR\/bridge-server\.mjs"/)

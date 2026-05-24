@@ -111,12 +111,12 @@ describe('Sigil Agent Terminal bridge', () => {
       cwd: path.resolve('.'),
       env: {
         ...process.env,
-        SIGIL_AGENT_TERMINAL_PORT: String(port),
-        SIGIL_AGENT_TERMINAL_DRIVER: 'process',
-        SIGIL_AGENT_TMUX_SESSION: 'sigil-agent-terminal-test',
-        SIGIL_AGENT_CWD: repoCwd,
-        SIGIL_AGENT_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
-        SIGIL_AGENT_CATALOG_HOME: homeDir,
+        AGENT_TERMINAL_PORT: String(port),
+        AGENT_TERMINAL_DRIVER: 'process',
+        AGENT_TERMINAL_TMUX_SESSION: 'sigil-agent-terminal-test',
+        AGENT_TERMINAL_CWD: repoCwd,
+        AGENT_TERMINAL_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
+        AGENT_TERMINAL_CATALOG_HOME: homeDir,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -199,8 +199,51 @@ describe('Sigil Agent Terminal bridge', () => {
 
   it('passes stable repo root to bridge server startup paths', () => {
     const launcher = fs.readFileSync('apps/sigil/agent-terminal/launch.sh', 'utf8');
-    assert.match(launcher, /"SIGIL_AGENT_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
-    assert.match(launcher, /SIGIL_AGENT_REPO_ROOT="\$REPO_ROOT" \\/);
+    assert.match(launcher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
+    assert.match(launcher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/);
+    assert.doesNotMatch(launcher, /SIGIL_AGENT_REPO_ROOT="\$REPO_ROOT" \\/);
+  });
+
+  it('honors legacy SIGIL_AGENT direct-server environment aliases', async () => {
+    const legacyPort = await freePort();
+    const legacy = await startBridgeWithEnv({
+      SIGIL_AGENT_TERMINAL_PORT: String(legacyPort),
+      SIGIL_AGENT_TERMINAL_DRIVER: 'process',
+      SIGIL_AGENT_TMUX_SESSION: 'legacy-sigil-agent-session',
+      SIGIL_AGENT_CWD: repoCwd,
+      SIGIL_AGENT_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
+      SIGIL_AGENT_CATALOG_HOME: homeDir,
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${legacyPort}/health`);
+      const payload = await response.json();
+      assert.equal(payload.defaultSession, 'legacy-sigil-agent-session');
+      assert.equal(payload.defaultCwd, repoCwd);
+      assert.equal(payload.driver, 'process');
+    } finally {
+      await stopBridge(legacy.child);
+    }
+  });
+
+  it('honors legacy SIGIL_CODEX direct-server environment aliases', async () => {
+    const legacyPort = await freePort();
+    const legacy = await startBridgeWithEnv({
+      SIGIL_CODEX_TERMINAL_PORT: String(legacyPort),
+      SIGIL_CODEX_TERMINAL_DRIVER: 'process',
+      SIGIL_CODEX_TMUX_SESSION: 'legacy-sigil-codex-session',
+      SIGIL_CODEX_CWD: repoCwd,
+      SIGIL_CODEX_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
+      SIGIL_AGENT_CATALOG_HOME: homeDir,
+    });
+    try {
+      const response = await fetch(`http://127.0.0.1:${legacyPort}/health`);
+      const payload = await response.json();
+      assert.equal(payload.defaultSession, 'legacy-sigil-codex-session');
+      assert.equal(payload.defaultCwd, repoCwd);
+      assert.equal(payload.driver, 'process');
+    } finally {
+      await stopBridge(legacy.child);
+    }
   });
 
   it('supports explicit all-cwd provider catalog queries', async () => {
@@ -602,6 +645,29 @@ async function waitForHealth(activePort, readOutput) {
     }
   }
   throw new Error(`bridge did not become healthy:\n${readOutput()}`);
+}
+
+async function startBridgeWithEnv(env) {
+  const bridgeOutput = { text: '' };
+  const bridge = spawn('node', [toolkitBridgeServer], {
+    cwd: path.resolve('.'),
+    env: {
+      ...process.env,
+      ...env,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  bridge.stdout.on('data', (chunk) => { bridgeOutput.text += chunk.toString('utf8'); });
+  bridge.stderr.on('data', (chunk) => { bridgeOutput.text += chunk.toString('utf8'); });
+  await waitForHealth(Number(env.AGENT_TERMINAL_PORT || env.SIGIL_AGENT_TERMINAL_PORT || env.SIGIL_CODEX_TERMINAL_PORT), () => bridgeOutput.text);
+  return { child: bridge, output: bridgeOutput };
+}
+
+async function stopBridge(bridge) {
+  if (bridge && bridge.exitCode == null) {
+    bridge.kill('SIGTERM');
+    await new Promise((resolve) => bridge.once('exit', resolve));
+  }
 }
 
 async function ensureInteractiveEchoSession(activePort, session, cwd) {
