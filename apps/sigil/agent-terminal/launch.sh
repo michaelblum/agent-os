@@ -131,7 +131,7 @@ PY
       nohup node "$BRIDGE_DIR/bridge-server.mjs" >"$BRIDGE_LOG" 2>&1 &
   fi
   for _ in $(seq 1 30); do
-    bridge_running && return 0
+    bridge_health_matches && return 0
     sleep 0.1
   done
   echo "Agent terminal bridge did not start. See $BRIDGE_LOG" >&2

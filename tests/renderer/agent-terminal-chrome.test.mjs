@@ -16,7 +16,10 @@ const sigilCompatInspector = readFileSync(new URL('../../apps/sigil/codex-termin
 const html = toolkitHtml
 
 function functionBody(source, functionName) {
-  const start = source.indexOf(`function ${functionName}(`)
+  let start = source.indexOf(`function ${functionName}(`)
+  if (start === -1) {
+    start = source.indexOf(`${functionName}()`)
+  }
   assert.notEqual(start, -1)
   const open = source.indexOf('{', start)
   let depth = 0
@@ -172,11 +175,14 @@ test('toolkit and Sigil launchers pass canonical bridge environment names', () =
 
 test('toolkit and Sigil launchers require health to match requested bridge identity', () => {
   for (const launcher of [toolkitLauncher, sigilAgentLauncher]) {
+    const startBridgeBody = functionBody(launcher, 'start_bridge')
     assert.match(launcher, /bridge_health_matches\(\)/)
     assert.match(launcher, /AGENT_TERMINAL_HEALTH_JSON="\$health" python3 - "\$SESSION" "\$CWD_TARGET"/)
     assert.match(launcher, /payload\.get\("defaultSession"\) != session/)
     assert.match(launcher, /payload\.get\("defaultCwd"\) != cwd/)
     assert.match(launcher, /if \[\[ "\$RESTART" -eq 0 \]\] && bridge_health_matches; then/)
+    assert.match(startBridgeBody, /for _ in \$\(seq 1 30\); do\s+bridge_health_matches && return 0\s+sleep 0\.1\s+done/)
+    assert.doesNotMatch(startBridgeBody, /bridge_running && return 0/)
     assert.doesNotMatch(launcher, /if bridge_running; then\s+return 0/)
   }
 })
