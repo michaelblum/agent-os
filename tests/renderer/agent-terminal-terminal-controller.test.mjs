@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import {
   createAgentTerminalController,
   createDefaultTerminalOptions,
+  createTerminalInputPolicy,
+  mountTerminalContextMenu,
 } from '../../packages/toolkit/components/agent-terminal/terminal-controller.js'
 
 class FakeSocket {
@@ -51,6 +53,17 @@ function createFakeTerminal({ cols = 80, rows = 24 } = {}) {
     focused: 0,
     writes: [],
     writelns: [],
+    pasted: [],
+    scrolled: [],
+    modes: { mouseTrackingMode: 'none' },
+    keyHandler: null,
+    wheelHandler: null,
+    attachCustomKeyEventHandler(handler) {
+      this.keyHandler = handler
+    },
+    attachCustomWheelEventHandler(handler) {
+      this.wheelHandler = handler
+    },
     clear() {
       this.cleared += 1
     },
@@ -62,6 +75,38 @@ function createFakeTerminal({ cols = 80, rows = 24 } = {}) {
     },
     writeln(value) {
       this.writelns.push(value)
+    },
+    paste(value) {
+      this.pasted.push(value)
+    },
+    scrollLines(value) {
+      this.scrolled.push(value)
+    },
+  }
+}
+
+function createFakeElement() {
+  const listeners = new Map()
+  return {
+    listeners,
+    style: {},
+    focused: 0,
+    hidden: true,
+    bounds: { left: 10, top: 20 },
+    addEventListener(type, listener) {
+      listeners.set(type, listener)
+    },
+    removeEventListener(type, listener) {
+      if (listeners.get(type) === listener) listeners.delete(type)
+    },
+    dispatch(type, event = {}) {
+      listeners.get(type)?.(event)
+    },
+    focus() {
+      this.focused += 1
+    },
+    getBoundingClientRect() {
+      return this.bounds
     },
   }
 }
@@ -207,6 +252,195 @@ test('forwards terminal input only while the active socket is open', async () =>
   harness.controller.forwardInput('after-close')
 
   assert.deepEqual(socket.sent, ['resize:80x24', 'after-open'])
+})
+
+test('attaches paste shortcut, DOM paste, and wheel handlers to the terminal pane', () => {
+  const harness = createHarness()
+  const element = createFakeElement()
+
+  const binding = harness.controller.attachInputHandlers({ element })
+
+  assert.equal(typeof harness.terminal.keyHandler, 'function')
+  assert.equal(typeof harness.terminal.wheelHandler, 'function')
+  assert.equal(typeof element.listeners.get('paste'), 'function')
+
+  binding.dispose()
+
+  assert.equal(element.listeners.has('paste'), false)
+})
+
+test('dispatches paste through xterm paste API and deduplicates repeated paste text', () => {
+  let clock = 1000
+  const terminal = createFakeTerminal()
+  const policy = createTerminalInputPolicy({
+    terminal,
+    now: () => clock,
+  })
+
+  assert.equal(policy.dispatchPaste('hello'), true)
+  assert.equal(policy.dispatchPaste('hello'), false)
+  clock += 101
+  assert.equal(policy.dispatchPaste('hello'), true)
+
+  assert.deepEqual(terminal.pasted, ['hello', 'hello'])
+})
+
+test('falls back to raw input forwarding when xterm paste API is unavailable', () => {
+  const terminal = createFakeTerminal()
+  delete terminal.paste
+  const forwarded = []
+  const policy = createTerminalInputPolicy({
+    terminal,
+    forwardInput(value) {
+      forwarded.push(value)
+    },
+  })
+
+  policy.dispatchPaste('fallback paste')
+
+  assert.deepEqual(forwarded, ['fallback paste'])
+})
+
+test('handles Meta+V and Ctrl+V paste shortcuts from clipboard once', async () => {
+  const terminal = createFakeTerminal()
+  const policy = createTerminalInputPolicy({
+    terminal,
+    readClipboardText: async () => 'clip text',
+  })
+  const events = []
+  const event = {
+    key: 'v',
+    metaKey: true,
+    preventDefault() {
+      events.push('prevent')
+    },
+    stopPropagation() {
+      events.push('stop')
+    },
+  }
+
+  assert.equal(policy.handleKeyEvent(event), false)
+  await new Promise((resolve) => setImmediate(resolve))
+  policy.handlePasteEvent({
+    clipboardData: { getData: () => 'clip text' },
+    preventDefault() {
+      events.push('paste-prevent')
+    },
+    stopPropagation() {
+      events.push('paste-stop')
+    },
+  })
+
+  assert.deepEqual(events, ['prevent', 'stop', 'paste-prevent', 'paste-stop'])
+  assert.deepEqual(terminal.pasted, ['clip text'])
+  assert.equal(policy.handleKeyEvent({ key: 'v', ctrlKey: true }), false)
+})
+
+test('ignores non-paste key events', () => {
+  const terminal = createFakeTerminal()
+  const policy = createTerminalInputPolicy({ terminal })
+
+  assert.equal(policy.handleKeyEvent({ key: 'c', metaKey: true }), true)
+  assert.deepEqual(terminal.pasted, [])
+})
+
+test('DOM paste events paste clipboard text without forwarding duplicate data', () => {
+  const terminal = createFakeTerminal()
+  const events = []
+  const policy = createTerminalInputPolicy({ terminal })
+
+  policy.handlePasteEvent({
+    clipboardData: { getData: (type) => type === 'text/plain' ? 'dom paste' : '' },
+    preventDefault() {
+      events.push('prevent')
+    },
+    stopPropagation() {
+      events.push('stop')
+    },
+  })
+
+  assert.deepEqual(events, ['prevent', 'stop'])
+  assert.deepEqual(terminal.pasted, ['dom paste'])
+})
+
+test('wheel input scrolls scrollback by default without raw input forwarding', () => {
+  const terminal = createFakeTerminal()
+  const forwarded = []
+  const events = []
+  const policy = createTerminalInputPolicy({
+    terminal,
+    forwardInput(value) {
+      forwarded.push(value)
+    },
+  })
+
+  assert.equal(policy.handleWheelEvent({
+    deltaY: 81,
+    preventDefault() {
+      events.push('prevent')
+    },
+    stopPropagation() {
+      events.push('stop')
+    },
+  }), false)
+  assert.deepEqual(terminal.scrolled, [3])
+  assert.deepEqual(forwarded, [])
+  assert.deepEqual(events, ['prevent', 'stop'])
+})
+
+test('wheel input is left to xterm when application mouse tracking is active', () => {
+  const terminal = createFakeTerminal()
+  terminal.modes.mouseTrackingMode = 'x10'
+  const policy = createTerminalInputPolicy({ terminal })
+
+  assert.equal(policy.handleWheelEvent({ deltaY: 120 }), true)
+  assert.deepEqual(terminal.scrolled, [])
+})
+
+test('right-click terminal context menu reads clipboard from the user gesture', async () => {
+  const terminal = createFakeTerminal()
+  const inputPolicy = createTerminalInputPolicy({ terminal })
+  const element = createFakeElement()
+  const menu = createFakeElement()
+  const pasteButton = createFakeElement()
+  const documentRef = createFakeElement()
+  const seen = []
+
+  mountTerminalContextMenu({
+    element,
+    menu,
+    pasteButton,
+    inputPolicy,
+    readClipboardText: async () => 'menu paste',
+    documentRef,
+  })
+
+  element.dispatch('contextmenu', {
+    clientX: 30,
+    clientY: 55,
+    preventDefault() {
+      seen.push('prevent')
+    },
+    stopPropagation() {
+      seen.push('stop')
+    },
+  })
+  pasteButton.dispatch('click', {
+    preventDefault() {
+      seen.push('paste-prevent')
+    },
+    stopPropagation() {
+      seen.push('paste-stop')
+    },
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.equal(menu.hidden, true)
+  assert.equal(menu.style.left, '20px')
+  assert.equal(menu.style.top, '35px')
+  assert.equal(pasteButton.focused, 1)
+  assert.deepEqual(seen, ['prevent', 'stop', 'paste-prevent', 'paste-stop'])
+  assert.deepEqual(terminal.pasted, ['menu paste'])
 })
 
 test('sends resize frames only when terminal dimensions change and socket is open', async () => {

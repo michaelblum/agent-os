@@ -66,6 +66,35 @@
       width: 100%;
       height: 100%;
     }
+    .terminal-context-menu {
+      position: absolute;
+      z-index: 20;
+      min-width: 96px;
+      padding: 4px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 6px;
+      background: #11181b;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.34);
+    }
+    .terminal-context-menu[hidden] {
+      display: none;
+    }
+    .terminal-context-menu button {
+      width: 100%;
+      min-height: 28px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #edf4f6;
+      text-align: left;
+      cursor: pointer;
+      padding: 0 8px;
+    }
+    .terminal-context-menu button:hover,
+    .terminal-context-menu button:focus {
+      outline: none;
+      background: rgba(255,255,255,0.1);
+    }
     .xterm {
       height: 100%;
       padding: 4px;
@@ -359,6 +388,7 @@
     const {
       createAgentTerminalController,
       createDefaultTerminalOptions,
+      mountTerminalContextMenu,
     } = await import('./terminal-controller.js');
     const {
       createSessionRailModel,
@@ -394,6 +424,17 @@
     chrome.contentEl.append(shell);
     const content = shell.querySelector('.content');
     const terminalPane = shell.querySelector('.terminal-wrap');
+    const terminalElement = document.getElementById('terminal');
+    const terminalContextMenu = document.createElement('div');
+    terminalContextMenu.className = 'terminal-context-menu';
+    terminalContextMenu.hidden = true;
+    terminalContextMenu.setAttribute('role', 'menu');
+    const terminalPasteButton = document.createElement('button');
+    terminalPasteButton.type = 'button';
+    terminalPasteButton.textContent = 'Paste';
+    terminalPasteButton.setAttribute('role', 'menuitem');
+    terminalContextMenu.append(terminalPasteButton);
+    terminalPane.append(terminalContextMenu);
     const railPane = shell.querySelector('.rail');
 
     const statusDot = document.createElement('span');
@@ -438,6 +479,8 @@
     let terminal = null;
     let fitAddon = null;
     let terminalController = null;
+    let terminalInputBinding = null;
+    let terminalContextMenuBinding = null;
     let sessions = [];
     let selectedSession = null;
     let inspectorRequest = 0;
@@ -589,7 +632,17 @@
       });
       terminalController.setCurrentCwd(currentCwd);
       terminal.loadAddon(fitAddon);
-      terminal.open(document.getElementById('terminal'));
+      terminal.open(terminalElement);
+      terminalInputBinding?.dispose();
+      terminalInputBinding = terminalController.attachInputHandlers({ element: terminalElement });
+      terminalContextMenuBinding?.dispose();
+      terminalContextMenuBinding = mountTerminalContextMenu({
+        element: terminalElement,
+        menu: terminalContextMenu,
+        pasteButton: terminalPasteButton,
+        inputPolicy: terminalController.inputPolicy,
+        readClipboardText: () => navigator.clipboard?.readText?.() || '',
+      });
       scheduleRefit();
       terminal.focus();
       terminal.writeln('Connecting to agent terminal...');

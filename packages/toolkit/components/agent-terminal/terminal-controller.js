@@ -15,6 +15,153 @@ export function createDefaultTerminalOptions() {
   };
 }
 
+function eventHasPasteShortcut(event) {
+  const key = String(event?.key || '').toLowerCase();
+  if (key !== 'v') return false;
+  if (event.altKey || event.shiftKey) return false;
+  return Boolean(event.metaKey || event.ctrlKey);
+}
+
+function readPasteEventText(event) {
+  return event?.clipboardData?.getData?.('text/plain')
+    || event?.clipboardData?.getData?.('text')
+    || '';
+}
+
+function isTerminalMouseTrackingActive(terminal) {
+  return terminal?.modes?.mouseTrackingMode
+    && terminal.modes.mouseTrackingMode !== 'none';
+}
+
+export function createTerminalInputPolicy({
+  terminal,
+  forwardInput = () => {},
+  readClipboardText = () => '',
+  now = () => Date.now(),
+  pasteDedupeMs = 100,
+} = {}) {
+  if (!terminal) throw new Error('Agent Terminal input policy requires terminal');
+
+  let lastPaste = { text: '', at: 0 };
+
+  function dispatchPaste(text) {
+    if (typeof text !== 'string' || text.length === 0) return false;
+    const at = now();
+    if (text === lastPaste.text && at - lastPaste.at < pasteDedupeMs) return false;
+    lastPaste = { text, at };
+    if (typeof terminal.paste === 'function') {
+      terminal.paste(text);
+    } else {
+      forwardInput(text);
+    }
+    return true;
+  }
+
+  async function pasteFromClipboard() {
+    try {
+      const text = await readClipboardText();
+      dispatchPaste(text);
+    } catch (_) {}
+  }
+
+  function handleKeyEvent(event) {
+    if (!eventHasPasteShortcut(event)) return true;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    void pasteFromClipboard();
+    return false;
+  }
+
+  function handlePasteEvent(event) {
+    const text = readPasteEventText(event);
+    if (!text) return;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    dispatchPaste(text);
+  }
+
+  function handleWheelEvent(event) {
+    if (isTerminalMouseTrackingActive(terminal)) return true;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const delta = Number(event?.deltaY || 0);
+    const direction = delta < 0 ? -1 : 1;
+    const lines = Math.max(1, Math.ceil(Math.abs(delta) / 40));
+    terminal.scrollLines?.(direction * lines);
+    return false;
+  }
+
+  function attach({ element } = {}) {
+    terminal.attachCustomKeyEventHandler?.(handleKeyEvent);
+    terminal.attachCustomWheelEventHandler?.(handleWheelEvent);
+    element?.addEventListener?.('paste', handlePasteEvent);
+    return {
+      dispose() {
+        element?.removeEventListener?.('paste', handlePasteEvent);
+      },
+    };
+  }
+
+  return {
+    attach,
+    dispatchPaste,
+    handleKeyEvent,
+    handlePasteEvent,
+    handleWheelEvent,
+    pasteFromClipboard,
+  };
+}
+
+export function mountTerminalContextMenu({
+  element,
+  menu,
+  pasteButton,
+  inputPolicy,
+  readClipboardText = () => '',
+  documentRef = globalThis.document,
+} = {}) {
+  if (!element || !menu || !pasteButton || !inputPolicy) {
+    return { dispose() {} };
+  }
+
+  function hide() {
+    menu.hidden = true;
+  }
+
+  function show(event) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const bounds = element.getBoundingClientRect?.() || { left: 0, top: 0 };
+    menu.style.left = `${Math.max(0, event.clientX - bounds.left)}px`;
+    menu.style.top = `${Math.max(0, event.clientY - bounds.top)}px`;
+    menu.hidden = false;
+    pasteButton.focus?.();
+  }
+
+  async function pasteFromMenu(event) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    hide();
+    try {
+      inputPolicy.dispatchPaste(await readClipboardText());
+    } catch (_) {}
+  }
+
+  element.addEventListener('contextmenu', show);
+  pasteButton.addEventListener('click', pasteFromMenu);
+  documentRef?.addEventListener?.('click', hide);
+  documentRef?.addEventListener?.('keydown', hide);
+
+  return {
+    dispose() {
+      element.removeEventListener('contextmenu', show);
+      pasteButton.removeEventListener('click', pasteFromMenu);
+      documentRef?.removeEventListener?.('click', hide);
+      documentRef?.removeEventListener?.('keydown', hide);
+    },
+  };
+}
+
 export function createAgentTerminalController({
   bridgeClient,
   terminal,
@@ -45,6 +192,11 @@ export function createAgentTerminalController({
   let lastFit = { cols: 0, rows: 0 };
   let activeLabel = 'Agent terminal';
   let currentCwd = '';
+  const inputPolicy = createTerminalInputPolicy({
+    terminal,
+    forwardInput,
+    readClipboardText: () => globalThis.navigator?.clipboard?.readText?.() || '',
+  });
 
   function isOpenSocket(value) {
     return value?.readyState === WebSocketImpl?.OPEN;
@@ -136,6 +288,10 @@ export function createAgentTerminalController({
     if (isOpenSocket(socket)) socket.send(data);
   }
 
+  function attachInputHandlers({ element } = {}) {
+    return inputPolicy.attach({ element });
+  }
+
   function dispose() {
     const previous = socket;
     socket = null;
@@ -146,7 +302,9 @@ export function createAgentTerminalController({
   return {
     connectTerminal,
     dispose,
+    attachInputHandlers,
     forwardInput,
+    inputPolicy,
     get activeLabel() {
       return activeLabel;
     },
