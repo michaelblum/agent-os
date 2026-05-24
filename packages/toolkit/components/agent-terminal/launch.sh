@@ -17,7 +17,7 @@ STATE_DIR="${HOME}/.config/aos/${MODE}/toolkit"
 BRIDGE_LOG="${STATE_DIR}/agent-terminal-bridge.log"
 BRIDGE_SESSION="${BRIDGE_SESSION:-aos-agent-bridge-${PORT}}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$REPO_ROOT")}"
-BRIDGE_DIR="$REPO_ROOT/apps/sigil/codex-terminal"
+BRIDGE_DIR="$REPO_ROOT/packages/toolkit/components/agent-terminal"
 
 usage() {
   printf 'Usage: %s [--new|--new-codex|--new-claude|--pick|--last|--restart]\n' "$0"
@@ -112,7 +112,7 @@ start_bridge() {
   if command -v tmux >/dev/null 2>&1; then
     tmux kill-session -t "$BRIDGE_SESSION" >/dev/null 2>&1 || true
     local bridge_cmd
-    bridge_cmd="$(python3 - "$PORT" "$SESSION" "$CWD_TARGET" "$REPO_ROOT" "$AGENT_COMMAND" "$BRIDGE_DIR/server.mjs" "$BRIDGE_LOG" <<'PY'
+    bridge_cmd="$(python3 - "$PORT" "$SESSION" "$CWD_TARGET" "$REPO_ROOT" "$AGENT_COMMAND" "$BRIDGE_DIR/bridge-server.mjs" "$BRIDGE_LOG" <<'PY'
 import shlex, sys
 port, session, cwd, repo_root, command, server, log = sys.argv[1:]
 parts = [
@@ -138,7 +138,7 @@ PY
     SIGIL_AGENT_CWD="$CWD_TARGET" \
     SIGIL_AGENT_REPO_ROOT="$REPO_ROOT" \
     SIGIL_AGENT_COMMAND="$AGENT_COMMAND" \
-      nohup node "$BRIDGE_DIR/server.mjs" >"$BRIDGE_LOG" 2>&1 &
+      nohup node "$BRIDGE_DIR/bridge-server.mjs" >"$BRIDGE_LOG" 2>&1 &
   fi
   for _ in $(seq 1 30); do
     bridge_running && return 0
