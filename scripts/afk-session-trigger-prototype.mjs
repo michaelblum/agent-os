@@ -14,6 +14,7 @@ const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
 const LOCAL_ARTIFACT_PATH = 'local_artifact_path';
 const MAX_QUEUE_ITEMS = 5;
+const QUEUE_RUN_FIXTURE_STATUSES = new Set(['completed', 'failed', 'blocked']);
 const LIVE_TERMINAL_STATES = new Set([
   'accepted',
   'accepted_pre_launch',
@@ -34,8 +35,9 @@ function usage() {
 Usage:
   node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--afk-live-launch --afk-authorization <authorization.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--afk-authorization <authorization.json>] [--sleep-lease <lease.json>] [--sleep-lease-live-launch] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
   node scripts/afk-session-trigger-prototype.mjs --afk-work-queue <queue.json> --afk-authorization <authorization.json> --dry-run --json [--out <receipt.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>]
+  node scripts/afk-session-trigger-prototype.mjs --afk-work-queue <queue.json> --afk-authorization <authorization.json> --afk-live-launch --queue-run-fixture <fixture.json> --json --out <receipt.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>]
 
-This local prototype validates one transfer packet, or a small ordered AFK work queue in dry-run mode, and emits a scheduler/dispatch receipt. The AFK authorization flags are primary; --sleep-lease and --sleep-lease-live-launch remain compatibility aliases. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
+This local prototype validates one transfer packet, validates a small ordered AFK work queue in dry-run mode, or walks an ordered AFK work queue with deterministic local fixtures. The AFK authorization flags are primary; --sleep-lease and --sleep-lease-live-launch remain compatibility aliases. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
 
 function parseArgs(argv) {
@@ -1026,6 +1028,7 @@ async function buildQueueReceipt(options) {
   const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
   const createdAt = options.timestamp ?? new Date().toISOString();
   const mismatches = [];
+  const isFixtureRun = Boolean(options.queueRunFixture);
 
   if (!options.afkWorkQueue) {
     mismatches.push(mismatch('missing_queue', 'Missing required --afk-work-queue path.'));
@@ -1033,7 +1036,16 @@ async function buildQueueReceipt(options) {
   if (options.packet) {
     mismatches.push(mismatch('conflicting_packet_and_queue', '--afk-work-queue is an alternative to --packet.'));
   }
-  if (!options.dryRun || options.supervisedLiveLaunch || options.sleepLeaseLiveLaunch || options.warmDockTuiReuse || options.providerLaunchDryRun) {
+  if (isFixtureRun) {
+    if (!options.sleepLeaseLiveLaunch || options.dryRun || options.supervisedLiveLaunch || options.warmDockTuiReuse || options.providerLaunchDryRun) {
+      mismatches.push(mismatch('queue_fixture_run_requires_afk_live_launch', '--queue-run-fixture requires --afk-live-launch and cannot be combined with other action modes.'));
+    }
+    if (!options.out) {
+      mismatches.push(mismatch('queue_fixture_run_out_required', '--queue-run-fixture requires --out.'));
+    }
+  } else if (options.sleepLeaseLiveLaunch && options.afkWorkQueue) {
+    mismatches.push(mismatch('real_queue_execution_not_implemented', 'Real AFK work queue execution is not implemented; pass --queue-run-fixture for deterministic fixture execution.'));
+  } else if (!options.dryRun || options.supervisedLiveLaunch || options.sleepLeaseLiveLaunch || options.warmDockTuiReuse || options.providerLaunchDryRun) {
     mismatches.push(mismatch('queue_dry_run_required', '--afk-work-queue is available only with --dry-run.'));
   }
   if (!options.json) {
@@ -1054,6 +1066,26 @@ async function buildQueueReceipt(options) {
     if (!isPlainObject(queue)) {
       mismatches.push(mismatch('invalid_queue_shape', 'AFK work queue must be a JSON object.'));
       queue = null;
+    }
+  }
+
+  const fixturePath = options.queueRunFixture ? repoPath(repoRoot, options.queueRunFixture) : null;
+  let fixture = null;
+  if (isFixtureRun) {
+    if (!isLocalFileRef(options.queueRunFixture)) {
+      mismatches.push(mismatch('missing_fixture', 'Queue run fixture must be a local file path.', {
+        fixture_ref: options.queueRunFixture ?? NOT_OBSERVED,
+      }));
+    } else if (!fixturePath || !existsSync(fixturePath)) {
+      mismatches.push(mismatch('missing_fixture', 'Queue run fixture path does not exist.', {
+        fixture_ref: fixturePath ? relIfRepo(repoRoot, fixturePath) : NOT_OBSERVED,
+      }));
+    } else {
+      fixture = await readJsonFile(fixturePath, 'queue run fixture');
+      if (!isPlainObject(fixture)) {
+        mismatches.push(mismatch('invalid_fixture_shape', 'Queue run fixture must be a JSON object.'));
+        fixture = null;
+      }
     }
   }
 
@@ -1091,6 +1123,39 @@ async function buildQueueReceipt(options) {
         mismatches.push(mismatch('duplicate_item_ids', 'AFK work queue item_id values must be unique.', {
           duplicate_item_ids: [...duplicateIds].sort(),
         }));
+      }
+    }
+  }
+
+  if (isFixtureRun && fixture && queue) {
+    if (fixture.queue_id !== queue.queue_id) {
+      mismatches.push(mismatch('queue_id_mismatch', 'Queue run fixture queue_id must match the AFK work queue queue_id.', {
+        queue_id: queue.queue_id ?? NOT_OBSERVED,
+        fixture_queue_id: fixture.queue_id ?? NOT_OBSERVED,
+      }));
+    }
+    if (!Array.isArray(fixture.items)) {
+      mismatches.push(mismatch('invalid_fixture_shape', 'Queue run fixture items must be an array.'));
+    } else if (Array.isArray(queue.items)) {
+      const queueIds = queue.items.map((item) => item?.item_id);
+      const fixtureIds = fixture.items.map((item) => item?.item_id);
+      if (JSON.stringify(fixtureIds) !== JSON.stringify(queueIds)) {
+        mismatches.push(mismatch('fixture_order_mismatch', 'Queue run fixture item IDs must match AFK work queue order exactly.', {
+          queue_item_ids: queueIds,
+          fixture_item_ids: fixtureIds,
+        }));
+      }
+      for (const fixtureItem of fixture.items) {
+        if (!isPlainObject(fixtureItem)) {
+          mismatches.push(mismatch('invalid_fixture_shape', 'Every queue run fixture item must be a JSON object.'));
+          continue;
+        }
+        if (!QUEUE_RUN_FIXTURE_STATUSES.has(fixtureItem.status)) {
+          mismatches.push(mismatch('invalid_fixture_shape', 'Queue run fixture item status must be completed, failed, or blocked.', {
+            item_id: fixtureItem.item_id ?? NOT_OBSERVED,
+            status: fixtureItem.status ?? NOT_OBSERVED,
+          }));
+        }
       }
     }
   }
@@ -1173,6 +1238,49 @@ async function buildQueueReceipt(options) {
     }
   }
 
+  const runItems = [];
+  let stopReason = NOT_OBSERVED;
+  let stoppedAtItemId = NOT_OBSERVED;
+  if (isFixtureRun && mismatches.length === 0 && Array.isArray(fixture?.items)) {
+    for (const [index, summary] of itemSummaries.entries()) {
+      const fixtureItem = fixture.items[index];
+      const runSummary = {
+        index,
+        item_id: summary.item_id,
+        packet_ref: summary.packet_ref,
+        work_ref: summary.work_ref,
+        packet_id: summary.packet_id,
+        fixture_status: fixtureItem.status,
+        provider_session_id: fixtureItem.provider_session_id ?? NOT_OBSERVED,
+        cleanup_status: fixtureItem.cleanup ?? NOT_OBSERVED,
+        terminal_state: NOT_ATTEMPTED,
+        lifecycle_state: 'completed',
+      };
+      runItems.push(runSummary);
+
+      if (fixtureItem.status !== 'completed') {
+        runSummary.lifecycle_state = 'stopped';
+        stopReason = `${fixtureItem.status}_item`;
+        stoppedAtItemId = summary.item_id;
+        mismatches.push(mismatch(`${fixtureItem.status}_item`, 'Queue fixture run stopped at the first non-completed item.', {
+          item_id: summary.item_id,
+          fixture_status: fixtureItem.status,
+        }));
+        break;
+      }
+      if (fixtureItem.cleanup !== 'verified') {
+        runSummary.lifecycle_state = 'stopped';
+        stopReason = 'cleanup_unverified';
+        stoppedAtItemId = summary.item_id;
+        mismatches.push(mismatch('cleanup_unverified', 'Completed queue fixture items require verified cleanup.', {
+          item_id: summary.item_id,
+          cleanup: fixtureItem.cleanup ?? NOT_OBSERVED,
+        }));
+        break;
+      }
+    }
+  }
+
   const idempotenceMaterial = {
     queueId: queue?.queue_id ?? NOT_OBSERVED,
     queueRef: queuePath ? relIfRepo(repoRoot, queuePath) : NOT_OBSERVED,
@@ -1188,11 +1296,14 @@ async function buildQueueReceipt(options) {
   const idempotenceKey = stableHash(idempotenceMaterial, 32);
   const schedulerRunId = `scheduler-${stableHash({ idempotenceKey, kind: 'queue-scheduler' })}`;
   const dispatchAttemptId = `dispatch-${stableHash({ schedulerRunId, idempotenceKey, kind: 'queue-dispatch' })}`;
-  const status = mismatches.length === 0 ? 'dry_run_ready' : 'rejected';
+  const status = isFixtureRun
+    ? (mismatches.length === 0 ? 'completed' : (runItems.length > 0 ? 'stopped' : 'rejected'))
+    : (mismatches.length === 0 ? 'dry_run_ready' : 'rejected');
+  const selectedAction = isFixtureRun ? 'queue-fixture-run' : 'queue-dry-run';
   const worktreeFacts = currentWorktreeFacts(repoRoot);
 
   return {
-    record_type: 'aos.afk_work_queue_dry_run',
+    record_type: isFixtureRun ? 'aos.afk_work_queue_fixture_run' : 'aos.afk_work_queue_dry_run',
     schema_status: 'not_a_schema',
     status,
     created_at: createdAt,
@@ -1202,9 +1313,19 @@ async function buildQueueReceipt(options) {
       queue_id: queue?.queue_id ?? NOT_OBSERVED,
       item_count: Array.isArray(queue?.items) ? queue.items.length : 0,
       max_items: MAX_QUEUE_ITEMS,
-      validation_status: status === 'dry_run_ready' ? 'valid' : 'invalid',
+      validation_status: ['dry_run_ready', 'completed', 'stopped'].includes(status) ? 'valid' : 'invalid',
       items: itemSummaries,
     },
+    fixture_run: isFixtureRun
+      ? {
+          fixture_ref: fixturePath ? relIfRepo(repoRoot, fixturePath) : NOT_OBSERVED,
+          status,
+          stop_reason: status === 'completed' ? NOT_OBSERVED : stopReason,
+          stopped_at_item_id: status === 'completed' ? NOT_OBSERVED : stoppedAtItemId,
+          provider_launch_allowed: false,
+          items: runItems,
+        }
+      : NOT_ATTEMPTED,
     current_state: {
       repo_root: repoRoot,
       worktree: repoRoot,
@@ -1214,8 +1335,9 @@ async function buildQueueReceipt(options) {
     scheduler: {
       scheduler_run_id: schedulerRunId,
       idempotence_key: idempotenceKey,
-      lifecycle_state: status === 'dry_run_ready' ? 'accepted' : 'rejected',
-      selected_action: 'queue-dry-run',
+      lifecycle_state: status === 'completed' ? 'completed' : (status === 'stopped' ? 'stopped' : (status === 'dry_run_ready' ? 'accepted' : 'rejected')),
+      selected_action: selectedAction,
+      fixture_backed: isFixtureRun,
       lease: options.sleepLease
         ? {
             status: itemSummaries.length > 0 && itemSummaries.every((item) => item.authorization_status === 'accepted') ? 'accepted' : 'rejected',
@@ -1227,14 +1349,15 @@ async function buildQueueReceipt(options) {
       dispatch_attempt_id: dispatchAttemptId,
       selected_provider: options.provider ?? NOT_OBSERVED,
       selected_dock: options.dock ?? NOT_OBSERVED,
-      action: 'queue-dry-run',
+      action: selectedAction,
+      mode: isFixtureRun ? 'fixture-run' : 'dry-run',
       provider_launch_allowed: false,
       human_supervision: { required: false, i_am_present: false },
       launch_attempt_id: NOT_ATTEMPTED,
     },
     terminal_substrate: {
       status: NOT_ATTEMPTED,
-      reason: 'queue-dry-run-only',
+      reason: isFixtureRun ? 'queue-fixture-run-only' : 'queue-dry-run-only',
     },
     result_route: classifyLocalResultRoutes({ repoRoot, routes: [] }),
     sleep_lease: {
