@@ -1,6 +1,43 @@
 # Work Card: AOS Show TTL None Crash V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Foreman Acceptance
+
+Accepted on 2026-05-24.
+
+- GDI implementation branch: `gdi/aos-show-ttl-none-crash-v0`
+- GDI implementation commit: `2be1997c26eb8e194a19852d0ce9a97d39bdddde`
+- Main merge commit: `d0b81d86cbd777c48cfa4eb02e21017caa9a347b`
+
+Accepted behavior:
+
+- `./aos show create --ttl none` omits `ttl` from the daemon request, which
+  represents no expiry.
+- `./aos show update --ttl none` sends `ttl=0`, preserving the existing daemon
+  clear-TTL sentinel.
+- Non-finite TTL values such as `inf` fail with `INVALID_DURATION` before JSON
+  encoding.
+- `show update --ttl` help now advertises `none` consistently with create.
+
+Foreman verification:
+
+- `./aos dev build`: passed.
+- `./aos ready --post-permission`: ready.
+- `node --test tests/schemas/dev-workflow-rules.test.mjs
+  tests/schemas/dev-active-profile.test.mjs
+  tests/schemas/dev-workflow-profiles.test.mjs`: 10/10 passed.
+- `bash tests/dev-workflow-router.sh`: passed.
+- `bash tests/dev-audit.sh`: passed.
+- `bash tests/help-contract.sh`: passed.
+- `bash tests/show-update-reload.sh`: passed.
+- `bash tests/canvas-non-finite-frame-rejection.sh`: passed on single rerun
+  after an initial daemon readiness timeout while other checks were running.
+- `git diff --check`: passed.
+- Live repro:
+  `./aos show create --id ttl-none-foreman-review-smoke ... --ttl none`
+  returned `{"status":"success"}`, and cleanup remove returned
+  `{"status":"success"}`.
 
 ## Transfer Classification
 
