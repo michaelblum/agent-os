@@ -350,7 +350,12 @@
 
     const { createFixedSidebarPane, mountChrome } = await import('../../panel/index.js');
     const { createAgentTerminalBridgeClient } = await import('./bridge-client.js');
-    const { createSessionInspectorModel } = await import('./session-inspector-model.js');
+    const {
+      renderInspectorEmpty,
+      renderInspectorError,
+      renderInspectorLoading,
+      renderSessionInspector,
+    } = await import('./session-inspector-view.js');
     const {
       createAgentTerminalController,
       createDefaultTerminalOptions,
@@ -358,7 +363,6 @@
     const {
       createSessionRailModel,
       findMatchingSession,
-      providerLabel,
     } = await import('./session-rail-model.js');
 
     const params = new URLSearchParams(location.search);
@@ -463,94 +467,8 @@
       });
     }
 
-    function appendText(parent, className, text, title) {
-      const element = document.createElement('div');
-      element.className = className;
-      element.textContent = text;
-      if (title) element.title = title;
-      parent.append(element);
-      return element;
-    }
-
-    function appendRow(parent, key, value, title) {
-      const row = document.createElement('div');
-      row.className = 'inspector-row';
-      appendText(row, 'inspector-key', key);
-      appendText(row, 'inspector-value', value || 'unknown', title);
-      parent.append(row);
-      return row;
-    }
-
-    function appendSection(parent, heading) {
-      const section = document.createElement('section');
-      section.className = 'inspector-section';
-      appendText(section, 'inspector-heading', heading);
-      parent.append(section);
-      return section;
-    }
-
-    function appendMetricRow(parent, row) {
-      appendRow(parent, row.key, row.value, row.title);
-      if (row.source) appendText(parent, 'inspector-source', row.source, row.sourceTitle);
-    }
-
-    function renderInspectorEmpty(text = 'Select a session') {
-      sessionInspector.replaceChildren();
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.textContent = text;
-      sessionInspector.append(empty);
-    }
-
-    function renderInspectorLoading(record) {
-      sessionInspector.replaceChildren();
-      const section = appendSection(sessionInspector, 'Session');
-      appendRow(section, 'provider', providerLabel(record.provider));
-      appendRow(section, 'id', record.session_id);
-      appendRow(section, 'cwd', record.cwd, record.cwd);
-      appendText(sessionInspector, 'empty-state', 'Loading telemetry...');
-    }
-
     function renderInspector(record, payload) {
-      sessionInspector.replaceChildren();
-      const model = createSessionInspectorModel(record, payload);
-
-      const sessionSection = appendSection(sessionInspector, 'Session');
-      for (const row of model.sessionRows) appendRow(sessionSection, row.key, row.value, row.title);
-
-      const contextSection = appendSection(sessionInspector, 'Context');
-      if (model.contextRows) {
-        for (const row of model.contextRows) appendMetricRow(contextSection, row);
-      } else {
-        appendText(contextSection, 'empty-state', model.contextEmpty);
-      }
-
-      if (model.tokenRows.length) {
-        const tokenSection = appendSection(sessionInspector, 'Token Counters');
-        for (const row of model.tokenRows) appendMetricRow(tokenSection, row);
-      }
-
-      if (model.lifecycleRows.length) {
-        const lifecycleSection = appendSection(sessionInspector, 'Lifecycle');
-        for (const event of model.lifecycleRows) {
-          appendRow(lifecycleSection, event.heading.key, event.heading.value);
-          if (event.pre) appendMetricRow(lifecycleSection, event.pre);
-          if (event.post) appendMetricRow(lifecycleSection, event.post);
-        }
-      }
-
-      const diagnosticSection = appendSection(sessionInspector, 'Diagnostics');
-      if (model.diagnosticRows.length) {
-        for (const diagnostic of model.diagnosticRows) {
-          const item = document.createElement('div');
-          item.className = `diagnostic ${diagnostic.severity || ''}`;
-          appendText(item, 'inspector-heading', diagnostic.code);
-          appendText(item, 'inspector-source', diagnostic.source);
-          diagnosticSection.append(item);
-        }
-      } else {
-        appendText(diagnosticSection, 'empty-state', model.diagnosticsEmpty);
-      }
+      renderSessionInspector(sessionInspector, record, payload);
       emit({ type: 'agent_terminal.session_telemetry', payload });
     }
 
@@ -558,16 +476,16 @@
       selectedSession = record || null;
       renderSessions();
       if (!record) {
-        renderInspectorEmpty();
+        renderInspectorEmpty(sessionInspector);
         return;
       }
-      renderInspectorLoading(record);
+      renderInspectorLoading(sessionInspector, record);
       if (loadTelemetry) void loadInspector(record);
     }
 
     async function loadInspector(record = selectedSession) {
       if (!record) {
-        renderInspectorEmpty();
+        renderInspectorEmpty(sessionInspector);
         return;
       }
       const requestId = ++inspectorRequest;
@@ -580,9 +498,7 @@
         if (requestId === inspectorRequest) renderInspector(record, payload);
       } catch (error) {
         if (requestId !== inspectorRequest) return;
-        sessionInspector.replaceChildren();
-        const section = appendSection(sessionInspector, 'Inspector');
-        appendText(section, 'empty-state', error.message || String(error));
+        renderInspectorError(sessionInspector, error);
       }
     }
 
@@ -667,7 +583,7 @@
       } else if (selectedSession) {
         void loadInspector(selectedSession);
       } else {
-        renderInspectorEmpty('No session selected');
+        renderInspectorEmpty(sessionInspector, 'No session selected');
       }
       renderSessions();
     }
@@ -701,7 +617,9 @@
         setAttached(attached) {
           window.__sigilAgentTerminal.state.attached = attached;
         },
-        renderInspectorEmpty,
+        renderInspectorEmpty(text) {
+          renderInspectorEmpty(sessionInspector, text);
+        },
         loadSessions,
         WebSocketImpl: WebSocket,
       });
