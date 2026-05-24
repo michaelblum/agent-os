@@ -125,8 +125,11 @@ private struct DevAfkSessionTriggerOptions {
     var json = false
     var dryRun = false
     var supervisedLiveLaunch = false
+    var warmDockTuiReuse = false
     var iAmPresent = false
+    var providerLaunchDryRun = false
     var packet: String?
+    var sleepLease: String?
     var provider: String?
     var dock: String?
     var repo: String?
@@ -436,8 +439,8 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     guard let packet = options.packet else {
         exitError("dev afk-session-trigger requires --packet <path>", code: "MISSING_ARG")
     }
-    guard options.dryRun || options.supervisedLiveLaunch else {
-        exitError("dev afk-session-trigger requires --dry-run or --supervised-live-launch", code: "MISSING_ARG")
+    guard options.dryRun || options.supervisedLiveLaunch || options.warmDockTuiReuse else {
+        exitError("dev afk-session-trigger requires --dry-run, --supervised-live-launch, or --warm-dock-tui-reuse", code: "MISSING_ARG")
     }
 
     let repoRoot = resolveRepoRoot(options.repo)
@@ -453,8 +456,17 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     if options.supervisedLiveLaunch {
         scriptArgs.append("--supervised-live-launch")
     }
+    if options.warmDockTuiReuse {
+        scriptArgs.append("--warm-dock-tui-reuse")
+    }
     if options.iAmPresent {
         scriptArgs.append("--i-am-present")
+    }
+    if options.providerLaunchDryRun {
+        scriptArgs.append("--provider-launch-dry-run")
+    }
+    if let sleepLease = options.sleepLease {
+        scriptArgs += ["--sleep-lease", sleepLease]
     }
     if let provider = options.provider {
         scriptArgs += ["--provider", provider]
@@ -1353,14 +1365,26 @@ private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSession
         case "--supervised-live-launch":
             options.supervisedLiveLaunch = true
             i += 1
+        case "--warm-dock-tui-reuse":
+            options.warmDockTuiReuse = true
+            i += 1
         case "--i-am-present":
             options.iAmPresent = true
+            i += 1
+        case "--provider-launch-dry-run":
+            options.providerLaunchDryRun = true
             i += 1
         case "--packet":
             guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
                 exitError("--packet requires a path", code: "MISSING_ARG")
             }
             options.packet = args[i + 1]
+            i += 2
+        case "--sleep-lease":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--sleep-lease requires a path", code: "MISSING_ARG")
+            }
+            options.sleepLease = args[i + 1]
             i += 2
         case "--provider":
             guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {

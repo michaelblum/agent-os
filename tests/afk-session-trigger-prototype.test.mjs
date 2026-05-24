@@ -168,6 +168,38 @@ function validPacket(overrides = {}) {
   };
 }
 
+function validSleepLease(overrides = {}) {
+  return {
+    lease_id: 'sleep-lease-test',
+    authorized_by: 'local-human',
+    authorized_at: '2026-05-22T19:30:00.000Z',
+    expires_at: '2026-05-22T21:00:00.000Z',
+    max_wall_clock_minutes: 90,
+    max_provider_launches: 0,
+    provider_budget: {
+      status: 'not_enforceable_yet',
+      declared_ceiling: '0 live launches in dry-run',
+    },
+    allowed_docks: ['gdi'],
+    allowed_providers: ['codex'],
+    allowed_work_refs: ['docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md'],
+    allowed_branch_policy: {
+      create_branch: true,
+      branch_prefix: 'gdi/',
+      allow_main_mutation: false,
+    },
+    allow_branch_push: false,
+    external_publication_policy: 'none',
+    result_route: 'stdout',
+    stop_conditions: ['human_judgment_needed', 'provider_auth_prompt', 'token_budget_reached', 'cleanup_unverified'],
+    ...overrides,
+  };
+}
+
+async function writeSleepLease(lease = validSleepLease()) {
+  return writeJsonFixture('afk-sleep-lease-', 'lease.json', lease);
+}
+
 test('creates a dry-run-ready scheduler and dispatch receipt without launch side effects', async () => {
   const packetPath = await writePacket(validPacket());
   const result = runPrototype([
@@ -216,6 +248,348 @@ test('creates a dry-run-ready scheduler and dispatch receipt without launch side
   assert.deepEqual(receipt.result_route.delivered_refs, [{ kind: 'local_artifact_path', ref: 'stdout' }]);
   assert.equal(receipt.result_route.failure, 'not_observed');
   assert.deepEqual(receipt.mismatches, []);
+});
+
+test('accepts sleep lease dry-run receipt for an allowed work card', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'dry_run_ready');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.scheduler.lease.status, 'accepted');
+  assert.equal(receipt.scheduler.lease.lease_id, 'sleep-lease-test');
+  assert.equal(receipt.sleep_lease.status, 'accepted');
+  assert.equal(receipt.sleep_lease.lease_id, 'sleep-lease-test');
+  assert.equal(receipt.sleep_lease.provider_budget.status, 'not_enforceable_yet');
+  assert.equal(receipt.sleep_lease.provider_budget_enforcement, 'informational');
+  assert.deepEqual(receipt.sleep_lease.allowed_docks, ['gdi']);
+  assert.deepEqual(receipt.sleep_lease.allowed_providers, ['codex']);
+  assert.deepEqual(receipt.sleep_lease.allowed_work_refs, ['docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md']);
+  assert.deepEqual(receipt.sleep_lease.diagnostics, []);
+  assert.deepEqual(receipt.mismatches, []);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+});
+
+test('accepts sleep lease stdout route-object shorthands for local routes', async () => {
+  for (const resultRoute of [
+    'stdout',
+    { kind: 'stdout' },
+    { ref: 'stdout' },
+    { path: 'stdout' },
+    { artifact_path: 'stdout' },
+    { kind: 'local_artifact_path', ref: 'stdout' },
+  ]) {
+    const packetPath = await writePacket(validPacket({
+      result_route: resultRoute,
+    }));
+    const leasePath = await writeSleepLease();
+    const result = runPrototype([
+      '--packet',
+      packetPath,
+      '--provider',
+      'codex',
+      '--dock',
+      'gdi',
+      '--sleep-lease',
+      leasePath,
+      '--dry-run',
+      '--json',
+      '--timestamp',
+      fixedTimestamp,
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.status, 'dry_run_ready');
+    assert.equal(receipt.scheduler.lease.status, 'accepted');
+    assert.equal(receipt.sleep_lease.status, 'accepted');
+    assert.equal(receipt.result_route.status, 'completed');
+    assert.deepEqual(receipt.mismatches, []);
+  }
+});
+
+test('rejects sleep lease when stdout ref is on unsupported external route object', async () => {
+  const packetPath = await writePacket(validPacket({
+    result_route: { kind: 'gateway_notifier', ref: 'stdout' },
+  }));
+  const leasePath = await writeSleepLease();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.scheduler.lease.status, 'rejected');
+  assert.equal(receipt.sleep_lease.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.equal(receipt.result_route.status, 'unsupported');
+  assert.equal(receipt.result_route.failure[0].code, 'result_route_unsupported');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_result_route_mismatch'));
+});
+
+test('rejects expired sleep lease dry-run', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease(validSleepLease({
+    expires_at: '2026-05-22T19:59:00.000Z',
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.scheduler.lease.status, 'expired');
+  assert.equal(receipt.sleep_lease.status, 'expired');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_expired'));
+});
+
+test('rejects sleep lease when selected provider or dock is not allowed', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease(validSleepLease({
+    allowed_docks: ['foreman'],
+    allowed_providers: ['gemini'],
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  const mismatchClasses = new Set(receipt.mismatches.map((item) => item.class));
+  assert.ok(mismatchClasses.has('sleep_lease_dock_not_allowed'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_provider_not_allowed'), receipt.mismatches);
+});
+
+test('rejects sleep lease when selected work ref is not allowed', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease(validSleepLease({
+    allowed_work_refs: ['docs/design/work-cards/other-card.md'],
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_work_ref_not_allowed'));
+});
+
+test('rejects sleep lease external publication policy other than none', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease(validSleepLease({
+    external_publication_policy: 'github-pr',
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_external_publication_forbidden'));
+});
+
+test('rejects sleep lease outside dry-run json mode', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease();
+  const supervised = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+  assert.equal(supervised.status, 1);
+  let receipt = JSON.parse(supervised.stdout);
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_supervised_live_forbidden'));
+
+  const warm = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--warm-dock-tui-reuse',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+  assert.equal(warm.status, 1);
+  receipt = JSON.parse(warm.stdout);
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_warm_reuse_forbidden'));
+
+  const providerLaunchDryRun = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--provider-launch-dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+  assert.equal(providerLaunchDryRun.status, 1);
+  receipt = JSON.parse(providerLaunchDryRun.stdout);
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_provider_launch_dry_run_forbidden'));
+
+  const missingJson = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+  assert.equal(missingJson.status, 1);
+  receipt = JSON.parse(missingJson.stdout);
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_requires_dry_run_json'));
+});
+
+test('rejects malformed sleep lease authorization fields', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease(validSleepLease({
+    expires_at: '4 hours from now',
+    max_wall_clock_minutes: -1,
+    max_provider_launches: -1,
+    provider_budget: undefined,
+    allowed_work_refs: ['*'],
+    allowed_branch_policy: {
+      create_branch: true,
+      branch_prefix: 'gdi/',
+      allow_main_mutation: true,
+    },
+  }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  const mismatchClasses = new Set(receipt.mismatches.map((item) => item.class));
+  assert.ok(mismatchClasses.has('sleep_lease_expires_at_relative_or_local'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_max_wall_clock_minutes_invalid'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_max_provider_launches_invalid'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_provider_budget_invalid'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_allowed_work_refs_broad'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_main_mutation_forbidden'), receipt.mismatches);
 });
 
 test('rejects invalid current-state facts with named mismatch classes', async () => {

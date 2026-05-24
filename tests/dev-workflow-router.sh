@@ -121,7 +121,7 @@ assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "-
 assert "--allow-provider-launch" not in launch_tokens, launch_tokens
 assert "experimental" in forms["dev-afk-launch-attempt"]["args"][0]["summary"].lower(), forms["dev-afk-launch-attempt"]
 trigger_tokens = {arg.get("token") for arg in forms["dev-afk-session-trigger"]["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= trigger_tokens, trigger_tokens
+assert {"--packet", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= trigger_tokens, trigger_tokens
 assert "--live" not in trigger_tokens, trigger_tokens
 assert "--launch-provider" not in trigger_tokens, trigger_tokens
 assert "--start" not in trigger_tokens, trigger_tokens
@@ -189,7 +189,7 @@ data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
 form = forms["dev-afk-session-trigger"]
 tokens = {arg.get("token") for arg in form["args"]}
-assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= tokens, tokens
+assert {"--packet", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= tokens, tokens
 assert "--live" not in tokens, tokens
 assert "--launch-provider" not in tokens, tokens
 assert "--start" not in tokens, tokens

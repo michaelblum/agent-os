@@ -31,7 +31,7 @@ function usage() {
   return `Experimental AFK session-trigger dry-run prototype.
 
 Usage:
-  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--warm-dock-tui-reuse --json) [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
+  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--warm-dock-tui-reuse --json) [--sleep-lease <lease.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
 This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
@@ -341,6 +341,207 @@ function mismatch(mismatchClass, message, details = {}) {
   return { class: mismatchClass, message, ...details };
 }
 
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseAbsoluteTimestamp(value, field, mismatches) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    mismatches.push(mismatch(`sleep_lease_${field}_missing`, `Sleep lease ${field} is required.`));
+    return null;
+  }
+  if (!/[zZ]|[+-]\d{2}:\d{2}$/.test(value)) {
+    mismatches.push(mismatch(`sleep_lease_${field}_relative_or_local`, `Sleep lease ${field} must be an absolute timestamp.`, { [field]: value }));
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} is not a valid timestamp.`, { [field]: value }));
+    return null;
+  }
+  return parsed;
+}
+
+function validateStringField(lease, field, mismatches) {
+  if (typeof lease[field] !== 'string' || lease[field].trim() === '') {
+    mismatches.push(mismatch(`sleep_lease_${field}_missing`, `Sleep lease ${field} is required.`));
+  }
+}
+
+function validateNonNegativeNumberField(lease, field, mismatches) {
+  if (typeof lease[field] !== 'number' || !Number.isFinite(lease[field]) || lease[field] < 0) {
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} must be a non-negative number.`));
+  }
+}
+
+function validateStringArrayField(lease, field, mismatches, { rejectBroad = false } = {}) {
+  if (!Array.isArray(lease[field]) || lease[field].length === 0) {
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} must be a non-empty array.`));
+    return [];
+  }
+  const values = lease[field].filter((item) => typeof item === 'string' && item.trim() !== '');
+  if (values.length !== lease[field].length) {
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} must contain only non-empty strings.`));
+  }
+  if (rejectBroad && values.some((item) => ['*', 'any', 'all', '**'].includes(item.toLowerCase()) || item.includes('*'))) {
+    mismatches.push(mismatch(`sleep_lease_${field}_broad`, `Sleep lease ${field} must name explicit refs, not broad patterns.`, { [field]: lease[field] }));
+  }
+  return values;
+}
+
+function routeRefsCompatible(resultRoutes, leaseResultRoute) {
+  if (typeof leaseResultRoute !== 'string' || leaseResultRoute.trim() === '') return false;
+  const localRouteRef = (route) => {
+    if (!route || typeof route !== 'object' || route.kind !== LOCAL_ARTIFACT_PATH) return null;
+    return route.ref ?? route.path ?? route.artifact_path ?? route.artifactPath ?? null;
+  };
+  if (leaseResultRoute === 'stdout') {
+    return resultRoutes.some((route) => localRouteRef(route) === 'stdout');
+  }
+  return resultRoutes.some((route) => {
+    return localRouteRef(route) === leaseResultRoute;
+  });
+}
+
+async function classifySleepLease({
+  repoRoot,
+  options,
+  packet,
+  packetId,
+  sourceArtifact,
+  selectedDock,
+  selectedProvider,
+  resultRoutes,
+  action,
+  createdAt,
+}) {
+  if (!options.sleepLease) {
+    return {
+      receipt: { status: 'not_applicable' },
+      mismatches: [],
+    };
+  }
+
+  const leasePath = repoPath(repoRoot, options.sleepLease);
+  if (!existsSync(leasePath)) {
+    return {
+      receipt: {
+        status: 'rejected',
+        lease_ref: relIfRepo(repoRoot, leasePath),
+        diagnostics: [mismatch('sleep_lease_missing', 'Sleep lease path does not exist.', { lease_ref: relIfRepo(repoRoot, leasePath) })],
+      },
+      mismatches: [mismatch('sleep_lease_missing', 'Sleep lease path does not exist.', { lease_ref: relIfRepo(repoRoot, leasePath) })],
+    };
+  }
+
+  const lease = await readJsonFile(leasePath, 'sleep lease');
+  const mismatches = [];
+  if (!isPlainObject(lease)) {
+    mismatches.push(mismatch('sleep_lease_invalid', 'Sleep lease must be a JSON object.'));
+  }
+
+  for (const field of ['lease_id', 'authorized_by', 'external_publication_policy', 'result_route']) {
+    validateStringField(lease, field, mismatches);
+  }
+  const authorizedAt = parseAbsoluteTimestamp(lease.authorized_at, 'authorized_at', mismatches);
+  const expiresAt = parseAbsoluteTimestamp(lease.expires_at, 'expires_at', mismatches);
+  const comparisonAt = new Date(createdAt);
+  if (expiresAt && !Number.isNaN(comparisonAt.getTime()) && expiresAt.getTime() <= comparisonAt.getTime()) {
+    mismatches.push(mismatch('sleep_lease_expired', 'Sleep lease expired before the command timestamp.', {
+      expires_at: lease.expires_at,
+      command_timestamp: createdAt,
+    }));
+  }
+  validateNonNegativeNumberField(lease, 'max_wall_clock_minutes', mismatches);
+  validateNonNegativeNumberField(lease, 'max_provider_launches', mismatches);
+  if (!isPlainObject(lease.provider_budget)) {
+    mismatches.push(mismatch('sleep_lease_provider_budget_invalid', 'Sleep lease provider_budget is required.'));
+  }
+  const allowedDocks = validateStringArrayField(lease, 'allowed_docks', mismatches);
+  const allowedProviders = validateStringArrayField(lease, 'allowed_providers', mismatches);
+  const allowedWorkRefs = validateStringArrayField(lease, 'allowed_work_refs', mismatches, { rejectBroad: true });
+  validateStringArrayField(lease, 'stop_conditions', mismatches);
+  if (!isPlainObject(lease.allowed_branch_policy)) {
+    mismatches.push(mismatch('sleep_lease_branch_policy_invalid', 'Sleep lease allowed_branch_policy is required.'));
+  } else if (lease.allowed_branch_policy.allow_main_mutation !== false) {
+    mismatches.push(mismatch('sleep_lease_main_mutation_forbidden', 'Sleep lease cannot allow main mutation.', {
+      allow_main_mutation: lease.allowed_branch_policy.allow_main_mutation,
+    }));
+  }
+  if (typeof lease.allow_branch_push !== 'boolean') {
+    mismatches.push(mismatch('sleep_lease_allow_branch_push_invalid', 'Sleep lease allow_branch_push must be a boolean.'));
+  }
+  if (lease.external_publication_policy !== 'none') {
+    mismatches.push(mismatch('sleep_lease_external_publication_forbidden', 'Sleep lease external_publication_policy must be none for V0.', {
+      external_publication_policy: lease.external_publication_policy,
+    }));
+  }
+  if (options.supervisedLiveLaunch || action === 'supervised-live-launch') {
+    mismatches.push(mismatch('sleep_lease_supervised_live_forbidden', '--sleep-lease is supported only with --dry-run --json in this slice.'));
+  }
+  if (options.warmDockTuiReuse || action === 'warm-dock-tui-reuse') {
+    mismatches.push(mismatch('sleep_lease_warm_reuse_forbidden', '--sleep-lease cannot be combined with --warm-dock-tui-reuse.'));
+  }
+  if (options.providerLaunchDryRun) {
+    mismatches.push(mismatch('sleep_lease_provider_launch_dry_run_forbidden', '--sleep-lease cannot be combined with --provider-launch-dry-run.'));
+  }
+  if (!options.dryRun || !options.json) {
+    mismatches.push(mismatch('sleep_lease_requires_dry_run_json', '--sleep-lease requires --dry-run --json.'));
+  }
+  if (!allowedDocks.includes(selectedDock)) {
+    mismatches.push(mismatch('sleep_lease_dock_not_allowed', 'Selected dock is not allowed by the sleep lease.', {
+      selected_dock: selectedDock,
+      allowed_docks: allowedDocks,
+    }));
+  }
+  if (!allowedProviders.includes(selectedProvider)) {
+    mismatches.push(mismatch('sleep_lease_provider_not_allowed', 'Selected provider is not allowed by the sleep lease.', {
+      selected_provider: selectedProvider,
+      allowed_providers: allowedProviders,
+    }));
+  }
+  if (!allowedWorkRefs.includes(sourceArtifact) && !allowedWorkRefs.includes(packetId)) {
+    mismatches.push(mismatch('sleep_lease_work_ref_not_allowed', 'Packet work ref is not allowed by the sleep lease.', {
+      packet_id: packetId,
+      source_artifact: sourceArtifact,
+      allowed_work_refs: allowedWorkRefs,
+    }));
+  }
+  if (!routeRefsCompatible(resultRoutes, lease.result_route)) {
+    mismatches.push(mismatch('sleep_lease_result_route_mismatch', 'Packet result route is not compatible with the sleep lease.', {
+      lease_result_route: lease.result_route,
+      packet_result_routes: resultRoutes,
+    }));
+  }
+
+  const expired = mismatches.some((item) => item.class === 'sleep_lease_expired');
+  const status = expired ? 'expired' : (mismatches.length > 0 ? 'rejected' : 'accepted');
+  return {
+    receipt: {
+      status,
+      lease_ref: relIfRepo(repoRoot, leasePath),
+      lease_id: lease.lease_id ?? NOT_OBSERVED,
+      authorized_by: lease.authorized_by ?? NOT_OBSERVED,
+      authorized_at: lease.authorized_at ?? NOT_OBSERVED,
+      expires_at: lease.expires_at ?? NOT_OBSERVED,
+      max_wall_clock_minutes: lease.max_wall_clock_minutes ?? NOT_OBSERVED,
+      max_provider_launches: lease.max_provider_launches ?? NOT_OBSERVED,
+      provider_budget: lease.provider_budget ?? NOT_OBSERVED,
+      provider_budget_enforcement: lease.provider_budget?.status === 'not_enforceable_yet' ? 'informational' : NOT_OBSERVED,
+      allowed_docks: lease.allowed_docks ?? NOT_OBSERVED,
+      allowed_providers: lease.allowed_providers ?? NOT_OBSERVED,
+      allowed_work_refs: lease.allowed_work_refs ?? NOT_OBSERVED,
+      allowed_branch_policy: lease.allowed_branch_policy ?? NOT_OBSERVED,
+      allow_branch_push: lease.allow_branch_push ?? NOT_OBSERVED,
+      external_publication_policy: lease.external_publication_policy ?? NOT_OBSERVED,
+      result_route: lease.result_route ?? NOT_OBSERVED,
+      stop_conditions: lease.stop_conditions ?? NOT_OBSERVED,
+      diagnostics: mismatches.length > 0 ? mismatches : [],
+    },
+    mismatches,
+  };
+}
+
 function selectedAction(options) {
   const selected = [options.dryRun, options.supervisedLiveLaunch, options.warmDockTuiReuse].filter(Boolean).length;
   if (selected > 1) {
@@ -458,6 +659,19 @@ async function buildReceipt(options) {
       selected_provider: provider.selected_provider,
     }));
   }
+  const sleepLease = await classifySleepLease({
+    repoRoot,
+    options,
+    packet,
+    packetId,
+    sourceArtifact,
+    selectedDock,
+    selectedProvider: provider.selected_provider,
+    resultRoutes,
+    action: actionSelection.action,
+    createdAt,
+  });
+  mismatches.push(...sleepLease.mismatches);
 
   const idempotenceMaterial = {
     packetId,
@@ -541,7 +755,13 @@ async function buildReceipt(options) {
       idempotence_key: idempotenceKey,
       lifecycle_state: schedulerState(actionSelection.action, mismatches, duplicate, launchAttempt, cleanup),
       selected_action: actionSelection.action,
-      lease: 'not_enforced',
+      lease: options.sleepLease
+        ? {
+            status: sleepLease.receipt.status,
+            lease_ref: sleepLease.receipt.lease_ref ?? NOT_OBSERVED,
+            lease_id: sleepLease.receipt.lease_id ?? NOT_OBSERVED,
+          }
+        : 'not_enforced',
       duplicate_handling: duplicate ?? {
         duplicate: false,
         existing_receipt_ref: NOT_OBSERVED,
@@ -574,6 +794,7 @@ async function buildReceipt(options) {
       status: NOT_ATTEMPTED,
       telemetry_event_refs: NOT_ATTEMPTED,
     },
+    sleep_lease: sleepLease.receipt,
     result_route: classifyLocalResultRoutes({ repoRoot, routes: resultRoutes }),
     work_receipt: {
       status: NOT_ATTEMPTED,
@@ -815,7 +1036,7 @@ async function main() {
     }
 
     const receipt = await buildReceipt(options);
-    const outputAsJson = options.json || options.supervisedLiveLaunch;
+    const outputAsJson = options.json || options.supervisedLiveLaunch || options.sleepLease;
     if (options.out) {
       try {
         receipt.result_route = classifyLocalResultRoutes({
