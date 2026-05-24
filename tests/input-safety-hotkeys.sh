@@ -172,6 +172,31 @@ if sed -n '/private func handleTapEvent/,/private func inputSafetyHotkeyEvent/p'
   exit 1
 fi
 
+python3 - "$ROOT/src/perceive/daemon.swift" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text()
+handle = re.search(r'private func handleTapEvent\(.*?private func inputSafetyHotkeyEvent', source, re.S)
+if not handle:
+    raise SystemExit("FAIL: could not find handleTapEvent section")
+handle_text = handle.group(0)
+for required in ("inputTapPermissionsAvailable()", "failOpenAfterInputTapPermissionLoss()", "return false"):
+    if required not in handle_text:
+        raise SystemExit("FAIL: event tap path must fail open when TCC/input permissions disappear")
+if handle_text.index("inputTapPermissionsAvailable()") > handle_text.index("onInputEvent?"):
+    raise SystemExit("FAIL: permission-loss guard must run before downstream input consumers")
+
+teardown = re.search(r'private func teardownEventTap\(.*?private func scheduleEventTapRetry', source, re.S)
+if not teardown:
+    raise SystemExit("FAIL: could not find teardownEventTap section")
+teardown_text = teardown.group(0)
+for required in ("CGEvent.tapEnable(tap: tap, enable: false)", "CFMachPortInvalidate(tap)", "eventTap = nil"):
+    if required not in teardown_text:
+        raise SystemExit("FAIL: input permission loss must disable only the event tap without stopping the daemon")
+PY
+
 if ! sed -n '/private func activateInputSafetyPassthrough/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
   rg -q 'canvasManager\.setInputPassthrough\(true\)'; then
   echo "FAIL: input safety trigger must enable native canvas input passthrough" >&2
