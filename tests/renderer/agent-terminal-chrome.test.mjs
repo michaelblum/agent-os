@@ -75,12 +75,15 @@ test('Agent Terminal consumes the toolkit session rail model module', () => {
 })
 
 test('Agent Terminal consumes the toolkit session inspector model module', () => {
-  assert.match(html, /await import\('\.\/session-inspector-model\.js'\)/)
-  assert.match(html, /createSessionInspectorModel\(record, payload\)/)
+  assert.match(html, /await import\('\.\/session-inspector-view\.js'\)/)
+  assert.match(html, /renderSessionInspector\(sessionInspector, record, payload\)/)
   assert.match(html, /emit\(\{\s*type:\s*'agent_terminal\.session_telemetry', payload\s*\}\)/)
   assert.doesNotMatch(html, /function formatNumber/)
   assert.doesNotMatch(html, /function formatRatio/)
   assert.doesNotMatch(html, /function sourceDisplay/)
+  assert.doesNotMatch(html, /function appendText/)
+  assert.doesNotMatch(html, /function appendRow/)
+  assert.doesNotMatch(html, /function appendSection/)
 })
 
 test('Agent Terminal consumes the toolkit terminal controller module', () => {
