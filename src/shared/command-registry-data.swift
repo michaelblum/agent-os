@@ -253,7 +253,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                         EnumValue(value: "screen_saver", summary: "Above menu bar and system UI")
                      ])),
                 flag("focus", "--focus", "Focus the canvas", type: .bool),
-                flag("ttl", "--ttl", "New TTL"),
+                flag("ttl", "--ttl", "New TTL (e.g. 5s, 10m, none)"),
                 flag("track", "--track", "New track target",
                      type: .enumeration([
                         EnumValue(value: "union", summary: "Track display union bounds")

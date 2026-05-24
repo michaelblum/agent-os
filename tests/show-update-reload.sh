@@ -43,6 +43,19 @@ write_asset one
 aos_test_start_daemon "$ROOT" reloadtest "$ASSET_ROOT" \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
+if ./aos show create \
+  --id reload-invalid-ttl \
+  --at 20,20,120,80 \
+  --ttl inf \
+  --html '<!doctype html><html><body>invalid ttl</body></html>' >/dev/null 2>"$ROOT/invalid-ttl.err"; then
+  echo "FAIL: --ttl inf should fail"
+  exit 1
+elif ! grep -q '"code" : "INVALID_DURATION"' "$ROOT/invalid-ttl.err"; then
+  echo "FAIL: --ttl inf did not return INVALID_DURATION"
+  cat "$ROOT/invalid-ttl.err"
+  exit 1
+fi
+
 ./aos show create \
   --id reload-target \
   --at 90,100,320,180 \
@@ -55,6 +68,15 @@ aos_test_start_daemon "$ROOT" reloadtest "$ASSET_ROOT" \
   --id reload-unrelated \
   --at 450,100,120,80 \
   --html '<!doctype html><html><body>unrelated</body></html>' >/dev/null
+
+./aos show create \
+  --id reload-no-expiry \
+  --at 90,320,180,90 \
+  --ttl none \
+  --html '<!doctype html><html><body>no expiry</body></html>' >/dev/null
+
+NO_EXPIRY_CREATE_JSON="$ROOT/no-expiry-create.json"
+./aos show get --id reload-no-expiry > "$NO_EXPIRY_CREATE_JSON"
 
 ./aos show wait \
   --id reload-target \
@@ -70,6 +92,10 @@ write_asset two
   --id reload-target \
   --url 'aos://reloadtest/index.html' >/dev/null
 
+./aos show update \
+  --id reload-target \
+  --ttl none >/dev/null
+
 ./aos show wait \
   --id reload-target \
   --js 'window.__reloadVersion === "two"' \
@@ -80,7 +106,7 @@ UNRELATED_JSON="$ROOT/unrelated.json"
 ./aos show get --id reload-target > "$AFTER_JSON"
 ./aos show get --id reload-unrelated > "$UNRELATED_JSON"
 
-python3 - "$BEFORE_JSON" "$AFTER_JSON" "$UNRELATED_JSON" <<'PY'
+python3 - "$BEFORE_JSON" "$AFTER_JSON" "$UNRELATED_JSON" "$NO_EXPIRY_CREATE_JSON" <<'PY'
 import json
 import pathlib
 import sys
@@ -88,6 +114,7 @@ import sys
 before = json.loads(pathlib.Path(sys.argv[1]).read_text())["canvas"]
 after = json.loads(pathlib.Path(sys.argv[2]).read_text())["canvas"]
 unrelated = json.loads(pathlib.Path(sys.argv[3]).read_text())
+no_expiry_create = json.loads(pathlib.Path(sys.argv[4]).read_text())["canvas"]
 
 assert unrelated["exists"] is True, unrelated
 assert before["id"] == after["id"] == "reload-target", (before, after)
@@ -102,9 +129,8 @@ assert before.get("lifecycleState") == after.get("lifecycleState") == "active", 
 before_ttl = before.get("ttl")
 after_ttl = after.get("ttl")
 assert isinstance(before_ttl, (int, float)) and before_ttl > 0, before
-assert isinstance(after_ttl, (int, float)) and after_ttl > 0, after
-assert after_ttl <= before_ttl, (before_ttl, after_ttl)
-assert before_ttl - after_ttl < 10, (before_ttl, after_ttl)
+assert after_ttl is None, after
+assert no_expiry_create.get("ttl") is None, no_expiry_create
 
 print("PASS")
 PY

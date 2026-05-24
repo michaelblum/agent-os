@@ -137,6 +137,21 @@ private func parseCanvasQuad(_ value: String, invalidMessage: String) -> [CGFloa
     return parts
 }
 
+private func parseCanvasTTL(_ value: String, kind: CanvasMutationKind) -> Double? {
+    if value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "none" {
+        return kind == .create ? nil : 0
+    }
+
+    let seconds = parseDuration(value)
+    guard seconds.isFinite else {
+        exitError("Invalid --ttl: \(value). Use a finite duration or 'none'.", code: "INVALID_DURATION")
+    }
+    guard seconds >= 0 else {
+        exitError("Invalid --ttl: \(value). Duration must be non-negative.", code: "INVALID_DURATION")
+    }
+    return seconds
+}
+
 private func parseCanvasMutationOptions(_ args: [String], kind: CanvasMutationKind) -> CanvasMutationOptions {
     var options = CanvasMutationOptions()
     var i = 0
@@ -249,7 +264,7 @@ private func applyCanvasMutationOptions(_ options: CanvasMutationOptions, to req
     }
 
     if let ttlStr = options.ttlValue {
-        request.ttl = parseDuration(ttlStr)
+        request.ttl = parseCanvasTTL(ttlStr, kind: kind)
     }
 
     let exclusiveFlags: [(String, Bool)] = [
