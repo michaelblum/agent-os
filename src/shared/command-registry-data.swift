@@ -1289,16 +1289,18 @@ func buildCommandRegistry() -> [CommandDescriptor] {
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --json",
                 "aos dev afk-launch-attempt --packet /tmp/manual-afk-packet.json --json"
             ]),
-        InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--sleep-lease-live-launch --sleep-lease <lease.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--sleep-lease <lease.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]",
+        InvocationForm(id: "dev-afk-session-trigger", usage: "aos dev afk-session-trigger --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--afk-live-launch --afk-authorization <authorization.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--afk-authorization <authorization.json>] [--sleep-lease <lease.json>] [--sleep-lease-live-launch] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]",
             args: [
                 flag("packet", "--packet", "Manual transfer packet JSON path for the experimental prototype session-trigger diagnostic", required: true),
                 flag("dry-run", "--dry-run", "Dry-run guard; no provider, terminal, gateway, or route is launched", type: .bool),
-                flag("sleep-lease", "--sleep-lease", "Local sleep-lease JSON path for dry-run validation or guarded human-present supervised live launch"),
+                flag("afk-authorization", "--afk-authorization", "Local AFK authorization JSON path for approved AFK runs"),
+                flag("sleep-lease", "--sleep-lease", "Compatibility alias for --afk-authorization"),
                 flag("supervised-live-launch", "--supervised-live-launch", "Guarded supervised live launch intent for Codex/GDI source receipts", type: .bool),
-                flag("sleep-lease-live-launch", "--sleep-lease-live-launch", "Experimental unattended sleep-lease live launch intent; requires --sleep-lease --json --out and forbids --i-am-present", type: .bool),
+                flag("afk-live-launch", "--afk-live-launch", "Experimental AFK live launch intent; requires --afk-authorization --json --out and forbids --i-am-present", type: .bool),
+                flag("sleep-lease-live-launch", "--sleep-lease-live-launch", "Compatibility alias for --afk-live-launch", type: .bool),
                 flag("warm-dock-tui-reuse", "--warm-dock-tui-reuse", "Guarded warm dock TUI reuse intent for deterministic source receipts", type: .bool),
                 flag("i-am-present", "--i-am-present", "Required human-presence guard for supervised live launch", type: .bool),
-                flag("provider-launch-dry-run", "--provider-launch-dry-run", "Fixture-only provider launch attempt diagnostic; forbidden with sleep leases", type: .bool),
+                flag("provider-launch-dry-run", "--provider-launch-dry-run", "Fixture-only provider launch attempt diagnostic; forbidden with AFK authorizations", type: .bool),
                 flag("provider", "--provider", "Provider name to select for dispatch intent"),
                 flag("dock", "--dock", "Dock name to resolve for launch-root intent facts"),
                 flag("repo", "--repo", "Repository root path"),
@@ -1321,7 +1323,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             output: outJSONFlag,
             examples: [
                 "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --dry-run --json",
-                "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --supervised-live-launch --i-am-present --json"
+                "aos dev afk-session-trigger --packet /tmp/manual-afk-packet.json --provider codex --dock gdi --afk-live-launch --afk-authorization /tmp/authorization.json --json --out /tmp/receipt.json"
             ]),
         InvocationForm(id: "dev-audit", usage: "aos dev audit [--manifest <path>] [--repo <path>] [--json]",
             args: [
