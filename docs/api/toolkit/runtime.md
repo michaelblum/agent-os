@@ -187,6 +187,26 @@ daemon returns a `canvas.response` success ack, and rejects on daemon error or
 timeout. The WebView does not run shell commands; the daemon owns the trusted
 submit path and uses the active runtime mode and state root.
 
+### Clipboard Read
+
+AOS-hosted canvases may request current plain-text clipboard contents from the
+daemon with a `clipboard.read` message and a `request_id`. The daemon responds
+to the same canvas with `canvas.response`:
+
+```js
+window.webkit?.messageHandlers?.headsup?.postMessage({
+  type: 'clipboard.read',
+  payload: { request_id: 'clipboard-1' },
+})
+
+// inbound:
+// { type: 'canvas.response', request_id: 'clipboard-1', status: 'ok', text: '...' }
+```
+
+Use this only for user-initiated paste flows in AOS WebViews where browser
+clipboard APIs may be unavailable. Treat an empty `text` string or timeout as a
+quiet paste miss.
+
 ### Menu Activation Model
 
 `packages/toolkit/runtime/menu-activation.js` defines the provider-neutral
