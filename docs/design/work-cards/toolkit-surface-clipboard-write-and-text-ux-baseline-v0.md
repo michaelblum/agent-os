@@ -1,6 +1,6 @@
 # Work Card: Toolkit Surface Clipboard Write And Text UX Baseline V0
 
-**Status:** Near-term roadmap, not yet routed
+**Status:** Routed to GDI
 
 ## Foreman Triage
 

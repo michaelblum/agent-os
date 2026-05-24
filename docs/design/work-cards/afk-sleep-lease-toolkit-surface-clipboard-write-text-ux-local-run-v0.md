@@ -1,6 +1,18 @@
 # Work Card: AFK Sleep Lease Toolkit Surface Clipboard Write Text UX Local Run V0
 
-**Status:** Authorized for one local-only sleep-lease run
+**Status:** Superseded
+
+## Result
+
+The local away-run attempt stopped at startup with `classification:
+human_needed` before branch creation or edits because the provider saw AOS
+readiness blockers. After the human returned, Foreman verified
+`./aos ready --post-permission` was green and routed the normal GDI work card:
+
+`docs/design/work-cards/toolkit-surface-clipboard-write-and-text-ux-baseline-v0.md`
+
+Use that card for active implementation. This local-only wrapper is no longer
+the active route.
 
 ## Transfer Classification
 
