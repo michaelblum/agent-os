@@ -3,6 +3,14 @@ body {
     overflow: hidden;
     background-color: #050208;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+button,
+select,
+input[type="range"],
+.btn-action,
+.control-btn,
+.tab-button {
     user-select: none;
 }
 

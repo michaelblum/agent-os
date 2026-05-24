@@ -350,6 +350,9 @@ class UnifiedDaemon {
                     self.dispatchCanvasResponse(to: canvasID, requestID: inner?["request_id"] as? String,
                         status: "ok", extra: ["text": text])
                     return
+                case "clipboard.write":
+                    self.handleClipboardWrite(canvasID: canvasID, payload: inner ?? [:])
+                    return
                 case "status_item.state":
                     let visible = (inner?["visible"] as? Bool)
                         ?? (dict["visible"] as? Bool)
@@ -1084,6 +1087,48 @@ class UnifiedDaemon {
             obj[k] = v
         }
         canvasManager.postMessageAsync(canvasID: canvasID, payload: obj)
+    }
+
+    private func dispatchCanvasErrorResponse(
+        to canvasID: String,
+        requestID: String?,
+        code: String,
+        message: String
+    ) {
+        let obj: [String: Any] = [
+            "type": "canvas.response",
+            "request_id": requestID ?? "",
+            "status": "error",
+            "code": code,
+            "message": message
+        ]
+        canvasManager.postMessageAsync(canvasID: canvasID, payload: obj)
+    }
+
+    private func handleClipboardWrite(canvasID: String, payload: [String: Any]) {
+        guard let requestID = payload["request_id"] as? String, !requestID.isEmpty else {
+            dispatchCanvasErrorResponse(
+                to: canvasID,
+                requestID: payload["request_id"] as? String,
+                code: "INVALID_REQUEST",
+                message: "clipboard.write requires non-empty request_id"
+            )
+            return
+        }
+        guard let text = payload["text"] as? String else {
+            dispatchCanvasErrorResponse(
+                to: canvasID,
+                requestID: requestID,
+                code: "INVALID_PAYLOAD",
+                message: "clipboard.write requires plain text"
+            )
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        dispatchCanvasResponse(to: canvasID, requestID: requestID, status: "ok")
     }
 
     private func canvasMutationPermitted(callerID: String, targetID: String) -> Bool {

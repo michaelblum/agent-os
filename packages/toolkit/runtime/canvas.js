@@ -296,6 +296,27 @@ export function evalCanvas(id, js, opts = {}) {
   })
 }
 
+export async function writeClipboardText(text, opts = {}) {
+  if (typeof text !== 'string') {
+    throw new Error('INVALID_PAYLOAD: writeClipboardText requires plain text')
+  }
+  try {
+    await rpc('clipboard.write', { text }, {
+      timeoutMs: opts.timeoutMs ?? 1000,
+      mapResult() {
+        return true
+      },
+    })
+    return true
+  } catch (error) {
+    if (opts.browserFallback === false) throw error
+    const writeText = globalThis.navigator?.clipboard?.writeText
+    if (typeof writeText !== 'function') throw error
+    await writeText.call(globalThis.navigator.clipboard, text)
+    return true
+  }
+}
+
 export function move(dx, dy) {
   // Daemon's legacy relative-move action — auto-targets the calling canvas
   // and accepts integer/float deltas at the TOP level of the message (NOT

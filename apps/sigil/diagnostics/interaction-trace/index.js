@@ -6,6 +6,9 @@ const { esc } = await import(toolkitSpecifier('runtime/bridge.js', {
 const { evalCanvas } = await import(toolkitSpecifier('runtime/canvas.js', {
   local: '../../../../packages/toolkit/runtime/canvas.js',
 }))
+const { writeClipboardText } = await import(toolkitSpecifier('runtime/canvas.js', {
+  local: '../../../../packages/toolkit/runtime/canvas.js',
+}))
 
 const AVATAR_ID = 'avatar-main'
 const POLL_MS = 250
@@ -150,7 +153,7 @@ export default function InteractionTrace() {
   async function copyTrace() {
     const text = JSON.stringify(latest || { error: lastError }, null, 2)
     try {
-      await navigator.clipboard?.writeText(text)
+      await writeClipboardText(text)
       lastError = 'copied trace JSON'
     } catch {
       lastError = text

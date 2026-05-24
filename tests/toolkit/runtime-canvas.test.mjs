@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canvasInfo, evalCanvas, waitForCanvasStatusReady, warmCanvas } from '../../packages/toolkit/runtime/canvas.js';
+import { canvasInfo, evalCanvas, waitForCanvasStatusReady, warmCanvas, writeClipboardText } from '../../packages/toolkit/runtime/canvas.js';
 
 function encodeMessage(msg) {
   return Buffer.from(JSON.stringify(msg), 'utf8').toString('base64');
@@ -235,4 +235,94 @@ test('waitForCanvasStatusReady uses canvas.info and does not require canvas.eval
   assert.equal(result.ready, true);
   assert.equal(result.manifest.name, 'desktop-world-stage');
   assert.equal(outbound.some((message) => message.type === 'canvas.eval'), false);
+});
+
+test('writeClipboardText posts clipboard.write and resolves daemon ack', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  const outbound = [];
+
+  globalThis.window = {
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            outbound.push(message);
+          },
+        },
+      },
+    },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const promise = writeClipboardText('copy me', { timeoutMs: 100, browserFallback: false });
+  assert.equal(outbound.length, 1);
+  assert.equal(outbound[0].type, 'clipboard.write');
+  assert.equal(outbound[0].payload.text, 'copy me');
+  assert.ok(outbound[0].payload.request_id);
+
+  window.headsup.receive(encodeMessage({
+    type: 'canvas.response',
+    request_id: outbound[0].payload.request_id,
+    status: 'ok',
+  }));
+
+  assert.equal(await promise, true);
+});
+
+test('writeClipboardText falls back to browser clipboard when native write fails', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousNavigator = globalThis.navigator;
+  const previousAtob = globalThis.atob;
+  const outbound = [];
+  const browserWrites = [];
+
+  globalThis.window = {
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            outbound.push(message);
+          },
+        },
+      },
+    },
+  };
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      clipboard: {
+        async writeText(text) {
+          browserWrites.push(text);
+        },
+      },
+    },
+  });
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+
+  t.after(() => {
+    globalThis.window = previousWindow;
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: previousNavigator,
+    });
+    globalThis.atob = previousAtob;
+  });
+
+  const promise = writeClipboardText('fallback text', { timeoutMs: 100 });
+  window.headsup.receive(encodeMessage({
+    type: 'canvas.response',
+    request_id: outbound[0].payload.request_id,
+    status: 'error',
+    code: 'INVALID_PAYLOAD',
+    message: 'test failure',
+  }));
+
+  assert.equal(await promise, true);
+  assert.deepEqual(browserWrites, ['fallback text']);
 });
