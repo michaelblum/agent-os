@@ -1,6 +1,57 @@
 # Work Card: Operator AFK Sleep Lease Live Mode Proof V0
 
-**Status:** Ready for Operator
+**Status:** Accepted
+
+## Acceptance Result
+
+Accepted from the Operator report on `main` at
+`89969b8d2b804e15c1d023f648a9c942b657c209`, matching `origin/main` before and
+after the run.
+
+The live proof ran exactly once without `--i-am-present`, dry-run mode,
+provider fixtures, or fallback input paths. The command exited `0` and returned
+the expected sleep-lease live receipt:
+
+- `record_type="aos.afk_session_trigger_sleep_lease_live"`;
+- top-level `status="completed"`;
+- `packet.validation_status="valid"`;
+- `scheduler.lifecycle_state="completed"`;
+- `scheduler.selected_action="sleep-lease-live-launch"`;
+- `scheduler.lease.status="accepted"`;
+- `sleep_lease.status="accepted"`;
+- `dispatch.provider_launch_allowed=true`;
+- `dispatch.human_supervision={ required: false, i_am_present: false }`;
+- `dispatch.launch_root=".docks/gdi"`;
+- clean start gates, current head equal to required start SHA, and
+  `allow_branch_push=false`;
+- terminal substrate observed with process driver, GDI cwd, and
+  `codex --no-alt-screen`;
+- provider prompt mode `codex_goal` with prefix `"/goal "`;
+- provider acceptance observed through Codex adapter metadata with strong
+  cwd/time-window correlation;
+- cleanup verified;
+- result route completed;
+- `mismatches=[]`.
+
+Observed provider session:
+`019e5985-1f22-7812-bd94-8f2f3e503ca7`.
+
+The proof-owned bridge/session and child process group were gone after
+teardown, the owned bridge port was unreachable, readiness remained
+`ready=true mode=repo daemon=reachable tap=active`, and final git status was
+clean on `main...origin/main`.
+
+The sentinel token
+`sleep-lease-live-mode-provider-sentinel-v0` was observed through bounded
+receipt/prompt fields without transcript body reads. No source, docs, config,
+provider-store cleanup/edit, GitHub, branch, PR, push, merge, external
+notifier, durable work/evidence record, branch push, or non-local async routing
+mutation occurred.
+
+Next external decision: choose and explicitly authorize the first real
+overnight work card. V0 sleep-lease live mode is now proven for one local-only
+Codex/GDI launch with branch push disabled; it is not an open-ended queue or a
+standing authorization.
 
 ## Transfer Classification
 

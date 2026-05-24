@@ -644,8 +644,12 @@ The next slices should stay reversible:
    It keeps overnight work separate from the current human-present supervised
    live path, requires an explicit bounded lease with expiry, launch count,
    allowed docks/providers, pre-approved work refs, branch/output policy, local
-   receipts, stop conditions, and a wake-up report, and recommends the next
-   source slice be deterministic sleep-lease packet validation plus accepted
-   and rejected dry-run receipts before any true overnight run.
+   receipts, stop conditions, and a wake-up report. The deterministic
+   validation, dry-run receipts, awake guarded-live proof, and one real
+   Codex/GDI sleep-lease live proof without `--i-am-present` are now accepted.
+   The next external decision is the first real overnight work card and lease:
+   it should be one pre-approved GDI work ref, local-only by default, with
+   branch push disabled unless a later source slice deliberately broadens that
+   policy.
 11. Trial a Researcher-compatible role only after the session trigger and async
    result route have a credible manual or prototype path.

@@ -46,6 +46,10 @@ Acceptance gates passed:
 
 Next routed proof:
 `docs/design/work-cards/operator-afk-sleep-lease-live-mode-proof-v0.md`.
+That proof is now accepted: Operator ran one real Codex/GDI
+`--sleep-lease-live-launch` without `--i-am-present`, observed provider
+acceptance through bounded Codex metadata, verified cleanup, completed the
+stdout result route, and kept branch push disabled.
 
 ## Transfer Classification
 
