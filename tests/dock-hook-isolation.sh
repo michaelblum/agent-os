@@ -383,8 +383,8 @@ grep -q 'TMUX:send-keys -t %42 -l /goal test clean input' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
-grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
-  echo "FAIL: provider input helper should press Enter after sending text" >&2
+grep -q 'TMUX:send-keys -t %42 C-m' "$tmux_log" || {
+  echo "FAIL: provider input helper should submit with carriage return after sending text" >&2
   cat "$tmux_log" >&2
   exit 1
 }
@@ -419,8 +419,8 @@ grep -q 'TMUX:send-keys -t %42 -l /goal pause' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
-grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
-  echo "FAIL: successful GDI dev build hook should press Enter after /goal pause" >&2
+grep -q 'TMUX:send-keys -t %42 C-m' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should submit /goal pause with carriage return" >&2
   cat "$tmux_log" >&2
   exit 1
 }

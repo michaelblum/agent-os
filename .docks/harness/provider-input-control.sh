@@ -33,4 +33,4 @@ fi
 
 tmux send-keys -t "$target" C-u
 tmux send-keys -t "$target" -l "$text"
-tmux send-keys -t "$target" Enter
+tmux send-keys -t "$target" C-m

@@ -52,7 +52,7 @@ fi
 delay="${AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS:-0.2}"
 send_pause() {
   tmux send-keys -t "$pane" -l "/goal pause"
-  tmux send-keys -t "$pane" Enter
+  tmux send-keys -t "$pane" C-m
 }
 
 if [[ "$delay" == "0" || "$delay" == "0.0" ]]; then
