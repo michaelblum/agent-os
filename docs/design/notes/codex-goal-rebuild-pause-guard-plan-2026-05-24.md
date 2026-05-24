@@ -42,33 +42,33 @@ reports stale/missing repo-mode TCC or inactive input tap, immediately issue
 This is necessary but not sufficient because natural-language compliance can
 drift.
 
-### 2. Wrapper Layer
+### 2. Codex Hook Layer
 
-Add a canonical GDI-facing wrapper around `./aos dev build`, for example:
-
-```text
-.docks/gdi/scripts/guarded-aos-dev-build
-```
+Add a dock/Codex hook on `PostToolUse` or the nearest supported tool-result
+event. This should live in the dock hook configuration, not in a GDI-only work
+habit, so it applies whenever Codex runs `./aos dev build` from Foreman, GDI,
+Operator, or a future dock.
 
 Responsibilities:
 
-- run `./aos dev build`;
-- preserve and return the build exit code on compile failure;
-- if build succeeds, run exactly one bounded readiness check;
+- inspect the completed tool call and identify successful invocations of
+  `./aos dev build` from this repo;
+- run exactly one bounded post-build readiness classification;
 - classify repo-mode TCC/input-tap degradation;
 - write the existing short-lived stop-condition marker for the Stop hook;
-- print a concise pause packet that begins with a stable token such as
-  `goal_pause_required: repo-mode AOS permission repair`;
-- print the exact human action and resume check;
+- return a concise system message or hook response that tells Codex to issue
+  `/goal pause` immediately;
 - avoid running `ready --repair`, `permissions reset-runtime`, `git status`, or
   other expensive ritual unless explicitly requested.
 
-The printed packet should tell GDI to type `/goal pause` immediately.
+The hook packet should begin with a stable token such as
+`goal_pause_required: repo-mode AOS permission repair` and tell Codex to type
+`/goal pause` immediately.
 
-### 3. Hook / Harness Layer
+### 3. Harness Enforcement Layer
 
-If the provider loop still does not pause reliably from the wrapper output,
-add a harness-level watcher where available:
+If the provider loop still does not pause reliably from hook output alone, add a
+harness-level watcher where available:
 
 - detect the stable `goal_pause_required:` token in the GDI session output;
 - send `/goal pause` into the session;
@@ -78,14 +78,22 @@ add a harness-level watcher where available:
 This is the stronger form because it does not rely only on instruction
 following.
 
-### 4. Tests
+### 4. Optional Wrapper Fallback
+
+A wrapper around `./aos dev build` can still be useful for manual/non-Codex
+invocations, but it is not the primary solution. Do not make GDI depend on
+remembering a special wrapper command when a Codex hook can enforce the rule for
+the actual tool call.
+
+### 5. Tests
 
 Use fake `./aos` fixtures rather than real TCC:
 
-- build succeeds + readiness ready: wrapper exits success and does not request
+- build succeeds + readiness ready: hook exits success and does not request
   pause;
-- build fails: wrapper exits nonzero and does not hide compiler failure;
-- build succeeds + readiness human_required/TCC: wrapper prints
+- build fails: hook does not hide compiler failure or synthesize a permission
+  pause;
+- build succeeds + readiness human_required/TCC: hook prints
   `goal_pause_required`, writes `tcc_permission_reset`, and does not run
   redundant repair/status commands;
 - Stop hook still converts the marker into the existing concise TCC stop notice.
@@ -94,12 +102,12 @@ Likely test homes:
 
 - `tests/dock-hook-isolation.sh`
 - `tests/dock-session-pickup.sh`
-- a new focused shell test if the wrapper deserves one.
+- a new focused shell test if the post-tool hook deserves one.
 
-### 5. Rollout Into The Long Rearchitecture Goal
+### 6. Rollout Into The Long Rearchitecture Goal
 
-Before command-surface demolition, GDI should commit the guardrail and use the
-guarded build wrapper for the rest of the long goal.
+Before command-surface demolition, GDI should commit the hook-level guardrail and
+verify it with fake-AOS tests.
 
 Success for this preliminary fix:
 

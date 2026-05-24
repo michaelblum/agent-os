@@ -57,18 +57,25 @@ Observed failure mode:
 4. The goal should have paused immediately at the deterministic checkpoint.
 
 There is no known Codex config/API switch for hard declarative pause conditions.
-The supported mechanism is still `/goal pause`, so implement this as workflow
-and harness behavior:
+The supported mechanism is still `/goal pause`, so implement this at the Codex
+hook/harness layer, not as a GDI-only convention:
 
 - encode the pause condition in this `/goal` contract;
-- add or update a repo/dock wrapper so GDI has one canonical command to run
-  after Swift rebuilds;
-- make that wrapper detect post-build repo-mode TCC/input-tap degradation and
-  stop the loop with a concise instruction to issue `/goal pause`;
+- add a dock/Codex hook for `PostToolUse` or the nearest supported tool-result
+  event so this applies to all Codex docks, not just GDI;
+- make the hook detect a completed `./aos dev build` tool call, run one bounded
+  post-build readiness classification, and stop the loop with a concise
+  instruction to issue `/goal pause`;
+- use the existing Stop hook / stop-condition marker for TTS once the goal
+  pauses;
 - avoid repeated ad-hoc `./aos ready`, helper, status, and report loops after a
   rebuild has already proven the human permission reset is needed;
-- add deterministic tests around the wrapper/stop-condition behavior before
+- add deterministic tests around the hook/stop-condition behavior before
   relying on it for the long rearchitecture.
+
+A wrapper may still exist as a fallback for non-Codex/manual invocations, but it
+is not the primary solution and must not be required for GDI to get the pause
+behavior.
 
 The desired behavior after any Swift rebuild is:
 
@@ -183,11 +190,12 @@ Early demolition may require Swift rebuilds and therefore TCC readiness repair.
 That is acceptable.
 
 After Phase 0, do not perform the old ritual after a rebuild-triggered TCC
-blocker. The goal-loop rule is:
+blocker. The hook-enforced goal-loop rule is:
 
-- if `./aos dev build` or the new guarded build wrapper succeeds but the
-  post-build readiness check reports stale/missing repo-mode TCC or inactive
-  input tap, immediately pause the active goal with `/goal pause`;
+- if a Codex tool call runs `./aos dev build` and it succeeds, the post-tool
+  hook runs exactly one bounded readiness classification;
+- if that classification reports stale/missing repo-mode TCC or inactive input
+  tap, immediately pause the active goal with `/goal pause`;
 - print only the concise human action and resume command;
 - do not keep polling, do not run redundant status commands, and do not spend
   another cycle proving the same blocker;
@@ -231,8 +239,9 @@ and stop with a clear `human_needed` report.
 
 Use commits as recoverable checkpoints. Suggested checkpoint sequence:
 
-0. Goal-loop guard commit: rebuild-triggered TCC/input-tap degradation causes a
-   concise `/goal pause` checkpoint instead of repeated readiness/helper ritual.
+0. Goal-loop guard commit: Codex post-tool hook detects rebuild-triggered
+   TCC/input-tap degradation and causes a concise `/goal pause` checkpoint
+   instead of repeated readiness/helper ritual.
 1. Demolition commit: Swift command surface removed or reduced to dispatcher
    scaffolding, even if tests fail.
 2. External manifest/IPC proof commit: AFK trigger runs externally end-to-end.
@@ -249,7 +258,7 @@ choose it and document why in the completion report.
 The goal is not complete until all are true:
 
 - Rebuild-triggered repo-mode TCC/input-tap degradation has a deterministic
-  `/goal pause` path, verified by tests.
+  Codex hook-level `/goal pause` path, verified by tests.
 - `aos` commands work 100% for the repo's supported command surface.
 - Existing help/JSON/error contracts are repaired or intentionally updated with
   matching tests/docs.
