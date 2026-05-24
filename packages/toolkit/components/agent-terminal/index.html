@@ -2,13 +2,929 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>AOS Agent Terminal</title>
-  <script>
-    const params = new URLSearchParams(location.search);
-    const sigilRoot = params.get('sigil-root') || 'sigil';
-    params.set('surface', 'generic');
-    location.replace(`aos://${sigilRoot}/codex-terminal/index.html?${params.toString()}${location.hash}`);
-  </script>
+  <title>Agent Terminal</title>
+  <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css">
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      color: #eff2f4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    button, select {
+      font: inherit;
+    }
+    .shell {
+      position: relative;
+      height: 100%;
+      display: grid;
+      grid-template-rows: 1fr;
+      background: rgba(8, 11, 13, 0.99);
+      overflow: hidden;
+    }
+    .avatar {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      border: 0;
+      padding: 0;
+      border-radius: 50%;
+      background: transparent;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .avatar::before,
+    .avatar::after {
+      content: "";
+      display: none;
+    }
+    .status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #747f87;
+      flex: 0 0 auto;
+    }
+    .status.ready { background: #32d583; }
+    .status.error { background: #ff5f57; }
+    .content {
+      min-height: 0;
+      background: #050708;
+    }
+    .terminal-wrap {
+      min-width: 0;
+      min-height: 0;
+      padding: 8px;
+      position: relative;
+    }
+    #terminal {
+      width: 100%;
+      height: 100%;
+    }
+    .xterm {
+      height: 100%;
+      padding: 4px;
+    }
+    .xterm .xterm-viewport {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.18) transparent;
+    }
+    .rail {
+      background: #0d1113;
+    }
+    .icon-button {
+      width: 28px;
+      height: 24px;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.04);
+      color: #d7e0e4;
+      cursor: pointer;
+    }
+    .icon-button:hover {
+      background: rgba(255,255,255,0.09);
+    }
+    .rail-content {
+      display: grid;
+      grid-template-rows: auto auto minmax(108px, 1fr) minmax(168px, 0.9fr);
+      gap: 8px;
+      padding: 8px;
+    }
+    .new-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .new-actions button,
+    .session-button {
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 7px;
+      background: rgba(255,255,255,0.045);
+      color: #edf4f6;
+      cursor: pointer;
+    }
+    .new-actions button {
+      min-height: 30px;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .new-actions button:hover,
+    .session-button:hover {
+      background: rgba(255,255,255,0.09);
+      border-color: rgba(255,255,255,0.18);
+    }
+    .session-button.selected {
+      border-color: rgba(137,220,235,0.58);
+      background: rgba(137,220,235,0.1);
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr 30px;
+      gap: 6px;
+    }
+    .sort-select {
+      grid-column: 1 / -1;
+    }
+    .filters select {
+      width: 100%;
+      min-width: 0;
+      height: 28px;
+      border: 1px solid rgba(255,255,255,0.13);
+      border-radius: 6px;
+      background: #11181b;
+      color: #dce6ea;
+      padding: 0 7px;
+      font-size: 11px;
+    }
+    .session-list {
+      min-height: 0;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-right: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.18) transparent;
+    }
+    .session-button {
+      width: 100%;
+      min-height: 58px;
+      padding: 7px;
+      text-align: left;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 3px;
+    }
+    .session-main {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+    .provider-badge {
+      flex: 0 0 auto;
+      border-radius: 5px;
+      padding: 2px 5px;
+      font-size: 9px;
+      line-height: 1;
+      letter-spacing: 0;
+      color: #061013;
+      background: #89dceb;
+      font-weight: 750;
+    }
+    .provider-badge.claude-code {
+      background: #ffd166;
+    }
+    .session-name,
+    .session-meta,
+    .session-id {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .session-name {
+      color: #f3f7f8;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .session-meta,
+    .session-id,
+    .empty-state {
+      color: #8e9aa0;
+      font-size: 10.5px;
+      line-height: 1.25;
+    }
+    .empty-state {
+      padding: 8px 2px;
+    }
+    .inspector {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 28px 1fr;
+      border-top: 1px solid rgba(255,255,255,0.09);
+      padding-top: 8px;
+    }
+    .inspector-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .inspector-title {
+      color: #c9d3d8;
+      font-size: 12px;
+      font-weight: 650;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .inspector-body {
+      min-height: 0;
+      overflow: auto;
+      padding-right: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.18) transparent;
+    }
+    .inspector-section {
+      display: grid;
+      gap: 5px;
+      padding: 7px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .inspector-section:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .inspector-heading {
+      color: #f3f7f8;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .inspector-row {
+      display: grid;
+      grid-template-columns: minmax(72px, 0.42fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: baseline;
+      min-width: 0;
+      font-size: 10.5px;
+      line-height: 1.25;
+    }
+    .inspector-key {
+      color: #849198;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .inspector-value {
+      color: #dce6ea;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+    .inspector-source {
+      color: #8e9aa0;
+      font-size: 9.5px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .diagnostic {
+      display: grid;
+      gap: 2px;
+      padding: 6px;
+      border: 1px solid rgba(255,209,102,0.2);
+      border-radius: 6px;
+      background: rgba(255,209,102,0.055);
+    }
+    .diagnostic.warn .inspector-heading {
+      color: #ffd166;
+    }
+    .diagnostic.error .inspector-heading {
+      color: #ff8f87;
+    }
+  </style>
 </head>
-<body></body>
+<body>
+  <main class="shell" id="shell">
+    <section class="content">
+      <section class="terminal-wrap" aria-label="Agent terminal pane">
+        <div id="terminal"></div>
+      </section>
+      <aside class="rail aos-sidebar-rail" aria-label="Agent sessions">
+        <div class="rail-top aos-sidebar-rail-top">
+          <span class="rail-title aos-sidebar-rail-title">Sessions</span>
+          <button class="rail-toggle aos-sidebar-rail-toggle" id="railToggle" aria-label="Collapse sessions rail" aria-expanded="true">&gt;</button>
+        </div>
+        <div class="rail-content aos-sidebar-rail-content">
+          <div class="new-actions">
+            <button id="newCodex" type="button">New Codex</button>
+            <button id="newClaude" type="button">New Claude Code</button>
+          </div>
+          <div class="filters">
+            <select id="providerFilter" aria-label="Provider filter">
+              <option value="all">All agents</option>
+              <option value="codex">Codex</option>
+              <option value="claude-code">Claude Code</option>
+            </select>
+            <button class="icon-button" id="refreshSessions" type="button" aria-label="Refresh sessions">R</button>
+            <select class="sort-select" id="sessionSort" aria-label="Session sort">
+              <option value="last-message">Last message</option>
+              <option value="created">Created</option>
+            </select>
+          </div>
+          <div class="session-list" id="sessionList" role="list" aria-label="Recent sessions"></div>
+          <section class="inspector" aria-label="Session inspector">
+            <div class="inspector-top">
+              <span class="inspector-title">Inspector</span>
+              <button class="icon-button" id="refreshInspector" type="button" aria-label="Refresh inspector">I</button>
+            </div>
+            <div class="inspector-body" id="sessionInspector"></div>
+          </section>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="./node_modules/@xterm/xterm/lib/xterm.js"></script>
+  <script src="./node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <script type="module">
+    for (const href of [
+      '../_base/theme.css',
+      '../../panel/defaults.css',
+    ]) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = href;
+      document.head.append(link);
+    }
+
+    const { createFixedSidebarPane, mountChrome } = await import('../../panel/index.js');
+
+    const params = new URLSearchParams(location.search);
+    const port = params.get('port') || '17761';
+    const session = params.get('session') || 'aos-agent-terminal-agent-os';
+    const surfaceMode = params.get('surface') === 'sigil' ? 'sigil' : 'generic';
+    const isSigilSurface = surfaceMode === 'sigil';
+    const surfaceTitle = isSigilSurface ? 'Sigil / Agent Terminal' : 'AOS Agent Terminal';
+    document.title = isSigilSurface ? 'Sigil Agent Terminal' : 'AOS Agent Terminal';
+    let currentCwd = params.get('cwd') || '';
+    let activeLabel = 'Agent terminal';
+    const shell = document.getElementById('shell');
+    const chrome = mountChrome(document.body, {
+      title: surfaceTitle,
+      draggable: true,
+      drag: { clampOnEnd: true, transfer: true },
+      close: true,
+      minimize: true,
+      maximize: true,
+      resizable: true,
+      resize: { minWidth: 720, minHeight: 420 },
+      onMinimize: isSigilSurface ? function onMinimize() {
+        emit({ type: 'agent_terminal.avatar_toggle' });
+      } : undefined,
+    });
+    chrome.contentEl.append(shell);
+    const content = shell.querySelector('.content');
+    const terminalPane = shell.querySelector('.terminal-wrap');
+    const railPane = shell.querySelector('.rail');
+
+    const statusDot = document.createElement('span');
+    statusDot.className = 'status';
+    statusDot.id = 'status';
+    if (isSigilSurface) {
+      const avatarButton = document.createElement('button');
+      avatarButton.type = 'button';
+      avatarButton.className = 'avatar';
+      avatarButton.title = 'Return to avatar';
+      avatarButton.setAttribute('aria-label', 'Return to avatar');
+      avatarButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        emit({ type: 'agent_terminal.avatar_toggle' });
+      });
+      chrome.customControlsEl.append(avatarButton);
+    }
+    chrome.customControlsEl.append(statusDot);
+
+    const sessionList = document.getElementById('sessionList');
+    const sessionInspector = document.getElementById('sessionInspector');
+    const providerFilter = document.getElementById('providerFilter');
+    const sessionSort = document.getElementById('sessionSort');
+    const railToggle = document.getElementById('railToggle');
+    const railController = createFixedSidebarPane({
+      root: content,
+      mainPane: terminalPane,
+      sidebarPane: railPane,
+      toggleButton: railToggle,
+      side: 'end',
+      openSize: 340,
+      closedSize: 42,
+      minMain: 360,
+      dividerSize: 0,
+      expandedLabel: 'Collapse sessions rail',
+      collapsedLabel: 'Expand sessions rail',
+      onChange() {
+        scheduleRefit();
+      },
+    });
+    let terminal = null;
+    let fitAddon = null;
+    let socket = null;
+    let resizeRaf = 0;
+    let lastFit = { cols: 0, rows: 0 };
+    let sessions = [];
+    let selectedSession = null;
+    let inspectorRequest = 0;
+
+    function emit(body) {
+      window.webkit?.messageHandlers?.headsup?.postMessage(body);
+    }
+
+    function bridgeUrl(path) {
+      return `http://127.0.0.1:${port}${path}`;
+    }
+
+    function setStatus(kind, text) {
+      statusDot.className = `status ${kind || ''}`;
+      chrome.setTitle(`${surfaceTitle} - ${text}`);
+    }
+
+    function resizeTerminal() {
+      if (!fitAddon || !terminal) return;
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        try {
+          fitAddon.fit();
+          const cols = terminal.cols;
+          const rows = terminal.rows;
+          if (cols !== lastFit.cols || rows !== lastFit.rows) {
+            lastFit = { cols, rows };
+            if (socket?.readyState === WebSocket.OPEN) {
+              socket.send('\u0000' + JSON.stringify({ type: 'resize', cols, rows }));
+            }
+          }
+        } catch (_) {}
+      });
+    }
+
+    function scheduleRefit() {
+      resizeTerminal();
+      setTimeout(resizeTerminal, 40);
+      setTimeout(resizeTerminal, 160);
+    }
+
+    function providerLabel(provider) {
+      return provider === 'claude-code' ? 'Claude' : 'Codex';
+    }
+
+    function basename(filePath) {
+      const parts = String(filePath || '').split('/').filter(Boolean);
+      return parts[parts.length - 1] || filePath || 'workspace';
+    }
+
+    function shortSessionId(id) {
+      return String(id || '').slice(0, 8);
+    }
+
+    function formatTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    }
+
+    function formatNumber(value) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
+      return new Intl.NumberFormat().format(value);
+    }
+
+    function formatRatio(value) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
+      return `${Math.round(value * 1000) / 10}%`;
+    }
+
+    function appendText(parent, className, text, title) {
+      const element = document.createElement('div');
+      element.className = className;
+      element.textContent = text;
+      if (title) element.title = title;
+      parent.append(element);
+      return element;
+    }
+
+    function appendRow(parent, key, value, title) {
+      const row = document.createElement('div');
+      row.className = 'inspector-row';
+      appendText(row, 'inspector-key', key);
+      appendText(row, 'inspector-value', value || 'unknown', title);
+      parent.append(row);
+      return row;
+    }
+
+    function appendSection(parent, heading) {
+      const section = document.createElement('section');
+      section.className = 'inspector-section';
+      appendText(section, 'inspector-heading', heading);
+      parent.append(section);
+      return section;
+    }
+
+    function metricDisplay(metric) {
+      if (!metric || typeof metric !== 'object') return 'unknown';
+      if (metric.unit === 'ratio') return formatRatio(metric.value);
+      return `${formatNumber(metric.value)} ${metric.unit || ''}`.trim();
+    }
+
+    function sourceDisplay(metric) {
+      const source = metric?.source;
+      if (!source) return '';
+      return [source.stability, source.precision, source.kind, source.provider_version]
+        .filter(Boolean)
+        .join(' / ');
+    }
+
+    function appendMetric(parent, key, metric) {
+      appendRow(parent, key, metricDisplay(metric), metric?.source?.provider_surface);
+      const source = sourceDisplay(metric);
+      if (source) appendText(parent, 'inspector-source', source, metric?.source?.provider_surface);
+    }
+
+    function renderInspectorEmpty(text = 'Select a session') {
+      sessionInspector.replaceChildren();
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = text;
+      sessionInspector.append(empty);
+    }
+
+    function renderInspectorLoading(record) {
+      sessionInspector.replaceChildren();
+      const section = appendSection(sessionInspector, 'Session');
+      appendRow(section, 'provider', providerLabel(record.provider));
+      appendRow(section, 'id', record.session_id);
+      appendRow(section, 'cwd', record.cwd, record.cwd);
+      appendText(sessionInspector, 'empty-state', 'Loading telemetry...');
+    }
+
+    function renderInspector(record, payload) {
+      sessionInspector.replaceChildren();
+      const sourceSession = payload?.session || record;
+      const telemetry = payload?.telemetry || null;
+      const context = telemetry?.context || null;
+      const diagnostics = [
+        ...(Array.isArray(payload?.diagnostics) ? payload.diagnostics : []),
+        ...(Array.isArray(telemetry?.diagnostics) ? telemetry.diagnostics : []),
+      ];
+      const lifecycleEvents = Array.isArray(payload?.lifecycle_events) ? payload.lifecycle_events : [];
+
+      const sessionSection = appendSection(sessionInspector, 'Session');
+      appendRow(sessionSection, 'provider', providerLabel(sourceSession.provider));
+      appendRow(sessionSection, 'id', sourceSession.session_id);
+      appendRow(sessionSection, 'cwd', sourceSession.cwd, sourceSession.cwd);
+      appendRow(sessionSection, 'branch', sourceSession.branch || 'unknown');
+      appendRow(sessionSection, 'source', sourceSession.source_file || 'unknown', sourceSession.source_file);
+      if (telemetry?.model?.id || telemetry?.model?.display_name) {
+        appendRow(sessionSection, 'model', telemetry.model.display_name || telemetry.model.id);
+      }
+
+      const contextSection = appendSection(sessionInspector, 'Context');
+      if (context) {
+        appendMetric(contextSection, 'window', context.window_tokens);
+        appendMetric(contextSection, 'used', context.used_tokens);
+        appendMetric(contextSection, 'remaining', context.remaining_tokens);
+        appendMetric(contextSection, 'used ratio', context.used_ratio);
+        appendMetric(contextSection, 'remaining ratio', context.remaining_ratio);
+      } else {
+        appendText(contextSection, 'empty-state', 'Unknown');
+      }
+
+      if (context?.tokens) {
+        const tokenSection = appendSection(sessionInspector, 'Token Counters');
+        for (const key of Object.keys(context.tokens).sort()) {
+          appendMetric(tokenSection, key.replace(/_/g, ' '), context.tokens[key]);
+        }
+      }
+
+      if (lifecycleEvents.length) {
+        const lifecycleSection = appendSection(sessionInspector, 'Lifecycle');
+        for (const event of lifecycleEvents.slice(-3)) {
+          appendRow(lifecycleSection, event.event, event.trigger || event.observed_at);
+          if (event.pre_tokens) appendMetric(lifecycleSection, 'pre', event.pre_tokens);
+          if (event.post_tokens) appendMetric(lifecycleSection, 'post', event.post_tokens);
+        }
+      }
+
+      const diagnosticSection = appendSection(sessionInspector, 'Diagnostics');
+      if (diagnostics.length) {
+        const seen = new Set();
+        for (const diagnostic of diagnostics) {
+          const key = `${diagnostic.code}:${diagnostic.provider_surface}:${diagnostic.fallback || ''}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const item = document.createElement('div');
+          item.className = `diagnostic ${diagnostic.severity || ''}`;
+          appendText(item, 'inspector-heading', diagnostic.code || 'diagnostic');
+          appendText(item, 'inspector-source', [
+            diagnostic.severity,
+            diagnostic.provider_surface,
+            diagnostic.fallback ? `fallback: ${diagnostic.fallback}` : '',
+          ].filter(Boolean).join(' / '));
+          diagnosticSection.append(item);
+        }
+      } else {
+        appendText(diagnosticSection, 'empty-state', 'No diagnostics');
+      }
+      emit({ type: 'agent_terminal.session_telemetry', payload });
+    }
+
+    function selectSession(record, { loadTelemetry = true } = {}) {
+      selectedSession = record || null;
+      renderSessions();
+      if (!record) {
+        renderInspectorEmpty();
+        return;
+      }
+      renderInspectorLoading(record);
+      if (loadTelemetry) void loadInspector(record);
+    }
+
+    async function loadInspector(record = selectedSession) {
+      if (!record) {
+        renderInspectorEmpty();
+        return;
+      }
+      const requestId = ++inspectorRequest;
+      const query = new URLSearchParams();
+      query.set('provider', record.provider);
+      query.set('session_id', record.session_id);
+      if (currentCwd) query.set('cwd', currentCwd);
+      try {
+        const response = await fetch(bridgeUrl(`/session-inspector?${query.toString()}`));
+        if (!response.ok) throw new Error(await response.text());
+        const payload = await response.json();
+        if (requestId === inspectorRequest) renderInspector(record, payload);
+      } catch (error) {
+        if (requestId !== inspectorRequest) return;
+        sessionInspector.replaceChildren();
+        const section = appendSection(sessionInspector, 'Inspector');
+        appendText(section, 'empty-state', error.message || String(error));
+      }
+    }
+
+    function sessionSortTimestamp(record) {
+      if (sessionSort.value === 'created') {
+        return record.created_at || record.updated_at || record.last_message_at;
+      }
+      return record.last_message_at || record.updated_at || record.created_at;
+    }
+
+    function compareSessionsForRail(a, b) {
+      const at = Date.parse(sessionSortTimestamp(a) || '') || 0;
+      const bt = Date.parse(sessionSortTimestamp(b) || '') || 0;
+      const recency = bt - at;
+      if (recency !== 0) return recency;
+      const provider = String(a.provider || '').localeCompare(String(b.provider || ''));
+      if (provider !== 0) return provider;
+      return String(a.session_id || '').localeCompare(String(b.session_id || ''));
+    }
+
+    function renderSessions() {
+      sessionList.replaceChildren();
+      if (!sessions.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'No sessions';
+        sessionList.append(empty);
+        return;
+      }
+
+      for (const record of [...sessions].sort(compareSessionsForRail)) {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'session-button';
+        if (selectedSession?.provider === record.provider && selectedSession?.session_id === record.session_id) {
+          item.classList.add('selected');
+          item.setAttribute('aria-current', 'true');
+        }
+        item.setAttribute('role', 'listitem');
+        item.setAttribute('aria-label', `Resume ${providerLabel(record.provider)} session ${record.session_id} in ${record.cwd}`);
+        item.addEventListener('click', () => {
+          selectSession(record, { loadTelemetry: true });
+          void runAgentCommand({
+            command: record.resume_command,
+            cwd: record.cwd,
+            label: `${providerLabel(record.provider)} ${basename(record.cwd)}`,
+          });
+        });
+
+        const main = document.createElement('div');
+        main.className = 'session-main';
+        const badge = document.createElement('span');
+        badge.className = `provider-badge ${record.provider}`;
+        badge.textContent = providerLabel(record.provider);
+        const name = document.createElement('span');
+        name.className = 'session-name';
+        name.textContent = basename(record.cwd);
+        main.append(badge, name);
+
+        const meta = document.createElement('div');
+        meta.className = 'session-meta';
+        meta.textContent = [record.branch, formatTime(sessionSortTimestamp(record))].filter(Boolean).join(' / ');
+
+        const id = document.createElement('div');
+        id.className = 'session-id';
+        id.textContent = shortSessionId(record.session_id);
+
+        item.append(main, meta, id);
+        sessionList.append(item);
+      }
+    }
+
+    async function loadSessions() {
+      const query = new URLSearchParams();
+      if (currentCwd) query.set('cwd', currentCwd);
+      if (providerFilter.value !== 'all') query.append('provider', providerFilter.value);
+      try {
+        const response = await fetch(bridgeUrl(`/sessions?${query.toString()}`));
+        if (!response.ok) throw new Error(await response.text());
+        const payload = await response.json();
+        sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
+      } catch (_) {
+        sessions = [];
+      }
+      if (selectedSession) {
+        const replacement = sessions.find((record) => (
+          record.provider === selectedSession.provider && record.session_id === selectedSession.session_id
+        ));
+        if (replacement) selectedSession = replacement;
+      }
+      if (!selectedSession && sessions.length) {
+        selectedSession = [...sessions].sort(compareSessionsForRail)[0];
+        void loadInspector(selectedSession);
+      } else if (selectedSession) {
+        void loadInspector(selectedSession);
+      } else {
+        renderInspectorEmpty('No session selected');
+      }
+      renderSessions();
+    }
+
+    function connectTerminal(label = activeLabel) {
+      const previous = socket;
+      socket = null;
+      if (previous && previous.readyState !== WebSocket.CLOSED) previous.close();
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/terminal?session=${encodeURIComponent(session)}`);
+      socket = ws;
+      ws.addEventListener('open', () => {
+        if (socket !== ws) return;
+        setStatus('ready', `${label} - attached`);
+        window.__sigilAgentTerminal.state.attached = true;
+        terminal.clear();
+        scheduleRefit();
+        terminal.focus();
+      });
+      ws.addEventListener('message', async (event) => {
+        if (socket !== ws) return;
+        if (event.data instanceof Blob) {
+          terminal.write(await event.data.text());
+        } else {
+          terminal.write(String(event.data));
+        }
+      });
+      ws.addEventListener('close', () => {
+        if (socket !== ws) return;
+        window.__sigilAgentTerminal.state.attached = false;
+        setStatus('error', `${label} - detached`);
+      });
+      ws.addEventListener('error', () => {
+        if (socket !== ws) return;
+        setStatus('error', 'terminal bridge error');
+      });
+    }
+
+    async function runAgentCommand({ command, cwd, label }) {
+      activeLabel = label;
+      currentCwd = cwd || currentCwd;
+      if (!selectedSession) renderInspectorEmpty('Telemetry pending');
+      setStatus('', `Starting ${label}`);
+      terminal?.clear();
+      terminal?.writeln(`Starting ${label}...`);
+      try {
+        const response = await fetch(bridgeUrl('/ensure'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            session,
+            cwd: currentCwd,
+            command,
+            force: true,
+          }),
+        });
+        if (!response.ok) throw new Error(await response.text());
+        connectTerminal(label);
+        void loadSessions();
+      } catch (error) {
+        setStatus('error', 'launch failed');
+        terminal?.writeln(`\r\n${error.message || String(error)}`);
+      }
+    }
+
+    function bootTerminal() {
+      if (!window.Terminal) {
+        setStatus('error', 'xterm.js failed to load');
+        document.getElementById('terminal').textContent = 'xterm.js failed to load. Run npm install in packages/toolkit/components/agent-terminal.';
+        return;
+      }
+      terminal = new Terminal({
+        cursorBlink: true,
+        convertEol: false,
+        fontFamily: 'SF Mono, Menlo, Consolas, monospace',
+        fontSize: 12,
+        lineHeight: 1.15,
+        scrollback: 5000,
+        theme: {
+          background: '#050708',
+          foreground: '#d8e6df',
+          cursor: '#86ddff',
+          selectionBackground: '#264d62',
+        },
+      });
+      fitAddon = new window.FitAddon.FitAddon();
+      terminal.loadAddon(fitAddon);
+      terminal.open(document.getElementById('terminal'));
+      scheduleRefit();
+      terminal.focus();
+      terminal.writeln('Connecting to agent terminal...');
+      connectTerminal(activeLabel);
+      terminal.onData((data) => {
+        if (socket?.readyState === WebSocket.OPEN) socket.send(data);
+      });
+    }
+
+    document.getElementById('newCodex').addEventListener('click', () => {
+      selectSession(null);
+      void runAgentCommand({
+        command: ['codex', '--no-alt-screen'],
+        cwd: currentCwd,
+        label: 'New Codex',
+      });
+    });
+
+    document.getElementById('newClaude').addEventListener('click', () => {
+      selectSession(null);
+      void runAgentCommand({
+        command: ['claude'],
+        cwd: currentCwd,
+        label: 'New Claude Code',
+      });
+    });
+
+    document.getElementById('refreshSessions').addEventListener('click', () => {
+      void loadSessions();
+    });
+
+    document.getElementById('refreshInspector').addEventListener('click', () => {
+      void loadInspector();
+    });
+
+    providerFilter.addEventListener('change', () => {
+      void loadSessions();
+    });
+
+    sessionSort.addEventListener('change', renderSessions);
+
+    window.addEventListener('resize', resizeTerminal);
+    new ResizeObserver(scheduleRefit).observe(document.getElementById('terminal'));
+    window.headsup = window.headsup || {};
+    const previousHeadsupReceive = window.headsup.receive;
+    window.headsup.receive = function receive(b64) {
+      previousHeadsupReceive?.(b64);
+      let msg = null;
+      try { msg = JSON.parse(atob(b64)); } catch (_) {}
+      if (msg?.type === 'lifecycle' && msg.action === 'resume') {
+        scheduleRefit();
+        emit({ type: 'lifecycle.complete', payload: { action: 'resume' } });
+      }
+      if (msg?.type === 'agent_terminal.refit' || msg?.type === 'codex_terminal.refit') scheduleRefit();
+      if (msg?.type === 'agent_terminal.refresh_sessions') void loadSessions();
+    };
+    window.focusInput = function focusInput() {
+      scheduleRefit();
+      terminal?.focus();
+    };
+    window.__sigilAgentTerminal = {
+      state: { attached: false },
+      refit: scheduleRefit,
+      refreshSessions: loadSessions,
+    };
+    window.__sigilCodexTerminal = window.__sigilAgentTerminal;
+
+    emit({
+      type: 'ready',
+      payload: {
+        name: 'agent-terminal',
+        accepts: ['keyboard', 'agent_terminal.refresh_sessions'],
+        emits: isSigilSurface ? ['ready', 'agent_terminal.avatar_toggle'] : ['ready'],
+      },
+    });
+
+    bootTerminal();
+    void loadSessions();
+  </script>
+</body>
 </html>

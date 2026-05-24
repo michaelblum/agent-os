@@ -17,7 +17,6 @@ STATE_DIR="${HOME}/.config/aos/${MODE}/toolkit"
 BRIDGE_LOG="${STATE_DIR}/agent-terminal-bridge.log"
 BRIDGE_SESSION="${BRIDGE_SESSION:-aos-agent-bridge-${PORT}}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$REPO_ROOT")}"
-SIGIL_CONTENT_ROOT="${AOS_SIGIL_CONTENT_ROOT:-$(aos_content_root_key_for sigil "$REPO_ROOT")}"
 BRIDGE_DIR="$REPO_ROOT/apps/sigil/codex-terminal"
 
 usage() {
@@ -61,8 +60,7 @@ done
 
 ensure_content_roots() {
   aos_ensure_content_roots_live "$AOS" \
-    "$TOOLKIT_CONTENT_ROOT" "$REPO_ROOT/packages/toolkit" \
-    "$SIGIL_CONTENT_ROOT" "$REPO_ROOT/apps/sigil"
+    "$TOOLKIT_CONTENT_ROOT" "$REPO_ROOT/packages/toolkit"
 }
 
 bridge_running() {
@@ -177,7 +175,7 @@ main() {
     --at "$frame" \
     --interactive \
     --focus \
-    --url "aos://$TOOLKIT_CONTENT_ROOT/components/agent-terminal/index.html?port=${PORT}&session=${SESSION}&cwd=${encoded_cwd}&sigil-root=$SIGIL_CONTENT_ROOT" >/dev/null
+    --url "aos://$TOOLKIT_CONTENT_ROOT/components/agent-terminal/index.html?port=${PORT}&session=${SESSION}&cwd=${encoded_cwd}&surface=generic" >/dev/null
 
   echo "AOS Agent Terminal launched."
   echo "  canvas:  $CANVAS_ID ($frame)"

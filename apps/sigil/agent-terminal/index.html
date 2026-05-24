@@ -4,7 +4,11 @@
   <meta charset="utf-8">
   <title>Sigil Agent Terminal</title>
   <script>
-    location.replace(`../codex-terminal/index.html${location.search}${location.hash}`);
+    const params = new URLSearchParams(location.search);
+    params.set('surface', 'sigil');
+    const toolkitRoot = params.get('toolkit-root') || 'toolkit';
+    params.delete('toolkit-root');
+    location.replace(`aos://${toolkitRoot}/components/agent-terminal/index.html?${params.toString()}${location.hash}`);
   </script>
 </head>
 <body></body>
