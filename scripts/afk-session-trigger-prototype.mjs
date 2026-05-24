@@ -588,26 +588,26 @@ async function classifySleepLease({
     mismatches.push(mismatch('sleep_lease_requires_guarded_json_action', '--afk-authorization requires --dry-run --json, --supervised-live-launch --i-am-present --json, or --afk-live-launch --json --out.'));
   }
   if (!allowedDocks.includes(selectedDock)) {
-    mismatches.push(mismatch('sleep_lease_dock_not_allowed', 'Selected dock is not allowed by the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_dock_not_allowed', 'Selected dock is not allowed by the AFK authorization.', {
       selected_dock: selectedDock,
       allowed_docks: allowedDocks,
     }));
   }
   if (!allowedProviders.includes(selectedProvider)) {
-    mismatches.push(mismatch('sleep_lease_provider_not_allowed', 'Selected provider is not allowed by the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_provider_not_allowed', 'Selected provider is not allowed by the AFK authorization.', {
       selected_provider: selectedProvider,
       allowed_providers: allowedProviders,
     }));
   }
   if (!allowedWorkRefs.includes(sourceArtifact) && !allowedWorkRefs.includes(packetId)) {
-    mismatches.push(mismatch('sleep_lease_work_ref_not_allowed', 'Packet work ref is not allowed by the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_work_ref_not_allowed', 'Packet work ref is not allowed by the AFK authorization.', {
       packet_id: packetId,
       source_artifact: sourceArtifact,
       allowed_work_refs: allowedWorkRefs,
     }));
   }
   if (!routeRefsCompatible(resultRoutes, lease.result_route)) {
-    mismatches.push(mismatch('sleep_lease_result_route_mismatch', 'Packet result route is not compatible with the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_result_route_mismatch', 'Packet result route is not compatible with the AFK authorization.', {
       lease_result_route: lease.result_route,
       packet_result_routes: resultRoutes,
     }));
