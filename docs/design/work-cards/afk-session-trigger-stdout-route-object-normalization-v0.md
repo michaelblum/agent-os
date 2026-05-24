@@ -1,6 +1,41 @@
 # Work Card: AFK Session Trigger Stdout Route Object Normalization V0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-24
+
+## Result
+
+- Foreman review: accepted.
+- Branch/ref gates passed on
+  `gdi/afk-session-trigger-stdout-route-object-normalization-v0` at
+  `198117a63f1af7040c7b22f4c660ede922c28586`, based on
+  `fe12b509d95e33044b3761671dd2fa1278fe6e24`.
+- Diff was scoped to:
+  - `scripts/afk-launch-attempt-prototype.mjs`;
+  - `scripts/afk-session-trigger-prototype.mjs`;
+  - `tests/afk-launch-attempt-prototype.test.mjs`;
+  - `tests/afk-session-trigger-prototype.test.mjs`.
+- Behavior accepted: both AFK prototypes now normalize stdout route-object
+  shorthands to `{ "kind": "local_artifact_path", "ref": "stdout" }` for:
+  `{ "kind": "stdout" }`, `{ "ref": "stdout" }`, `{ "path": "stdout" }`, and
+  `{ "artifact_path": "stdout" }`.
+- Unsupported/external objects remain explicit and non-completed, including
+  arbitrary non-stdout route objects and external route kinds such as
+  `gateway_notifier`.
+- Verification rerun by Foreman passed:
+  - `./aos ready` returned
+    `ready=true mode=repo daemon=reachable tap=active`;
+  - `node --test tests/afk-session-trigger-prototype.test.mjs` with 24/24
+    passing;
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs` with 50/50
+    passing;
+  - `git diff --check origin/main...HEAD`.
+- No live provider launch, transcript body read, provider store/catalog/telemetry
+  mutation, gateway/dock runtime mutation, GitHub issue/PR/main mutation, main
+  merge, PR creation, external notifier, durable work/evidence record,
+  unsupervised trigger, or non-local async routing occurred during this GDI
+  round.
+- Follow-up routed:
+  `docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v1.md`.
 
 ## Transfer Classification
 
