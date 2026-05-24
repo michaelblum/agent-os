@@ -63,6 +63,43 @@ ensure_content_roots() {
     "$TOOLKIT_CONTENT_ROOT" "$REPO_ROOT/packages/toolkit"
 }
 
+ensure_runtime_assets() {
+  local assets=(
+    "$SCRIPT_DIR/node_modules/@xterm/xterm/css/xterm.css"
+    "$SCRIPT_DIR/node_modules/@xterm/xterm/lib/xterm.js"
+    "$SCRIPT_DIR/node_modules/@xterm/addon-fit/lib/addon-fit.js"
+  )
+  local missing=0
+  local asset
+  for asset in "${assets[@]}"; do
+    if [[ ! -f "$asset" ]]; then
+      missing=1
+      break
+    fi
+  done
+  if [[ "$missing" -eq 0 ]]; then
+    return 0
+  fi
+  if [[ ! -f "$SCRIPT_DIR/package-lock.json" || ! -f "$SCRIPT_DIR/package.json" ]]; then
+    echo "Agent terminal runtime assets are missing and package metadata is unavailable in $SCRIPT_DIR" >&2
+    return 1
+  fi
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "Agent terminal runtime assets are missing and npm is not available to prepare them." >&2
+    return 1
+  fi
+
+  echo "Preparing toolkit Agent Terminal runtime assets in $SCRIPT_DIR" >&2
+  npm ci --prefix "$SCRIPT_DIR" --omit=dev --no-audit --no-fund >/dev/null
+
+  for asset in "${assets[@]}"; do
+    if [[ ! -f "$asset" ]]; then
+      echo "Agent terminal runtime asset was not prepared: $asset" >&2
+      return 1
+    fi
+  done
+}
+
 bridge_running() {
   curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1
 }
@@ -161,6 +198,7 @@ PY
 }
 
 main() {
+  ensure_runtime_assets
   ensure_content_roots
   "$AOS" service start --mode "$MODE" >/dev/null 2>&1 || true
   start_bridge

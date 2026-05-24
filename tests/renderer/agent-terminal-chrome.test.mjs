@@ -1,12 +1,21 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-const toolkitHtml = readFileSync(new URL('../../packages/toolkit/components/agent-terminal/index.html', import.meta.url), 'utf8')
-const toolkitLauncher = readFileSync(new URL('../../packages/toolkit/components/agent-terminal/launch.sh', import.meta.url), 'utf8')
+const toolkitComponentDir = new URL('../../packages/toolkit/components/agent-terminal/', import.meta.url)
+const toolkitHtml = readFileSync(new URL('index.html', toolkitComponentDir), 'utf8')
+const toolkitLauncher = readFileSync(new URL('launch.sh', toolkitComponentDir), 'utf8')
 const sigilAgentEntrypoint = readFileSync(new URL('../../apps/sigil/agent-terminal/index.html', import.meta.url), 'utf8')
 const sigilCompatEntrypoint = readFileSync(new URL('../../apps/sigil/codex-terminal/index.html', import.meta.url), 'utf8')
 const html = toolkitHtml
+
+function relativeAssetPathsFromHtml(source) {
+  const paths = []
+  for (const match of source.matchAll(/(?:href|src)="(\.\/node_modules\/@xterm\/[^"]+)"/g)) {
+    paths.push(match[1])
+  }
+  return paths
+}
 
 test('Agent Terminal opts into toolkit panel chrome', () => {
   assert.match(html, /await import\('\.\.\/\.\.\/panel\/index\.js'\)/)
@@ -76,6 +85,25 @@ test('generic toolkit launcher does not create or require avatar-main', () => {
   assert.doesNotMatch(toolkitLauncher, /Sigil Agent terminal launched/)
   assert.doesNotMatch(toolkitLauncher, /sigil-root/)
   assert.doesNotMatch(toolkitLauncher, /SIGIL_CONTENT_ROOT/)
+})
+
+test('generic toolkit launcher prepares component-local xterm runtime assets', () => {
+  const assetPaths = relativeAssetPathsFromHtml(toolkitHtml)
+  assert.deepEqual(assetPaths, [
+    './node_modules/@xterm/xterm/css/xterm.css',
+    './node_modules/@xterm/xterm/lib/xterm.js',
+    './node_modules/@xterm/addon-fit/lib/addon-fit.js',
+  ])
+  assert.ok(existsSync(new URL('package.json', toolkitComponentDir)))
+  assert.ok(existsSync(new URL('package-lock.json', toolkitComponentDir)))
+  assert.match(toolkitLauncher, /ensure_runtime_assets\(\)/)
+  assert.match(toolkitLauncher, /node_modules\/@xterm\/xterm\/css\/xterm\.css/)
+  assert.match(toolkitLauncher, /node_modules\/@xterm\/xterm\/lib\/xterm\.js/)
+  assert.match(toolkitLauncher, /node_modules\/@xterm\/addon-fit\/lib\/addon-fit\.js/)
+  assert.match(toolkitLauncher, /npm ci --prefix "\$SCRIPT_DIR" --omit=dev --no-audit --no-fund/)
+  assert.match(toolkitLauncher, /Agent terminal runtime asset was not prepared/)
+  assert.doesNotMatch(toolkitHtml, /apps\/sigil\/codex-terminal\/node_modules/)
+  assert.doesNotMatch(toolkitHtml, /aos:\/\/sigil\/[^"']*node_modules/)
 })
 
 test('shared terminal page gates Sigil-only avatar controls behind surface mode', () => {
