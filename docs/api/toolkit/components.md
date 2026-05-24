@@ -151,7 +151,7 @@ packages/toolkit/components/agent-terminal/launch.sh
 ```
 
 The default canvas id is `aos-agent-terminal`; set `CANVAS_ID=...` to override
-it. The launcher configures toolkit and Sigil content roots, starts the existing
+it. The launcher configures the toolkit content root, starts the toolkit-owned
 local terminal bridge implementation, ensures the selected terminal session, and
 opens:
 
@@ -161,9 +161,9 @@ aos://toolkit/components/agent-terminal/index.html
 
 The toolkit path is neutral user-facing surface policy. It does not launch
 `avatar-main`, render Sigil avatar controls, or emit Sigil-specific
-`agent_terminal.avatar_toggle` behavior. The v0 implementation still reuses the
-existing Sigil bridge/server substrate as a compatibility bridge while keeping
-the generic launch and chrome boundary toolkit-owned.
+`agent_terminal.avatar_toggle` behavior. The bridge server, session-inspector
+adapter, and PTY proxy live with the toolkit component; historical
+Sigil/Codex terminal paths remain compatibility wrappers around that substrate.
 
 ## Surface-Zoom And Test Console Components
 

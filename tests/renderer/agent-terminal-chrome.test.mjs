@@ -5,8 +5,12 @@ import assert from 'node:assert/strict'
 const toolkitComponentDir = new URL('../../packages/toolkit/components/agent-terminal/', import.meta.url)
 const toolkitHtml = readFileSync(new URL('index.html', toolkitComponentDir), 'utf8')
 const toolkitLauncher = readFileSync(new URL('launch.sh', toolkitComponentDir), 'utf8')
+const toolkitBridgeServer = readFileSync(new URL('bridge-server.mjs', toolkitComponentDir), 'utf8')
+const toolkitInspectorServer = readFileSync(new URL('session-inspector-server.mjs', toolkitComponentDir), 'utf8')
 const sigilAgentEntrypoint = readFileSync(new URL('../../apps/sigil/agent-terminal/index.html', import.meta.url), 'utf8')
 const sigilCompatEntrypoint = readFileSync(new URL('../../apps/sigil/codex-terminal/index.html', import.meta.url), 'utf8')
+const sigilCompatServer = readFileSync(new URL('../../apps/sigil/codex-terminal/server.mjs', import.meta.url), 'utf8')
+const sigilCompatInspector = readFileSync(new URL('../../apps/sigil/codex-terminal/session-inspector.mjs', import.meta.url), 'utf8')
 const html = toolkitHtml
 
 function functionBody(source, functionName) {
@@ -143,6 +147,16 @@ test('generic toolkit launcher does not create or require avatar-main', () => {
   assert.doesNotMatch(toolkitLauncher, /SIGIL_CONTENT_ROOT/)
 })
 
+test('generic toolkit launcher starts toolkit-owned bridge substrate', () => {
+  assert.match(toolkitLauncher, /BRIDGE_DIR="\$REPO_ROOT\/packages\/toolkit\/components\/agent-terminal"/)
+  assert.match(toolkitLauncher, /"\$BRIDGE_DIR\/bridge-server\.mjs"/)
+  assert.doesNotMatch(toolkitLauncher, /apps\/sigil\/codex-terminal/)
+  assert.match(toolkitBridgeServer, /function startServer\(\)/)
+  assert.match(toolkitBridgeServer, /export \{ appendProcessStderr, startServer \}/)
+  assert.match(toolkitBridgeServer, /\.\/session-inspector-server\.mjs/)
+  assert.match(toolkitInspectorServer, /export function buildSessionInspector/)
+})
+
 test('generic toolkit launcher prepares component-local xterm runtime assets', () => {
   const assetPaths = relativeAssetPathsFromHtml(toolkitHtml)
   assert.deepEqual(assetPaths, [
@@ -176,4 +190,7 @@ test('existing Sigil compatibility entrypoints still resolve to toolkit Agent Te
   assert.match(sigilAgentEntrypoint, /components\/agent-terminal\/index\.html/)
   assert.match(sigilCompatEntrypoint, /params\.set\('surface', 'sigil'\)/)
   assert.match(sigilCompatEntrypoint, /components\/agent-terminal\/index\.html/)
+  assert.match(sigilCompatServer, /packages\/toolkit\/components\/agent-terminal\/bridge-server\.mjs/)
+  assert.match(sigilCompatServer, /startServer\(\)/)
+  assert.match(sigilCompatInspector, /packages\/toolkit\/components\/agent-terminal\/session-inspector-server\.mjs/)
 })

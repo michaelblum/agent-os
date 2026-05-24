@@ -5,7 +5,12 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
-import { appendProcessStderr } from '../apps/sigil/codex-terminal/server.mjs';
+import { appendProcessStderr } from '../packages/toolkit/components/agent-terminal/bridge-server.mjs';
+
+const toolkitBridgeServer = 'packages/toolkit/components/agent-terminal/bridge-server.mjs';
+const toolkitPtyProxy = 'packages/toolkit/components/agent-terminal/pty-proxy.py';
+const sigilCompatBridgeServer = 'apps/sigil/codex-terminal/server.mjs';
+const sigilCompatPtyProxy = 'apps/sigil/codex-terminal/pty-proxy.py';
 
 describe('Sigil Agent Terminal bridge', () => {
   let root;
@@ -102,7 +107,7 @@ describe('Sigil Agent Terminal bridge', () => {
       ],
     );
 
-    child = spawn('node', ['apps/sigil/codex-terminal/server.mjs'], {
+    child = spawn('node', [toolkitBridgeServer], {
       cwd: path.resolve('.'),
       env: {
         ...process.env,
@@ -455,7 +460,7 @@ describe('Sigil Agent Terminal bridge', () => {
       'setTimeout(() => {}, 10000);',
     ].join(' ');
     const proxy = spawn('python3', [
-      'apps/sigil/codex-terminal/pty-proxy.py',
+      toolkitPtyProxy,
       `${shellQuote(process.execPath)} -e ${shellQuote(script)}`,
     ], {
       cwd: path.resolve('.'),
@@ -510,7 +515,7 @@ describe('Sigil Agent Terminal bridge', () => {
       'setTimeout(() => {}, 10000);',
     ].join(' ');
     const proxy = spawn('python3', [
-      'apps/sigil/codex-terminal/pty-proxy.py',
+      toolkitPtyProxy,
       `${shellQuote(process.execPath)} -e ${shellQuote(script)}`,
     ], {
       cwd: path.resolve('.'),
@@ -558,6 +563,18 @@ describe('Sigil Agent Terminal PTY child PID marker parsing', () => {
     appendProcessStderr(record, Buffer.from('SIGIL_AGENT_PTY_CHILD_PID=222\nordinary stderr\n', 'utf8'));
     assert.equal(record.commandPid, 111);
     assert.equal(record.buffer, 'SIGIL_AGENT_PTY_CHILD_PID=222\nordinary stderr\n');
+  });
+});
+
+describe('Sigil Codex terminal compatibility shims', () => {
+  it('keep historical server and PTY paths delegated to toolkit substrate', () => {
+    const serverShim = fs.readFileSync(sigilCompatBridgeServer, 'utf8');
+    const inspectorShim = fs.readFileSync('apps/sigil/codex-terminal/session-inspector.mjs', 'utf8');
+    const ptyShim = fs.readFileSync(sigilCompatPtyProxy, 'utf8');
+    assert.match(serverShim, /packages\/toolkit\/components\/agent-terminal\/bridge-server\.mjs/);
+    assert.match(serverShim, /export \{ appendProcessStderr, startServer \}/);
+    assert.match(inspectorShim, /packages\/toolkit\/components\/agent-terminal\/session-inspector-server\.mjs/);
+    assert.match(ptyShim, /packages.*toolkit.*components.*agent-terminal.*pty-proxy\.py/);
   });
 });
 
