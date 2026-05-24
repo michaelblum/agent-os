@@ -66,6 +66,17 @@ def normalizes_to_dev_build(command):
         return True
     return False
 
+def normalizes_to_post_permission_ready(command):
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        parts = command.split()
+    if len(parts) >= 3 and pathlib.Path(parts[0]).name == "aos" and parts[1] == "ready" and "--post-permission" in parts:
+        return True
+    if "./aos ready --post-permission" in command or "aos ready --post-permission" in command:
+        return True
+    return False
+
 def tool_failed(value):
     failure_tokens = {
         "failed",
@@ -95,12 +106,27 @@ if not found_build:
     # Some providers put command text only in flat transcript strings.
     found_build = any(normalizes_to_dev_build(text) for text in strings(payload))
 
+found_post_permission_ready = any(normalizes_to_post_permission_ready(candidate) for candidate in command_candidates(payload))
+if not found_post_permission_ready:
+    found_post_permission_ready = any(
+        ("aos ready --post-permission" in text or "./aos ready --post-permission" in text)
+        for text in strings(payload)
+    )
+
 if found_build and not tool_failed(payload):
     print("dev_build_success")
+elif found_post_permission_ready and not tool_failed(payload):
+    print("post_permission_ready_success")
 else:
     print("ignore")
 PY
 )"
+
+if [[ "$python_result" == "post_permission_ready_success" ]]; then
+  "$REPO_ROOT/.docks/harness/human-needed-surface.sh" clear "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
+  printf '{"continue":true}\n'
+  exit 0
+fi
 
 if [[ "$python_result" != "dev_build_success" ]]; then
   printf '{"continue":true}\n'
@@ -108,6 +134,7 @@ if [[ "$python_result" != "dev_build_success" ]]; then
 fi
 
 "$REPO_ROOT/.docks/harness/stop-condition.sh" write "$REPO_ROOT" "$dock" tcc_permission_reset 600
+"$REPO_ROOT/.docks/harness/human-needed-surface.sh" show "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 "$REPO_ROOT/.docks/harness/goal-pause-control.sh" request "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 
 python3 - "$dock" <<'PY'

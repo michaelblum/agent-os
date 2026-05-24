@@ -71,6 +71,7 @@ post_tool_runner_text = post_tool_runner.read_text()
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",
     "goal-pause-control.sh",
+    "human-needed-surface.sh",
     "stop-condition.sh",
     "/goal pause",
 ):
@@ -356,6 +357,7 @@ PY
 
 post_tool_log="$TMPDIR_ROOT/post-tool-aos.log"
 tmux_log="$TMPDIR_ROOT/tmux.log"
+open_log="$TMPDIR_ROOT/open.log"
 post_tool_condition_dir="$TMPDIR_ROOT/post-tool-conditions"
 post_tool_aos="$TMPDIR_ROOT/post-tool-aos"
 cat >"$post_tool_aos" <<'SH'
@@ -365,6 +367,13 @@ printf 'POST_TOOL_AOS:%s\n' "$*" >>"$AOS_FAKE_LOG"
 exit 1
 SH
 chmod +x "$post_tool_aos"
+fake_open="$TMPDIR_ROOT/open"
+cat >"$fake_open" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'OPEN:%s\n' "$*" >>"$AOS_FAKE_OPEN_LOG"
+SH
+chmod +x "$fake_open"
 cat >"$fake_bin/tmux" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -391,7 +400,7 @@ grep -q 'TMUX:send-keys -t %42 C-m' "$tmux_log" || {
 : >"$tmux_log"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
-tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$tcc_post_out" <<'PY'
 import json
 import sys
@@ -409,11 +418,31 @@ for required in (
     if required not in message:
         raise SystemExit(f"FAIL: dev-build post-tool hook systemMessage missing {required!r}: {message!r}")
 PY
-if [[ -s "$post_tool_log" ]]; then
-  echo "FAIL: successful dev build hook should not call ./aos" >&2
+grep -q 'POST_TOOL_AOS:show create --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log" || {
+  echo "FAIL: successful dev build hook should show the human-needed canvas" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+}
+if grep -q 'ready\|permissions reset-runtime\|git status' "$post_tool_log"; then
+  echo "FAIL: successful dev build hook should not run readiness or repair ritual" >&2
   cat "$post_tool_log" >&2
   exit 1
 fi
+grep -q 'OPEN:x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility' "$open_log" || {
+  echo "FAIL: successful dev build hook should open Accessibility settings" >&2
+  cat "$open_log" >&2
+  exit 1
+}
+grep -q 'OPEN:x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent' "$open_log" || {
+  echo "FAIL: successful dev build hook should open Input Monitoring settings" >&2
+  cat "$open_log" >&2
+  exit 1
+}
+grep -q 'OPEN:x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture' "$open_log" || {
+  echo "FAIL: successful dev build hook should open Screen Recording settings" >&2
+  cat "$open_log" >&2
+  exit 1
+}
 grep -q 'TMUX:send-keys -t %42 -l /goal pause' "$tmux_log" || {
   echo "FAIL: successful GDI dev build hook should inject /goal pause into tmux pane" >&2
   cat "$tmux_log" >&2
@@ -436,8 +465,32 @@ PY
 
 : >"$post_tool_log"
 : >"$tmux_log"
+: >"$open_log"
+ready_post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready --post-permission"},"tool_response":{"exit_code":0,"output":"ready=true mode=repo daemon=reachable tap=active"}}'
+ready_post_out="$(printf '%s' "$ready_post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+python3 - "$ready_post_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: post-permission ready hook should continue quietly, got {payload}")
+PY
+grep -q 'POST_TOOL_AOS:show remove --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log" || {
+  echo "FAIL: post-permission ready hook should clear the human-needed canvas" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+}
+if [[ -s "$tmux_log" || -s "$open_log" ]]; then
+  echo "FAIL: post-permission ready hook should not inject tmux input or reopen settings" >&2
+  cat "$tmux_log" "$open_log" >&2
+  exit 1
+fi
+
+: >"$post_tool_log"
+: >"$tmux_log"
+: >"$open_log"
 failed_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":1,"output":"compile failed"}}'
-failed_post_out="$(printf '%s' "$failed_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+failed_post_out="$(printf '%s' "$failed_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$failed_post_out" <<'PY'
 import json
 import sys
@@ -450,16 +503,17 @@ if [[ -s "$post_tool_log" ]]; then
   cat "$post_tool_log" >&2
   exit 1
 fi
-if [[ -s "$tmux_log" ]]; then
-  echo "FAIL: failed dev build should not inject /goal pause" >&2
-  cat "$tmux_log" >&2
+if [[ -s "$tmux_log" || -s "$open_log" ]]; then
+  echo "FAIL: failed dev build should not inject /goal pause or open settings" >&2
+  cat "$tmux_log" "$open_log" >&2
   exit 1
 fi
 
 : >"$post_tool_log"
 : >"$tmux_log"
+: >"$open_log"
 non_build_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready"},"tool_response":{"exit_code":0}}'
-non_build_out="$(printf '%s' "$non_build_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+non_build_out="$(printf '%s' "$non_build_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$non_build_out" <<'PY'
 import json
 import sys
@@ -472,9 +526,9 @@ if [[ -s "$post_tool_log" ]]; then
   cat "$post_tool_log" >&2
   exit 1
 fi
-if [[ -s "$tmux_log" ]]; then
-  echo "FAIL: non-build command should not inject /goal pause" >&2
-  cat "$tmux_log" >&2
+if [[ -s "$tmux_log" || -s "$open_log" ]]; then
+  echo "FAIL: non-build command should not inject /goal pause or open settings" >&2
+  cat "$tmux_log" "$open_log" >&2
   exit 1
 fi
 
