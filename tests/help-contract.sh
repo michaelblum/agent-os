@@ -213,22 +213,20 @@ else
     fail "do click help is missing ref target forms: $OUT"
 fi
 
-# --- 18. dev build warning documents the preferred permission-reset sequence ---
+# --- 18. dev build only wraps the build step and disables daemon restart ---
 if python3 - <<'PY'
 from pathlib import Path
 
 source = Path("src/commands/dev.swift").read_text(encoding="utf-8")
-assert "Preferred reset sequence if readiness reports stale TCC/input tap:" in source
-assert "1. ./aos permissions reset-runtime --mode repo" in source
-assert "2. ./aos permissions setup --once" in source
-assert "3. ./aos ready --post-permission" in source
-assert "Service-wide TCC reset is emergency-only" in source
-assert "--allow-service-reset --emergency-ack-other-apps" in source
+assert 'buildArgs.append("--no-restart")' in source
+assert '"next": NSNull()' in source
+assert "permission_note" not in source
+assert "Next: ./aos ready" not in source
 PY
 then
-    pass "dev build warning includes preferred permission reset sequence"
+    pass "dev build disables daemon restart and avoids readiness ritual"
 else
-    fail "dev build warning is missing the preferred permission reset sequence"
+    fail "dev build still appears overloaded with readiness or daemon restart work"
 fi
 
 # --- 19. dev afk-session-trigger help exposes guarded trigger flags ---

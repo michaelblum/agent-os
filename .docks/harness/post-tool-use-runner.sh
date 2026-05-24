@@ -14,7 +14,6 @@ if [[ -z "$dock" ]]; then
 fi
 
 REPO_ROOT="${AOS_DOCK_REPO_ROOT:-/Users/Michael/Code/agent-os}"
-AOS_BIN="${AOS_DOCK_AOS_BIN:-$REPO_ROOT/aos}"
 payload="$(cat || true)"
 
 python_result="$(python3 - "$payload" "$REPO_ROOT" <<'PY'
@@ -108,64 +107,6 @@ if [[ "$python_result" != "dev_build_success" ]]; then
   exit 0
 fi
 
-readiness_text="$("$AOS_BIN" ready --post-permission --json 2>&1 || true)"
-
-classification="$(python3 - "$readiness_text" <<'PY'
-import json
-import sys
-
-text = sys.argv[1]
-lower = text.lower()
-ready = False
-phase = ""
-diagnosis = ""
-tap = ""
-blocked = ""
-
-try:
-    payload = json.loads(text)
-except json.JSONDecodeError:
-    payload = None
-
-if isinstance(payload, dict):
-    ready = payload.get("ready") is True
-    phase = str(payload.get("phase") or "")
-    diagnosis = str(payload.get("diagnosis") or "")
-    tap = str(payload.get("tap") or payload.get("input_tap") or "")
-    blocked = json.dumps(payload.get("blocked") or payload.get("blocked_capabilities") or "")
-else:
-    ready = "ready=true" in lower
-
-if ready:
-    print("ready")
-    raise SystemExit(0)
-
-haystack = " ".join([lower, phase.lower(), diagnosis.lower(), tap.lower(), blocked.lower()])
-tcc_tokens = (
-    "human_required",
-    "tcc",
-    "input monitoring",
-    "accessibility",
-    "tap=retrying",
-    "input tap",
-    "tap inactive",
-    "tap=inactive",
-    "listen=false",
-    "post=false",
-    "daemon_tcc",
-)
-if any(token in haystack for token in tcc_tokens):
-    print("tcc_blocked")
-else:
-    print("other_blocked")
-PY
-)"
-
-if [[ "$classification" != "tcc_blocked" ]]; then
-  printf '{"continue":true}\n'
-  exit 0
-fi
-
 "$REPO_ROOT/.docks/harness/stop-condition.sh" write "$REPO_ROOT" "$dock" tcc_permission_reset 600
 
 python3 - "$dock" <<'PY'
@@ -175,9 +116,8 @@ import sys
 dock = sys.argv[1]
 message = """goal_pause_required: repo-mode AOS permission repair
 
-The last ./aos dev build completed, and the bounded post-build readiness check
-reported stale or missing repo-mode Accessibility/Input Monitoring or inactive
-input tap.
+The last ./aos dev build completed. Repo-mode aos rebuilds are permission
+sensitive checkpoints.
 
 Pause the active goal now by sending:
 /goal pause
@@ -191,7 +131,7 @@ Human action:
 After resume, run exactly:
 ./aos ready --post-permission
 
-Do not run redundant ready/repair/status/helper loops before pausing."""
+Do not run ready/repair/status/helper loops before pausing."""
 
 print(json.dumps({"continue": True, "systemMessage": message}))
 PY

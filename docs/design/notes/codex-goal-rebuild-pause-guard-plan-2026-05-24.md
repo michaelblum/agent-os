@@ -15,10 +15,10 @@ extra loop after `./aos dev build`:
 - writes a verbose `human_needed` report;
 - only then stops.
 
-For long-running `/goal` work, this is the wrong shape. The rebuild itself is a
-deterministic checkpoint: if post-build readiness says repo-mode TCC/input tap is
-blocked, the goal should pause immediately and wait for the human permission
-repair.
+For long-running `/goal` work, this is the wrong shape. The successful rebuild
+itself is the deterministic checkpoint: the goal should pause immediately and
+wait for the human permission repair path instead of spending another loop
+classifying readiness.
 
 ## Constraint
 
@@ -34,9 +34,9 @@ Every long-running GDI goal that may rebuild `./aos` should include an explicit
 pause condition:
 
 ```text
-After any Swift rebuild, run the guarded post-build readiness check. If it
-reports stale/missing repo-mode TCC or inactive input tap, immediately issue
-/goal pause and wait. Do not run redundant readiness/status/helper loops.
+After any successful `./aos dev build`, immediately issue `/goal pause` and
+wait. Do not run readiness/status/helper loops before pausing. After the human
+returns, run only `./aos ready --post-permission` before resuming verification.
 ```
 
 This is necessary but not sufficient because natural-language compliance can
@@ -53,8 +53,6 @@ Responsibilities:
 
 - inspect the completed tool call and identify successful invocations of
   `./aos dev build` from this repo;
-- run exactly one bounded post-build readiness classification;
-- classify repo-mode TCC/input-tap degradation;
 - write the existing short-lived stop-condition marker for the Stop hook;
 - return a concise system message or hook response that tells Codex to issue
   `/goal pause` immediately;
@@ -89,13 +87,12 @@ the actual tool call.
 
 Use fake `./aos` fixtures rather than real TCC:
 
-- build succeeds + readiness ready: hook exits success and does not request
-  pause;
 - build fails: hook does not hide compiler failure or synthesize a permission
   pause;
-- build succeeds + readiness human_required/TCC: hook prints
-  `goal_pause_required`, writes `tcc_permission_reset`, and does not run
-  redundant repair/status commands;
+- build succeeds: hook prints `goal_pause_required`, writes
+  `tcc_permission_reset`, and does not run any `./aos` readiness, repair, or
+  status command;
+- non-build commands: hook exits quietly and does not request pause;
 - Stop hook still converts the marker into the existing concise TCC stop notice.
 
 Likely test homes:

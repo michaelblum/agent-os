@@ -60,13 +60,12 @@ if "voice bind" in runner_text:
 post_tool_runner_text = post_tool_runner.read_text()
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",
-    "ready --post-permission --json",
     "stop-condition.sh",
     "/goal pause",
 ):
     if required not in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner missing {required!r}")
-for forbidden in ("ready --repair", "permissions reset-runtime", "git status"):
+for forbidden in ("ready --post-permission --json", "ready --repair", "permissions reset-runtime", "git status", "AOS_BIN"):
     if forbidden in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner must not run redundant ritual command {forbidden!r}")
 
@@ -344,70 +343,38 @@ if payload != {"continue": True}:
     raise SystemExit(f"FAIL: expired TCC marker should not affect Stop JSON, got {payload}")
 PY
 
-post_tool_aos="$TMPDIR_ROOT/post-tool-aos"
 post_tool_log="$TMPDIR_ROOT/post-tool-aos.log"
 post_tool_condition_dir="$TMPDIR_ROOT/post-tool-conditions"
+post_tool_aos="$TMPDIR_ROOT/post-tool-aos"
 cat >"$post_tool_aos" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'POST_TOOL_AOS:%s\n' "$*" >>"$AOS_FAKE_LOG"
-if [[ "$*" == "ready --post-permission --json" ]]; then
-  case "${AOS_FAKE_READY_MODE:-ready}" in
-    ready)
-      printf '{"ready":true,"mode":"repo","tap":"active"}\n'
-      ;;
-    tcc)
-      printf '{"ready":false,"phase":"human_required","diagnosis":"daemon_tcc_grant_stale_or_missing","mode":"repo","tap":"retrying","blocked":["do","inspect","listen","see"]}\n'
-      ;;
-    other)
-      printf '{"ready":false,"phase":"blocked","diagnosis":"other"}\n'
-      ;;
-  esac
-fi
+exit 1
 SH
 chmod +x "$post_tool_aos"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
-ready_post_out="$(printf '%s' "$post_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=ready AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
-python3 - "$ready_post_out" <<'PY'
-import json
-import sys
-payload = json.loads(sys.argv[1])
-if payload != {"continue": True}:
-    raise SystemExit(f"FAIL: ready post-tool hook should continue quietly, got {payload}")
-PY
-grep -q 'POST_TOOL_AOS:ready --post-permission --json' "$post_tool_log" || {
-  echo "FAIL: successful dev build should trigger one bounded post-build readiness check" >&2
-  cat "$post_tool_log" >&2
-  exit 1
-}
-
-: >"$post_tool_log"
-tcc_post_out="$(printf '%s' "$post_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=tcc AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+tcc_post_out="$(printf '%s' "$post_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$tcc_post_out" <<'PY'
 import json
 import sys
 payload = json.loads(sys.argv[1])
 if payload.get("continue") is not True:
-    raise SystemExit(f"FAIL: TCC post-tool hook should continue with systemMessage, got {payload}")
+    raise SystemExit(f"FAIL: dev-build post-tool hook should continue with systemMessage, got {payload}")
 message = payload.get("systemMessage", "")
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",
     "/goal pause",
     "./aos permissions setup --once",
     "./aos ready --post-permission",
-    "Do not run redundant ready/repair/status/helper loops",
+    "Do not run ready/repair/status/helper loops",
 ):
     if required not in message:
-        raise SystemExit(f"FAIL: TCC post-tool hook systemMessage missing {required!r}: {message!r}")
+        raise SystemExit(f"FAIL: dev-build post-tool hook systemMessage missing {required!r}: {message!r}")
 PY
-if [[ "$(grep -c 'POST_TOOL_AOS:ready --post-permission --json' "$post_tool_log")" != "1" ]]; then
-  echo "FAIL: TCC post-tool hook should run exactly one readiness check" >&2
-  cat "$post_tool_log" >&2
-  exit 1
-fi
-if grep -q 'ready --repair\|permissions reset-runtime\|git status' "$post_tool_log"; then
-  echo "FAIL: TCC post-tool hook ran redundant repair/status ritual" >&2
+if [[ -s "$post_tool_log" ]]; then
+  echo "FAIL: successful dev build hook should not call ./aos" >&2
   cat "$post_tool_log" >&2
   exit 1
 fi
@@ -423,7 +390,7 @@ PY
 
 : >"$post_tool_log"
 failed_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":1,"output":"compile failed"}}'
-failed_post_out="$(printf '%s' "$failed_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=tcc AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+failed_post_out="$(printf '%s' "$failed_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$failed_post_out" <<'PY'
 import json
 import sys
@@ -432,14 +399,14 @@ if payload != {"continue": True}:
     raise SystemExit(f"FAIL: failed build post-tool hook should not synthesize TCC pause, got {payload}")
 PY
 if [[ -s "$post_tool_log" ]]; then
-  echo "FAIL: failed dev build should not trigger post-build readiness hook" >&2
+  echo "FAIL: failed dev build should not trigger post-tool pause guard" >&2
   cat "$post_tool_log" >&2
   exit 1
 fi
 
 : >"$post_tool_log"
 non_build_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready"},"tool_response":{"exit_code":0}}'
-non_build_out="$(printf '%s' "$non_build_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_FAKE_READY_MODE=tcc AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+non_build_out="$(printf '%s' "$non_build_payload" | AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$non_build_out" <<'PY'
 import json
 import sys
@@ -448,7 +415,7 @@ if payload != {"continue": True}:
     raise SystemExit(f"FAIL: non-build post-tool hook should continue quietly, got {payload}")
 PY
 if [[ -s "$post_tool_log" ]]; then
-  echo "FAIL: non-build command should not trigger post-build readiness hook" >&2
+  echo "FAIL: non-build command should not trigger post-tool pause guard" >&2
   cat "$post_tool_log" >&2
   exit 1
 fi

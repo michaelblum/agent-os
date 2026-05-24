@@ -297,36 +297,27 @@ private func devBuildCommand(args: [String]) {
         exitError("Missing build script: \(buildScript)", code: "MISSING_BUILD_SCRIPT")
     }
 
-    let permissionNote = """
-    aos dev build wraps build.sh; rebuilt repo binaries may require a fresh macOS Accessibility/Input Monitoring grant if readiness later reports stale TCC identity.
-    Preferred reset sequence if readiness reports stale TCC/input tap:
-    1. ./aos permissions reset-runtime --mode repo
-    2. ./aos permissions setup --once
-    3. ./aos ready --post-permission
-    reset-runtime stops the managed daemon before running a real targeted reset or classifying targeted reset as unavailable. Service-wide TCC reset is emergency-only and requires an explicit break-glass request plus --allow-service-reset --emergency-ack-other-apps.
-    """
-    let result = runProcessCapturingOutput("/bin/bash", arguments: [buildScript] + passthrough, cwd: repoRoot)
+    var buildArgs = passthrough
+    if !buildArgs.contains("--no-restart") {
+        buildArgs.append("--no-restart")
+    }
+    let result = runProcessCapturingOutput("/bin/bash", arguments: [buildScript] + buildArgs, cwd: repoRoot)
 
     if asJSON {
         printDevJSON([
             "status": result.exitCode == 0 ? "success" : "error",
-            "command": (["bash", "build.sh"] + passthrough).joined(separator: " "),
+            "command": (["bash", "build.sh"] + buildArgs).joined(separator: " "),
             "exit_code": Int(result.exitCode),
             "stdout": result.stdout,
             "stderr": result.stderr,
-            "permission_note": permissionNote,
-            "next": "./aos ready",
+            "next": NSNull(),
         ])
     } else {
-        FileHandle.standardError.write(Data("\(permissionNote)\n".utf8))
         if !result.stdout.isEmpty {
             print(result.stdout, terminator: result.stdout.hasSuffix("\n") ? "" : "\n")
         }
         if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
             FileHandle.standardError.write(data)
-        }
-        if result.exitCode == 0 {
-            print("Next: ./aos ready")
         }
     }
     exit(result.exitCode)
