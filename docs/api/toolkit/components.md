@@ -141,6 +141,30 @@ parameters, renders the same `DecisionGate` controls, submits with the toolkit
 pending, and leaves accessible terminal status text after success or duplicate
 success.
 
+## Agent Terminal
+
+`packages/toolkit/components/agent-terminal/` is the generic AOS Agent Terminal
+entrypoint. Launch it with:
+
+```bash
+packages/toolkit/components/agent-terminal/launch.sh
+```
+
+The default canvas id is `aos-agent-terminal`; set `CANVAS_ID=...` to override
+it. The launcher configures toolkit and Sigil content roots, starts the existing
+local terminal bridge implementation, ensures the selected terminal session, and
+opens:
+
+```text
+aos://toolkit/components/agent-terminal/index.html
+```
+
+The toolkit path is neutral user-facing surface policy. It does not launch
+`avatar-main`, render Sigil avatar controls, or emit Sigil-specific
+`agent_terminal.avatar_toggle` behavior. The v0 implementation still reuses the
+existing Sigil bridge/server substrate as a compatibility bridge while keeping
+the generic launch and chrome boundary toolkit-owned.
+
 ## Surface-Zoom And Test Console Components
 
 ## Surface Inspector

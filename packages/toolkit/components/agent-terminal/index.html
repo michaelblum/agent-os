@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AOS Agent Terminal</title>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const sigilRoot = params.get('sigil-root') || 'sigil';
+    params.set('surface', 'generic');
+    location.replace(`aos://${sigilRoot}/codex-terminal/index.html?${params.toString()}${location.hash}`);
+  </script>
+</head>
+<body></body>
+</html>

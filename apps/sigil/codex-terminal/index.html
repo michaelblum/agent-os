@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Sigil Agent Terminal</title>
+  <title>Agent Terminal</title>
   <link rel="stylesheet" href="./node_modules/@xterm/xterm/css/xterm.css">
   <style>
     * { box-sizing: border-box; }
@@ -357,11 +357,15 @@
     const params = new URLSearchParams(location.search);
     const port = params.get('port') || '17761';
     const session = params.get('session') || 'sigil-agent-terminal-agent-os';
+    const surfaceMode = params.get('surface') === 'generic' ? 'generic' : 'sigil';
+    const isSigilSurface = surfaceMode === 'sigil';
+    const surfaceTitle = isSigilSurface ? 'Sigil / Agent Terminal' : 'AOS Agent Terminal';
+    document.title = isSigilSurface ? 'Sigil Agent Terminal' : 'AOS Agent Terminal';
     let currentCwd = params.get('cwd') || '';
     let activeLabel = 'Agent terminal';
     const shell = document.getElementById('shell');
     const chrome = mountChrome(document.body, {
-      title: 'Sigil / Agent Terminal',
+      title: surfaceTitle,
       draggable: true,
       drag: { clampOnEnd: true, transfer: true },
       close: true,
@@ -369,24 +373,32 @@
       maximize: true,
       resizable: true,
       resize: { minWidth: 720, minHeight: 420 },
-      onMinimize() {
+      onMinimize: isSigilSurface ? function onMinimize() {
         emit({ type: 'agent_terminal.avatar_toggle' });
-      },
+      } : undefined,
     });
     chrome.contentEl.append(shell);
     const content = shell.querySelector('.content');
     const terminalPane = shell.querySelector('.terminal-wrap');
     const railPane = shell.querySelector('.rail');
 
-    const avatarButton = document.createElement('button');
-    avatarButton.type = 'button';
-    avatarButton.className = 'avatar';
-    avatarButton.title = 'Return to avatar';
-    avatarButton.setAttribute('aria-label', 'Return to avatar');
     const statusDot = document.createElement('span');
     statusDot.className = 'status';
     statusDot.id = 'status';
-    chrome.customControlsEl.append(avatarButton, statusDot);
+    if (isSigilSurface) {
+      const avatarButton = document.createElement('button');
+      avatarButton.type = 'button';
+      avatarButton.className = 'avatar';
+      avatarButton.title = 'Return to avatar';
+      avatarButton.setAttribute('aria-label', 'Return to avatar');
+      avatarButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        emit({ type: 'agent_terminal.avatar_toggle' });
+      });
+      chrome.customControlsEl.append(avatarButton);
+    }
+    chrome.customControlsEl.append(statusDot);
 
     const sessionList = document.getElementById('sessionList');
     const sessionInspector = document.getElementById('sessionInspector');
@@ -428,7 +440,7 @@
 
     function setStatus(kind, text) {
       statusDot.className = `status ${kind || ''}`;
-      chrome.setTitle(`Sigil / Agent Terminal - ${text}`);
+      chrome.setTitle(`${surfaceTitle} - ${text}`);
     }
 
     function resizeTerminal() {
@@ -880,12 +892,6 @@
 
     sessionSort.addEventListener('change', renderSessions);
 
-    avatarButton.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      emit({ type: 'agent_terminal.avatar_toggle' });
-    });
-
     window.addEventListener('resize', resizeTerminal);
     new ResizeObserver(scheduleRefit).observe(document.getElementById('terminal'));
     window.headsup = window.headsup || {};
@@ -917,7 +923,7 @@
       payload: {
         name: 'agent-terminal',
         accepts: ['keyboard', 'agent_terminal.refresh_sessions'],
-        emits: ['ready', 'agent_terminal.avatar_toggle'],
+        emits: isSigilSurface ? ['ready', 'agent_terminal.avatar_toggle'] : ['ready'],
       },
     });
 
