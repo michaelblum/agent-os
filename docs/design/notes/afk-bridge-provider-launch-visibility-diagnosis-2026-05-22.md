@@ -117,8 +117,9 @@ prompt/response despite the provider visibly starting.
 
 ### Launch Wrappers
 
-`apps/sigil/agent-terminal/launch.sh` is a compatibility wrapper that delegates
-to `apps/sigil/codex-terminal/launch.sh`. The launcher can set `CWD_TARGET`,
+`apps/sigil/agent-terminal/launch.sh` owns the canonical Sigil wrapper launch,
+and `apps/sigil/codex-terminal/launch.sh` is now the historical compatibility
+wrapper that delegates to it. The canonical launcher can set `CWD_TARGET`,
 `AGENT_COMMAND`, `SESSION`, `PORT`, content roots, start the bridge, call
 `/ensure`, and open the canvas. The Operator evidence shows the wrapper path
 itself failed health for one run, while direct fallback server startup worked.

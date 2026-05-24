@@ -51,8 +51,10 @@ unless an adjacent command or artifact captures them.
 The Sigil agent-terminal/codex-terminal launcher adds an observable terminal
 substrate before provider launch:
 
-- `apps/sigil/agent-terminal/launch.sh` delegates to
-  `apps/sigil/codex-terminal/launch.sh`;
+- `apps/sigil/agent-terminal/launch.sh` owns the canonical Sigil wrapper
+  launch;
+- `apps/sigil/codex-terminal/launch.sh` remains a historical compatibility
+  launcher that delegates to the canonical Agent Terminal launcher;
 - the launcher sets `CWD_TARGET`, `AGENT_COMMAND`, `SESSION`, bridge port, and
   content roots;
 - `server.mjs` ensures a tmux-backed session when tmux is available, otherwise

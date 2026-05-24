@@ -198,7 +198,7 @@ describe('Sigil Agent Terminal bridge', () => {
   });
 
   it('passes stable repo root to bridge server startup paths', () => {
-    const launcher = fs.readFileSync('apps/sigil/codex-terminal/launch.sh', 'utf8');
+    const launcher = fs.readFileSync('apps/sigil/agent-terminal/launch.sh', 'utf8');
     assert.match(launcher, /"SIGIL_AGENT_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
     assert.match(launcher, /SIGIL_AGENT_REPO_ROOT="\$REPO_ROOT" \\/);
   });

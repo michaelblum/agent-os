@@ -96,10 +96,11 @@ not a reason for dispatch to redefine the packet or proof requirements.
 
 ### Sigil Agent Terminal And Codex Terminal Bridge
 
-`apps/sigil/agent-terminal/launch.sh` delegates to the historical
-`apps/sigil/codex-terminal/launch.sh`. That launcher starts a local bridge,
-ensures content roots, and opens the Sigil Agent Terminal canvas. It can start
-new Codex or Claude sessions, use `codex --no-alt-screen resume` or
+`apps/sigil/agent-terminal/launch.sh` owns the canonical Sigil wrapper launch.
+The historical `apps/sigil/codex-terminal/launch.sh` path delegates to it as a
+compatibility launcher. The canonical launcher starts a local bridge, ensures
+content roots, and opens the Sigil Agent Terminal canvas. It can start new
+Codex or Claude sessions, use `codex --no-alt-screen resume` or
 `codex --no-alt-screen resume --last`, and runs the bridge through tmux when
 available with a background process fallback.
 

@@ -7,6 +7,8 @@ const toolkitHtml = readFileSync(new URL('index.html', toolkitComponentDir), 'ut
 const toolkitLauncher = readFileSync(new URL('launch.sh', toolkitComponentDir), 'utf8')
 const toolkitBridgeServer = readFileSync(new URL('bridge-server.mjs', toolkitComponentDir), 'utf8')
 const toolkitInspectorServer = readFileSync(new URL('session-inspector-server.mjs', toolkitComponentDir), 'utf8')
+const sigilAgentLauncher = readFileSync(new URL('../../apps/sigil/agent-terminal/launch.sh', import.meta.url), 'utf8')
+const sigilCompatLauncher = readFileSync(new URL('../../apps/sigil/codex-terminal/launch.sh', import.meta.url), 'utf8')
 const sigilAgentEntrypoint = readFileSync(new URL('../../apps/sigil/agent-terminal/index.html', import.meta.url), 'utf8')
 const sigilCompatEntrypoint = readFileSync(new URL('../../apps/sigil/codex-terminal/index.html', import.meta.url), 'utf8')
 const sigilCompatServer = readFileSync(new URL('../../apps/sigil/codex-terminal/server.mjs', import.meta.url), 'utf8')
@@ -155,6 +157,31 @@ test('generic toolkit launcher starts toolkit-owned bridge substrate', () => {
   assert.match(toolkitBridgeServer, /export \{ appendProcessStderr, startServer \}/)
   assert.match(toolkitBridgeServer, /\.\/session-inspector-server\.mjs/)
   assert.match(toolkitInspectorServer, /export function buildSessionInspector/)
+})
+
+test('canonical Sigil Agent Terminal launcher owns Sigil wrapper launch', () => {
+  assert.match(sigilAgentLauncher, /Sigil Agent terminal launched\./)
+  assert.match(sigilAgentLauncher, /AVATAR_ID="\$\{AVATAR_ID:-avatar-main\}"/)
+  assert.match(sigilAgentLauncher, /show create --id "\$AVATAR_ID"/)
+  assert.match(sigilAgentLauncher, /renderer\/index\.html\?toolkit-root=\$TOOLKIT_CONTENT_ROOT/)
+  assert.match(sigilAgentLauncher, /agent-terminal\/index\.html\?port=\$\{PORT\}&session=\$\{SESSION\}&cwd=\$\{encoded_cwd\}&toolkit-root=\$TOOLKIT_CONTENT_ROOT/)
+  assert.match(sigilAgentLauncher, /BRIDGE_DIR="\$REPO_ROOT\/packages\/toolkit\/components\/agent-terminal"/)
+  assert.match(sigilAgentLauncher, /"\$BRIDGE_DIR\/bridge-server\.mjs"/)
+  assert.match(sigilAgentLauncher, /--new-codex/)
+  assert.match(sigilAgentLauncher, /--new-claude/)
+  assert.match(sigilAgentLauncher, /--pick/)
+  assert.match(sigilAgentLauncher, /--last/)
+  assert.match(sigilAgentLauncher, /--restart/)
+  assert.doesNotMatch(sigilAgentLauncher, /\.\.\/codex-terminal\/launch\.sh/)
+  assert.doesNotMatch(sigilAgentLauncher, /exec "\$SCRIPT_DIR\/\.\.\/codex-terminal\/launch\.sh"/)
+})
+
+test('historical Codex terminal launcher delegates to canonical Sigil launcher', () => {
+  assert.match(sigilCompatLauncher, /Historical compatibility launcher/)
+  assert.match(sigilCompatLauncher, /exec "\$SCRIPT_DIR\/\.\.\/agent-terminal\/launch\.sh" "\$@"/)
+  assert.doesNotMatch(sigilCompatLauncher, /show create/)
+  assert.doesNotMatch(sigilCompatLauncher, /avatar-main/)
+  assert.doesNotMatch(sigilCompatLauncher, /bridge-server\.mjs/)
 })
 
 test('generic toolkit launcher prepares component-local xterm runtime assets', () => {
