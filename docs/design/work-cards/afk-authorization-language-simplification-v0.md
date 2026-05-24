@@ -1,6 +1,50 @@
 # Work Card: AFK Authorization Language Simplification V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Foreman Acceptance
+
+Accepted on 2026-05-24.
+
+- GDI implementation branch:
+  `gdi/afk-authorization-language-simplification-v0`
+- GDI implementation commit:
+  `66eb6a3abbe6dd2cf30b8239ac3843578ef1221e`
+- Foreman correction commit:
+  `4c3e96cc fix(afk): use authorization wording in diagnostics`
+- Main merge commit:
+  `6671144fe4ded87fab7303d3ca7d2292acf7c9b4`
+
+Accepted behavior:
+
+- `--afk-authorization <authorization.json>` is the primary authorization-file
+  flag.
+- `--afk-live-launch` is the primary AFK launch action flag.
+- `--sleep-lease` and `--sleep-lease-live-launch` remain compatibility aliases.
+- Receipt fields and selected-action identifiers remain stable for
+  compatibility, including `sleep_lease` and
+  `aos.afk_session_trigger_sleep_lease_live`.
+- Help and current design prose now prefer AFK authorization / AFK live launch.
+
+Foreman review found four remaining plain-English receipt diagnostics that said
+`sleep lease`; those messages now say `AFK authorization` while leaving stable
+machine-readable classes unchanged.
+
+Foreman verification:
+
+- `./aos dev build`: passed.
+- `./aos ready --post-permission`: ready.
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 45/45 passed
+  after the Foreman correction was committed. The first run failed three
+  fixture-backed live-launch tests because the test suite correctly enforces a
+  clean worktree and the correction was still uncommitted.
+- `bash tests/dev-workflow-router.sh`: passed.
+- `bash tests/help-contract.sh`: passed.
+- `bash tests/dev-audit.sh`: passed.
+- `node --test tests/schemas/dev-workflow-rules.test.mjs
+  tests/schemas/dev-active-profile.test.mjs
+  tests/schemas/dev-workflow-profiles.test.mjs`: 10/10 passed.
+- `git diff --check`: passed.
 
 ## Transfer Classification
 
