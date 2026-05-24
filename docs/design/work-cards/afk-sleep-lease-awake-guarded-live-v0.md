@@ -1,6 +1,35 @@
 # Work Card: AFK Sleep Lease Awake Guarded Live V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Acceptance Result
+
+Accepted on `main` at
+`ac4b9f3638898b241f863750bd9152855287cf63`.
+
+Foreman accepted the branch after verifying that `--sleep-lease` can now be
+combined with `--supervised-live-launch --i-am-present --json` when the lease
+authorizes Codex/GDI and `max_provider_launches >= 1`. Dry-run sleep-lease
+behavior is preserved, warm dock reuse and provider-launch dry-run remain
+rejected, and `max_provider_launches: 0` rejects supervised live with
+`sleep_lease_provider_launches_exhausted`.
+
+Idempotence material now includes sleep-lease identity via `lease_id` and
+`lease_ref`. Tests prove the same lease/work/action remains stable and
+different lease ids do not collide.
+
+Acceptance gates passed:
+
+- `./aos ready`: `ready=true mode=repo daemon=reachable tap=active`;
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 36/36 pass;
+- `bash tests/dev-workflow-router.sh`: pass;
+- `bash tests/help-contract.sh`: pass;
+- `./aos dev build --no-restart`: pass / up to date;
+- `./aos ready --post-permission`: `ready=true mode=repo daemon=reachable tap=active`;
+- `git diff --check`: pass.
+
+Next routed proof:
+`docs/design/work-cards/operator-afk-sleep-lease-awake-guarded-live-proof-v0.md`.
 
 ## Transfer Classification
 

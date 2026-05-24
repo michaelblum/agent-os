@@ -1,0 +1,41 @@
+# Work Card: AFK Sleep Lease Awake Guarded Live Provider Sentinel V0
+
+**Status:** Sentinel source artifact for Operator proof
+
+## Transfer Classification
+
+- Recipient: GDI
+- Transfer kind: GDI round through AFK session trigger only
+- Single next goal: prove that a live Codex/GDI provider launched through the
+  awake guarded sleep-lease path accepted this work-card prompt and completed
+  one harmless deterministic check.
+- Source artifact for:
+  `docs/design/work-cards/operator-afk-sleep-lease-awake-guarded-live-proof-v0.md`
+
+## Instructions
+
+Do not edit files, create branches, commit, push, open GitHub, route follow-up
+work, read provider transcript files, mutate provider stores, or perform any
+external publication.
+
+First move to the repository root if your shell is in a dock directory:
+
+```bash
+cd /Users/Michael/Code/agent-os
+```
+
+Run only these local checks from the repository root:
+
+```bash
+git status --short --branch
+node --test tests/renderer/agent-terminal-bridge-client.test.mjs
+```
+
+Then reply concisely with:
+
+- proof token: `sleep-lease-awake-guarded-live-provider-sentinel-v0`
+- branch/head relationship observed from `git status --short --branch`
+- whether the worktree was clean
+- bridge-client test summary, including pass/fail counts
+
+No further work is authorized.
