@@ -83,6 +83,17 @@ test('Agent Terminal consumes the toolkit session inspector model module', () =>
   assert.doesNotMatch(html, /function sourceDisplay/)
 })
 
+test('Agent Terminal consumes the toolkit terminal controller module', () => {
+  assert.match(html, /await import\('\.\/terminal-controller\.js'\)/)
+  assert.match(html, /createDefaultTerminalOptions\(\)/)
+  assert.match(html, /createAgentTerminalController\(\{/)
+  assert.match(html, /terminalController\.connectTerminal\(\)/)
+  assert.match(html, /terminalController\.forwardInput\(data\)/)
+  assert.doesNotMatch(html, /function connectTerminal/)
+  assert.doesNotMatch(html, /function createDefaultTerminalOptions/)
+  assert.doesNotMatch(html, /bridgeClient\.formatResizeFrame\(\{ cols, rows \}\)/)
+})
+
 test('toolkit Agent Terminal entrypoint is generic and neutral', () => {
   assert.match(toolkitHtml, /<title>Agent Terminal<\/title>/)
   assert.match(toolkitHtml, /const surfaceMode = params\.get\('surface'\) === 'sigil' \? 'sigil' : 'generic'/)

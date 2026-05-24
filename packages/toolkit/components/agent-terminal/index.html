@@ -352,6 +352,10 @@
     const { createAgentTerminalBridgeClient } = await import('./bridge-client.js');
     const { createSessionInspectorModel } = await import('./session-inspector-model.js');
     const {
+      createAgentTerminalController,
+      createDefaultTerminalOptions,
+    } = await import('./terminal-controller.js');
+    const {
       createSessionRailModel,
       findMatchingSession,
       providerLabel,
@@ -366,7 +370,6 @@
     const surfaceTitle = isSigilSurface ? 'Sigil / Agent Terminal' : 'AOS Agent Terminal';
     document.title = isSigilSurface ? 'Sigil Agent Terminal' : 'AOS Agent Terminal';
     let currentCwd = params.get('cwd') || '';
-    let activeLabel = 'Agent terminal';
     const shell = document.getElementById('shell');
     const chrome = mountChrome(document.body, {
       title: surfaceTitle,
@@ -427,9 +430,7 @@
     });
     let terminal = null;
     let fitAddon = null;
-    let socket = null;
-    let resizeRaf = 0;
-    let lastFit = { cols: 0, rows: 0 };
+    let terminalController = null;
     let sessions = [];
     let selectedSession = null;
     let inspectorRequest = 0;
@@ -444,27 +445,11 @@
     }
 
     function resizeTerminal() {
-      if (!fitAddon || !terminal) return;
-      cancelAnimationFrame(resizeRaf);
-      resizeRaf = requestAnimationFrame(() => {
-        try {
-          fitAddon.fit();
-          const cols = terminal.cols;
-          const rows = terminal.rows;
-          if (cols !== lastFit.cols || rows !== lastFit.rows) {
-            lastFit = { cols, rows };
-            if (socket?.readyState === WebSocket.OPEN) {
-              socket.send(bridgeClient.formatResizeFrame({ cols, rows }));
-            }
-          }
-        } catch (_) {}
-      });
+      terminalController?.resizeTerminal();
     }
 
     function scheduleRefit() {
-      resizeTerminal();
-      setTimeout(resizeTerminal, 40);
-      setTimeout(resizeTerminal, 160);
+      terminalController?.scheduleRefit();
     }
 
     function formatTime(value) {
@@ -687,60 +672,16 @@
       renderSessions();
     }
 
-    function connectTerminal(label = activeLabel) {
-      const previous = socket;
-      socket = null;
-      if (previous && previous.readyState !== WebSocket.CLOSED) previous.close();
-
-      const ws = bridgeClient.openTerminalSocket({ session });
-      socket = ws;
-      ws.addEventListener('open', () => {
-        if (socket !== ws) return;
-        setStatus('ready', `${label} - attached`);
-        window.__sigilAgentTerminal.state.attached = true;
-        terminal.clear();
-        scheduleRefit();
-        terminal.focus();
-      });
-      ws.addEventListener('message', async (event) => {
-        if (socket !== ws) return;
-        if (event.data instanceof Blob) {
-          terminal.write(await event.data.text());
-        } else {
-          terminal.write(String(event.data));
-        }
-      });
-      ws.addEventListener('close', () => {
-        if (socket !== ws) return;
-        window.__sigilAgentTerminal.state.attached = false;
-        setStatus('error', `${label} - detached`);
-      });
-      ws.addEventListener('error', () => {
-        if (socket !== ws) return;
-        setStatus('error', 'terminal bridge error');
-      });
-    }
-
     async function runAgentCommand({ command, cwd, label }) {
-      activeLabel = label;
       currentCwd = cwd || currentCwd;
-      if (!selectedSession) renderInspectorEmpty('Telemetry pending');
-      setStatus('', `Starting ${label}`);
-      terminal?.clear();
-      terminal?.writeln(`Starting ${label}...`);
-      try {
-        await bridgeClient.ensureSession({
-          session,
-          cwd: currentCwd,
-          command,
-          force: true,
-        });
-        connectTerminal(label);
-        void loadSessions();
-      } catch (error) {
-        setStatus('error', 'launch failed');
-        terminal?.writeln(`\r\n${error.message || String(error)}`);
-      }
+      terminalController?.setCurrentCwd(currentCwd);
+      await terminalController?.runAgentCommand({
+        command,
+        cwd: currentCwd,
+        label,
+        hasSelectedSession: Boolean(selectedSession),
+      });
+      currentCwd = terminalController?.currentCwd || currentCwd;
     }
 
     function bootTerminal() {
@@ -749,29 +690,30 @@
         document.getElementById('terminal').textContent = 'xterm.js failed to load. Run npm install in packages/toolkit/components/agent-terminal.';
         return;
       }
-      terminal = new Terminal({
-        cursorBlink: true,
-        convertEol: false,
-        fontFamily: 'SF Mono, Menlo, Consolas, monospace',
-        fontSize: 12,
-        lineHeight: 1.15,
-        scrollback: 5000,
-        theme: {
-          background: '#050708',
-          foreground: '#d8e6df',
-          cursor: '#86ddff',
-          selectionBackground: '#264d62',
-        },
-      });
+      terminal = new Terminal(createDefaultTerminalOptions());
       fitAddon = new window.FitAddon.FitAddon();
+      terminalController = createAgentTerminalController({
+        bridgeClient,
+        terminal,
+        fitAddon,
+        session,
+        setStatus,
+        setAttached(attached) {
+          window.__sigilAgentTerminal.state.attached = attached;
+        },
+        renderInspectorEmpty,
+        loadSessions,
+        WebSocketImpl: WebSocket,
+      });
+      terminalController.setCurrentCwd(currentCwd);
       terminal.loadAddon(fitAddon);
       terminal.open(document.getElementById('terminal'));
       scheduleRefit();
       terminal.focus();
       terminal.writeln('Connecting to agent terminal...');
-      connectTerminal(activeLabel);
+      terminalController.connectTerminal();
       terminal.onData((data) => {
-        if (socket?.readyState === WebSocket.OPEN) socket.send(data);
+        terminalController.forwardInput(data);
       });
     }
 
