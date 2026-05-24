@@ -365,6 +365,8 @@ PY
 post_tool_log="$TMPDIR_ROOT/post-tool-aos.log"
 tmux_log="$TMPDIR_ROOT/tmux.log"
 open_log="$TMPDIR_ROOT/open.log"
+bridge_log="$TMPDIR_ROOT/bridge-input.jsonl"
+bridge_port_file="$TMPDIR_ROOT/bridge-port"
 post_tool_condition_dir="$TMPDIR_ROOT/post-tool-conditions"
 post_tool_aos="$TMPDIR_ROOT/post-tool-aos"
 cat >"$post_tool_aos" <<'SH'
@@ -422,6 +424,67 @@ if grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log"; then
   cat "$tmux_log" >&2
   exit 1
 fi
+: >"$tmux_log"
+
+python3 - "$bridge_log" "$bridge_port_file" <<'PY' &
+import http.server
+import json
+import pathlib
+import sys
+
+log_path = pathlib.Path(sys.argv[1])
+port_path = pathlib.Path(sys.argv[2])
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        length = int(self.headers.get("content-length", "0"))
+        body = self.rfile.read(length)
+        log_path.open("a").write(body.decode("utf-8") + "\n")
+        data = json.dumps({"ok": True}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.send_header("content-length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+    def log_message(self, *_args):
+        pass
+
+server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+port_path.write_text(str(server.server_port))
+server.serve_forever()
+PY
+bridge_pid=$!
+for _ in $(seq 1 50); do
+  [[ -s "$bridge_port_file" ]] && break
+  sleep 0.02
+done
+bridge_port="$(cat "$bridge_port_file")"
+AOS_DOCK_AGENT_TERMINAL_BRIDGE_URL="http://127.0.0.1:$bridge_port" PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/pty-input-control.sh" send "%42" "/goal bridge submit"
+kill "$bridge_pid" >/dev/null 2>&1 || true
+wait "$bridge_pid" 2>/dev/null || true
+grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
+  echo "FAIL: PTY bridge path should still clear the current line when tmux is available" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+if grep -q 'TMUX:send-keys -t %42 -l /goal bridge submit\|TMUX:send-keys -t %42 Enter' "$tmux_log"; then
+  echo "FAIL: PTY bridge path should submit through the bridge, not raw tmux text/Enter" >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
+python3 - "$bridge_log" <<'PY'
+import json
+import pathlib
+import sys
+
+lines = pathlib.Path(sys.argv[1]).read_text().splitlines()
+if len(lines) != 1:
+    raise SystemExit(f"FAIL: expected one bridge input request, got {len(lines)}")
+payload = json.loads(lines[0])
+expected = {"session": "%42", "text": "/goal bridge submit", "enter": True}
+if payload != expected:
+    raise SystemExit(f"FAIL: bridge input payload mismatch: {payload}")
+PY
 : >"$tmux_log"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
