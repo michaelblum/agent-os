@@ -85,6 +85,9 @@ const {
     BROWSER_DOM_ELEMENT_PICKER_ADAPTER_ID,
     buildBrowserDomElementAnnotationCandidate,
 } = await import(toolkitSpecifier('workbench/browser-dom-element-picker.js'));
+const {
+    writeClipboardText,
+} = await import(toolkitSpecifier('runtime/canvas.js'));
 
 const host = createHostRuntime();
 const interactionTrace = createInteractionTrace({
@@ -616,10 +619,10 @@ async function handleContextMenuClose({ reason = 'close' } = {}) {
 }
 
 async function writeClipboard(text) {
-    if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
+    try {
+        await writeClipboardText(text);
         return true;
-    }
+    } catch (_) {}
     const textarea = document.createElement('textarea');
     textarea.value = text;
     textarea.setAttribute('readonly', '');

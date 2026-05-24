@@ -8,7 +8,7 @@
 export { wireBridge, emit, esc } from './bridge.js'
 export { submitGateContinuation } from './gate.js'
 export { subscribe, unsubscribe } from './subscribe.js'
-export { CANVAS_LIFECYCLE_STATES, spawnChild, warmCanvas, waitForCanvasReady, canvasInfo, waitForCanvasStatusReady, mutateSelf, removeSelf, removeCanvas, suspendCanvas, resumeCanvas, setInteractive, evalCanvas, move } from './canvas.js'
+export { CANVAS_LIFECYCLE_STATES, spawnChild, warmCanvas, waitForCanvasReady, canvasInfo, waitForCanvasStatusReady, mutateSelf, removeSelf, removeCanvas, suspendCanvas, resumeCanvas, setInteractive, evalCanvas, writeClipboardText, move } from './canvas.js'
 export { canvasLifecycleCanvasID, mergeCanvasLifecycleCanvas } from './canvas-lifecycle.js'
 export { DesktopWorldSurfaceAdapter } from './desktop-world-surface.js'
 export { DesktopWorldSurface2D } from './desktop-world-surface-2d.js'

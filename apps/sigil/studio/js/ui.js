@@ -22,6 +22,13 @@ import {
 } from '../../renderer/tesseron.js';
 import { randomizeAll } from './randomize.js';
 import { loadAgentIntoStudio, markDraftChanged, setupStudioSession, updateDraftIdentity } from './studio-session.js';
+import { toolkitSpecifier } from '../../renderer/live-modules/content-roots.js';
+
+const {
+    writeClipboardText,
+} = await import(toolkitSpecifier('runtime/canvas.js', {
+    local: '../../../../packages/toolkit/runtime/canvas.js',
+}));
 
 // Inlined from deleted scene.js — converts pixel base size to Three.js scene scale.
 const REF_BASE = 300;
@@ -1078,14 +1085,15 @@ export function setupUI() {
 
     const btnShare = document.getElementById('btn-share');
     if (btnShare) {
-        btnShare.addEventListener('click', () => {
+        btnShare.addEventListener('click', async () => {
             const config = getConfig();
             const shareUrl = new URL(window.location.origin + window.location.pathname);
             shareUrl.searchParams.set('config', btoa(JSON.stringify(config)));
-            navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+            try {
+                await writeClipboardText(shareUrl.toString());
                 btnShare.style.background = 'rgba(188, 19, 254, 0.4)';
                 setTimeout(() => { btnShare.style.background = ''; }, 600);
-            }).catch(() => {
+            } catch (_) {
                 const ta = document.createElement('textarea');
                 ta.value = shareUrl.toString();
                 ta.style.position = 'fixed'; ta.style.left = '-9999px';
@@ -1093,7 +1101,7 @@ export function setupUI() {
                 ta.focus(); ta.select();
                 try { document.execCommand('copy'); } catch (e) {}
                 document.body.removeChild(ta);
-            });
+            }
         });
     }
 

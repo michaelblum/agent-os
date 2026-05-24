@@ -156,6 +156,7 @@ import {
   setInteractive,
   evalCanvas,
   move,
+  writeClipboardText,
   declareManifest,
   emitReady,
   emitLifecycleComplete,
@@ -206,6 +207,33 @@ window.webkit?.messageHandlers?.headsup?.postMessage({
 Use this only for user-initiated paste flows in AOS WebViews where browser
 clipboard APIs may be unavailable. Treat an empty `text` string or timeout as a
 quiet paste miss.
+
+### Clipboard Write
+
+AOS-hosted canvases may write plain text to the system clipboard through the
+daemon with a `clipboard.write` message and a `request_id`. The daemon responds
+to the same canvas with `canvas.response`:
+
+```js
+window.webkit?.messageHandlers?.headsup?.postMessage({
+  type: 'clipboard.write',
+  payload: {
+    request_id: 'clipboard-write-1',
+    text: 'text to copy',
+  },
+})
+
+// inbound:
+// { type: 'canvas.response', request_id: 'clipboard-write-1', status: 'ok' }
+```
+
+Use `writeClipboardText(text, { timeoutMs })` from
+`packages/toolkit/runtime/canvas.js` for user-initiated copy buttons, menus, or
+keyboard actions. The helper requires a string, posts `clipboard.write`, waits
+for the matching `canvas.response`, and falls back to
+`navigator.clipboard.writeText()` unless `{ browserFallback: false }` is set.
+The primitive writes only `text/plain` / `NSPasteboard.PasteboardType.string`;
+rich formats, files, images, and clipboard history are out of scope.
 
 ### Menu Activation Model
 

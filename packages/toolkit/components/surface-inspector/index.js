@@ -9,7 +9,7 @@
 // docs/archive/superpowers/plans/2026-04-18-surface-inspector-pivot.md.
 
 import { emit, esc } from '../../runtime/bridge.js'
-import { evalCanvas, mutateSelf, spawnChild } from '../../runtime/canvas.js'
+import { evalCanvas, mutateSelf, spawnChild, writeClipboardText } from '../../runtime/canvas.js'
 import { canvasLifecycleCanvasID, mergeCanvasGeometryCanvas, normalizeCanvasGeometry, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
@@ -2878,7 +2878,7 @@ export default function CanvasInspector() {
       }
       if (btn.classList.contains('annotation-pin-copy')) {
         const pin = annotationState.pins.find((item) => item.id === btn.dataset.pinId)
-        navigator.clipboard?.writeText?.(pin?.subject_path?.join(' / ') || '')
+        void writeClipboardText(pin?.subject_path?.join(' / ') || '').catch(() => {})
         return
       }
       if (btn.classList.contains('annotation-pin-expand')) {
