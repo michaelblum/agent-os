@@ -1914,14 +1914,14 @@ async function observeTerminalSubstrate({ repoRoot, idempotenceKey, launchCwd, c
     cwd: repoRoot,
     env: {
       ...process.env,
-      SIGIL_AGENT_TERMINAL_PORT: String(port),
-      SIGIL_AGENT_TERMINAL_DRIVER: 'process',
-      SIGIL_AGENT_TMUX_SESSION: defaultSession,
-      SIGIL_AGENT_CWD: launchCwd,
-      SIGIL_AGENT_COMMAND: command,
-      SIGIL_AGENT_CATALOG_HOME: homeDir,
-      SIGIL_AGENT_CODEX_ROOT: codexRoot,
-      SIGIL_AGENT_CLAUDE_ROOT: claudeRoot,
+      AGENT_TERMINAL_PORT: String(port),
+      AGENT_TERMINAL_DRIVER: 'process',
+      AGENT_TERMINAL_TMUX_SESSION: defaultSession,
+      AGENT_TERMINAL_CWD: launchCwd,
+      AGENT_TERMINAL_COMMAND: command,
+      AGENT_TERMINAL_CATALOG_HOME: homeDir,
+      AGENT_TERMINAL_CODEX_ROOT: codexRoot,
+      AGENT_TERMINAL_CLAUDE_ROOT: claudeRoot,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -2076,11 +2076,11 @@ async function observeProviderTerminalSubstrate({ repoRoot, idempotenceKey, laun
     cwd: repoRoot,
     env: {
       ...process.env,
-      SIGIL_AGENT_TERMINAL_PORT: String(port),
-      SIGIL_AGENT_TERMINAL_DRIVER: 'process',
-      SIGIL_AGENT_TMUX_SESSION: defaultSession,
-      SIGIL_AGENT_CWD: launchCwd,
-      SIGIL_AGENT_COMMAND: command,
+      AGENT_TERMINAL_PORT: String(port),
+      AGENT_TERMINAL_DRIVER: 'process',
+      AGENT_TERMINAL_TMUX_SESSION: defaultSession,
+      AGENT_TERMINAL_CWD: launchCwd,
+      AGENT_TERMINAL_COMMAND: command,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -2429,15 +2429,15 @@ function initialRecord(context, timestamp) {
       command: context.command,
       command_env_refs: context.launchMode === 'supervised-provider'
         ? [
-            'SIGIL_AGENT_TERMINAL_DRIVER=process',
-            'SIGIL_AGENT_COMMAND=codex --no-alt-screen',
+            'AGENT_TERMINAL_DRIVER=process',
+            'AGENT_TERMINAL_COMMAND=codex --no-alt-screen',
           ]
         : (context.launchMode === WARM_DOCK_TUI_REUSE ? [
             'provider_process_reused=true',
             'provider_process_launch_performed=false',
           ] : [
-            'SIGIL_AGENT_TERMINAL_DRIVER=process',
-            'SIGIL_AGENT_COMMAND=<harmless-node-command>',
+            'AGENT_TERMINAL_DRIVER=process',
+            'AGENT_TERMINAL_COMMAND=<harmless-node-command>',
           ]),
       deadline_or_lease: context.packet.timeout_or_lease ?? context.packet.timeoutOrLease ?? NOT_OBSERVED,
       launch_requested: true,
