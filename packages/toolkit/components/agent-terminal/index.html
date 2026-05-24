@@ -350,6 +350,7 @@
 
     const { createFixedSidebarPane, mountChrome } = await import('../../panel/index.js');
     const { createAgentTerminalBridgeClient } = await import('./bridge-client.js');
+    const { createSessionInspectorModel } = await import('./session-inspector-model.js');
     const {
       createSessionRailModel,
       findMatchingSession,
@@ -477,16 +478,6 @@
       });
     }
 
-    function formatNumber(value) {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
-      return new Intl.NumberFormat().format(value);
-    }
-
-    function formatRatio(value) {
-      if (typeof value !== 'number' || !Number.isFinite(value)) return 'unknown';
-      return `${Math.round(value * 1000) / 10}%`;
-    }
-
     function appendText(parent, className, text, title) {
       const element = document.createElement('div');
       element.className = className;
@@ -513,24 +504,9 @@
       return section;
     }
 
-    function metricDisplay(metric) {
-      if (!metric || typeof metric !== 'object') return 'unknown';
-      if (metric.unit === 'ratio') return formatRatio(metric.value);
-      return `${formatNumber(metric.value)} ${metric.unit || ''}`.trim();
-    }
-
-    function sourceDisplay(metric) {
-      const source = metric?.source;
-      if (!source) return '';
-      return [source.stability, source.precision, source.kind, source.provider_version]
-        .filter(Boolean)
-        .join(' / ');
-    }
-
-    function appendMetric(parent, key, metric) {
-      appendRow(parent, key, metricDisplay(metric), metric?.source?.provider_surface);
-      const source = sourceDisplay(metric);
-      if (source) appendText(parent, 'inspector-source', source, metric?.source?.provider_surface);
+    function appendMetricRow(parent, row) {
+      appendRow(parent, row.key, row.value, row.title);
+      if (row.source) appendText(parent, 'inspector-source', row.source, row.sourceTitle);
     }
 
     function renderInspectorEmpty(text = 'Select a session') {
@@ -552,71 +528,43 @@
 
     function renderInspector(record, payload) {
       sessionInspector.replaceChildren();
-      const sourceSession = payload?.session || record;
-      const telemetry = payload?.telemetry || null;
-      const context = telemetry?.context || null;
-      const diagnostics = [
-        ...(Array.isArray(payload?.diagnostics) ? payload.diagnostics : []),
-        ...(Array.isArray(telemetry?.diagnostics) ? telemetry.diagnostics : []),
-      ];
-      const lifecycleEvents = Array.isArray(payload?.lifecycle_events) ? payload.lifecycle_events : [];
+      const model = createSessionInspectorModel(record, payload);
 
       const sessionSection = appendSection(sessionInspector, 'Session');
-      appendRow(sessionSection, 'provider', providerLabel(sourceSession.provider));
-      appendRow(sessionSection, 'id', sourceSession.session_id);
-      appendRow(sessionSection, 'cwd', sourceSession.cwd, sourceSession.cwd);
-      appendRow(sessionSection, 'branch', sourceSession.branch || 'unknown');
-      appendRow(sessionSection, 'source', sourceSession.source_file || 'unknown', sourceSession.source_file);
-      if (telemetry?.model?.id || telemetry?.model?.display_name) {
-        appendRow(sessionSection, 'model', telemetry.model.display_name || telemetry.model.id);
-      }
+      for (const row of model.sessionRows) appendRow(sessionSection, row.key, row.value, row.title);
 
       const contextSection = appendSection(sessionInspector, 'Context');
-      if (context) {
-        appendMetric(contextSection, 'window', context.window_tokens);
-        appendMetric(contextSection, 'used', context.used_tokens);
-        appendMetric(contextSection, 'remaining', context.remaining_tokens);
-        appendMetric(contextSection, 'used ratio', context.used_ratio);
-        appendMetric(contextSection, 'remaining ratio', context.remaining_ratio);
+      if (model.contextRows) {
+        for (const row of model.contextRows) appendMetricRow(contextSection, row);
       } else {
-        appendText(contextSection, 'empty-state', 'Unknown');
+        appendText(contextSection, 'empty-state', model.contextEmpty);
       }
 
-      if (context?.tokens) {
+      if (model.tokenRows.length) {
         const tokenSection = appendSection(sessionInspector, 'Token Counters');
-        for (const key of Object.keys(context.tokens).sort()) {
-          appendMetric(tokenSection, key.replace(/_/g, ' '), context.tokens[key]);
-        }
+        for (const row of model.tokenRows) appendMetricRow(tokenSection, row);
       }
 
-      if (lifecycleEvents.length) {
+      if (model.lifecycleRows.length) {
         const lifecycleSection = appendSection(sessionInspector, 'Lifecycle');
-        for (const event of lifecycleEvents.slice(-3)) {
-          appendRow(lifecycleSection, event.event, event.trigger || event.observed_at);
-          if (event.pre_tokens) appendMetric(lifecycleSection, 'pre', event.pre_tokens);
-          if (event.post_tokens) appendMetric(lifecycleSection, 'post', event.post_tokens);
+        for (const event of model.lifecycleRows) {
+          appendRow(lifecycleSection, event.heading.key, event.heading.value);
+          if (event.pre) appendMetricRow(lifecycleSection, event.pre);
+          if (event.post) appendMetricRow(lifecycleSection, event.post);
         }
       }
 
       const diagnosticSection = appendSection(sessionInspector, 'Diagnostics');
-      if (diagnostics.length) {
-        const seen = new Set();
-        for (const diagnostic of diagnostics) {
-          const key = `${diagnostic.code}:${diagnostic.provider_surface}:${diagnostic.fallback || ''}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
+      if (model.diagnosticRows.length) {
+        for (const diagnostic of model.diagnosticRows) {
           const item = document.createElement('div');
           item.className = `diagnostic ${diagnostic.severity || ''}`;
-          appendText(item, 'inspector-heading', diagnostic.code || 'diagnostic');
-          appendText(item, 'inspector-source', [
-            diagnostic.severity,
-            diagnostic.provider_surface,
-            diagnostic.fallback ? `fallback: ${diagnostic.fallback}` : '',
-          ].filter(Boolean).join(' / '));
+          appendText(item, 'inspector-heading', diagnostic.code);
+          appendText(item, 'inspector-source', diagnostic.source);
           diagnosticSection.append(item);
         }
       } else {
-        appendText(diagnosticSection, 'empty-state', 'No diagnostics');
+        appendText(diagnosticSection, 'empty-state', model.diagnosticsEmpty);
       }
       emit({ type: 'agent_terminal.session_telemetry', payload });
     }

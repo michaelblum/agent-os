@@ -74,6 +74,15 @@ test('Agent Terminal consumes the toolkit session rail model module', () => {
   assert.doesNotMatch(html, /function compareSessionsForRail/)
 })
 
+test('Agent Terminal consumes the toolkit session inspector model module', () => {
+  assert.match(html, /await import\('\.\/session-inspector-model\.js'\)/)
+  assert.match(html, /createSessionInspectorModel\(record, payload\)/)
+  assert.match(html, /emit\(\{\s*type:\s*'agent_terminal\.session_telemetry', payload\s*\}\)/)
+  assert.doesNotMatch(html, /function formatNumber/)
+  assert.doesNotMatch(html, /function formatRatio/)
+  assert.doesNotMatch(html, /function sourceDisplay/)
+})
+
 test('toolkit Agent Terminal entrypoint is generic and neutral', () => {
   assert.match(toolkitHtml, /<title>Agent Terminal<\/title>/)
   assert.match(toolkitHtml, /const surfaceMode = params\.get\('surface'\) === 'sigil' \? 'sigil' : 'generic'/)
