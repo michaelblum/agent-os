@@ -350,6 +350,11 @@
 
     const { createFixedSidebarPane, mountChrome } = await import('../../panel/index.js');
     const { createAgentTerminalBridgeClient } = await import('./bridge-client.js');
+    const {
+      createSessionRailModel,
+      findMatchingSession,
+      providerLabel,
+    } = await import('./session-rail-model.js');
 
     const params = new URLSearchParams(location.search);
     const port = params.get('port') || '17761';
@@ -459,19 +464,6 @@
       resizeTerminal();
       setTimeout(resizeTerminal, 40);
       setTimeout(resizeTerminal, 160);
-    }
-
-    function providerLabel(provider) {
-      return provider === 'claude-code' ? 'Claude' : 'Codex';
-    }
-
-    function basename(filePath) {
-      const parts = String(filePath || '').split('/').filter(Boolean);
-      return parts[parts.length - 1] || filePath || 'workspace';
-    }
-
-    function shortSessionId(id) {
-      return String(id || '').slice(0, 8);
     }
 
     function formatTime(value) {
@@ -661,23 +653,6 @@
       }
     }
 
-    function sessionSortTimestamp(record) {
-      if (sessionSort.value === 'created') {
-        return record.created_at || record.updated_at || record.last_message_at;
-      }
-      return record.last_message_at || record.updated_at || record.created_at;
-    }
-
-    function compareSessionsForRail(a, b) {
-      const at = Date.parse(sessionSortTimestamp(a) || '') || 0;
-      const bt = Date.parse(sessionSortTimestamp(b) || '') || 0;
-      const recency = bt - at;
-      if (recency !== 0) return recency;
-      const provider = String(a.provider || '').localeCompare(String(b.provider || ''));
-      if (provider !== 0) return provider;
-      return String(a.session_id || '').localeCompare(String(b.session_id || ''));
-    }
-
     function renderSessions() {
       sessionList.replaceChildren();
       if (!sessions.length) {
@@ -688,22 +663,28 @@
         return;
       }
 
-      for (const record of [...sessions].sort(compareSessionsForRail)) {
+      const rows = createSessionRailModel(sessions, {
+        selectedSession,
+        sortMode: sessionSort.value,
+        formatTime,
+      });
+      for (const row of rows) {
+        const { record } = row;
         const item = document.createElement('button');
         item.type = 'button';
         item.className = 'session-button';
-        if (selectedSession?.provider === record.provider && selectedSession?.session_id === record.session_id) {
+        if (row.selected) {
           item.classList.add('selected');
           item.setAttribute('aria-current', 'true');
         }
         item.setAttribute('role', 'listitem');
-        item.setAttribute('aria-label', `Resume ${providerLabel(record.provider)} session ${record.session_id} in ${record.cwd}`);
+        item.setAttribute('aria-label', row.ariaLabel);
         item.addEventListener('click', () => {
           selectSession(record, { loadTelemetry: true });
           void runAgentCommand({
             command: record.resume_command,
             cwd: record.cwd,
-            label: `${providerLabel(record.provider)} ${basename(record.cwd)}`,
+            label: row.resumeLabel,
           });
         });
 
@@ -711,19 +692,19 @@
         main.className = 'session-main';
         const badge = document.createElement('span');
         badge.className = `provider-badge ${record.provider}`;
-        badge.textContent = providerLabel(record.provider);
+        badge.textContent = row.providerLabel;
         const name = document.createElement('span');
         name.className = 'session-name';
-        name.textContent = basename(record.cwd);
+        name.textContent = row.workspaceLabel;
         main.append(badge, name);
 
         const meta = document.createElement('div');
         meta.className = 'session-meta';
-        meta.textContent = [record.branch, formatTime(sessionSortTimestamp(record))].filter(Boolean).join(' / ');
+        meta.textContent = row.metadataText;
 
         const id = document.createElement('div');
         id.className = 'session-id';
-        id.textContent = shortSessionId(record.session_id);
+        id.textContent = row.shortId;
 
         item.append(main, meta, id);
         sessionList.append(item);
@@ -741,13 +722,14 @@
         sessions = [];
       }
       if (selectedSession) {
-        const replacement = sessions.find((record) => (
-          record.provider === selectedSession.provider && record.session_id === selectedSession.session_id
-        ));
+        const replacement = findMatchingSession(sessions, selectedSession);
         if (replacement) selectedSession = replacement;
       }
       if (!selectedSession && sessions.length) {
-        selectedSession = [...sessions].sort(compareSessionsForRail)[0];
+        selectedSession = createSessionRailModel(sessions, {
+          sortMode: sessionSort.value,
+          formatTime,
+        })[0].record;
         void loadInspector(selectedSession);
       } else if (selectedSession) {
         void loadInspector(selectedSession);
