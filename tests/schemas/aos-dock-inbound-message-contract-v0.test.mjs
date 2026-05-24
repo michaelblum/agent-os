@@ -13,6 +13,7 @@ const canonicalContractPaths = [
   path.join(repoRoot, '.docks/gdi/inbound-contract.json'),
   path.join(repoRoot, '.docks/operator/inbound-contract.json'),
 ];
+const warmDockInlineValidationPayload = 'Warm dock TUI reuse validation only. Do not run shell commands, edit files, read provider transcript files, open GitHub, create branches, commit, push, or route follow-up work. Reply with a concise confirmation that this prompt was accepted in the current warm GDI terminal and whether stale-goal or repeated-completion behavior occurred.';
 
 function validate(instancePath) {
   return spawnSync(
@@ -93,6 +94,26 @@ test('GDI work-card pointers format as plain clipboard payloads with goal entry 
   assert.equal(result.json.ok, true);
   assert.equal(result.json.clipboard_payload, payload);
   assert.equal(result.json.provider_entry_preview, `/goal ${payload}`);
+});
+
+test('GDI declares the warm-dock validation inline instruction payload kind', async () => {
+  const contract = JSON.parse(await fs.readFile(canonicalContractPaths[1], 'utf8'));
+  const payloadKind = contract.providers.codex.allowed_payloads.find(
+    (payload) => payload.kind === 'warm_dock_validation_inline_instruction',
+  );
+  assert.ok(payloadKind);
+  assert.match(payloadKind.description, /validation-only/);
+  assert.deepEqual(payloadKind.examples, [warmDockInlineValidationPayload]);
+});
+
+test('GDI warm-dock inline validation payload is accepted without loop-risk warnings', () => {
+  const result = formatPayload('gdi', warmDockInlineValidationPayload);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.json.ok, true);
+  assert.equal(result.json.clipboard_payload, warmDockInlineValidationPayload);
+  assert.equal(result.json.provider_entry_prefix, '/goal ');
+  assert.equal(result.json.provider_entry_preview, `/goal ${warmDockInlineValidationPayload}`);
+  assert.deepEqual(result.json.diagnostics, []);
 });
 
 test('GDI strips accidental goal prefix as compatibility cleanup', () => {

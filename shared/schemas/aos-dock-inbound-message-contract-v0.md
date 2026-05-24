@@ -27,7 +27,10 @@ target dock + provider + payload -> clipboard payload + provider entry preview +
   for GDI Codex work goals or an empty string for Operator supervised
   instructions.
 - `allowed_payloads` lists the durable pointer or supervised instruction shapes
-  expected by the dock.
+  expected by the dock. GDI normally prefers durable work-card or transfer
+  pointers; a short inline validation-only instruction is allowed only for
+  supervised live checks where reading a file before seeing the boundary would
+  invalidate the check.
 - `forbidden_prompt_shapes` lists prompt shapes that must be rejected when they
   violate a dock or provider boundary, or surfaced as warnings before dispatch
   when they are policy risks.
@@ -40,6 +43,11 @@ GDI/Codex uses `/goal ` for interactive work-goal entry, but copied transfer
 payloads remain plain pointers. A copied payload that already starts with
 `/goal ` may be cleaned for compatibility; that cleanup is not the canonical
 payload shape.
+
+GDI inline validation-only prompts are a narrow exception to the durable pointer
+preference. They must carry their own bounded no-command instruction in the
+prompt text and are for supervised live validation where the act of opening a
+work-card pointer would violate the proof boundary.
 
 Operator/Codex receives plain supervised instructions or durable pointers. It
 does not receive GDI `/goal` prompts and does not route implementation work or

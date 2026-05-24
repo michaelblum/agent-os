@@ -26,6 +26,13 @@
           "examples": [
             "follow the instructions in docs/design/work-cards/example-v0.md; start from origin/main"
           ]
+        },
+        {
+          "kind": "warm_dock_validation_inline_instruction",
+          "description": "Short supervised live validation-only GDI instruction whose prompt contains the no-command boundary inline, used only when reading a work-card pointer would violate the proof contract.",
+          "examples": [
+            "Warm dock TUI reuse validation only. Do not run shell commands, edit files, read provider transcript files, open GitHub, create branches, commit, push, or route follow-up work. Reply with a concise confirmation that this prompt was accepted in the current warm GDI terminal and whether stale-goal or repeated-completion behavior occurred."
+          ]
         }
       ],
       "forbidden_prompt_shapes": [
