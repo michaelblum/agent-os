@@ -43,6 +43,43 @@ manifests/modules/scripts that can change without rebuilding the TCC binary.
 
 ## User Plan
 
+### Phase 0 - Goal Loop Pause Guard
+
+Before command-surface demolition, fix the repeated wasted rebuild/TCC loop.
+
+Observed failure mode:
+
+1. GDI runs `./aos dev build`.
+2. The build succeeds but the rebuilt repo-mode `./aos` loses or stales
+   Accessibility/Input Monitoring.
+3. Codex keeps spending tokens on readiness classification, helper ritual,
+   repeated status commands, and verbose `human_needed` reporting.
+4. The goal should have paused immediately at the deterministic checkpoint.
+
+There is no known Codex config/API switch for hard declarative pause conditions.
+The supported mechanism is still `/goal pause`, so implement this as workflow
+and harness behavior:
+
+- encode the pause condition in this `/goal` contract;
+- add or update a repo/dock wrapper so GDI has one canonical command to run
+  after Swift rebuilds;
+- make that wrapper detect post-build repo-mode TCC/input-tap degradation and
+  stop the loop with a concise instruction to issue `/goal pause`;
+- avoid repeated ad-hoc `./aos ready`, helper, status, and report loops after a
+  rebuild has already proven the human permission reset is needed;
+- add deterministic tests around the wrapper/stop-condition behavior before
+  relying on it for the long rearchitecture.
+
+The desired behavior after any Swift rebuild is:
+
+```text
+build passed; readiness requires repo-mode TCC/Input Monitoring reset;
+pause the current goal now with /goal pause; human should run the permission
+setup path and resume with /goal resume after ready=true
+```
+
+Do not proceed to Phase 1 until this guardrail exists and is verified.
+
 ### Phase 1 - Demolition
 
 Rip the command surface out of the Swift binary aggressively. Do not preserve
@@ -145,6 +182,19 @@ rg -n "aos help|--help|UNKNOWN_COMMAND|UNKNOWN_FLAG|MISSING_ARG|MISSING_SUBCOMMA
 Early demolition may require Swift rebuilds and therefore TCC readiness repair.
 That is acceptable.
 
+After Phase 0, do not perform the old ritual after a rebuild-triggered TCC
+blocker. The goal-loop rule is:
+
+- if `./aos dev build` or the new guarded build wrapper succeeds but the
+  post-build readiness check reports stale/missing repo-mode TCC or inactive
+  input tap, immediately pause the active goal with `/goal pause`;
+- print only the concise human action and resume command;
+- do not keep polling, do not run redundant status commands, and do not spend
+  another cycle proving the same blocker;
+- after the human returns and says `ready`, run only
+  `./aos ready --post-permission`; if it reports `ready=true`, resume the next
+  verification step.
+
 The target architecture should quickly settle a future-accommodating manifest
 and IPC shape so the Swift binary rarely changes after the dispatcher/native
 primitive layer is stable.
@@ -181,6 +231,8 @@ and stop with a clear `human_needed` report.
 
 Use commits as recoverable checkpoints. Suggested checkpoint sequence:
 
+0. Goal-loop guard commit: rebuild-triggered TCC/input-tap degradation causes a
+   concise `/goal pause` checkpoint instead of repeated readiness/helper ritual.
 1. Demolition commit: Swift command surface removed or reduced to dispatcher
    scaffolding, even if tests fail.
 2. External manifest/IPC proof commit: AFK trigger runs externally end-to-end.
@@ -196,6 +248,8 @@ choose it and document why in the completion report.
 
 The goal is not complete until all are true:
 
+- Rebuild-triggered repo-mode TCC/input-tap degradation has a deterministic
+  `/goal pause` path, verified by tests.
 - `aos` commands work 100% for the repo's supported command surface.
 - Existing help/JSON/error contracts are repaired or intentionally updated with
   matching tests/docs.
@@ -213,6 +267,7 @@ Run at least:
 
 ```bash
 ./aos dev build
+bash tests/dock-hook-isolation.sh
 bash tests/help-contract.sh
 bash tests/dev-workflow-router.sh
 bash tests/dev-audit.sh
