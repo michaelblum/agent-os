@@ -48,6 +48,48 @@ Inspect enough local state to make the choice:
    remains, classify the branch as publication-ready and state that external
    publication is the next gate.
 
+## Completion Report Review
+
+When a GDI or Operator completion report arrives, Foreman should use this
+procedural pass before accepting or routing follow-up work:
+
+1. Recompute local state with `git status --short --branch`, the relevant
+   branch refs, and the diff against the assigned base. Do not rely only on the
+   report's file count or cleanliness claim.
+2. Read the assigned work card, changed files, and reported evidence. Include
+   any dirty local diff in the review instead of discarding or ignoring it.
+3. Classify the result:
+   - accept when the card goal is met, scope boundaries hold, local evidence is
+     reproducible, and no blocking review finding remains;
+   - route correction when the goal is partly met but one bounded defect or
+     missing proof blocks acceptance;
+   - block when the next step requires human permission, credentials,
+     external publication, runtime permissions, or product judgment.
+4. After acceptance, run the no-neutral-acceptance ladder in the Foreman dock
+   contract. Acceptance must end in a local checkpoint, routed next slice,
+   Operator or human-needed packet, or named external gate.
+
+## Local Integration Gate
+
+Fast-forwarding an accepted work branch into local `main` is a reversible local
+checkpoint, not external publication. It is appropriate when all are true:
+
+- the branch is accepted against the current `origin/main` or another intended
+  integration base;
+- the worktree is clean except for deliberate, reviewed checkpoint edits;
+- `git merge --ff-only <branch>` succeeds from local `main`;
+- the active work card, issue, or human instruction does not require PR review
+  before local integration.
+
+Stop before local integration when the accepted branch needs a PR-first policy,
+has unresolved base drift, contains unrelated dirty changes, or leaves multiple
+plausible local follow-ups whose ordering affects product behavior.
+
+After local integration, report the exact local and remote relationship, such
+as `main...origin/main [ahead N]`. Do not treat a local fast-forward as
+permission to push, create or update a PR, mutate issues, or delete remote
+branches.
+
 ## Publication Gate
 
 External publication means push, PR creation, issue mutation, remote comment,
@@ -66,6 +108,19 @@ Use publication as the next action only when at least one is true:
 When publication is blocked only by missing permission, stop with a concrete
 human-needed packet. Do not present publication versus continuation as a
 generic preference question.
+
+## Branch Hygiene Gate
+
+Delete or retire feature branches only after their publication state is known.
+Local cleanup is procedural only when one of these is true:
+
+- the accepted branch has been merged or fast-forwarded into the publication
+  target and the remote target has also been updated;
+- the branch is superseded by a named replacement branch or correction card;
+- the human explicitly asked for branch cleanup.
+
+Otherwise, keep the branch as an audit handle and name branch retirement as a
+remaining external hygiene decision.
 
 ## Output Shape
 
