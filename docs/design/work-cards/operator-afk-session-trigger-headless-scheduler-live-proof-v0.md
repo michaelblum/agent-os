@@ -1,6 +1,70 @@
 # Work Card: Operator AFK Session Trigger Headless Scheduler Live Proof V0
 
-**Status:** Ready for Operator
+**Status:** Accepted with deterministic follow-up 2026-05-24
+
+## Result
+
+- Classification: `pass`.
+- Foreman review: accepted for the headless scheduler/provider/cleanup gate.
+  The run proved current `main` can complete a no-fixture
+  `./aos dev afk-session-trigger` Codex/GDI scheduler proof with provider
+  acceptance through Codex adapter metadata and verified cleanup.
+- Branch/ref gates passed on `main` at
+  `d629afa5a40ce386b462775b32bfbec3016d1b4b`, matching `origin/main` before
+  and after. The worktree stayed clean.
+- Readiness before and after reported
+  `ready=true mode=repo daemon=reachable tap=active`.
+- Preflight passed:
+  - `node --test tests/afk-session-trigger-prototype.test.mjs` with 22/22
+    passing;
+  - `node --test tests/afk-launch-attempt-prototype.test.mjs` with 48/48
+    passing;
+  - `node --test tests/sigil-agent-terminal-server.test.mjs` with 19/19
+    passing;
+  - `cd packages/host && npm test` with 63/63 passing;
+  - `git diff --check`.
+- Live trigger evidence:
+  - top-level `status=completed`;
+  - `packet.validation_status=valid`;
+  - `scheduler.lifecycle_state=completed`;
+  - `dispatch.provider_launch_allowed=true`;
+  - `dispatch.launch_root=.docks/gdi`;
+  - terminal substrate `status=observed`, driver `process`, cwd
+    `/Users/Michael/Code/agent-os/.docks/gdi`, command
+    `codex --no-alt-screen`;
+  - prompt mode `codex_goal`, prefix `"/goal "`, transport `file_pointer`,
+    and ref
+    `docs/design/work-cards/operator-afk-session-trigger-headless-scheduler-live-proof-v0.md`;
+  - prompt preview included `/goal Your work card is at ...`;
+  - `provider_execution_observed=true`.
+- Provider acceptance closed:
+  - `provider_acceptance.status=provider_session_observed`;
+  - provider session id `019e58e9-54d8-7770-9be4-a88882c7e906`;
+  - observation source `codex_adapter_metadata`;
+  - provider cwd `/Users/Michael/Code/agent-os/.docks/gdi`;
+  - `codex_adapter.status=observed`;
+  - `codex_adapter.correlation_status=matched_by_cwd_time_window`;
+  - matched cwd basis `intended_launch_cwd`;
+  - matched thread `019e58e9-54d8-7770-9be4-a88882c7e906`.
+- Cleanup was verified. Process comparison showed the owned live launch cleaned
+  up; only pre-existing Codex app and Sigil Agent Terminal bridge processes
+  remained.
+- No stale `provider_session_id_not_observed`, provider-acceptance,
+  prompt-profile, cleanup, or async-route mismatch remained in the completed
+  provider receipt.
+- Residual deterministic finding: `result_route.status=unsupported` for the
+  packet's stdout route object, with `result_route_unsupported`. No async
+  result routing was started. Foreman accepted this as a local route-shape
+  compatibility gap, not a live provider failure, and routed
+  `docs/design/work-cards/afk-session-trigger-stdout-route-object-normalization-v0.md`.
+- Bounded metadata note: Codex diagnostics included
+  `codex_session_meta_incomplete` for older/incomplete rollout files. The new
+  provider metadata file was observed by path/mtime/size only:
+  `rollout-2026-05-24T03-35-47-019e58e9-54d8-7770-9be4-a88882c7e906.jsonl`.
+- Boundary confirmed: transcript bodies were not read or copied, only bounded
+  metadata and receipt fields were inspected. No source, docs, config, provider
+  store, gateway, dock profile, hook, GitHub, branch, PR, push, merge, or async
+  result-routing mutation occurred during the Operator run.
 
 ## Transfer Classification
 
