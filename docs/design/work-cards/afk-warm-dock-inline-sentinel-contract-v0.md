@@ -1,6 +1,38 @@
 # Work Card: AFK Warm Dock Inline Sentinel Contract V0
 
-**Status:** Ready for GDI
+**Status:** Accepted 2026-05-24
+
+## Result
+
+- Foreman review: accepted.
+- Branch/ref gates passed on
+  `gdi/afk-warm-dock-inline-sentinel-contract-v0` at
+  `4e6c42541b9802401f33fb32d15f7ce97ae1b2a9`, based on
+  `f6a7dbd089da73aba0f4ce51a502f17f91f66fa1`.
+- Diff was scoped to:
+  - `.docks/gdi/inbound-contract.json`;
+  - `shared/schemas/aos-dock-inbound-message-contract-v0.md`;
+  - `tests/schemas/aos-dock-inbound-message-contract-v0.test.mjs`;
+  - `docs/design/work-cards/afk-warm-dock-tui-reuse-live-sentinel-v0.md`.
+- Behavior accepted: the GDI inbound contract now declares
+  `warm_dock_validation_inline_instruction` for short supervised live
+  validation where the no-command boundary must be visible in the prompt
+  itself, and the old pointer sentinel is marked superseded for no-command
+  warm-dock validation.
+- Verification rerun by Foreman passed:
+  - `node --test tests/schemas/aos-dock-inbound-message-contract-v0.test.mjs`
+    with 10/10 passing;
+  - direct inline payload validation with `ok=true`,
+    `provider_entry_prefix="/goal "`, and `diagnostics=[]`;
+  - `git diff --check origin/main...HEAD`.
+- Existing `reply exactly` and `proof only` loop-risk warnings remained covered.
+- Follow-up routed and accepted:
+  `docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v2.md`.
+- No live provider launch, transcript body read, provider store/catalog/
+  telemetry mutation, gateway/dock runtime mutation, GitHub issue/PR/main
+  mutation, main merge, PR creation, external notifier, durable work/evidence
+  record, unsupervised trigger, or live terminal driving occurred during this
+  deterministic GDI correction beyond the expected GDI branch push.
 
 ## Transfer Classification
 

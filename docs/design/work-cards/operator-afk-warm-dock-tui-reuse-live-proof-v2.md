@@ -1,6 +1,39 @@
 # Work Card: Operator AFK Warm Dock TUI Reuse Live Proof V2
 
-**Status:** Ready for Operator
+**Status:** Pass accepted 2026-05-24
+
+## Result
+
+- Classification: `pass`.
+- Foreman review: accepted as strict live proof that the existing warm GDI Codex
+  terminal can be reused after `/clear` with the inline no-command sentinel
+  payload.
+- Branch/ref gates passed on `main` at
+  `08dceaaaa2b4c1363aaa2d640a885d76ce38ec24`, with `HEAD == origin/main` and a
+  clean worktree before and after the Operator run.
+- Readiness before and after was
+  `ready=true mode=repo daemon=reachable tap=active`.
+- Preflight passed:
+  - `node --test tests/schemas/aos-dock-inbound-message-contract-v0.test.mjs`
+    with 10/10 passing;
+  - `git diff --check`.
+- The inline GDI payload validated with `ok=true`,
+  `provider_entry_prefix="/goal "`, `provider_entry_preview` matching `/goal `
+  plus the payload, and `diagnostics=[]`.
+- Metadata-only evidence showed a new latest GDI Codex session after the
+  human-gated dispatch:
+  - baseline `.docks/gdi`: `019e5902-cdaa-79f2-8d44-d4ac1196c517`;
+  - post-dispatch `.docks/gdi`: `019e590c-598d-78c0-9ee1-3fd469e6481a`.
+- The human confirmed the existing warm GDI terminal was used, `/clear` was
+  submitted before `/goal <inline payload>`, the GDI response accepted the
+  prompt in the current warm terminal, and no stale-goal or repeated-completion
+  behavior occurred.
+- Process comparison showed no proof-owned cold `codex --no-alt-screen`, new
+  bridge `server.mjs`, or `pty-proxy.py` process started for the warm proof.
+- Transcript bodies were not read.
+- No source, docs, config, provider store, gateway, dock runtime, hook, GitHub,
+  branch, PR, push, merge, or async result-routing changes were made during the
+  Operator run.
 
 ## Transfer Classification
 

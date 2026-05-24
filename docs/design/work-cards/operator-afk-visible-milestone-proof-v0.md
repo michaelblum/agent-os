@@ -1,6 +1,25 @@
 # Work Card: Operator AFK Visible Milestone Proof V0
 
-**Status:** Ready for Operator
+**Status:** Superseded 2026-05-24
+
+## Supersession Notice
+
+Do not route this card as written. It still uses the old pointer-shaped
+warm-dock sentinel, which was superseded because the no-command boundary was
+not visible until GDI inspected a file.
+
+The same milestone evidence was split into smaller accepted proofs:
+
+- Headless scheduler/provider proof:
+  `docs/design/work-cards/operator-afk-session-trigger-headless-scheduler-live-proof-v0.md`.
+- Stdout route-object compatibility correction:
+  `docs/design/work-cards/afk-session-trigger-stdout-route-object-normalization-v0.md`.
+- Strict warm GDI terminal reuse proof with inline no-command sentinel:
+  `docs/design/work-cards/operator-afk-warm-dock-tui-reuse-live-proof-v2.md`.
+
+If a future user-visible milestone packet is needed, draft a new V1 card using
+the inline payload from `.docks/gdi/inbound-contract.json`; do not revive this
+pointer-shaped warm sentinel flow.
 
 ## Transfer Classification
 
