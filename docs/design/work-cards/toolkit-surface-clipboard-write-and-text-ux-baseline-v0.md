@@ -1,6 +1,47 @@
 # Work Card: Toolkit Surface Clipboard Write And Text UX Baseline V0
 
-**Status:** Routed to GDI
+**Status:** Accepted
+
+## Foreman Acceptance
+
+Accepted on 2026-05-24.
+
+- GDI implementation branch:
+  `gdi/toolkit-surface-clipboard-write-and-text-ux-baseline-v0`
+- GDI implementation commit:
+  `ce01df26821e7213a0fa337435eb8a15791c19c1`
+- Foreman correction commit:
+  `60a94b82 test(toolkit): update surface inspector copy contract`
+- Main merge commit:
+  `cb3500d82ddb490c478d99a6bd3079b997e379df`
+
+Foreman review found one stale deterministic contract in
+`tests/toolkit/surface-inspector.test.mjs`: the test still expected a direct
+`navigator.clipboard.writeText` path after the surface had moved to the runtime
+helper. The assertion was updated to match `writeClipboardText`, then the
+branch was merged to `main`.
+
+Accepted evidence:
+
+- `./aos ready --post-permission`: ready.
+- `./aos dev build`: passed.
+- `node --test tests/toolkit/runtime-canvas.test.mjs`: 6/6 passed.
+- `node --test tests/toolkit/surface-inspector.test.mjs`: 37/37 passed.
+- `node --test tests/toolkit/*.test.mjs`: 1021/1021 passed.
+- `node --test tests/renderer/agent-terminal-terminal-controller.test.mjs`:
+  21/21 passed.
+- `node --test tests/renderer/agent-terminal-chrome.test.mjs`: 23/23 passed.
+- `bash tests/help-contract.sh`: passed.
+- `git diff --check`: passed.
+- Live native clipboard smoke: a throwaway canvas sent
+  `clipboard.write` with token `foreman-native-copy-token-20260524T162438Z`,
+  received `canvas.response` with `status="ok"`, and `pbpaste` matched the
+  token exactly.
+
+During live smoke setup, Foreman also found an unrelated CLI bug:
+`./aos show create --ttl none` is documented by help but crashes before sending
+JSON because it attempts to encode a non-finite numeric TTL. That is tracked in
+`docs/design/work-cards/aos-show-ttl-none-crash-v0.md`.
 
 ## Foreman Triage
 
