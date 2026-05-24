@@ -18,6 +18,7 @@ if shared.exists():
 runner = root / ".docks" / "harness" / "dock-hook-runner.sh"
 post_tool_runner = root / ".docks" / "harness" / "post-tool-use-runner.sh"
 goal_pause_control = root / ".docks" / "harness" / "goal-pause-control.sh"
+provider_input_control = root / ".docks" / "harness" / "provider-input-control.sh"
 defaults_path = root / ".docks" / "dock-defaults.json"
 if not runner.exists():
     raise SystemExit("FAIL: missing shared dock hook runner")
@@ -31,6 +32,10 @@ if not goal_pause_control.exists():
     raise SystemExit("FAIL: missing shared goal-pause control helper")
 if not os.access(goal_pause_control, os.X_OK):
     raise SystemExit("FAIL: shared goal-pause control helper is not executable")
+if not provider_input_control.exists():
+    raise SystemExit("FAIL: missing shared provider input control helper")
+if not os.access(provider_input_control, os.X_OK):
+    raise SystemExit("FAIL: shared provider input control helper is not executable")
 if not defaults_path.exists():
     raise SystemExit("FAIL: missing shared dock defaults")
 defaults = json.loads(defaults_path.read_text())
@@ -366,6 +371,24 @@ set -euo pipefail
 printf 'TMUX:%s\n' "$*" >>"$AOS_FAKE_TMUX_LOG"
 SH
 chmod +x "$fake_bin/tmux"
+
+PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/provider-input-control.sh" send "%42" "/goal test clean input"
+grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
+  echo "FAIL: provider input helper should clear current input line before sending text" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:send-keys -t %42 -l /goal test clean input' "$tmux_log" || {
+  echo "FAIL: provider input helper should send literal text through tmux" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
+  echo "FAIL: provider input helper should press Enter after sending text" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+: >"$tmux_log"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
 tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
