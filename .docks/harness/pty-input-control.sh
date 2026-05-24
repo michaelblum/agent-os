@@ -103,13 +103,14 @@ if [[ "$clear" == "1" && "$tmux_available" == "1" ]]; then
 fi
 
 if [[ -n "$bridge_url" ]]; then
-  if python3 - "$bridge_url" "$bridge_session_target" "$text" "$submit" <<'PY'
+  if python3 - "$bridge_url" "$bridge_session_target" "$text" "$submit" "${AOS_DOCK_PTY_PRE_SUBMIT_DELAY_MS:-300}" <<'PY'
 import json
 import sys
+import time
 import urllib.error
 import urllib.request
 
-bridge_url, session, text, submit = sys.argv[1:]
+bridge_url, session, text, submit, delay_ms = sys.argv[1:]
 
 def post_input(payload):
     data = json.dumps(payload).encode("utf-8")
@@ -127,6 +128,7 @@ def post_input(payload):
 try:
     post_input({"session": session, "text": text, "enter": False})
     if submit == "1":
+        time.sleep(max(0, int(delay_ms)) / 1000)
         post_input({"session": session, "text": "", "enter": True})
 except (OSError, urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
     raise SystemExit(1)
@@ -155,5 +157,13 @@ for ((i = 0; i < ${#parts[@]}; i += 1)); do
 done
 
 if [[ "$submit" == "1" ]]; then
+  sleep "$(python3 - <<'PY'
+import os
+try:
+    print(max(0, int(os.environ.get("AOS_DOCK_PTY_PRE_SUBMIT_DELAY_MS", "300"))) / 1000)
+except ValueError:
+    print(0.3)
+PY
+)"
   tmux send-keys -t "$target" Enter
 fi
