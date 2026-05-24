@@ -1,5 +1,15 @@
 # Toolkit Agent Terminal Neutral Bridge Env Aliases V0
 
+## Superseded
+
+This work card is superseded by
+`docs/design/work-cards/toolkit-agent-terminal-neutral-bridge-env-hard-cutover-correction-v0.md`.
+
+The compatibility policy in this card was rejected after review. Agent OS is
+pre-release, so owned repo callers, tests, and docs should be migrated to the
+canonical names instead of preserving broad `SIGIL_AGENT_*` and
+`SIGIL_CODEX_*` bridge environment aliases.
+
 ## Recipient
 
 GDI
