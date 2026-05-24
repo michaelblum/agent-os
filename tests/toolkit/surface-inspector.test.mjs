@@ -759,7 +759,7 @@ test('active Annotation Mode keeps saved annotation management controls separate
   assert.match(renderBlock, /annotation-comment-text/);
   assert.match(renderBlock, /annotation-comment-delete/);
   assert.match(bindBlock, /selectSurfaceInspectorAnnotationFrame\(annotationState, btn\.dataset\.pinId/);
-  assert.match(bindBlock, /navigator\.clipboard\?\.writeText/);
+  assert.match(bindBlock, /writeClipboardText/);
   assert.match(bindBlock, /unpinSurfaceInspectorFrame\(annotationState, btn\.dataset\.pinId\)/);
   assert.match(bindBlock, /deleteSurfaceInspectorComment\(annotationState, btn\.dataset\.commentId\)/);
   assert.match(bindBlock, /mode: 'edit'/);
