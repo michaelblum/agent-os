@@ -349,10 +349,12 @@
     }
 
     const { createFixedSidebarPane, mountChrome } = await import('../../panel/index.js');
+    const { createAgentTerminalBridgeClient } = await import('./bridge-client.js');
 
     const params = new URLSearchParams(location.search);
     const port = params.get('port') || '17761';
     const session = params.get('session') || 'aos-agent-terminal-agent-os';
+    const bridgeClient = createAgentTerminalBridgeClient({ port });
     const surfaceMode = params.get('surface') === 'sigil' ? 'sigil' : 'generic';
     const isSigilSurface = surfaceMode === 'sigil';
     const surfaceTitle = isSigilSurface ? 'Sigil / Agent Terminal' : 'AOS Agent Terminal';
@@ -430,10 +432,6 @@
       window.webkit?.messageHandlers?.headsup?.postMessage(body);
     }
 
-    function bridgeUrl(path) {
-      return `http://127.0.0.1:${port}${path}`;
-    }
-
     function setStatus(kind, text) {
       statusDot.className = `status ${kind || ''}`;
       chrome.setTitle(`${surfaceTitle} - ${text}`);
@@ -450,7 +448,7 @@
           if (cols !== lastFit.cols || rows !== lastFit.rows) {
             lastFit = { cols, rows };
             if (socket?.readyState === WebSocket.OPEN) {
-              socket.send('\u0000' + JSON.stringify({ type: 'resize', cols, rows }));
+              socket.send(bridgeClient.formatResizeFrame({ cols, rows }));
             }
           }
         } catch (_) {}
@@ -648,14 +646,12 @@
         return;
       }
       const requestId = ++inspectorRequest;
-      const query = new URLSearchParams();
-      query.set('provider', record.provider);
-      query.set('session_id', record.session_id);
-      if (currentCwd) query.set('cwd', currentCwd);
       try {
-        const response = await fetch(bridgeUrl(`/session-inspector?${query.toString()}`));
-        if (!response.ok) throw new Error(await response.text());
-        const payload = await response.json();
+        const payload = await bridgeClient.loadInspector({
+          provider: record.provider,
+          sessionId: record.session_id,
+          cwd: currentCwd,
+        });
         if (requestId === inspectorRequest) renderInspector(record, payload);
       } catch (error) {
         if (requestId !== inspectorRequest) return;
@@ -735,13 +731,11 @@
     }
 
     async function loadSessions() {
-      const query = new URLSearchParams();
-      if (currentCwd) query.set('cwd', currentCwd);
-      if (providerFilter.value !== 'all') query.append('provider', providerFilter.value);
       try {
-        const response = await fetch(bridgeUrl(`/sessions?${query.toString()}`));
-        if (!response.ok) throw new Error(await response.text());
-        const payload = await response.json();
+        const payload = await bridgeClient.loadSessions({
+          cwd: currentCwd,
+          provider: providerFilter.value,
+        });
         sessions = Array.isArray(payload.sessions) ? payload.sessions : [];
       } catch (_) {
         sessions = [];
@@ -768,7 +762,7 @@
       socket = null;
       if (previous && previous.readyState !== WebSocket.CLOSED) previous.close();
 
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/terminal?session=${encodeURIComponent(session)}`);
+      const ws = bridgeClient.openTerminalSocket({ session });
       socket = ws;
       ws.addEventListener('open', () => {
         if (socket !== ws) return;
@@ -805,17 +799,12 @@
       terminal?.clear();
       terminal?.writeln(`Starting ${label}...`);
       try {
-        const response = await fetch(bridgeUrl('/ensure'), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            session,
-            cwd: currentCwd,
-            command,
-            force: true,
-          }),
+        await bridgeClient.ensureSession({
+          session,
+          cwd: currentCwd,
+          command,
+          force: true,
         });
-        if (!response.ok) throw new Error(await response.text());
         connectTerminal(label);
         void loadSessions();
       } catch (error) {
