@@ -493,8 +493,8 @@ python3 - "$tcc_post_out" <<'PY'
 import json
 import sys
 payload = json.loads(sys.argv[1])
-if payload.get("continue") is not True:
-    raise SystemExit(f"FAIL: dev-build post-tool hook should continue with systemMessage, got {payload}")
+if payload.get("continue") is not False:
+    raise SystemExit(f"FAIL: dev-build post-tool hook should stop the current turn with systemMessage, got {payload}")
 message = payload.get("systemMessage", "")
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",

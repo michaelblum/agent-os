@@ -161,5 +161,5 @@ After resume, run exactly:
 
 Do not run ready/repair/status/helper loops before pausing."""
 
-print(json.dumps({"continue": True, "systemMessage": message}))
+print(json.dumps({"continue": False, "systemMessage": message}))
 PY
