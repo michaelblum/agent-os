@@ -66,7 +66,8 @@ Shallow path scan only; these paths contain HTML/control-like markup or direct U
 
 - `apps/sigil/agent-terminal/index.html`
 - `apps/sigil/chat/index.html`
-- `apps/sigil/codex-terminal/index.html`
+- `apps/sigil/codex-terminal/index.html` (historical compatibility wrapper for
+  Agent Terminal)
 - `apps/sigil/context-menu/menu.js`
 - `apps/sigil/diagnostics/interaction-trace/index.html`
 - `apps/sigil/diagnostics/interaction-trace/index.js`

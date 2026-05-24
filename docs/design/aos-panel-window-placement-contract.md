@@ -74,10 +74,11 @@ This is a convergence slice, not a finished contract.
 
 The following surfaces still carry private or parallel behavior:
 
-- `apps/sigil/codex-terminal/index.html`
+- `apps/sigil/agent-terminal/index.html`
   - Migrated precedent: uses `mountChrome()` and the shared toolkit
     panel/window controller path for drag, minimize, maximize, resize, and
-    close behavior.
+    close behavior. `apps/sigil/codex-terminal/index.html` is a historical
+    compatibility entrypoint for the same Agent Terminal surface.
 - `apps/sigil/chat/index.html`
   - Parked legacy prototype. It still contains older private drag/chrome code,
     but `apps/sigil/AGENTS.md` marks it non-canonical and future chat work
@@ -158,9 +159,11 @@ parked legacy exception:
   chip is a passive DesktopWorld stage layer plus daemon input regions, while
   `packages/toolkit/panel/minimized-chip.html` remains explicit fallback only.
 - **Agent Terminal no longer carries private drag/chrome.** Satisfied by
-  `apps/sigil/codex-terminal/index.html` using `mountChrome()` with drag,
+  `apps/sigil/agent-terminal/index.html` using `mountChrome()` with drag,
   minimize, maximize, resize, and close enabled. Guard coverage lives in
-  `tests/renderer/agent-terminal-chrome.test.mjs`.
+  `tests/renderer/agent-terminal-chrome.test.mjs`. The historical
+  `apps/sigil/codex-terminal/index.html` path remains a compatibility
+  entrypoint, not a separate windowing policy owner.
 - **Sigil chat is not a live migration target.** Satisfied by
   `apps/sigil/AGENTS.md`, which marks `apps/sigil/chat/` as a parked legacy
   prototype. Its raw `drag_start` / `move_abs` / `drag_end` code is accepted

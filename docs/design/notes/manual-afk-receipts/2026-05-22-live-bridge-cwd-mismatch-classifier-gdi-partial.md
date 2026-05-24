@@ -59,6 +59,8 @@ source-backed work/evidence record.
   - `node --test tests/afk-terminal-substrate-no-provider.test.mjs`: 1/1 pass
 - bridge_command:
   `SIGIL_AGENT_TERMINAL_PORT=17864 SIGIL_AGENT_TMUX_SESSION=afk-provider-cwd-proof SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi SIGIL_AGENT_COMMAND='codex --no-alt-screen' SIGIL_AGENT_TERMINAL_DRIVER=process node apps/sigil/codex-terminal/server.mjs`
+- bridge_command_note: historical evidence only; current bridge env uses the
+  canonical `AGENT_TERMINAL_*` contract.
 - bridge_port: `17864`
 - bridge_health:
   - ok: true

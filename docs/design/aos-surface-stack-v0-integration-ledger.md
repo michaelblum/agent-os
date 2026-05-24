@@ -120,7 +120,7 @@ paths that should not be migrated without a new product decision.
 | `apps/sigil/renderer/hit-area.html` | Platform consumer | Minimal absorber/semantic child surface emits canvas-origin identity back to the parent; product interaction decisions are normalized in the renderer instead of owned by the child WebView. |
 | `apps/sigil/renderer/radial-menu-surface.html` | Platform consumer | Minimal semantic target child surface uses toolkit semantic-target attributes and canvas-origin identity; it does not own radial product state. |
 | `apps/sigil/context-menu/menu.js` | Platform consumer | Live avatar menu content remains Sigil-owned, while pointer routing uses toolkit `createDesktopWorldInteractionRouter` and range dragging uses toolkit range-drag helpers. |
-| `apps/sigil/agent-terminal/` and `apps/sigil/codex-terminal/` | Platform consumer | Agent Terminal is the canonical launch path and delegates through the historical Codex terminal compatibility implementation. The live shell uses toolkit `mountChrome`, panel drag/resize/minimize/maximize policy, and `createFixedSidebarPane`; provider/session content remains app-owned. |
+| `apps/sigil/agent-terminal/` and `apps/sigil/codex-terminal/` | Platform consumer | Agent Terminal is the canonical launch path; the historical Codex terminal path is a compatibility wrapper around the canonical Agent Terminal/toolkit bridge substrate. The live shell uses toolkit `mountChrome`, panel drag/resize/minimize/maximize policy, and `createFixedSidebarPane`; provider/session content remains app-owned. |
 | `apps/sigil/radial-item-editor/` | Platform consumer | Window movement uses toolkit `createPanelWindowController`; Three.js orbit/object manipulation and radial item editing remain Sigil product expression. |
 | `apps/sigil/radial-item-workbench/` | Platform consumer | Drag, resize, maximize, minimize, and close use toolkit `createPanelWindowController`; split-pane and object-transform controls come from toolkit while 3D radial preview/editing remains app-owned. |
 | `apps/sigil/studio/` | Parked legacy | Historical avatar configuration URL/path. It is useful for compatibility and old workflows, but it should not receive platform migration work unless a new product decision revives it. |
@@ -134,9 +134,9 @@ coverage. Future Sigil platform work after that should be split into new exact
 cards rather than keeping #305 open as a remodel umbrella. Candidate
 future cards are: retire or replace legacy `chat/`, `studio/`, and `workbench/`
 paths if product wants them live again; evaluate a shared 3D stage only if a
-second app needs Sigil-class 3D DesktopWorld rendering; and retire compatibility
-aliases such as `codex-terminal/` only after Agent Terminal has a standalone
-implementation path.
+second app needs Sigil-class 3D DesktopWorld rendering; and retire historical
+file-path shims such as `codex-terminal/` only after the compatibility entrypoint
+no longer reduces operator friction.
 
 Live real-input verification found one small platform-consumer reliability gap:
 the radial child surface could miss its first semantic-target payload if the

@@ -66,6 +66,8 @@ source-backed work/evidence record.
   server`; `/health` then failed to connect
 - fallback_bridge_command:
   `SIGIL_AGENT_TERMINAL_PORT=17862 SIGIL_AGENT_TMUX_SESSION=afk-provider-smoke SIGIL_AGENT_CWD=/Users/Michael/Code/agent-os/.docks/gdi SIGIL_AGENT_COMMAND='codex --no-alt-screen' SIGIL_AGENT_TERMINAL_DRIVER=process node apps/sigil/codex-terminal/server.mjs`
+- fallback_bridge_command_note: historical evidence only; current bridge env
+  uses the canonical `AGENT_TERMINAL_*` contract.
 - fallback_bridge_health:
   - driver: `process`
   - defaultCwd: `/Users/Michael/Code/agent-os/.docks/gdi`

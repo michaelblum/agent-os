@@ -20,7 +20,7 @@ state, add schemas, implement dispatch, or change runtime behavior.
 
 | Fact | Current surface | Direct `.docks/gdi` Codex CLI launch | Sigil agent-terminal / codex-terminal launcher | Gap for AFK dispatch receipts |
 | --- | --- | --- | --- | --- |
-| Provider identity | Human terminal/status text; dry-run provider option; provider catalog records after discovery | Human-visible only unless a receipt records the selected provider | `AGENT_COMMAND`, launcher flags, bridge `/health` defaults, catalog `/sessions` filter | Dispatch needs to record selected provider at launch time, not infer it later from transcript discovery. |
+| Provider identity | Human terminal/status text; dry-run provider option; provider catalog records after discovery | Human-visible only unless a receipt records the selected provider | `AGENT_TERMINAL_COMMAND`, launcher flags, bridge `/health` defaults, catalog `/sessions` filter | Dispatch needs to record selected provider at launch time, not infer it later from transcript discovery. |
 | Provider session id | Codex terminal/shutdown text; Codex rollout filename or `session_meta.payload.id` once catalog sees the transcript | Human-visible during/after the session; not automatically bridged into a receipt | Catalog `/sessions` can expose `session_id` after provider transcript exists; `/session-inspector` can inspect by id | Launch-side receipt needs either a catalog match after launch or an explicit provider/session bridge. |
 | cwd | Dock launch cwd; dry-run `launch_root`; catalog `cwd`; bridge `defaultCwd` and ensured session cwd | Available to the human and shell because Codex starts in `.docks/gdi`; catalog may later report `.docks/gdi` if transcript metadata is discovered | Launcher has `CWD_TARGET`, `/health.defaultCwd`, `/ensure.cwd`, terminal command/cwd tracking, and catalog cwd filtering | Dispatch can know intended cwd before launch, but needs post-launch confirmation or mismatch handling. |
 | Branch | Provider status text; `git branch --show-current`; catalog `branch` from Codex `session_meta.payload.git.branch` when present | Human-visible/status-command-visible; not automatically captured | Catalog can expose branch after transcript metadata exists; terminal bridge can run or display shell state but does not convert it to receipt proof | Receipt should distinguish intended branch, provider-reported branch, and catalog-observed branch. |
@@ -55,8 +55,8 @@ substrate before provider launch:
   launch;
 - `apps/sigil/codex-terminal/launch.sh` remains a historical compatibility
   launcher that delegates to the canonical Agent Terminal launcher;
-- the launcher sets `CWD_TARGET`, `AGENT_COMMAND`, `SESSION`, bridge port, and
-  content roots;
+- the launcher sets `CWD_TARGET`, canonical `AGENT_TERMINAL_*` bridge env,
+  `SESSION`, bridge port, and content roots;
 - `server.mjs` ensures a tmux-backed session when tmux is available, otherwise
   a process-backed pseudo-terminal;
 - `/health` exposes default session, default cwd, selected driver, and runtime

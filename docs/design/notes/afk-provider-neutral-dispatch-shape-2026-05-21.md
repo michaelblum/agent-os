@@ -104,7 +104,8 @@ Codex or Claude sessions, use `codex --no-alt-screen resume` or
 `codex --no-alt-screen resume --last`, and runs the bridge through tmux when
 available with a background process fallback.
 
-`apps/sigil/codex-terminal/server.mjs` is a useful substrate example. It can
+`apps/sigil/codex-terminal/server.mjs` is a historical file-path shim for the
+toolkit Agent Terminal bridge server and remains a useful substrate example. It can
 ensure a named tmux or process session, capture output, send input, list
 provider catalog records, and expose bridge health. It prefers tmux for
 durable reattach but can run a process-backed pseudo-terminal when tmux is not
@@ -113,7 +114,9 @@ available.
 That bridge is product surface and terminal substrate, not the future primitive
 boundary. Provider-neutral dispatch can learn from its command, driver,
 session, cwd, and health facts, but should not make Sigil or the gateway the
-owner of provider session lifecycle.
+owner of provider session lifecycle. Current bridge env configuration uses the
+canonical `AGENT_TERMINAL_*` contract; older `SIGIL_AGENT_*`,
+`SIGIL_CODEX_*`, and `CODEX_COMMAND` env names are historical only.
 
 ### Provider-Specific Config Files
 

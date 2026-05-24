@@ -162,8 +162,13 @@ aos://toolkit/components/agent-terminal/index.html
 The toolkit path is neutral user-facing surface policy. It does not launch
 `avatar-main`, render Sigil avatar controls, or emit Sigil-specific
 `agent_terminal.avatar_toggle` behavior. The bridge server, session-inspector
-adapter, and PTY proxy live with the toolkit component; historical
-Sigil/Codex terminal paths remain compatibility wrappers around that substrate.
+adapter, and PTY proxy live with the toolkit component. The bridge environment
+contract is the canonical `AGENT_TERMINAL_*` family, including
+`AGENT_TERMINAL_COMMAND`, `AGENT_TERMINAL_CWD`,
+`AGENT_TERMINAL_TMUX_SESSION`, and `AGENT_TERMINAL_DRIVER`. Historical
+Sigil/Codex terminal paths remain file-path compatibility wrappers around the
+toolkit substrate; they do not define a separate bridge implementation or
+active env-alias contract.
 
 ## Surface-Zoom And Test Console Components
 
