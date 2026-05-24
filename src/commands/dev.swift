@@ -125,6 +125,7 @@ private struct DevAfkSessionTriggerOptions {
     var json = false
     var dryRun = false
     var supervisedLiveLaunch = false
+    var sleepLeaseLiveLaunch = false
     var warmDockTuiReuse = false
     var iAmPresent = false
     var providerLaunchDryRun = false
@@ -439,8 +440,8 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     guard let packet = options.packet else {
         exitError("dev afk-session-trigger requires --packet <path>", code: "MISSING_ARG")
     }
-    guard options.dryRun || options.supervisedLiveLaunch || options.warmDockTuiReuse else {
-        exitError("dev afk-session-trigger requires --dry-run, --supervised-live-launch, or --warm-dock-tui-reuse", code: "MISSING_ARG")
+    guard options.dryRun || options.supervisedLiveLaunch || options.sleepLeaseLiveLaunch || options.warmDockTuiReuse else {
+        exitError("dev afk-session-trigger requires --dry-run, --supervised-live-launch, --sleep-lease-live-launch, or --warm-dock-tui-reuse", code: "MISSING_ARG")
     }
 
     let repoRoot = resolveRepoRoot(options.repo)
@@ -455,6 +456,9 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     }
     if options.supervisedLiveLaunch {
         scriptArgs.append("--supervised-live-launch")
+    }
+    if options.sleepLeaseLiveLaunch {
+        scriptArgs.append("--sleep-lease-live-launch")
     }
     if options.warmDockTuiReuse {
         scriptArgs.append("--warm-dock-tui-reuse")
@@ -1365,6 +1369,9 @@ private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSession
         case "--supervised-live-launch":
             options.supervisedLiveLaunch = true
             i += 1
+        case "--sleep-lease-live-launch":
+            options.sleepLeaseLiveLaunch = true
+            i += 1
         case "--warm-dock-tui-reuse":
             options.warmDockTuiReuse = true
             i += 1
@@ -2038,7 +2045,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
     claims.append(auditFormFlagClaim(
         id: "dev-afk-session-trigger-help-flags",
         form: forms["dev-afk-session-trigger"],
-        expectedFlags: ["--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--i-am-present", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
+        expectedFlags: ["--packet", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--sleep-lease-live-launch", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
         defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",

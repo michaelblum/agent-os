@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -667,6 +667,219 @@ test('includes sleep lease identity in idempotence material', async () => {
   assert.notEqual(firstReceipt.scheduler.idempotence_key, secondReceipt.scheduler.idempotence_key);
   assert.equal(firstReceipt.scheduler.lease.lease_id, 'sleep-lease-one');
   assert.equal(secondReceipt.scheduler.lease.lease_id, 'sleep-lease-two');
+});
+
+test('rejects sleep-lease live launch when combined with human-present or dry-run flags', async () => {
+  const packetPath = await writePacket(validPacket({ required_start_ref: 'HEAD' }));
+  const leasePath = await writeSleepLease(validSleepLease({ max_provider_launches: 1 }));
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-sleep-live-combo-')), 'receipt.json');
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--sleep-lease-live-launch',
+    '--i-am-present',
+    '--json',
+    '--out',
+    outPath,
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_sleep_lease_live');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'i_am_present_forbidden_for_sleep_lease_live'));
+
+  const dryRunCombo = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--sleep-lease-live-launch',
+    '--dry-run',
+    '--json',
+    '--out',
+    outPath,
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+  assert.equal(dryRunCombo.status, 1);
+  assert.ok(JSON.parse(dryRunCombo.stdout).mismatches.some((item) => item.class === 'conflicting_action_flags'));
+});
+
+test('rejects sleep-lease live launch without required sleep lease json out contract', async () => {
+  const packetPath = await writePacket(validPacket({ required_start_ref: 'HEAD' }));
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease-live-launch',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  const mismatchClasses = new Set(receipt.mismatches.map((item) => item.class));
+  assert.ok(mismatchClasses.has('sleep_lease_live_requires_sleep_lease'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('json_required_for_sleep_lease_live'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('out_required_for_sleep_lease_live'), receipt.mismatches);
+});
+
+test('rejects sleep-lease live launch for start-gate mismatches before launch attempt', async () => {
+  const packetPath = await writePacket(validPacket({
+    required_start_ref: 'HEAD~1',
+    result_route: { kind: 'gateway_notifier', ref: 'stdout' },
+  }));
+  const leasePath = await writeSleepLease(validSleepLease({
+    max_provider_launches: 1,
+    max_wall_clock_minutes: 0,
+    allow_branch_push: true,
+    result_route: 'stdout',
+  }));
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-sleep-live-reject-')), 'receipt.json');
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'gemini',
+    '--dock',
+    'foreman',
+    '--sleep-lease',
+    leasePath,
+    '--sleep-lease-live-launch',
+    '--json',
+    '--out',
+    outPath,
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  const mismatchClasses = new Set(receipt.mismatches.map((item) => item.class));
+  assert.ok(mismatchClasses.has('sleep_lease_wall_clock_minutes_exhausted'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_branch_push_forbidden'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('provider_mismatch_for_sleep_lease_live'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('dock_mismatch_for_sleep_lease_live'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_live_result_route_unsupported'), receipt.mismatches);
+  assert.ok(mismatchClasses.has('sleep_lease_live_start_ref_mismatch'), receipt.mismatches);
+  assert.equal(receipt.result_route.status, 'unsupported');
+});
+
+test('rejects sleep-lease live launch when the current worktree is dirty', async () => {
+  const dirtyPath = join(repoRoot, `.afk-sleep-lease-dirty-${process.pid}`);
+  const packetPath = await writePacket(validPacket({ required_start_ref: 'HEAD' }));
+  const leasePath = await writeSleepLease(validSleepLease({ max_provider_launches: 1 }));
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-sleep-live-dirty-')), 'receipt.json');
+  await writeFile(dirtyPath, 'temporary dirty worktree sentinel\n', 'utf8');
+  try {
+    const result = runPrototype([
+      '--packet',
+      packetPath,
+      '--provider',
+      'codex',
+      '--dock',
+      'gdi',
+      '--sleep-lease',
+      leasePath,
+      '--sleep-lease-live-launch',
+      '--json',
+      '--out',
+      outPath,
+      '--timestamp',
+      fixedTimestamp,
+      '--idempotence-salt',
+      'sleep-lease-live-dirty',
+    ]);
+
+    assert.equal(result.status, 1);
+    const receipt = JSON.parse(result.stdout);
+    assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_live_worktree_dirty'), receipt.mismatches);
+    assert.equal(receipt.dispatch.provider_launch_allowed, false);
+    assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  } finally {
+    await rm(dirtyPath, { force: true });
+  }
+});
+
+test('runs fixture-backed sleep-lease live launch with pre-launch and final out receipts', async () => {
+  const packetPath = await writePacket(validPacket({ required_start_ref: 'HEAD' }));
+  const leasePath = await writeSleepLease(validSleepLease({
+    max_provider_launches: 1,
+    provider_budget: {
+      status: 'not_enforceable_yet',
+      declared_ceiling: '1 unattended sleep-lease fixture launch',
+    },
+  }));
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-sleep-live-out-')), 'receipt.json');
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--sleep-lease-live-launch',
+    '--json',
+    '--out',
+    outPath,
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'sleep-lease-live-accepted',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), receipt);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_sleep_lease_live');
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.packet.validation_status, 'valid');
+  assert.equal(receipt.scheduler.selected_action, 'sleep-lease-live-launch');
+  assert.equal(receipt.scheduler.lifecycle_state, 'completed');
+  assert.equal(receipt.scheduler.lease.status, 'accepted');
+  assert.equal(receipt.sleep_lease.status, 'accepted');
+  assert.deepEqual(receipt.dispatch.human_supervision, { required: false, i_am_present: false });
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.equal(receipt.sleep_lease_live_start_gates.dirty_state.status, 'clean');
+  assert.equal(receipt.sleep_lease_live_start_gates.current_head, receipt.sleep_lease_live_start_gates.required_start_sha);
+  assert.equal(receipt.sleep_lease_live_start_gates.branch_push_policy.allow_branch_push, false);
+  assert.equal(receipt.sleep_lease_live_start_gates.branch_push_policy.allow_main_mutation, false);
+  assert.equal(receipt.sleep_lease_live_start_gates.provider_launch_count_budget, 1);
+  assert.equal(receipt.sleep_lease_live_start_gates.selected_dock, 'gdi');
+  assert.equal(receipt.sleep_lease_live_start_gates.selected_provider, 'codex');
+  assert.equal(receipt.terminal_substrate.status, 'observed');
+  assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
+  assert.equal(receipt.cleanup.status, 'verified');
+  assert.equal(receipt.result_route.status, 'completed');
+  assert.deepEqual(receipt.mismatches, []);
 });
 
 test('rejects malformed sleep lease authorization fields', async () => {
