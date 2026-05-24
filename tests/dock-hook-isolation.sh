@@ -460,6 +460,7 @@ for _ in $(seq 1 50); do
 done
 bridge_port="$(cat "$bridge_port_file")"
 AOS_DOCK_AGENT_TERMINAL_BRIDGE_URL="http://127.0.0.1:$bridge_port" PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/pty-input-control.sh" send "%42" "/goal bridge submit"
+AOS_DOCK_AGENT_TERMINAL_BRIDGE_URL="http://127.0.0.1:$bridge_port" PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/pty-input-control.sh" key "%42" C-c
 kill "$bridge_pid" >/dev/null 2>&1 || true
 wait "$bridge_pid" 2>/dev/null || true
 grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
@@ -478,12 +479,13 @@ import pathlib
 import sys
 
 lines = pathlib.Path(sys.argv[1]).read_text().splitlines()
-if len(lines) != 2:
-    raise SystemExit(f"FAIL: expected two bridge input requests, got {len(lines)}")
+if len(lines) != 3:
+    raise SystemExit(f"FAIL: expected three bridge input requests, got {len(lines)}")
 payloads = [json.loads(line) for line in lines]
 expected = [
     {"session": "%42", "text": "/goal bridge submit", "enter": False},
     {"session": "%42", "text": "", "enter": True},
+    {"session": "%42", "key": "C-c"},
 ]
 if payloads != expected:
     raise SystemExit(f"FAIL: bridge input payload mismatch: {payloads}")
@@ -491,7 +493,7 @@ PY
 : >"$tmux_log"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
-tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_INTERRUPT_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$tcc_post_out" <<'PY'
 import json
 import sys
@@ -541,6 +543,11 @@ grep -q 'TMUX:send-keys -t %42 -l /goal pause' "$tmux_log" || {
 }
 grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
   echo "FAIL: successful GDI dev build hook should submit /goal pause with Enter" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:send-keys -t %42 C-c' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should interrupt the current turn after pausing" >&2
   cat "$tmux_log" >&2
   exit 1
 }
