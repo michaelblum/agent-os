@@ -1,6 +1,25 @@
 # Work Card: Operator AFK Warm Dock TUI Reuse Live Proof V1
 
-**Status:** Ready for Operator
+**Status:** Accepted with contract exception 2026-05-24
+
+## Result
+
+- Classification: `functional_success_with_contract_exception`.
+- Foreman review: accepted as evidence that warm GDI terminal reuse works, but
+  not a strict pass under this card's no-command sentinel criteria.
+- Warm GDI terminal reuse was confirmed by the human.
+- `/clear` followed by `/goal <pointer>` was confirmed by the human, but cannot
+  be internally proven from GDI chat alone.
+- The sentinel was accepted.
+- No stale-goal or repeated-completion behavior occurred.
+- No file, provider store, GitHub, runtime, branch, commit, push, or async
+  result-routing mutation occurred.
+- Contract exception: GDI ran a command to inspect the work-card pointer before
+  seeing the sentinel's no-command instruction. This is a flaw in the sentinel
+  transfer shape, not in warm dock reuse. A pointer cannot also be the only
+  source of a no-command instruction.
+- Follow-up routed:
+  `docs/design/work-cards/afk-warm-dock-inline-sentinel-contract-v0.md`.
 
 ## Transfer Classification
 
