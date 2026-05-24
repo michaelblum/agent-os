@@ -31,7 +31,7 @@ function usage() {
   return `Experimental AFK session-trigger dry-run prototype.
 
 Usage:
-  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--warm-dock-tui-reuse --json) [--sleep-lease <lease.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
+  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--sleep-lease-live-launch --sleep-lease <lease.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--sleep-lease <lease.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
 This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
@@ -54,6 +54,10 @@ function parseArgs(argv) {
     }
     if (arg === '--supervised-live-launch') {
       options.supervisedLiveLaunch = true;
+      continue;
+    }
+    if (arg === '--sleep-lease-live-launch') {
+      options.sleepLeaseLiveLaunch = true;
       continue;
     }
     if (arg === '--warm-dock-tui-reuse') {
@@ -306,6 +310,45 @@ function currentWorktreeFacts(repoRoot) {
   };
 }
 
+function localRouteSupported(route) {
+  return route && typeof route === 'object' && route.kind === LOCAL_ARTIFACT_PATH
+    && typeof (route.ref ?? route.path ?? route.artifact_path ?? route.artifactPath) === 'string';
+}
+
+function sleepLeaseLiveRouteDeliveryMismatch({ repoRoot, resultRoutes, outPath }) {
+  const resolvedOutPath = outPath ? resolve(outPath) : null;
+  const undeliverableRoutes = [];
+
+  for (const route of resultRoutes) {
+    const ref = route?.ref ?? route?.path ?? route?.artifact_path ?? route?.artifactPath ?? null;
+    if (route?.kind !== LOCAL_ARTIFACT_PATH || typeof ref !== 'string') {
+      undeliverableRoutes.push({ route, reason: 'unsupported_result_route' });
+      continue;
+    }
+    if (ref === 'stdout') continue;
+
+    const resolvedRef = repoPath(repoRoot, ref);
+    if (!resolvedRef || !resolvedOutPath || resolve(resolvedRef) !== resolvedOutPath) {
+      undeliverableRoutes.push({
+        route: {
+          ...route,
+          ref,
+          resolved_path: resolvedRef ? relIfRepo(repoRoot, resolvedRef) : NOT_OBSERVED,
+        },
+        reason: 'local_artifact_path_does_not_match_out',
+        out: outPath ?? NOT_OBSERVED,
+        resolved_out: resolvedOutPath ? relIfRepo(repoRoot, resolvedOutPath) : NOT_OBSERVED,
+      });
+    }
+  }
+
+  return undeliverableRoutes.length > 0
+    ? mismatch('sleep_lease_live_result_route_undeliverable', 'Sleep lease live launch result routes must be stdout or match the confirmed --out path.', {
+        undeliverable_routes: undeliverableRoutes,
+      })
+    : null;
+}
+
 async function resolveDockProfile(repoRoot, dockName) {
   const dockRoot = resolve(repoRoot, '.docks', dockName);
   const dockJson = resolve(dockRoot, 'dock.json');
@@ -492,8 +535,50 @@ async function classifySleepLease({
       }));
     }
   }
-  if (!['dry-run', 'supervised-live-launch'].includes(action) || !options.json) {
-    mismatches.push(mismatch('sleep_lease_requires_guarded_json_action', '--sleep-lease requires --dry-run --json or --supervised-live-launch --i-am-present --json.'));
+  if (action === 'sleep-lease-live-launch') {
+    if (options.iAmPresent) {
+      mismatches.push(mismatch('sleep_lease_live_human_presence_forbidden', '--sleep-lease-live-launch must not be combined with --i-am-present.'));
+    }
+    if (!options.out) {
+      mismatches.push(mismatch('sleep_lease_live_out_required', '--sleep-lease-live-launch requires --out.'));
+    }
+    if (lease.max_provider_launches < 1) {
+      mismatches.push(mismatch('sleep_lease_provider_launches_exhausted', 'Sleep lease live launch requires max_provider_launches >= 1.', {
+        max_provider_launches: lease.max_provider_launches,
+      }));
+    }
+    if (lease.max_wall_clock_minutes <= 0) {
+      mismatches.push(mismatch('sleep_lease_wall_clock_minutes_exhausted', 'Sleep lease live launch requires max_wall_clock_minutes > 0.', {
+        max_wall_clock_minutes: lease.max_wall_clock_minutes,
+      }));
+    }
+    if (lease.allow_branch_push !== false) {
+      mismatches.push(mismatch('sleep_lease_branch_push_forbidden', 'Sleep lease live launch requires allow_branch_push=false for V0.', {
+        allow_branch_push: lease.allow_branch_push,
+      }));
+    }
+    if (selectedProvider !== 'codex') {
+      mismatches.push(mismatch('sleep_lease_live_provider_mismatch', 'Sleep lease live launch is currently available only for provider codex.', {
+        selected_provider: selectedProvider,
+      }));
+    }
+    if (selectedDock !== 'gdi') {
+      mismatches.push(mismatch('sleep_lease_live_dock_mismatch', 'Sleep lease live launch is currently available only for dock gdi.', {
+        selected_dock: selectedDock,
+      }));
+    }
+    if (!resultRoutes.every(localRouteSupported)) {
+      mismatches.push(mismatch('sleep_lease_live_result_route_unsupported', 'Sleep lease live launch requires local stdout or local artifact result routes.', {
+        packet_result_routes: resultRoutes,
+      }));
+    }
+    const routeDeliveryMismatch = sleepLeaseLiveRouteDeliveryMismatch({ repoRoot, resultRoutes, outPath: options.out });
+    if (routeDeliveryMismatch) {
+      mismatches.push(routeDeliveryMismatch);
+    }
+  }
+  if (!['dry-run', 'supervised-live-launch', 'sleep-lease-live-launch'].includes(action) || !options.json) {
+    mismatches.push(mismatch('sleep_lease_requires_guarded_json_action', '--sleep-lease requires --dry-run --json, --supervised-live-launch --i-am-present --json, or --sleep-lease-live-launch --json --out.'));
   }
   if (!allowedDocks.includes(selectedDock)) {
     mismatches.push(mismatch('sleep_lease_dock_not_allowed', 'Selected dock is not allowed by the sleep lease.', {
@@ -550,14 +635,15 @@ async function classifySleepLease({
 }
 
 function selectedAction(options) {
-  const selected = [options.dryRun, options.supervisedLiveLaunch, options.warmDockTuiReuse].filter(Boolean).length;
+  const selected = [options.dryRun, options.supervisedLiveLaunch, options.sleepLeaseLiveLaunch, options.warmDockTuiReuse].filter(Boolean).length;
   if (selected > 1) {
-    return { action: 'invalid', mismatch: mismatch('conflicting_action_flags', 'Select only one of --dry-run, --supervised-live-launch, or --warm-dock-tui-reuse.') };
+    return { action: 'invalid', mismatch: mismatch('conflicting_action_flags', 'Select only one of --dry-run, --supervised-live-launch, --sleep-lease-live-launch, or --warm-dock-tui-reuse.') };
   }
   if (options.supervisedLiveLaunch) return { action: 'supervised-live-launch', mismatch: null };
+  if (options.sleepLeaseLiveLaunch) return { action: 'sleep-lease-live-launch', mismatch: null };
   if (options.warmDockTuiReuse) return { action: 'warm-dock-tui-reuse', mismatch: null };
   if (options.dryRun) return { action: 'dry-run', mismatch: null };
-  return { action: 'missing', mismatch: mismatch('missing_action_flag', 'Expected --dry-run, --supervised-live-launch, or --warm-dock-tui-reuse.') };
+  return { action: 'missing', mismatch: mismatch('missing_action_flag', 'Expected --dry-run, --supervised-live-launch, --sleep-lease-live-launch, or --warm-dock-tui-reuse.') };
 }
 
 function resolveProvider(explicitProvider, packetProviderHint) {
@@ -621,6 +707,23 @@ async function buildReceipt(options) {
   if (actionSelection.action === 'supervised-live-launch' && !options.json) {
     mismatches.push(mismatch('json_required_for_supervised_live', '--json is required for supervised live launch receipts.'));
   }
+  if (actionSelection.action === 'sleep-lease-live-launch') {
+    if (!options.sleepLease) {
+      mismatches.push(mismatch('sleep_lease_live_requires_sleep_lease', '--sleep-lease-live-launch requires --sleep-lease.'));
+    }
+    if (!options.json) {
+      mismatches.push(mismatch('json_required_for_sleep_lease_live', '--json is required for sleep-lease live launch receipts.'));
+    }
+    if (!options.out) {
+      mismatches.push(mismatch('out_required_for_sleep_lease_live', '--out is required for sleep-lease live launch receipts.'));
+    }
+    if (options.iAmPresent) {
+      mismatches.push(mismatch('i_am_present_forbidden_for_sleep_lease_live', '--sleep-lease-live-launch does not accept --i-am-present.'));
+    }
+    if (options.providerLaunchDryRun) {
+      mismatches.push(mismatch('provider_launch_dry_run_forbidden_for_sleep_lease_live', '--sleep-lease-live-launch does not accept --provider-launch-dry-run.'));
+    }
+  }
 
   if (sourceArtifact === NOT_OBSERVED || !sourcePath || !existsSync(sourcePath)) {
     mismatches.push(mismatch('missing_source_artifact', 'Packet source artifact was missing or not present in the current worktree.', {
@@ -661,6 +764,30 @@ async function buildReceipt(options) {
       selected_dock: selectedDock,
     }));
   }
+  if (actionSelection.action === 'sleep-lease-live-launch') {
+    if (provider.selected_provider !== 'codex') {
+      mismatches.push(mismatch('provider_mismatch_for_sleep_lease_live', 'Sleep-lease live launch is currently available only for --provider codex.', {
+        selected_provider: provider.selected_provider,
+      }));
+    }
+    if (selectedDock !== 'gdi') {
+      mismatches.push(mismatch('dock_mismatch_for_sleep_lease_live', 'Sleep-lease live launch is currently available only for --dock gdi.', {
+        selected_dock: selectedDock,
+      }));
+    }
+    if (worktreeFacts.dirty_untracked_baseline.length > 0) {
+      mismatches.push(mismatch('sleep_lease_live_worktree_dirty', 'Sleep-lease live launch requires a clean worktree for V0.', {
+        dirty_untracked_baseline: worktreeFacts.dirty_untracked_baseline,
+      }));
+    }
+    if (refResolution.sha && worktreeFacts.head !== NOT_OBSERVED && worktreeFacts.head !== refResolution.sha) {
+      mismatches.push(mismatch('sleep_lease_live_start_ref_mismatch', 'Current HEAD must equal the resolved required_start_ref for sleep-lease live launch.', {
+        current_head: worktreeFacts.head,
+        required_start_ref: requiredStartRef ?? NOT_OBSERVED,
+        required_start_sha: refResolution.sha,
+      }));
+    }
+  }
   if (actionSelection.action === 'warm-dock-tui-reuse' && provider.selected_provider !== 'codex') {
     mismatches.push(mismatch('provider_unsupported_for_warm_dock_tui_reuse', 'Warm dock TUI reuse is currently available only for --provider codex.', {
       selected_provider: provider.selected_provider,
@@ -696,6 +823,11 @@ async function buildReceipt(options) {
       ? {
           leaseRef: sleepLease.receipt.lease_ref ?? NOT_OBSERVED,
           leaseId: sleepLease.receipt.lease_id ?? NOT_OBSERVED,
+          action: actionSelection.action,
+          selectedDock,
+          selectedProvider: provider.selected_provider,
+          requiredStartSha: refResolution.sha ?? NOT_OBSERVED,
+          resultRoutes,
         }
       : null,
     salt: options.idempotenceSalt ?? null,
@@ -707,10 +839,49 @@ async function buildReceipt(options) {
   const intakeMismatchCount = mismatches.length;
   const launchAllowed = (
     actionSelection.action === 'supervised-live-launch'
+    || actionSelection.action === 'sleep-lease-live-launch'
     || actionSelection.action === 'warm-dock-tui-reuse'
   )
     && intakeMismatchCount === 0
     && !(duplicate?.duplicate && (duplicate.reused_state || duplicate.relaunch_requires_replacement));
+  if (launchAllowed && actionSelection.action === 'sleep-lease-live-launch' && options.out) {
+    await writeFile(resolve(options.out), `${JSON.stringify({
+      record_type: 'aos.afk_session_trigger_sleep_lease_live',
+      schema_status: 'not_a_schema',
+      status: 'pre_launch_accepted',
+      created_at: createdAt,
+      scheduler: {
+        scheduler_run_id: schedulerRunId,
+        idempotence_key: idempotenceKey,
+        lifecycle_state: 'accepted_pre_launch',
+        selected_action: actionSelection.action,
+        lease: {
+          status: sleepLease.receipt.status,
+          lease_ref: sleepLease.receipt.lease_ref ?? NOT_OBSERVED,
+          lease_id: sleepLease.receipt.lease_id ?? NOT_OBSERVED,
+        },
+      },
+      dispatch: {
+        dispatch_attempt_id: dispatchAttemptId,
+        selected_provider: provider.selected_provider,
+        selected_dock: selectedDock,
+        provider_launch_allowed: true,
+        human_supervision: { required: false, i_am_present: false },
+        launch_attempt_id: NOT_ATTEMPTED,
+      },
+      sleep_lease_live_start_gates: sleepLeaseLiveStartGates({
+        worktreeFacts,
+        refResolution,
+        requiredStartRef,
+        selectedDock,
+        selectedProvider: provider.selected_provider,
+        resultRoutes,
+        sleepLease: sleepLease.receipt,
+      }),
+      terminal_substrate: { status: NOT_ATTEMPTED, reason: 'sleep-lease-live-pre-launch-receipt-written' },
+      mismatches: [],
+    }, null, 2)}\n`, 'utf8');
+  }
   const launchAttempt = launchAllowed ? await createLaunchAttempt({
     packet: packetPath,
     provider: provider.selected_provider,
@@ -741,9 +912,11 @@ async function buildReceipt(options) {
   return {
     record_type: actionSelection.action === 'supervised-live-launch'
       ? 'aos.afk_session_trigger_supervised_live'
-      : (actionSelection.action === 'warm-dock-tui-reuse'
+      : (actionSelection.action === 'sleep-lease-live-launch'
+          ? 'aos.afk_session_trigger_sleep_lease_live'
+          : (actionSelection.action === 'warm-dock-tui-reuse'
           ? 'aos.afk_session_trigger_warm_dock_tui_reuse'
-          : 'aos.afk_session_trigger_dry_run'),
+          : 'aos.afk_session_trigger_dry_run')),
     schema_status: 'not_a_schema',
     status,
     created_at: createdAt,
@@ -794,6 +967,17 @@ async function buildReceipt(options) {
         : { required: false, i_am_present: false },
       launch_attempt_id: launchAttempt?.launch_attempt_id ?? NOT_ATTEMPTED,
     },
+    sleep_lease_live_start_gates: actionSelection.action === 'sleep-lease-live-launch'
+      ? sleepLeaseLiveStartGates({
+          worktreeFacts,
+          refResolution,
+          requiredStartRef,
+          selectedDock,
+          selectedProvider: provider.selected_provider,
+          resultRoutes,
+          sleepLease: sleepLease.receipt,
+        })
+      : NOT_ATTEMPTED,
     terminal_substrate: terminalSubstrateSection(actionSelection.action, launchAttempt),
     provider_acceptance: providerAcceptanceSection(provider.selected_provider, launchAttempt),
     cleanup,
@@ -859,7 +1043,7 @@ function terminalSubstrateSection(action, launchAttempt) {
   if (!launchAttempt) {
     return {
       status: NOT_ATTEMPTED,
-      reason: action === 'supervised-live-launch' ? 'supervised-live-pre-launch-not-started' : 'dry-run-only',
+      reason: ['supervised-live-launch', 'sleep-lease-live-launch'].includes(action) ? `${action}-pre-launch-not-started` : 'dry-run-only',
     };
   }
   return {
@@ -879,6 +1063,38 @@ function providerAcceptanceSection(selectedProvider, launchAttempt) {
   return {
     selected_provider: selectedProvider,
     ...launchAttempt.provider_acceptance,
+  };
+}
+
+function sleepLeaseLiveStartGates({
+  worktreeFacts,
+  refResolution,
+  requiredStartRef,
+  selectedDock,
+  selectedProvider,
+  resultRoutes,
+  sleepLease,
+}) {
+  return {
+    current_branch: worktreeFacts.branch,
+    current_head: worktreeFacts.head,
+    required_start_ref: requiredStartRef ?? NOT_OBSERVED,
+    required_start_sha: refResolution.sha ?? NOT_OBSERVED,
+    dirty_state: {
+      status: worktreeFacts.dirty_untracked_baseline.length === 0 ? 'clean' : 'dirty',
+      dirty_untracked_baseline: worktreeFacts.dirty_untracked_baseline,
+    },
+    branch_push_policy: {
+      allow_branch_push: sleepLease.allow_branch_push ?? NOT_OBSERVED,
+      allow_main_mutation: sleepLease.allowed_branch_policy?.allow_main_mutation ?? NOT_OBSERVED,
+    },
+    provider_launch_count_budget: sleepLease.max_provider_launches ?? NOT_OBSERVED,
+    lease_expiry: sleepLease.expires_at ?? NOT_OBSERVED,
+    max_wall_clock_minutes: sleepLease.max_wall_clock_minutes ?? NOT_OBSERVED,
+    selected_work_ref: sleepLease.allowed_work_refs?.[0] ?? NOT_OBSERVED,
+    selected_dock: selectedDock,
+    selected_provider: selectedProvider,
+    result_route: resultRoutes,
   };
 }
 
@@ -913,7 +1129,7 @@ async function classifyCleanup(repoRoot, options, action, launchAttempt = null) 
     status: NOT_ATTEMPTED,
     proof: NOT_ATTEMPTED,
   };
-  if (action !== 'supervised-live-launch') {
+  if (!['supervised-live-launch', 'sleep-lease-live-launch'].includes(action)) {
     if (action === 'warm-dock-tui-reuse' && launchAttempt?.cleanup) {
       return {
         ...launchAttempt.cleanup,
@@ -1049,7 +1265,7 @@ async function main() {
     }
 
     const receipt = await buildReceipt(options);
-    const outputAsJson = options.json || options.supervisedLiveLaunch || options.sleepLease;
+    const outputAsJson = options.json || options.supervisedLiveLaunch || options.sleepLeaseLiveLaunch || options.sleepLease;
     if (options.out) {
       try {
         receipt.result_route = classifyLocalResultRoutes({
