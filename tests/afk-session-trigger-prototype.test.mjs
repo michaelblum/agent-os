@@ -490,7 +490,7 @@ test('rejects sleep lease outside dry-run json mode', async () => {
   assert.equal(supervised.status, 1);
   let receipt = JSON.parse(supervised.stdout);
   assert.equal(receipt.dispatch.provider_launch_allowed, false);
-  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_supervised_live_forbidden'));
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_provider_launches_exhausted'));
 
   const warm = runPrototype([
     '--packet',
@@ -547,7 +547,126 @@ test('rejects sleep lease outside dry-run json mode', async () => {
   assert.equal(missingJson.status, 1);
   receipt = JSON.parse(missingJson.stdout);
   assert.equal(receipt.dispatch.provider_launch_allowed, false);
-  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_requires_dry_run_json'));
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_requires_guarded_json_action'));
+});
+
+test('accepts sleep lease for guarded supervised-live when launch count and human gate allow it', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease(validSleepLease({
+    max_provider_launches: 1,
+    provider_budget: {
+      status: 'not_enforceable_yet',
+      declared_ceiling: '1 supervised live launch for awake proof',
+    },
+  }));
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'sleep-lease-guarded-live',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_supervised_live');
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.scheduler.lease.status, 'accepted');
+  assert.equal(receipt.sleep_lease.status, 'accepted');
+  assert.equal(receipt.sleep_lease.max_provider_launches, 1);
+  assert.equal(receipt.sleep_lease.provider_budget.status, 'not_enforceable_yet');
+  assert.equal(receipt.sleep_lease.provider_budget_enforcement, 'informational');
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.deepEqual(receipt.dispatch.human_supervision, { required: true, i_am_present: true });
+  assert.equal(receipt.terminal_substrate.status, 'observed');
+  assert.equal(receipt.cleanup.status, 'verified');
+  assert.equal(receipt.result_route.status, 'completed');
+  assert.deepEqual(receipt.mismatches, []);
+});
+
+test('rejects sleep lease guarded supervised-live when max provider launches is zero', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leasePath = await writeSleepLease();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--supervised-live-launch',
+    '--i-am-present',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_supervised_live');
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.scheduler.lease.status, 'rejected');
+  assert.equal(receipt.sleep_lease.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_provider_launches_exhausted'));
+});
+
+test('includes sleep lease identity in idempotence material', async () => {
+  const packetPath = await writePacket(validPacket());
+  const leaseOnePath = await writeSleepLease(validSleepLease({
+    lease_id: 'sleep-lease-one',
+  }));
+  const leaseTwoPath = await writeSleepLease(validSleepLease({
+    lease_id: 'sleep-lease-two',
+  }));
+  const baseArgs = [
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'sleep-lease-idempotence',
+  ];
+
+  const first = runPrototype([...baseArgs, '--sleep-lease', leaseOnePath]);
+  const firstAgain = runPrototype([...baseArgs, '--sleep-lease', leaseOnePath]);
+  const second = runPrototype([...baseArgs, '--sleep-lease', leaseTwoPath]);
+
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(firstAgain.status, 0, firstAgain.stderr);
+  assert.equal(second.status, 0, second.stderr);
+  const firstReceipt = JSON.parse(first.stdout);
+  const firstAgainReceipt = JSON.parse(firstAgain.stdout);
+  const secondReceipt = JSON.parse(second.stdout);
+  assert.equal(firstReceipt.scheduler.idempotence_key, firstAgainReceipt.scheduler.idempotence_key);
+  assert.notEqual(firstReceipt.scheduler.idempotence_key, secondReceipt.scheduler.idempotence_key);
+  assert.equal(firstReceipt.scheduler.lease.lease_id, 'sleep-lease-one');
+  assert.equal(secondReceipt.scheduler.lease.lease_id, 'sleep-lease-two');
 });
 
 test('rejects malformed sleep lease authorization fields', async () => {

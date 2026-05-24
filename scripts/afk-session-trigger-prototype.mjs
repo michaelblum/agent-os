@@ -476,17 +476,24 @@ async function classifySleepLease({
       external_publication_policy: lease.external_publication_policy,
     }));
   }
-  if (options.supervisedLiveLaunch || action === 'supervised-live-launch') {
-    mismatches.push(mismatch('sleep_lease_supervised_live_forbidden', '--sleep-lease is supported only with --dry-run --json in this slice.'));
-  }
   if (options.warmDockTuiReuse || action === 'warm-dock-tui-reuse') {
     mismatches.push(mismatch('sleep_lease_warm_reuse_forbidden', '--sleep-lease cannot be combined with --warm-dock-tui-reuse.'));
   }
   if (options.providerLaunchDryRun) {
     mismatches.push(mismatch('sleep_lease_provider_launch_dry_run_forbidden', '--sleep-lease cannot be combined with --provider-launch-dry-run.'));
   }
-  if (!options.dryRun || !options.json) {
-    mismatches.push(mismatch('sleep_lease_requires_dry_run_json', '--sleep-lease requires --dry-run --json.'));
+  if (action === 'supervised-live-launch') {
+    if (!options.iAmPresent) {
+      mismatches.push(mismatch('sleep_lease_human_presence_required', '--sleep-lease supervised live requires --i-am-present.'));
+    }
+    if (lease.max_provider_launches === 0) {
+      mismatches.push(mismatch('sleep_lease_provider_launches_exhausted', 'Sleep lease supervised live requires max_provider_launches >= 1.', {
+        max_provider_launches: lease.max_provider_launches,
+      }));
+    }
+  }
+  if (!['dry-run', 'supervised-live-launch'].includes(action) || !options.json) {
+    mismatches.push(mismatch('sleep_lease_requires_guarded_json_action', '--sleep-lease requires --dry-run --json or --supervised-live-launch --i-am-present --json.'));
   }
   if (!allowedDocks.includes(selectedDock)) {
     mismatches.push(mismatch('sleep_lease_dock_not_allowed', 'Selected dock is not allowed by the sleep lease.', {
@@ -685,6 +692,12 @@ async function buildReceipt(options) {
     resultRoutes,
     action: actionSelection.action,
     humanGate: actionSelection.action === 'supervised-live-launch' ? Boolean(options.iAmPresent) : false,
+    sleepLease: options.sleepLease
+      ? {
+          leaseRef: sleepLease.receipt.lease_ref ?? NOT_OBSERVED,
+          leaseId: sleepLease.receipt.lease_id ?? NOT_OBSERVED,
+        }
+      : null,
     salt: options.idempotenceSalt ?? null,
   };
   const idempotenceKey = stableHash(idempotenceMaterial, 32);

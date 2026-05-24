@@ -1293,7 +1293,7 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             args: [
                 flag("packet", "--packet", "Manual transfer packet JSON path for the experimental prototype session-trigger diagnostic", required: true),
                 flag("dry-run", "--dry-run", "Dry-run guard; no provider, terminal, gateway, or route is launched", type: .bool),
-                flag("sleep-lease", "--sleep-lease", "Local sleep-lease JSON path for deterministic dry-run validation only"),
+                flag("sleep-lease", "--sleep-lease", "Local sleep-lease JSON path for dry-run validation or guarded human-present supervised live launch"),
                 flag("supervised-live-launch", "--supervised-live-launch", "Guarded supervised live launch intent for Codex/GDI source receipts", type: .bool),
                 flag("warm-dock-tui-reuse", "--warm-dock-tui-reuse", "Guarded warm dock TUI reuse intent for deterministic source receipts", type: .bool),
                 flag("i-am-present", "--i-am-present", "Required human-presence guard for supervised live launch", type: .bool),
