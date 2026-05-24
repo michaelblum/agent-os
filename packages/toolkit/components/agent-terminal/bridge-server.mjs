@@ -214,7 +214,7 @@ async function handle(req, res) {
 
     if (req.method === 'GET' && url.pathname === '/snapshot') {
       const session = terminalManager.cleanSession(url.searchParams.get('session'));
-      if (!terminalManager.hasSession(session)) {
+      if (!terminalManager.canCapture(session)) {
         text(res, 404, `tmux session not found: ${session}`);
         return;
       }

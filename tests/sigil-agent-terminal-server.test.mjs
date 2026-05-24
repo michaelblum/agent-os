@@ -286,6 +286,35 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.equal(payload.driver, 'process');
   });
 
+  it('returns process-driver snapshots after the child exits', async () => {
+    const session = 'sigil-agent-terminal-exited-test';
+    const marker = 'exited-process-snapshot-marker';
+    const response = await fetch(`http://127.0.0.1:${port}/ensure`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        session,
+        cwd: repoCwd,
+        command: ['node', '-e', `console.log(${JSON.stringify(marker)})`],
+        force: true,
+      }),
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.driver, 'process');
+
+    const snapshot = await waitForSnapshot(port, session, '[process exited:');
+    assert.equal(snapshot.session, session);
+    assert.equal(snapshot.driver, 'process');
+    assert.equal(snapshot.command, 'exited');
+    assert.equal(typeof snapshot.process_child_pid, 'number');
+    assert.equal(typeof snapshot.command_child_pid === 'number' || snapshot.command_child_pid === null, true);
+    assert.deepEqual(snapshot.terminal, { cols: 80, rows: 24 });
+    assert.match(snapshot.text, new RegExp(escapeRegExp(marker)));
+    assert.match(snapshot.text, /\[process exited:/);
+  });
+
   it('submits process-driver /input text with Enter to the PTY', async () => {
     const session = 'sigil-agent-terminal-input-test';
     await ensureInteractiveEchoSession(port, session, repoCwd);
@@ -697,4 +726,8 @@ async function waitForText(readText, marker) {
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

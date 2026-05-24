@@ -169,6 +169,10 @@ function createTerminalSessionManager(options = {}) {
     return result.status === 0;
   }
 
+  function canCapture(session) {
+    return processSessions.has(session) || hasSession(session);
+  }
+
   function ensureProcessSession(session, cwd, command, force = false) {
     const existing = processSessions.get(session);
     if (existing && !existing.exited && !force) return { created: false, driver: 'process' };
@@ -576,6 +580,7 @@ function createTerminalSessionManager(options = {}) {
     writeInput,
     writeKey,
     hasSession,
+    canCapture,
     terminalCommandForSession,
     terminalCwdForSession,
     terminalGeometryForSession,
