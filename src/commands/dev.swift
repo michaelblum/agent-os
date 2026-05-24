@@ -131,6 +131,7 @@ private struct DevAfkSessionTriggerOptions {
     var providerLaunchDryRun = false
     var packet: String?
     var afkWorkQueue: String?
+    var queueRunFixture: String?
     var sleepLease: String?
     var provider: String?
     var dock: String?
@@ -460,6 +461,9 @@ private func devAfkSessionTriggerCommand(args: [String]) {
     }
     if let afkWorkQueue = options.afkWorkQueue {
         scriptArgs += ["--afk-work-queue", afkWorkQueue]
+    }
+    if let queueRunFixture = options.queueRunFixture {
+        scriptArgs += ["--queue-run-fixture", queueRunFixture]
     }
     if options.dryRun {
         scriptArgs.append("--dry-run")
@@ -1403,6 +1407,12 @@ private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSession
             }
             options.afkWorkQueue = args[i + 1]
             i += 2
+        case "--queue-run-fixture":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--queue-run-fixture requires a path", code: "MISSING_ARG")
+            }
+            options.queueRunFixture = args[i + 1]
+            i += 2
         case "--afk-authorization", "--sleep-lease":
             guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
                 exitError("\(arg) requires a path", code: "MISSING_ARG")
@@ -2061,7 +2071,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
     claims.append(auditFormFlagClaim(
         id: "dev-afk-session-trigger-help-flags",
         form: forms["dev-afk-session-trigger"],
-        expectedFlags: ["--packet", "--afk-work-queue", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
+        expectedFlags: ["--packet", "--afk-work-queue", "--queue-run-fixture", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
         defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",

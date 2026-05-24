@@ -208,6 +208,14 @@ async function writeQueue(items, overrides = {}) {
   });
 }
 
+async function writeQueueRunFixture(items, overrides = {}) {
+  return writeJsonFixture('afk-work-queue-run-', 'fixture.json', {
+    queue_id: 'operator-afk-work-queue-example',
+    items,
+    ...overrides,
+  });
+}
+
 test('creates a dry-run-ready scheduler and dispatch receipt without launch side effects', async () => {
   const packetPath = await writePacket(validPacket());
   const result = runPrototype([
@@ -366,6 +374,344 @@ test('accepts AFK work queue with two valid packet refs', async () => {
   assert.equal(receipt.sleep_lease.status, 'accepted');
   assert.equal(receipt.terminal_substrate.status, 'not_attempted');
   assert.deepEqual(receipt.mismatches, []);
+});
+
+test('runs AFK work queue fixture through two completed items', async () => {
+  const firstPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const secondPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-two' }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: firstPacketPath },
+    { item_id: 'two', packet_ref: secondPacketPath },
+  ]);
+  const fixturePath = await writeQueueRunFixture([
+    {
+      item_id: 'one',
+      status: 'completed',
+      provider_session_id: 'fixture-one',
+      cleanup: 'verified',
+    },
+    {
+      item_id: 'two',
+      status: 'completed',
+      provider_session_id: 'fixture-two',
+      cleanup: 'verified',
+    },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json');
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    fixturePath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    outPath,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  const writtenReceipt = JSON.parse(await readFile(outPath, 'utf8'));
+  assert.equal(receipt.record_type, 'aos.afk_work_queue_fixture_run');
+  assert.equal(receipt.status, 'completed');
+  assert.equal(writtenReceipt.status, 'completed');
+  assert.equal(receipt.provider_launch_allowed, false);
+  assert.equal(receipt.scheduler.selected_action, 'queue-fixture-run');
+  assert.equal(receipt.scheduler.lifecycle_state, 'completed');
+  assert.equal(receipt.dispatch.action, 'queue-fixture-run');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.equal(receipt.fixture_run.provider_launch_allowed, false);
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.item_id), ['one', 'two']);
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.fixture_status), ['completed', 'completed']);
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.provider_session_id), ['fixture-one', 'fixture-two']);
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.cleanup_status), ['verified', 'verified']);
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.terminal_state), ['not_attempted', 'not_attempted']);
+  assert.deepEqual(receipt.mismatches, []);
+});
+
+test('stops AFK work queue fixture run at the first failed item', async () => {
+  const firstPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const secondPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-two' }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: firstPacketPath },
+    { item_id: 'two', packet_ref: secondPacketPath },
+  ]);
+  const fixturePath = await writeQueueRunFixture([
+    { item_id: 'one', status: 'failed', provider_session_id: 'fixture-one', cleanup: 'not_verified' },
+    { item_id: 'two', status: 'completed', provider_session_id: 'fixture-two', cleanup: 'verified' },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    fixturePath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'stopped');
+  assert.equal(receipt.fixture_run.stop_reason, 'failed_item');
+  assert.equal(receipt.fixture_run.stopped_at_item_id, 'one');
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.item_id), ['one']);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'failed_item'), receipt.mismatches);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+});
+
+test('stops AFK work queue fixture run at the first blocked item', async () => {
+  const firstPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const secondPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-two' }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: firstPacketPath },
+    { item_id: 'two', packet_ref: secondPacketPath },
+  ]);
+  const fixturePath = await writeQueueRunFixture([
+    { item_id: 'one', status: 'completed', provider_session_id: 'fixture-one', cleanup: 'verified' },
+    { item_id: 'two', status: 'blocked', provider_session_id: 'fixture-two', cleanup: 'not_verified' },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    fixturePath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'stopped');
+  assert.equal(receipt.fixture_run.stop_reason, 'blocked_item');
+  assert.equal(receipt.fixture_run.stopped_at_item_id, 'two');
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.item_id), ['one', 'two']);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'blocked_item'), receipt.mismatches);
+});
+
+test('stops AFK work queue fixture run when completed item cleanup is unverified', async () => {
+  const firstPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const secondPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-two' }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: firstPacketPath },
+    { item_id: 'two', packet_ref: secondPacketPath },
+  ]);
+  const fixturePath = await writeQueueRunFixture([
+    { item_id: 'one', status: 'completed', provider_session_id: 'fixture-one', cleanup: 'not_verified' },
+    { item_id: 'two', status: 'completed', provider_session_id: 'fixture-two', cleanup: 'verified' },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    fixturePath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'stopped');
+  assert.equal(receipt.fixture_run.stop_reason, 'cleanup_unverified');
+  assert.equal(receipt.fixture_run.stopped_at_item_id, 'one');
+  assert.deepEqual(receipt.fixture_run.items.map((item) => item.item_id), ['one']);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'cleanup_unverified'), receipt.mismatches);
+});
+
+test('rejects AFK work queue fixture run when queue id mismatches', async () => {
+  const packetPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const queuePath = await writeQueue([{ item_id: 'one', packet_ref: packetPath }]);
+  const fixturePath = await writeQueueRunFixture([
+    { item_id: 'one', status: 'completed', provider_session_id: 'fixture-one', cleanup: 'verified' },
+  ], { queue_id: 'different-queue' });
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    fixturePath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'queue_id_mismatch'), receipt.mismatches);
+});
+
+test('rejects AFK work queue fixture run when fixture item order mismatches', async () => {
+  const firstPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const secondPacketPath = await writePacket(validPacket({ packet_id: 'queue-packet-two' }));
+  const queuePath = await writeQueue([
+    { item_id: 'one', packet_ref: firstPacketPath },
+    { item_id: 'two', packet_ref: secondPacketPath },
+  ]);
+  const fixturePath = await writeQueueRunFixture([
+    { item_id: 'two', status: 'completed', provider_session_id: 'fixture-two', cleanup: 'verified' },
+    { item_id: 'one', status: 'completed', provider_session_id: 'fixture-one', cleanup: 'verified' },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    fixturePath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'fixture_order_mismatch'), receipt.mismatches);
+});
+
+test('rejects AFK work queue live launch without fixture before any launch attempt', async () => {
+  const packetPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const queuePath = await writeQueue([{ item_id: 'one', packet_ref: packetPath }]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'real_queue_execution_not_implemented'), receipt.mismatches);
+});
+
+test('rejects AFK work queue fixture run when fixture path is missing', async () => {
+  const packetPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const queuePath = await writeQueue([{ item_id: 'one', packet_ref: packetPath }]);
+  const authorizationPath = await writeSleepLease();
+  const missingFixturePath = join(await mkdtemp(join(tmpdir(), 'afk-work-queue-missing-fixture-')), 'fixture.json');
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    missingFixturePath,
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.deepEqual(receipt.fixture_run.items, []);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'missing_fixture'), receipt.mismatches);
+});
+
+test('rejects AFK work queue fixture run with invalid fixture item shape and status', async () => {
+  const packetPath = await writePacket(validPacket({ packet_id: 'queue-packet-one' }));
+  const queuePath = await writeQueue([{ item_id: 'one', packet_ref: packetPath }]);
+  const fixturePath = await writeQueueRunFixture([
+    { item_id: 'one', status: 'unknown', provider_session_id: 'fixture-one', cleanup: 'verified' },
+  ]);
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--afk-work-queue',
+    queuePath,
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--queue-run-fixture',
+    fixturePath,
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+    '--out',
+    join(await mkdtemp(join(tmpdir(), 'afk-work-queue-fixture-out-')), 'receipt.json'),
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.deepEqual(receipt.fixture_run.items, []);
+  assert.ok(receipt.mismatches.some((item) => item.class === 'invalid_fixture_shape'), receipt.mismatches);
 });
 
 test('rejects AFK work queue with one invalid packet ref', async () => {
