@@ -66,6 +66,14 @@ test('Agent Terminal preserves toolkit bridge handlers when adding app messages'
   assert.match(html, /previousHeadsupReceive\?\.\(b64\)/)
 })
 
+test('Agent Terminal consumes the toolkit session rail model module', () => {
+  assert.match(html, /await import\('\.\/session-rail-model\.js'\)/)
+  assert.match(html, /createSessionRailModel\(sessions,\s*\{/)
+  assert.match(html, /findMatchingSession\(sessions, selectedSession\)/)
+  assert.doesNotMatch(html, /function sessionSortTimestamp/)
+  assert.doesNotMatch(html, /function compareSessionsForRail/)
+})
+
 test('toolkit Agent Terminal entrypoint is generic and neutral', () => {
   assert.match(toolkitHtml, /<title>Agent Terminal<\/title>/)
   assert.match(toolkitHtml, /const surfaceMode = params\.get\('surface'\) === 'sigil' \? 'sigil' : 'generic'/)
