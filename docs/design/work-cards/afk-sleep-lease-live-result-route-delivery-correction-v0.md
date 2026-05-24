@@ -1,6 +1,39 @@
 # Work Card: AFK Sleep Lease Live Result Route Delivery Correction V0
 
-**Status:** Ready for GDI correction
+**Status:** Accepted
+
+## Acceptance Result
+
+Accepted on `main` through merge commit
+`21788bfbcfe657dc7ce435b2ce798662926dc18e`.
+
+Correction head:
+`3449c80b1a53497bbe86313f107c3e006ec1e294`.
+
+Foreman verified that sleep-lease live launch now rejects
+`local_artifact_path` result routes that cannot be delivered by the command's
+confirmed `--out` write. A non-matching local artifact route rejects before
+launch with `sleep_lease_live_result_route_undeliverable`,
+`dispatch.provider_launch_allowed=false`, `launch_attempt_id=not_attempted`,
+terminal substrate `not_attempted`, provider acceptance `not_attempted`, and
+cleanup `not_attempted`.
+
+Accepted routes remain:
+
+- stdout, including accepted stdout shorthand objects;
+- `local_artifact_path` whose resolved ref matches the resolved `--out` path.
+
+Acceptance gates passed:
+
+- `./aos ready`: `ready=true mode=repo daemon=reachable tap=active`;
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 43/43 pass;
+- `node --test tests/afk-launch-attempt-prototype.test.mjs`: 50/50 pass;
+- `bash tests/dev-workflow-router.sh`: pass;
+- `bash tests/help-contract.sh`: pass;
+- `./aos dev build --no-restart`: pass / up to date;
+- `git diff --check`: pass;
+- targeted `sleep-lease live launch` tests: 7/7 pass;
+- manual non-matching local artifact route smoke: pass.
 
 ## Transfer Classification
 

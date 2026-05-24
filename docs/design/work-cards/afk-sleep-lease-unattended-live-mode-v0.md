@@ -1,6 +1,51 @@
 # Work Card: AFK Sleep Lease Unattended Live Mode V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Acceptance Result
+
+Accepted on `main` through merge commit
+`21788bfbcfe657dc7ce435b2ce798662926dc18e`, after the original GDI head
+`f5f6a65bdf894fab4c0632427b3e2954d19fcfbb` was corrected by
+`3449c80b1a53497bbe86313f107c3e006ec1e294`.
+
+Foreman accepted the combined live-mode and route-delivery correction after
+verifying:
+
+- distinct `--sleep-lease-live-launch` command shape;
+- `record_type="aos.afk_session_trigger_sleep_lease_live"`;
+- `scheduler.selected_action="sleep-lease-live-launch"`;
+- `dispatch.human_supervision={ required: false, i_am_present: false }`;
+- `--sleep-lease`, `--json`, and `--out` are required;
+- conflicting `--dry-run`, `--supervised-live-launch`,
+  `--warm-dock-tui-reuse`, `--i-am-present`, and
+  `--provider-launch-dry-run` are rejected;
+- start gates cover dirty worktree, start-ref mismatch, provider/dock/work ref,
+  launch budget, wall-clock budget, branch/publication policy, and result-route
+  delivery;
+- pre-launch and final `--out` receipts are written for accepted runs;
+- duplicate/idempotence behavior remains non-launching unless replacement is
+  explicit.
+
+The correction requires local artifact result routes to match the confirmed
+`--out` path before launch. Non-matching local artifact routes now reject with
+`sleep_lease_live_result_route_undeliverable`; stdout and matching `--out`
+local artifact routes remain accepted.
+
+Acceptance gates passed:
+
+- `./aos ready`: `ready=true mode=repo daemon=reachable tap=active`;
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 43/43 pass;
+- `node --test tests/afk-launch-attempt-prototype.test.mjs`: 50/50 pass;
+- `bash tests/dev-workflow-router.sh`: pass;
+- `bash tests/help-contract.sh`: pass;
+- `./aos dev build --no-restart`: pass / up to date;
+- `git diff --check`: pass;
+- targeted `sleep-lease live launch` tests: 7/7 pass;
+- manual non-matching local artifact route smoke: pass.
+
+Next routed proof:
+`docs/design/work-cards/operator-afk-sleep-lease-live-mode-proof-v0.md`.
 
 ## Transfer Classification
 
