@@ -1,6 +1,12 @@
 # Work Card: Command Surface Extraction Registry Split V0
 
-**Status:** Ready for GDI
+**Status:** Superseded
+
+Superseded on 2026-05-24 by
+`docs/design/work-cards/command-surface-rearchitecture-long-goal-v0.md`.
+
+Do not route this conservative registry split. The active plan is an aggressive
+long-running command surface rearchitecture goal.
 
 ## Transfer Classification
 
