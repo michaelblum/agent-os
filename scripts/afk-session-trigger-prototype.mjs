@@ -13,6 +13,7 @@ const SUPPORTED_PROVIDERS = new Set(['codex', 'claude', 'gemini']);
 const NOT_OBSERVED = 'not_observed';
 const NOT_ATTEMPTED = 'not_attempted';
 const LOCAL_ARTIFACT_PATH = 'local_artifact_path';
+const MAX_QUEUE_ITEMS = 5;
 const LIVE_TERMINAL_STATES = new Set([
   'accepted',
   'accepted_pre_launch',
@@ -32,8 +33,9 @@ function usage() {
 
 Usage:
   node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--afk-live-launch --afk-authorization <authorization.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--afk-authorization <authorization.json>] [--sleep-lease <lease.json>] [--sleep-lease-live-launch] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
+  node scripts/afk-session-trigger-prototype.mjs --afk-work-queue <queue.json> --afk-authorization <authorization.json> --dry-run --json [--out <receipt.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>]
 
-This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The AFK authorization flags are primary; --sleep-lease and --sleep-lease-live-launch remain compatibility aliases. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
+This local prototype validates one transfer packet, or a small ordered AFK work queue in dry-run mode, and emits a scheduler/dispatch receipt. The AFK authorization flags are primary; --sleep-lease and --sleep-lease-live-launch remain compatibility aliases. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
 
 function parseArgs(argv) {
@@ -155,6 +157,15 @@ function isWithinRepo(repoRoot, candidate) {
 
 function relIfRepo(repoRoot, candidate) {
   return candidate && isWithinRepo(repoRoot, candidate) ? relative(repoRoot, candidate) || '.' : candidate;
+}
+
+function isLocalFileRef(value) {
+  if (typeof value !== 'string' || value.trim() === '') return false;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) return false;
+  if (/[\n\r]/.test(value)) return false;
+  if (/[<>|&;$`]/.test(value)) return false;
+  if (/[*?\[\]{}]/.test(value)) return false;
+  return true;
 }
 
 function normalizePacketId(packet) {
@@ -677,7 +688,7 @@ function resolveProvider(explicitProvider, packetProviderHint) {
   };
 }
 
-async function buildReceipt(options) {
+async function buildSinglePacketReceipt(options) {
   if (!options.packet) {
     throw Object.assign(new Error('Missing required --packet'), { mismatchClass: 'missing_packet' });
   }
@@ -1009,6 +1020,239 @@ async function buildReceipt(options) {
     },
     mismatches,
   };
+}
+
+async function buildQueueReceipt(options) {
+  const repoRoot = resolveRepoRoot(options.repo ?? process.cwd());
+  const createdAt = options.timestamp ?? new Date().toISOString();
+  const mismatches = [];
+
+  if (!options.afkWorkQueue) {
+    mismatches.push(mismatch('missing_queue', 'Missing required --afk-work-queue path.'));
+  }
+  if (options.packet) {
+    mismatches.push(mismatch('conflicting_packet_and_queue', '--afk-work-queue is an alternative to --packet.'));
+  }
+  if (!options.dryRun || options.supervisedLiveLaunch || options.sleepLeaseLiveLaunch || options.warmDockTuiReuse || options.providerLaunchDryRun) {
+    mismatches.push(mismatch('queue_dry_run_required', '--afk-work-queue is available only with --dry-run.'));
+  }
+  if (!options.json) {
+    mismatches.push(mismatch('queue_json_required', '--afk-work-queue requires --json.'));
+  }
+  if (!options.sleepLease) {
+    mismatches.push(mismatch('sleep_lease_missing', 'AFK work queue dry run requires --afk-authorization.'));
+  }
+
+  const queuePath = options.afkWorkQueue ? repoPath(repoRoot, options.afkWorkQueue) : null;
+  let queue = null;
+  if (queuePath && !existsSync(queuePath)) {
+    mismatches.push(mismatch('missing_queue', 'AFK work queue path does not exist.', {
+      queue_ref: relIfRepo(repoRoot, queuePath),
+    }));
+  } else if (queuePath) {
+    queue = await readJsonFile(queuePath, 'AFK work queue');
+    if (!isPlainObject(queue)) {
+      mismatches.push(mismatch('invalid_queue_shape', 'AFK work queue must be a JSON object.'));
+      queue = null;
+    }
+  }
+
+  const itemSummaries = [];
+  const itemIds = new Set();
+  const duplicateIds = new Set();
+  if (queue) {
+    if (typeof queue.queue_id !== 'string' || queue.queue_id.trim() === '') {
+      mismatches.push(mismatch('invalid_queue_shape', 'AFK work queue queue_id must be a non-empty string.'));
+    }
+    if (!Array.isArray(queue.items) || queue.items.length === 0) {
+      mismatches.push(mismatch('invalid_queue_shape', 'AFK work queue items must be a non-empty array.'));
+    } else {
+      if (queue.items.length > MAX_QUEUE_ITEMS) {
+        mismatches.push(mismatch('too_many_queue_items', `AFK work queue is capped at ${MAX_QUEUE_ITEMS} items.`, {
+          item_count: queue.items.length,
+          max_items: MAX_QUEUE_ITEMS,
+        }));
+      }
+      for (const item of queue.items) {
+        if (!isPlainObject(item)) {
+          mismatches.push(mismatch('invalid_queue_shape', 'Every AFK work queue item must be a JSON object.'));
+          continue;
+        }
+        if (typeof item.item_id !== 'string' || item.item_id.trim() === '') {
+          mismatches.push(mismatch('invalid_queue_shape', 'Every AFK work queue item requires a non-empty item_id.'));
+          continue;
+        }
+        if (itemIds.has(item.item_id)) {
+          duplicateIds.add(item.item_id);
+        }
+        itemIds.add(item.item_id);
+      }
+      if (duplicateIds.size > 0) {
+        mismatches.push(mismatch('duplicate_item_ids', 'AFK work queue item_id values must be unique.', {
+          duplicate_item_ids: [...duplicateIds].sort(),
+        }));
+      }
+    }
+  }
+
+  const shapeValid = mismatches.length === 0 && queue && Array.isArray(queue.items);
+  if (shapeValid) {
+    for (const [index, item] of queue.items.entries()) {
+      const itemMismatches = [];
+      const packetRef = item.packet_ref;
+      const summary = {
+        index,
+        item_id: item.item_id,
+        packet_ref: typeof packetRef === 'string' ? packetRef : NOT_OBSERVED,
+        work_ref: NOT_OBSERVED,
+        packet_id: NOT_OBSERVED,
+        validation_status: 'invalid',
+        authorization_status: NOT_OBSERVED,
+        mismatch_classes: [],
+      };
+
+      if (!isLocalFileRef(packetRef)) {
+        itemMismatches.push(mismatch('invalid_packet_ref', 'AFK work queue packet_ref must be a local file path, not a URL, glob, command, or remote route.', {
+          item_id: item.item_id,
+          packet_ref: packetRef ?? NOT_OBSERVED,
+        }));
+      } else {
+        const packetPath = repoPath(repoRoot, packetRef);
+        if (!packetPath || !existsSync(packetPath)) {
+          itemMismatches.push(mismatch('invalid_packet_ref', 'AFK work queue packet_ref does not resolve to an existing local packet file.', {
+            item_id: item.item_id,
+            packet_ref: packetRef,
+            resolved_path: packetPath ? relIfRepo(repoRoot, packetPath) : NOT_OBSERVED,
+          }));
+        } else {
+          try {
+            const packetReceipt = await buildSinglePacketReceipt({
+              ...options,
+              packet: packetPath,
+              afkWorkQueue: undefined,
+              dryRun: true,
+              supervisedLiveLaunch: false,
+              sleepLeaseLiveLaunch: false,
+              warmDockTuiReuse: false,
+              providerLaunchDryRun: false,
+              existingReceipt: undefined,
+              replacementFor: undefined,
+              out: undefined,
+            });
+            summary.packet_ref = relIfRepo(repoRoot, packetPath);
+            summary.work_ref = packetReceipt.packet.source_artifact;
+            summary.packet_id = packetReceipt.packet.packet_id;
+            summary.authorization_status = packetReceipt.sleep_lease?.status ?? NOT_OBSERVED;
+            summary.validation_status = packetReceipt.mismatches.length === 0 ? 'valid' : 'invalid';
+            for (const packetMismatch of packetReceipt.mismatches) {
+              itemMismatches.push(mismatch(
+                packetMismatch.class === 'sleep_lease_work_ref_not_allowed'
+                  ? 'authorization_work_ref_mismatch'
+                  : 'packet_validation_failure',
+                packetMismatch.message,
+                {
+                  item_id: item.item_id,
+                  packet_ref: summary.packet_ref,
+                  original_class: packetMismatch.class,
+                },
+              ));
+            }
+          } catch (error) {
+            itemMismatches.push(mismatch('packet_validation_failure', error.message, {
+              item_id: item.item_id,
+              packet_ref: packetRef,
+              original_class: error.mismatchClass ?? 'failed',
+            }));
+          }
+        }
+      }
+
+      summary.mismatch_classes = itemMismatches.map((itemMismatch) => itemMismatch.class);
+      itemSummaries.push(summary);
+      mismatches.push(...itemMismatches);
+    }
+  }
+
+  const idempotenceMaterial = {
+    queueId: queue?.queue_id ?? NOT_OBSERVED,
+    queueRef: queuePath ? relIfRepo(repoRoot, queuePath) : NOT_OBSERVED,
+    items: itemSummaries.map((item) => ({
+      itemId: item.item_id,
+      packetRef: item.packet_ref,
+      workRef: item.work_ref,
+      packetId: item.packet_id,
+    })),
+    sleepLease: options.sleepLease ?? null,
+    salt: options.idempotenceSalt ?? null,
+  };
+  const idempotenceKey = stableHash(idempotenceMaterial, 32);
+  const schedulerRunId = `scheduler-${stableHash({ idempotenceKey, kind: 'queue-scheduler' })}`;
+  const dispatchAttemptId = `dispatch-${stableHash({ schedulerRunId, idempotenceKey, kind: 'queue-dispatch' })}`;
+  const status = mismatches.length === 0 ? 'dry_run_ready' : 'rejected';
+  const worktreeFacts = currentWorktreeFacts(repoRoot);
+
+  return {
+    record_type: 'aos.afk_work_queue_dry_run',
+    schema_status: 'not_a_schema',
+    status,
+    created_at: createdAt,
+    provider_launch_allowed: false,
+    queue: {
+      queue_ref: queuePath ? relIfRepo(repoRoot, queuePath) : NOT_OBSERVED,
+      queue_id: queue?.queue_id ?? NOT_OBSERVED,
+      item_count: Array.isArray(queue?.items) ? queue.items.length : 0,
+      max_items: MAX_QUEUE_ITEMS,
+      validation_status: status === 'dry_run_ready' ? 'valid' : 'invalid',
+      items: itemSummaries,
+    },
+    current_state: {
+      repo_root: repoRoot,
+      worktree: repoRoot,
+      branch: worktreeFacts.branch,
+      head: worktreeFacts.head,
+    },
+    scheduler: {
+      scheduler_run_id: schedulerRunId,
+      idempotence_key: idempotenceKey,
+      lifecycle_state: status === 'dry_run_ready' ? 'accepted' : 'rejected',
+      selected_action: 'queue-dry-run',
+      lease: options.sleepLease
+        ? {
+            status: itemSummaries.length > 0 && itemSummaries.every((item) => item.authorization_status === 'accepted') ? 'accepted' : 'rejected',
+            lease_ref: options.sleepLease,
+          }
+        : { status: 'rejected', lease_ref: NOT_OBSERVED },
+    },
+    dispatch: {
+      dispatch_attempt_id: dispatchAttemptId,
+      selected_provider: options.provider ?? NOT_OBSERVED,
+      selected_dock: options.dock ?? NOT_OBSERVED,
+      action: 'queue-dry-run',
+      provider_launch_allowed: false,
+      human_supervision: { required: false, i_am_present: false },
+      launch_attempt_id: NOT_ATTEMPTED,
+    },
+    terminal_substrate: {
+      status: NOT_ATTEMPTED,
+      reason: 'queue-dry-run-only',
+    },
+    result_route: classifyLocalResultRoutes({ repoRoot, routes: [] }),
+    sleep_lease: {
+      status: itemSummaries.length > 0 && itemSummaries.every((item) => item.authorization_status === 'accepted') ? 'accepted' : 'rejected',
+      lease_ref: options.sleepLease ?? NOT_OBSERVED,
+    },
+    evidence: {
+      transcript_body_copied: false,
+    },
+    mismatches,
+  };
+}
+
+async function buildReceipt(options) {
+  if (options.afkWorkQueue) {
+    return buildQueueReceipt(options);
+  }
+  return buildSinglePacketReceipt(options);
 }
 
 async function classifyExistingReceipt(repoRoot, receiptPath, idempotenceKey, options) {

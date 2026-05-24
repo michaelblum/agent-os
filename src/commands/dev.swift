@@ -130,6 +130,7 @@ private struct DevAfkSessionTriggerOptions {
     var iAmPresent = false
     var providerLaunchDryRun = false
     var packet: String?
+    var afkWorkQueue: String?
     var sleepLease: String?
     var provider: String?
     var dock: String?
@@ -437,8 +438,11 @@ private func devAfkLaunchAttemptCommand(args: [String]) {
 
 private func devAfkSessionTriggerCommand(args: [String]) {
     let options = parseDevAfkSessionTriggerOptions(args)
-    guard let packet = options.packet else {
-        exitError("dev afk-session-trigger requires --packet <path>", code: "MISSING_ARG")
+    if options.packet == nil && options.afkWorkQueue == nil {
+        exitError("dev afk-session-trigger requires --packet <path> or --afk-work-queue <path>", code: "MISSING_ARG")
+    }
+    if options.packet != nil && options.afkWorkQueue != nil {
+        exitError("dev afk-session-trigger accepts either --packet or --afk-work-queue, not both", code: "CONFLICTING_ARG")
     }
     guard options.dryRun || options.supervisedLiveLaunch || options.sleepLeaseLiveLaunch || options.warmDockTuiReuse else {
         exitError("dev afk-session-trigger requires --dry-run, --supervised-live-launch, --afk-live-launch, or --warm-dock-tui-reuse", code: "MISSING_ARG")
@@ -450,7 +454,13 @@ private func devAfkSessionTriggerCommand(args: [String]) {
         exitError("Missing AFK session-trigger prototype script: \(script)", code: "MISSING_SCRIPT")
     }
 
-    var scriptArgs = [script, "--packet", packet]
+    var scriptArgs = [script]
+    if let packet = options.packet {
+        scriptArgs += ["--packet", packet]
+    }
+    if let afkWorkQueue = options.afkWorkQueue {
+        scriptArgs += ["--afk-work-queue", afkWorkQueue]
+    }
     if options.dryRun {
         scriptArgs.append("--dry-run")
     }
@@ -1387,6 +1397,12 @@ private func parseDevAfkSessionTriggerOptions(_ args: [String]) -> DevAfkSession
             }
             options.packet = args[i + 1]
             i += 2
+        case "--afk-work-queue":
+            guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
+                exitError("--afk-work-queue requires a path", code: "MISSING_ARG")
+            }
+            options.afkWorkQueue = args[i + 1]
+            i += 2
         case "--afk-authorization", "--sleep-lease":
             guard i + 1 < args.count, !args[i + 1].hasPrefix("--") else {
                 exitError("\(arg) requires a path", code: "MISSING_ARG")
@@ -2045,7 +2061,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
     claims.append(auditFormFlagClaim(
         id: "dev-afk-session-trigger-help-flags",
         form: forms["dev-afk-session-trigger"],
-        expectedFlags: ["--packet", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
+        expectedFlags: ["--packet", "--afk-work-queue", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"],
         defaultManifestRequired: false))
     claims.append(auditFormFlagClaim(
         id: "dev-audit-help-flags",
