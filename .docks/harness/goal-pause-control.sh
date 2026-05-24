@@ -51,8 +51,7 @@ fi
 
 delay="${AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS:-0}"
 send_pause() {
-  tmux send-keys -t "$pane" -l "/goal pause"
-  tmux send-keys -t "$pane" Enter
+  "$repo_root/.docks/harness/pty-input-control.sh" send "$pane" "/goal pause"
 }
 
 if [[ "$delay" == "0" || "$delay" == "0.0" ]]; then

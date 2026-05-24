@@ -26,11 +26,5 @@ if [[ -z "$text" ]]; then
   usage
 fi
 
-if ! command -v tmux >/dev/null 2>&1; then
-  echo "tmux_unavailable" >&2
-  exit 1
-fi
-
-tmux send-keys -t "$target" C-u
-tmux send-keys -t "$target" -l "$text"
-tmux send-keys -t "$target" Enter
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+"$script_dir/pty-input-control.sh" send "$target" "$text"

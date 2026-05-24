@@ -19,6 +19,7 @@ runner = root / ".docks" / "harness" / "dock-hook-runner.sh"
 post_tool_runner = root / ".docks" / "harness" / "post-tool-use-runner.sh"
 goal_pause_control = root / ".docks" / "harness" / "goal-pause-control.sh"
 provider_input_control = root / ".docks" / "harness" / "provider-input-control.sh"
+pty_input_control = root / ".docks" / "harness" / "pty-input-control.sh"
 defaults_path = root / ".docks" / "dock-defaults.json"
 if not runner.exists():
     raise SystemExit("FAIL: missing shared dock hook runner")
@@ -36,6 +37,10 @@ if not provider_input_control.exists():
     raise SystemExit("FAIL: missing shared provider input control helper")
 if not os.access(provider_input_control, os.X_OK):
     raise SystemExit("FAIL: shared provider input control helper is not executable")
+if not pty_input_control.exists():
+    raise SystemExit("FAIL: missing shared PTY input control helper")
+if not os.access(pty_input_control, os.X_OK):
+    raise SystemExit("FAIL: shared PTY input control helper is not executable")
 if not defaults_path.exists():
     raise SystemExit("FAIL: missing shared dock defaults")
 defaults = json.loads(defaults_path.read_text())
@@ -77,6 +82,8 @@ for required in (
 ):
     if required not in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner missing {required!r}")
+if "pty-input-control.sh" not in goal_pause_control.read_text():
+    raise SystemExit("FAIL: goal-pause control must delegate PTY writes through pty-input-control.sh")
 for forbidden in ("ready --post-permission --json", "ready --repair", "permissions reset-runtime", "git status", "AOS_BIN"):
     if forbidden in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner must not run redundant ritual command {forbidden!r}")
@@ -397,6 +404,24 @@ grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
+: >"$tmux_log"
+
+PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/pty-input-control.sh" send --no-submit "%42" "/goal leave for human"
+grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
+  echo "FAIL: PTY input helper should clear by default before entering text" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:send-keys -t %42 -l /goal leave for human' "$tmux_log" || {
+  echo "FAIL: PTY input helper should enter text for human submission" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+if grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log"; then
+  echo "FAIL: PTY input helper --no-submit should leave text unsubmitted" >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
 : >"$tmux_log"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
