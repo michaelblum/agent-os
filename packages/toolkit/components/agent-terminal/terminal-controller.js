@@ -16,10 +16,14 @@ export function createDefaultTerminalOptions() {
 }
 
 function eventHasPasteShortcut(event) {
-  const key = String(event?.key || '').toLowerCase();
-  if (key !== 'v') return false;
   if (event.altKey || event.shiftKey) return false;
-  return Boolean(event.metaKey || event.ctrlKey);
+  if (!event.metaKey && !event.ctrlKey) return false;
+  const key = String(event?.key || '').toLowerCase();
+  const code = String(event?.code || '').toLowerCase();
+  return key === 'v'
+    || code === 'keyv'
+    || event?.keyCode === 86
+    || event?.which === 86;
 }
 
 function readPasteEventText(event) {
@@ -38,7 +42,7 @@ export function createTerminalInputPolicy({
   forwardInput = () => {},
   readClipboardText = () => '',
   now = () => Date.now(),
-  pasteDedupeMs = 100,
+  pasteDedupeMs = 750,
 } = {}) {
   if (!terminal) throw new Error('Agent Terminal input policy requires terminal');
 
@@ -92,11 +96,18 @@ export function createTerminalInputPolicy({
   }
 
   function attach({ element } = {}) {
+    function prepareNativePaste(event) {
+      if (!eventHasPasteShortcut(event) || !event.metaKey) return;
+      event.stopImmediatePropagation?.();
+      event.stopPropagation?.();
+    }
+    element?.addEventListener?.('keydown', prepareNativePaste, true);
     terminal.attachCustomKeyEventHandler?.(handleKeyEvent);
     terminal.attachCustomWheelEventHandler?.(handleWheelEvent);
     element?.addEventListener?.('paste', handlePasteEvent);
     return {
       dispose() {
+        element?.removeEventListener?.('keydown', prepareNativePaste, true);
         element?.removeEventListener?.('paste', handlePasteEvent);
       },
     };
@@ -175,6 +186,7 @@ export function createAgentTerminalController({
   cancelAnimationFrameImpl = globalThis.cancelAnimationFrame?.bind(globalThis),
   setTimeoutImpl = globalThis.setTimeout?.bind(globalThis),
   WebSocketImpl = globalThis.WebSocket,
+  readClipboardText = () => globalThis.navigator?.clipboard?.readText?.() || '',
 } = {}) {
   if (!bridgeClient) throw new Error('Agent Terminal controller requires bridgeClient');
   if (!terminal) throw new Error('Agent Terminal controller requires terminal');
@@ -195,7 +207,7 @@ export function createAgentTerminalController({
   const inputPolicy = createTerminalInputPolicy({
     terminal,
     forwardInput,
-    readClipboardText: () => globalThis.navigator?.clipboard?.readText?.() || '',
+    readClipboardText,
   });
 
   function isOpenSocket(value) {

@@ -345,6 +345,11 @@ class UnifiedDaemon {
                         self?.canvasInspectorAnnotationModeHandler?(active)
                     }
                     return
+                case "clipboard.read":
+                    let text = NSPasteboard.general.string(forType: .string) ?? ""
+                    self.dispatchCanvasResponse(to: canvasID, requestID: inner?["request_id"] as? String,
+                        status: "ok", extra: ["text": text])
+                    return
                 case "status_item.state":
                     let visible = (inner?["visible"] as? Bool)
                         ?? (dict["visible"] as? Bool)

@@ -88,9 +88,11 @@ function createFakeTerminal({ cols = 80, rows = 24 } = {}) {
 function createFakeElement() {
   const listeners = new Map()
   return {
+    children: [],
     listeners,
     style: {},
     focused: 0,
+    selected: 0,
     hidden: true,
     bounds: { left: 10, top: 20 },
     addEventListener(type, listener) {
@@ -102,8 +104,20 @@ function createFakeElement() {
     dispatch(type, event = {}) {
       listeners.get(type)?.(event)
     },
+    append(child) {
+      this.children.push(child)
+    },
     focus() {
       this.focused += 1
+    },
+    select() {
+      this.selected += 1
+    },
+    setAttribute(name, value) {
+      this[name] = value
+    },
+    remove() {
+      this.removed = true
     },
     getBoundingClientRect() {
       return this.bounds
@@ -279,7 +293,7 @@ test('dispatches paste through xterm paste API and deduplicates repeated paste t
 
   assert.equal(policy.dispatchPaste('hello'), true)
   assert.equal(policy.dispatchPaste('hello'), false)
-  clock += 101
+  clock += 751
   assert.equal(policy.dispatchPaste('hello'), true)
 
   assert.deepEqual(terminal.pasted, ['hello', 'hello'])
@@ -301,7 +315,72 @@ test('falls back to raw input forwarding when xterm paste API is unavailable', (
   assert.deepEqual(forwarded, ['fallback paste'])
 })
 
-test('handles Meta+V and Ctrl+V paste shortcuts from clipboard once', async () => {
+test('captures Meta+V before xterm handles it without blocking native paste', async () => {
+  const terminal = createFakeTerminal()
+  const policy = createTerminalInputPolicy({
+    terminal,
+    readClipboardText: async () => 'clip text',
+  })
+  const element = createFakeElement()
+  const events = []
+  const binding = policy.attach({ element })
+
+  element.dispatch('keydown', {
+    key: 'v',
+    metaKey: true,
+    preventDefault() {
+      events.push('prevent')
+    },
+    stopImmediatePropagation() {
+      events.push('stop-immediate')
+    },
+    stopPropagation() {
+      events.push('stop')
+    },
+  })
+  element.dispatch('paste', {
+    clipboardData: { getData: () => 'clip text' },
+    preventDefault() {
+      events.push('paste-prevent')
+    },
+    stopPropagation() {
+      events.push('paste-stop')
+    },
+  })
+
+  binding.dispose()
+
+  assert.deepEqual(events, ['stop-immediate', 'stop', 'paste-prevent', 'paste-stop'])
+  assert.deepEqual(terminal.pasted, ['clip text'])
+})
+
+test('blocks Meta+V raw input if the native paste sink did not catch the key', async () => {
+  const terminal = createFakeTerminal()
+  const policy = createTerminalInputPolicy({
+    terminal,
+    readClipboardText: async () => {
+      throw new Error('denied')
+    },
+  })
+  const events = []
+
+  assert.equal(policy.handleKeyEvent({
+    key: 'v',
+    metaKey: true,
+    preventDefault() {
+      events.push('prevent')
+    },
+    stopPropagation() {
+      events.push('stop')
+    },
+  }), false)
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(events, ['prevent', 'stop'])
+  assert.deepEqual(terminal.pasted, [])
+})
+
+test('handles Ctrl+V paste shortcuts from clipboard once', async () => {
   const terminal = createFakeTerminal()
   const policy = createTerminalInputPolicy({
     terminal,
@@ -310,7 +389,7 @@ test('handles Meta+V and Ctrl+V paste shortcuts from clipboard once', async () =
   const events = []
   const event = {
     key: 'v',
-    metaKey: true,
+    ctrlKey: true,
     preventDefault() {
       events.push('prevent')
     },
@@ -333,7 +412,32 @@ test('handles Meta+V and Ctrl+V paste shortcuts from clipboard once', async () =
 
   assert.deepEqual(events, ['prevent', 'stop', 'paste-prevent', 'paste-stop'])
   assert.deepEqual(terminal.pasted, ['clip text'])
-  assert.equal(policy.handleKeyEvent({ key: 'v', ctrlKey: true }), false)
+})
+
+test('blocks Ctrl+V raw input when clipboard read is unavailable', async () => {
+  const terminal = createFakeTerminal()
+  const policy = createTerminalInputPolicy({
+    terminal,
+    readClipboardText: async () => {
+      throw new Error('denied')
+    },
+  })
+  const events = []
+
+  assert.equal(policy.handleKeyEvent({
+    code: 'KeyV',
+    ctrlKey: true,
+    preventDefault() {
+      events.push('prevent')
+    },
+    stopPropagation() {
+      events.push('stop')
+    },
+  }), false)
+  await new Promise((resolve) => setImmediate(resolve))
+
+  assert.deepEqual(events, ['prevent', 'stop'])
+  assert.deepEqual(terminal.pasted, [])
 })
 
 test('ignores non-paste key events', () => {

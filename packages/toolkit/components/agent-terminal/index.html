@@ -484,9 +484,26 @@
     let sessions = [];
     let selectedSession = null;
     let inspectorRequest = 0;
+    let clipboardRequestSeq = 0;
+    const clipboardRequests = new Map();
 
     function emit(body) {
       window.webkit?.messageHandlers?.headsup?.postMessage(body);
+    }
+
+    function readCanvasClipboardText() {
+      const requestId = `agent-terminal-clipboard-${++clipboardRequestSeq}`;
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          clipboardRequests.delete(requestId);
+          resolve('');
+        }, 500);
+        clipboardRequests.set(requestId, { resolve, timeout });
+        emit({
+          type: 'clipboard.read',
+          payload: { request_id: requestId },
+        });
+      });
     }
 
     function setStatus(kind, text) {
@@ -629,6 +646,7 @@
         },
         loadSessions,
         WebSocketImpl: WebSocket,
+        readClipboardText: readCanvasClipboardText,
       });
       terminalController.setCurrentCwd(currentCwd);
       terminal.loadAddon(fitAddon);
@@ -641,7 +659,7 @@
         menu: terminalContextMenu,
         pasteButton: terminalPasteButton,
         inputPolicy: terminalController.inputPolicy,
-        readClipboardText: () => navigator.clipboard?.readText?.() || '',
+        readClipboardText: readCanvasClipboardText,
       });
       scheduleRefit();
       terminal.focus();
@@ -698,6 +716,12 @@
       }
       if (msg?.type === 'agent_terminal.refit' || msg?.type === 'codex_terminal.refit') scheduleRefit();
       if (msg?.type === 'agent_terminal.refresh_sessions') void loadSessions();
+      if (msg?.type === 'canvas.response' && clipboardRequests.has(msg.request_id)) {
+        const request = clipboardRequests.get(msg.request_id);
+        clipboardRequests.delete(msg.request_id);
+        clearTimeout(request.timeout);
+        request.resolve(msg.status === 'ok' && typeof msg.text === 'string' ? msg.text : '');
+      }
     };
     window.focusInput = function focusInput() {
       scheduleRefit();
