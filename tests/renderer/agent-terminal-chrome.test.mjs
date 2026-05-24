@@ -170,6 +170,17 @@ test('toolkit and Sigil launchers pass canonical bridge environment names', () =
   }
 })
 
+test('toolkit and Sigil launchers require health to match requested bridge identity', () => {
+  for (const launcher of [toolkitLauncher, sigilAgentLauncher]) {
+    assert.match(launcher, /bridge_health_matches\(\)/)
+    assert.match(launcher, /AGENT_TERMINAL_HEALTH_JSON="\$health" python3 - "\$SESSION" "\$CWD_TARGET"/)
+    assert.match(launcher, /payload\.get\("defaultSession"\) != session/)
+    assert.match(launcher, /payload\.get\("defaultCwd"\) != cwd/)
+    assert.match(launcher, /if \[\[ "\$RESTART" -eq 0 \]\] && bridge_health_matches; then/)
+    assert.doesNotMatch(launcher, /if bridge_running; then\s+return 0/)
+  }
+})
+
 test('bridge substrate no longer contains broad legacy bridge env aliases', () => {
   const legacySigilAgentEnv = new RegExp('SIGIL' + '_AGENT_')
   const legacySigilCodexEnv = new RegExp('SIGIL' + '_CODEX_')

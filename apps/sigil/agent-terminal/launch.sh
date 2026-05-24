@@ -74,9 +74,29 @@ bridge_running() {
   curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1
 }
 
+bridge_health_matches() {
+  local health
+  health="$(curl -fsS "http://127.0.0.1:${PORT}/health" 2>/dev/null || true)"
+  if [[ -z "$health" ]]; then
+    return 1
+  fi
+  AGENT_TERMINAL_HEALTH_JSON="$health" python3 - "$SESSION" "$CWD_TARGET" <<'PY'
+import json, os, sys
+session, cwd = sys.argv[1:]
+try:
+    payload = json.loads(os.environ.get("AGENT_TERMINAL_HEALTH_JSON") or "")
+except json.JSONDecodeError:
+    raise SystemExit(1)
+if payload.get("defaultSession") != session:
+    raise SystemExit(1)
+if payload.get("defaultCwd") != cwd:
+    raise SystemExit(1)
+PY
+}
+
 start_bridge() {
   mkdir -p "$STATE_DIR"
-  if bridge_running; then
+  if [[ "$RESTART" -eq 0 ]] && bridge_health_matches; then
     return 0
   fi
   if command -v tmux >/dev/null 2>&1; then
