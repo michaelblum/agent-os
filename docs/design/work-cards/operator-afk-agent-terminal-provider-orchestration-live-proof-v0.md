@@ -1,6 +1,52 @@
 # Work Card: Operator AFK Agent Terminal Provider Orchestration Live Proof V0
 
-**Status:** Ready for Operator
+**Status:** Accepted 2026-05-24
+
+## Result
+
+- Classification: `pass`.
+- Foreman review: accepted. The run proved a proof-owned headed Agent Terminal
+  can launch real Codex from `.docks/gdi`, accept a provider prompt through the
+  live terminal UI with `Cmd+V` plus `Enter`, complete bounded local work, expose
+  bridge/session/provider metadata, and clean up proof-owned runtime state.
+- Branch/ref gates passed on `main` at
+  `397a91421fe85773d2dc396d345062e87c683001`, matching `origin/main`.
+- Readiness before and after reported
+  `ready=true mode=repo daemon=reachable tap=active`.
+- Preflight passed:
+  - `node --test tests/renderer/agent-terminal-terminal-controller.test.mjs`
+    with 21/21 passing;
+  - `node --test tests/renderer/agent-terminal-bridge-client.test.mjs` with
+    8/8 passing;
+  - `git diff --check`.
+- Live proof-owned runtime:
+  - canvas `operator-agent-terminal-provider-proof`;
+  - port `17794`;
+  - session `operator-provider-proof-17794`;
+  - bridge session `aos-agent-bridge-operator-provider-proof`;
+  - cwd `/Users/Michael/Code/agent-os/.docks/gdi`;
+  - command `codex --no-alt-screen`.
+- Prompt submission used the headed Agent Terminal UI, not bridge `/input`:
+  the terminal pane was clicked, `./aos do key cmd+v` pasted the prompt and
+  proof token, and `./aos do key Enter` submitted it.
+- Provider evidence: Codex accepted and completed the prompt within the window;
+  proof token `agent-terminal-provider-proof-20260524032457` was observed; the
+  provider reported branch `main...origin/main`, clean worktree, and
+  `tests/renderer/agent-terminal-bridge-client.test.mjs` with 8/8 passing.
+- Bridge/session metadata: `/health` was ok with default cwd `.docks/gdi` and
+  driver `tmux`; `dock-terminal-session` reported dock `gdi`, provider
+  `codex`, cwd `.docks/gdi`, and PTY handle `operator-provider-proof-17794`.
+- Provider metadata: Codex session
+  `019e58df-91c2-7362-b7c0-859194b9ace3` was visible with cwd `.docks/gdi`
+  and branch `main`.
+- Cleanup verified by Operator and rechecked by Foreman: proof bridge port
+  `17794` is no longer reachable, proof-owned tmux/process names are absent,
+  and final git status is clean.
+- Boundary confirmed: no provider transcript bodies were pasted, and no source,
+  docs, config, provider store, GitHub, branch, PR, push, merge, or async
+  result-routing mutation occurred during the Operator run.
+- Next routed follow-up:
+  `docs/design/work-cards/operator-afk-session-trigger-headless-scheduler-live-proof-v0.md`.
 
 ## Transfer Classification
 
