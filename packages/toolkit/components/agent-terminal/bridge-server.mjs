@@ -2,8 +2,10 @@
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { listProviderSessions } from '../../../host/src/session-catalog.ts';
-import { buildSessionInspector } from './session-inspector-server.mjs';
+import {
+  providerSessionsResponseForUrl,
+  sessionInspectorResponseForUrl,
+} from './provider-session-routes.mjs';
 import {
   appendProcessStderr,
   boundedInt,
@@ -131,30 +133,6 @@ function dockTerminalSessionForUrl(url) {
   };
 }
 
-function sessionCatalogQueryForUrl(url) {
-  const providerParams = url.searchParams.getAll('provider');
-  const providers = providerParams.filter((provider) => provider === 'codex' || provider === 'claude-code');
-  const explicitCwd = url.searchParams.get('cwd');
-  const allCwd = url.searchParams.get('all_cwd') === 'true';
-  const cwd = allCwd ? undefined : (explicitCwd || defaultCwd);
-  const sessions = listProviderSessions({
-    homeDir: envValue('AGENT_TERMINAL_CATALOG_HOME', undefined),
-    codexRoot: envValue('AGENT_TERMINAL_CODEX_ROOT', undefined),
-    claudeRoot: envValue('AGENT_TERMINAL_CLAUDE_ROOT', undefined),
-    cwd,
-    providers: providers.length ? providers : undefined,
-  });
-  return {
-    sessions,
-    scope: allCwd ? 'all_cwd' : 'cwd',
-    cwd_filter: cwd ?? null,
-  };
-}
-
-function sessionCatalogForUrl(url) {
-  return sessionCatalogQueryForUrl(url).sessions;
-}
-
 async function handle(req, res) {
   res.setHeader('access-control-allow-origin', '*');
   if (req.method === 'OPTIONS') {
@@ -184,7 +162,7 @@ async function handle(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/sessions') {
-      json(res, 200, sessionCatalogQueryForUrl(url));
+      json(res, 200, providerSessionsResponseForUrl(url, { defaultCwd }));
       return;
     }
 
@@ -194,21 +172,9 @@ async function handle(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/session-inspector') {
-      const provider = url.searchParams.get('provider');
-      const sessionId = url.searchParams.get('session_id');
-      if (!provider || !sessionId) {
-        text(res, 400, 'provider and session_id are required');
-        return;
-      }
-      const sessions = sessionCatalogForUrl(url);
-      const record = sessions.find((candidate) => (
-        candidate.provider === provider && candidate.session_id === sessionId
-      ));
-      if (!record) {
-        text(res, 404, `session not found: ${provider}:${sessionId}`);
-        return;
-      }
-      json(res, 200, buildSessionInspector(record));
+      const result = sessionInspectorResponseForUrl(url, { defaultCwd });
+      if (result.contentType === 'text') text(res, result.status, result.body);
+      else json(res, result.status, result.body);
       return;
     }
 

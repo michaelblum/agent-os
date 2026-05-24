@@ -7,6 +7,7 @@ const toolkitHtml = readFileSync(new URL('index.html', toolkitComponentDir), 'ut
 const toolkitLauncher = readFileSync(new URL('launch.sh', toolkitComponentDir), 'utf8')
 const toolkitBridgeServer = readFileSync(new URL('bridge-server.mjs', toolkitComponentDir), 'utf8')
 const toolkitTerminalSessionManager = readFileSync(new URL('terminal-session-manager.mjs', toolkitComponentDir), 'utf8')
+const toolkitProviderSessionRoutes = readFileSync(new URL('provider-session-routes.mjs', toolkitComponentDir), 'utf8')
 const toolkitInspectorServer = readFileSync(new URL('session-inspector-server.mjs', toolkitComponentDir), 'utf8')
 const sigilAgentLauncher = readFileSync(new URL('../../apps/sigil/agent-terminal/launch.sh', import.meta.url), 'utf8')
 const sigilCompatLauncher = readFileSync(new URL('../../apps/sigil/codex-terminal/launch.sh', import.meta.url), 'utf8')
@@ -192,7 +193,7 @@ test('bridge substrate no longer contains broad legacy bridge env aliases', () =
   const legacySigilAgentEnv = new RegExp('SIGIL' + '_AGENT_')
   const legacySigilCodexEnv = new RegExp('SIGIL' + '_CODEX_')
   const legacyCodexCommand = new RegExp('CODEX' + '_COMMAND')
-  for (const source of [toolkitBridgeServer, toolkitTerminalSessionManager, readFileSync(new URL('pty-proxy.py', toolkitComponentDir), 'utf8')]) {
+  for (const source of [toolkitBridgeServer, toolkitTerminalSessionManager, toolkitProviderSessionRoutes, readFileSync(new URL('pty-proxy.py', toolkitComponentDir), 'utf8')]) {
     assert.doesNotMatch(source, legacySigilAgentEnv)
     assert.doesNotMatch(source, legacySigilCodexEnv)
     assert.doesNotMatch(source, legacyCodexCommand)
@@ -206,9 +207,10 @@ test('generic toolkit launcher starts toolkit-owned bridge substrate', () => {
   assert.doesNotMatch(toolkitLauncher, /apps\/sigil\/codex-terminal/)
   assert.match(toolkitBridgeServer, /function startServer\(\)/)
   assert.match(toolkitBridgeServer, /export \{ appendProcessStderr, startServer \}/)
-  assert.match(toolkitBridgeServer, /\.\/session-inspector-server\.mjs/)
+  assert.match(toolkitBridgeServer, /\.\/provider-session-routes\.mjs/)
   assert.match(toolkitBridgeServer, /\.\/terminal-session-manager\.mjs/)
   assert.match(toolkitBridgeServer, /createTerminalSessionManager\(\{/)
+  assert.match(toolkitProviderSessionRoutes, /\.\/session-inspector-server\.mjs/)
   assert.match(toolkitInspectorServer, /export function buildSessionInspector/)
 })
 
@@ -222,6 +224,20 @@ test('bridge server delegates terminal lifecycle to toolkit terminal manager', (
   assert.doesNotMatch(toolkitBridgeServer, /function ensureTmuxSession\(/)
   assert.doesNotMatch(toolkitBridgeServer, /function attachTerminalSocket\(/)
   assert.doesNotMatch(toolkitBridgeServer, /spawnSync\(/)
+})
+
+test('bridge server delegates provider session route data selection', () => {
+  assert.match(toolkitProviderSessionRoutes, /function acceptedProviders\(/)
+  assert.match(toolkitProviderSessionRoutes, /AGENT_TERMINAL_CATALOG_HOME/)
+  assert.match(toolkitProviderSessionRoutes, /AGENT_TERMINAL_CODEX_ROOT/)
+  assert.match(toolkitProviderSessionRoutes, /AGENT_TERMINAL_CLAUDE_ROOT/)
+  assert.match(toolkitProviderSessionRoutes, /export function providerSessionsResponseForUrl/)
+  assert.match(toolkitProviderSessionRoutes, /export function sessionInspectorResponseForUrl/)
+  assert.match(toolkitProviderSessionRoutes, /buildSessionInspector\(record\)/)
+  assert.doesNotMatch(toolkitBridgeServer, /function sessionCatalogQueryForUrl/)
+  assert.doesNotMatch(toolkitBridgeServer, /function sessionCatalogForUrl/)
+  assert.doesNotMatch(toolkitBridgeServer, /listProviderSessions\(/)
+  assert.doesNotMatch(toolkitBridgeServer, /buildSessionInspector\(record\)/)
 })
 
 test('canonical Sigil Agent Terminal launcher owns Sigil wrapper launch', () => {
