@@ -9,6 +9,19 @@ const sigilAgentEntrypoint = readFileSync(new URL('../../apps/sigil/agent-termin
 const sigilCompatEntrypoint = readFileSync(new URL('../../apps/sigil/codex-terminal/index.html', import.meta.url), 'utf8')
 const html = toolkitHtml
 
+function functionBody(source, functionName) {
+  const start = source.indexOf(`function ${functionName}(`)
+  assert.notEqual(start, -1)
+  const open = source.indexOf('{', start)
+  let depth = 0
+  for (let index = open; index < source.length; index += 1) {
+    if (source[index] === '{') depth += 1
+    if (source[index] === '}') depth -= 1
+    if (depth === 0) return source.slice(open + 1, index)
+  }
+  assert.fail(`Unable to find function body for ${functionName}`)
+}
+
 function relativeAssetPathsFromHtml(source) {
   const paths = []
   for (const match of source.matchAll(/(?:href|src)="(\.\/node_modules\/@xterm\/[^"]+)"/g)) {
@@ -72,6 +85,16 @@ test('Agent Terminal consumes the toolkit session rail model module', () => {
   assert.match(html, /findMatchingSession\(sessions, selectedSession\)/)
   assert.doesNotMatch(html, /function sessionSortTimestamp/)
   assert.doesNotMatch(html, /function compareSessionsForRail/)
+})
+
+test('Agent Terminal consumes the toolkit session rail view module', () => {
+  const renderSessionsBody = functionBody(html, 'renderSessions')
+  assert.match(html, /await import\('\.\/session-rail-view\.js'\)/)
+  assert.match(html, /renderSessionRail\(sessionList, rows,\s*\{/)
+  assert.match(html, /onSessionClick\(row\)/)
+  assert.doesNotMatch(renderSessionsBody, /document\.createElement\('button'\)/)
+  assert.doesNotMatch(renderSessionsBody, /document\.createElement\('span'\)/)
+  assert.doesNotMatch(renderSessionsBody, /setAttribute\('aria-current'/)
 })
 
 test('Agent Terminal consumes the toolkit session inspector model module', () => {
