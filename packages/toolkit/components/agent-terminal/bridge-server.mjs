@@ -3,6 +3,10 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
+  dockTerminalSessionResponseForUrl,
+  healthResponse,
+} from './bridge-observation-routes.mjs';
+import {
   providerSessionsResponseForUrl,
   sessionInspectorResponseForUrl,
 } from './provider-session-routes.mjs';
@@ -11,10 +15,6 @@ import {
   boundedInt,
   createTerminalSessionManager,
 } from './terminal-session-manager.mjs';
-import {
-  createAgentTerminalObservation,
-  createDockTerminalSessionReceipt,
-} from '../../../../scripts/lib/dock-terminal-session-registry.mjs';
 
 function envValue(name, fallback) {
   const value = process.env[name];
@@ -103,36 +103,6 @@ function readBody(req) {
   });
 }
 
-function dockTerminalSessionForUrl(url) {
-  const dock = url.searchParams.get('dock') || envValue('AGENT_TERMINAL_DOCK', 'gdi');
-  const session = terminalManager.cleanSession(url.searchParams.get('session') || defaultSession);
-  const command = terminalManager.terminalCommandForSession(session);
-  const explicitDockCwd = url.searchParams.get('cwd') || envValue('AGENT_TERMINAL_DOCK_CWD', undefined);
-  const receipt = createDockTerminalSessionReceipt({
-    repoRoot: defaultRepoRoot,
-    dock,
-    cwd: explicitDockCwd || terminalManager.terminalCwdForSession(session),
-    provider: url.searchParams.get('provider') || 'codex',
-    providerCommand: command,
-    ptyHandle: session,
-    ptyDriver: terminalManager.activeDriver() === 'process'
-      ? 'aos_pty_process_fixture'
-      : 'aos_pty_tmux_fixture',
-    geometry: terminalManager.terminalGeometryForSession(session),
-    lease: {
-      holder: url.searchParams.get('lease_holder') || 'agent_terminal',
-      purpose: url.searchParams.get('lease_purpose') || 'observation',
-      disposition: url.searchParams.get('lease_disposition') || 'returned_to_idle',
-    },
-  });
-  return {
-    dock_terminal_session: receipt,
-    agent_terminal_observation: createAgentTerminalObservation(receipt, {
-      selectedProviderSessionId: url.searchParams.get('provider_session_id') || null,
-    }),
-  };
-}
-
 async function handle(req, res) {
   res.setHeader('access-control-allow-origin', '*');
   if (req.method === 'OPTIONS') {
@@ -148,16 +118,12 @@ async function handle(req, res) {
   const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`);
   try {
     if (req.method === 'GET' && url.pathname === '/health') {
-      json(res, 200, {
-        ok: true,
+      json(res, 200, healthResponse({
         defaultSession,
         defaultCwd,
-        driver: terminalManager.activeDriver(),
-        tmuxAvailable: terminalManager.tmuxAvailable,
-        scriptAvailable: terminalManager.scriptAvailable,
-        pythonAvailable: terminalManager.pythonAvailable,
-        terminal: terminalManager.activeDriver() === 'process' ? { ...defaultTerminalSize } : null,
-      });
+        defaultTerminalSize,
+        terminalManager,
+      }));
       return;
     }
 
@@ -167,7 +133,11 @@ async function handle(req, res) {
     }
 
     if (req.method === 'GET' && url.pathname === '/dock-terminal-session') {
-      json(res, 200, dockTerminalSessionForUrl(url));
+      json(res, 200, dockTerminalSessionResponseForUrl(url, {
+        defaultRepoRoot,
+        defaultSession,
+        terminalManager,
+      }));
       return;
     }
 
