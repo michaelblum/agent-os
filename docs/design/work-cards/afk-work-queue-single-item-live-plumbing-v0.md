@@ -1,6 +1,47 @@
 # Work Card: AFK Work Queue Single Item Live Plumbing V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Foreman Acceptance
+
+Accepted on 2026-05-24.
+
+- GDI implementation branch:
+  `gdi/afk-work-queue-single-item-live-plumbing-v0`
+- GDI implementation commit:
+  `1c2c80330841243367613c1792130c439894ecfe`
+- Main merge commit:
+  `45eb96feebced1a4c3e6a18749014e95d4d781d3`
+
+Accepted behavior:
+
+- One-item queue live command shape:
+  `./aos dev afk-session-trigger --afk-work-queue queue.json --afk-authorization authorization.json --afk-live-launch --json --out receipt.json`
+- Receipt `record_type` is `aos.afk_work_queue_live_run`.
+- The queue receipt keeps queue metadata and selected item facts.
+- The existing single-packet AFK live receipt is embedded under
+  `live_queue_item.single_packet_receipt`.
+- Multi-item live queues remain rejected with
+  `multi_item_live_queue_not_implemented` and
+  `provider_launch_allowed=false`.
+- Queue dry-run and fixture-run behavior remains unchanged.
+
+Foreman verification:
+
+- `./aos dev build`: passed.
+- `./aos ready --post-permission`: ready.
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 61/61 passed.
+- `node --test tests/schemas/dev-workflow-rules.test.mjs
+  tests/schemas/dev-active-profile.test.mjs
+  tests/schemas/dev-workflow-profiles.test.mjs`: 10/10 passed.
+- `bash tests/dev-workflow-router.sh`: passed.
+- `bash tests/help-contract.sh`: passed.
+- `bash tests/dev-audit.sh`: passed.
+- `git diff --check`: passed.
+- Foreman CLI smoke with deterministic bridge/cleanup fixtures returned
+  `record_type="aos.afk_work_queue_live_run"`, `status="completed"`,
+  selected item `one`, embedded single-packet status `completed`, terminal
+  status `observed`, cleanup `verified`, and zero mismatches.
 
 ## Transfer Classification
 
