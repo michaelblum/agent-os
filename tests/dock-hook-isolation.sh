@@ -478,12 +478,15 @@ import pathlib
 import sys
 
 lines = pathlib.Path(sys.argv[1]).read_text().splitlines()
-if len(lines) != 1:
-    raise SystemExit(f"FAIL: expected one bridge input request, got {len(lines)}")
-payload = json.loads(lines[0])
-expected = {"session": "%42", "text": "/goal bridge submit", "enter": True}
-if payload != expected:
-    raise SystemExit(f"FAIL: bridge input payload mismatch: {payload}")
+if len(lines) != 2:
+    raise SystemExit(f"FAIL: expected two bridge input requests, got {len(lines)}")
+payloads = [json.loads(line) for line in lines]
+expected = [
+    {"session": "%42", "text": "/goal bridge submit", "enter": False},
+    {"session": "%42", "text": "", "enter": True},
+]
+if payloads != expected:
+    raise SystemExit(f"FAIL: bridge input payload mismatch: {payloads}")
 PY
 : >"$tmux_log"
 

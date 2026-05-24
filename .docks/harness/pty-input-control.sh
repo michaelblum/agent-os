@@ -110,22 +110,24 @@ import urllib.error
 import urllib.request
 
 bridge_url, session, text, submit = sys.argv[1:]
-payload = json.dumps({
-    "session": session,
-    "text": text,
-    "enter": submit == "1",
-}).encode("utf-8")
-request = urllib.request.Request(
-    bridge_url.rstrip("/") + "/input",
-    data=payload,
-    headers={"content-type": "application/json"},
-    method="POST",
-)
-try:
+
+def post_input(payload):
+    data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        bridge_url.rstrip("/") + "/input",
+        data=data,
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
     with urllib.request.urlopen(request, timeout=2) as response:
         if response.status < 200 or response.status >= 300:
             raise SystemExit(1)
         response.read()
+
+try:
+    post_input({"session": session, "text": text, "enter": False})
+    if submit == "1":
+        post_input({"session": session, "text": "", "enter": True})
 except (OSError, urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
     raise SystemExit(1)
 PY
