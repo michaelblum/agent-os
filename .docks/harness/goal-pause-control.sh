@@ -49,10 +49,10 @@ if ! command -v tmux >/dev/null 2>&1; then
   exit 0
 fi
 
-delay="${AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS:-0.2}"
+delay="${AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS:-0}"
 send_pause() {
   tmux send-keys -t "$pane" -l "/goal pause"
-  tmux send-keys -t "$pane" C-m
+  tmux send-keys -t "$pane" Enter
 }
 
 if [[ "$delay" == "0" || "$delay" == "0.0" ]]; then

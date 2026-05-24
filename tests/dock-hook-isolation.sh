@@ -392,15 +392,15 @@ grep -q 'TMUX:send-keys -t %42 -l /goal test clean input' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
-grep -q 'TMUX:send-keys -t %42 C-m' "$tmux_log" || {
-  echo "FAIL: provider input helper should submit with carriage return after sending text" >&2
+grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
+  echo "FAIL: provider input helper should submit with Enter after sending text" >&2
   cat "$tmux_log" >&2
   exit 1
 }
 : >"$tmux_log"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
-tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$tcc_post_out" <<'PY'
 import json
 import sys
@@ -448,8 +448,8 @@ grep -q 'TMUX:send-keys -t %42 -l /goal pause' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
-grep -q 'TMUX:send-keys -t %42 C-m' "$tmux_log" || {
-  echo "FAIL: successful GDI dev build hook should submit /goal pause with carriage return" >&2
+grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should submit /goal pause with Enter" >&2
   cat "$tmux_log" >&2
   exit 1
 }
