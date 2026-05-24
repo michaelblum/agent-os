@@ -315,6 +315,40 @@ function localRouteSupported(route) {
     && typeof (route.ref ?? route.path ?? route.artifact_path ?? route.artifactPath) === 'string';
 }
 
+function sleepLeaseLiveRouteDeliveryMismatch({ repoRoot, resultRoutes, outPath }) {
+  const resolvedOutPath = outPath ? resolve(outPath) : null;
+  const undeliverableRoutes = [];
+
+  for (const route of resultRoutes) {
+    const ref = route?.ref ?? route?.path ?? route?.artifact_path ?? route?.artifactPath ?? null;
+    if (route?.kind !== LOCAL_ARTIFACT_PATH || typeof ref !== 'string') {
+      undeliverableRoutes.push({ route, reason: 'unsupported_result_route' });
+      continue;
+    }
+    if (ref === 'stdout') continue;
+
+    const resolvedRef = repoPath(repoRoot, ref);
+    if (!resolvedRef || !resolvedOutPath || resolve(resolvedRef) !== resolvedOutPath) {
+      undeliverableRoutes.push({
+        route: {
+          ...route,
+          ref,
+          resolved_path: resolvedRef ? relIfRepo(repoRoot, resolvedRef) : NOT_OBSERVED,
+        },
+        reason: 'local_artifact_path_does_not_match_out',
+        out: outPath ?? NOT_OBSERVED,
+        resolved_out: resolvedOutPath ? relIfRepo(repoRoot, resolvedOutPath) : NOT_OBSERVED,
+      });
+    }
+  }
+
+  return undeliverableRoutes.length > 0
+    ? mismatch('sleep_lease_live_result_route_undeliverable', 'Sleep lease live launch result routes must be stdout or match the confirmed --out path.', {
+        undeliverable_routes: undeliverableRoutes,
+      })
+    : null;
+}
+
 async function resolveDockProfile(repoRoot, dockName) {
   const dockRoot = resolve(repoRoot, '.docks', dockName);
   const dockJson = resolve(dockRoot, 'dock.json');
@@ -537,6 +571,10 @@ async function classifySleepLease({
       mismatches.push(mismatch('sleep_lease_live_result_route_unsupported', 'Sleep lease live launch requires local stdout or local artifact result routes.', {
         packet_result_routes: resultRoutes,
       }));
+    }
+    const routeDeliveryMismatch = sleepLeaseLiveRouteDeliveryMismatch({ repoRoot, resultRoutes, outPath: options.out });
+    if (routeDeliveryMismatch) {
+      mismatches.push(routeDeliveryMismatch);
     }
   }
   if (!['dry-run', 'supervised-live-launch', 'sleep-lease-live-launch'].includes(action) || !options.json) {

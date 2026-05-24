@@ -882,6 +882,111 @@ test('runs fixture-backed sleep-lease live launch with pre-launch and final out 
   assert.deepEqual(receipt.mismatches, []);
 });
 
+test('runs fixture-backed sleep-lease live launch with matching local artifact route', async () => {
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-sleep-live-local-route-')), 'receipt.json');
+  const packetPath = await writePacket(validPacket({
+    required_start_ref: 'HEAD',
+    result_route: { kind: 'local_artifact_path', ref: outPath },
+  }));
+  const leasePath = await writeSleepLease(validSleepLease({
+    max_provider_launches: 1,
+    provider_budget: {
+      status: 'not_enforceable_yet',
+      declared_ceiling: '1 unattended sleep-lease fixture launch',
+    },
+    result_route: outPath,
+  }));
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--sleep-lease-live-launch',
+    '--json',
+    '--out',
+    outPath,
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'sleep-lease-live-local-artifact-accepted',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), receipt);
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
+  assert.equal(receipt.result_route.status, 'completed');
+  assert.equal(receipt.result_route.delivered_refs[0].ref, outPath);
+  assert.equal(receipt.result_route.delivered_refs[0].resolved_path, outPath);
+  assert.deepEqual(receipt.mismatches, []);
+});
+
+test('rejects sleep-lease live launch before provider attempt when local artifact route differs from out', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'afk-sleep-live-route-mismatch-'));
+  const outPath = join(dir, 'receipt.json');
+  const routePath = join(dir, 'not-output.json');
+  const packetPath = await writePacket(validPacket({
+    required_start_ref: 'HEAD',
+    result_route: { kind: 'local_artifact_path', ref: routePath },
+  }));
+  const leasePath = await writeSleepLease(validSleepLease({
+    max_provider_launches: 1,
+    provider_budget: {
+      status: 'not_enforceable_yet',
+      declared_ceiling: '1 unattended sleep-lease fixture launch',
+    },
+    result_route: routePath,
+  }));
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--sleep-lease-live-launch',
+    '--json',
+    '--out',
+    outPath,
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'sleep-lease-live-local-artifact-rejected',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), receipt);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.scheduler.lease.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.dispatch.launch_attempt_id, 'not_attempted');
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.equal(receipt.provider_acceptance.status, 'not_attempted');
+  assert.equal(receipt.result_route.status, 'failed');
+  assert.equal(receipt.result_route.failure[0].code, 'result_route_write_not_confirmed');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_live_result_route_undeliverable'));
+});
+
 test('rejects malformed sleep lease authorization fields', async () => {
   const packetPath = await writePacket(validPacket());
   const leasePath = await writeSleepLease(validSleepLease({
