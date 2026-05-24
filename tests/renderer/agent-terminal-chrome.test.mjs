@@ -60,6 +60,8 @@ test('Sigil Agent Terminal keeps avatar-toggle minimize behavior as a Sigil over
 })
 
 test('Agent Terminal preserves toolkit bridge handlers when adding app messages', () => {
+  assert.match(html, /await import\('\.\/bridge-client\.js'\)/)
+  assert.match(html, /createAgentTerminalBridgeClient\(\{ port \}\)/)
   assert.match(html, /const previousHeadsupReceive = window\.headsup\.receive/)
   assert.match(html, /previousHeadsupReceive\?\.\(b64\)/)
 })
