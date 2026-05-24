@@ -31,9 +31,9 @@ function usage() {
   return `Experimental AFK session-trigger dry-run prototype.
 
 Usage:
-  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--sleep-lease-live-launch --sleep-lease <lease.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--sleep-lease <lease.json>] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
+  node scripts/afk-session-trigger-prototype.mjs --packet <packet.json> (--dry-run|--supervised-live-launch --i-am-present --json|--afk-live-launch --afk-authorization <authorization.json> --json --out <receipt.json>|--warm-dock-tui-reuse --json) [--afk-authorization <authorization.json>] [--sleep-lease <lease.json>] [--sleep-lease-live-launch] [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--result-route <ref>] [--idempotence-salt <value>] [--existing-receipt <path>] [--replacement-for <id>] [--bridge-visibility-fixture <path>] [--cleanup-proof-fixture <path>] [--provider-session-id <id>] [--launch-observed-at <iso>] [--codex-home-fixture <path>|--codex-home <path>]
 
-This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
+This local prototype validates one transfer packet and emits a scheduler/dispatch receipt. The AFK authorization flags are primary; --sleep-lease and --sleep-lease-live-launch remain compatibility aliases. The guarded supervised-live path can consume deterministic bridge/provider fixtures and does not launch live providers, gateways, or result routes during tests.`;
 }
 
 function parseArgs(argv) {
@@ -60,6 +60,11 @@ function parseArgs(argv) {
       options.sleepLeaseLiveLaunch = true;
       continue;
     }
+    if (arg === '--afk-live-launch') {
+      options.sleepLeaseLiveLaunch = true;
+      options.afkLiveLaunch = true;
+      continue;
+    }
     if (arg === '--warm-dock-tui-reuse') {
       options.warmDockTuiReuse = true;
       continue;
@@ -80,7 +85,9 @@ function parseArgs(argv) {
       throw new Error(`Unexpected positional argument: ${arg}`);
     }
 
-    const key = arg.slice(2).replace(/-([a-z])/g, (_, char) => char.toUpperCase());
+    const key = arg === '--afk-authorization'
+      ? 'sleepLease'
+      : arg.slice(2).replace(/-([a-z])/g, (_, char) => char.toUpperCase());
     const value = argv[index + 1];
     if (!value || value.startsWith('--')) {
       throw new Error(`Missing value for ${arg}`);
@@ -343,7 +350,7 @@ function sleepLeaseLiveRouteDeliveryMismatch({ repoRoot, resultRoutes, outPath }
   }
 
   return undeliverableRoutes.length > 0
-    ? mismatch('sleep_lease_live_result_route_undeliverable', 'Sleep lease live launch result routes must be stdout or match the confirmed --out path.', {
+    ? mismatch('sleep_lease_live_result_route_undeliverable', 'AFK live launch result routes must be stdout or match the confirmed --out path.', {
         undeliverable_routes: undeliverableRoutes,
       })
     : null;
@@ -390,16 +397,16 @@ function isPlainObject(value) {
 
 function parseAbsoluteTimestamp(value, field, mismatches) {
   if (typeof value !== 'string' || value.trim() === '') {
-    mismatches.push(mismatch(`sleep_lease_${field}_missing`, `Sleep lease ${field} is required.`));
+    mismatches.push(mismatch(`sleep_lease_${field}_missing`, `AFK authorization ${field} is required.`));
     return null;
   }
   if (!/[zZ]|[+-]\d{2}:\d{2}$/.test(value)) {
-    mismatches.push(mismatch(`sleep_lease_${field}_relative_or_local`, `Sleep lease ${field} must be an absolute timestamp.`, { [field]: value }));
+    mismatches.push(mismatch(`sleep_lease_${field}_relative_or_local`, `AFK authorization ${field} must be an absolute timestamp.`, { [field]: value }));
     return null;
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} is not a valid timestamp.`, { [field]: value }));
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `AFK authorization ${field} is not a valid timestamp.`, { [field]: value }));
     return null;
   }
   return parsed;
@@ -407,27 +414,27 @@ function parseAbsoluteTimestamp(value, field, mismatches) {
 
 function validateStringField(lease, field, mismatches) {
   if (typeof lease[field] !== 'string' || lease[field].trim() === '') {
-    mismatches.push(mismatch(`sleep_lease_${field}_missing`, `Sleep lease ${field} is required.`));
+    mismatches.push(mismatch(`sleep_lease_${field}_missing`, `AFK authorization ${field} is required.`));
   }
 }
 
 function validateNonNegativeNumberField(lease, field, mismatches) {
   if (typeof lease[field] !== 'number' || !Number.isFinite(lease[field]) || lease[field] < 0) {
-    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} must be a non-negative number.`));
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `AFK authorization ${field} must be a non-negative number.`));
   }
 }
 
 function validateStringArrayField(lease, field, mismatches, { rejectBroad = false } = {}) {
   if (!Array.isArray(lease[field]) || lease[field].length === 0) {
-    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} must be a non-empty array.`));
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `AFK authorization ${field} must be a non-empty array.`));
     return [];
   }
   const values = lease[field].filter((item) => typeof item === 'string' && item.trim() !== '');
   if (values.length !== lease[field].length) {
-    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `Sleep lease ${field} must contain only non-empty strings.`));
+    mismatches.push(mismatch(`sleep_lease_${field}_invalid`, `AFK authorization ${field} must contain only non-empty strings.`));
   }
   if (rejectBroad && values.some((item) => ['*', 'any', 'all', '**'].includes(item.toLowerCase()) || item.includes('*'))) {
-    mismatches.push(mismatch(`sleep_lease_${field}_broad`, `Sleep lease ${field} must name explicit refs, not broad patterns.`, { [field]: lease[field] }));
+    mismatches.push(mismatch(`sleep_lease_${field}_broad`, `AFK authorization ${field} must name explicit refs, not broad patterns.`, { [field]: lease[field] }));
   }
   return values;
 }
@@ -471,16 +478,16 @@ async function classifySleepLease({
       receipt: {
         status: 'rejected',
         lease_ref: relIfRepo(repoRoot, leasePath),
-        diagnostics: [mismatch('sleep_lease_missing', 'Sleep lease path does not exist.', { lease_ref: relIfRepo(repoRoot, leasePath) })],
+        diagnostics: [mismatch('sleep_lease_missing', 'AFK authorization path does not exist.', { lease_ref: relIfRepo(repoRoot, leasePath) })],
       },
-      mismatches: [mismatch('sleep_lease_missing', 'Sleep lease path does not exist.', { lease_ref: relIfRepo(repoRoot, leasePath) })],
+      mismatches: [mismatch('sleep_lease_missing', 'AFK authorization path does not exist.', { lease_ref: relIfRepo(repoRoot, leasePath) })],
     };
   }
 
-  const lease = await readJsonFile(leasePath, 'sleep lease');
+  const lease = await readJsonFile(leasePath, 'AFK authorization');
   const mismatches = [];
   if (!isPlainObject(lease)) {
-    mismatches.push(mismatch('sleep_lease_invalid', 'Sleep lease must be a JSON object.'));
+    mismatches.push(mismatch('sleep_lease_invalid', 'AFK authorization must be a JSON object.'));
   }
 
   for (const field of ['lease_id', 'authorized_by', 'external_publication_policy', 'result_route']) {
@@ -490,7 +497,7 @@ async function classifySleepLease({
   const expiresAt = parseAbsoluteTimestamp(lease.expires_at, 'expires_at', mismatches);
   const comparisonAt = new Date(createdAt);
   if (expiresAt && !Number.isNaN(comparisonAt.getTime()) && expiresAt.getTime() <= comparisonAt.getTime()) {
-    mismatches.push(mismatch('sleep_lease_expired', 'Sleep lease expired before the command timestamp.', {
+    mismatches.push(mismatch('sleep_lease_expired', 'AFK authorization expired before the command timestamp.', {
       expires_at: lease.expires_at,
       command_timestamp: createdAt,
     }));
@@ -498,77 +505,77 @@ async function classifySleepLease({
   validateNonNegativeNumberField(lease, 'max_wall_clock_minutes', mismatches);
   validateNonNegativeNumberField(lease, 'max_provider_launches', mismatches);
   if (!isPlainObject(lease.provider_budget)) {
-    mismatches.push(mismatch('sleep_lease_provider_budget_invalid', 'Sleep lease provider_budget is required.'));
+    mismatches.push(mismatch('sleep_lease_provider_budget_invalid', 'AFK authorization provider_budget is required.'));
   }
   const allowedDocks = validateStringArrayField(lease, 'allowed_docks', mismatches);
   const allowedProviders = validateStringArrayField(lease, 'allowed_providers', mismatches);
   const allowedWorkRefs = validateStringArrayField(lease, 'allowed_work_refs', mismatches, { rejectBroad: true });
   validateStringArrayField(lease, 'stop_conditions', mismatches);
   if (!isPlainObject(lease.allowed_branch_policy)) {
-    mismatches.push(mismatch('sleep_lease_branch_policy_invalid', 'Sleep lease allowed_branch_policy is required.'));
+    mismatches.push(mismatch('sleep_lease_branch_policy_invalid', 'AFK authorization allowed_branch_policy is required.'));
   } else if (lease.allowed_branch_policy.allow_main_mutation !== false) {
-    mismatches.push(mismatch('sleep_lease_main_mutation_forbidden', 'Sleep lease cannot allow main mutation.', {
+    mismatches.push(mismatch('sleep_lease_main_mutation_forbidden', 'AFK authorization cannot allow main mutation.', {
       allow_main_mutation: lease.allowed_branch_policy.allow_main_mutation,
     }));
   }
   if (typeof lease.allow_branch_push !== 'boolean') {
-    mismatches.push(mismatch('sleep_lease_allow_branch_push_invalid', 'Sleep lease allow_branch_push must be a boolean.'));
+    mismatches.push(mismatch('sleep_lease_allow_branch_push_invalid', 'AFK authorization allow_branch_push must be a boolean.'));
   }
   if (lease.external_publication_policy !== 'none') {
-    mismatches.push(mismatch('sleep_lease_external_publication_forbidden', 'Sleep lease external_publication_policy must be none for V0.', {
+    mismatches.push(mismatch('sleep_lease_external_publication_forbidden', 'AFK authorization external_publication_policy must be none for V0.', {
       external_publication_policy: lease.external_publication_policy,
     }));
   }
   if (options.warmDockTuiReuse || action === 'warm-dock-tui-reuse') {
-    mismatches.push(mismatch('sleep_lease_warm_reuse_forbidden', '--sleep-lease cannot be combined with --warm-dock-tui-reuse.'));
+    mismatches.push(mismatch('sleep_lease_warm_reuse_forbidden', '--afk-authorization cannot be combined with --warm-dock-tui-reuse.'));
   }
   if (options.providerLaunchDryRun) {
-    mismatches.push(mismatch('sleep_lease_provider_launch_dry_run_forbidden', '--sleep-lease cannot be combined with --provider-launch-dry-run.'));
+    mismatches.push(mismatch('sleep_lease_provider_launch_dry_run_forbidden', '--afk-authorization cannot be combined with --provider-launch-dry-run.'));
   }
   if (action === 'supervised-live-launch') {
     if (!options.iAmPresent) {
-      mismatches.push(mismatch('sleep_lease_human_presence_required', '--sleep-lease supervised live requires --i-am-present.'));
+      mismatches.push(mismatch('sleep_lease_human_presence_required', '--afk-authorization supervised live requires --i-am-present.'));
     }
     if (lease.max_provider_launches === 0) {
-      mismatches.push(mismatch('sleep_lease_provider_launches_exhausted', 'Sleep lease supervised live requires max_provider_launches >= 1.', {
+      mismatches.push(mismatch('sleep_lease_provider_launches_exhausted', 'AFK authorization supervised live requires max_provider_launches >= 1.', {
         max_provider_launches: lease.max_provider_launches,
       }));
     }
   }
   if (action === 'sleep-lease-live-launch') {
     if (options.iAmPresent) {
-      mismatches.push(mismatch('sleep_lease_live_human_presence_forbidden', '--sleep-lease-live-launch must not be combined with --i-am-present.'));
+      mismatches.push(mismatch('sleep_lease_live_human_presence_forbidden', '--afk-live-launch must not be combined with --i-am-present.'));
     }
     if (!options.out) {
-      mismatches.push(mismatch('sleep_lease_live_out_required', '--sleep-lease-live-launch requires --out.'));
+      mismatches.push(mismatch('sleep_lease_live_out_required', '--afk-live-launch requires --out.'));
     }
     if (lease.max_provider_launches < 1) {
-      mismatches.push(mismatch('sleep_lease_provider_launches_exhausted', 'Sleep lease live launch requires max_provider_launches >= 1.', {
+      mismatches.push(mismatch('sleep_lease_provider_launches_exhausted', 'AFK live launch requires max_provider_launches >= 1.', {
         max_provider_launches: lease.max_provider_launches,
       }));
     }
     if (lease.max_wall_clock_minutes <= 0) {
-      mismatches.push(mismatch('sleep_lease_wall_clock_minutes_exhausted', 'Sleep lease live launch requires max_wall_clock_minutes > 0.', {
+      mismatches.push(mismatch('sleep_lease_wall_clock_minutes_exhausted', 'AFK live launch requires max_wall_clock_minutes > 0.', {
         max_wall_clock_minutes: lease.max_wall_clock_minutes,
       }));
     }
     if (lease.allow_branch_push !== false) {
-      mismatches.push(mismatch('sleep_lease_branch_push_forbidden', 'Sleep lease live launch requires allow_branch_push=false for V0.', {
+      mismatches.push(mismatch('sleep_lease_branch_push_forbidden', 'AFK live launch requires allow_branch_push=false for V0.', {
         allow_branch_push: lease.allow_branch_push,
       }));
     }
     if (selectedProvider !== 'codex') {
-      mismatches.push(mismatch('sleep_lease_live_provider_mismatch', 'Sleep lease live launch is currently available only for provider codex.', {
+      mismatches.push(mismatch('sleep_lease_live_provider_mismatch', 'AFK live launch is currently available only for provider codex.', {
         selected_provider: selectedProvider,
       }));
     }
     if (selectedDock !== 'gdi') {
-      mismatches.push(mismatch('sleep_lease_live_dock_mismatch', 'Sleep lease live launch is currently available only for dock gdi.', {
+      mismatches.push(mismatch('sleep_lease_live_dock_mismatch', 'AFK live launch is currently available only for dock gdi.', {
         selected_dock: selectedDock,
       }));
     }
     if (!resultRoutes.every(localRouteSupported)) {
-      mismatches.push(mismatch('sleep_lease_live_result_route_unsupported', 'Sleep lease live launch requires local stdout or local artifact result routes.', {
+      mismatches.push(mismatch('sleep_lease_live_result_route_unsupported', 'AFK live launch requires local stdout or local artifact result routes.', {
         packet_result_routes: resultRoutes,
       }));
     }
@@ -578,29 +585,29 @@ async function classifySleepLease({
     }
   }
   if (!['dry-run', 'supervised-live-launch', 'sleep-lease-live-launch'].includes(action) || !options.json) {
-    mismatches.push(mismatch('sleep_lease_requires_guarded_json_action', '--sleep-lease requires --dry-run --json, --supervised-live-launch --i-am-present --json, or --sleep-lease-live-launch --json --out.'));
+    mismatches.push(mismatch('sleep_lease_requires_guarded_json_action', '--afk-authorization requires --dry-run --json, --supervised-live-launch --i-am-present --json, or --afk-live-launch --json --out.'));
   }
   if (!allowedDocks.includes(selectedDock)) {
-    mismatches.push(mismatch('sleep_lease_dock_not_allowed', 'Selected dock is not allowed by the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_dock_not_allowed', 'Selected dock is not allowed by the AFK authorization.', {
       selected_dock: selectedDock,
       allowed_docks: allowedDocks,
     }));
   }
   if (!allowedProviders.includes(selectedProvider)) {
-    mismatches.push(mismatch('sleep_lease_provider_not_allowed', 'Selected provider is not allowed by the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_provider_not_allowed', 'Selected provider is not allowed by the AFK authorization.', {
       selected_provider: selectedProvider,
       allowed_providers: allowedProviders,
     }));
   }
   if (!allowedWorkRefs.includes(sourceArtifact) && !allowedWorkRefs.includes(packetId)) {
-    mismatches.push(mismatch('sleep_lease_work_ref_not_allowed', 'Packet work ref is not allowed by the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_work_ref_not_allowed', 'Packet work ref is not allowed by the AFK authorization.', {
       packet_id: packetId,
       source_artifact: sourceArtifact,
       allowed_work_refs: allowedWorkRefs,
     }));
   }
   if (!routeRefsCompatible(resultRoutes, lease.result_route)) {
-    mismatches.push(mismatch('sleep_lease_result_route_mismatch', 'Packet result route is not compatible with the sleep lease.', {
+    mismatches.push(mismatch('sleep_lease_result_route_mismatch', 'Packet result route is not compatible with the AFK authorization.', {
       lease_result_route: lease.result_route,
       packet_result_routes: resultRoutes,
     }));
@@ -637,13 +644,13 @@ async function classifySleepLease({
 function selectedAction(options) {
   const selected = [options.dryRun, options.supervisedLiveLaunch, options.sleepLeaseLiveLaunch, options.warmDockTuiReuse].filter(Boolean).length;
   if (selected > 1) {
-    return { action: 'invalid', mismatch: mismatch('conflicting_action_flags', 'Select only one of --dry-run, --supervised-live-launch, --sleep-lease-live-launch, or --warm-dock-tui-reuse.') };
+    return { action: 'invalid', mismatch: mismatch('conflicting_action_flags', 'Select only one of --dry-run, --supervised-live-launch, --afk-live-launch, or --warm-dock-tui-reuse.') };
   }
   if (options.supervisedLiveLaunch) return { action: 'supervised-live-launch', mismatch: null };
   if (options.sleepLeaseLiveLaunch) return { action: 'sleep-lease-live-launch', mismatch: null };
   if (options.warmDockTuiReuse) return { action: 'warm-dock-tui-reuse', mismatch: null };
   if (options.dryRun) return { action: 'dry-run', mismatch: null };
-  return { action: 'missing', mismatch: mismatch('missing_action_flag', 'Expected --dry-run, --supervised-live-launch, --sleep-lease-live-launch, or --warm-dock-tui-reuse.') };
+  return { action: 'missing', mismatch: mismatch('missing_action_flag', 'Expected --dry-run, --supervised-live-launch, --afk-live-launch, or --warm-dock-tui-reuse.') };
 }
 
 function resolveProvider(explicitProvider, packetProviderHint) {
@@ -709,19 +716,19 @@ async function buildReceipt(options) {
   }
   if (actionSelection.action === 'sleep-lease-live-launch') {
     if (!options.sleepLease) {
-      mismatches.push(mismatch('sleep_lease_live_requires_sleep_lease', '--sleep-lease-live-launch requires --sleep-lease.'));
+      mismatches.push(mismatch('sleep_lease_live_requires_sleep_lease', '--afk-live-launch requires --afk-authorization.'));
     }
     if (!options.json) {
-      mismatches.push(mismatch('json_required_for_sleep_lease_live', '--json is required for sleep-lease live launch receipts.'));
+      mismatches.push(mismatch('json_required_for_sleep_lease_live', '--json is required for AFK live launch receipts.'));
     }
     if (!options.out) {
-      mismatches.push(mismatch('out_required_for_sleep_lease_live', '--out is required for sleep-lease live launch receipts.'));
+      mismatches.push(mismatch('out_required_for_sleep_lease_live', '--out is required for AFK live launch receipts.'));
     }
     if (options.iAmPresent) {
-      mismatches.push(mismatch('i_am_present_forbidden_for_sleep_lease_live', '--sleep-lease-live-launch does not accept --i-am-present.'));
+      mismatches.push(mismatch('i_am_present_forbidden_for_sleep_lease_live', '--afk-live-launch does not accept --i-am-present.'));
     }
     if (options.providerLaunchDryRun) {
-      mismatches.push(mismatch('provider_launch_dry_run_forbidden_for_sleep_lease_live', '--sleep-lease-live-launch does not accept --provider-launch-dry-run.'));
+      mismatches.push(mismatch('provider_launch_dry_run_forbidden_for_sleep_lease_live', '--afk-live-launch does not accept --provider-launch-dry-run.'));
     }
   }
 
@@ -766,22 +773,22 @@ async function buildReceipt(options) {
   }
   if (actionSelection.action === 'sleep-lease-live-launch') {
     if (provider.selected_provider !== 'codex') {
-      mismatches.push(mismatch('provider_mismatch_for_sleep_lease_live', 'Sleep-lease live launch is currently available only for --provider codex.', {
+      mismatches.push(mismatch('provider_mismatch_for_sleep_lease_live', 'AFK live launch is currently available only for --provider codex.', {
         selected_provider: provider.selected_provider,
       }));
     }
     if (selectedDock !== 'gdi') {
-      mismatches.push(mismatch('dock_mismatch_for_sleep_lease_live', 'Sleep-lease live launch is currently available only for --dock gdi.', {
+      mismatches.push(mismatch('dock_mismatch_for_sleep_lease_live', 'AFK live launch is currently available only for --dock gdi.', {
         selected_dock: selectedDock,
       }));
     }
     if (worktreeFacts.dirty_untracked_baseline.length > 0) {
-      mismatches.push(mismatch('sleep_lease_live_worktree_dirty', 'Sleep-lease live launch requires a clean worktree for V0.', {
+      mismatches.push(mismatch('sleep_lease_live_worktree_dirty', 'AFK live launch requires a clean worktree for V0.', {
         dirty_untracked_baseline: worktreeFacts.dirty_untracked_baseline,
       }));
     }
     if (refResolution.sha && worktreeFacts.head !== NOT_OBSERVED && worktreeFacts.head !== refResolution.sha) {
-      mismatches.push(mismatch('sleep_lease_live_start_ref_mismatch', 'Current HEAD must equal the resolved required_start_ref for sleep-lease live launch.', {
+      mismatches.push(mismatch('sleep_lease_live_start_ref_mismatch', 'Current HEAD must equal the resolved required_start_ref for AFK live launch.', {
         current_head: worktreeFacts.head,
         required_start_ref: requiredStartRef ?? NOT_OBSERVED,
         required_start_sha: refResolution.sha,

@@ -1,22 +1,27 @@
-# AFK Sleep Lease Safety Contract
+# AFK Authorization Safety Contract
 
 **Date:** 2026-05-24
 **Status:** docs-only safety contract and implementation sequence
 
 ## Summary
 
-A sleep lease is an explicit, bounded user authorization for AOS to keep
+An AFK authorization is an explicit, bounded user authorization for AOS to keep
 working while the human is not watching. It is not an unattended alias for the
 current `--supervised-live-launch --i-am-present` path, and it must not weaken
 that path. The current human-present launch gate stays correct for supervised
 live provider launch.
 
-The sleep-lease contract adds a separate authorization packet that can later
+The AFK authorization contract adds a separate authorization packet that can later
 permit a scheduler to run pre-approved local work until the lease expires or a
 stop condition is hit. It preserves branch isolation, local receipts, hard
 budgets, cleanup proof, and a wake-up report. This note does not implement a
 command, schema, fixture, provider launch, queue, gateway route, notifier, PR
 flow, or unattended behavior.
+
+Compatibility note: earlier prototype code and receipts use `sleep_lease`
+fields and `--sleep-lease*` flags. Those names remain compatibility spellings;
+new user-facing help and examples should prefer `AFK authorization` and
+`AFK live launch`.
 
 ## Relationship To Current AFK Surfaces
 
@@ -30,14 +35,14 @@ Current accepted AFK work already separates:
 - provider transcript/catalog boundaries;
 - cleanup proof.
 
-A sleep lease sits above those surfaces as a user authorization envelope. It
+An AFK authorization sits above those surfaces as a user authorization envelope. It
 does not replace the transfer packet, work card, scheduler run, launch attempt,
 work receipt, or evidence receipt. The scheduler may consume a lease only after
 the lease packet and each queued work item validate against current state.
 
 ## Authorization Model
 
-A valid sleep lease must include these fields before any unattended work is
+A valid AFK authorization must include these fields before any unattended work is
 eligible:
 
 | Field | Required decision |
@@ -58,7 +63,7 @@ eligible:
 | `result_route` | Local route for receipts and wake-up report, required before launch. |
 | `stop_conditions` | Lease-wide stop conditions in addition to work-card stop conditions. |
 
-The lease grant should be represented as a local packet or queue record before
+The authorization grant should be represented as a local packet or queue record before
 provider launch. It should be written before the first scheduler action so a
 duplicate invocation can prove whether work is already authorized, running,
 completed, expired, or rejected.
@@ -150,8 +155,8 @@ Runtime state should be local, bounded, and reviewable:
 - Branch isolation is mandatory. No merge to `main`, no direct `main` commit,
   no destructive cleanup, and no rewriting unrelated local state.
 - No PR, GitHub issue mutation, Slack/gateway notification, external
-  publication, or durable public route occurs unless the lease explicitly
-  authorizes that exact route. Near-term sleep leases should keep this set to
+  publication, or durable public route occurs unless the AFK authorization explicitly
+  authorizes that exact route. Near-term AFK authorizations should keep this set to
   none.
 - Provider transcript bodies are out of bounds. Receipts may store bounded
   metadata such as provider session id, path, mtime, size, cwd, branch, head,
@@ -218,16 +223,16 @@ stores, or unreviewed generated artifacts into chat.
 
 ## Near-Term Implementation Sequence
 
-1. Add deterministic sleep-lease packet validation with no provider launch.
+1. Add deterministic AFK authorization packet validation with no provider launch.
    Validate required authorization fields, expiry, duration, provider launch
    count, allowed docks/providers, work refs, branch policy, result route,
    duplicate key, and stop-condition vocabulary.
-2. Emit dry-run receipts for both accepted and rejected sleep leases. The
-   receipt should prove why a lease would or would not be eligible without
+2. Emit dry-run receipts for both accepted and rejected AFK authorizations. The
+   receipt should prove why authorization would or would not be eligible without
    launching providers, changing branches, pushing, or writing generated
    schemas.
-3. Run a guarded live sleep-lease proof with a short duration while the human
-   is awake. It must use explicit sleep-lease authorization, keep
+3. Run a guarded AFK live launch proof with a short duration while the human
+   is awake. It must use explicit AFK authorization, keep
    `--i-am-present` semantics for the supervised proof, launch only the
    approved provider/dock/work ref, and stop on the first policy mismatch.
 4. Only after the dry-run and awake guarded-live gates pass, attempt the first
@@ -239,7 +244,7 @@ stores, or unreviewed generated artifacts into chat.
 
 This note deliberately does not add:
 
-- a sleep-lease command;
+- a new standalone authorization command;
 - final `aos session` spelling;
 - unattended, background, or sleep aliases for the current supervised live
   command;
@@ -253,7 +258,7 @@ This note deliberately does not add:
 
 ## Recommendation
 
-The next source slice should be deterministic sleep-lease packet validation and
+The next source slice should be deterministic AFK authorization packet validation and
 dry-run receipt output. It should reject invalid or expired leases before any
 provider launch and should produce a reviewable accepted/rejected receipt for
 one pre-approved work card. A true overnight run should wait until that dry run

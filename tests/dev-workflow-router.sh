@@ -121,7 +121,7 @@ assert {"--packet", "--provider", "--dock", "--repo", "--timestamp", "--out", "-
 assert "--allow-provider-launch" not in launch_tokens, launch_tokens
 assert "experimental" in forms["dev-afk-launch-attempt"]["args"][0]["summary"].lower(), forms["dev-afk-launch-attempt"]
 trigger_tokens = {arg.get("token") for arg in forms["dev-afk-session-trigger"]["args"]}
-assert {"--packet", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--sleep-lease-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= trigger_tokens, trigger_tokens
+assert {"--packet", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= trigger_tokens, trigger_tokens
 assert "--live" not in trigger_tokens, trigger_tokens
 assert "--launch-provider" not in trigger_tokens, trigger_tokens
 assert "--start" not in trigger_tokens, trigger_tokens
@@ -189,11 +189,12 @@ data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
 form = forms["dev-afk-session-trigger"]
 tokens = {arg.get("token") for arg in form["args"]}
-assert {"--packet", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--sleep-lease-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= tokens, tokens
+assert {"--packet", "--afk-authorization", "--sleep-lease", "--provider", "--dock", "--repo", "--timestamp", "--out", "--result-route", "--idempotence-salt", "--existing-receipt", "--replacement-for", "--dry-run", "--supervised-live-launch", "--afk-live-launch", "--sleep-lease-live-launch", "--warm-dock-tui-reuse", "--i-am-present", "--provider-launch-dry-run", "--bridge-visibility-fixture", "--cleanup-proof-fixture", "--provider-session-id", "--launch-observed-at", "--codex-home-fixture", "--codex-home", "--json"} <= tokens, tokens
 assert "--live" not in tokens, tokens
 assert "--launch-provider" not in tokens, tokens
 assert "--start" not in tokens, tokens
-assert "--supervised-live-launch" in form["usage"], form
+assert "--afk-live-launch" in form["usage"], form
+assert "--afk-authorization" in form["usage"], form
 assert "experimental" in json.dumps(form).lower(), form
 assert "prototype" in json.dumps(form).lower(), form
 PY

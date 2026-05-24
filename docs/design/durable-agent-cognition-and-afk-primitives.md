@@ -639,15 +639,15 @@ The next slices should stay reversible:
    reproduced the earlier deterministic packet-validation bug after the fix and
    confirmed the receipt now keeps `packet.validation_status=valid` for a valid
    provider-timeout receipt with verified cleanup.
-   The sleep-lease safety contract now lives at
+   The AFK authorization safety contract now lives at
    `docs/design/notes/afk-sleep-lease-safety-contract-2026-05-24.md`.
    It keeps overnight work separate from the current human-present supervised
-   live path, requires an explicit bounded lease with expiry, launch count,
+   live path, requires an explicit bounded authorization with expiry, launch count,
    allowed docks/providers, pre-approved work refs, branch/output policy, local
    receipts, stop conditions, and a wake-up report. The deterministic
    validation, dry-run receipts, awake guarded-live proof, and one real
-   Codex/GDI sleep-lease live proof without `--i-am-present` are now accepted.
-   The next external decision is the first real overnight work card and lease:
+   Codex/GDI AFK live launch proof without `--i-am-present` are now accepted.
+   The next external decision is the first real overnight work card and AFK authorization:
    it should be one pre-approved GDI work ref, local-only by default, with
    branch push disabled unless a later source slice deliberately broadens that
    policy.

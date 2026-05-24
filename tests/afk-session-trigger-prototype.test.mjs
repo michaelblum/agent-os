@@ -286,6 +286,33 @@ test('accepts sleep lease dry-run receipt for an allowed work card', async () =>
   assert.equal(receipt.terminal_substrate.status, 'not_attempted');
 });
 
+test('accepts AFK authorization as the primary dry-run flag spelling', async () => {
+  const packetPath = await writePacket(validPacket());
+  const authorizationPath = await writeSleepLease();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--afk-authorization',
+    authorizationPath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'dry_run_ready');
+  assert.equal(receipt.scheduler.lease.status, 'accepted');
+  assert.equal(receipt.scheduler.lease.lease_id, 'sleep-lease-test');
+  assert.equal(receipt.sleep_lease.status, 'accepted');
+  assert.deepEqual(receipt.mismatches, []);
+});
+
 test('accepts sleep lease stdout route-object shorthands for local routes', async () => {
   for (const resultRoute of [
     'stdout',
@@ -879,6 +906,53 @@ test('runs fixture-backed sleep-lease live launch with pre-launch and final out 
   assert.equal(receipt.provider_acceptance.status, 'provider_session_observed');
   assert.equal(receipt.cleanup.status, 'verified');
   assert.equal(receipt.result_route.status, 'completed');
+  assert.deepEqual(receipt.mismatches, []);
+});
+
+test('runs fixture-backed AFK live launch with primary AFK flag spellings', async () => {
+  const packetPath = await writePacket(validPacket({ required_start_ref: 'HEAD' }));
+  const authorizationPath = await writeSleepLease(validSleepLease({
+    max_provider_launches: 1,
+    provider_budget: {
+      status: 'not_enforceable_yet',
+      declared_ceiling: '1 AFK live launch fixture',
+    },
+  }));
+  const bridgeFixture = await writeBridgeVisibilityFixture();
+  const cleanupFixture = await writeCleanupProofFixture();
+  const outPath = join(await mkdtemp(join(tmpdir(), 'afk-live-out-')), 'receipt.json');
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--afk-authorization',
+    authorizationPath,
+    '--afk-live-launch',
+    '--json',
+    '--out',
+    outPath,
+    '--timestamp',
+    fixedTimestamp,
+    '--idempotence-salt',
+    'afk-live-accepted',
+    '--bridge-visibility-fixture',
+    bridgeFixture,
+    '--cleanup-proof-fixture',
+    cleanupFixture,
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.deepEqual(JSON.parse(await readFile(outPath, 'utf8')), receipt);
+  assert.equal(receipt.record_type, 'aos.afk_session_trigger_sleep_lease_live');
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.scheduler.selected_action, 'sleep-lease-live-launch');
+  assert.equal(receipt.scheduler.lease.status, 'accepted');
+  assert.equal(receipt.sleep_lease.status, 'accepted');
+  assert.equal(receipt.dispatch.provider_launch_allowed, true);
   assert.deepEqual(receipt.mismatches, []);
 });
 
