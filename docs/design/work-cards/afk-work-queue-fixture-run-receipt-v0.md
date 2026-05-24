@@ -1,6 +1,44 @@
 # Work Card: AFK Work Queue Fixture Run Receipt V0
 
-**Status:** Ready for GDI
+**Status:** Accepted
+
+## Foreman Acceptance
+
+Accepted on 2026-05-24.
+
+- GDI implementation branch: `gdi/afk-work-queue-fixture-run-receipt-v0`
+- GDI implementation commit: `53287f52e71ba06dfa6406329385bbffb876a4ad`
+- Main merge commit: `4cd87e944787082ace17a78891a5a2385ee00907`
+
+Accepted behavior:
+
+- Command shape:
+  `./aos dev afk-session-trigger --afk-work-queue queue.json --afk-authorization authorization.json --afk-live-launch --queue-run-fixture fixture.json --json --out receipt.json`
+- Fixture JSON uses a matching `queue_id` and ordered per-item fixture entries.
+- Receipt `record_type` is `aos.afk_work_queue_fixture_run`.
+- Top-level `status="completed"` only when all fixture items complete with
+  verified cleanup.
+- Fixture-backed queue receipts keep `provider_launch_allowed=false` and
+  terminal state `not_attempted`.
+- The run stops at the first `failed` or `blocked` item or unverified cleanup.
+- Real queue execution without a fixture remains rejected before launch.
+
+Foreman verification:
+
+- `./aos dev build`: passed.
+- `./aos ready --post-permission`: ready.
+- `node --test tests/afk-session-trigger-prototype.test.mjs`: 58/58 passed.
+- `node --test tests/schemas/dev-workflow-rules.test.mjs
+  tests/schemas/dev-active-profile.test.mjs
+  tests/schemas/dev-workflow-profiles.test.mjs`: 10/10 passed.
+- `bash tests/dev-workflow-router.sh`: passed.
+- `bash tests/help-contract.sh`: passed.
+- `bash tests/dev-audit.sh`: passed.
+- `git diff --check`: passed.
+- Foreman CLI smoke returned
+  `record_type="aos.afk_work_queue_fixture_run"`, `status="completed"`,
+  `item_count=2`, `provider_launch_allowed=false`, terminal states
+  `not_attempted`, and zero mismatches.
 
 ## Transfer Classification
 
