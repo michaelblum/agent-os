@@ -286,6 +286,76 @@ test('accepts sleep lease dry-run receipt for an allowed work card', async () =>
   assert.equal(receipt.terminal_substrate.status, 'not_attempted');
 });
 
+test('accepts sleep lease stdout route-object shorthands for local routes', async () => {
+  for (const resultRoute of [
+    'stdout',
+    { kind: 'stdout' },
+    { ref: 'stdout' },
+    { path: 'stdout' },
+    { artifact_path: 'stdout' },
+    { kind: 'local_artifact_path', ref: 'stdout' },
+  ]) {
+    const packetPath = await writePacket(validPacket({
+      result_route: resultRoute,
+    }));
+    const leasePath = await writeSleepLease();
+    const result = runPrototype([
+      '--packet',
+      packetPath,
+      '--provider',
+      'codex',
+      '--dock',
+      'gdi',
+      '--sleep-lease',
+      leasePath,
+      '--dry-run',
+      '--json',
+      '--timestamp',
+      fixedTimestamp,
+    ]);
+
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.status, 'dry_run_ready');
+    assert.equal(receipt.scheduler.lease.status, 'accepted');
+    assert.equal(receipt.sleep_lease.status, 'accepted');
+    assert.equal(receipt.result_route.status, 'completed');
+    assert.deepEqual(receipt.mismatches, []);
+  }
+});
+
+test('rejects sleep lease when stdout ref is on unsupported external route object', async () => {
+  const packetPath = await writePacket(validPacket({
+    result_route: { kind: 'gateway_notifier', ref: 'stdout' },
+  }));
+  const leasePath = await writeSleepLease();
+  const result = runPrototype([
+    '--packet',
+    packetPath,
+    '--provider',
+    'codex',
+    '--dock',
+    'gdi',
+    '--sleep-lease',
+    leasePath,
+    '--dry-run',
+    '--json',
+    '--timestamp',
+    fixedTimestamp,
+  ]);
+
+  assert.equal(result.status, 1);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'rejected');
+  assert.equal(receipt.scheduler.lease.status, 'rejected');
+  assert.equal(receipt.sleep_lease.status, 'rejected');
+  assert.equal(receipt.dispatch.provider_launch_allowed, false);
+  assert.equal(receipt.terminal_substrate.status, 'not_attempted');
+  assert.equal(receipt.result_route.status, 'unsupported');
+  assert.equal(receipt.result_route.failure[0].code, 'result_route_unsupported');
+  assert.ok(receipt.mismatches.some((item) => item.class === 'sleep_lease_result_route_mismatch'));
+});
+
 test('rejects expired sleep lease dry-run', async () => {
   const packetPath = await writePacket(validPacket());
   const leasePath = await writeSleepLease(validSleepLease({

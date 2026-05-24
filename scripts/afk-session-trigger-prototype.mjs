@@ -391,12 +391,15 @@ function validateStringArrayField(lease, field, mismatches, { rejectBroad = fals
 
 function routeRefsCompatible(resultRoutes, leaseResultRoute) {
   if (typeof leaseResultRoute !== 'string' || leaseResultRoute.trim() === '') return false;
+  const localRouteRef = (route) => {
+    if (!route || typeof route !== 'object' || route.kind !== LOCAL_ARTIFACT_PATH) return null;
+    return route.ref ?? route.path ?? route.artifact_path ?? route.artifactPath ?? null;
+  };
   if (leaseResultRoute === 'stdout') {
-    return resultRoutes.some((route) => (route?.ref ?? route?.path ?? route?.artifact_path ?? route?.artifactPath) === 'stdout');
+    return resultRoutes.some((route) => localRouteRef(route) === 'stdout');
   }
   return resultRoutes.some((route) => {
-    const ref = route?.ref ?? route?.path ?? route?.artifact_path ?? route?.artifactPath;
-    return ref === leaseResultRoute;
+    return localRouteRef(route) === leaseResultRoute;
   });
 }
 
