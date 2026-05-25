@@ -2,6 +2,17 @@
   "schema_version": 1,
   "commands": [
     {
+      "path": ["do"],
+      "summary": "Validate unknown do subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "do", "UNKNOWN_SUBCOMMAND", "do subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": ["click", "hover", "drag", "fill", "scroll", "type", "key", "navigate", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session", "profiles"]
+      }
+    },
+    {
       "path": ["do", "click"],
       "summary": "Click browser targets through the external do browser command.",
       "executable": "/usr/bin/env",
@@ -734,6 +745,17 @@
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show"],
+      "summary": "Validate unknown show subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "show", "UNKNOWN_SUBCOMMAND", "show subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": ["render", "create", "update", "remove", "remove-all", "list", "eval", "listen", "ping", "wait", "exists", "get", "to-front", "post"]
       }
     },
     {

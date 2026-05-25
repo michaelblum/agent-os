@@ -45,6 +45,30 @@ else
 fi
 rm -f /tmp/aos-gate-records-bogus.out /tmp/aos-gate-records-bogus.err
 
+if ./aos do external-dispatch-bogus >/tmp/aos-do-bogus.out 2>/tmp/aos-do-bogus.err; then
+    fail "do unknown subcommand succeeded"
+else
+    if grep -q '"code" : "UNKNOWN_SUBCOMMAND"' /tmp/aos-do-bogus.err \
+        && grep -q 'Unknown do subcommand: external-dispatch-bogus' /tmp/aos-do-bogus.err; then
+        pass "do unknown subcommands route through external family router"
+    else
+        fail "do unknown subcommand error drifted: $(cat /tmp/aos-do-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-do-bogus.out /tmp/aos-do-bogus.err
+
+if ./aos show external-dispatch-bogus >/tmp/aos-show-bogus.out 2>/tmp/aos-show-bogus.err; then
+    fail "show unknown subcommand succeeded"
+else
+    if grep -q '"code" : "UNKNOWN_SUBCOMMAND"' /tmp/aos-show-bogus.err \
+        && grep -q 'Unknown show subcommand: external-dispatch-bogus' /tmp/aos-show-bogus.err; then
+        pass "show unknown subcommands route through external family router"
+    else
+        fail "show unknown subcommand error drifted: $(cat /tmp/aos-show-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-show-bogus.out /tmp/aos-show-bogus.err
+
 set +e
 DOCTOR_OUT="$(./aos doctor gateway --quick --json 2>/dev/null)"
 DOCTOR_CODE=$?
