@@ -2,6 +2,102 @@
   "schema_version": 1,
   "commands": [
     {
+      "path": ["do", "click"],
+      "summary": "Click browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "click"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "hover"],
+      "summary": "Hover browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "hover"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "drag"],
+      "summary": "Drag browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "drag"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "scroll"],
+      "summary": "Scroll browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "scroll"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "type"],
+      "summary": "Type into browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "type"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "key"],
+      "summary": "Press keys in browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "key"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["do", "fill"],
       "summary": "Fill browser targets through the external do browser command.",
       "executable": "/usr/bin/env",

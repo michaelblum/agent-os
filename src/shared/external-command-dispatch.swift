@@ -21,6 +21,7 @@ private struct ExternalCommand: Decodable {
     let cwd: String?
     let env: [String: String]?
     let stdio: ExternalCommandStdio?
+    let when: ExternalCommandCondition?
 
     enum CodingKeys: String, CodingKey {
         case path
@@ -29,6 +30,17 @@ private struct ExternalCommand: Decodable {
         case cwd
         case env
         case stdio
+        case when
+    }
+}
+
+private struct ExternalCommandCondition: Decodable {
+    let childArgIndex: Int?
+    let prefix: String?
+
+    enum CodingKeys: String, CodingKey {
+        case childArgIndex = "child_arg_index"
+        case prefix
     }
 }
 
@@ -60,7 +72,7 @@ func runExternalCommandIfMatched(args: [String]) -> Bool {
         exitError("Unsupported external command manifest schema_version \(manifest.schemaVersion)", code: "INVALID_MANIFEST")
     }
     guard let command = manifest.commands
-        .filter({ externalCommandPathMatches($0.path, args: args) })
+        .filter({ externalCommandMatches($0, args: args) })
         .max(by: { $0.path.count < $1.path.count }) else {
         return false
     }
@@ -90,6 +102,25 @@ private func externalCommandPathMatches(_ path: [String], args: [String]) -> Boo
         return false
     }
     return Array(args.prefix(path.count)) == path
+}
+
+private func externalCommandMatches(_ command: ExternalCommand, args: [String]) -> Bool {
+    guard externalCommandPathMatches(command.path, args: args) else {
+        return false
+    }
+    guard let condition = command.when else {
+        return true
+    }
+    let childArgs = Array(args.dropFirst(command.path.count))
+    if let childArgIndex = condition.childArgIndex {
+        guard childArgIndex >= 0, childArgs.indices.contains(childArgIndex) else {
+            return false
+        }
+        if let prefix = condition.prefix, !childArgs[childArgIndex].hasPrefix(prefix) {
+            return false
+        }
+    }
+    return true
 }
 
 private func rawOptionValue(_ args: [String], _ token: String) -> String? {

@@ -158,10 +158,64 @@ function navigateCommand(args) {
   emitDoResult(result, 'playwright_goto', undefined);
 }
 
+function singleTargetCommand(command, args) {
+  const positional = positionalArgs(args);
+  if (positional.length < 1) error(`Usage: aos do ${command} <browser:<s>[/<ref>]>`, 'MISSING_ARG');
+  const target = parseBrowserTarget(positional[0]);
+  ensureVersion();
+
+  let verb = command;
+  let extra = [];
+  let strategy = `playwright_${command}`;
+  if (command === 'click') {
+    if (args.includes('--double')) {
+      verb = 'dblclick';
+      strategy = 'playwright_dblclick';
+    } else {
+      extra = args.includes('--right') ? ['right'] : [];
+    }
+  } else if (command === 'scroll') {
+    const deltas = positional[1]?.split(',') || [];
+    if (deltas.length === 2) extra = [deltas[0], deltas[1]];
+    verb = 'mousewheel';
+    strategy = 'playwright_mousewheel';
+  } else if (command === 'type') {
+    if (positional.length < 2) error('type requires a text argument', 'MISSING_ARG');
+    extra = [positional[1]];
+  } else if (command === 'key') {
+    if (positional.length < 2) error('key requires a key combo argument (e.g. cmd+s)', 'MISSING_ARG');
+    verb = 'press';
+    strategy = 'playwright_press';
+    extra = [positional[1]];
+  }
+
+  const argv = [];
+  if (target.ref) argv.push(target.ref);
+  argv.push(...extra);
+  const result = runPlaywright(target.session, verb, argv);
+  requireSuccess(result, verb);
+  emitDoResult(result, strategy, getArg(args, '--state-id'));
+}
+
+function dragCommand(args) {
+  const positional = positionalArgs(args);
+  if (positional.length < 2) error('drag requires two browser targets', 'MISSING_ARG');
+  const from = parseBrowserTarget(positional[0]);
+  const to = parseBrowserTarget(positional[1]);
+  if (from.session !== to.session) error('drag endpoints must share the same browser session', 'INVALID_TARGET');
+  if (!from.ref || !to.ref) error('drag requires ref on both endpoints (browser:<s>/<ref>)', 'INVALID_TARGET');
+  ensureVersion();
+  const result = runPlaywright(from.session, 'drag', [from.ref, to.ref]);
+  requireSuccess(result, 'drag');
+  emitDoResult(result, 'playwright_drag', getArg(args, '--state-id'));
+}
+
 try {
   const [command, ...args] = process.argv.slice(2);
   if (command === 'fill') fillCommand(args);
   else if (command === 'navigate') navigateCommand(args);
+  else if (['click', 'hover', 'scroll', 'type', 'key'].includes(command)) singleTargetCommand(command, args);
+  else if (command === 'drag') dragCommand(args);
   else error(`Unknown do browser command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
 } catch (err) {
   if (Array.isArray(err)) error(err[1], err[0]);
