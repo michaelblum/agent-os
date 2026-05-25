@@ -67,9 +67,11 @@ the report as an input to Foreman's next-step loop:
    understandable for the next transfer.
 6. If live runtime verification is the next meaningful step and `./aos ready`
    reports a repo-mode TCC/input-tap blocker, stop treating it as background
-   noise. State the blocker directly, use the safe permission recovery path from
-   the repo-wide contract, and avoid routing more live-dependent work until the
-   human has either resolved it or explicitly chosen a deterministic-only slice.
+   noise. State the blocker directly, use the dock-owned recovery path
+   (`.docks/gdi/scripts/human-needed-tcc-reset` for GDI stalls, or the matching
+   Operator/human-needed packet for supervised runs), and avoid routing more
+   live-dependent work until the human has either resolved it or explicitly
+   chosen a deterministic-only slice.
 7. Pause only after the next practical reversible step has been executed, or
    when the next step requires human judgment, external publication, credential
    or permission changes, destructive cleanup, or a real ambiguity in product
@@ -112,7 +114,7 @@ Treat these as governance failures to correct in the same turn:
   local step;
 - routing a work card but leaving the clipboard payload uncopied;
 - reporting a live-verification blocker as background noise instead of using the
-  repo-standard readiness or permission recovery path;
+  dock-owned readiness or permission recovery path;
 - ending with a generic offer instead of the executed next action and current
   owner.
 

@@ -27,6 +27,12 @@ A macOS automation ecosystem for agents. Perception, action, projection, and voi
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full blueprint.
 
+## Agent Sessions
+
+Agent sessions normally launch through docks under [.docks/](.docks/). Start
+with [AGENTS.md](AGENTS.md) only as repo-wide signage, then use
+[.docks/README.md](.docks/README.md) and the role-local dock contract.
+
 ## Consumer Docs
 
 Maintained consumer-facing API docs live in [docs/api/](docs/api/):

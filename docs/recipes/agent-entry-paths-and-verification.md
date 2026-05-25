@@ -103,7 +103,10 @@ belongs in primitives, toolkit routing, or the app.
 Record durable guidance at the smallest boundary that will keep it alive without
 over-scoping it:
 
-- Repo-wide operating rules belong in `AGENTS.md`.
+- Repo-wide signage, hard invariants, and authority routing belong in root
+  `AGENTS.md`.
+- Dock roles, hook-owned behavior, inbound contracts, and cross-session
+  transfer policy belong under `.docks/`.
 - App-local contracts belong in the nearest subtree `AGENTS.md`.
 - Verification mechanics belong in `tests/README.md`.
 - Reusable SOPs and practices belong in `docs/recipes/`.
@@ -132,7 +135,8 @@ possible step or replace ordinary software engineering judgment.
 
 Use a mix of sources deliberately:
 
-- root and subtree `AGENTS.md` files for compact operating contracts
+- root `AGENTS.md` for compact signage and hard invariants
+- dock and subtree `AGENTS.md` files for compact operating contracts
 - `ARCHITECTURE.md`, `docs/api/`, and schemas for platform contracts
 - the AOS wiki for runtime knowledge and product memory
 - AOS control surfaces and `help` output for discoverable operation

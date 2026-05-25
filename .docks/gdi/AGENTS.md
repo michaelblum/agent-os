@@ -184,10 +184,8 @@ After the human returns, GDI runs:
   ./aos ready --post-permission
 ```
 
-The helper writes a short-lived GDI stop-condition marker for the Stop hook.
-The Stop hook consumes that marker and speaks `GDI needs TCC reset.` instead of
-the normal `GDI finished.` notice. Do not add a second direct `./aos say` call
-in the helper.
+The helper and dock hooks own the stop-condition marker and spoken notice for
+this stall. Do not add a second direct `./aos say` call in the helper.
 
 When retiring or reusing a GDI CLI session after a completed active goal, clear
 completed goal state with `/goal clear` before starting unrelated work.

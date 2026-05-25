@@ -10,8 +10,8 @@ source root. This file is a routing map, not a replacement for those sources.
   resolved naming notes.
 - Read `ARCHITECTURE.md` for the system narrative, daemon/toolkit/app boundary,
   and current AOS primitive model.
-- Read `AGENTS.md` for repo-wide agent rules, entry paths, verification posture,
-  and workflow boundaries.
+- Read `AGENTS.md` for repo-wide agent signage, hard invariants, and authority
+  routing. It is not the home for dock role policy or operational SOPs.
 - Read `docs/agents/domain.md` for how domain docs, context sources, ADRs, and
   conflicts should be handled.
 
@@ -55,18 +55,19 @@ source root. This file is a routing map, not a replacement for those sources.
 
 ## Docks And Session Operations
 
-- Root contract: `.docks/AGENTS.md`.
+- Launch and ownership map: `.docks/README.md`.
+- Shared docked-session contract: `.docks/AGENTS.md`.
 - Role contracts: `.docks/foreman/AGENTS.md`, `.docks/gdi/AGENTS.md`, and
   `.docks/operator/AGENTS.md`.
+- Hook and harness sources: `.docks/<dock>/.codex/hooks.json`,
+  `.docks/<dock>/hooks/`, `.docks/harness/`, `.docks/<dock>/dock.json`, and
+  `.docks/<dock>/inbound-contract.json`.
 - Scripts and skills: `.docks/foreman/scripts/handoff`,
   `.docks/gdi/scripts/human-needed-tcc-reset`, and role-local skill directories
   when present.
-- Recipes: `docs/recipes/codex-dock-session-profiles.md`,
-  `docs/recipes/gdi-work-card-authoring.md`, and
-  `docs/recipes/aos-gdi-exit-interview.md`.
 - Use this context for dock identity, handoffs, work cards, transfer vocabulary,
-  role authority, GDI rounds, Operator supervised probes, and Foreman
-  coordination.
+  provider entry syntax, hook-owned behavior, role authority, GDI rounds,
+  Operator supervised probes, and Foreman coordination.
 
 ## Sigil App Behavior
 
@@ -102,10 +103,11 @@ source root. This file is a routing map, not a replacement for those sources.
 
 ## Conflict And Scope Notes
 
-- Prefer current work cards, root and local `AGENTS.md`, live code, schemas,
-  tests, CLI/API behavior, then API docs, schemas, architecture, and vocabulary
-  docs. Treat external templates and design notes as context unless the active
-  work card makes them authoritative.
+- Prefer current work cards, the relevant dock or local `AGENTS.md`, live code,
+  schemas, tests, CLI/API behavior, then API docs, schemas, architecture, and
+  vocabulary docs. Root `AGENTS.md` resolves only repo-wide invariants and
+  authority routing. Treat external templates and design notes as context unless
+  the active work card makes them authoritative.
 - Do not map generated, cache, or temporary trees such as `.runtime/` or
   `.aos-test-tmp/` as durable context domains.
 - When docs conflict, surface the conflict and keep the fix scoped to the
