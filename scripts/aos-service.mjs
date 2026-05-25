@@ -256,6 +256,51 @@ function verifyReadiness(mode, json) {
   process.exit(result.status ?? 1);
 }
 
+function transformRestartReadiness(response) {
+  if (response?.reason !== 'input_tap_not_active' || !response.input_tap) return response;
+  const tap = response.input_tap;
+  const recovery = Array.isArray(response.recovery)
+    ? response.recovery.filter((item) => !String(item).includes('service restart'))
+    : response.recovery;
+  const restartNote = `Input tap is still not active after service restart (status=${tap.status}, attempts=${tap.attempts}).\nTry:\n  ./aos permissions setup --once     # refresh macOS permission onboarding\n  ./aos serve --idle-timeout none    # temporary foreground fallback for this session`;
+  const notes = Array.isArray(response.notes)
+    ? response.notes.map((note) => String(note).startsWith('Input tap is not active ') ? restartNote : note)
+    : response.notes;
+  return { ...response, recovery, notes };
+}
+
+function printReadinessText(response) {
+  process.stdout.write(`mode=${response.mode} installed=${response.installed} running=${response.running} pid=${response.pid ?? 'none'} label=${response.launchd_label} status=${response.status}${response.reason ? ` reason=${response.reason}` : ''}\n`);
+  if (response.input_tap) {
+    const tap = response.input_tap;
+    const listen = tap.listen_access === undefined ? 'unknown' : String(Boolean(tap.listen_access));
+    const post = tap.post_access === undefined ? 'unknown' : String(Boolean(tap.post_access));
+    process.stdout.write(`input_tap status=${tap.status} attempts=${tap.attempts} listen=${listen} post=${post}\n`);
+  }
+  for (const note of response.notes || []) {
+    if (note) process.stdout.write(`${note}\n`);
+  }
+}
+
+function verifyRestartReadiness(mode, json) {
+  const result = spawnSync(aosPath(), ['service', '_verify-readiness', '--mode', mode, '--json'], {
+    cwd: repoRoot(),
+    env: { ...process.env, AOS_RUNTIME_MODE: mode },
+    encoding: 'utf8',
+  });
+  if (result.stderr) process.stderr.write(result.stderr);
+  let response;
+  try {
+    response = transformRestartReadiness(JSON.parse(result.stdout));
+  } catch {
+    if (result.stdout) process.stdout.write(result.stdout);
+    process.exit(result.status ?? 1);
+  }
+  if (json) printJSON(response);
+  else printReadinessText(response);
+  process.exit(result.status ?? 1);
+}
+
 function installCommand(args) {
   const options = parseOptions(args);
   const paths = servicePaths(options.mode);
@@ -291,6 +336,21 @@ function stopCommand(args) {
   const options = parseOptions(args);
   stopService(options.mode);
   statusCommand(args);
+}
+
+function restartCommand(args) {
+  const options = parseOptions(args);
+  const paths = servicePaths(options.mode);
+  stopService(options.mode);
+  guardBinaryExists(paths.binaryPath);
+  if (!fs.existsSync(paths.plistPath)) {
+    writeServicePlist(paths);
+    launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
+  } else if (!isServiceLoaded(paths.label)) {
+    launchctlBootstrap(paths.plistPath);
+  }
+  launchctlKickstart(paths.label);
+  verifyRestartReadiness(options.mode, options.json);
 }
 
 function serviceStatus(mode) {
@@ -358,6 +418,7 @@ const [subcommand, ...rest] = process.argv.slice(2);
 if (subcommand === 'install') installCommand(rest);
 else if (subcommand === 'start') startCommand(rest);
 else if (subcommand === 'stop') stopCommand(rest);
+else if (subcommand === 'restart') restartCommand(rest);
 else if (subcommand === 'status') statusCommand(rest);
 else if (subcommand === 'logs') logsCommand(rest);
 else error(`Unknown service command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');

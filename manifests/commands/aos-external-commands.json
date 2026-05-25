@@ -210,6 +210,19 @@
       }
     },
     {
+      "path": ["service", "restart"],
+      "summary": "Restart the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "restart"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["service", "status"],
       "summary": "Inspect launchd service state through the external service command.",
       "executable": "/usr/bin/env",
