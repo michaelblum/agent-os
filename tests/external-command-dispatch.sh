@@ -69,6 +69,42 @@ else
 fi
 rm -f /tmp/aos-show-bogus.out /tmp/aos-show-bogus.err
 
+if ./aos dev external-dispatch-bogus >/tmp/aos-dev-bogus.out 2>/tmp/aos-dev-bogus.err; then
+    fail "dev unknown subcommand succeeded"
+else
+    if grep -q '"code" : "UNKNOWN_SUBCOMMAND"' /tmp/aos-dev-bogus.err \
+        && grep -q 'Unknown dev subcommand: external-dispatch-bogus' /tmp/aos-dev-bogus.err; then
+        pass "dev unknown subcommands route through external family router"
+    else
+        fail "dev unknown subcommand error drifted: $(cat /tmp/aos-dev-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-dev-bogus.out /tmp/aos-dev-bogus.err
+
+if ./aos service >/tmp/aos-service-empty.out 2>/tmp/aos-service-empty.err; then
+    fail "service without subcommand succeeded"
+else
+    if grep -q '"code" : "MISSING_SUBCOMMAND"' /tmp/aos-service-empty.err \
+        && grep -q 'service requires a subcommand' /tmp/aos-service-empty.err; then
+        pass "service missing subcommand routes through external subcommand router"
+    else
+        fail "service missing subcommand error drifted: $(cat /tmp/aos-service-empty.err)"
+    fi
+fi
+rm -f /tmp/aos-service-empty.out /tmp/aos-service-empty.err
+
+if ./aos runtime external-dispatch-bogus >/tmp/aos-runtime-bogus.out 2>/tmp/aos-runtime-bogus.err; then
+    fail "runtime unknown subcommand succeeded"
+else
+    if grep -q '"code" : "UNKNOWN_SUBCOMMAND"' /tmp/aos-runtime-bogus.err \
+        && grep -q 'Unknown runtime subcommand: external-dispatch-bogus' /tmp/aos-runtime-bogus.err; then
+        pass "runtime unknown subcommands route through external subcommand router"
+    else
+        fail "runtime unknown subcommand error drifted: $(cat /tmp/aos-runtime-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-runtime-bogus.out /tmp/aos-runtime-bogus.err
+
 set +e
 DOCTOR_OUT="$(./aos doctor gateway --quick --json 2>/dev/null)"
 DOCTOR_CODE=$?
