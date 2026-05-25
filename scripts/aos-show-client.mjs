@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
 function error(message, code) {
-  process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
+  process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
   process.exit(1);
 }
 
@@ -29,6 +29,55 @@ function daemonLogPath() {
 
 function aosPath() {
   return process.env.AOS_PATH || path.join(process.cwd(), 'aos');
+}
+
+function sessionHarness() {
+  if (process.env.AOS_SESSION_HARNESS) return process.env.AOS_SESSION_HARNESS;
+  if (process.env.CODEX_THREAD_ID) return 'codex';
+  if (process.env.CLAUDE_CODE_SSE_PORT) return 'claude-code';
+  return 'unknown';
+}
+
+function sanitizeSessionComponent(value) {
+  return String(value).replace(/[^A-Za-z0-9._-]/g, '_');
+}
+
+function sessionKey() {
+  if (process.env.AOS_SESSION_KEY) return sanitizeSessionComponent(process.env.AOS_SESSION_KEY);
+  if (process.env.AOS_SESSION_ID) return sanitizeSessionComponent(process.env.AOS_SESSION_ID);
+  if (process.env.CODEX_THREAD_ID) return sanitizeSessionComponent(`codex-${process.env.CODEX_THREAD_ID}`);
+  if (process.env.AOS_SESSION_NAME) return sanitizeSessionComponent(`name-${process.env.AOS_SESSION_NAME}`);
+  if (process.env.CLAUDE_CODE_SSE_PORT) return sanitizeSessionComponent(`claude-port-${process.env.CLAUDE_CODE_SSE_PORT}`);
+  return sanitizeSessionComponent(`pid-${process.pid}`);
+}
+
+function repoRootFrom(startDir) {
+  try {
+    const result = spawnSync('/usr/bin/git', ['rev-parse', '--show-toplevel'], {
+      cwd: startDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    if (result.status === 0) {
+      const root = result.stdout.trim();
+      if (root) return root;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function currentOwner() {
+  const cwd = process.cwd();
+  return {
+    consumer_id: sessionKey(),
+    harness: sessionHarness(),
+    pid: process.pid,
+    cwd,
+    worktree_root: repoRootFrom(cwd),
+    runtime_mode: runtimeMode(),
+  };
 }
 
 function autoStartDisabled() {
@@ -170,6 +219,30 @@ function parseDurationMs(value, flagName) {
   error(`${flagName} must be a positive finite duration`, 'INVALID_ARG');
 }
 
+function parseDurationSeconds(value) {
+  const text = String(value).toLowerCase();
+  if (text === 'none') return Infinity;
+  const match = text.match(/^([0-9]+(?:\.[0-9]+)?)(s|m|h)?$/);
+  if (!match) error(`Invalid duration: ${value}. Use format like 5s, 10m, 1h, or 'none'.`, 'INVALID_DURATION');
+  const number = Number(match[1]);
+  if (!Number.isFinite(number)) error(`Invalid duration: ${value}. Use format like 5s, 10m, 1h, or 'none'.`, 'INVALID_DURATION');
+  const unit = match[2] || 's';
+  if (unit === 's') return number;
+  if (unit === 'm') return number * 60;
+  if (unit === 'h') return number * 3600;
+  error(`Invalid duration: ${value}. Use format like 5s, 10m, 1h, or 'none'.`, 'INVALID_DURATION');
+}
+
+function parseCanvasTTL(value, kind) {
+  if (String(value).trim().toLowerCase() === 'none') {
+    return kind === 'create' ? undefined : 0;
+  }
+  const seconds = parseDurationSeconds(value);
+  if (!Number.isFinite(seconds)) error(`Invalid --ttl: ${value}. Use a finite duration or 'none'.`, 'INVALID_DURATION');
+  if (seconds < 0) error(`Invalid --ttl: ${value}. Duration must be non-negative.`, 'INVALID_DURATION');
+  return seconds;
+}
+
 function nextValue(args, index, flag) {
   const next = index + 1;
   if (next >= args.length) error(`${flag} requires a value`, 'MISSING_ARG');
@@ -187,6 +260,218 @@ function parseIDOnly(args, commandName) {
   }
   if (!id) error(`${commandName} requires --id <name>`, 'MISSING_ARG');
   return id;
+}
+
+function parseIntValue(value, message) {
+  if (!/^-?[0-9]+$/.test(String(value))) error(message, 'INVALID_ARG');
+  return Number(value);
+}
+
+function parseQuad(value, invalidMessage) {
+  const parts = String(value).split(',');
+  if (parts.length !== 4) error(invalidMessage, 'INVALID_ARG');
+  return parts.map((part) => {
+    const number = Number(part);
+    if (!Number.isFinite(number)) error(invalidMessage, 'INVALID_ARG');
+    return number;
+  });
+}
+
+function readStdinIfPiped() {
+  try {
+    if (fs.fstatSync(0).isFIFO() || fs.fstatSync(0).isFile()) {
+      const data = fs.readFileSync(0);
+      if (data.length > 0) return data.toString('utf8');
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function resolveHTML(htmlValue, fileValue) {
+  if (htmlValue !== undefined) return htmlValue;
+  if (fileValue !== undefined) {
+    try {
+      return fs.readFileSync(fileValue, 'utf8');
+    } catch {
+      error(`Cannot read file: ${fileValue}`, 'FILE_NOT_FOUND');
+    }
+  }
+  return readStdinIfPiped();
+}
+
+function parseCanvasMutationOptions(args, kind) {
+  const options = {};
+  for (let i = 0; i < args.length; i += 1) {
+    switch (args[i]) {
+      case '--id':
+        [options.id, i] = nextValue(args, i, '--id');
+        break;
+      case '--at':
+        [options.at, i] = nextValue(args, i, '--at');
+        break;
+      case '--anchor-window': {
+        let value;
+        [value, i] = nextValue(args, i, '--anchor-window');
+        options.anchorWindow = parseIntValue(value, '--anchor-window requires an integer');
+        break;
+      }
+      case '--anchor-channel':
+        [options.anchorChannel, i] = nextValue(args, i, '--anchor-channel');
+        break;
+      case '--anchor-browser':
+        [options.anchorBrowser, i] = nextValue(args, i, '--anchor-browser');
+        break;
+      case '--offset':
+        [options.offset, i] = nextValue(args, i, '--offset');
+        break;
+      case '--html':
+        [options.htmlValue, i] = nextValue(args, i, '--html');
+        break;
+      case '--file':
+        [options.fileValue, i] = nextValue(args, i, '--file');
+        break;
+      case '--url':
+        [options.urlValue, i] = nextValue(args, i, '--url');
+        break;
+      case '--interactive':
+        options.interactive = true;
+        break;
+      case '--no-interactive':
+        if (kind !== 'update') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        options.interactive = false;
+        break;
+      case '--window-level':
+        [options.windowLevel, i] = nextValue(args, i, '--window-level');
+        break;
+      case '--focus':
+        options.focus = true;
+        break;
+      case '--no-focus':
+        if (kind !== 'update') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        options.focus = false;
+        break;
+      case '--ttl':
+        [options.ttlValue, i] = nextValue(args, i, '--ttl');
+        break;
+      case '--scope': {
+        if (kind !== 'create') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        let value;
+        [value, i] = nextValue(args, i, '--scope');
+        if (!['connection', 'global'].includes(value)) error("--scope must be 'connection' or 'global'", 'INVALID_ARG');
+        options.scope = value;
+        break;
+      }
+      case '--auto-project':
+        if (kind !== 'create') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        [options.autoProject, i] = nextValue(args, i, '--auto-project');
+        break;
+      case '--track': {
+        let value;
+        [value, i] = nextValue(args, i, '--track');
+        if (value !== 'union') error(`Unknown --track target: ${value}. Supported: union`, 'INVALID_ARG');
+        options.track = value;
+        break;
+      }
+      case '--surface': {
+        if (kind !== 'create') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        let value;
+        [value, i] = nextValue(args, i, '--surface');
+        if (value !== 'desktop-world') error(`Unknown --surface target: ${value}. Supported: desktop-world`, 'INVALID_ARG');
+        options.surface = value;
+        break;
+      }
+      default:
+        error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+    }
+  }
+  return options;
+}
+
+function runResolveAnchor(spec) {
+  const result = spawnSync(aosPath(), ['browser', '_resolve-anchor', spec, '--json'], {
+    cwd: process.cwd(),
+    env: process.env,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (result.status !== 0) {
+    const errText = result.stderr.trim() || result.stdout.trim();
+    try {
+      const parsed = JSON.parse(errText);
+      error(parsed.error || errText, parsed.code || 'INTERNAL');
+    } catch {
+      error(errText || 'Failed to resolve browser anchor', 'INTERNAL');
+    }
+  }
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    error('Failed to decode browser anchor', 'INTERNAL');
+  }
+}
+
+function applyCanvasMutationOptions(options, request, kind) {
+  if (options.anchorBrowser !== undefined) {
+    if (options.anchorWindow !== undefined || options.anchorChannel !== undefined) {
+      error('--anchor-browser is mutually exclusive with --anchor-window and --anchor-channel', 'INVALID_ARG');
+    }
+    const anchor = runResolveAnchor(options.anchorBrowser);
+    options.anchorWindow = anchor.anchor_window;
+    options.offset = anchor.offset.join(',');
+  }
+
+  if (options.ttlValue !== undefined) {
+    const ttl = parseCanvasTTL(options.ttlValue, kind);
+    if (ttl !== undefined) request.ttl = ttl;
+  }
+
+  const exclusive = [
+    ['--at', options.at !== undefined],
+    ['--track', options.track !== undefined],
+    ['--surface', options.surface !== undefined],
+    ['--anchor-window', options.anchorWindow !== undefined],
+    ['--anchor-channel', options.anchorChannel !== undefined],
+  ].filter((entry) => entry[1]).map((entry) => entry[0]);
+  if (exclusive.length > 1) error(`cannot combine ${exclusive.join(', ')} (pick one)`, 'INVALID_ARG');
+
+  if (options.at !== undefined) request.at = parseQuad(options.at, kind === 'create' ? '--at must be x,y,w,h (comma-separated)' : '--at must be x,y,w,h');
+  if (options.anchorWindow !== undefined) request.anchor_window = options.anchorWindow;
+  if (options.anchorChannel !== undefined) request.anchor_channel = options.anchorChannel;
+  if (options.offset !== undefined) request.offset = parseQuad(options.offset, kind === 'create' ? '--offset must be x,y,w,h (comma-separated)' : '--offset must be x,y,w,h');
+  if (options.scope !== undefined) request.scope = options.scope;
+  if (options.autoProject !== undefined) request.auto_project = options.autoProject;
+  if (options.track !== undefined) request.track = options.track;
+  if (options.surface !== undefined) request.surface = options.surface;
+  if (options.windowLevel !== undefined) request.window_level = options.windowLevel;
+  if (options.urlValue !== undefined) {
+    request.url = options.urlValue;
+  } else if (kind === 'create') {
+    if (options.autoProject === undefined) {
+      const html = resolveHTML(options.htmlValue, options.fileValue);
+      if (html !== null && html !== undefined) request.html = html;
+    }
+  } else if (options.htmlValue !== undefined || options.fileValue !== undefined) {
+    const html = resolveHTML(options.htmlValue, options.fileValue);
+    if (html !== null && html !== undefined) request.html = html;
+  }
+}
+
+async function mutationCommand(args, kind) {
+  const options = parseCanvasMutationOptions(args, kind);
+  if (!options.id) error(`${kind} requires --id <name>`, 'MISSING_ARG');
+  const request = { id: options.id };
+  if (kind === 'create') {
+    request.interactive = options.interactive ?? false;
+    if (options.focus === true) request.focus = true;
+    request.owner = currentOwner();
+  } else {
+    if (options.interactive !== undefined) request.interactive = options.interactive;
+    if (options.focus !== undefined) request.focus = options.focus;
+  }
+  applyCanvasMutationOptions(options, request, kind);
+  await oneShot(kind, request, { autoStart: kind === 'create' });
 }
 
 async function waitCommand(args) {
@@ -284,6 +569,12 @@ async function postCommand(args) {
 
 const [command, ...args] = process.argv.slice(2);
 switch (command) {
+  case 'create':
+    await mutationCommand(args, 'create');
+    break;
+  case 'update':
+    await mutationCommand(args, 'update');
+    break;
   case 'list':
     if (args.some((arg) => arg !== '--json')) error(`Unknown argument: ${args.find((arg) => arg !== '--json')}`, 'UNKNOWN_ARG');
     await oneShot('list', {}, { emptyListOnNoDaemon: true });

@@ -486,6 +486,32 @@
       }
     },
     {
+      "path": ["show", "create"],
+      "summary": "Create canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "create"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_SESSION_KEY": "$AOS_SESSION_KEY",
+        "AOS_SESSION_HARNESS": "$AOS_SESSION_HARNESS"
+      }
+    },
+    {
+      "path": ["show", "update"],
+      "summary": "Update canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "update"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["show", "list"],
       "summary": "List canvases through the external show client.",
       "executable": "/usr/bin/env",
