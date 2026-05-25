@@ -4,8 +4,8 @@
 
 - Recipient: GDI
 - Transfer kind: correction round
-- Single next goal: make AOS input capture fail open during permission reset/regrant paths so the user can always operate macOS without rebooting.
-- Source artifact: Foreman accepted rebuild-pause commit `be668f8e` (`Pause GDI after AOS rebuild`) plus this user report.
+- Single next goal: make `./aos permissions reset-runtime --mode repo` the boring, deterministic safety boundary for repo-mode permission reset/regrant after rebuilds, so AOS cannot keep or revive an input tap that steals user input during manual TCC repair.
+- Source artifact: Foreman accepted rebuild-pause commit `be668f8e` (`Pause GDI after AOS rebuild`), post-build hook commit `0d5673b7` (`fix(docks): reset runtime permissions after dev build`), and this user report.
 - Branch/Base:
   - branch_from: `feat/command-surface-extraction`
   - required_start_ref: `origin/feat/command-surface-extraction`
@@ -18,7 +18,31 @@ GDI starts from a fresh context window. Do not assume branch, worktree, daemon, 
 
 ## User Report
 
-While fixing the GDI/AOS Agent Terminal rebuild pause flow, a major safety issue remained: input tap capture can steal mouse/keyboard events while the user is trying to remove and re-add macOS permissions. The existing Command+Option+Escape escape hatch opens the countdown feedback but no longer reliably allows mouse events through to other apps. The bigger goal is to not need that break-glass path during TCC recovery.
+While fixing the GDI/AOS Agent Terminal rebuild pause flow, a major safety issue remained: input tap capture can steal mouse/keyboard events while the user is trying to remove and re-add macOS permissions.
+
+The reliable observed recovery is:
+
+```bash
+./aos permissions reset-runtime --mode repo
+./aos permissions setup --once
+./aos ready --post-permission
+```
+
+The likely failure mode is not primarily "missing escape hatch." It is probably
+multiple runtime loops racing around TCC recovery:
+
+1. A rebuilt or stale daemon has an input tap active or retrying.
+2. The user removes Input Monitoring.
+3. AOS keeps retrying or observing degraded tap state.
+4. The user re-adds Input Monitoring.
+5. A retry path recreates/enables the tap while related runtime state is stale
+   or mismatched.
+6. User clicks are intercepted or consumed.
+
+The existing Command+Option+Escape escape hatch is fallback only. It opened
+visual countdown feedback but no longer reliably allowed mouse events through.
+Do not make this slice a broad redesign of that bandaid unless the reset-runtime
+boundary cannot be made safe.
 
 ## Read First
 
@@ -53,15 +77,16 @@ Then stop. After the human returns with `ready`, run:
 
 ## Required Behavior
 
+- `./aos permissions reset-runtime --mode repo` is the primary safety boundary after a repo-mode Swift rebuild. It must stop/disable/clear enough daemon/input-tap state that the user can remove and re-add macOS permissions without AOS consuming clicks or keys.
+- After reset-runtime, no background daemon/input-tap retry loop may keep consuming events or suddenly re-enable into a stale/mismatched state during manual TCC repair.
 - During permission reset/regrant recovery, AOS must not keep an active event tap path that can consume or interfere with user mouse/keyboard events.
 - If the event tap loses permissions or detects a TCC recovery state, it must fail open before any downstream input consumer can consume an event.
-- The Command+Option+Escape safety window must pass through ordinary mouse and keyboard events for its full window, and downstream consume decisions must be ignored while it is active.
-- Visual countdown feedback must be non-authoritative. If the feedback surface exists but passthrough is not actually active, that is a bug.
-- The safe permission recovery instructions should remain `./aos permissions reset-runtime --mode repo`, then `./aos permissions setup --once`, then `./aos ready --post-permission`.
+- The safe permission recovery instructions remain exactly: `./aos permissions reset-runtime --mode repo`, then `./aos permissions setup --once`, then `./aos ready --post-permission`.
+- Command+Option+Escape remains fallback-only. Do not rely on it as the primary safety mechanism. Only touch the escape hatch if doing so is required to prevent it from making reset-runtime recovery worse.
 
 ## Scope
 
-Likely ownership is daemon/native input tap and input safety state. Adjust docs/tests only as needed to lock the behavior.
+Likely ownership is permission reset, daemon lifecycle, and native input-tap retry/teardown state. Adjust docs/tests only as needed to lock the behavior.
 
 ## Hard Boundaries
 
@@ -70,13 +95,15 @@ Likely ownership is daemon/native input tap and input safety state. Adjust docs/
 - Do not make manual Settings removal the primary path.
 - Do not run broad live loops while input capture may be unsafe.
 - Do not change the accepted rebuild-pause contract except for direct safety interactions.
+- Do not over-invest in Command+Option+Escape. Treat it as fallback. The primary fix is reset-runtime lifecycle safety.
 
 ## Suggested Implementation Areas
 
-- `src/perceive/daemon.swift` for event tap fail-open and teardown behavior.
-- `src/perceive/input-safety-hotkeys.swift` for pure safety-window classification.
-- `src/daemon/unified.swift` for native canvas passthrough activation/restore.
-- `src/commands/operator.swift` or related permission reset code only if reset-runtime does not reliably stop the daemon-owned tap before user action.
+- `src/commands/operator.swift` for `permissions reset-runtime` behavior, daemon stop/check ordering, and post-reset guidance.
+- `src/perceive/daemon.swift` for event tap fail-open, retry, and teardown behavior.
+- `src/daemon/unified.swift` only if daemon health/lifecycle state needs to expose or clear input-tap state for reset-runtime.
+- `tests/input-tap-readiness.sh` for reset-runtime/readiness contract coverage.
+- `tests/input-safety-hotkeys.sh` only for narrow fail-open guards, not broad escape-hatch expansion.
 
 ## Verification
 
@@ -85,17 +112,28 @@ Run deterministic checks:
 ```bash
 ./tests/input-safety-hotkeys.sh
 ./tests/input-tap-readiness.sh
+bash tests/dock-hook-isolation.sh
 git diff --check
 ```
 
-If `./aos ready` passes without a permission blocker, run one bounded live smoke that proves Command+Option+Escape activates a real passthrough window and that mouse events reach another foreground app during that window. Keep the live evidence concise.
+If live verification is safe and `./aos ready` passes without a permission blocker, run one bounded live smoke of the reset-runtime sequence, not a broad escape-hatch exercise:
+
+```bash
+./aos permissions reset-runtime --mode repo
+./aos permissions setup --once
+./aos ready --post-permission
+```
+
+Stop with `human_needed` before any step that would require the human to change
+macOS permissions or if there is any risk of input capture during manual
+recovery.
 
 ## Completion Report
 
 Report:
 
 - files changed;
-- the exact safety invariant now enforced;
+- the exact reset-runtime safety invariant now enforced;
 - tests run and results;
-- live smoke result or the exact readiness/TCC blocker;
+- live reset-runtime smoke result or the exact readiness/TCC blocker;
 - any remaining human-only risk around macOS permissions or input capture.
