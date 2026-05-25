@@ -89,7 +89,12 @@ struct AOS {
         case "doctor":
             doctorCommand(args: Array(args.dropFirst()))
         case "reset":
-            resetCommand(args: Array(args.dropFirst()))
+            let resetArgs = Array(args.dropFirst())
+            if resetArgs.contains("--help") || resetArgs.contains("-h") {
+                printCommandHelp(["reset"], json: resetArgs.contains("--json"))
+                exit(0)
+            }
+            exitError("Unknown reset invocation", code: "UNKNOWN_COMMAND")
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
         case "focus":

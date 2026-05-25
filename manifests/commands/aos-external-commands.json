@@ -155,6 +155,18 @@
       }
     },
     {
+      "path": ["reset"],
+      "summary": "Run deterministic runtime cleanup through the external reset command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-reset.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["gate", "ask"],
       "summary": "Run the gate ask verb from the external Node implementation.",
       "executable": "/usr/bin/env",
