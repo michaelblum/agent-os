@@ -622,6 +622,16 @@
       }
     },
     {
+      "path": ["voice"],
+      "summary": "Validate voice command routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "voice", "UNKNOWN_COMMAND", "voice command"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
       "path": ["voice", "_internal-id-roundtrip"],
       "summary": "Round-trip voice IDs through the external voice test helper.",
       "executable": "/usr/bin/env",
@@ -993,6 +1003,16 @@
       }
     },
     {
+      "path": ["gate"],
+      "summary": "Validate gate subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "gate", "UNKNOWN_SUBCOMMAND", "gate subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
       "path": ["gate", "ask"],
       "summary": "Run the gate ask verb from the external Node implementation.",
       "executable": "/usr/bin/env",
@@ -1092,6 +1112,16 @@
       }
     },
     {
+      "path": ["introspect"],
+      "summary": "Validate introspect subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "introspect", "UNKNOWN_SUBCOMMAND", "introspect subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
       "path": ["introspect", "review"],
       "summary": "Review recent AOS usage from the external introspection command.",
       "executable": "/usr/bin/env",
@@ -1126,6 +1156,16 @@
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
         "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["content"],
+      "summary": "Validate content command routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "content", "UNKNOWN_COMMAND", "content command"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
       }
     },
     {
