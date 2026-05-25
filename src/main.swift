@@ -37,7 +37,12 @@ struct AOS {
         case "listen":
             handleListen(args: Array(args.dropFirst()))
         case "gate":
-            gateCommand(args: Array(args.dropFirst()))
+            let gateArgs = Array(args.dropFirst())
+            if gateArgs.isEmpty || gateArgs.contains("--help") || gateArgs.contains("-h") {
+                printCommandHelp(["gate"], json: gateArgs.contains("--json"))
+                exit(0)
+            }
+            exitError("Unknown gate subcommand: \(gateArgs[0])", code: "UNKNOWN_SUBCOMMAND")
         case "voice":
             voiceCommand(args: Array(args.dropFirst()))
         case "config":
