@@ -2,6 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -82,6 +83,10 @@ function servicePaths(mode) {
     stderrLogPath: path.join(logDir, 'daemon.log'),
     binaryPath: expectedBinaryPath(mode),
   };
+}
+
+function socketPath(mode) {
+  return path.join(stateRoot(), mode, 'sock');
 }
 
 function parseOptions(args, extra = new Set()) {
@@ -256,19 +261,6 @@ function verifyReadiness(mode, json) {
   process.exit(result.status ?? 1);
 }
 
-function transformRestartReadiness(response) {
-  if (response?.reason !== 'input_tap_not_active' || !response.input_tap) return response;
-  const tap = response.input_tap;
-  const recovery = Array.isArray(response.recovery)
-    ? response.recovery.filter((item) => !String(item).includes('service restart'))
-    : response.recovery;
-  const restartNote = `Input tap is still not active after service restart (status=${tap.status}, attempts=${tap.attempts}).\nTry:\n  ./aos permissions setup --once     # refresh macOS permission onboarding\n  ./aos serve --idle-timeout none    # temporary foreground fallback for this session`;
-  const notes = Array.isArray(response.notes)
-    ? response.notes.map((note) => String(note).startsWith('Input tap is not active ') ? restartNote : note)
-    : response.notes;
-  return { ...response, recovery, notes };
-}
-
 function printReadinessText(response) {
   process.stdout.write(`mode=${response.mode} installed=${response.installed} running=${response.running} pid=${response.pid ?? 'none'} label=${response.launchd_label} status=${response.status}${response.reason ? ` reason=${response.reason}` : ''}\n`);
   if (response.input_tap) {
@@ -282,23 +274,174 @@ function printReadinessText(response) {
   }
 }
 
-function verifyRestartReadiness(mode, json) {
-  const result = spawnSync(aosPath(), ['service', '_verify-readiness', '--mode', mode, '--json'], {
-    cwd: repoRoot(),
-    env: { ...process.env, AOS_RUNTIME_MODE: mode },
-    encoding: 'utf8',
-  });
-  if (result.stderr) process.stderr.write(result.stderr);
-  let response;
-  try {
-    response = transformRestartReadiness(JSON.parse(result.stdout));
-  } catch {
-    if (result.stdout) process.stdout.write(result.stdout);
-    process.exit(result.status ?? 1);
+function parseVerifyOptions(args) {
+  const options = { mode: currentMode(), json: false, budgetMs: 5000 };
+  for (let i = 0; i < args.length;) {
+    switch (args[i]) {
+      case '--json':
+        options.json = true;
+        i += 1;
+        break;
+      case '--mode':
+        if (i + 1 >= args.length || !['repo', 'installed'].includes(args[i + 1])) {
+          error("--mode must be 'repo' or 'installed'", 'INVALID_ARG');
+        }
+        options.mode = args[i + 1];
+        i += 2;
+        break;
+      case '--budget-ms':
+        if (i + 1 >= args.length || !/^[1-9][0-9]*$/.test(args[i + 1])) {
+          error('--budget-ms requires a positive integer', 'INVALID_ARG');
+        }
+        options.budgetMs = Number(args[i + 1]);
+        i += 2;
+        break;
+      default:
+        error(`Unknown flag: ${args[i]}`, 'UNKNOWN_FLAG');
+    }
   }
+  return options;
+}
+
+function readOneJSON(socket, timeoutMs = 250) {
+  return new Promise((resolve) => {
+    let buffer = '';
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(null);
+    }, timeoutMs);
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const newline = buffer.indexOf('\n');
+      if (newline < 0) return;
+      clearTimeout(timer);
+      try {
+        resolve(JSON.parse(buffer.slice(0, newline)));
+      } catch {
+        resolve(null);
+      }
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+  });
+}
+
+function pingDaemon(mode, timeoutMs = 250) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection(socketPath(mode));
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(null);
+    }, timeoutMs);
+    socket.once('connect', async () => {
+      clearTimeout(timer);
+      socket.write(`${JSON.stringify({ v: 1, service: 'system', action: 'ping', data: {} })}\n`);
+      const response = await readOneJSON(socket, timeoutMs);
+      socket.end();
+      resolve(response?.data && typeof response.data === 'object' ? response.data : response);
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(null);
+    });
+  });
+}
+
+function daemonHealthView(payload) {
+  if (!payload) return null;
+  const input = payload.input_tap && typeof payload.input_tap === 'object'
+    ? payload.input_tap
+    : {
+        status: payload.input_tap_status,
+        attempts: payload.input_tap_attempts,
+        listen_access: payload.input_tap_listen_access,
+        post_access: payload.input_tap_post_access,
+      };
+  if (!input.status || input.attempts === undefined) return null;
+  return {
+    input_tap: {
+      status: input.status,
+      attempts: Number(input.attempts),
+      listen_access: input.listen_access,
+      post_access: input.post_access,
+    },
+  };
+}
+
+async function verifyOutcome(mode, budgetMs) {
+  const deadline = Date.now() + budgetMs;
+  let lastView = null;
+  while (Date.now() < deadline) {
+    const payload = await pingDaemon(mode, 250);
+    const view = daemonHealthView(payload);
+    if (view) {
+      lastView = view;
+      if (view.input_tap.status === 'active') {
+        return { kind: 'ok', view };
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  if (lastView) return { kind: 'input_tap_not_active', view: lastView };
+  return { kind: 'socket_unreachable', view: null };
+}
+
+function readinessRecovery(status, attempts, restartContext = false) {
+  if (restartContext) {
+    return {
+      note: `Input tap is still not active after service restart (status=${status}, attempts=${attempts}).\nTry:\n  ./aos permissions setup --once     # refresh macOS permission onboarding\n  ./aos serve --idle-timeout none    # temporary foreground fallback for this session`,
+      recovery: ['./aos permissions setup --once', './aos serve --idle-timeout none'],
+    };
+  }
+  return {
+    note: `Input tap is not active (status=${status}, attempts=${attempts}).\nTry:\n  ./aos service restart              # restart the managed daemon and re-check readiness\n  ./aos permissions setup --once     # refresh macOS permission onboarding\n  ./aos serve --idle-timeout none    # temporary foreground fallback for this session`,
+    recovery: ['./aos service restart', './aos permissions setup --once', './aos serve --idle-timeout none'],
+  };
+}
+
+async function readinessResponse(mode, budgetMs, restartContext = false) {
+  const base = serviceStatus(mode);
+  const outcome = await verifyOutcome(mode, budgetMs);
+  const response = { ...base };
+  let exitCode = 0;
+
+  if (outcome.kind === 'ok') {
+    response.input_tap = outcome.view.input_tap;
+  } else if (outcome.kind === 'input_tap_not_active') {
+    const tap = outcome.view.input_tap;
+    const recovery = readinessRecovery(tap.status, tap.attempts, restartContext);
+    response.status = 'degraded';
+    response.reason = 'input_tap_not_active';
+    response.input_tap = tap;
+    response.recovery = recovery.recovery;
+    response.notes = [...(response.notes || []), recovery.note];
+    exitCode = 1;
+  } else {
+    response.status = 'degraded';
+    response.reason = 'socket_unreachable';
+    response.notes = [...(response.notes || []), 'Daemon socket was not reachable within the readiness budget.'];
+    exitCode = 1;
+  }
+
+  return { response, exitCode };
+}
+
+async function verifyCommand(args, restartContext = false) {
+  const options = parseVerifyOptions(args);
+  const { response, exitCode } = await readinessResponse(options.mode, options.budgetMs, restartContext);
+  if (options.json) printJSON(response);
+  else printReadinessText(response);
+  process.exit(exitCode);
+}
+
+async function verifyRestartReadiness(mode, json) {
+  const { response, exitCode } = await readinessResponse(mode, 5000, true);
   if (json) printJSON(response);
   else printReadinessText(response);
-  process.exit(result.status ?? 1);
+  process.exit(exitCode);
 }
 
 function installCommand(args) {
@@ -338,7 +481,7 @@ function stopCommand(args) {
   statusCommand(args);
 }
 
-function restartCommand(args) {
+async function restartCommand(args) {
   const options = parseOptions(args);
   const paths = servicePaths(options.mode);
   stopService(options.mode);
@@ -350,7 +493,7 @@ function restartCommand(args) {
     launchctlBootstrap(paths.plistPath);
   }
   launchctlKickstart(paths.label);
-  verifyRestartReadiness(options.mode, options.json);
+  await verifyRestartReadiness(options.mode, options.json);
 }
 
 function serviceStatus(mode) {
@@ -418,7 +561,8 @@ const [subcommand, ...rest] = process.argv.slice(2);
 if (subcommand === 'install') installCommand(rest);
 else if (subcommand === 'start') startCommand(rest);
 else if (subcommand === 'stop') stopCommand(rest);
-else if (subcommand === 'restart') restartCommand(rest);
+else if (subcommand === 'restart') await restartCommand(rest);
 else if (subcommand === 'status') statusCommand(rest);
 else if (subcommand === 'logs') logsCommand(rest);
+else if (subcommand === '_verify-readiness') await verifyCommand(rest);
 else error(`Unknown service command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
