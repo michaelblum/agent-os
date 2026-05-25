@@ -46,7 +46,16 @@ struct AOS {
         case "voice":
             voiceCommand(args: Array(args.dropFirst()))
         case "config":
-            configCommand(args: Array(args.dropFirst()))
+            let configArgs = Array(args.dropFirst())
+            if configArgs.contains("--help") || configArgs.contains("-h") {
+                if let subcommand = configArgs.first(where: { !$0.hasPrefix("-") }) {
+                    printCommandHelp(["config", subcommand], json: configArgs.contains("--json"))
+                } else {
+                    printCommandHelp(["config"], json: configArgs.contains("--json"))
+                }
+                exit(0)
+            }
+            exitError("Unknown config invocation", code: "UNKNOWN_COMMAND")
         case "set":
             let setArgs = Array(args.dropFirst())
             if setArgs.contains("--help") || setArgs.contains("-h") {
