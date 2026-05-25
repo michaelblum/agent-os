@@ -158,6 +158,16 @@
       }
     },
     {
+      "path": ["dev"],
+      "summary": "Validate unknown dev subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "dev", "UNKNOWN_SUBCOMMAND", "dev subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
       "path": ["dev", "afk-dry-run"],
       "summary": "Run the AFK dry-run command from the external Node prototype.",
       "executable": "/usr/bin/env",
