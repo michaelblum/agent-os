@@ -729,6 +729,13 @@
       "cwd": "repo"
     },
     {
+      "path": ["browser", "_check-version"],
+      "summary": "Check Playwright CLI version through the external browser helper.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-browser-check-version"],
+      "cwd": "repo"
+    },
+    {
       "path": ["browser", "_parse-snapshot"],
       "summary": "Parse Playwright snapshot markdown through the external browser helper.",
       "executable": "/usr/bin/env",
