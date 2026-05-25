@@ -8,6 +8,35 @@ usage() {
   exit 2
 }
 
+pty_input_log_path() {
+  if [[ -n "${AOS_DOCK_PTY_INPUT_LOG:-}" ]]; then
+    printf '%s\n' "$AOS_DOCK_PTY_INPUT_LOG"
+    return
+  fi
+  local state_root mode
+  state_root="${AOS_STATE_ROOT:-$HOME/.config/aos}"
+  mode="${AOS_RUNTIME_MODE:-repo}"
+  printf '%s/%s/docks/pty-input.jsonl\n' "$state_root" "$mode"
+}
+
+append_pty_input_record() {
+  local record_json="$1"
+  local log_path log_dir
+  log_path="$(pty_input_log_path)"
+  log_dir="$(dirname "$log_path")"
+  mkdir -p "$log_dir" 2>/dev/null || true
+  umask 077
+  printf '%s\n' "$record_json" >>"$log_path" 2>/dev/null || true
+}
+
+json_string() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+print(json.dumps(sys.argv[1]))
+PY
+}
+
 command="${1:-}"
 if [[ "$command" != "send" && "$command" != "key" ]]; then
   usage
@@ -77,6 +106,7 @@ except (OSError, urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
     raise SystemExit(1)
 PY
     then
+      append_pty_input_record "$(printf '{"schema":"aos.dock.pty_input.v1","timestamp":%s,"action":"key","target":%s,"driver":"agent-terminal-bridge","session":%s,"key":%s}\n' "$(json_string "$(date -u +"%Y-%m-%dT%H:%M:%SZ")")" "$(json_string "$target")" "$(json_string "$bridge_session_target")" "$(json_string "$key")")"
       exit 0
     fi
   fi
@@ -85,6 +115,7 @@ PY
     exit 1
   fi
   tmux send-keys -t "$target" "$key"
+  append_pty_input_record "$(printf '{"schema":"aos.dock.pty_input.v1","timestamp":%s,"action":"key","target":%s,"driver":"tmux","key":%s}\n' "$(json_string "$(date -u +"%Y-%m-%dT%H:%M:%SZ")")" "$(json_string "$target")" "$(json_string "$key")")"
   exit 0
 fi
 
@@ -209,6 +240,27 @@ except (OSError, urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
     raise SystemExit(1)
 PY
   then
+    append_pty_input_record "$(python3 - "$target" "$bridge_session_target" "$text" "$submit" "$clear" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+target, session, text, submit, clear = sys.argv[1:]
+payload = {
+    "schema": "aos.dock.pty_input.v1",
+    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "action": "send",
+    "target": target,
+    "driver": "agent-terminal-bridge",
+    "session": session,
+    "text": text,
+    "utf8_hex": text.encode("utf-8").hex(),
+    "clear_sent": clear == "1",
+    "submit_sent": submit == "1",
+}
+print(json.dumps(payload, sort_keys=True))
+PY
+)"
     exit 0
   fi
 fi
@@ -218,18 +270,9 @@ if [[ "$tmux_available" != "1" ]]; then
   exit 1
 fi
 
-IFS=$'\n' read -r -d '' -a parts < <(printf '%s\0' "$text") || true
-if [[ ${#parts[@]} -eq 0 ]]; then
-  parts=("$text")
-fi
-for ((i = 0; i < ${#parts[@]}; i += 1)); do
-  if [[ -n "${parts[$i]}" ]]; then
-    tmux send-keys -t "$target" -l "${parts[$i]}"
-  fi
-  if [[ $i -lt $((${#parts[@]} - 1)) ]]; then
-    tmux send-keys -t "$target" Enter
-  fi
-done
+buffer_name="aos-dock-pty-input-$$"
+printf '%s' "$text" | tmux load-buffer -b "$buffer_name" -
+tmux paste-buffer -d -b "$buffer_name" -t "$target"
 
 if [[ "$submit" == "1" ]]; then
   sleep "$(python3 - <<'PY'
@@ -242,3 +285,25 @@ PY
 )"
   tmux send-keys -t "$target" Enter
 fi
+
+append_pty_input_record "$(python3 - "$target" "$text" "$submit" "$clear" "$buffer_name" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+target, text, submit, clear, buffer_name = sys.argv[1:]
+payload = {
+    "schema": "aos.dock.pty_input.v1",
+    "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "action": "send",
+    "target": target,
+    "driver": "tmux",
+    "paste_buffer": buffer_name,
+    "text": text,
+    "utf8_hex": text.encode("utf-8").hex(),
+    "clear_sent": clear == "1",
+    "submit_sent": submit == "1",
+}
+print(json.dumps(payload, sort_keys=True))
+PY
+)"

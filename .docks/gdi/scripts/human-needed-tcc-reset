@@ -19,11 +19,12 @@ echo "Running targeted repo-mode runtime reset:"
 echo
 cat <<'EOF'
 Human action:
-1. Run: ./aos permissions setup --once
-2. Grant the requested macOS Accessibility/Input Monitoring permission for the
+1. Run: ./aos permissions reset-runtime --mode repo
+2. Run: ./aos permissions setup --once
+3. Grant the requested macOS Accessibility/Input Monitoring permission for the
    repo-mode aos runtime if macOS prompts.
-3. Return to the session and say: ready
-4. If the active goal is paused or Codex indicates it needs to resume, use:
+4. Return to the session and say: ready
+5. If the active goal is paused or Codex indicates it needs to resume, use:
    /goal resume
    Do not start a new goal for the same work.
 

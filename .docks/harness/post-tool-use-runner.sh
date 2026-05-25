@@ -60,22 +60,14 @@ def normalizes_to_dev_build(command):
         parts = shlex.split(command)
     except ValueError:
         parts = command.split()
-    if len(parts) >= 3 and pathlib.Path(parts[0]).name == "aos" and parts[1:3] == ["dev", "build"]:
-        return True
-    if "./aos dev build" in command or "aos dev build" in command:
-        return True
-    return False
+    return len(parts) >= 3 and pathlib.Path(parts[0]).name == "aos" and parts[1:3] == ["dev", "build"]
 
 def normalizes_to_post_permission_ready(command):
     try:
         parts = shlex.split(command)
     except ValueError:
         parts = command.split()
-    if len(parts) >= 3 and pathlib.Path(parts[0]).name == "aos" and parts[1] == "ready" and "--post-permission" in parts:
-        return True
-    if "./aos ready --post-permission" in command or "aos ready --post-permission" in command:
-        return True
-    return False
+    return len(parts) >= 2 and pathlib.Path(parts[0]).name == "aos" and parts[1] == "ready" and "--post-permission" in parts
 
 def tool_failed(value):
     failure_tokens = {
@@ -102,16 +94,7 @@ def tool_failed(value):
     return False
 
 found_build = any(normalizes_to_dev_build(candidate) for candidate in command_candidates(payload))
-if not found_build:
-    # Some providers put command text only in flat transcript strings.
-    found_build = any(normalizes_to_dev_build(text) for text in strings(payload))
-
 found_post_permission_ready = any(normalizes_to_post_permission_ready(candidate) for candidate in command_candidates(payload))
-if not found_post_permission_ready:
-    found_post_permission_ready = any(
-        ("aos ready --post-permission" in text or "./aos ready --post-permission" in text)
-        for text in strings(payload)
-    )
 
 if found_build and not tool_failed(payload):
     print("dev_build_success")
@@ -136,8 +119,10 @@ fi
 
 "$REPO_ROOT/.docks/harness/stop-condition.sh" write "$REPO_ROOT" "$dock" tcc_permission_reset 600
 "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" write "$REPO_ROOT" "$dock" 3600
-"$REPO_ROOT/.docks/harness/human-needed-surface.sh" show "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 "$REPO_ROOT/.docks/harness/goal-pause-control.sh" request "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
+(
+  "$REPO_ROOT/.docks/harness/human-needed-surface.sh" show "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
+) >/dev/null 2>&1 &
 
 python3 - "$dock" <<'PY'
 import json
@@ -154,10 +139,11 @@ Pause the active goal now by sending:
 /goal pause
 
 Human action:
-1. Run: ./aos permissions setup --once
-2. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.
-3. Return to this session and say: ready
-4. Resume the paused goal with: /goal resume
+1. Run: ./aos permissions reset-runtime --mode repo
+2. Run: ./aos permissions setup --once
+3. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.
+4. Return to this session and say: ready
+5. Resume the paused goal with: /goal resume
 
 After resume, run exactly:
 ./aos ready --post-permission

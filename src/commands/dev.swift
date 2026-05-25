@@ -307,6 +307,8 @@ private func devBuildCommand(args: [String]) {
         printDevJSON([
             "status": result.exitCode == 0 ? "success" : "error",
             "command": (["bash", "build.sh"] + buildArgs).joined(separator: " "),
+            "build_wrapper": "build.sh",
+            "build_source": "repo-root/build.sh",
             "exit_code": Int(result.exitCode),
             "stdout": result.stdout,
             "stderr": result.stderr,

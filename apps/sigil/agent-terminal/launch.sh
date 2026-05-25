@@ -179,10 +179,10 @@ if not main:
     print("240,180,860,560")
     raise SystemExit
 b = main.get("visible_bounds") or main.get("visibleBounds") or main.get("bounds") or {"x": 0, "y": 0, "w": 1512, "h": 875}
-w = min(1140, max(920, round(b["w"] * 0.70)))
-h = min(620, max(480, round(b["h"] * 0.58)))
-x = round(b["x"] + b["w"] - w - 28)
-y = round(b["y"] + b["h"] - h - 28)
+w = min(940, max(720, round(b["w"] - 240)))
+h = min(720, max(480, round(b["h"] - 180)))
+x = round(b["x"] + min(120, max(28, b["w"] - w - 28)))
+y = round(b["y"] + min(90, max(28, b["h"] - h - 28)))
 print(f"{x},{y},{w},{h}")
 PY
 }

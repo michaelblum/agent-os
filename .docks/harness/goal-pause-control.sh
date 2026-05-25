@@ -51,10 +51,14 @@ fi
 
 delay="${AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS:-0}"
 send_pause() {
+  local resume_text
+  resume_text="/goal resume"
   "$repo_root/.docks/harness/pty-input-control.sh" send "$pane" "/goal pause"
   (
     sleep "${AOS_DOCK_GOAL_PAUSE_INTERRUPT_DELAY_SECONDS:-0.4}"
     "$repo_root/.docks/harness/pty-input-control.sh" key "$pane" C-c >/dev/null 2>&1 || true
+    sleep "${AOS_DOCK_GOAL_RESUME_STAGE_DELAY_SECONDS:-0.5}"
+    printf '%s' "$resume_text" | "$repo_root/.docks/harness/pty-input-control.sh" send --no-submit "$pane" >/dev/null 2>&1 || true
   ) >/dev/null 2>&1 &
 }
 

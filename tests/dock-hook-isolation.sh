@@ -16,6 +16,7 @@ if shared.exists():
     raise SystemExit(f"FAIL: shared dock hook directory must stay deleted: {shared}")
 
 runner = root / ".docks" / "harness" / "dock-hook-runner.sh"
+pre_tool_runner = root / ".docks" / "harness" / "pre-tool-use-runner.sh"
 post_tool_runner = root / ".docks" / "harness" / "post-tool-use-runner.sh"
 goal_pause_control = root / ".docks" / "harness" / "goal-pause-control.sh"
 provider_input_control = root / ".docks" / "harness" / "provider-input-control.sh"
@@ -26,6 +27,10 @@ if not runner.exists():
     raise SystemExit("FAIL: missing shared dock hook runner")
 if not os.access(runner, os.X_OK):
     raise SystemExit("FAIL: shared dock hook runner is not executable")
+if not pre_tool_runner.exists():
+    raise SystemExit("FAIL: missing shared pre-tool-use runner")
+if not os.access(pre_tool_runner, os.X_OK):
+    raise SystemExit("FAIL: shared pre-tool-use runner is not executable")
 if not post_tool_runner.exists():
     raise SystemExit("FAIL: missing shared post-tool-use runner")
 if not os.access(post_tool_runner, os.X_OK):
@@ -79,6 +84,15 @@ if "aos_resolve_session_id" in runner_text:
 if "voice bind" in runner_text:
     raise SystemExit("FAIL: shared dock runner must not bind voices for Stop notices")
 post_tool_runner_text = post_tool_runner.read_text()
+pre_tool_runner_text = pre_tool_runner.read_text()
+for required in (
+    "dev_build_checkpoint_already_completed",
+    "dev-build-checkpoint.sh",
+    "Do not run ./aos dev build again",
+    "./aos ready --post-permission",
+):
+    if required not in pre_tool_runner_text:
+        raise SystemExit(f"FAIL: pre-tool-use runner missing {required!r}")
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",
     "goal-pause-control.sh",
@@ -91,7 +105,7 @@ for required in (
         raise SystemExit(f"FAIL: post-tool-use runner missing {required!r}")
 if "pty-input-control.sh" not in goal_pause_control.read_text():
     raise SystemExit("FAIL: goal-pause control must delegate PTY writes through pty-input-control.sh")
-for forbidden in ("ready --post-permission --json", "ready --repair", "permissions reset-runtime", "git status", "AOS_BIN"):
+for forbidden in ("ready --post-permission --json", "ready --repair", "git status", "AOS_BIN"):
     if forbidden in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner must not run redundant ritual command {forbidden!r}")
 
@@ -127,11 +141,17 @@ for role in ("gdi", "foreman", "operator"):
     ]
     expected_stop = f".docks/{role}/hooks/stop.sh"
     expected_post_tool = f".docks/{role}/hooks/post-tool-use.sh"
+    expected_pre_tool = f".docks/{role}/hooks/pre-tool-use.sh"
     hook_names = set(payload.get("hooks", {}).keys())
-    if hook_names != {"Stop", "PostToolUse"}:
-        raise SystemExit(f"FAIL: {role} hooks should only declare Stop and PostToolUse, got {sorted(hook_names)}")
+    expected_hook_names = {"Stop", "PostToolUse"}
+    if role == "gdi":
+        expected_hook_names.add("PreToolUse")
+    if hook_names != expected_hook_names:
+        raise SystemExit(f"FAIL: {role} hooks mismatch: got {sorted(hook_names)} expected {sorted(expected_hook_names)}")
     if not any(expected_stop in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks do not use isolated stop script: {commands}")
+    if role == "gdi" and not any(expected_pre_tool in command for command in commands):
+        raise SystemExit(f"FAIL: {role} hooks do not use isolated pre-tool-use script: {commands}")
     if not any(expected_post_tool in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks do not use isolated post-tool-use script: {commands}")
     if any("session-start.sh" in command for command in commands):
@@ -192,6 +212,15 @@ for role in ("gdi", "foreman", "operator"):
     post_tool_script = post_tool_script_path.read_text()
     if ".docks/harness/post-tool-use-runner.sh" not in post_tool_script:
         raise SystemExit(f"FAIL: {role} post-tool-use.sh is not a shared harness wrapper")
+    pre_tool_script_path = root / ".docks" / role / "hooks" / "pre-tool-use.sh"
+    if role == "gdi":
+        if not os.access(pre_tool_script_path, os.X_OK):
+            raise SystemExit(f"FAIL: {role} pre-tool-use.sh is not executable")
+        pre_tool_script = pre_tool_script_path.read_text()
+        if ".docks/harness/pre-tool-use-runner.sh" not in pre_tool_script:
+            raise SystemExit(f"FAIL: {role} pre-tool-use.sh is not a shared harness wrapper")
+    elif pre_tool_script_path.exists():
+        raise SystemExit(f"FAIL: {role} should not have a pre-tool-use hook")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 def has_exact_name(path):
@@ -326,6 +355,7 @@ if payload.get("continue") is not True:
 message = payload.get("systemMessage", "")
 for required in (
     "GDI stopped for repo-mode AOS permission repair.",
+    "./aos permissions reset-runtime --mode repo",
     "./aos permissions setup --once",
     "Accessibility/Input Monitoring",
     "ready",
@@ -372,6 +402,7 @@ PY
 post_tool_log="$TMPDIR_ROOT/post-tool-aos.log"
 tmux_log="$TMPDIR_ROOT/tmux.log"
 open_log="$TMPDIR_ROOT/open.log"
+pty_input_log="$TMPDIR_ROOT/pty-input.jsonl"
 bridge_log="$TMPDIR_ROOT/bridge-input.jsonl"
 bridge_port_file="$TMPDIR_ROOT/bridge-port"
 post_tool_condition_dir="$TMPDIR_ROOT/post-tool-conditions"
@@ -394,17 +425,31 @@ cat >"$fake_bin/tmux" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 printf 'TMUX:%s\n' "$*" >>"$AOS_FAKE_TMUX_LOG"
+if [[ "${1:-}" == "load-buffer" ]]; then
+  stdin="$(cat || true)"
+  printf 'TMUX_STDIN:%s\n' "$stdin" >>"$AOS_FAKE_TMUX_LOG"
+fi
 SH
 chmod +x "$fake_bin/tmux"
 
-PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/provider-input-control.sh" send "%42" "/goal test clean input"
+PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_PTY_INPUT_LOG="$pty_input_log" ".docks/harness/provider-input-control.sh" send "%42" "/goal test clean input"
 grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
   echo "FAIL: provider input helper should clear current input line before sending text" >&2
   cat "$tmux_log" >&2
   exit 1
 }
-grep -q 'TMUX:send-keys -t %42 -l /goal test clean input' "$tmux_log" || {
-  echo "FAIL: provider input helper should send literal text through tmux" >&2
+grep -q 'TMUX:load-buffer -b aos-dock-pty-input-' "$tmux_log" || {
+  echo "FAIL: provider input helper should load text through a tmux paste buffer" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX_STDIN:/goal test clean input' "$tmux_log" || {
+  echo "FAIL: provider input helper should load the exact prompt text" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:paste-buffer -d -b aos-dock-pty-input-' "$tmux_log" || {
+  echo "FAIL: provider input helper should paste buffered text into tmux" >&2
   cat "$tmux_log" >&2
   exit 1
 }
@@ -413,16 +458,40 @@ grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
+python3 - "$pty_input_log" <<'PY'
+import json
+import pathlib
+import sys
+
+record = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()][-1]
+assert record["schema"] == "aos.dock.pty_input.v1", record
+assert record["driver"] == "tmux", record
+assert record["action"] == "send", record
+assert record["text"] == "/goal test clean input", record
+assert record["submit_sent"] is True, record
+assert record["clear_sent"] is True, record
+assert record["utf8_hex"] == "/goal test clean input".encode().hex(), record
+PY
 : >"$tmux_log"
 
-PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/pty-input-control.sh" send --no-submit "%42" "/goal leave for human"
+PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_PTY_INPUT_LOG="$pty_input_log" ".docks/harness/pty-input-control.sh" send --no-submit "%42" "/goal leave for human"
 grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
   echo "FAIL: PTY input helper should clear by default before entering text" >&2
   cat "$tmux_log" >&2
   exit 1
 }
-grep -q 'TMUX:send-keys -t %42 -l /goal leave for human' "$tmux_log" || {
-  echo "FAIL: PTY input helper should enter text for human submission" >&2
+grep -q 'TMUX:load-buffer -b aos-dock-pty-input-' "$tmux_log" || {
+  echo "FAIL: PTY input helper should load text for human submission" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX_STDIN:/goal leave for human' "$tmux_log" || {
+  echo "FAIL: PTY input helper should load exact text for human submission" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:paste-buffer -d -b aos-dock-pty-input-' "$tmux_log" || {
+  echo "FAIL: PTY input helper should paste text for human submission" >&2
   cat "$tmux_log" >&2
   exit 1
 }
@@ -431,6 +500,16 @@ if grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log"; then
   cat "$tmux_log" >&2
   exit 1
 fi
+python3 - "$pty_input_log" <<'PY'
+import json
+import pathlib
+import sys
+
+record = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()][-1]
+assert record["text"] == "/goal leave for human", record
+assert record["submit_sent"] is False, record
+assert record["clear_sent"] is True, record
+PY
 : >"$tmux_log"
 
 python3 - "$bridge_log" "$bridge_port_file" <<'PY' &
@@ -466,8 +545,8 @@ for _ in $(seq 1 50); do
   sleep 0.02
 done
 bridge_port="$(cat "$bridge_port_file")"
-AOS_DOCK_AGENT_TERMINAL_BRIDGE_URL="http://127.0.0.1:$bridge_port" PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/pty-input-control.sh" send "%42" "/goal bridge submit"
-AOS_DOCK_AGENT_TERMINAL_BRIDGE_URL="http://127.0.0.1:$bridge_port" PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" ".docks/harness/pty-input-control.sh" key "%42" C-c
+AOS_DOCK_AGENT_TERMINAL_BRIDGE_URL="http://127.0.0.1:$bridge_port" PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_PTY_INPUT_LOG="$pty_input_log" ".docks/harness/pty-input-control.sh" send "%42" "/goal bridge submit"
+AOS_DOCK_AGENT_TERMINAL_BRIDGE_URL="http://127.0.0.1:$bridge_port" PATH="$fake_bin:$PATH" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_PTY_INPUT_LOG="$pty_input_log" ".docks/harness/pty-input-control.sh" key "%42" C-c
 kill "$bridge_pid" >/dev/null 2>&1 || true
 wait "$bridge_pid" 2>/dev/null || true
 grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
@@ -475,7 +554,7 @@ grep -q 'TMUX:send-keys -t %42 C-u' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
-if grep -q 'TMUX:send-keys -t %42 -l /goal bridge submit\|TMUX:send-keys -t %42 Enter' "$tmux_log"; then
+if grep -q 'TMUX:send-keys -t %42 -l /goal bridge submit\|TMUX:paste-buffer -d -b aos-dock-pty-input-.*-t %42\|TMUX:send-keys -t %42 Enter' "$tmux_log"; then
   echo "FAIL: PTY bridge path should submit through the bridge, not raw tmux text/Enter" >&2
   cat "$tmux_log" >&2
   exit 1
@@ -500,7 +579,7 @@ PY
 : >"$tmux_log"
 
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
-tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_INTERRUPT_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_INTERRUPT_DELAY_SECONDS=0 AOS_DOCK_GOAL_RESUME_STAGE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$tcc_post_out" <<'PY'
 import json
 import sys
@@ -511,6 +590,7 @@ message = payload.get("systemMessage", "")
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",
     "/goal pause",
+    "./aos permissions reset-runtime --mode repo",
     "./aos permissions setup --once",
     "./aos ready --post-permission",
     "Do not run ./aos dev build again after resume",
@@ -520,9 +600,13 @@ for required in (
     if required not in message:
         raise SystemExit(f"FAIL: dev-build post-tool hook systemMessage missing {required!r}: {message!r}")
 PY
+for _ in $(seq 1 50); do
+  grep -q 'POST_TOOL_AOS:show create --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log" 2>/dev/null && break
+  sleep 0.02
+done
 grep -q 'POST_TOOL_AOS:show create --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log" || {
   echo "FAIL: successful dev build hook should show the human-needed canvas" >&2
-  cat "$post_tool_log" >&2
+  cat "$post_tool_log" >&2 2>/dev/null || true
   exit 1
 }
 if ! AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" peek "$PWD" gdi >/dev/null; then
@@ -530,7 +614,33 @@ if ! AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-
   find "$post_tool_condition_dir" -maxdepth 4 -type f -print -exec cat {} \; >&2 || true
   exit 1
 fi
-if grep -q 'ready\|permissions reset-runtime\|git status' "$post_tool_log"; then
+repeat_pre_out="$(printf '%s' "$post_payload" | AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/pre-tool-use.sh")"
+python3 - "$repeat_pre_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not False:
+    raise SystemExit(f"FAIL: completed-build checkpoint should block repeated dev build before post-permission ready, got {payload}")
+message = payload.get("systemMessage", "")
+for required in (
+    "dev_build_checkpoint_already_completed",
+    "Do not run ./aos dev build again.",
+    "./aos ready --post-permission",
+    "continue with the next planned step after the",
+):
+    if required not in message:
+        raise SystemExit(f"FAIL: completed-build checkpoint pre-tool message missing {required!r}: {message!r}")
+PY
+ready_pre_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready --post-permission"}}'
+ready_pre_out="$(printf '%s' "$ready_pre_payload" | AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/pre-tool-use.sh")"
+python3 - "$ready_pre_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: completed-build checkpoint should allow post-permission ready, got {payload}")
+PY
+if grep -q '^POST_TOOL_AOS:ready\|^POST_TOOL_AOS:permissions reset-runtime\|^POST_TOOL_AOS:git status' "$post_tool_log"; then
   echo "FAIL: successful dev build hook should not run readiness or repair ritual" >&2
   cat "$post_tool_log" >&2
   exit 1
@@ -550,8 +660,13 @@ grep -q 'OPEN:x-apple.systempreferences:com.apple.preference.security?Privacy_Sc
   cat "$open_log" >&2
   exit 1
 }
-grep -q 'TMUX:send-keys -t %42 -l /goal pause' "$tmux_log" || {
+grep -q 'TMUX:paste-buffer -d -b aos-dock-pty-input-.*-t %42' "$tmux_log" || {
   echo "FAIL: successful GDI dev build hook should inject /goal pause into tmux pane" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX_STDIN:/goal pause' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should load /goal pause exactly" >&2
   cat "$tmux_log" >&2
   exit 1
 }
@@ -562,6 +677,16 @@ grep -q 'TMUX:send-keys -t %42 Enter' "$tmux_log" || {
 }
 grep -q 'TMUX:send-keys -t %42 C-c' "$tmux_log" || {
   echo "FAIL: successful GDI dev build hook should interrupt the current turn after pausing" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX:paste-buffer -d -b aos-dock-pty-input-.*-t %42' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should stage resume guidance with paste buffer" >&2
+  cat "$tmux_log" >&2
+  exit 1
+}
+grep -q 'TMUX_STDIN:/goal resume' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should stage a valid goal resume command" >&2
   cat "$tmux_log" >&2
   exit 1
 }
@@ -675,6 +800,7 @@ import sys
 text = sys.argv[1]
 for required in (
     "human_needed: repo-mode AOS permission repair",
+    "Run: ./aos permissions reset-runtime --mode repo",
     "Run: ./aos permissions setup --once",
     "Grant the requested macOS Accessibility/Input Monitoring permission",
     "Return to the session and say: ready",

@@ -47,8 +47,8 @@ fi
 html="$(python3 - <<'PY'
 import html
 
-title = "User needed"
-body = "Remove 'aos' from Privacy & Security -> Accessibility, Input Monitoring, and Screen & System Audio Recording. Then return to the agent session and continue."
+title = "AOS permission reset needed"
+body = "Run ./aos permissions reset-runtime --mode repo, then ./aos permissions setup --once. Grant Accessibility, Input Monitoring, and Screen & System Audio Recording if macOS prompts. Manual Settings removal is fallback only if targeted reset reports unavailable or failed."
 print(f"""<!doctype html>
 <html>
 <head>

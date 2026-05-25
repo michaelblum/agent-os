@@ -219,14 +219,16 @@ from pathlib import Path
 
 source = Path("src/commands/dev.swift").read_text(encoding="utf-8")
 assert 'buildArgs.append("--no-restart")' in source
+assert '"build_wrapper": "build.sh"' in source
+assert '"build_source": "repo-root/build.sh"' in source
 assert '"next": NSNull()' in source
 assert "permission_note" not in source
 assert "Next: ./aos ready" not in source
 PY
 then
-    pass "dev build disables daemon restart and avoids readiness ritual"
+    pass "dev build reports its wrapper source and avoids readiness ritual"
 else
-    fail "dev build still appears overloaded with readiness or daemon restart work"
+    fail "dev build wrapper telemetry or readiness boundary regressed"
 fi
 
 # --- 19. dev afk-session-trigger help exposes guarded trigger flags ---

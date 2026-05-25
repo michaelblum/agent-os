@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
 
 function commandExists(command) {
   const result = spawnSync('sh', ['-lc', `command -v ${JSON.stringify(command)} >/dev/null 2>&1`]);
@@ -32,6 +34,27 @@ function boundedInt(value, fallback, min, max) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.trunc(parsed)));
+}
+
+function ptyInputTelemetryPath(env = process.env) {
+  if (env.AOS_DOCK_PTY_INPUT_LOG) return env.AOS_DOCK_PTY_INPUT_LOG;
+  const stateRoot = env.AOS_STATE_ROOT || path.join(env.HOME || process.cwd(), '.config', 'aos');
+  const mode = env.AOS_RUNTIME_MODE || 'repo';
+  return path.join(stateRoot, mode, 'docks', 'pty-input.jsonl');
+}
+
+function appendPtyInputTelemetry(record, env = process.env) {
+  try {
+    const logPath = ptyInputTelemetryPath(env);
+    mkdirSync(path.dirname(logPath), { recursive: true, mode: 0o700 });
+    appendFileSync(logPath, `${JSON.stringify({
+      schema: 'aos.dock.pty_input.v1',
+      timestamp: new Date().toISOString(),
+      ...record,
+    })}\n`, { encoding: 'utf8', mode: 0o600 });
+  } catch {
+    // Input delivery should not fail because local telemetry is unavailable.
+  }
 }
 
 function appendProcessOutput(record, chunk) {
@@ -336,6 +359,15 @@ function createTerminalSessionManager(options = {}) {
       if (existing.exited) throw new Error(`session is not running: ${session}`);
       const textWrite = writeProcessStdin(existing, textValue);
       const enterWrite = enter ? writeProcessStdin(existing, '\r') : null;
+      appendPtyInputTelemetry({
+        action: 'send',
+        target: session,
+        driver: 'process-stdin',
+        text: textValue,
+        utf8_hex: Buffer.from(textValue, 'utf8').toString('hex'),
+        clear_sent: false,
+        submit_sent: enter,
+      });
       return {
         ok: true,
         driver: 'process',
@@ -347,13 +379,32 @@ function createTerminalSessionManager(options = {}) {
         enter_accepted: enterWrite?.accepted ?? null,
       };
     }
-    const parts = textValue.split('\n');
-    for (let i = 0; i < parts.length; i += 1) {
-      if (parts[i]) run('tmux', ['send-keys', '-t', session, '-l', parts[i]]);
-      if (i < parts.length - 1) run('tmux', ['send-keys', '-t', session, 'Enter']);
+    const bufferName = `aos-agent-terminal-input-${crypto.randomUUID()}`;
+    const load = spawnSync('tmux', ['load-buffer', '-b', bufferName, '-'], {
+      input: textValue,
+      encoding: 'utf8',
+      timeout: 5000,
+    });
+    if (load.error) throw load.error;
+    if (load.status !== 0) {
+      const message = (load.stderr || load.stdout || `tmux load-buffer exited ${load.status}`).trim();
+      const error = new Error(message);
+      error.status = load.status;
+      throw error;
     }
+    run('tmux', ['paste-buffer', '-d', '-b', bufferName, '-t', session]);
     if (enter !== false) run('tmux', ['send-keys', '-t', session, 'Enter']);
-    return { ok: true };
+    appendPtyInputTelemetry({
+      action: 'send',
+      target: session,
+      driver: 'tmux',
+      paste_buffer: bufferName,
+      text: textValue,
+      utf8_hex: Buffer.from(textValue, 'utf8').toString('hex'),
+      clear_sent: false,
+      submit_sent: enter !== false,
+    });
+    return { ok: true, driver: 'tmux', paste_buffer: true, enter_sent: enter !== false };
   }
 
   function writeKey(session, key) {
@@ -373,6 +424,12 @@ function createTerminalSessionManager(options = {}) {
         Backspace: '\x7f',
       }[key];
       const write = writeProcessStdin(existing, sequence);
+      appendPtyInputTelemetry({
+        action: 'key',
+        target: session,
+        driver: 'process-stdin',
+        key,
+      });
       return {
         ok: true,
         driver: 'process',
@@ -385,7 +442,13 @@ function createTerminalSessionManager(options = {}) {
     if (!tmuxAvailable) throw new Error(`session is not running: ${session}`);
     const tmuxKey = key === 'Enter' ? 'Enter' : key;
     run('tmux', ['send-keys', '-t', session, tmuxKey]);
-    return { ok: true };
+    appendPtyInputTelemetry({
+      action: 'key',
+      target: session,
+      driver: 'tmux',
+      key: tmuxKey,
+    });
+    return { ok: true, driver: 'tmux' };
   }
 
   function resize(session, colsValue, rowsValue) {
