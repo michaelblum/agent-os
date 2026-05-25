@@ -23,6 +23,15 @@ function run(executable, args) {
   };
 }
 
+function runChecked(executable, args, code, prefix, tolerate = () => false) {
+  const result = run(executable, args);
+  if (result.status !== 0 && !tolerate(result)) {
+    const detail = (result.stderr || result.stdout).trim();
+    error(`${prefix}: ${detail}`, code);
+  }
+  return result;
+}
+
 function currentMode() {
   const override = process.env.AOS_RUNTIME_MODE?.toLowerCase();
   if (override === 'repo' || override === 'installed') return override;
@@ -127,6 +136,30 @@ function servicePID(label) {
   return null;
 }
 
+function launchctlBootstrap(plistPath, { tolerateAlreadyBootstrapped = false } = {}) {
+  runChecked(
+    '/bin/launchctl',
+    ['bootstrap', launchDomain(), plistPath],
+    'LAUNCHCTL_ERROR',
+    'launchctl bootstrap failed',
+    (result) => tolerateAlreadyBootstrapped && result.stderr.includes('already bootstrapped'),
+  );
+}
+
+function launchctlKickstart(label) {
+  runChecked('/bin/launchctl', ['kickstart', '-k', `${launchDomain()}/${label}`], 'LAUNCHCTL_ERROR', 'launchctl kickstart failed');
+}
+
+function launchctlBootout(plistPath) {
+  runChecked(
+    '/bin/launchctl',
+    ['bootout', launchDomain(), plistPath],
+    'LAUNCHCTL_ERROR',
+    'launchctl bootout failed',
+    (result) => result.stderr.includes('No such process') || result.stderr.includes('service could not be found'),
+  );
+}
+
 function plistValue(plistPath, keyPath) {
   const output = run('/usr/libexec/PlistBuddy', ['-c', `Print ${keyPath}`, plistPath]);
   if (output.status !== 0) return null;
@@ -141,6 +174,123 @@ function isExecutable(filePath) {
   } catch {
     return false;
   }
+}
+
+function guardBinaryExists(filePath) {
+  if (!isExecutable(filePath)) {
+    error(`Service binary is missing or not executable: ${filePath}`, 'FILE_NOT_FOUND');
+  }
+}
+
+function escapeXML(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function plistXML(paths) {
+  const values = {
+    Label: paths.label,
+    RunAtLoad: true,
+    KeepAlive: true,
+    WorkingDirectory: path.dirname(paths.binaryPath),
+    StandardOutPath: paths.stdoutLogPath,
+    StandardErrorPath: paths.stderrLogPath,
+  };
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${escapeXML(values.Label)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${escapeXML(paths.binaryPath)}</string>
+    <string>serve</string>
+    <string>--idle-timeout</string>
+    <string>none</string>
+  </array>
+  <key>RunAtLoad</key>
+  <${values.RunAtLoad ? 'true' : 'false'}/>
+  <key>KeepAlive</key>
+  <${values.KeepAlive ? 'true' : 'false'}/>
+  <key>WorkingDirectory</key>
+  <string>${escapeXML(values.WorkingDirectory)}</string>
+  <key>StandardOutPath</key>
+  <string>${escapeXML(values.StandardOutPath)}</string>
+  <key>StandardErrorPath</key>
+  <string>${escapeXML(values.StandardErrorPath)}</string>
+</dict>
+</plist>
+`;
+}
+
+function writeServicePlist(paths) {
+  try {
+    fs.mkdirSync(paths.logDir, { recursive: true });
+    fs.mkdirSync(path.dirname(paths.plistPath), { recursive: true });
+    fs.writeFileSync(paths.plistPath, plistXML(paths));
+  } catch (err) {
+    error(`Failed to write launch agent plist: ${err.message}`, 'WRITE_ERROR');
+  }
+}
+
+function aosPath() {
+  return process.env.AOS_PATH || path.join(repoRoot(), 'aos');
+}
+
+function verifyReadiness(mode, json) {
+  const args = ['service', '_verify-readiness', '--mode', mode];
+  if (json) args.push('--json');
+  const env = { ...process.env, AOS_RUNTIME_MODE: mode };
+  const result = spawnSync(aosPath(), args, {
+    cwd: repoRoot(),
+    env,
+    encoding: 'utf8',
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.status ?? 1);
+}
+
+function installCommand(args) {
+  const options = parseOptions(args);
+  const paths = servicePaths(options.mode);
+  guardBinaryExists(paths.binaryPath);
+  writeServicePlist(paths);
+  launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
+  launchctlKickstart(paths.label);
+  verifyReadiness(options.mode, options.json);
+}
+
+function startCommand(args) {
+  const options = parseOptions(args);
+  const paths = servicePaths(options.mode);
+  guardBinaryExists(paths.binaryPath);
+  if (!fs.existsSync(paths.plistPath)) {
+    writeServicePlist(paths);
+    launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
+  } else if (!isServiceLoaded(paths.label)) {
+    launchctlBootstrap(paths.plistPath);
+  }
+  launchctlKickstart(paths.label);
+  verifyReadiness(options.mode, options.json);
+}
+
+function stopService(mode) {
+  const paths = servicePaths(mode);
+  if (fs.existsSync(paths.plistPath) && isServiceLoaded(paths.label)) {
+    launchctlBootout(paths.plistPath);
+  }
+}
+
+function stopCommand(args) {
+  const options = parseOptions(args);
+  stopService(options.mode);
+  statusCommand(args);
 }
 
 function serviceStatus(mode) {
@@ -205,6 +355,9 @@ function logsCommand(args) {
 }
 
 const [subcommand, ...rest] = process.argv.slice(2);
-if (subcommand === 'status') statusCommand(rest);
+if (subcommand === 'install') installCommand(rest);
+else if (subcommand === 'start') startCommand(rest);
+else if (subcommand === 'stop') stopCommand(rest);
+else if (subcommand === 'status') statusCommand(rest);
 else if (subcommand === 'logs') logsCommand(rest);
 else error(`Unknown service command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');

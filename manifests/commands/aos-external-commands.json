@@ -171,6 +171,45 @@
       }
     },
     {
+      "path": ["service", "install"],
+      "summary": "Install and kickstart the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "install"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "start"],
+      "summary": "Start the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "start"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "stop"],
+      "summary": "Stop the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "stop"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["service", "status"],
       "summary": "Inspect launchd service state through the external service command.",
       "executable": "/usr/bin/env",
