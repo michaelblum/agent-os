@@ -26,6 +26,17 @@
       }
     },
     {
+      "path": ["do", "profiles"],
+      "summary": "Inspect action behavior profiles through the external do profiles command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-profiles.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["inspect"],
       "summary": "Run the live AX inspector overlay through the external inspect command.",
       "executable": "/usr/bin/env",
