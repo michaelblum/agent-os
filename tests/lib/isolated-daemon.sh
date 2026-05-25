@@ -29,13 +29,21 @@ PY
 aos_test_pids_for_root() {
   local root="$1"
   python3 - "$root" <<'PY'
-import subprocess, sys
+import os, pathlib, subprocess, sys
 
 root = sys.argv[1]
+normalized = os.path.normpath(root)
+resolved = str(pathlib.Path(root).resolve())
 out = subprocess.check_output(["ps", "eww", "-Ao", "pid=,command="], text=True)
 for line in out.splitlines():
     line = line.strip()
-    if not line or "aos serve" not in line or f"AOS_STATE_ROOT={root}" not in line:
+    if not line or "aos serve" not in line:
+        continue
+    if (
+        f"AOS_STATE_ROOT={root}" not in line
+        and f"AOS_STATE_ROOT={normalized}" not in line
+        and f"AOS_STATE_ROOT={resolved}" not in line
+    ):
         continue
     pid = line.split(None, 1)[0]
     print(pid)

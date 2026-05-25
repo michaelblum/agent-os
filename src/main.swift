@@ -33,9 +33,19 @@ struct AOS {
         case "say":
             handleSay(args: Array(args.dropFirst()))
         case "tell":
-            handleTell(args: Array(args.dropFirst()))
+            let tellArgs = Array(args.dropFirst())
+            if tellArgs.contains("--help") || tellArgs.contains("-h") {
+                printCommandHelp(["tell"], json: tellArgs.contains("--json"))
+                exit(0)
+            }
+            exitError("Unknown tell invocation", code: "UNKNOWN_COMMAND")
         case "listen":
-            handleListen(args: Array(args.dropFirst()))
+            let listenArgs = Array(args.dropFirst())
+            if listenArgs.contains("--help") || listenArgs.contains("-h") {
+                printCommandHelp(["listen"], json: listenArgs.contains("--json"))
+                exit(0)
+            }
+            exitError("Unknown listen invocation", code: "UNKNOWN_COMMAND")
         case "gate":
             let gateArgs = Array(args.dropFirst())
             if gateArgs.isEmpty || gateArgs.contains("--help") || gateArgs.contains("-h") {
@@ -362,20 +372,4 @@ func handleServe(args: [String]) {
         exit(0)
     }
     serveCommand(args: args)
-}
-
-func handleTell(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["tell"], json: args.contains("--json"))
-        exit(0)
-    }
-    tellCommand(args: args)
-}
-
-func handleListen(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["listen"], json: args.contains("--json"))
-        exit(0)
-    }
-    listenCommand_coord(args: args)
 }

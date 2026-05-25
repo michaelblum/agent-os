@@ -167,6 +167,30 @@
       }
     },
     {
+      "path": ["tell"],
+      "summary": "Send daemon-routed coordination messages through the external tell command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-tell-listen.mjs", "tell"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["listen"],
+      "summary": "Read daemon-routed coordination messages through the external listen command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-tell-listen.mjs", "listen"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["gate", "ask"],
       "summary": "Run the gate ask verb from the external Node implementation.",
       "executable": "/usr/bin/env",

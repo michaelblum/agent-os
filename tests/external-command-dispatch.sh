@@ -104,6 +104,36 @@ else
 fi
 rm -rf "$RESET_ROOT" "$RESET_OUT"
 
+COMM_ROOT="$(mktemp -d)"
+COMM_REGISTER="$(mktemp)"
+COMM_WHO="$(mktemp)"
+COMM_SEND="$(mktemp)"
+COMM_READ="$(mktemp)"
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --register --session-id external-dispatch-session --name external-dispatch --role worker --harness test >"$COMM_REGISTER" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --who >"$COMM_WHO" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell external-dispatch "hello from external dispatch" >"$COMM_SEND" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos listen external-dispatch --limit 5 >"$COMM_READ" 2>/dev/null
+if COMM_REGISTER="$COMM_REGISTER" COMM_WHO="$COMM_WHO" COMM_SEND="$COMM_SEND" COMM_READ="$COMM_READ" python3 - <<'PY'
+import json
+import os
+
+register = json.load(open(os.environ["COMM_REGISTER"], encoding="utf-8"))
+who = json.load(open(os.environ["COMM_WHO"], encoding="utf-8"))
+send = json.load(open(os.environ["COMM_SEND"], encoding="utf-8"))
+read = json.load(open(os.environ["COMM_READ"], encoding="utf-8"))
+assert register["status"] == "success", register
+assert "external-dispatch-session" in json.dumps(who), who
+assert send["status"] == "success", send
+assert "hello from external dispatch" in json.dumps(read), read
+PY
+then
+    pass "tell and listen run through external command manifest"
+else
+    fail "tell/listen external dispatch drifted"
+fi
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos service stop --mode repo >/dev/null 2>&1 || true
+rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "external-command-dispatch: all checks passed"
