@@ -113,41 +113,21 @@ struct AOS {
                 printCommandHelp(["focus"], json: focusArgs.contains("--json"))
                 exit(0)
             }
-            guard focusArgs.count >= 1 else {
-                printCommandHelp(["focus"], json: false)
-                exit(0)
-            }
-            switch focusArgs[0] {
-            case "create":  focusCreateCommand(args: Array(focusArgs.dropFirst()))
-            case "update":  focusUpdateCommand(args: Array(focusArgs.dropFirst()))
-            case "list":    focusListCommand()
-            case "remove":  focusRemoveCommand(args: Array(focusArgs.dropFirst()))
-            default: exitError("Unknown focus subcommand: \(focusArgs[0])", code: "UNKNOWN_COMMAND")
-            }
+            exitError("Unknown focus invocation", code: "UNKNOWN_COMMAND")
         case "graph":
             let graphArgs = Array(args.dropFirst())
             if graphArgs.contains("--help") || graphArgs.contains("-h") {
                 printCommandHelp(["graph"], json: graphArgs.contains("--json"))
                 exit(0)
             }
-            guard graphArgs.count >= 1 else {
-                printCommandHelp(["graph"], json: false)
-                exit(0)
-            }
-            switch graphArgs[0] {
-            case "displays":  graphDisplaysCommand()
-            case "windows":   graphWindowsCommand(args: Array(graphArgs.dropFirst()))
-            case "deepen":    graphDeepenCommand(args: Array(graphArgs.dropFirst()))
-            case "collapse":  graphCollapseCommand(args: Array(graphArgs.dropFirst()))
-            default: exitError("Unknown graph subcommand: \(graphArgs[0])", code: "UNKNOWN_COMMAND")
-            }
+            exitError("Unknown graph invocation", code: "UNKNOWN_COMMAND")
         case "daemon-snapshot":
             let dsArgs = Array(args.dropFirst())
             if dsArgs.contains("--help") || dsArgs.contains("-h") {
                 printCommandHelp(["daemon-snapshot"], json: dsArgs.contains("--json"))
                 exit(0)
             }
-            daemonSnapshotCommand()
+            exitError("Unknown daemon-snapshot invocation", code: "UNKNOWN_COMMAND")
         case "inspect":
             inspectCommand(args: Array(args.dropFirst()))
         case "log":
