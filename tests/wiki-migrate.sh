@@ -51,4 +51,14 @@ test -f "$TMP2/wiki/aos/concepts/coordinate.md" || { echo "FAIL: partial migrati
 test ! -d "$TMP2/wiki/concepts" || { echo "FAIL: top-level concepts/ still present after partial-migration recovery"; exit 1; }
 test -f "$TMP2/wiki/aos/entities/daemon.md" || { echo "FAIL: existing aos/entities content lost"; exit 1; }
 
+if ./aos wiki migrate-namespaces --bogus 2>"$TMP/wiki-migrate-bogus.err"; then
+  echo "FAIL: migrate-namespaces accepted unknown flag"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_FLAG"' "$TMP/wiki-migrate-bogus.err" || {
+  echo "FAIL: migrate-namespaces unknown flag did not use external script error contract"
+  cat "$TMP/wiki-migrate-bogus.err"
+  exit 1
+}
+
 echo "PASS"
