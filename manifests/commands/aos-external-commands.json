@@ -138,6 +138,19 @@
       "cwd": "repo"
     },
     {
+      "path": ["see", "observe"],
+      "summary": "Subscribe to perception events through the external observe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-observe.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["see", "zone", "list"],
       "summary": "List named capture zones through the external zone command.",
       "executable": "/usr/bin/env",
@@ -555,6 +568,19 @@
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-voice.mjs", "final-response"],
       "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "listen"],
+      "summary": "Listen for canvas events through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "listen"],
+      "cwd": "repo",
+      "stdio": "inherit",
       "env": {
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",

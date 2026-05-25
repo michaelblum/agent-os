@@ -20,6 +20,7 @@ private struct ExternalCommand: Decodable {
     let argvPrefix: [String]
     let cwd: String?
     let env: [String: String]?
+    let stdio: ExternalCommandStdio?
 
     enum CodingKeys: String, CodingKey {
         case path
@@ -27,7 +28,13 @@ private struct ExternalCommand: Decodable {
         case argvPrefix = "argv_prefix"
         case cwd
         case env
+        case stdio
     }
+}
+
+private enum ExternalCommandStdio: String, Decodable {
+    case capture
+    case inherit
 }
 
 func runExternalCommandIfMatched(args: [String]) -> Bool {
@@ -65,6 +72,9 @@ func runExternalCommandIfMatched(args: [String]) -> Bool {
     let argv = command.argvPrefix.map { resolveExternalArg($0, repoRoot: commandRepoRoot) } + childArgs
     let cwd = command.cwd == "repo" ? commandRepoRoot : command.cwd.map { resolveExternalArg($0, repoRoot: commandRepoRoot) }
     let environment = command.env.map { resolveExternalEnvironment($0, repoRoot: commandRepoRoot) }
+    if command.stdio == .inherit {
+        exit(runExternalProcessInheritingStdio(executable, arguments: argv, cwd: cwd, environment: environment))
+    }
     let result = runExternalProcessCapturingOutput(executable, arguments: argv, cwd: cwd, environment: environment)
     if !result.stdout.isEmpty, let data = result.stdout.data(using: .utf8) {
         FileHandle.standardOutput.write(data)
@@ -149,6 +159,42 @@ private func resolveExternalEnvironment(_ env: [String: String], repoRoot: Strin
         resolved[key] = resolveExternalArg(value, repoRoot: repoRoot)
     }
     return resolved
+}
+
+private func runExternalProcessInheritingStdio(
+    _ executable: String,
+    arguments: [String],
+    cwd: String? = nil,
+    environment: [String: String]? = nil
+) -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: executable)
+    process.arguments = arguments
+    if let cwd {
+        process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+    }
+    if let environment {
+        var merged = ProcessInfo.processInfo.environment
+        for (key, value) in environment {
+            merged[key] = value
+        }
+        process.environment = merged
+    }
+    process.standardInput = FileHandle.standardInput
+    process.standardOutput = FileHandle.standardOutput
+    process.standardError = FileHandle.standardError
+
+    do {
+        try process.run()
+    } catch {
+        if let data = "\(error)\n".data(using: .utf8) {
+            FileHandle.standardError.write(data)
+        }
+        return 1
+    }
+
+    process.waitUntilExit()
+    return process.terminationStatus
 }
 
 private func runExternalProcessCapturingOutput(

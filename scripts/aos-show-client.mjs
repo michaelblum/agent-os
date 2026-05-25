@@ -567,6 +567,31 @@ async function postCommand(args) {
   await oneShot('post', id ? { id, data: event } : { channel, data }, { autoStart: true });
 }
 
+async function listenCommand(args) {
+  if (args.length > 0) error(`Unknown argument: ${args[0]}`, 'UNKNOWN_ARG');
+  const socket = await connectWithAutoStart();
+  if (!socket) error('Failed to start aos daemon', 'DAEMON_START_FAILED');
+
+  const close = () => {
+    socket.end();
+    process.exit(0);
+  };
+  process.once('SIGINT', close);
+  process.once('SIGTERM', close);
+
+  socket.on('data', (chunk) => {
+    process.stdout.write(chunk);
+  });
+  socket.once('close', () => process.exit(0));
+  socket.once('error', () => process.exit(0));
+
+  process.stdin.on('data', (chunk) => {
+    socket.write(chunk);
+  });
+
+  socket.write(`${JSON.stringify({ action: 'subscribe' })}\n`);
+}
+
 const [command, ...args] = process.argv.slice(2);
 switch (command) {
   case 'create':
@@ -601,6 +626,9 @@ switch (command) {
     break;
   case 'wait':
     await waitCommand(args);
+    break;
+  case 'listen':
+    await listenCommand(args);
     break;
   default:
     error(`Unknown show command: ${command ?? ''}`, 'UNKNOWN_COMMAND');
