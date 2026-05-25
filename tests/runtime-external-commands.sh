@@ -35,6 +35,19 @@ else
     fail "runtime status external dispatch drifted: ${OUT:-}"
 fi
 
+if OUT="$(./aos runtime display-union 2>/dev/null)" python3 - <<'PY'
+import os
+import re
+
+out = os.environ["OUT"]
+assert re.match(r"^0,0,[0-9]+,[0-9]+$", out), out
+PY
+then
+    pass "runtime display-union runs through external command manifest"
+else
+    fail "runtime display-union external dispatch drifted: ${OUT:-}"
+fi
+
 if ./aos runtime path --bogus >/tmp/aos-runtime-path-bogus.out 2>/tmp/aos-runtime-path-bogus.err; then
     fail "runtime path accepted an unknown flag"
 else
