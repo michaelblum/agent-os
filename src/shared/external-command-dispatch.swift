@@ -19,12 +19,14 @@ private struct ExternalCommand: Decodable {
     let executable: String
     let argvPrefix: [String]
     let cwd: String?
+    let env: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case path
         case executable
         case argvPrefix = "argv_prefix"
         case cwd
+        case env
     }
 }
 
@@ -62,7 +64,8 @@ func runExternalCommandIfMatched(args: [String]) -> Bool {
     let childArgs = Array(args.dropFirst(command.path.count))
     let argv = command.argvPrefix.map { resolveExternalArg($0, repoRoot: commandRepoRoot) } + childArgs
     let cwd = command.cwd == "repo" ? commandRepoRoot : command.cwd.map { resolveExternalArg($0, repoRoot: commandRepoRoot) }
-    let result = runExternalProcessCapturingOutput(executable, arguments: argv, cwd: cwd)
+    let environment = command.env.map { resolveExternalEnvironment($0, repoRoot: commandRepoRoot) }
+    let result = runExternalProcessCapturingOutput(executable, arguments: argv, cwd: cwd, environment: environment)
     if !result.stdout.isEmpty, let data = result.stdout.data(using: .utf8) {
         FileHandle.standardOutput.write(data)
     }
@@ -104,10 +107,32 @@ private func resolveExternalArg(_ value: String, repoRoot: String) -> String {
     if value.hasPrefix("$REPO_ROOT/") {
         return (repoRoot as NSString).appendingPathComponent(String(value.dropFirst("$REPO_ROOT/".count)))
     }
+    if value == "$AOS_RUNTIME_MODE" {
+        return aosCurrentRuntimeMode().rawValue
+    }
+    if value == "$AOS_STATE_ROOT" {
+        return aosStateRoot()
+    }
+    if value == "$AOS_PATH" {
+        return CommandLine.arguments.first ?? "./aos"
+    }
     return value
 }
 
-private func runExternalProcessCapturingOutput(_ executable: String, arguments: [String], cwd: String? = nil) -> ProcessOutput {
+private func resolveExternalEnvironment(_ env: [String: String], repoRoot: String) -> [String: String] {
+    var resolved: [String: String] = [:]
+    for (key, value) in env {
+        resolved[key] = resolveExternalArg(value, repoRoot: repoRoot)
+    }
+    return resolved
+}
+
+private func runExternalProcessCapturingOutput(
+    _ executable: String,
+    arguments: [String],
+    cwd: String? = nil,
+    environment: [String: String]? = nil
+) -> ProcessOutput {
     let process = Process()
     let stdoutURL = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("aos-external-stdout-\(UUID().uuidString)")
@@ -130,6 +155,13 @@ private func runExternalProcessCapturingOutput(_ executable: String, arguments: 
     process.arguments = arguments
     if let cwd {
         process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+    }
+    if let environment {
+        var merged = ProcessInfo.processInfo.environment
+        for (key, value) in environment {
+            merged[key] = value
+        }
+        process.environment = merged
     }
     process.standardOutput = stdout
     process.standardError = stderr
