@@ -23,6 +23,16 @@
       "cwd": "repo"
     },
     {
+      "path": ["dev", "gh"],
+      "summary": "Run GitHub workflow helpers through the external dev gh command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-gh.mjs"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["runtime", "install"],
       "summary": "Package and install the stable AOS.app runtime from an external script.",
       "executable": "/bin/bash",
