@@ -49,6 +49,9 @@ if [[ -x "$EXECUTABLE" ]]; then
       signing_identity="$(printf '%s\n' "$codesign_meta" | awk -F= '/^Signature=/{print $2; exit}')"
     fi
     team_identifier="$(printf '%s\n' "$codesign_meta" | awk -F= '/^TeamIdentifier=/{print $2; exit}')"
+    if [[ "$team_identifier" == "not set" ]]; then
+      team_identifier=""
+    fi
     if [[ "$signing_identity" == "adhoc" ]]; then
       notes+=("Runtime is signed ad hoc; use a stable certificate when available.")
     fi
@@ -116,7 +119,7 @@ print(json.dumps({
 PY
   fi
 else
-  echo "installed=$installed path=$TARGET_APP bundle_id=${bundle_id:-none} version=${version:-none} signed=$signed identity=${signing_identity:-none} team=${team_identifier:-none}"
+  echo "installed=$installed path=$TARGET_APP signed=$signed identity=${signing_identity:-none}"
   if ((${#notes[@]})); then
     printf '%s\n' "${notes[@]}"
   fi

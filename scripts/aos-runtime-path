@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+
+TARGET_APP="${AOS_INSTALL_PATH:-$HOME/Applications/AOS.app}"
+JSON=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --json) JSON=true ;;
+    *) echo "Unknown flag: $arg. Usage: aos runtime path [--json]" >&2; exit 1 ;;
+  esac
+done
+
+if [[ "$JSON" == true ]]; then
+  python3 - <<'PY' "$TARGET_APP"
+import json
+import sys
+
+print(json.dumps({"path": sys.argv[1]}, separators=(",", ":")))
+PY
+else
+  printf '%s\n' "$TARGET_APP"
+fi

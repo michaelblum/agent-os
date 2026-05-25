@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+JSON=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --json) JSON=true ;;
+    *) echo "Unknown flag: $arg. Usage: aos runtime install [--json]" >&2; exit 1 ;;
+  esac
+done
+
+bash "$SCRIPT_DIR/install-aos-runtime"
+
+if [[ "$JSON" == true ]]; then
+  bash "$SCRIPT_DIR/aos-runtime-status" --json
+fi

@@ -21,6 +21,34 @@
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/afk-session-trigger-prototype.mjs"],
       "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "install"],
+      "summary": "Package and install the stable AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-install"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "status"],
+      "summary": "Inspect the installed AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-status"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "path"],
+      "summary": "Print the installed AOS.app runtime path from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-path"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "sign"],
+      "summary": "Sign the packaged AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/sign-aos-runtime"],
+      "cwd": "repo"
     }
   ]
 }
