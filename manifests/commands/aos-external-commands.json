@@ -138,6 +138,39 @@
       "cwd": "repo"
     },
     {
+      "path": ["see", "zone", "list"],
+      "summary": "List named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "zone", "save"],
+      "summary": "Save named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "save"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "zone", "delete"],
+      "summary": "Delete named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "delete"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["service", "status"],
       "summary": "Inspect launchd service state through the external service command.",
       "executable": "/usr/bin/env",
