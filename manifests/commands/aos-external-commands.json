@@ -292,6 +292,17 @@
       }
     },
     {
+      "path": ["wiki", "reindex"],
+      "summary": "Rebuild the wiki index through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-reindex.py"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["wiki", "list"],
       "summary": "List wiki index entries through the external wiki command.",
       "executable": "/usr/bin/env",
