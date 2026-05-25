@@ -46,4 +46,10 @@ for bad in "voice://" "voice://foo" "voice:foo/bar" ""; do
   fi
 done
 
+err="$(./aos voice _internal-canonicalize --bogus 2>&1 >/dev/null || true)"
+grep -q '"code": "UNKNOWN_FLAG"' <<<"$err" || {
+  echo "FAIL: unknown flag did not use external error contract: $err" >&2
+  exit 1
+}
+
 echo "ok"

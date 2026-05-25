@@ -359,6 +359,27 @@
       }
     },
     {
+      "path": ["voice", "_internal-id-roundtrip"],
+      "summary": "Round-trip voice IDs through the external voice test helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice-internal.mjs", "_internal-id-roundtrip"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["voice", "_internal-canonicalize"],
+      "summary": "Canonicalize voice IDs through the external voice test helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice-internal.mjs", "_internal-canonicalize"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["voice", "_internal-registry-snapshot"],
+      "summary": "Emit the voice registry snapshot through the external voice test helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice-internal.mjs", "_internal-registry-snapshot"],
+      "cwd": "repo"
+    },
+    {
       "path": ["focus"],
       "summary": "Manage focus channels through the external focus command.",
       "executable": "/usr/bin/env",
