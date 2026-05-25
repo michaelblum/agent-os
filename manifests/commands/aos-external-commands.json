@@ -520,6 +520,13 @@
       }
     },
     {
+      "path": ["browser", "_run"],
+      "summary": "Run Playwright CLI through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_run"],
+      "cwd": "repo"
+    },
+    {
       "path": ["ops"],
       "summary": "Run source-backed operator recipes through the external ops command.",
       "executable": "/usr/bin/env",

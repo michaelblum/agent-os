@@ -3,6 +3,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message }, null, 2)}\n`);
@@ -102,6 +104,41 @@ function isoNow() {
   return new Date().toISOString().replace('Z', '000Z');
 }
 
+function runPlaywrightCommand(args) {
+  let session = '';
+  let verb = '';
+  let withFilename = false;
+  for (const arg of args) {
+    if (arg.startsWith('--session=')) session = arg.slice('--session='.length);
+    else if (arg.startsWith('--verb=')) verb = arg.slice('--verb='.length);
+    else if (arg === '--with-filename') withFilename = true;
+  }
+  if (!session || !verb) error('--session=<s> and --verb=<v> are required', 'MISSING_ARG');
+
+  const argv = [`-s=${session}`, verb];
+  let filename = null;
+  if (withFilename) {
+    const scratch = path.join(process.cwd(), '.aos-browser-tmp');
+    fs.mkdirSync(scratch, { recursive: true });
+    filename = path.join(scratch, `aos-pw-${crypto.randomUUID()}.md`);
+    argv.push(`--filename=${filename}`);
+  }
+  const result = spawnSync('/usr/bin/env', ['playwright-cli', ...argv], {
+    encoding: 'utf8',
+    env: process.env,
+    maxBuffer: 100 * 1024 * 1024,
+  });
+  if (result.error && result.status === null) {
+    error(`launch failed: ${result.error.message}`, 'PLAYWRIGHT_CLI_LAUNCH_FAILED');
+  }
+  process.stdout.write(`${JSON.stringify({
+    exit_code: result.status ?? 1,
+    stdout: (result.stdout || '').trim(),
+    stderr: (result.stderr || '').trim(),
+    filename,
+  })}\n`);
+}
+
 function registryCommand(args) {
   const [op, ...rest] = args;
   if (!op) error('Usage: aos browser _registry <op> ...', 'MISSING_ARG');
@@ -160,6 +197,9 @@ try {
       break;
     case '_registry':
       registryCommand(args);
+      break;
+    case '_run':
+      runPlaywrightCommand(args);
       break;
     default:
       error(`Unknown browser internal command: ${command ?? ''}`, 'UNKNOWN_SUBCOMMAND');
