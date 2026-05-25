@@ -498,6 +498,28 @@
       }
     },
     {
+      "path": ["browser", "_parse-target"],
+      "summary": "Parse browser targets through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_parse-target"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry"],
+      "summary": "Manage browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["ops"],
       "summary": "Run source-backed operator recipes through the external ops command.",
       "executable": "/usr/bin/env",
