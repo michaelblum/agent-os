@@ -139,6 +139,148 @@ function runPlaywrightCommand(args) {
   })}\n`);
 }
 
+function stripListMarker(line) {
+  let columns = 0;
+  let i = 0;
+  while (i < line.length && (line[i] === ' ' || line[i] === '\t')) {
+    columns += line[i] === '\t' ? 2 : 1;
+    i += 1;
+  }
+  if (line[i] !== '-') return null;
+  i += 1;
+  while (i < line.length && (line[i] === ' ' || line[i] === '\t')) i += 1;
+  const body = line.slice(i);
+  if (!body) return null;
+  return { indent: Math.floor(columns / 2), body };
+}
+
+function readQuoted(text, start) {
+  let value = '';
+  let escaped = false;
+  for (let i = start + 1; i < text.length; i += 1) {
+    const ch = text[i];
+    if (escaped) {
+      value += ch;
+      escaped = false;
+    } else if (ch === '\\') {
+      escaped = true;
+    } else if (ch === '"') {
+      return { value, next: i + 1 };
+    } else {
+      value += ch;
+    }
+  }
+  return null;
+}
+
+function findClosingBracket(text, start) {
+  let inQuote = false;
+  let escaped = false;
+  for (let i = start + 1; i < text.length; i += 1) {
+    const ch = text[i];
+    if (escaped) escaped = false;
+    else if (inQuote) {
+      if (ch === '\\') escaped = true;
+      else if (ch === '"') inQuote = false;
+    } else if (ch === '"') inQuote = true;
+    else if (ch === ']') return i;
+  }
+  return -1;
+}
+
+function parseBracketMarker(inner) {
+  const trimmed = inner.trim();
+  if (!trimmed) return null;
+  const equals = trimmed.indexOf('=');
+  if (equals < 0) return { key: trimmed, value: null };
+  const key = trimmed.slice(0, equals).trim();
+  if (!key) return null;
+  const rawValue = trimmed.slice(equals + 1).trim();
+  if (rawValue.startsWith('"')) {
+    const quoted = readQuoted(rawValue, 0);
+    if (quoted && quoted.next === rawValue.length) return { key, value: quoted.value };
+  }
+  return { key, value: rawValue };
+}
+
+function parseInlineFields(text) {
+  let title;
+  const markers = {};
+  const flags = new Set();
+  for (let i = 0; i < text.length;) {
+    if (text[i] === '"') {
+      const quoted = readQuoted(text, i);
+      if (quoted) {
+        if (title === undefined) title = quoted.value;
+        i = quoted.next;
+        continue;
+      }
+    } else if (text[i] === '[') {
+      const close = findClosingBracket(text, i);
+      if (close >= 0) {
+        const marker = parseBracketMarker(text.slice(i + 1, close));
+        if (marker) {
+          if (marker.value === null) flags.add(marker.key);
+          else markers[marker.key] = marker.value;
+        }
+        i = close + 1;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return { title, markers, flags };
+}
+
+function parseSnapshotLine(body) {
+  let text = body.endsWith(':') ? body.slice(0, -1) : body;
+  const match = text.match(/^(\S+)(?:\s+(.*))?$/);
+  if (!match) return null;
+  const role = match[1].trim();
+  const rest = match[2] || '';
+  if (!role || role.startsWith('/')) return null;
+  const inline = parseInlineFields(rest);
+  const ref = inline.markers.ref;
+  if (!ref || !/^[A-Za-z0-9_-]+$/.test(ref)) return null;
+  const out = {
+    context_path: [],
+    enabled: !inline.flags.has('disabled'),
+    ref,
+    role,
+  };
+  if (inline.title !== undefined) out.title = inline.title;
+  if (inline.markers.value !== undefined) out.value = inline.markers.value;
+  return out;
+}
+
+function parseSnapshotMarkdown(contents) {
+  const elements = [];
+  const stack = [];
+  for (const line of contents.split('\n')) {
+    const stripped = stripListMarker(line);
+    if (!stripped) continue;
+    const parsed = parseSnapshotLine(stripped.body);
+    if (!parsed) continue;
+    while (stack.length > 0 && stack[stack.length - 1].indent >= stripped.indent) stack.pop();
+    parsed.context_path = stack.map((item) => item.role);
+    elements.push(parsed);
+    stack.push({ indent: stripped.indent, role: parsed.role });
+  }
+  return elements;
+}
+
+function parseSnapshotCommand(args) {
+  const file = args[0];
+  if (!file) error('Usage: aos browser _parse-snapshot <markdown-file>', 'MISSING_ARG');
+  let contents;
+  try {
+    contents = fs.readFileSync(file, 'utf8');
+  } catch {
+    error(`Snapshot markdown not found: ${file}`, 'SNAPSHOT_READ_FAILED');
+  }
+  process.stdout.write(`${JSON.stringify(parseSnapshotMarkdown(contents), null, 2)}\n`);
+}
+
 function registryCommand(args) {
   const [op, ...rest] = args;
   if (!op) error('Usage: aos browser _registry <op> ...', 'MISSING_ARG');
@@ -200,6 +342,9 @@ try {
       break;
     case '_run':
       runPlaywrightCommand(args);
+      break;
+    case '_parse-snapshot':
+      parseSnapshotCommand(args);
       break;
     default:
       error(`Unknown browser internal command: ${command ?? ''}`, 'UNKNOWN_SUBCOMMAND');

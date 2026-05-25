@@ -527,6 +527,13 @@
       "cwd": "repo"
     },
     {
+      "path": ["browser", "_parse-snapshot"],
+      "summary": "Parse Playwright snapshot markdown through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_parse-snapshot"],
+      "cwd": "repo"
+    },
+    {
       "path": ["ops"],
       "summary": "Run source-backed operator recipes through the external ops command.",
       "executable": "/usr/bin/env",
