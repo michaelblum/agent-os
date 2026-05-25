@@ -280,6 +280,26 @@ else
     fail "dev afk-session-trigger help is missing guarded trigger flags: $OUT"
 fi
 
+# --- 21. command registry metadata is externally hot-swappable ---
+TMP_REGISTRY="$(mktemp "${TMPDIR:-/tmp}/aos-command-registry.XXXXXX.json")"
+python3 - "$TMP_REGISTRY" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
+dev = next(command for command in manifest["commands"] if command["path"] == ["dev"])
+dev["summary"] = "HOT SWAP TEST SUMMARY"
+Path(sys.argv[1]).write_text(json.dumps(manifest), encoding="utf-8")
+PY
+OUT=$(AOS_COMMAND_REGISTRY="$TMP_REGISTRY" ./aos help dev --json 2>/dev/null)
+rm -f "$TMP_REGISTRY"
+if echo "$OUT" | grep -q 'HOT SWAP TEST SUMMARY'; then
+    pass "command registry manifest can change help without Swift changes"
+else
+    fail "external command registry manifest did not override help: $OUT"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"

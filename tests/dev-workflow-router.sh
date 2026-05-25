@@ -181,6 +181,68 @@ else
     fail "dev afk-launch-attempt help drifted"
 fi
 
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-dry-run.XXXXXX.json")"
+cat > "$PACKET" <<JSON
+{
+  "packet_id": "dev-wrapper-afk-dry-run",
+  "source_artifact": "docs/design/work-cards/afk-dev-dry-run-command-v0.md",
+  "requested_recipient": "gdi",
+  "cwd": "$PWD",
+  "worktree": "$PWD",
+  "required_start_ref": "HEAD",
+  "provider_hint": "codex",
+  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
+  "external_publication_policy": "local-only",
+  "goal": "verify external dev afk-dry-run wrapper"
+}
+JSON
+if OUT="$(./aos dev afk-dry-run --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["final_status"] == "completed", data
+assert data["transfer"]["packet_id_or_ref"] == "dev-wrapper-afk-dry-run", data
+assert data["dispatch"]["selected_provider"] == "codex", data
+PY
+then
+    pass "dev afk-dry-run runs through external command manifest"
+else
+    fail "dev afk-dry-run external wrapper drifted: $OUT"
+fi
+rm -f "$PACKET"
+
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-launch-attempt.XXXXXX.json")"
+cat > "$PACKET" <<JSON
+{
+  "packet_id": "dev-wrapper-afk-launch-attempt",
+  "source_artifact": "docs/design/work-cards/afk-dev-launch-attempt-command-v0.md",
+  "requested_recipient": "gdi",
+  "cwd": "$PWD",
+  "worktree": "$PWD",
+  "required_start_ref": "HEAD",
+  "provider_hint": "codex",
+  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
+  "external_publication_policy": "local-only",
+  "goal": "verify external dev afk-launch-attempt wrapper"
+}
+JSON
+if OUT="$(./aos dev afk-launch-attempt --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["record_type"] == "aos.afk_launch_attempt", data
+assert data["transfer"]["packet_id_or_ref"] == "dev-wrapper-afk-launch-attempt", data
+assert data["selection"]["selected_provider"] == "codex", data
+PY
+then
+    pass "dev afk-launch-attempt runs through external command manifest"
+else
+    fail "dev afk-launch-attempt external wrapper drifted: $OUT"
+fi
+rm -f "$PACKET"
+
 if OUT="$(./aos help dev afk-session-trigger --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -203,6 +265,38 @@ then
 else
     fail "dev afk-session-trigger help drifted"
 fi
+
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-session-trigger.XXXXXX.json")"
+cat > "$PACKET" <<JSON
+{
+  "packet_id": "dev-wrapper-afk-session-trigger",
+  "source_artifact": "docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md",
+  "requested_recipient": "gdi",
+  "cwd": "$PWD",
+  "worktree": "$PWD",
+  "required_start_ref": "HEAD",
+  "provider_hint": "codex",
+  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
+  "external_publication_policy": "local-only",
+  "goal": "verify external dev afk-session-trigger wrapper"
+}
+JSON
+if OUT="$(./aos dev afk-session-trigger --packet "$PACKET" --provider codex --dock gdi --dry-run --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["record_type"] == "aos.afk_session_trigger_dry_run", data
+assert data["status"] == "dry_run_ready", data
+assert data["packet"]["packet_id"] == "dev-wrapper-afk-session-trigger", data
+assert data["dispatch"]["selected_provider"] == "codex", data
+PY
+then
+    pass "dev afk-session-trigger runs through external command manifest"
+else
+    fail "dev afk-session-trigger external wrapper drifted: $OUT"
+fi
+rm -f "$PACKET"
 
 if OUT="$(./aos dev capabilities list --role foreman --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'
 import json

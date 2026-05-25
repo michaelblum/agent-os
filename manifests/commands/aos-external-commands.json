@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "commands": [
+    {
+      "path": ["dev", "afk-dry-run"],
+      "summary": "Run the AFK dry-run command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/afk-dry-run-prototype.mjs"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["dev", "afk-launch-attempt"],
+      "summary": "Run the AFK launch-attempt command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/afk-launch-attempt-prototype.mjs"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["dev", "afk-session-trigger"],
+      "summary": "Run the AFK session-trigger command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/afk-session-trigger-prototype.mjs"],
+      "cwd": "repo"
+    }
+  ]
+}

@@ -47,7 +47,7 @@ func pos(_ id: String, _ summary: String, type: ValueType = .string, required: B
 
 // MARK: - Registry Population
 
-func buildCommandRegistry() -> [CommandDescriptor] {
+func buildCompiledCommandRegistry() -> [CommandDescriptor] {
     var reg: [CommandDescriptor] = []
 
     // ── see ───────────────────────────────────────────────
