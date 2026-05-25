@@ -133,7 +133,12 @@ struct AOS {
         case "log":
             logCommand(args: Array(args.dropFirst()))
         case "introspect":
-            introspectCommand(args: Array(args.dropFirst()))
+            let introspectArgs = Array(args.dropFirst())
+            if introspectArgs.isEmpty || introspectArgs.contains("--help") || introspectArgs.contains("-h") {
+                printCommandHelp(["introspect"], json: introspectArgs.contains("--json"))
+                exit(0)
+            }
+            exitError("Unknown introspect subcommand: \(introspectArgs[0])", code: "UNKNOWN_SUBCOMMAND")
         case "wiki":
             wikiCommand(args: Array(args.dropFirst()))
         case "browser":
