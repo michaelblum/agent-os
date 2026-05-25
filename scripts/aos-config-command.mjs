@@ -343,6 +343,11 @@ function setConfigValue(config, key, value) {
 
 async function main(argv) {
   const command = argv[0];
+  if (command === 'dump') {
+    if (argv.length !== 1) usage('Usage: aos config');
+    console.log(JSON.stringify(await loadConfig(), null, 2));
+    return;
+  }
   if (command === 'get') {
     const jsonMode = argv.includes('--json');
     const args = argv.slice(1).filter((arg) => arg !== '--json');
