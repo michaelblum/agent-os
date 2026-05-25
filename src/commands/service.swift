@@ -117,10 +117,9 @@ func serviceCommand(args: [String]) {
             asJSON: options.asJSON
         )
     case "status":
-        let options = parseServiceOptions(subArgs, usage: "aos service status [--mode repo|installed] [--json]")
-        emitAOSServiceStatus(asJSON: options.asJSON, mode: options.mode)
+        exitError("Unknown service subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     case "logs":
-        serviceLogsCommand(args: subArgs)
+        exitError("Unknown service subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     case "_verify-readiness":
         let options = parseServiceOptions(subArgs, usage: "aos service _verify-readiness [--mode repo|installed] [--json] [--budget-ms N]", extraFlags: ["--budget-ms"])
         let outcome = verifyServiceReadiness(mode: options.mode, budgetMs: options.budgetMs)
@@ -246,16 +245,6 @@ private func emitAOSServiceStatus(asJSON: Bool, mode: AOSRuntimeMode) {
     }
 }
 
-private func serviceLogsCommand(args: [String]) {
-    let options = parseServiceOptions(args, usage: "aos service logs [--mode repo|installed] [--tail N]", extraFlags: ["--tail"])
-    let logPath = aosServicePaths(mode: options.mode).stderrLogPath
-    guard let contents = try? String(contentsOfFile: logPath, encoding: .utf8) else {
-        exitError("No service log found at \(logPath)", code: "FILE_NOT_FOUND")
-    }
-    let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
-    print(lines.suffix(options.tailCount).joined(separator: "\n"))
-}
-
 private func currentAOSServiceStatus(mode: AOSRuntimeMode) -> ServiceStatusResponse {
     let paths = aosServicePaths(mode: mode)
     let installed = FileManager.default.fileExists(atPath: paths.plistPath)
@@ -355,14 +344,12 @@ private func aosServicePlist(paths: AOSServicePaths) -> [String: Any] {
 private struct ServiceCommandOptions {
     let mode: AOSRuntimeMode
     let asJSON: Bool
-    let tailCount: Int
     let budgetMs: Int
 }
 
 private func parseServiceOptions(_ args: [String], usage: String, extraFlags: [String] = []) -> ServiceCommandOptions {
     var asJSON = false
     var mode: AOSRuntimeMode? = nil
-    var tailCount = 200
     var budgetMs = 5000
     var i = 0
 
@@ -376,12 +363,6 @@ private func parseServiceOptions(_ args: [String], usage: String, extraFlags: [S
                 exitError("--mode must be 'repo' or 'installed'", code: "INVALID_ARG")
             }
             mode = parsed
-        case "--tail" where extraFlags.contains("--tail"):
-            i += 1
-            guard i < args.count, let value = Int(args[i]) else {
-                exitError("--tail requires an integer", code: "INVALID_ARG")
-            }
-            tailCount = value
         case "--budget-ms" where extraFlags.contains("--budget-ms"):
             i += 1
             guard i < args.count, let value = Int(args[i]), value > 0 else {
@@ -397,7 +378,6 @@ private func parseServiceOptions(_ args: [String], usage: String, extraFlags: [S
     return ServiceCommandOptions(
         mode: mode ?? aosCurrentRuntimeMode(),
         asJSON: asJSON,
-        tailCount: tailCount,
         budgetMs: budgetMs
     )
 }

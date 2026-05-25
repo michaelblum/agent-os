@@ -1,0 +1,210 @@
+#!/usr/bin/env node
+
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+function printJSON(value) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function error(message, code) {
+  process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
+  process.exit(1);
+}
+
+function run(executable, args) {
+  const result = spawnSync(executable, args, { encoding: 'utf8' });
+  return {
+    status: result.status ?? 127,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? (result.error ? result.error.message : ''),
+  };
+}
+
+function currentMode() {
+  const override = process.env.AOS_RUNTIME_MODE?.toLowerCase();
+  if (override === 'repo' || override === 'installed') return override;
+  return process.argv[1]?.includes('.app/Contents/MacOS/') ? 'installed' : 'repo';
+}
+
+function stateRoot() {
+  return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
+}
+
+function installAppPath() {
+  return process.env.AOS_INSTALL_PATH || path.join(os.homedir(), 'Applications/AOS.app');
+}
+
+function repoRoot() {
+  if (process.env.AOS_REPO_ROOT) return path.resolve(process.env.AOS_REPO_ROOT);
+  const sentinel = 'packages/toolkit/components/inspector-panel/index.html';
+  const bases = [path.dirname(process.argv[1] || process.cwd()), process.cwd()];
+  for (const base of bases) {
+    for (const suffix of ['', '..', '../..', '../../..']) {
+      const candidate = path.resolve(base, suffix);
+      if (fs.existsSync(path.join(candidate, sentinel))) return candidate;
+    }
+  }
+  return process.cwd();
+}
+
+function expectedBinaryPath(mode) {
+  if (process.env.AOS_SERVICE_BINARY) return path.resolve(process.env.AOS_SERVICE_BINARY);
+  if (mode === 'installed') return path.join(installAppPath(), 'Contents/MacOS/aos');
+  return path.join(repoRoot(), 'aos');
+}
+
+function serviceLabel(mode) {
+  return `com.agent-os.aos.${mode}`;
+}
+
+function servicePaths(mode) {
+  const logDir = path.join(stateRoot(), mode);
+  const launchAgentsDir = path.join(os.homedir(), 'Library/LaunchAgents');
+  const label = serviceLabel(mode);
+  return {
+    mode,
+    label,
+    logDir,
+    plistPath: path.join(launchAgentsDir, `${label}.plist`),
+    stdoutLogPath: path.join(logDir, 'daemon.stdout.log'),
+    stderrLogPath: path.join(logDir, 'daemon.log'),
+    binaryPath: expectedBinaryPath(mode),
+  };
+}
+
+function parseOptions(args, extra = new Set()) {
+  const options = { mode: currentMode(), json: false, tail: 200 };
+  for (let i = 0; i < args.length;) {
+    const arg = args[i];
+    switch (arg) {
+      case '--json':
+        options.json = true;
+        i += 1;
+        break;
+      case '--mode':
+        if (i + 1 >= args.length || !['repo', 'installed'].includes(args[i + 1])) {
+          error("--mode must be 'repo' or 'installed'", 'INVALID_ARG');
+        }
+        options.mode = args[i + 1];
+        i += 2;
+        break;
+      case '--tail':
+        if (!extra.has('--tail')) error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+        if (i + 1 >= args.length || !/^\d+$/.test(args[i + 1])) {
+          error('--tail requires an integer', 'INVALID_ARG');
+        }
+        options.tail = Number(args[i + 1]);
+        i += 2;
+        break;
+      default:
+        error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+    }
+  }
+  return options;
+}
+
+function launchDomain() {
+  return `gui/${process.getuid()}`;
+}
+
+function isServiceLoaded(label) {
+  return run('/bin/launchctl', ['print', `${launchDomain()}/${label}`]).status === 0;
+}
+
+function servicePID(label) {
+  const output = run('/bin/launchctl', ['print', `${launchDomain()}/${label}`]);
+  if (output.status !== 0) return null;
+  for (const rawLine of output.stdout.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line.startsWith('pid = ')) {
+      const pid = Number(line.replace('pid = ', ''));
+      if (Number.isInteger(pid)) return pid;
+    }
+  }
+  return null;
+}
+
+function plistValue(plistPath, keyPath) {
+  const output = run('/usr/libexec/PlistBuddy', ['-c', `Print ${keyPath}`, plistPath]);
+  if (output.status !== 0) return null;
+  const value = output.stdout.trim();
+  return value || null;
+}
+
+function isExecutable(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function serviceStatus(mode) {
+  const paths = servicePaths(mode);
+  const installed = fs.existsSync(paths.plistPath);
+  const pid = servicePID(paths.label);
+  const actualBinaryPath = installed ? plistValue(paths.plistPath, ':ProgramArguments:0') : null;
+  const actualLogPath = installed ? plistValue(paths.plistPath, ':StandardErrorPath') : null;
+  const notes = [];
+
+  if (!installed) notes.push('Launch agent plist is not installed.');
+  if (installed && !isServiceLoaded(paths.label)) notes.push('Launch agent is installed but not loaded in launchd.');
+  if (installed && pid === null) notes.push('Service is not running.');
+  if (actualBinaryPath && actualBinaryPath !== paths.binaryPath) {
+    notes.push(`Launch agent target differs from the expected ${mode} binary.`);
+  }
+  if (actualLogPath && actualLogPath !== paths.stderrLogPath) {
+    notes.push(`Launch agent log path differs from the expected ${mode} state directory.`);
+  }
+  if (!isExecutable(paths.binaryPath)) {
+    notes.push(`Expected ${mode} service binary is missing or not executable.`);
+  }
+
+  return {
+    status: notes.length ? 'degraded' : 'ok',
+    mode,
+    installed,
+    running: pid !== null,
+    pid: pid ?? undefined,
+    launchd_label: paths.label,
+    actual_binary_path: actualBinaryPath ?? undefined,
+    expected_binary_path: paths.binaryPath,
+    actual_log_path: actualLogPath ?? undefined,
+    expected_log_path: paths.stderrLogPath,
+    plist_path: paths.plistPath,
+    state_dir: paths.logDir,
+    notes,
+  };
+}
+
+function statusCommand(args) {
+  const options = parseOptions(args);
+  const response = serviceStatus(options.mode);
+  if (options.json) {
+    printJSON(response);
+  } else {
+    process.stdout.write(`mode=${response.mode} installed=${response.installed} running=${response.running} pid=${response.pid ?? 'none'} label=${response.launchd_label}\n`);
+  }
+}
+
+function logsCommand(args) {
+  const options = parseOptions(args, new Set(['--tail']));
+  const logPath = servicePaths(options.mode).stderrLogPath;
+  let contents;
+  try {
+    contents = fs.readFileSync(logPath, 'utf8');
+  } catch {
+    error(`No service log found at ${logPath}`, 'FILE_NOT_FOUND');
+  }
+  const lines = contents.split('\n');
+  process.stdout.write(`${lines.slice(-options.tail).join('\n')}\n`);
+}
+
+const [subcommand, ...rest] = process.argv.slice(2);
+if (subcommand === 'status') statusCommand(rest);
+else if (subcommand === 'logs') logsCommand(rest);
+else error(`Unknown service command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');

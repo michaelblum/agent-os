@@ -64,6 +64,21 @@ else
     fail "doctor gateway external dispatch drifted: ${DOCTOR_OUT:-}"
 fi
 
+if OUT="$(./aos service status --mode repo --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["mode"] == "repo", data
+assert data["launchd_label"] == "com.agent-os.aos.repo", data
+assert data["expected_binary_path"].endswith("/agent-os/aos"), data
+PY
+then
+    pass "service status runs through external command manifest"
+else
+    fail "service status external dispatch drifted: ${OUT:-}"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "external-command-dispatch: all checks passed"

@@ -131,6 +131,30 @@
       "cwd": "repo"
     },
     {
+      "path": ["service", "status"],
+      "summary": "Inspect launchd service state through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "status"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "logs"],
+      "summary": "Print launchd service logs through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "logs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["gate", "ask"],
       "summary": "Run the gate ask verb from the external Node implementation.",
       "executable": "/usr/bin/env",
