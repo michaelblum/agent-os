@@ -426,10 +426,10 @@ function transientIPCFailure(output) {
   return text.includes('IPC failure') || text.includes('NO_DAEMON') || text.includes('starting repo daemon via launchd service');
 }
 
-function runStepProcess(args, timeoutMs) {
+function runStepProcess(args, timeoutMs, mayRetry = true) {
   let output = runProcess(aosPath(), args, timeoutMs);
   let attempts = 1;
-  while ((output.timedOut || output.exitCode !== 0) && attempts < 3 && transientIPCFailure(output)) {
+  while (mayRetry && (output.timedOut || output.exitCode !== 0) && attempts < 3 && transientIPCFailure(output)) {
     spawnSync('/bin/sleep', ['0.5']);
     output = runProcess(aosPath(), args, timeoutMs);
     attempts += 1;
@@ -437,13 +437,41 @@ function runStepProcess(args, timeoutMs) {
   return { ...output, attempts };
 }
 
+function argValue(args, flag) {
+  const index = args.indexOf(flag);
+  if (index < 0 || index + 1 >= args.length) return null;
+  return args[index + 1];
+}
+
+function recoverMutatingTransient(step, argv, output) {
+  if (!step.mutates || !transientIPCFailure(output)) return output;
+  if (step.commandPath.length !== 1 || step.commandPath[0] !== 'show' || argv[0] !== 'create') return output;
+  const id = argValue(argv, '--id');
+  if (!id) return output;
+  const exists = runProcess(aosPath(), ['show', 'exists', '--id', id], step.timeoutMs);
+  const parsed = parseJSON(exists.stdout);
+  if (exists.exitCode === 0 && parsed?.exists === true) {
+    return {
+      timedOut: false,
+      exitCode: 0,
+      stdout: '{"status":"success"}\n',
+      stderr: output.stderr,
+      attempts: output.attempts,
+      recovered: 'verified-created-resource',
+    };
+  }
+  return output;
+}
+
 function executeStep(step, runID, resources) {
   const argv = step.argv.map((item) => resolveTemplate(item, runID, resources));
   const started = Date.now();
-  const output = runStepProcess([...step.commandPath, ...argv], step.timeoutMs);
+  let output = runStepProcess([...step.commandPath, ...argv], step.timeoutMs, !step.mutates);
+  output = recoverMutatingTransient(step, argv, output);
   const durationMs = Date.now() - started;
   const observed = { exit_code: output.exitCode };
   if (output.attempts > 1) observed.attempts = output.attempts;
+  if (output.recovered) observed.recovered = output.recovered;
   const stderr = output.stderr.trim();
   if (stderr) observed.stderr = stderr;
   if (output.timedOut) {

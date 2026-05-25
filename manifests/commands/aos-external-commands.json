@@ -464,6 +464,28 @@
       }
     },
     {
+      "path": ["show", "exists"],
+      "summary": "Look up canvas existence through the external show lookup command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-lookup.mjs", "exists"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "get"],
+      "summary": "Read canvas metadata through the external show lookup command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-lookup.mjs", "get"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["ops"],
       "summary": "Run source-backed operator recipes through the external ops command.",
       "executable": "/usr/bin/env",
