@@ -8,8 +8,8 @@
 - Transfer kind: GDI round, intentionally long-running `/goal`
 - Single next goal: rearchitect the `aos` command surface so changing command logic no longer requires rebuilding the TCC-sensitive Swift binary.
 - Source branch: `feat/command-surface-extraction`
-- Required start ref: local `feat/command-surface-extraction` containing the
-  accepted rebuild-pause/checkpoint commits and the current work-card updates.
+- Required start ref: `origin/feat/command-surface-extraction` after the
+  input-tap safety prerequisite has been accepted.
 - Output expectation: work autonomously on this branch for as long as needed; commit coherent checkpoints; push only if the active GDI/provider contract permits or the human explicitly asks.
 
 ## Foreman Override

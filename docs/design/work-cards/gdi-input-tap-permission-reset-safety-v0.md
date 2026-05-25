@@ -8,7 +8,7 @@
 - Source artifact: Foreman accepted rebuild-pause commit `be668f8e` (`Pause GDI after AOS rebuild`) plus this user report.
 - Branch/Base:
   - branch_from: `feat/command-surface-extraction`
-  - required_start_ref: local `feat/command-surface-extraction` containing this work card
+  - required_start_ref: `origin/feat/command-surface-extraction`
 - Branch/output expectations: keep changes on `feat/command-surface-extraction`; produce a focused diff and completion report. Do not push or open a PR.
 - Stop conditions: stop and report `human_needed` if live AOS verification requires macOS permission changes or if the input path risks capturing user input during manual recovery.
 
