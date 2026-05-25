@@ -209,6 +209,19 @@
       }
     },
     {
+      "path": ["wiki", "seed"],
+      "summary": "Seed wiki content through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-seed.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["focus"],
       "summary": "Manage focus channels through the external focus command.",
       "executable": "/usr/bin/env",
