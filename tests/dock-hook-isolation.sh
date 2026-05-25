@@ -20,6 +20,7 @@ post_tool_runner = root / ".docks" / "harness" / "post-tool-use-runner.sh"
 goal_pause_control = root / ".docks" / "harness" / "goal-pause-control.sh"
 provider_input_control = root / ".docks" / "harness" / "provider-input-control.sh"
 pty_input_control = root / ".docks" / "harness" / "pty-input-control.sh"
+dev_build_checkpoint = root / ".docks" / "harness" / "dev-build-checkpoint.sh"
 defaults_path = root / ".docks" / "dock-defaults.json"
 if not runner.exists():
     raise SystemExit("FAIL: missing shared dock hook runner")
@@ -41,6 +42,10 @@ if not pty_input_control.exists():
     raise SystemExit("FAIL: missing shared PTY input control helper")
 if not os.access(pty_input_control, os.X_OK):
     raise SystemExit("FAIL: shared PTY input control helper is not executable")
+if not dev_build_checkpoint.exists():
+    raise SystemExit("FAIL: missing shared dev-build checkpoint helper")
+if not os.access(dev_build_checkpoint, os.X_OK):
+    raise SystemExit("FAIL: shared dev-build checkpoint helper is not executable")
 if not defaults_path.exists():
     raise SystemExit("FAIL: missing shared dock defaults")
 defaults = json.loads(defaults_path.read_text())
@@ -58,6 +63,7 @@ for required in (
     "run_optional_hook \"pre-stop\"",
     "run_optional_hook \"post-stop\"",
     "stop-condition.sh",
+    "dev-build-checkpoint.sh",
     "say --voice-slot",
     "dock-defaults.json",
     "voice.quality_tiers",
@@ -77,6 +83,7 @@ for required in (
     "goal_pause_required: repo-mode AOS permission repair",
     "goal-pause-control.sh",
     "human-needed-surface.sh",
+    "dev-build-checkpoint.sh",
     "stop-condition.sh",
     "/goal pause",
 ):
@@ -506,6 +513,8 @@ for required in (
     "/goal pause",
     "./aos permissions setup --once",
     "./aos ready --post-permission",
+    "Do not run ./aos dev build again after resume",
+    "continue with the next planned step after the",
     "Do not run ready/repair/status/helper loops",
 ):
     if required not in message:
@@ -516,6 +525,11 @@ grep -q 'POST_TOOL_AOS:show create --id aos-human-needed-gdi-tcc_permission_rese
   cat "$post_tool_log" >&2
   exit 1
 }
+if ! AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" peek "$PWD" gdi >/dev/null; then
+  echo "FAIL: successful dev build hook should write durable completed-build checkpoint" >&2
+  find "$post_tool_condition_dir" -maxdepth 4 -type f -print -exec cat {} \; >&2 || true
+  exit 1
+fi
 if grep -q 'ready\|permissions reset-runtime\|git status' "$post_tool_log"; then
   echo "FAIL: successful dev build hook should not run readiness or repair ritual" >&2
   cat "$post_tool_log" >&2
@@ -559,6 +573,14 @@ payload = json.loads(sys.argv[1])
 message = payload.get("systemMessage", "")
 if "GDI stopped for repo-mode AOS permission repair." not in message:
     raise SystemExit(f"FAIL: post-tool marker should feed Stop TCC notice, got {payload}")
+for required in (
+    "./aos dev build already completed successfully",
+    "Do not run ./aos dev build again",
+    "./aos ready --post-permission",
+    "continue with the next planned step after the completed build",
+):
+    if required not in message:
+        raise SystemExit(f"FAIL: GDI stop message missing checkpoint guidance {required!r}: {message!r}")
 PY
 
 : >"$post_tool_log"
@@ -578,6 +600,10 @@ grep -q 'POST_TOOL_AOS:show remove --id aos-human-needed-gdi-tcc_permission_rese
   cat "$post_tool_log" >&2
   exit 1
 }
+if AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" peek "$PWD" gdi >/dev/null; then
+  echo "FAIL: post-permission ready hook should clear completed-build checkpoint" >&2
+  exit 1
+fi
 if [[ -s "$tmux_log" || -s "$open_log" ]]; then
   echo "FAIL: post-permission ready hook should not inject tmux input or reopen settings" >&2
   cat "$tmux_log" "$open_log" >&2

@@ -124,6 +124,7 @@ PY
 
 if [[ "$python_result" == "post_permission_ready_success" ]]; then
   "$REPO_ROOT/.docks/harness/human-needed-surface.sh" clear "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
+  "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" clear "$REPO_ROOT" "$dock" >/dev/null 2>&1 || true
   printf '{"continue":true}\n'
   exit 0
 fi
@@ -134,6 +135,7 @@ if [[ "$python_result" != "dev_build_success" ]]; then
 fi
 
 "$REPO_ROOT/.docks/harness/stop-condition.sh" write "$REPO_ROOT" "$dock" tcc_permission_reset 600
+"$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" write "$REPO_ROOT" "$dock" 3600
 "$REPO_ROOT/.docks/harness/human-needed-surface.sh" show "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 "$REPO_ROOT/.docks/harness/goal-pause-control.sh" request "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 
@@ -144,8 +146,9 @@ import sys
 dock = sys.argv[1]
 message = """goal_pause_required: repo-mode AOS permission repair
 
-The last ./aos dev build completed. Repo-mode aos rebuilds are permission
-sensitive checkpoints.
+./aos dev build completed successfully. Treat the build step as complete for
+this checkpoint. Do not run ./aos dev build again after resume unless a human
+explicitly asks for another rebuild.
 
 Pause the active goal now by sending:
 /goal pause
@@ -158,6 +161,9 @@ Human action:
 
 After resume, run exactly:
 ./aos ready --post-permission
+
+If that reports ready=true, continue with the next planned step after the
+completed build. Do not restart from the build step.
 
 Do not run ready/repair/status/helper loops before pausing."""
 
