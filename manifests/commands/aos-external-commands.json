@@ -131,6 +131,13 @@
       "cwd": "repo"
     },
     {
+      "path": ["runtime", "display-union"],
+      "summary": "Print the active display union from an external runtime script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-display-union"],
+      "cwd": "repo"
+    },
+    {
       "path": ["service", "status"],
       "summary": "Inspect launchd service state through the external service command.",
       "executable": "/usr/bin/env",
