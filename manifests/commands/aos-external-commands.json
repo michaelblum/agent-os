@@ -259,6 +259,21 @@
       }
     },
     {
+      "path": ["runtime"],
+      "summary": "Validate runtime subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "runtime",
+        "MISSING_SUBCOMMAND",
+        "runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union [--native]> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "runtime subcommand"
+      ],
+      "cwd": "repo"
+    },
+    {
       "path": ["runtime", "install"],
       "summary": "Package and install the stable AOS.app runtime from an external script.",
       "executable": "/bin/bash",
@@ -338,6 +353,21 @@
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
+    },
+    {
+      "path": ["service"],
+      "summary": "Validate service subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "service",
+        "MISSING_SUBCOMMAND",
+        "service requires a subcommand. Usage: aos service <install|start|stop|restart|status|logs> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "service subcommand"
+      ],
+      "cwd": "repo"
     },
     {
       "path": ["service", "install"],
