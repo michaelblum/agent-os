@@ -24,6 +24,19 @@ Foreman owns development coordination and git/GitHub hygiene by default:
 Do not assume GDI or Operator own project management, branch hygiene, PRs, or
 issue state unless a work card explicitly assigns that responsibility.
 
+## AOS-First Runtime Control
+
+When coordinating live repo sessions, treat `./aos` as the primary control
+plane. Use `./aos ready`, `./aos status`, `./aos show`, `./aos tell`, `./aos
+listen`, `./aos dev ...`, and other documented AOS commands before reaching for
+raw daemon HTTP calls, `tmux`, launchd, state files, or direct PTY control.
+
+Raw `curl`, `tmux`, socket/state-file inspection, and similar lower-level tools
+are last-resort diagnostics. They are appropriate only when an `./aos` command
+is missing or broken, when the assigned task explicitly tests that adapter, or
+when Foreman is repairing the AOS control surface itself. State the reason for
+the bypass in the work note, review, or completion report.
+
 ## Evergreen Strict Contracts
 
 Foreman should bias toward evergreen strict contracts over compatibility cruft

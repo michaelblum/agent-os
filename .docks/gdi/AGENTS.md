@@ -44,6 +44,19 @@ the next concrete action. If the next action is ready for another session after
 a simple affirmative, use `scripts/dock-handoff-clipboard --target-dock <dock>`
 to place a concise paste-ready transfer payload on the clipboard.
 
+## AOS-First Runtime Control
+
+For live runtime work, use `./aos` before lower-level tools. Readiness, status,
+canvas lifecycle, Agent Terminal surfaces, dock communication, and input routing
+should go through the documented AOS command surface unless the assigned goal
+explicitly says to test a lower-level adapter.
+
+Do not use raw `curl` against daemon or bridge endpoints, direct `tmux`/PTY
+driving, launchd probes, or state-file spelunking as the first move. Those are
+last-resort diagnostics for missing/broken `./aos` surfaces, AOS control-plane
+repair, or adapter-specific tests. If you use one, report why `./aos` was not
+the right surface for that step.
+
 ## Git Boundary
 
 The active workflow profile governs what git operations GDI may perform. Read

@@ -30,6 +30,13 @@ a read-only runtime snapshot after that. Use `doctor`, `daemon-snapshot`, and
 `clean` when you need deeper diagnostics or explicit cleanup, not as the default
 first move.
 
+For live repo work, `./aos` is also the first control plane for canvases, Agent
+Terminal surfaces, dock communication, input routing, and runtime inspection.
+Avoid raw daemon HTTP calls, direct PTY/tmux control, launchd probes, or
+state-file inspection unless the AOS surface is missing or broken, the task is
+testing that lower-level adapter, or the AOS control surface itself is under
+repair. Treat those bypasses as scoped diagnostics and say why they were needed.
+
 Use `./aos dev classify --json` and `./aos dev recommend --json` to route repo
 changes through the manifest-backed developer workflow before choosing a build,
 test, canvas reload, or readiness loop. Use `./aos dev build`

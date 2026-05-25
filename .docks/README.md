@@ -71,6 +71,16 @@ Use the scripts and JSON files as the source of truth when hook behavior,
 provider entry, or dock metadata changes. Markdown should explain ownership and
 link to the owning surface, not mirror the implementation.
 
+## AOS-First Runtime Control
+
+For live dock operation, `./aos` is the runtime control plane. Use it first for
+readiness, status, canvas lifecycle, Agent Terminal launch/inspection, input
+routing, and dock communication. Do not inspect or drive live sessions through
+raw `curl`, `tmux`, daemon sockets, launchd, or state files unless no suitable
+`./aos` command exists, `./aos` itself is under repair, or the assigned task is
+explicitly testing the lower-level adapter. In those cases, say why the bypass
+is necessary and return to the `./aos` surface as soon as possible.
+
 Inspect profiles with:
 
 ```bash

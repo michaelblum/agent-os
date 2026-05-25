@@ -86,6 +86,14 @@ nearest local contract before changing cross-layer behavior.
 typed primitive set: `see`, `do`, `show`, `tell`, and `listen`. `./aos dev ...`
 is the developer control surface for repo work.
 
+For live repo operation, use `./aos` as the first control plane for readiness,
+runtime status, canvases, Agent Terminal surfaces, dock sessions, and input or
+communication routing. Do not reach directly for daemon HTTP endpoints, raw
+PTY/tmux control, launchd state, or ad-hoc runtime files unless an `./aos`
+surface is missing, broken, or the task is explicitly testing that lower-level
+adapter. When you must bypass `./aos`, state why and keep the bypass scoped as a
+last-resort diagnostic.
+
 Use `docs/recipes/agent-entry-paths-and-verification.md` for entry-path,
 verification, host-shell, and readiness guidance. Use `docs/dev/README.md` and
 `docs/dev/workflow-profiles/README.md` for development workflow routing and
