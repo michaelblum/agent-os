@@ -97,8 +97,6 @@ struct AOS {
             doctorCommand(args: Array(args.dropFirst()))
         case "reset":
             resetCommand(args: Array(args.dropFirst()))
-        case "clean":
-            cleanCommand(args: Array(args.dropFirst()))
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
         case "focus":

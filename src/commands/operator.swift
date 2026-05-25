@@ -263,6 +263,23 @@ private struct GitStatusState: Encodable {
     let worktrees: Int
 }
 
+private struct StatusCleanDaemon: Decodable {
+    let pid: Int
+    let args: String
+}
+
+private struct StatusCleanCanvas: Decodable {
+    let id: String
+    let mode: String
+}
+
+private struct StatusCleanReport: Decodable {
+    let status: String
+    let stale_daemons: [StatusCleanDaemon]
+    let canvases: [StatusCleanCanvas]
+    let notes: [String]
+}
+
 private struct StatusStaleResources: Encodable {
     let status: String
     let stale_daemons: Int
@@ -536,7 +553,7 @@ func statusCommand(args: [String]) {
     let runtime = currentRuntimeState()
     let identity = aosCurrentRuntimeIdentity(program: "aos")
     let snapshotResult = currentSpatialSnapshot()
-    let cleanReport = runClean(dryRun: true)
+    let cleanReport = currentCleanReport()
     let git = currentGitStatus()
 
     var notes: [String] = []
@@ -640,6 +657,23 @@ func statusCommand(args: [String]) {
         print(note)
     }
     print("Next: \(prefix) help <command> | \(prefix) introspect review")
+}
+
+private func currentCleanReport() -> StatusCleanReport {
+    let script = aosRepoPath("scripts/aos-clean.mjs")
+    guard FileManager.default.fileExists(atPath: script) else {
+        return StatusCleanReport(status: "unknown", stale_daemons: [], canvases: [], notes: ["Clean command script is missing: \(script)"])
+    }
+    let result = runProcess("/usr/bin/env", arguments: ["node", script, "--dry-run", "--json"])
+    guard result.exitCode == 0,
+          let data = result.stdout.data(using: .utf8),
+          let report = try? JSONDecoder().decode(StatusCleanReport.self, from: data) else {
+        let detail = [result.stderr, result.stdout]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? "clean dry-run failed"
+        return StatusCleanReport(status: "unknown", stale_daemons: [], canvases: [], notes: [detail])
+    }
+    return report
 }
 
 func doctorCommand(args: [String]) {

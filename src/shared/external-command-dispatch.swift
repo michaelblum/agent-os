@@ -59,7 +59,7 @@ func runExternalCommandIfMatched(args: [String]) -> Bool {
     }
 
     let repoOverride = rawOptionValue(args, "--repo")
-    let commandRepoRoot = resolveRepoRoot(repoOverride)
+    let commandRepoRoot = resolveExternalRepoRoot(repoOverride)
     let executable = resolveExternalExecutable(command.executable, repoRoot: commandRepoRoot)
     let childArgs = Array(args.dropFirst(command.path.count))
     let argv = command.argvPrefix.map { resolveExternalArg($0, repoRoot: commandRepoRoot) } + childArgs
@@ -93,6 +93,18 @@ private func rawOptionValue(_ args: [String], _ token: String) -> String? {
     return nil
 }
 
+private func resolveExternalRepoRoot(_ requested: String?) -> String {
+    let start = NSString(string: requested ?? FileManager.default.currentDirectoryPath).expandingTildeInPath
+    let result = runExternalProcessCapturingOutput("/usr/bin/git", arguments: ["rev-parse", "--show-toplevel"], cwd: start)
+    if result.exitCode == 0 {
+        let root = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !root.isEmpty {
+            return root
+        }
+    }
+    return NSString(string: start).standardizingPath
+}
+
 private func resolveExternalExecutable(_ value: String, repoRoot: String) -> String {
     if value.hasPrefix("/") {
         return value
@@ -106,6 +118,9 @@ private func resolveExternalArg(_ value: String, repoRoot: String) -> String {
     }
     if value.hasPrefix("$REPO_ROOT/") {
         return (repoRoot as NSString).appendingPathComponent(String(value.dropFirst("$REPO_ROOT/".count)))
+    }
+    if value == "$REPO_ROOT" {
+        return repoRoot
     }
     if value == "$AOS_RUNTIME_MODE" {
         return aosCurrentRuntimeMode().rawValue
