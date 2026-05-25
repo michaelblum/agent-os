@@ -380,6 +380,18 @@
       "cwd": "repo"
     },
     {
+      "path": ["ops"],
+      "summary": "Run source-backed operator recipes through the external ops command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
       "path": ["focus"],
       "summary": "Manage focus channels through the external focus command.",
       "executable": "/usr/bin/env",
