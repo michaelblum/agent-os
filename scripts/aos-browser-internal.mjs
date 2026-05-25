@@ -281,6 +281,62 @@ function parseSnapshotCommand(args) {
   process.stdout.write(`${JSON.stringify(parseSnapshotMarkdown(contents), null, 2)}\n`);
 }
 
+function detectPlaywrightErrorMarker(stdout) {
+  const index = stdout.indexOf('### Error');
+  if (index < 0) return null;
+  const after = stdout.slice(index + '### Error'.length).trim();
+  const next = after.indexOf('\n### ');
+  return (next >= 0 ? after.slice(0, next) : after).trim();
+}
+
+function parsePlaywrightResultBody(stdout) {
+  if (detectPlaywrightErrorMarker(stdout)) return null;
+  const trimmed = stdout.trim();
+  const index = trimmed.indexOf('### Result');
+  if (index < 0) return trimmed;
+  const after = trimmed.slice(index + '### Result'.length).trim();
+  const next = after.indexOf('\n### ');
+  return next >= 0 ? after.slice(0, next) : after;
+}
+
+function boundsViaEval(session, ref) {
+  const js = '(e) => { const r = e.getBoundingClientRect(); return {x:r.left,y:r.top,w:r.width,h:r.height}; }';
+  const result = spawnSync('/usr/bin/env', ['playwright-cli', `-s=${session}`, 'eval', js, ref], {
+    encoding: 'utf8',
+    env: process.env,
+    maxBuffer: 100 * 1024 * 1024,
+  });
+  if (result.status !== 0) return null;
+  const body = parsePlaywrightResultBody(result.stdout || '');
+  if (body === null) return null;
+  try {
+    const rect = JSON.parse(body);
+    if (rect.w === 0 && rect.h === 0) return null;
+    return [Math.trunc(rect.x), Math.trunc(rect.y), Math.trunc(rect.w), Math.trunc(rect.h)];
+  } catch {
+    return null;
+  }
+}
+
+function resolveAnchorCommand(args) {
+  const input = args[0];
+  if (!input) error('Usage: aos browser _resolve-anchor <target>', 'MISSING_ARG');
+  const target = parseBrowserTarget(input);
+  const record = readRegistry().find((item) => item.id === target.session);
+  if (!record) error(`browser session '${target.session}' not registered`, 'NOT_FOUND');
+  if (record.browser_window_id === null || record.browser_window_id === undefined) {
+    if (record.headless === true) error('headless browser sessions cannot be anchored (no CGWindowID)', 'BROWSER_HEADLESS');
+    error('browser session has no local window (remote CDP or unmatched)', 'BROWSER_NOT_LOCAL');
+  }
+  if (!target.ref) {
+    process.stdout.write(`${JSON.stringify({ anchor_window: record.browser_window_id, offset: [0, 0, 0, 0] })}\n`);
+    return;
+  }
+  const offset = boundsViaEval(target.session, target.ref);
+  if (!offset) error(`bounds query returned nil or zero-sized rect for ref ${target.ref}`, 'ANCHOR_EVAL_FAILED');
+  process.stdout.write(`${JSON.stringify({ anchor_window: record.browser_window_id, offset })}\n`);
+}
+
 function registryCommand(args) {
   const [op, ...rest] = args;
   if (!op) error('Usage: aos browser _registry <op> ...', 'MISSING_ARG');
@@ -345,6 +401,9 @@ try {
       break;
     case '_parse-snapshot':
       parseSnapshotCommand(args);
+      break;
+    case '_resolve-anchor':
+      resolveAnchorCommand(args);
       break;
     default:
       error(`Unknown browser internal command: ${command ?? ''}`, 'UNKNOWN_SUBCOMMAND');

@@ -534,6 +534,17 @@
       "cwd": "repo"
     },
     {
+      "path": ["browser", "_resolve-anchor"],
+      "summary": "Resolve browser anchors through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_resolve-anchor"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["ops"],
       "summary": "Run source-backed operator recipes through the external ops command.",
       "executable": "/usr/bin/env",
