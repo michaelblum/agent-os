@@ -53,6 +53,56 @@
       }
     },
     {
+      "path": ["dev", "classify"],
+      "summary": "Classify changed files through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "classify"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "recommend"],
+      "summary": "Recommend workflow commands through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "recommend"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "audit"],
+      "summary": "Audit dev workflow grammar through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "audit"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "capabilities"],
+      "summary": "Inspect dev capability envelopes through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "capabilities"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "docks"],
+      "summary": "Inspect dock profiles through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "docks"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["runtime", "install"],
       "summary": "Package and install the stable AOS.app runtime from an external script.",
       "executable": "/bin/bash",
