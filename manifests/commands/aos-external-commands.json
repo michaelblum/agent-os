@@ -195,6 +195,30 @@
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
         "AOS_PATH": "$AOS_PATH"
       }
+    },
+    {
+      "path": ["content", "status"],
+      "summary": "Read content-server status from the external content command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-content.mjs", "status"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["content", "wait"],
+      "summary": "Wait for content-server readiness from the external content command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-content.mjs", "wait"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
     }
   ]
 }

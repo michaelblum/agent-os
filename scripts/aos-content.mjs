@@ -1,0 +1,235 @@
+#!/usr/bin/env node
+
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
+
+function prettyError(message, code) {
+  process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
+  process.exit(1);
+}
+
+function stateRoot() {
+  if (process.env.AOS_STATE_ROOT) return path.resolve(process.env.AOS_STATE_ROOT);
+  return path.join(os.homedir(), '.config', 'aos');
+}
+
+function runtimeMode() {
+  const override = process.env.AOS_RUNTIME_MODE?.toLowerCase();
+  return override === 'installed' ? 'installed' : 'repo';
+}
+
+function socketPath() {
+  return path.join(stateRoot(), runtimeMode(), 'sock');
+}
+
+function daemonLogPath() {
+  return path.join(stateRoot(), runtimeMode(), 'daemon.log');
+}
+
+function aosPath() {
+  return process.env.AOS_PATH || path.join(process.cwd(), 'aos');
+}
+
+function parseDuration(value) {
+  if (value === 'none') return Number.POSITIVE_INFINITY;
+  const lower = value.toLowerCase();
+  const unit = lower.match(/^([0-9]+(?:\.[0-9]+)?)([smh])$/);
+  if (unit) {
+    const number = Number(unit[1]);
+    if (unit[2] === 's') return number;
+    if (unit[2] === 'm') return number * 60;
+    if (unit[2] === 'h') return number * 3600;
+  }
+  const raw = Number(lower);
+  if (Number.isFinite(raw)) return raw;
+  prettyError(`Invalid duration: ${value}. Use format like 5s, 10m, 1h, or 'none'.`, 'INVALID_DURATION');
+}
+
+function connectOnce(timeoutMs = 1000) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection(socketPath());
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(null);
+    }, timeoutMs);
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      resolve(socket);
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(null);
+    });
+  });
+}
+
+async function connectWithAutoStart(autoStart) {
+  let socket = await connectOnce();
+  if (socket) return socket;
+  if (!autoStart) return null;
+  if (process.env.AOS_DISABLE_DAEMON_AUTOSTART && ['1', 'true', 'yes', 'on'].includes(process.env.AOS_DISABLE_DAEMON_AUTOSTART.toLowerCase())) {
+    process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
+    return null;
+  }
+  startDaemon();
+  for (let i = 0; i < 30; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    socket = await connectOnce();
+    if (socket) return socket;
+  }
+  return null;
+}
+
+function startDaemon() {
+  if (process.env.AOS_STATE_ROOT) {
+    process.stderr.write('ipc: starting isolated daemon with explicit AOS_STATE_ROOT...\n');
+    fs.mkdirSync(path.dirname(daemonLogPath()), { recursive: true });
+    const log = fs.openSync(daemonLogPath(), 'a');
+    const child = spawn(aosPath(), ['serve', '--idle-timeout', '5m'], {
+      detached: true,
+      stdio: ['ignore', 'ignore', log],
+      env: process.env,
+    });
+    child.unref();
+    return;
+  }
+  process.stderr.write(`ipc: starting ${runtimeMode()} daemon via launchd service...\n`);
+  const child = spawn(aosPath(), ['service', 'start', '--mode', runtimeMode(), '--json'], {
+    stdio: ['ignore', 'ignore', 'ignore'],
+    env: process.env,
+  });
+  child.unref();
+}
+
+function sendEnvelope(socket, service, action, data = {}) {
+  return new Promise((resolve) => {
+    let buffer = '';
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(null);
+    }, 3000);
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const newline = buffer.indexOf('\n');
+      if (newline < 0) return;
+      clearTimeout(timer);
+      const line = buffer.slice(0, newline);
+      try {
+        resolve(JSON.parse(line));
+      } catch {
+        resolve(null);
+      }
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+    socket.write(`${JSON.stringify({ v: 1, service, action, data })}\n`);
+  });
+}
+
+function unwrapResponse(raw) {
+  return raw?.data ?? raw;
+}
+
+function contentReady(response, requiredRoots) {
+  const port = Number(response?.port ?? 0);
+  if (!(port > 0)) return false;
+  const roots = response?.roots ?? {};
+  return requiredRoots.every((root) => roots[root] != null);
+}
+
+function printStatus(response, json) {
+  if (json) {
+    process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
+    return;
+  }
+  const port = Number(response?.port ?? 0);
+  const roots = response?.roots ?? {};
+  if (port > 0) {
+    process.stdout.write(`Content server: http://127.0.0.1:${port}/\n`);
+    for (const [prefix, dir] of Object.entries(roots).sort(([a], [b]) => a.localeCompare(b))) {
+      process.stdout.write(`  /${prefix}/ -> ${dir}\n`);
+    }
+  } else {
+    process.stdout.write('Content server: not running (no roots configured)\n');
+  }
+}
+
+async function statusCommand(args) {
+  const json = args.includes('--json');
+  for (const arg of args) {
+    if (arg !== '--json') prettyError(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+  }
+  const socket = await connectWithAutoStart(false);
+  if (!socket) prettyError("Cannot connect to daemon — is 'aos serve' running?", 'NO_DAEMON');
+  const response = unwrapResponse(await sendEnvelope(socket, 'content', 'status', {}));
+  socket.end();
+  printStatus(response, json);
+}
+
+function parseWaitArgs(args) {
+  const options = { roots: [], timeoutMs: 10000, autoStart: false, json: false };
+  for (let i = 0; i < args.length;) {
+    const arg = args[i];
+    if (arg === '--root') {
+      i += 1;
+      if (i >= args.length) prettyError('--root requires a value', 'MISSING_ARG');
+      options.roots.push(args[i]);
+    } else if (arg === '--timeout') {
+      i += 1;
+      if (i >= args.length) prettyError('--timeout requires a duration', 'MISSING_ARG');
+      const seconds = parseDuration(args[i]);
+      if (!Number.isFinite(seconds) || seconds <= 0) prettyError('--timeout must be a positive finite duration', 'INVALID_ARG');
+      options.timeoutMs = Math.floor(seconds * 1000);
+    } else if (arg === '--auto-start') {
+      options.autoStart = true;
+    } else if (arg === '--json') {
+      options.json = true;
+    } else {
+      prettyError(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+    }
+    i += 1;
+  }
+  return options;
+}
+
+async function waitCommand(args) {
+  const options = parseWaitArgs(args);
+  const socket = await connectWithAutoStart(options.autoStart);
+  if (!socket) prettyError("Cannot connect to daemon — is 'aos serve' running?", options.autoStart ? 'CONNECT_ERROR' : 'NO_DAEMON');
+  const deadline = Date.now() + options.timeoutMs;
+  while (Date.now() < deadline) {
+    const response = unwrapResponse(await sendEnvelope(socket, 'content', 'status', {}));
+    if (contentReady(response, options.roots)) {
+      socket.end();
+      response.status = 'success';
+      response.ready = true;
+      if (options.json) {
+        process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
+      } else {
+        const url = `http://127.0.0.1:${response.port}/`;
+        if (options.roots.length === 0) process.stdout.write(`ready ${url}\n`);
+        else process.stdout.write(`ready ${url} roots=${options.roots.join(',')}\n`);
+      }
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  socket.end();
+  const rootsText = options.roots.length === 0 ? 'content server' : `content roots ${options.roots.join(', ')}`;
+  prettyError(`${rootsText} did not become ready before timeout`, 'CONTENT_WAIT_TIMEOUT');
+}
+
+const [subcommand, ...rest] = process.argv.slice(2);
+if (subcommand === 'status') await statusCommand(rest);
+else if (subcommand === 'wait') await waitCommand(rest);
+else if (!subcommand) {
+  process.stdout.write('Usage: aos content <status|wait> ...\n');
+} else {
+  prettyError(`Unknown content command: ${subcommand}`, 'UNKNOWN_COMMAND');
+}

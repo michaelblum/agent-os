@@ -75,14 +75,7 @@ struct AOS {
                 printCommandHelp(["content"], json: false)
                 exit(0)
             }
-            switch contentArgs[0] {
-            case "status":
-                runContentStatus(Array(contentArgs.dropFirst()))
-            case "wait":
-                runContentWait(Array(contentArgs.dropFirst()))
-            default:
-                exitError("Unknown content command: \(contentArgs[0])", code: "UNKNOWN_COMMAND")
-            }
+            exitError("Unknown content command: \(contentArgs[0])", code: "UNKNOWN_COMMAND")
         case "service":
             serviceCommand(args: Array(args.dropFirst()))
         case "runtime":
