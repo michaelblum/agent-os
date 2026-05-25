@@ -2,6 +2,30 @@
   "schema_version": 1,
   "commands": [
     {
+      "path": ["do", "fill"],
+      "summary": "Fill browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "fill"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "navigate"],
+      "summary": "Navigate browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "navigate"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["inspect"],
       "summary": "Run the live AX inspector overlay through the external inspect command.",
       "executable": "/usr/bin/env",
