@@ -486,6 +486,18 @@
       }
     },
     {
+      "path": ["log"],
+      "summary": "Run the log console through the external log command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-log.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["ops"],
       "summary": "Run source-backed operator recipes through the external ops command.",
       "executable": "/usr/bin/env",
