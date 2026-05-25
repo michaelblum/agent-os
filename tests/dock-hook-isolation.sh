@@ -701,6 +701,47 @@ grep -q 'TMUX_STDIN:/goal resume' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
+
+: >"$post_tool_log"
+: >"$tmux_log"
+: >"$open_log"
+foreman_condition_dir="$TMPDIR_ROOT/post-tool-foreman-conditions"
+foreman_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$foreman_condition_dir" bash ".docks/foreman/hooks/post-tool-use.sh")"
+python3 - "$foreman_post_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload.get("continue") is not False:
+    raise SystemExit(f"FAIL: non-GDI dev-build post-tool hook should stop the current turn, got {payload}")
+message = payload.get("systemMessage", "")
+for required in (
+    "stop: user action needed",
+    "./aos dev build completed successfully",
+    "./aos permissions setup --once",
+    "./aos ready --post-permission",
+    "Do not run readiness, repair, status, or helper loops",
+):
+    if required not in message:
+        raise SystemExit(f"FAIL: non-GDI post-tool message missing {required!r}: {message!r}")
+if "/goal pause" in message or "/goal resume" in message:
+    raise SystemExit(f"FAIL: non-GDI post-tool message should not include goal-mode commands: {message!r}")
+PY
+grep -q '^POST_TOOL_AOS:permissions reset-runtime --mode repo$' "$post_tool_log" || {
+  echo "FAIL: non-GDI successful dev build hook should reset repo runtime permissions after build" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+}
+if grep -q '^POST_TOOL_AOS:ready\|^POST_TOOL_AOS:git status' "$post_tool_log"; then
+  echo "FAIL: non-GDI successful dev build hook should not run readiness or status loops" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+fi
+if [[ -s "$tmux_log" ]]; then
+  echo "FAIL: non-GDI dev build hook should not inject PTY input" >&2
+  cat "$tmux_log" >&2
+  exit 1
+fi
+
 post_tcc_stop_out="$(printf '%s' "$payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/stop.sh")"
 python3 - "$post_tcc_stop_out" <<'PY'
 import json

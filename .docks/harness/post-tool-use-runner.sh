@@ -127,7 +127,24 @@ fi
   "$REPO_ROOT/.docks/harness/human-needed-surface.sh" show "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 ) >/dev/null 2>&1 &
 
-message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" post_tool_system_message)"
+if [[ "$dock" == "gdi" ]]; then
+  message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" post_tool_system_message)"
+else
+  message="stop: user action needed
+
+./aos dev build completed successfully and repo runtime permissions were reset.
+Stop now. Do not run readiness, repair, status, or helper loops before stopping.
+
+Human action:
+1. Run: ./aos permissions setup --once
+2. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.
+3. Return to this session and say: ready
+
+After resume, run exactly:
+./aos ready --post-permission
+
+If that reports ready=true, continue with the next planned step after the completed build. Do not restart from the build step."
+fi
 python3 - "$message" <<'PY'
 import json
 import sys
