@@ -17,6 +17,11 @@ struct AOS {
         // Initialize command registry
         commandRegistry = buildCommandRegistry()
 
+        if args.contains("--help") || args.contains("-h") {
+            helpCommand(args: args)
+            exit(0)
+        }
+
         if runExternalCommandIfMatched(args: args) {
             exit(0)
         }
@@ -32,55 +37,19 @@ struct AOS {
             handleDo(args: Array(args.dropFirst()))
         case "say":
             handleSay(args: Array(args.dropFirst()))
-        case "tell":
-            let tellArgs = Array(args.dropFirst())
-            if tellArgs.contains("--help") || tellArgs.contains("-h") {
-                printCommandHelp(["tell"], json: tellArgs.contains("--json"))
-                exit(0)
-            }
-            exitError("Unknown tell invocation", code: "UNKNOWN_COMMAND")
-        case "listen":
-            let listenArgs = Array(args.dropFirst())
-            if listenArgs.contains("--help") || listenArgs.contains("-h") {
-                printCommandHelp(["listen"], json: listenArgs.contains("--json"))
-                exit(0)
-            }
-            exitError("Unknown listen invocation", code: "UNKNOWN_COMMAND")
         case "gate":
             let gateArgs = Array(args.dropFirst())
-            if gateArgs.isEmpty || gateArgs.contains("--help") || gateArgs.contains("-h") {
-                printCommandHelp(["gate"], json: gateArgs.contains("--json"))
+            if gateArgs.isEmpty {
+                printCommandHelp(["gate"], json: false)
                 exit(0)
             }
             exitError("Unknown gate subcommand: \(gateArgs[0])", code: "UNKNOWN_SUBCOMMAND")
         case "voice":
             voiceCommand(args: Array(args.dropFirst()))
-        case "config":
-            let configArgs = Array(args.dropFirst())
-            if configArgs.contains("--help") || configArgs.contains("-h") {
-                if let subcommand = configArgs.first(where: { !$0.hasPrefix("-") }) {
-                    printCommandHelp(["config", subcommand], json: configArgs.contains("--json"))
-                } else {
-                    printCommandHelp(["config"], json: configArgs.contains("--json"))
-                }
-                exit(0)
-            }
-            exitError("Unknown config invocation", code: "UNKNOWN_COMMAND")
-        case "set":
-            let setArgs = Array(args.dropFirst())
-            if setArgs.contains("--help") || setArgs.contains("-h") {
-                printCommandHelp(["set"], json: setArgs.contains("--json"))
-                exit(0)
-            }
-            exitError("Unknown set invocation", code: "UNKNOWN_COMMAND")
         case "serve":
             handleServe(args: Array(args.dropFirst()))
         case "content":
             let contentArgs = Array(args.dropFirst())
-            if contentArgs.contains("--help") || contentArgs.contains("-h") {
-                printCommandHelp(["content"], json: contentArgs.contains("--json"))
-                exit(0)
-            }
             guard contentArgs.count > 0 else {
                 printCommandHelp(["content"], json: false)
                 exit(0)
@@ -98,44 +67,16 @@ struct AOS {
             readyCommand(args: Array(args.dropFirst()))
         case "doctor":
             doctorCommand(args: Array(args.dropFirst()))
-        case "reset":
-            let resetArgs = Array(args.dropFirst())
-            if resetArgs.contains("--help") || resetArgs.contains("-h") {
-                printCommandHelp(["reset"], json: resetArgs.contains("--json"))
-                exit(0)
-            }
-            exitError("Unknown reset invocation", code: "UNKNOWN_COMMAND")
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
-        case "focus":
-            let focusArgs = Array(args.dropFirst())
-            if focusArgs.contains("--help") || focusArgs.contains("-h") {
-                printCommandHelp(["focus"], json: focusArgs.contains("--json"))
-                exit(0)
-            }
-            exitError("Unknown focus invocation", code: "UNKNOWN_COMMAND")
-        case "graph":
-            let graphArgs = Array(args.dropFirst())
-            if graphArgs.contains("--help") || graphArgs.contains("-h") {
-                printCommandHelp(["graph"], json: graphArgs.contains("--json"))
-                exit(0)
-            }
-            exitError("Unknown graph invocation", code: "UNKNOWN_COMMAND")
-        case "daemon-snapshot":
-            let dsArgs = Array(args.dropFirst())
-            if dsArgs.contains("--help") || dsArgs.contains("-h") {
-                printCommandHelp(["daemon-snapshot"], json: dsArgs.contains("--json"))
-                exit(0)
-            }
-            exitError("Unknown daemon-snapshot invocation", code: "UNKNOWN_COMMAND")
         case "inspect":
             inspectCommand(args: Array(args.dropFirst()))
         case "log":
             logCommand(args: Array(args.dropFirst()))
         case "introspect":
             let introspectArgs = Array(args.dropFirst())
-            if introspectArgs.isEmpty || introspectArgs.contains("--help") || introspectArgs.contains("-h") {
-                printCommandHelp(["introspect"], json: introspectArgs.contains("--json"))
+            if introspectArgs.isEmpty {
+                printCommandHelp(["introspect"], json: false)
                 exit(0)
             }
             exitError("Unknown introspect subcommand: \(introspectArgs[0])", code: "UNKNOWN_SUBCOMMAND")
