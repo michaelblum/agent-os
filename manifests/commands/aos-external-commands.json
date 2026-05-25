@@ -270,6 +270,28 @@
       }
     },
     {
+      "path": ["wiki", "show"],
+      "summary": "Show wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-read.mjs", "show"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "invoke"],
+      "summary": "Bundle wiki plugins through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-read.mjs", "invoke"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["focus"],
       "summary": "Manage focus channels through the external focus command.",
       "executable": "/usr/bin/env",
