@@ -222,6 +222,54 @@
       }
     },
     {
+      "path": ["wiki", "create-plugin"],
+      "summary": "Create wiki plugin scaffolds through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "create-plugin"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "add"],
+      "summary": "Add wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "add"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "rm"],
+      "summary": "Remove wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "rm"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "link"],
+      "summary": "Link wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "link"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["focus"],
       "summary": "Manage focus channels through the external focus command.",
       "executable": "/usr/bin/env",
