@@ -1248,6 +1248,14 @@ func buildCommandRegistry() -> [CommandDescriptor] {
             execution: execMutating(),
             output: outJSONFlag,
             examples: ["aos dev build --no-restart", "aos dev build --no-restart --json"]),
+        InvocationForm(id: "dev-build-checkpoint", usage: "aos dev build-checkpoint [--json]",
+            args: [
+                flag("json", "--json", "Emit the machine-readable post-build checkpoint contract", type: .bool)
+            ],
+            stdin: nil, constraints: nil,
+            execution: execReadOnly(),
+            output: outJSONFlag,
+            examples: ["aos dev build-checkpoint --json"]),
         InvocationForm(id: "dev-afk-dry-run", usage: "aos dev afk-dry-run --packet <packet.json> [--provider <name>] [--dock <dock>] [--repo <path>] [--timestamp <iso>] [--out <path>] [--json]",
             args: [
                 flag("packet", "--packet", "Manual AFK packet JSON path for the experimental prototype dry-run diagnostic", required: true),

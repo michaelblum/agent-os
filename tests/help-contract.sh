@@ -231,7 +231,31 @@ else
     fail "dev build wrapper telemetry or readiness boundary regressed"
 fi
 
-# --- 19. dev afk-session-trigger help exposes guarded trigger flags ---
+# --- 19. dev build-checkpoint owns post-build pause/recovery contract ---
+OUT=$(./aos dev build-checkpoint --json 2>/dev/null)
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["schema"] == "aos.dev_build.post_build_checkpoint.v1", data
+assert data["pause_command"] == "/goal pause", data
+assert data["resume_command"] == "/goal resume", data
+commands = data["commands"]
+assert commands["reset_runtime"] == "./aos permissions reset-runtime --mode repo", commands
+assert commands["setup_once"] == "./aos permissions setup --once", commands
+assert commands["post_permission_ready"] == "./aos ready --post-permission", commands
+assert "goal_pause_required: repo-mode AOS permission repair" in data["post_tool_system_message"], data
+assert "dev_build_checkpoint_already_completed" in data["repeated_build_system_message"], data
+assert data["canvas"]["title"] == "AOS permission reset needed", data
+PY
+then
+    pass "dev build-checkpoint owns post-build pause/recovery contract"
+else
+    fail "dev build-checkpoint contract regressed: $OUT"
+fi
+
+# --- 20. dev afk-session-trigger help exposes guarded trigger flags ---
 OUT=$(./aos help dev afk-session-trigger --json 2>/dev/null)
 if OUT="$OUT" python3 - <<'PY'
 import json

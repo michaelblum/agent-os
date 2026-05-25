@@ -228,6 +228,8 @@ func devCommand(args: [String]) {
         devRecommendCommand(args: subArgs)
     case "build":
         devBuildCommand(args: subArgs)
+    case "build-checkpoint":
+        devBuildCheckpointCommand(args: subArgs)
     case "afk-dry-run":
         devAfkDryRunCommand(args: subArgs)
     case "afk-launch-attempt":
@@ -309,6 +311,7 @@ private func devBuildCommand(args: [String]) {
             "command": (["bash", "build.sh"] + buildArgs).joined(separator: " "),
             "build_wrapper": "build.sh",
             "build_source": "repo-root/build.sh",
+            "post_build_checkpoint": devBuildCheckpointContract(),
             "exit_code": Int(result.exitCode),
             "stdout": result.stdout,
             "stderr": result.stderr,
@@ -323,6 +326,129 @@ private func devBuildCommand(args: [String]) {
         }
     }
     exit(result.exitCode)
+}
+
+private func devBuildCheckpointCommand(args: [String]) {
+    let asJSON = args.contains("--json")
+    for arg in args {
+        if !["--json"].contains(arg) {
+            exitError("Unknown dev build-checkpoint argument: \(arg)", code: "UNKNOWN_FLAG")
+        }
+    }
+
+    let contract = devBuildCheckpointContract()
+    if asJSON {
+        printDevJSON(contract)
+    } else if let message = contract["post_tool_system_message"] as? String {
+        print(message)
+    }
+}
+
+private func devBuildCheckpointContract() -> [String: Any] {
+    let prefix = "./aos"
+    let resetCommand = "\(prefix) permissions reset-runtime --mode repo"
+    let setupCommand = "\(prefix) permissions setup --once"
+    let readyCommand = "\(prefix) ready --post-permission"
+    let pauseCommand = "/goal pause"
+    let resumeCommand = "/goal resume"
+
+    let repeatedBuildMessage = """
+dev_build_checkpoint_already_completed
+
+\(prefix) dev build already completed successfully for this checkpoint.
+Do not run \(prefix) dev build again.
+
+Run exactly:
+\(readyCommand)
+
+If that reports ready=true, continue with the next planned step after the
+completed build.
+"""
+
+    let postToolMessage = """
+goal_pause_required: repo-mode AOS permission repair
+
+\(prefix) dev build completed successfully. Treat the build step as complete for
+this checkpoint. Do not run \(prefix) dev build again after resume unless a human
+explicitly asks for another rebuild.
+
+Pause the active goal now by sending:
+\(pauseCommand)
+
+Human action:
+1. Run: \(resetCommand)
+2. Run: \(setupCommand)
+3. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.
+4. Return to this session and say: ready
+5. Resume the paused goal with: \(resumeCommand)
+
+After resume, run exactly:
+\(readyCommand)
+
+If that reports ready=true, continue with the next planned step after the
+completed build. Do not restart from the build step.
+
+Do not run ready/repair/status/helper loops before pausing.
+"""
+
+    let stopAfterBuildMessage = """
+GDI stopped for repo-mode AOS permission repair.
+
+Checkpoint: \(prefix) dev build already completed successfully. Do not run \(prefix) dev build again for this checkpoint after resume.
+
+Human action:
+1. Run: \(resetCommand)
+2. Run: \(setupCommand)
+3. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.
+4. Return to the GDI session and say: ready
+
+After that, GDI runs exactly: \(readyCommand)
+
+If ready=true, continue with the next planned step after the completed build. If the active goal is paused or Codex indicates it needs to resume, use \(resumeCommand) rather than starting a new goal.
+"""
+
+    let stopMessage = """
+GDI stopped for repo-mode AOS permission repair.
+
+Human action:
+1. Run: \(resetCommand)
+2. Run: \(setupCommand)
+3. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.
+4. Return to the GDI session and say: ready
+
+After that, GDI runs: \(readyCommand)
+
+If the active goal is paused or Codex indicates it needs to resume, use \(resumeCommand) rather than starting a new goal.
+"""
+
+    let canvasBody = "Run \(resetCommand), then \(setupCommand). Grant Accessibility, Input Monitoring, and Screen & System Audio Recording if macOS prompts. Manual Settings removal is fallback only if targeted reset reports unavailable or failed."
+
+    return [
+        "schema": "aos.dev_build.post_build_checkpoint.v1",
+        "reason": "repo_mode_aos_permission_repair",
+        "pause_command": pauseCommand,
+        "resume_command": resumeCommand,
+        "commands": [
+            "reset_runtime": resetCommand,
+            "setup_once": setupCommand,
+            "post_permission_ready": readyCommand,
+        ],
+        "human_actions": [
+            ["kind": "run", "command": resetCommand],
+            ["kind": "run", "command": setupCommand],
+            ["kind": "grant", "permissions": ["Accessibility", "Input Monitoring"]],
+            ["kind": "return", "message": "ready"],
+            ["kind": "resume", "command": resumeCommand],
+        ],
+        "repeated_build_system_message": repeatedBuildMessage,
+        "post_tool_system_message": postToolMessage,
+        "stop_system_message": stopMessage,
+        "stop_system_message_after_build": stopAfterBuildMessage,
+        "canvas": [
+            "title": "AOS permission reset needed",
+            "body": canvasBody,
+        ],
+    ]
 }
 
 private func devAfkDryRunCommand(args: [String]) {

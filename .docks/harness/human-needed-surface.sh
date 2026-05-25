@@ -44,11 +44,15 @@ if ! [[ -x "$aos_bin" ]]; then
   exit 0
 fi
 
-html="$(python3 - <<'PY'
+html="$(AOS_DOCK_REPO_ROOT_FOR_CONTRACT="$repo_root" python3 - <<'PY'
 import html
+import os
+import subprocess
 
-title = "AOS permission reset needed"
-body = "Run ./aos permissions reset-runtime --mode repo, then ./aos permissions setup --once. Grant Accessibility, Input Monitoring, and Screen & System Audio Recording if macOS prompts. Manual Settings removal is fallback only if targeted reset reports unavailable or failed."
+repo_root = os.environ["AOS_DOCK_REPO_ROOT_FOR_CONTRACT"]
+helper = os.path.join(repo_root, ".docks", "harness", "dev-build-checkpoint-contract.sh")
+title = subprocess.check_output([helper, repo_root, "canvas_title"], text=True).strip()
+body = subprocess.check_output([helper, repo_root, "canvas_body"], text=True).strip()
 print(f"""<!doctype html>
 <html>
 <head>

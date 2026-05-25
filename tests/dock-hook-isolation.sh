@@ -22,6 +22,7 @@ goal_pause_control = root / ".docks" / "harness" / "goal-pause-control.sh"
 provider_input_control = root / ".docks" / "harness" / "provider-input-control.sh"
 pty_input_control = root / ".docks" / "harness" / "pty-input-control.sh"
 dev_build_checkpoint = root / ".docks" / "harness" / "dev-build-checkpoint.sh"
+dev_build_checkpoint_contract = root / ".docks" / "harness" / "dev-build-checkpoint-contract.sh"
 defaults_path = root / ".docks" / "dock-defaults.json"
 if not runner.exists():
     raise SystemExit("FAIL: missing shared dock hook runner")
@@ -51,6 +52,10 @@ if not dev_build_checkpoint.exists():
     raise SystemExit("FAIL: missing shared dev-build checkpoint helper")
 if not os.access(dev_build_checkpoint, os.X_OK):
     raise SystemExit("FAIL: shared dev-build checkpoint helper is not executable")
+if not dev_build_checkpoint_contract.exists():
+    raise SystemExit("FAIL: missing shared dev-build checkpoint contract helper")
+if not os.access(dev_build_checkpoint_contract, os.X_OK):
+    raise SystemExit("FAIL: shared dev-build checkpoint contract helper is not executable")
 if not defaults_path.exists():
     raise SystemExit("FAIL: missing shared dock defaults")
 defaults = json.loads(defaults_path.read_text())
@@ -69,6 +74,7 @@ for required in (
     "run_optional_hook \"post-stop\"",
     "stop-condition.sh",
     "dev-build-checkpoint.sh",
+    "dev-build-checkpoint-contract.sh",
     "say --voice-slot",
     "dock-defaults.json",
     "voice.quality_tiers",
@@ -86,20 +92,19 @@ if "voice bind" in runner_text:
 post_tool_runner_text = post_tool_runner.read_text()
 pre_tool_runner_text = pre_tool_runner.read_text()
 for required in (
-    "dev_build_checkpoint_already_completed",
     "dev-build-checkpoint.sh",
-    "Do not run ./aos dev build again",
-    "./aos ready --post-permission",
+    "dev-build-checkpoint-contract.sh",
+    "repeated_build_system_message",
 ):
     if required not in pre_tool_runner_text:
         raise SystemExit(f"FAIL: pre-tool-use runner missing {required!r}")
 for required in (
-    "goal_pause_required: repo-mode AOS permission repair",
+    "post_tool_system_message",
     "goal-pause-control.sh",
     "human-needed-surface.sh",
+    "dev-build-checkpoint-contract.sh",
     "dev-build-checkpoint.sh",
     "stop-condition.sh",
-    "/goal pause",
 ):
     if required not in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner missing {required!r}")
@@ -803,7 +808,7 @@ for required in (
     "Run: ./aos permissions reset-runtime --mode repo",
     "Run: ./aos permissions setup --once",
     "Grant the requested macOS Accessibility/Input Monitoring permission",
-    "Return to the session and say: ready",
+    "Return to the GDI session and say: ready",
     "/goal resume",
     "./aos ready --post-permission",
 ):

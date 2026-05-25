@@ -246,6 +246,7 @@ for full-screen capture.
 ./aos dev docks list --json
 ./aos dev docks capabilities foreman --json
 ./aos dev build
+./aos dev build-checkpoint --json
 ./aos dev gh context --json
 ./aos dev gh issue comment 298 --body-file /tmp/comment.md
 ./aos dev gh ci inspect --pr 298 --json
@@ -256,6 +257,13 @@ for full-screen capture.
 the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
 and verification steps. The rules live in `docs/dev/workflow-rules.json` and
 are validated by `shared/schemas/dev-workflow-rules.schema.json`.
+
+`build` wraps the repo `build.sh` and emits a `post_build_checkpoint` object in
+JSON mode. `build-checkpoint --json` exposes that same
+`aos.dev_build.post_build_checkpoint.v1` contract without rebuilding. Dock
+hooks consume this contract for post-rebuild pause/resume commands, human TCC
+instructions, and post-permission readiness guidance instead of duplicating
+permission ritual text in hook scripts.
 
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed agent

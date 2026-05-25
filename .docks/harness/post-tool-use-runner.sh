@@ -124,34 +124,10 @@ fi
   "$REPO_ROOT/.docks/harness/human-needed-surface.sh" show "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 ) >/dev/null 2>&1 &
 
-python3 - "$dock" <<'PY'
+message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" post_tool_system_message)"
+python3 - "$message" <<'PY'
 import json
 import sys
 
-dock = sys.argv[1]
-message = """goal_pause_required: repo-mode AOS permission repair
-
-./aos dev build completed successfully. Treat the build step as complete for
-this checkpoint. Do not run ./aos dev build again after resume unless a human
-explicitly asks for another rebuild.
-
-Pause the active goal now by sending:
-/goal pause
-
-Human action:
-1. Run: ./aos permissions reset-runtime --mode repo
-2. Run: ./aos permissions setup --once
-3. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.
-4. Return to this session and say: ready
-5. Resume the paused goal with: /goal resume
-
-After resume, run exactly:
-./aos ready --post-permission
-
-If that reports ready=true, continue with the next planned step after the
-completed build. Do not restart from the build step.
-
-Do not run ready/repair/status/helper loops before pausing."""
-
-print(json.dumps({"continue": False, "systemMessage": message}))
+print(json.dumps({"continue": False, "systemMessage": sys.argv[1]}))
 PY

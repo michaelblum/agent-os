@@ -73,19 +73,10 @@ if ! "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" peek "$REPO_ROOT" "$doc
   exit 0
 fi
 
-python3 <<'PY'
+message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" repeated_build_system_message)"
+python3 - "$message" <<'PY'
 import json
+import sys
 
-message = """dev_build_checkpoint_already_completed
-
-./aos dev build already completed successfully for this checkpoint.
-Do not run ./aos dev build again.
-
-Run exactly:
-./aos ready --post-permission
-
-If that reports ready=true, continue with the next planned step after the
-completed build."""
-
-print(json.dumps({"continue": False, "systemMessage": message}))
+print(json.dumps({"continue": False, "systemMessage": sys.argv[1]}))
 PY
