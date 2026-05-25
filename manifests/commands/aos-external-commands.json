@@ -923,6 +923,17 @@
       }
     },
     {
+      "path": ["browser"],
+      "summary": "Validate hidden browser command routing through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["browser", "_parse-target"],
       "summary": "Parse browser targets through the external browser helper.",
       "executable": "/usr/bin/env",

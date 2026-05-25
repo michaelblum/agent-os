@@ -388,6 +388,7 @@ function registryCommand(args) {
 
 const [command, ...args] = process.argv.slice(2);
 try {
+  if (!command) error('Usage: aos browser _<op> ...', 'MISSING_ARG');
   switch (command) {
     case '_parse-target':
       if (args.length === 0) error('Usage: aos browser _parse-target <target>', 'MISSING_ARG');
@@ -406,7 +407,7 @@ try {
       resolveAnchorCommand(args);
       break;
     default:
-      error(`Unknown browser internal command: ${command ?? ''}`, 'UNKNOWN_SUBCOMMAND');
+      error(`Unknown internal subcommand: ${command}`, 'UNKNOWN_SUBCOMMAND');
   }
 } catch (err) {
   if (Array.isArray(err)) error(err[1], err[0]);
