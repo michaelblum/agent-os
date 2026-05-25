@@ -143,7 +143,7 @@
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
         "src/commands/dev.swift",
-        "src/shared/command-registry-data.swift",
+        "manifests/commands/aos-commands.json",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
         "shared/schemas/dev-active-profile.schema.json",

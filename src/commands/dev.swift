@@ -1669,7 +1669,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
             passed: false,
             expected: "command path dev",
             observed: "missing",
-            evidence: ["src/shared/command-registry-data.swift"],
+            evidence: ["manifests/commands/aos-commands.json"],
             next: "Register the dev command before trusting parser/help alignment.")]
     }
 
@@ -1683,7 +1683,7 @@ private func auditCommandRegistryClaims() -> [DevAuditClaim] {
         passed: Set(expectedForms).isSubset(of: Set(observedForms)),
         expected: expectedForms.sorted().joined(separator: ","),
         observed: observedForms.joined(separator: ","),
-        evidence: ["src/shared/command-registry-data.swift", "./aos help dev --json"],
+        evidence: ["manifests/commands/aos-commands.json", "./aos help dev --json"],
         next: "Add the missing dev InvocationForm so agents can discover the command."))
 
     let workflowFlags = ["--paths", "--files", "--manifest", "--base", "--repo", "--json"]
@@ -1748,7 +1748,7 @@ private func auditFormFlagClaim(
             passed: false,
             expected: expectedFlags.joined(separator: ","),
             observed: "missing form",
-            evidence: ["src/shared/command-registry-data.swift"],
+            evidence: ["manifests/commands/aos-commands.json"],
             next: "Restore the missing help form.")
     }
 
@@ -1765,7 +1765,7 @@ private func auditFormFlagClaim(
         expected: expectedFlags.sorted().joined(separator: ",")
             + (defaultManifestRequired ? "; manifest_default=\(devWorkflowDefaultManifestRelativePath)" : ""),
         observed: observed,
-        evidence: ["src/shared/command-registry-data.swift", "./aos help dev --json"],
+        evidence: ["manifests/commands/aos-commands.json", "./aos help dev --json"],
         next: "Align InvocationForm args with the parser in src/commands/dev.swift.")
 }
 
@@ -1784,7 +1784,7 @@ private func auditDevWorkflowManifestClaims(_ manifest: DevWorkflowManifest) -> 
     let expectedPatterns = [
         "docs/dev/workflow-rules.json",
         "src/commands/dev.swift",
-        "src/shared/command-registry-data.swift",
+        "manifests/commands/aos-commands.json",
         "tests/dev-workflow-router.sh",
         "tests/dev-audit.sh",
         "tests/schemas/dev-workflow-rules.test.mjs",

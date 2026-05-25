@@ -152,13 +152,10 @@ private struct DiscoverySourceWrapper: Decodable {
 }
 
 func buildCommandRegistry() -> [CommandDescriptor] {
-    if let registry = loadExternalCommandRegistry() {
-        return registry
-    }
-    return buildCompiledCommandRegistry()
+    return loadExternalCommandRegistry()
 }
 
-private func loadExternalCommandRegistry() -> [CommandDescriptor]? {
+private func loadExternalCommandRegistry() -> [CommandDescriptor] {
     let env = ProcessInfo.processInfo.environment
     let candidates = [
         env["AOS_COMMAND_REGISTRY"],
@@ -177,7 +174,10 @@ private func loadExternalCommandRegistry() -> [CommandDescriptor]? {
             exitError("Invalid command registry manifest \(path): \(error)", code: "INVALID_COMMAND_REGISTRY")
         }
     }
-    return nil
+    exitError(
+        "Missing command registry manifest. Checked: \(candidates.joined(separator: ", "))",
+        code: "MISSING_COMMAND_REGISTRY"
+    )
 }
 
 extension CommandDescriptor {

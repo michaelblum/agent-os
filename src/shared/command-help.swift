@@ -4,7 +4,7 @@ import Foundation
 
 // MARK: - Registry Access
 
-/// The global registry. Populated in command-registry-data.swift.
+/// The global registry. Populated from manifests/commands/aos-commands.json.
 var commandRegistry: [CommandDescriptor] = []
 
 func aosInvocationDisplayName() -> String {
