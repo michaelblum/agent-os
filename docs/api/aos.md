@@ -265,6 +265,13 @@ hooks consume this contract for post-rebuild pause/resume commands, human TCC
 instructions, and post-permission readiness guidance instead of duplicating
 permission ritual text in hook scripts.
 
+For dock sessions, hooks own the visible lifecycle around this checkpoint:
+successful GDI `aos dev build` shows the non-interactive human-needed surface
+and writes the completed-build marker; successful `aos ready --post-permission`
+removes that surface and clears the marker. Plain `aos ready` does not clear
+the marker, so incidental readiness probes cannot dismiss an active human-needed
+handoff.
+
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed agent
 capabilities, including whether a capability uses a typed AOS surface or an

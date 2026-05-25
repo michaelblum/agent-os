@@ -766,6 +766,7 @@ fi
 : >"$post_tool_log"
 : >"$tmux_log"
 : >"$open_log"
+AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" write "$PWD" gdi 60
 non_build_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready"},"tool_response":{"exit_code":0}}'
 non_build_out="$(printf '%s' "$non_build_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$non_build_out" <<'PY'
@@ -776,8 +777,12 @@ if payload != {"continue": True}:
     raise SystemExit(f"FAIL: non-build post-tool hook should continue quietly, got {payload}")
 PY
 if [[ -s "$post_tool_log" ]]; then
-  echo "FAIL: non-build command should not trigger post-tool pause guard" >&2
+  echo "FAIL: plain ready should not clear the hook-owned human-needed canvas or trigger post-tool pause guard" >&2
   cat "$post_tool_log" >&2
+  exit 1
+fi
+if ! AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" peek "$PWD" gdi >/dev/null; then
+  echo "FAIL: plain ready should not clear completed-build checkpoint; only ready --post-permission owns cleanup" >&2
   exit 1
 fi
 if [[ -s "$tmux_log" || -s "$open_log" ]]; then

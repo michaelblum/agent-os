@@ -106,6 +106,8 @@ PY
 )"
 
 if [[ "$python_result" == "post_permission_ready_success" ]]; then
+  # Hook-owned lifecycle: the human-needed surface is shown after a successful
+  # GDI rebuild and cleared only by the explicit post-permission readiness handoff.
   "$REPO_ROOT/.docks/harness/human-needed-surface.sh" clear "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
   "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" clear "$REPO_ROOT" "$dock" >/dev/null 2>&1 || true
   printf '{"continue":true}\n'
