@@ -48,7 +48,12 @@ struct AOS {
         case "config":
             configCommand(args: Array(args.dropFirst()))
         case "set":
-            handleSet(args: Array(args.dropFirst()))
+            let setArgs = Array(args.dropFirst())
+            if setArgs.contains("--help") || setArgs.contains("-h") {
+                printCommandHelp(["set"], json: setArgs.contains("--json"))
+                exit(0)
+            }
+            exitError("Unknown set invocation", code: "UNKNOWN_COMMAND")
         case "serve":
             handleServe(args: Array(args.dropFirst()))
         case "content":
@@ -344,14 +349,6 @@ func handleSay(args: [String]) {
         exit(0)
     }
     sayCommand(args: args)
-}
-
-func handleSet(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["set"], json: args.contains("--json"))
-        exit(0)
-    }
-    setCommand(args: args)
 }
 
 func handleServe(args: [String]) {
