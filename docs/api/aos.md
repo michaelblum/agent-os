@@ -964,9 +964,13 @@ when judging whether the daemon can actually observe and inject input.
 ```
 
 Consumers:
-- `aos ready [--json] [--repair] [--post-permission]` starts/checks the managed daemon, evaluates
-  the existing readiness contract, exits `0` only when ready, and returns
-  structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
+- `aos ready [--json] [--repair] [--post-permission]` first performs a cheap
+  daemon health preflight. When the managed daemon is already reachable, owned
+  by the expected runtime, and reports an active input tap, `ready` exits without
+  kickstarting or restarting the service and records `ready_preflight` in
+  `action_trace`. If the preflight is not ready, `ready` may start the managed
+  daemon, evaluates the existing readiness contract, exits `0` only when ready,
+  and returns structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
   `action_trace` fields for agents. Plain `ready` performs one short automatic
   daemon restart/recheck when it detects a daemon ownership mismatch or inactive
   input tap, because those states commonly appear after a human refreshes macOS

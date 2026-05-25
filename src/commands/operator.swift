@@ -367,6 +367,11 @@ private struct ReadyResponse: Encodable {
     let notes: [String]
 }
 
+private struct ReadyStartupDecision {
+    let startup: ReadyStartupBlock
+    let actionTrace: [ReadyActionStep]
+}
+
 private struct DaemonHealthState {
     let servingPID: Int?
     let uptime: Double?
@@ -399,45 +404,16 @@ func readyCommand(args: [String]) {
     // mock sockets and must not rewrite or kickstart the developer LaunchAgent.
     let skipServiceStart = ProcessInfo.processInfo.environment["AOS_TEST_SKIP_READY_SERVICE_START"] == "1"
     let serviceArgs = ["service", "start", "--mode", mode.rawValue, "--json"]
-    let startupResult: ProcessOutput?
-    let startup: ReadyStartupBlock
-    if skipServiceStart {
-        startupResult = nil
-        startup = ReadyStartupBlock(
-            attempted: false,
-            command: "\(prefix) \(serviceArgs.joined(separator: " "))",
-            exit_code: 0,
-            status: "skipped"
-        )
-    } else {
-        let result = runProcess(aosExecutablePath(), arguments: serviceArgs)
-        startupResult = result
-        startup = ReadyStartupBlock(
-            attempted: true,
-            command: "\(prefix) \(serviceArgs.joined(separator: " "))",
-            exit_code: result.exitCode,
-            status: result.exitCode == 0 ? "ok" : "degraded"
-        )
-    }
-
-    var actionTrace: [ReadyActionStep] = []
+    let decision = decideReadyStartup(
+        serviceArgs: serviceArgs,
+        skipServiceStart: skipServiceStart,
+        repair: repair,
+        mode: mode,
+        prefix: prefix
+    )
+    let startup = decision.startup
+    var actionTrace = decision.actionTrace
     var response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
-
-    if skipServiceStart {
-        actionTrace.append(ReadyActionStep(
-            step: "service_start",
-            result: "skipped",
-            detail: "AOS_TEST_SKIP_READY_SERVICE_START=1"
-        ))
-    } else if let startupResult, startupResult.exitCode != 0 {
-        actionTrace.append(ReadyActionStep(
-            step: "service_start",
-            result: "degraded",
-            detail: compactProcessDetail(startupResult)
-        ))
-    } else {
-        actionTrace.append(ReadyActionStep(step: "service_start", result: startup.status, detail: nil))
-    }
 
     if !repair && !skipServiceStart,
        let autoRepairReason = readyAutoRepairReason(response, postPermission: postPermission) {
@@ -802,6 +778,70 @@ func permissionsCommand(args: [String]) {
     default:
         exitError("Unknown permissions subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
+}
+
+private func decideReadyStartup(
+    serviceArgs: [String],
+    skipServiceStart: Bool,
+    repair: Bool,
+    mode: AOSRuntimeMode,
+    prefix: String
+) -> ReadyStartupDecision {
+    let command = "\(prefix) \(serviceArgs.joined(separator: " "))"
+    let skippedStartup = ReadyStartupBlock(
+        attempted: false,
+        command: command,
+        exit_code: 0,
+        status: "skipped"
+    )
+
+    if skipServiceStart {
+        return ReadyStartupDecision(
+            startup: skippedStartup,
+            actionTrace: [
+                ReadyActionStep(
+                    step: "service_start",
+                    result: "skipped",
+                    detail: "AOS_TEST_SKIP_READY_SERVICE_START=1"
+                )
+            ]
+        )
+    }
+
+    if !repair {
+        let preflight = buildReadyResponse(
+            startup: skippedStartup,
+            actionTrace: [],
+            mode: mode,
+            prefix: prefix
+        )
+        if preflight.ready {
+            return ReadyStartupDecision(
+                startup: skippedStartup,
+                actionTrace: [
+                    ReadyActionStep(
+                        step: "ready_preflight",
+                        result: "ready",
+                        detail: "managed daemon is already reachable, owned by the expected runtime, and input tap is active"
+                    )
+                ]
+            )
+        }
+    }
+
+    let result = runProcess(aosExecutablePath(), arguments: serviceArgs)
+    let startup = ReadyStartupBlock(
+        attempted: true,
+        command: command,
+        exit_code: result.exitCode,
+        status: result.exitCode == 0 ? "ok" : "degraded"
+    )
+    let trace = ReadyActionStep(
+        step: "service_start",
+        result: result.exitCode == 0 ? startup.status : "degraded",
+        detail: result.exitCode == 0 ? nil : compactProcessDetail(result)
+    )
+    return ReadyStartupDecision(startup: startup, actionTrace: [trace])
 }
 
 func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false) {
