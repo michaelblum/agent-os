@@ -217,11 +217,11 @@ fi
 if python3 - <<'PY'
 from pathlib import Path
 
-source = Path("src/commands/dev.swift").read_text(encoding="utf-8")
-assert 'buildArgs.append("--no-restart")' in source
-assert '"build_wrapper": "build.sh"' in source
-assert '"build_source": "repo-root/build.sh"' in source
-assert '"next": NSNull()' in source
+source = Path("scripts/aos-dev-build.mjs").read_text(encoding="utf-8")
+assert "buildArgs.push('--no-restart')" in source
+assert "build_wrapper: 'build.sh'" in source
+assert "build_source: 'repo-root/build.sh'" in source
+assert "next: null" in source
 assert "permission_note" not in source
 assert "Next: ./aos ready" not in source
 PY
