@@ -151,6 +151,17 @@
         "AOS_SESSION_HARNESS": "$AOS_SESSION_HARNESS",
         "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME"
       }
+    },
+    {
+      "path": ["set"],
+      "summary": "Read or write AOS config through the external config shorthand command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-config-command.mjs", "set-shorthand"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     }
   ]
 }

@@ -362,6 +362,22 @@ async function main(argv) {
     console.log(JSON.stringify(config, null, 2));
     return;
   }
+  if (command === 'set-shorthand') {
+    const args = argv.slice(1);
+    if (args.length === 0) {
+      console.log(JSON.stringify(await loadConfig(), null, 2));
+      return;
+    }
+    if (args.length < 2) {
+      console.log(JSON.stringify(await loadConfig(), null, 2));
+      return;
+    }
+    const config = await loadConfig();
+    setConfigValue(config, args[0], args[1]);
+    await saveConfig(config);
+    console.log(JSON.stringify(config, null, 2));
+    return;
+  }
   usage('Unknown config subcommand');
 }
 
