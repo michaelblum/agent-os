@@ -454,6 +454,13 @@
       }
     },
     {
+      "path": ["wiki"],
+      "summary": "Validate wiki subcommand routing through the external wiki router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-router.mjs"],
+      "cwd": "repo"
+    },
+    {
       "path": ["wiki", "migrate-namespaces"],
       "summary": "Run the wiki namespace migration through the external wiki command.",
       "executable": "/usr/bin/env",
