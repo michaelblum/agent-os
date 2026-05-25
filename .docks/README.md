@@ -60,6 +60,7 @@ markdown instructions.
 
 - `.docks/<dock>/.codex/hooks.json` declares provider hook entry points.
 - `.docks/<dock>/hooks/*.sh` are thin role-local wrappers.
+- `.docks/harness/dock-hook-runner.sh` is the shared dock hook harness.
 - `.docks/harness/*.sh` owns shared hook behavior such as build checkpoint
   pauses, short-lived stop conditions, human-needed surfaces, and stop notices.
 - `.docks/<dock>/dock.json` and `.docks/dock-defaults.json` own dock metadata,
@@ -70,6 +71,9 @@ markdown instructions.
 Use the scripts and JSON files as the source of truth when hook behavior,
 provider entry, or dock metadata changes. Markdown should explain ownership and
 link to the owning surface, not mirror the implementation.
+
+Stop speech uses the active dock voice policy, including `voice.voice_slot`, and
+speaks through `aos say --voice-slot`.
 
 ## AOS-First Runtime Control
 
@@ -131,7 +135,7 @@ or design note and reference it from the handoff.
 - `gdi/` performs assigned deterministic implementation or validation rounds
   and reports exact evidence. It does not own next-work selection, PRs, issues,
   or branch hygiene unless the goal explicitly assigns that work.
-- `operator/` performs bounded supervised human-in-the-loop evidence collection
+- `operator/` is the Operator. It performs bounded supervised human-in-the-loop evidence collection
   and locator review. It does not own implementation or git/GitHub scope unless
   the transfer explicitly assigns that responsibility.
 

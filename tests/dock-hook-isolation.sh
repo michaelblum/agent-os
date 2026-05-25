@@ -105,12 +105,13 @@ for required in (
     "dev-build-checkpoint-contract.sh",
     "dev-build-checkpoint.sh",
     "stop-condition.sh",
+    "permissions reset-runtime --mode repo",
 ):
     if required not in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner missing {required!r}")
 if "pty-input-control.sh" not in goal_pause_control.read_text():
     raise SystemExit("FAIL: goal-pause control must delegate PTY writes through pty-input-control.sh")
-for forbidden in ("ready --post-permission --json", "ready --repair", "git status", "AOS_BIN"):
+for forbidden in ("ready --post-permission --json", "ready --repair", "git status"):
     if forbidden in post_tool_runner_text:
         raise SystemExit(f"FAIL: post-tool-use runner must not run redundant ritual command {forbidden!r}")
 
@@ -645,8 +646,13 @@ payload = json.loads(sys.argv[1])
 if payload != {"continue": True}:
     raise SystemExit(f"FAIL: completed-build checkpoint should allow post-permission ready, got {payload}")
 PY
-if grep -q '^POST_TOOL_AOS:ready\|^POST_TOOL_AOS:permissions reset-runtime\|^POST_TOOL_AOS:git status' "$post_tool_log"; then
-  echo "FAIL: successful dev build hook should not run readiness or repair ritual" >&2
+grep -q '^POST_TOOL_AOS:permissions reset-runtime --mode repo$' "$post_tool_log" || {
+  echo "FAIL: successful dev build hook should reset repo runtime permissions after build" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+}
+if grep -q '^POST_TOOL_AOS:ready\|^POST_TOOL_AOS:git status' "$post_tool_log"; then
+  echo "FAIL: successful dev build hook should not run readiness or status loops" >&2
   cat "$post_tool_log" >&2
   exit 1
 fi

@@ -119,6 +119,7 @@ if [[ "$python_result" != "dev_build_success" ]]; then
   exit 0
 fi
 
+"${AOS_DOCK_AOS_BIN:-$REPO_ROOT/aos}" permissions reset-runtime --mode repo >/dev/null 2>&1 || true
 "$REPO_ROOT/.docks/harness/stop-condition.sh" write "$REPO_ROOT" "$dock" tcc_permission_reset 600
 "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" write "$REPO_ROOT" "$dock" 3600
 "$REPO_ROOT/.docks/harness/goal-pause-control.sh" request "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
