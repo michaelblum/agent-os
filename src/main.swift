@@ -17,6 +17,10 @@ struct AOS {
         // Initialize command registry
         commandRegistry = buildCommandRegistry()
 
+        if runExternalCommandIfMatched(args: args) {
+            exit(0)
+        }
+
         switch command {
         case "see":
             handleSee(args: Array(args.dropFirst()))

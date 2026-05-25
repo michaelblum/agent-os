@@ -147,33 +147,6 @@ private let devWorkflowDefaultManifestRelativePath = "docs/dev/workflow-rules.js
 private let devCapabilitiesDefaultManifestRelativePath = "docs/dev/agent-capabilities.json"
 private let devDocksDefaultRootRelativePath = ".docks"
 private let devWorkflowRuleID = "dev-workflow-manifest"
-private let devExternalCommandManifestRelativePath = "manifests/commands/aos-external-commands.json"
-
-private struct DevExternalCommandManifest: Decodable {
-    let schemaVersion: Int
-    let commands: [DevExternalCommand]
-
-    enum CodingKeys: String, CodingKey {
-        case schemaVersion = "schema_version"
-        case commands
-    }
-}
-
-private struct DevExternalCommand: Decodable {
-    let path: [String]
-    let summary: String?
-    let executable: String
-    let argvPrefix: [String]
-    let cwd: String?
-
-    enum CodingKeys: String, CodingKey {
-        case path
-        case summary
-        case executable
-        case argvPrefix = "argv_prefix"
-        case cwd
-    }
-}
 
 func devCommand(args: [String]) {
     guard let sub = args.first else {
@@ -201,12 +174,6 @@ func devCommand(args: [String]) {
         devBuildCommand(args: subArgs)
     case "build-checkpoint":
         devBuildCheckpointCommand(args: subArgs)
-    case "afk-dry-run":
-        devRunExternalCommandOrExit(path: ["dev", "afk-dry-run"], args: subArgs)
-    case "afk-launch-attempt":
-        devRunExternalCommandOrExit(path: ["dev", "afk-launch-attempt"], args: subArgs)
-    case "afk-session-trigger":
-        devRunExternalCommandOrExit(path: ["dev", "afk-session-trigger"], args: subArgs)
     case "audit":
         devAuditCommand(args: subArgs)
     case "capabilities":
@@ -951,68 +918,6 @@ private func runProcessCapturingOutput(_ executable: String, arguments: [String]
         stdout: (try? String(contentsOf: stdoutURL, encoding: .utf8)) ?? "",
         stderr: (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? ""
     )
-}
-
-private func devRunExternalCommandOrExit(path: [String], args: [String]) -> Never {
-    let repoRoot = resolveRepoRoot(devRawOptionValue(args, "--repo"))
-    let manifestPath = (repoRoot as NSString).appendingPathComponent(devExternalCommandManifestRelativePath)
-    guard FileManager.default.fileExists(atPath: manifestPath),
-          let data = try? Data(contentsOf: URL(fileURLWithPath: manifestPath)) else {
-        exitError("Missing external command manifest: \(manifestPath)", code: "MISSING_MANIFEST")
-    }
-
-    let manifest: DevExternalCommandManifest
-    do {
-        manifest = try JSONDecoder().decode(DevExternalCommandManifest.self, from: data)
-    } catch {
-        exitError("Invalid external command manifest \(manifestPath): \(error)", code: "INVALID_MANIFEST")
-    }
-    guard manifest.schemaVersion == 1 else {
-        exitError("Unsupported external command manifest schema_version \(manifest.schemaVersion)", code: "INVALID_MANIFEST")
-    }
-    guard let command = manifest.commands.first(where: { $0.path == path }) else {
-        exitError("External command not declared: \(path.joined(separator: " "))", code: "UNKNOWN_COMMAND")
-    }
-
-    let executable = devResolveExternalExecutable(command.executable, repoRoot: repoRoot)
-    let argv = command.argvPrefix.map { devResolveExternalArg($0, repoRoot: repoRoot) } + args
-    let cwd = command.cwd == "repo" ? repoRoot : command.cwd.map { devResolveExternalArg($0, repoRoot: repoRoot) }
-    let result = runProcessCapturingOutput(executable, arguments: argv, cwd: cwd)
-    if !result.stdout.isEmpty, let data = result.stdout.data(using: .utf8) {
-        FileHandle.standardOutput.write(data)
-    }
-    if !result.stderr.isEmpty, let data = result.stderr.data(using: .utf8) {
-        FileHandle.standardError.write(data)
-    }
-    exit(result.exitCode)
-}
-
-private func devRawOptionValue(_ args: [String], _ token: String) -> String? {
-    var i = 0
-    while i < args.count {
-        if args[i] == token, i + 1 < args.count {
-            return args[i + 1]
-        }
-        i += 1
-    }
-    return nil
-}
-
-private func devResolveExternalExecutable(_ value: String, repoRoot: String) -> String {
-    if value.hasPrefix("/") {
-        return value
-    }
-    return devResolveExternalArg(value, repoRoot: repoRoot)
-}
-
-private func devResolveExternalArg(_ value: String, repoRoot: String) -> String {
-    if value.hasPrefix("/") {
-        return value
-    }
-    if value.hasPrefix("$REPO_ROOT/") {
-        return (repoRoot as NSString).appendingPathComponent(String(value.dropFirst("$REPO_ROOT/".count)))
-    }
-    return value
 }
 
 private func parseDevOptions(_ args: [String]) -> DevOptions {
