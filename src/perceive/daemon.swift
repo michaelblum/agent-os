@@ -97,7 +97,6 @@ class PerceptionEngine {
 
         guard inputTapPermissionsAvailable() else {
             logEventTapFailure()
-            scheduleEventTapRetry()
             return
         }
 
@@ -194,13 +193,16 @@ class PerceptionEngine {
         if #available(macOS 10.15, *) {
             let listen = CGPreflightListenEventAccess()
             let post = CGPreflightPostEventAccess()
+            let next = ax && listen && post
+                ? "retrying on main run loop"
+                : "leaving tap unavailable until daemon restart"
             fputs(
-                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax) listen=\(listen) post=\(post)); retrying on main run loop\n",
+                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax) listen=\(listen) post=\(post)); \(next)\n",
                 stderr
             )
         } else {
             fputs(
-                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax)); retrying on main run loop\n",
+                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax)); \(ax ? "retrying on main run loop" : "leaving tap unavailable until daemon restart")\n",
                 stderr
             )
         }
@@ -218,8 +220,8 @@ class PerceptionEngine {
         lastEventTapErrorAt = Date()
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            self.cancelEventTapRetry()
             self.teardownEventTap()
-            self.scheduleEventTapRetry()
         }
     }
 

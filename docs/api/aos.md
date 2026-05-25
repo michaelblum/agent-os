@@ -995,6 +995,11 @@ Consumers:
   break-glass capability only: `--allow-service-reset` requires
   `--emergency-ack-other-apps` and should be used only when Michael explicitly
   asks for emergency recovery.
+- When the daemon detects missing Accessibility/Input Monitoring permissions,
+  its event tap must fail open and remain unavailable until daemon restart
+  rather than running a background retry loop. This keeps reset/regrant recovery
+  from re-enabling input capture while the human is changing macOS privacy
+  grants. Non-permission tap creation failures may still report `retrying`.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.
