@@ -380,6 +380,90 @@
       "cwd": "repo"
     },
     {
+      "path": ["voice", "list"],
+      "summary": "List voice registry entries through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "assignments"],
+      "summary": "List voice assignments through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "assignments"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "refresh"],
+      "summary": "Refresh voice providers through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "refresh"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "providers"],
+      "summary": "List voice providers through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "providers"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "bind"],
+      "summary": "Bind session voices through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "bind"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "next"],
+      "summary": "Cycle a session voice through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "next"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "final-response"],
+      "summary": "Relay final-response voice events through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "final-response"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["ops"],
       "summary": "Run source-backed operator recipes through the external ops command.",
       "executable": "/usr/bin/env",
@@ -497,7 +581,7 @@
       "path": ["config", "get"],
       "summary": "Read an AOS config value from the external config command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-config-command.mjs"],
+      "argv_prefix": ["node", "scripts/aos-config-command.mjs", "get"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -519,7 +603,7 @@
       "path": ["config", "set"],
       "summary": "Write an AOS config value from the external config command.",
       "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-config-command.mjs"],
+      "argv_prefix": ["node", "scripts/aos-config-command.mjs", "set"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
