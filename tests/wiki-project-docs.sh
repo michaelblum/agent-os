@@ -131,6 +131,16 @@ EOF
 HASH2="$(grep '^source_hash:' "$ROOT/repo/wiki/aos/concepts/repo-doc-test-projection.md")"
 [[ "$HASH1" != "$HASH2" ]] || { echo "FAIL: changed source did not update source_hash"; exit 1; }
 
+if "$AOS" wiki project-docs --bogus 2>"$ROOT/wiki-project-docs-bogus.err"; then
+  echo "FAIL: wiki project-docs accepted unknown flag"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-project-docs-bogus.err" || {
+  echo "FAIL: wiki project-docs unknown flag did not use external script error contract"
+  cat "$ROOT/wiki-project-docs-bogus.err"
+  exit 1
+}
+
 cat > "$MANIFEST" <<EOF
 {
   "projection": "repo_docs_v0",

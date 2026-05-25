@@ -314,6 +314,18 @@
       }
     },
     {
+      "path": ["wiki", "project-docs"],
+      "summary": "Project repo docs into the runtime wiki through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-project-docs.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$AOS_REPO_ROOT"
+      }
+    },
+    {
       "path": ["wiki", "list"],
       "summary": "List wiki index entries through the external wiki command.",
       "executable": "/usr/bin/env",
