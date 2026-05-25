@@ -1,6 +1,6 @@
 # Work Card: Command Surface Rearchitecture Long Goal V0
 
-**Status:** Ready for GDI
+**Status:** Ready after input-tap safety prerequisite
 
 ## Transfer Classification
 
@@ -8,7 +8,8 @@
 - Transfer kind: GDI round, intentionally long-running `/goal`
 - Single next goal: rearchitect the `aos` command surface so changing command logic no longer requires rebuilding the TCC-sensitive Swift binary.
 - Source branch: `feat/command-surface-extraction`
-- Required start ref: `origin/feat/command-surface-extraction`
+- Required start ref: local `feat/command-surface-extraction` containing the
+  accepted rebuild-pause/checkpoint commits and the current work-card updates.
 - Output expectation: work autonomously on this branch for as long as needed; commit coherent checkpoints; push only if the active GDI/provider contract permits or the human explicitly asks.
 
 ## Foreman Override
@@ -43,9 +44,10 @@ manifests/modules/scripts that can change without rebuilding the TCC binary.
 
 ## User Plan
 
-### Phase 0 - Goal Loop Pause Guard
+### Phase 0 - Accepted Goal Loop Pause Guard
 
-Before command-surface demolition, fix the repeated wasted rebuild/TCC loop.
+The repeated wasted rebuild/TCC loop has been handled as accepted prerequisite
+work on this branch. Do not redo it as the first part of the long goal.
 
 Observed failure mode:
 
@@ -56,26 +58,24 @@ Observed failure mode:
    repeated status commands, and verbose `human_needed` reporting.
 4. The goal should have paused immediately at the deterministic checkpoint.
 
-There is no known Codex config/API switch for hard declarative pause conditions.
-The supported mechanism is still `/goal pause`, so implement this at the Codex
-hook/harness layer, not as a GDI-only convention:
+The current branch now has the hook/harness implementation and deterministic
+coverage for this guard:
 
-- encode the pause condition in this `/goal` contract;
-- add a dock/Codex hook for `PostToolUse` or the nearest supported tool-result
-  event so this applies to all Codex docks, not just GDI;
-- make the hook detect a completed successful `./aos dev build` tool call and
-  request an out-of-band GDI `/goal pause` injection through the session
-  supervisor/terminal handle;
-- use the existing Stop hook / stop-condition marker for TTS once the goal
-  pauses;
-- avoid repeated ad-hoc `./aos ready`, helper, status, and report loops after a
-  rebuild checkpoint;
-- add deterministic tests around the hook/stop-condition behavior before
-  relying on it for the long rearchitecture.
+- successful `./aos dev build` writes the completed-build checkpoint and
+  produces the concise repo-mode TCC permission repair stop condition;
+- GDI gets `/goal pause` injected through the dock PTY helper when a control
+  target is available;
+- `/goal resume` guidance is staged after the pause;
+- repeat builds are blocked until `./aos ready --post-permission`;
+- successful post-permission readiness clears the checkpoint and human-needed
+  surface;
+- failed builds and unrelated commands do not synthesize the pause.
 
-A wrapper may still exist as a fallback for non-Codex/manual invocations, but it
-is not the primary solution and must not be required for GDI to get the pause
-behavior.
+Relevant accepted commits on this branch:
+
+- `be668f8e` - pause GDI after AOS rebuild;
+- `9a84944e` - centralize AOS build checkpoint contract;
+- `d2aa65ac` - document hook-owned checkpoint cleanup.
 
 The desired behavior after any successful `./aos dev build` is:
 
@@ -85,7 +85,29 @@ permission setup path and resume with /goal resume; after resume, run
 ./aos ready --post-permission once before continuing verification
 ```
 
-Do not proceed to Phase 1 until this guardrail exists and is verified.
+Do not proceed to Phase 1 if this guardrail regresses. Re-run
+`bash tests/dock-hook-isolation.sh` before depending on it.
+
+### Phase 0.5 - Input-Tap Permission Reset Safety
+
+Before command-surface demolition, complete and accept
+`docs/design/work-cards/gdi-input-tap-permission-reset-safety-v0.md`.
+
+Reason: command-surface work will still require some Swift rebuilds early in the
+demolition. If repo-mode TCC/Input Monitoring gets reset while the daemon keeps
+an active event-tap path, the user can lose reliable mouse/keyboard control
+during permission repair. That safety bug is more important than the command
+surface extraction.
+
+Required invariant before Phase 1:
+
+- during permission reset/regrant recovery, AOS fails open before any downstream
+  input consumer can consume or interfere with user events;
+- Command+Option+Escape activates real passthrough, not just visual feedback;
+- permission recovery remains `./aos permissions reset-runtime --mode repo`,
+  `./aos permissions setup --once`, then `./aos ready --post-permission`;
+- live-dependent work stops with the dock-owned human-needed path when TCC/input
+  tap recovery requires manual action.
 
 ### Phase 1 - Demolition
 
@@ -142,6 +164,11 @@ git status --short --branch
 If local user work exists, do not discard it. Classify it and report before
 resetting or overwriting.
 
+Do not reset this branch to `origin/feat/command-surface-extraction` unless
+Foreman explicitly says to. The local branch currently contains prerequisite
+governance, rebuild-pause, interaction-map, and safety-routing work that may not
+exist on the remote tracking ref yet.
+
 ## Read First
 
 - `AGENTS.md`
@@ -155,8 +182,11 @@ resetting or overwriting.
 - `tests/afk-session-trigger-prototype.test.mjs`
 - `tests/help-contract.sh`
 - `tests/dev-workflow-router.sh`
+- `tests/dock-hook-isolation.sh`
 - `docs/archive/superpowers/specs/2026-04-15-command-registry-design.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
+- `docs/design/work-cards/gdi-input-tap-permission-reset-safety-v0.md`
+- `docs/design/notes/aos-interaction-surfaces-map-2026-05-25.md`
 - `docs/dev/workflow-rules.json`
 
 Then search broadly. The command surface is not only the old help registry.
@@ -183,11 +213,15 @@ rg -n "aos help|--help|UNKNOWN_COMMAND|UNKNOWN_FLAG|MISSING_ARG|MISSING_SUBCOMMA
   command changes happen outside Swift.
 - Keep the Swift side narrow and boring.
 - Keep commits understandable even if the overall goal is long.
+- Use `./aos` as the first control plane for runtime/session/surface inspection
+  and mutation. Raw `curl`, `tmux`, sockets, launchd, and state-file inspection
+  are last-resort diagnostics unless the task is explicitly testing that lower
+  layer or repairing the AOS control plane.
 
 ## TCC / Rebuild Guidance
 
 Early demolition may require Swift rebuilds and therefore TCC readiness repair.
-That is acceptable.
+That is acceptable only after Phase 0.5 is complete.
 
 After Phase 0, do not perform the old ritual after a successful rebuild. The
 hook-enforced goal-loop rule is:
@@ -237,9 +271,8 @@ and stop with a clear `human_needed` report.
 
 Use commits as recoverable checkpoints. Suggested checkpoint sequence:
 
-0. Goal-loop guard commit: Codex post-tool hook detects successful
-   `./aos dev build` and causes a concise `/goal pause` checkpoint instead of
-   repeated readiness/helper ritual.
+0. Prerequisite verification commit if needed: confirm the accepted goal-loop
+   guard and input-tap safety are still green before demolition.
 1. Demolition commit: Swift command surface removed or reduced to dispatcher
    scaffolding, even if tests fail.
 2. External manifest/IPC proof commit: AFK trigger runs externally end-to-end.
@@ -257,6 +290,8 @@ The goal is not complete until all are true:
 
 - Rebuild-triggered repo-mode TCC/input-tap degradation has a deterministic
   Codex hook-level `/goal pause` path, verified by tests.
+- Permission reset/regrant paths fail open for user input and do not leave a
+  live event tap consuming user events during manual recovery.
 - `aos` commands work 100% for the repo's supported command surface.
 - Existing help/JSON/error contracts are repaired or intentionally updated with
   matching tests/docs.
