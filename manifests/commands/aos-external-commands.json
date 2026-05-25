@@ -486,6 +486,97 @@
       }
     },
     {
+      "path": ["show", "list"],
+      "summary": "List canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "ping"],
+      "summary": "Ping the canvas daemon through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "ping"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "remove"],
+      "summary": "Remove a canvas through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "remove"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "remove-all"],
+      "summary": "Remove all canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "remove-all"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "eval"],
+      "summary": "Evaluate JavaScript in a canvas through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "eval"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "post"],
+      "summary": "Post messages through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "post"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "to-front"],
+      "summary": "Raise a canvas through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "to-front"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "wait"],
+      "summary": "Wait for canvas readiness through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "wait"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["log"],
       "summary": "Run the log console through the external log command.",
       "executable": "/usr/bin/env",
