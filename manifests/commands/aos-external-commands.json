@@ -292,6 +292,28 @@
       }
     },
     {
+      "path": ["wiki", "list"],
+      "summary": "List wiki index entries through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-query.py", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "search"],
+      "summary": "Search wiki index entries through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-query.py", "search"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["focus"],
       "summary": "Manage focus channels through the external focus command.",
       "executable": "/usr/bin/env",
