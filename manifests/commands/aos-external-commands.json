@@ -137,6 +137,20 @@
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
+    },
+    {
+      "path": ["introspect", "review"],
+      "summary": "Review recent AOS usage from the external introspection command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-introspect-review.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_SESSION_ID": "$AOS_SESSION_KEY",
+        "AOS_SESSION_HARNESS": "$AOS_SESSION_HARNESS",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME"
+      }
     }
   ]
 }

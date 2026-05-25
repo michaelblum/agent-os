@@ -116,6 +116,15 @@ private func resolveExternalArg(_ value: String, repoRoot: String) -> String {
     if value == "$AOS_PATH" {
         return CommandLine.arguments.first ?? "./aos"
     }
+    if value == "$AOS_SESSION_KEY" {
+        return aosCurrentSessionKey()
+    }
+    if value == "$AOS_SESSION_HARNESS" {
+        return aosCurrentSessionHarness()
+    }
+    if value == "$AOS_INVOCATION_DISPLAY_NAME" {
+        return aosInvocationDisplayName()
+    }
     return value
 }
 
