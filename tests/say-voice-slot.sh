@@ -89,11 +89,38 @@ for slot in 0 -1 nope 999999; do
     echo "FAIL: expected --voice-slot $slot to fail" >&2
     exit 1
   fi
-  echo "$err" | grep -q '"code" : "INVALID_VOICE_SLOT"' || {
+  echo "$err" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_VOICE_SLOT"' || {
     echo "FAIL: expected INVALID_VOICE_SLOT for $slot, got $err" >&2
     exit 1
   }
 done
+
+if err="$(./aos say --bogus "bad flag" 2>&1 >/dev/null)"; then
+  echo "FAIL: expected unknown say flag to fail" >&2
+  exit 1
+fi
+echo "$err" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_FLAG"' || {
+  echo "FAIL: expected UNKNOWN_FLAG for unknown say flag, got $err" >&2
+  exit 1
+}
+
+if err="$(./aos say --voice --voice-slot 1 "missing voice" 2>&1 >/dev/null)"; then
+  echo "FAIL: expected missing --voice value to fail" >&2
+  exit 1
+fi
+echo "$err" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' || {
+  echo "FAIL: expected MISSING_ARG for missing --voice value, got $err" >&2
+  exit 1
+}
+
+if err="$(./aos say --rate fast "bad rate" 2>&1 >/dev/null)"; then
+  echo "FAIL: expected non-numeric --rate to fail" >&2
+  exit 1
+fi
+echo "$err" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' || {
+  echo "FAIL: expected MISSING_ARG for non-numeric --rate, got $err" >&2
+  exit 1
+}
 
 out="$(say_json --voice voice://mock/mock-bravo "explicit voice")"
 python3 - "$out" <<'PY'
