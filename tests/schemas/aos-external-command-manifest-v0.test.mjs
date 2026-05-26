@@ -181,6 +181,63 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
   assert.equal(source.includes('buildCommandRegistry'), false, 'Swift command registry must not return');
 });
 
+test('private Swift primitives are reachable only through expected external wrappers', async () => {
+  const manifest = await loadJson(manifestPath);
+  const expectedBootstrapRoutes = new Map([
+    ['__serve', 'serve'],
+    ['__status', 'status'],
+    ['__ready', 'ready'],
+    ['__doctor', 'doctor'],
+    ['__permissions', 'permissions'],
+  ]);
+  const expectedWrapperFiles = new Map([
+    ['__render', ['scripts/aos-show-render.mjs']],
+    ['__see', ['scripts/aos-see-native.mjs']],
+    ['__say', ['scripts/aos-say.mjs']],
+    ['__do', ['scripts/aos-do-native.mjs']],
+  ]);
+  const privatePrimitives = new Set([...expectedBootstrapRoutes.keys(), ...expectedWrapperFiles.keys()]);
+
+  for (const command of manifest.commands) {
+    for (const arg of command.argv_prefix) {
+      if (!privatePrimitives.has(arg)) continue;
+      assert.equal(
+        command.executable,
+        '$AOS_PATH',
+        `${command.path.join(' ')} must not pass ${arg} through a non-Swift executable`,
+      );
+      assert.equal(
+        expectedBootstrapRoutes.get(arg),
+        command.path.join(' '),
+        `${command.path.join(' ')} must not expose private primitive ${arg} directly`,
+      );
+    }
+  }
+
+  for (const [primitive, files] of expectedWrapperFiles) {
+    for (const relativePath of files) {
+      const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
+      assert.ok(source.includes(primitive), `${relativePath} must invoke ${primitive}`);
+    }
+  }
+
+  const scriptFiles = (await fs.readdir(path.join(repoRoot, 'scripts')))
+    .filter((file) => file.endsWith('.mjs'))
+    .map((file) => `scripts/${file}`);
+  for (const relativePath of scriptFiles) {
+    const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
+    for (const primitive of privatePrimitives) {
+      const invokesPrimitive = new RegExp(`\\[\\s*['"]${primitive}['"]`).test(source);
+      if (!invokesPrimitive) continue;
+      const allowed = expectedWrapperFiles.get(primitive) ?? [];
+      assert.ok(
+        allowed.includes(relativePath),
+        `${relativePath} must not invoke private Swift primitive ${primitive}`,
+      );
+    }
+  }
+});
+
 test('duplicate external command paths are explicitly condition-gated', async () => {
   const manifest = await loadJson(manifestPath);
   const byPath = new Map();
