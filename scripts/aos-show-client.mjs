@@ -11,6 +11,12 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  const text = String(arg);
+  if (text.startsWith('-')) error(`Unknown flag: ${text}`, 'UNKNOWN_FLAG');
+  error(`Unknown argument: ${text}`, 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
@@ -258,7 +264,7 @@ function parseIDOnly(args, commandName) {
     if (args[i] === '--id') {
       [id, i] = nextValue(args, i, '--id');
     } else {
-      error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+      unknownArg(args[i]);
     }
   }
   if (!id) error(`${commandName} requires --id <name>`, 'MISSING_ARG');
@@ -342,7 +348,7 @@ function parseCanvasMutationOptions(args, kind) {
         options.interactive = true;
         break;
       case '--no-interactive':
-        if (kind !== 'update') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        if (kind !== 'update') unknownArg(args[i]);
         options.interactive = false;
         break;
       case '--window-level':
@@ -352,14 +358,14 @@ function parseCanvasMutationOptions(args, kind) {
         options.focus = true;
         break;
       case '--no-focus':
-        if (kind !== 'update') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        if (kind !== 'update') unknownArg(args[i]);
         options.focus = false;
         break;
       case '--ttl':
         [options.ttlValue, i] = nextValue(args, i, '--ttl');
         break;
       case '--scope': {
-        if (kind !== 'create') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        if (kind !== 'create') unknownArg(args[i]);
         let value;
         [value, i] = nextValue(args, i, '--scope');
         if (!['connection', 'global'].includes(value)) error("--scope must be 'connection' or 'global'", 'INVALID_ARG');
@@ -367,7 +373,7 @@ function parseCanvasMutationOptions(args, kind) {
         break;
       }
       case '--auto-project':
-        if (kind !== 'create') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        if (kind !== 'create') unknownArg(args[i]);
         [options.autoProject, i] = nextValue(args, i, '--auto-project');
         break;
       case '--track': {
@@ -378,7 +384,7 @@ function parseCanvasMutationOptions(args, kind) {
         break;
       }
       case '--surface': {
-        if (kind !== 'create') error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        if (kind !== 'create') unknownArg(args[i]);
         let value;
         [value, i] = nextValue(args, i, '--surface');
         if (value !== 'desktop-world') error(`Unknown --surface target: ${value}. Supported: desktop-world`, 'INVALID_ARG');
@@ -386,7 +392,7 @@ function parseCanvasMutationOptions(args, kind) {
         break;
       }
       default:
-        error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        unknownArg(args[i]);
     }
   }
   return options;
@@ -509,7 +515,7 @@ async function waitCommand(args) {
         asJSON = true;
         break;
       default:
-        error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        unknownArg(args[i]);
     }
   }
 
@@ -545,7 +551,7 @@ async function evalCommand(args) {
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--id') [id, i] = nextValue(args, i, '--id');
     else if (args[i] === '--js') [js, i] = nextValue(args, i, '--js');
-    else error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+    else unknownArg(args[i]);
   }
   if (!id) error('eval requires --id <name>', 'MISSING_ARG');
   if (!js) error('eval requires --js <code>', 'MISSING_ARG');
@@ -562,7 +568,7 @@ async function postCommand(args) {
     else if (args[i] === '--event') [event, i] = nextValue(args, i, '--event');
     else if (args[i] === '--channel') [channel, i] = nextValue(args, i, '--channel');
     else if (args[i] === '--data') [data, i] = nextValue(args, i, '--data');
-    else error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+    else unknownArg(args[i]);
   }
   if (event !== undefined && !id) error('post requires --id <name> when using --event', 'MISSING_ARG');
   if (id && event === undefined) error('post requires --event <json> when targeting a canvas', 'MISSING_ARG');
@@ -572,7 +578,7 @@ async function postCommand(args) {
 }
 
 async function listenCommand(args) {
-  if (args.length > 0) error(`Unknown argument: ${args[0]}`, 'UNKNOWN_ARG');
+  if (args.length > 0) unknownArg(args[0]);
   const connection = await connectWithAutoStart({ managed: true });
   const socket = connection?.socket ?? null;
   const daemon = connection?.daemon ?? null;
@@ -624,18 +630,18 @@ switch (command) {
     await mutationCommand(args, 'update');
     break;
   case 'list':
-    if (args.some((arg) => arg !== '--json')) error(`Unknown argument: ${args.find((arg) => arg !== '--json')}`, 'UNKNOWN_ARG');
+    if (args.some((arg) => arg !== '--json')) unknownArg(args.find((arg) => arg !== '--json'));
     await oneShot('list', {}, { emptyListOnNoDaemon: true });
     break;
   case 'ping':
-    if (args.length > 0) error(`Unknown argument: ${args[0]}`, 'UNKNOWN_ARG');
+    if (args.length > 0) unknownArg(args[0]);
     await oneShot('ping', {});
     break;
   case 'remove':
     await oneShot('remove', { id: parseIDOnly(args, 'remove') });
     break;
   case 'remove-all':
-    if (args.length > 0) error(`Unknown argument: ${args[0]}`, 'UNKNOWN_ARG');
+    if (args.length > 0) unknownArg(args[0]);
     await oneShot('remove_all', {});
     break;
   case 'eval':
