@@ -384,6 +384,15 @@ test('operational registry forms expose json flag metadata', async () => {
     'clean',
     'permissions-setup',
     'permissions-reset-runtime',
+    'service-install',
+    'service-start',
+    'service-stop',
+    'service-restart',
+    'service-status',
+    'runtime-install',
+    'runtime-status',
+    'runtime-path',
+    'introspect-review',
   ]);
   const forms = new Map();
 
@@ -401,6 +410,21 @@ test('operational registry forms expose json flag metadata', async () => {
       form.args.some((arg) => arg.kind === 'flag' && arg.token === '--json' && arg.value_type === 'bool'),
       `${id} must expose --json as a boolean flag argument`,
     );
+  }
+});
+
+test('json-capable registry forms expose json flag metadata', async () => {
+  const registry = await loadJson(registryPath);
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      if (form.output?.supports_json_flag !== true) continue;
+      assert.ok(
+        form.args.some((arg) => arg.kind === 'flag' && arg.token === '--json' && arg.value_type === 'bool'),
+        `${form.id} must expose --json as a boolean flag argument`,
+      );
+      assert.match(form.usage, /--json/, `${form.id} usage must mention --json`);
+    }
   }
 });
 
