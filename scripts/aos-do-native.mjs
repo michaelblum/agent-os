@@ -57,6 +57,10 @@ function isCoord(value) {
   return /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(value);
 }
 
+function isInt(value) {
+  return /^-?[0-9]+$/.test(String(value));
+}
+
 function validate(verb, args) {
   const pos = positionalArgs(args);
   switch (verb) {
@@ -92,26 +96,26 @@ function validate(verb, args) {
       if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'press':
-      requireFlag(args, '--pid', 'press requires --pid');
+      requireFlag(args, '--pid', 'press requires --pid', isInt);
       break;
     case 'set-value':
-      requireFlag(args, '--pid', 'set-value requires --pid');
+      requireFlag(args, '--pid', 'set-value requires --pid', isInt);
       requireFlag(args, '--role', 'set-value requires --role');
       requireFlag(args, '--value', 'set-value requires --value');
       break;
     case 'focus':
-      requireFlag(args, '--pid', 'focus requires --pid');
+      requireFlag(args, '--pid', 'focus requires --pid', isInt);
       requireFlag(args, '--role', 'focus requires --role');
       break;
     case 'raise':
-      requireFlag(args, '--pid', 'raise requires --pid');
+      requireFlag(args, '--pid', 'raise requires --pid', isInt);
       break;
     case 'move':
-      requireFlag(args, '--pid', 'move requires --pid');
+      requireFlag(args, '--pid', 'move requires --pid', isInt);
       requireFlag(args, '--to', 'move requires --to x,y', isCoord);
       break;
     case 'resize':
-      requireFlag(args, '--pid', 'resize requires --pid');
+      requireFlag(args, '--pid', 'resize requires --pid', isInt);
       requireFlag(args, '--to', 'resize requires --to w,h', isCoord);
       break;
     case 'tell':

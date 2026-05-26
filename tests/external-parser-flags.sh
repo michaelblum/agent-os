@@ -100,13 +100,19 @@ check_unknown_arg do-native-scroll-extra ./aos do scroll 10,10 unexpected --dx 0
 check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run
 check_unknown_arg do-native-key-extra ./aos do key Enter unexpected --dry-run
 check_missing_arg do-native-press-pid-missing ./aos do press --dry-run
+check_missing_arg do-native-press-pid-invalid ./aos do press --pid nope --dry-run
 check_missing_arg do-native-set-value-pid-missing ./aos do set-value --role AXTextField --value hello --dry-run
+check_missing_arg do-native-set-value-pid-invalid ./aos do set-value --pid nope --role AXTextField --value hello --dry-run
 check_missing_arg do-native-set-value-role-missing ./aos do set-value --pid 123 --value hello --dry-run
 check_missing_arg do-native-set-value-value-missing ./aos do set-value --pid 123 --role AXTextField --dry-run
 check_missing_arg do-native-focus-role-missing ./aos do focus --pid 123 --dry-run
+check_missing_arg do-native-focus-pid-invalid ./aos do focus --pid nope --role AXTextField --dry-run
 check_missing_arg do-native-raise-pid-missing ./aos do raise --dry-run
+check_missing_arg do-native-raise-pid-invalid ./aos do raise --pid nope --dry-run
 check_missing_arg do-native-move-to-missing ./aos do move --pid 123 --dry-run
+check_missing_arg do-native-move-pid-invalid ./aos do move --pid nope --to 1,2 --dry-run
 check_missing_arg do-native-resize-to-missing ./aos do resize --pid 123 --dry-run
+check_missing_arg do-native-resize-pid-invalid ./aos do resize --pid nope --to 300,200 --dry-run
 check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected
