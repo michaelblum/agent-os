@@ -44,4 +44,25 @@ fi
 echo "$err" | grep -q '"code"[[:space:]]*:[[:space:]]*"NOT_FOUND"' \
     || { echo "FAIL case 6 error code: $err" >&2; exit 1; }
 
+# Case 7: list rejects extra args
+if err=$(./aos browser _registry list extra 2>&1 >/dev/null); then
+    echo "FAIL case 7: list extra arg should error" >&2; exit 1
+fi
+echo "$err" | grep -q '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_ARG"' \
+    || { echo "FAIL case 7 error code: $err" >&2; exit 1; }
+
+# Case 8: add rejects unknown flags before mutation
+if err=$(./aos browser _registry add --id=sess-c --mode=launched --bogus=true 2>&1 >/dev/null); then
+    echo "FAIL case 8: add unknown flag should error" >&2; exit 1
+fi
+echo "$err" | grep -q '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_FLAG"' \
+    || { echo "FAIL case 8 error code: $err" >&2; exit 1; }
+
+# Case 9: find rejects extra args
+if err=$(./aos browser _registry find --id=sess-b extra 2>&1 >/dev/null); then
+    echo "FAIL case 9: find extra arg should error" >&2; exit 1
+fi
+echo "$err" | grep -q '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_ARG"' \
+    || { echo "FAIL case 9 error code: $err" >&2; exit 1; }
+
 echo "PASS"

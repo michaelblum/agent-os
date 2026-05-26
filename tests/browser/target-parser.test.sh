@@ -55,6 +55,13 @@ assert_error "browser:ñame/e1" "INVALID_TARGET"
 assert_error "browser:app/ëe1" "INVALID_TARGET"
 assert_error "browser:app/日本" "INVALID_TARGET"
 
+if out=$(./aos browser _parse-target "browser:todo" extra 2>&1); then
+    echo "FAIL: expected extra argument error, got success: $out" >&2
+    exit 1
+fi
+echo "$out" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_ARG"' \
+    || { echo "FAIL extra argument code: $out" >&2; exit 1; }
+
 # Session names with hyphens, underscores, digits allowed
 assert_parse "browser:todo_app-v2/e1" '{"ref":"e1","session":"todo_app-v2"}'
 

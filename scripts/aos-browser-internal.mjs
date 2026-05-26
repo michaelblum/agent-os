@@ -100,6 +100,28 @@ function parseEq(args, key) {
   return found ? found.slice(prefix.length) : undefined;
 }
 
+function unknownArgError(arg) {
+  if (arg.startsWith('-')) error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+  error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+}
+
+function requireExactArgs(args, usage) {
+  if (args.length === 0) error(usage, 'MISSING_ARG');
+  if (args.length > 1) unknownArgError(args[1]);
+}
+
+function parseAllowedEqArgs(args, allowed) {
+  const seen = new Set();
+  for (const arg of args) {
+    const equals = arg.indexOf('=');
+    const key = equals >= 0 ? arg.slice(0, equals) : arg;
+    if (!allowed.has(key)) unknownArgError(arg);
+    if (equals < 0) error(`Missing value for ${key}`, 'MISSING_ARG');
+    seen.add(key);
+  }
+  return seen;
+}
+
 function isoNow() {
   return new Date().toISOString().replace('Z', '000Z');
 }
@@ -112,6 +134,7 @@ function runPlaywrightCommand(args) {
     if (arg.startsWith('--session=')) session = arg.slice('--session='.length);
     else if (arg.startsWith('--verb=')) verb = arg.slice('--verb='.length);
     else if (arg === '--with-filename') withFilename = true;
+    else unknownArgError(arg);
   }
   if (!session || !verb) error('--session=<s> and --verb=<v> are required', 'MISSING_ARG');
 
@@ -270,8 +293,8 @@ function parseSnapshotMarkdown(contents) {
 }
 
 function parseSnapshotCommand(args) {
+  requireExactArgs(args, 'Usage: aos browser _parse-snapshot <markdown-file>');
   const file = args[0];
-  if (!file) error('Usage: aos browser _parse-snapshot <markdown-file>', 'MISSING_ARG');
   let contents;
   try {
     contents = fs.readFileSync(file, 'utf8');
@@ -319,8 +342,8 @@ function boundsViaEval(session, ref) {
 }
 
 function resolveAnchorCommand(args) {
+  requireExactArgs(args, 'Usage: aos browser _resolve-anchor <target>');
   const input = args[0];
-  if (!input) error('Usage: aos browser _resolve-anchor <target>', 'MISSING_ARG');
   const target = parseBrowserTarget(input);
   const record = readRegistry().find((item) => item.id === target.session);
   if (!record) error(`browser session '${target.session}' not registered`, 'NOT_FOUND');
@@ -343,9 +366,11 @@ function registryCommand(args) {
   const records = readRegistry();
   switch (op) {
     case 'list':
+      if (rest.length > 0) unknownArgError(rest[0]);
       process.stdout.write(`${JSON.stringify(records.map(stableRecord))}\n`);
       return;
     case 'add': {
+      parseAllowedEqArgs(rest, new Set(['--id', '--mode', '--attach-kind', '--headless', '--browser-window-id']));
       const id = parseEq(rest, '--id');
       const mode = parseEq(rest, '--mode');
       if (!id || !mode) error('--id and --mode required', 'MISSING_ARG');
@@ -366,6 +391,7 @@ function registryCommand(args) {
       return;
     }
     case 'remove': {
+      parseAllowedEqArgs(rest, new Set(['--id']));
       const id = parseEq(rest, '--id');
       if (!id) error('--id required', 'MISSING_ARG');
       if (!records.some((record) => record.id === id)) error(`session not found: ${id}`, 'NOT_FOUND');
@@ -374,6 +400,7 @@ function registryCommand(args) {
       return;
     }
     case 'find': {
+      parseAllowedEqArgs(rest, new Set(['--id']));
       const id = parseEq(rest, '--id');
       if (!id) error('--id required', 'MISSING_ARG');
       const record = records.find((item) => item.id === id);
@@ -391,7 +418,7 @@ try {
   if (!command) error('Usage: aos browser _<op> ...', 'MISSING_ARG');
   switch (command) {
     case '_parse-target':
-      if (args.length === 0) error('Usage: aos browser _parse-target <target>', 'MISSING_ARG');
+      requireExactArgs(args, 'Usage: aos browser _parse-target <target>');
       process.stdout.write(`${JSON.stringify(parseBrowserTarget(args[0]))}\n`);
       break;
     case '_registry':

@@ -28,4 +28,11 @@ fi
 echo "$out" | grep -q "SNAPSHOT_READ_FAILED" \
     || { echo "FAIL missing-file code: $out" >&2; exit 1; }
 
+if out=$(./aos browser _parse-snapshot "$FIX/snapshot-simple.md" extra 2>&1); then
+    echo "FAIL extra-arg expected error, got: $out" >&2
+    exit 1
+fi
+echo "$out" | grep -q "UNKNOWN_ARG" \
+    || { echo "FAIL extra-arg code: $out" >&2; exit 1; }
+
 echo "PASS"

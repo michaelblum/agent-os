@@ -46,4 +46,11 @@ if [[ "$stdout_len" -lt 100000 ]]; then
     exit 1
 fi
 
+# Case 5: parser rejects unknown flags before invoking playwright-cli
+if out=$(./aos browser _run --session=todo --verb=attach --bogus 2>&1); then
+    echo "FAIL case 5: expected unknown flag error, got: $out" >&2; exit 1
+fi
+echo "$out" | grep -q "UNKNOWN_FLAG" \
+    || { echo "FAIL case 5 code: $out" >&2; exit 1; }
+
 echo "PASS"
