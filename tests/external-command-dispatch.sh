@@ -227,6 +227,44 @@ else
 fi
 rm -rf "$LISTEN_ROOT" /tmp/aos-show-listen-cleanup.out /tmp/aos-show-listen-cleanup.err
 
+ORPHAN_ROOT="$(mktemp -d)"
+ORPHAN_PID_FILE="$ORPHAN_ROOT/pid"
+node - "$ORPHAN_PID_FILE" <<'NODE'
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const pidFile = process.argv[2];
+const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 10000)', 'scripts/aos-show-client.mjs', 'listen'], {
+  detached: true,
+  stdio: 'ignore',
+});
+child.unref();
+fs.writeFileSync(pidFile, String(child.pid));
+NODE
+ORPHAN_PID="$(cat "$ORPHAN_PID_FILE")"
+for _ in 1 2 3 4 5; do
+    if ps -p "$ORPHAN_PID" -o ppid= | grep -q '^[[:space:]]*1$'; then
+        break
+    fi
+    sleep 0.2
+done
+if CLEAN_DRY="$(./aos clean --dry-run --json)" CLEANED="$(./aos clean --json)" ORPHAN_PID="$ORPHAN_PID" python3 - <<'PY'
+import json
+import os
+
+pid = int(os.environ["ORPHAN_PID"])
+dry = json.loads(os.environ["CLEAN_DRY"])
+cleaned = json.loads(os.environ["CLEANED"])
+assert any(item["pid"] == pid for item in dry["orphaned_clients"]), dry
+assert any(f"pid={pid}" in action for action in cleaned["actions_taken"]), cleaned
+PY
+then
+    pass "clean reports and terminates orphaned show listen clients"
+else
+    fail "clean did not terminate orphaned show listen client"
+fi
+kill "$ORPHAN_PID" >/dev/null 2>&1 || true
+rm -rf "$ORPHAN_ROOT"
+
 if ./aos dev external-dispatch-bogus >/tmp/aos-dev-bogus.out 2>/tmp/aos-dev-bogus.err; then
     fail "dev unknown subcommand succeeded"
 else

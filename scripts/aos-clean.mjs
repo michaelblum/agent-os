@@ -84,12 +84,41 @@ function launchdManagedPID(label) {
 }
 
 function allDaemonPIDs() {
-  const output = run('/usr/bin/pgrep', ['-f', 'aos serve']);
+  const output = run('/usr/bin/pgrep', ['-f', 'aos (serve|__serve)']);
   if (output.status !== 0) return [];
   return output.stdout
     .split(/\r?\n/)
     .map((line) => Number.parseInt(line.trim(), 10))
     .filter(Number.isFinite);
+}
+
+function processTable() {
+  const output = run('/bin/ps', ['-axo', 'pid=,ppid=,stat=,args=']);
+  if (output.status !== 0) return [];
+  return output.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(\d+)\s+(\d+)\s+(\S+)\s+(.+)$/);
+      if (!match) return null;
+      return {
+        pid: Number.parseInt(match[1], 10),
+        ppid: Number.parseInt(match[2], 10),
+        stat: match[3],
+        args: match[4],
+      };
+    })
+    .filter((row) => row && Number.isFinite(row.pid) && Number.isFinite(row.ppid));
+}
+
+function orphanedClientProcesses() {
+  return processTable().filter((row) => {
+    if (row.pid === process.pid) return false;
+    if (row.ppid !== 1) return false;
+    return row.args.includes('scripts/aos-show-client.mjs listen')
+      || row.args.includes('scripts/aos-inspect.mjs');
+  });
 }
 
 function processArgs(pid) {
@@ -137,6 +166,7 @@ function runClean(dryRun) {
   ].filter((pid) => pid != null));
 
   const staleDaemons = [];
+  const orphanedClients = orphanedClientProcesses();
   const actions = [];
   const notes = [];
   for (const pid of allDaemonPIDs().filter((pid) => !protectedPIDs.has(pid))) {
@@ -148,6 +178,16 @@ function runClean(dryRun) {
         actions.push(`killed stale daemon pid=${pid}`);
       } catch {
         notes.push(`failed to kill stale daemon pid=${pid}`);
+      }
+    }
+  }
+  for (const client of orphanedClients) {
+    if (!dryRun) {
+      try {
+        process.kill(client.pid, 'SIGTERM');
+        actions.push(`killed orphaned client pid=${client.pid}`);
+      } catch {
+        notes.push(`failed to kill orphaned client pid=${client.pid}`);
       }
     }
   }
@@ -169,11 +209,13 @@ function runClean(dryRun) {
   }
 
   const status = staleDaemons.length === 0 && canvases.length === 0
+    && orphanedClients.length === 0
     ? 'clean'
     : dryRun ? 'dirty' : 'cleaned';
   return {
     status,
     stale_daemons: staleDaemons,
+    orphaned_clients: orphanedClients,
     canvases,
     actions_taken: actions,
     notes,
@@ -181,12 +223,16 @@ function runClean(dryRun) {
 }
 
 function printText(report, dryRun) {
-  if (report.stale_daemons.length === 0 && report.canvases.length === 0) {
+  if (report.stale_daemons.length === 0 && report.orphaned_clients.length === 0 && report.canvases.length === 0) {
     process.stdout.write('clean: nothing to clean\n');
   } else {
     for (const daemon of report.stale_daemons) {
       const verb = dryRun ? 'found' : 'killed';
       process.stdout.write(`clean: ${verb} stale daemon pid=${daemon.pid} (${daemon.args})\n`);
+    }
+    for (const client of report.orphaned_clients) {
+      const verb = dryRun ? 'found' : 'killed';
+      process.stdout.write(`clean: ${verb} orphaned client pid=${client.pid} (${client.args})\n`);
     }
     if (report.canvases.length > 0) {
       const verb = dryRun ? 'found' : 'removed';
