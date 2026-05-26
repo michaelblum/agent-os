@@ -15,7 +15,7 @@ function parseArgs(args) {
   for (const arg of args) {
     if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--json') options.json = true;
-    else prettyError(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+    else prettyError(`Unknown ${arg.startsWith('--') ? 'flag' : 'argument'}: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
   }
   return options;
 }

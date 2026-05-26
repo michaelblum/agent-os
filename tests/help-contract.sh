@@ -81,6 +81,14 @@ else
     fail "aos clean --badflag did not return UNKNOWN_FLAG: $ERR"
 fi
 
+if ERR=$(./aos clean unexpected 2>&1 >/dev/null); then
+    fail "aos clean unexpected should exit non-zero"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"'; then
+    pass "aos clean extra positional returns UNKNOWN_ARG"
+else
+    fail "aos clean extra positional did not return UNKNOWN_ARG: $ERR"
+fi
+
 # --- 6. aos tell (no args) → MISSING_ARG on stderr ---
 if ERR=$(./aos tell 2>&1 >/dev/null); then
     fail "aos tell with no args should exit non-zero"
