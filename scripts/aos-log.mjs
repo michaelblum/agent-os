@@ -9,6 +9,7 @@ import readline from 'node:readline';
 
 const LOG_CANVAS_ID = '__log__';
 const LOG_URL = 'aos://toolkit/components/log-console/index.html';
+const LEVELS = new Set(['debug', 'info', 'warn', 'error']);
 
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
@@ -62,6 +63,7 @@ function parseOptions(args) {
       case '--level':
         i += 1;
         if (i >= args.length || args[i].startsWith('--')) error('--level requires a value', 'MISSING_ARG');
+        if (!LEVELS.has(args[i])) error(`Invalid --level: ${args[i]}`, 'INVALID_ARG');
         options.level = args[i];
         break;
       default:

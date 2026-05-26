@@ -49,6 +49,16 @@ grep -q '"code":"MISSING_ARG"' "$ROOT/log-push-level-missing.err" || {
   exit 1
 }
 
+if ./aos log push message --level verbose 2>"$ROOT/log-push-level-invalid.err"; then
+  echo "FAIL: log push accepted invalid --level value" >&2
+  exit 1
+fi
+grep -q '"code":"INVALID_ARG"' "$ROOT/log-push-level-invalid.err" || {
+  echo "FAIL: log push invalid --level value did not use INVALID_ARG" >&2
+  cat "$ROOT/log-push-level-invalid.err" >&2
+  exit 1
+}
+
 if ./aos log --at --level info 2>"$ROOT/log-stream-at-missing.err"; then
   echo "FAIL: log stream accepted missing --at value" >&2
   exit 1
