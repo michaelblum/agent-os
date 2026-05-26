@@ -6,6 +6,7 @@ VISUAL_HARNESS_ROOT="$(cd "$VISUAL_HARNESS_DIR/../.." && pwd)"
 source "$VISUAL_HARNESS_DIR/isolated-daemon.sh"
 source "$VISUAL_HARNESS_DIR/status-item.sh"
 source "$VISUAL_HARNESS_ROOT/apps/sigil/scripts/launch-common.sh"
+source "$VISUAL_HARNESS_ROOT/scripts/aos-content-scope.sh"
 
 aos_visual_root() {
   printf '%s\n' "$VISUAL_HARNESS_ROOT"
@@ -13,6 +14,25 @@ aos_visual_root() {
 
 aos_visual_aos() {
   printf '%s\n' "${AOS:-$VISUAL_HARNESS_ROOT/aos}"
+}
+
+aos_visual_content_root_key() {
+  local prefix="$1"
+  local env_name value
+  case "$prefix" in
+    toolkit) env_name="AOS_TOOLKIT_CONTENT_ROOT" ;;
+    sigil) env_name="AOS_SIGIL_CONTENT_ROOT" ;;
+    repo) env_name="AOS_REPO_CONTENT_ROOT" ;;
+    *) env_name="" ;;
+  esac
+  if [[ -n "$env_name" ]]; then
+    value="${!env_name:-}"
+    if [[ -n "$value" ]]; then
+      printf '%s\n' "$value"
+      return
+    fi
+  fi
+  aos_content_root_key_for "$prefix" "$VISUAL_HARNESS_ROOT"
 }
 
 aos_visual_assert_live_content_root() {
@@ -103,14 +123,16 @@ aos_visual_start_isolated_daemon() {
 }
 
 aos_visual_prepare_live_roots() {
-  local aos_bin
+  local aos_bin toolkit_key sigil_key
   aos_bin="$(aos_visual_aos)"
+  toolkit_key="$(aos_visual_content_root_key toolkit)"
+  sigil_key="$(aos_visual_content_root_key sigil)"
 
-  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
-  "$aos_bin" set content.roots.sigil "$VISUAL_HARNESS_ROOT/apps/sigil" >/dev/null
-  "$aos_bin" content wait --root toolkit --root sigil --auto-start --timeout 15s >/dev/null
-  aos_visual_assert_live_content_root toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit"
-  aos_visual_assert_live_content_root sigil "$VISUAL_HARNESS_ROOT/apps/sigil"
+  aos_ensure_content_roots_live "$aos_bin" \
+    "$toolkit_key" "$VISUAL_HARNESS_ROOT/packages/toolkit" \
+    "$sigil_key" "$VISUAL_HARNESS_ROOT/apps/sigil"
+  aos_visual_assert_live_content_root "$toolkit_key" "$VISUAL_HARNESS_ROOT/packages/toolkit"
+  aos_visual_assert_live_content_root "$sigil_key" "$VISUAL_HARNESS_ROOT/apps/sigil"
 }
 
 aos_visual_configure_sigil_status_item() {
@@ -209,14 +231,15 @@ PY
 
 aos_visual_launch_canvas_inspector() {
   local inspector_id="${1:-surface-inspector}"
-  local aos_bin panel_w panel_h display_json x y
+  local aos_bin panel_w panel_h display_json x y toolkit_key
   aos_bin="$(aos_visual_aos)"
+  toolkit_key="$(aos_visual_content_root_key toolkit)"
   panel_w="${AOS_SURFACE_INSPECTOR_W:-${AOS_CANVAS_INSPECTOR_W:-360}}"
   panel_h="${AOS_SURFACE_INSPECTOR_H:-${AOS_CANVAS_INSPECTOR_H:-520}}"
 
   aos_visual_remove_canvas "$inspector_id" 5
-  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
-  "$aos_bin" content wait --root toolkit --auto-start --timeout 15s >/dev/null
+  aos_ensure_content_roots_live "$aos_bin" \
+    "$toolkit_key" "$VISUAL_HARNESS_ROOT/packages/toolkit"
 
   display_json="$("$aos_bin" graph displays 2>/dev/null || echo '{"data":{"displays":[]}}')"
   read -r x y <<EOF
@@ -241,9 +264,9 @@ EOF
     --at "$x,$y,$panel_w,$panel_h" \
     --interactive \
     --scope global \
-    --url 'aos://toolkit/components/surface-inspector/index.html' >/dev/null
+    --url "aos://$toolkit_key/components/surface-inspector/index.html" >/dev/null
 
-  "$aos_bin" show wait --id "$inspector_id" --manifest surface-inspector --timeout 5s >/dev/null
+  "$aos_bin" show wait --id "$inspector_id" --manifest surface-inspector --timeout 15s >/dev/null
   "$aos_bin" show wait \
     --id "$inspector_id" \
     --manifest surface-inspector \
@@ -253,12 +276,14 @@ EOF
 
 aos_visual_launch_sigil_avatar() {
   local avatar_id="${1:-avatar-main}"
-  local aos_bin
+  local aos_bin sigil_key toolkit_key
   aos_bin="$(aos_visual_aos)"
+  sigil_key="$(aos_visual_content_root_key sigil)"
+  toolkit_key="$(aos_visual_content_root_key toolkit)"
 
   "$aos_bin" show create \
     --id "$avatar_id" \
-    --url 'aos://sigil/renderer/index.html' \
+    --url "aos://$sigil_key/renderer/index.html?toolkit-root=$toolkit_key" \
     --track union >/dev/null
 }
 

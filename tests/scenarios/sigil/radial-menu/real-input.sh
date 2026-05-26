@@ -21,8 +21,8 @@ cleanup() {
 trap cleanup EXIT
 
 echo "INFO: this scenario uses real mouse input through the active repo daemon. Keep the keyboard and mouse idle."
-aos_real_input_surface_start "$INSPECTOR_ID"
 aos_visual_prepare_live_roots
+aos_real_input_surface_start "$INSPECTOR_ID"
 aos_visual_seed_sigil repo
 cleanup
 aos_visual_wait_canvas_absent "$AVATAR_ID" 10

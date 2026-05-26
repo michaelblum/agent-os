@@ -185,15 +185,34 @@ def inspector_probe():
     return {"id": inspector_id, "canvas": canvas, "ui": parsed_ui or ui}
 
 
+display_cache = {"payload": None}
+
+
 def displays_payload():
-    try:
-        displays = eval_json("JSON.stringify(window.liveJs?.displays || [])")
-        if isinstance(displays, list) and displays:
-            return displays
-    except Exception:
-        pass
-    payload = run_json("graph", "displays", "--json")
-    return payload.get("data", {}).get("displays", payload.get("displays", []))
+    if display_cache["payload"]:
+        return display_cache["payload"]
+    for _ in range(3):
+        try:
+            displays = eval_json("JSON.stringify(window.liveJs?.displays || [])")
+            if isinstance(displays, list) and displays:
+                display_cache["payload"] = displays
+                return displays
+        except Exception:
+            pass
+        result = run_json_capture("graph", "displays", "--json")
+        if result.get("ok"):
+            payload = result.get("payload") or {}
+            displays = payload.get("data", {}).get("displays", payload.get("displays", []))
+            if isinstance(displays, list) and displays:
+                display_cache["payload"] = displays
+                return displays
+        time.sleep(0.12)
+    raise RuntimeError("unable to resolve display payloads for real-input coordinate conversion")
+
+
+def prime_pointer_displays():
+    pointer.displays = displays_payload()
+    return pointer.displays
 
 
 def canvas_frame(canvas):
@@ -464,6 +483,7 @@ else:
     start = {"x": float(avatar_pos["x"]), "y": float(avatar_pos["y"])}
     travel_targets = [opposite_side_destination(start)]
 
+prime_pointer_displays()
 pointer.move_world(start)
 time.sleep(0.08)
 
