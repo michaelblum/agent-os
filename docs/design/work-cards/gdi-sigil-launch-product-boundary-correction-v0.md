@@ -34,6 +34,10 @@
   "Sigil" instead of "agent-os" in forward-facing UI. Internally, AOS remains
   the platform namespace, command/control plane, schema family, and developer
   contract unless a deliberate external packaging decision is made later.
+- Engine/product metaphor from Michael: AOS is closer to an experience engine,
+  like Unity for agentic computer use. Sigil is the first-party experience built
+  on that engine. It should be good and useful out of the box, but it should not
+  collapse the engine API, command surface, schemas, or toolkit into Sigil.
 - Branch/output expectation: continue from
   `origin/gdi/recipe-app-launch-correction-v0`, commit and push the corrected
   GDI branch. Do not open or merge a PR; Foreman will review.
@@ -265,6 +269,8 @@ Add a short durable note in the most relevant existing doc or a small
 
 - AOS is the application/control plane;
 - Sigil is an optional active experience layer over AOS, not a normal app;
+- AOS is the experience engine; Sigil is the default first-party experience
+  built with that engine;
 - only one experience should be active at a time;
 - without an active experience, AOS still provides a vanilla menu/status item
   with access to core tools;
