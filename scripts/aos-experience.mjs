@@ -121,6 +121,25 @@ function template(value, rootsByID) {
   });
 }
 
+function runContentStatus() {
+  const result = runAos(['content', 'status', '--json']);
+  if (result.status !== 0) return {};
+  try {
+    return JSON.parse(result.stdout).roots || {};
+  } catch {
+    return {};
+  }
+}
+
+function norm(value) {
+  return path.resolve(value);
+}
+
+function rootsLive(roots) {
+  const live = runContentStatus();
+  return roots.every((root) => live[root.key] && norm(live[root.key]) === norm(root.path));
+}
+
 function configGet(key) {
   const result = runAos(['config', 'get', key, '--json']);
   if (result.status !== 0) return null;
@@ -132,26 +151,46 @@ function configGet(key) {
 }
 
 function stateDir() {
-  if (process.env.AOS_STATE_ROOT && !process.env.AOS_STATE_ROOT.startsWith('$')) return process.env.AOS_STATE_ROOT;
-  return path.join(os.homedir(), '.config', 'aos', mode);
+  const root = process.env.AOS_STATE_ROOT && !process.env.AOS_STATE_ROOT.startsWith('$')
+    ? path.resolve(process.env.AOS_STATE_ROOT)
+    : path.join(os.homedir(), '.config', 'aos');
+  return path.join(root, mode);
 }
 
 function statePath() {
   return path.join(stateDir(), 'experience-state.json');
 }
 
+function legacyStatePath() {
+  const root = process.env.AOS_STATE_ROOT && !process.env.AOS_STATE_ROOT.startsWith('$')
+    ? path.resolve(process.env.AOS_STATE_ROOT)
+    : path.join(os.homedir(), '.config', 'aos');
+  return path.join(root, 'experience-state.json');
+}
+
 function readActiveExperience() {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(statePath(), 'utf8'));
-    return parsed.active_experience || null;
-  } catch {
-    return null;
+  for (const file of [statePath(), legacyStatePath()]) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return parsed.active_experience || null;
+    } catch {
+      // Fall through to the legacy path during the one-time state migration.
+    }
   }
+  return null;
 }
 
 function writeActiveExperience(id) {
   fs.mkdirSync(stateDir(), { recursive: true });
   fs.writeFileSync(statePath(), prettyJSON({ active_experience: id || null, exclusive: true }), 'utf8');
+  const legacy = legacyStatePath();
+  if (legacy !== statePath()) {
+    try {
+      fs.rmSync(legacy, { force: true });
+    } catch {
+      // Best-effort cleanup; the mode-scoped state file is authoritative.
+    }
+  }
 }
 
 function parseArgs(argv) {
@@ -229,6 +268,15 @@ function ensureContentRoots(roots, steps) {
     requireSuccess(runAos(['config', 'set', `content.roots.${root.key}`, root.path]), `set content root ${root.key}`);
     steps.push({ id: `content-root:${root.key}`, status: 'success', path: root.path });
   }
+  if (!rootsLive(roots)) {
+    runAos(['service', 'restart', '--mode', mode]);
+    steps.push({ id: 'service:restart', status: 'success', reason: 'content-roots-not-live' });
+  }
+  const args = ['content', 'wait'];
+  for (const root of roots) args.push('--root', root.key);
+  args.push('--auto-start', '--timeout', '15s');
+  requireSuccess(runAos(args), 'wait for content roots');
+  steps.push({ id: 'content:wait', status: 'success', roots: roots.map((root) => root.key) });
 }
 
 function configureStatusItem(manifest, roots, steps) {

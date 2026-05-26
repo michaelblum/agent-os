@@ -10,7 +10,7 @@ import Foundation
 class StatusItemManager {
     private static let accessibilityLabel = "AOS status item"
     private let lifecycleTimeout: TimeInterval = 1.0
-    private let visibilityTimeout: TimeInterval = 1.2
+    private let visibilityTimeout: TimeInterval = 8.0
     private let canvasInspectorId = "surface-inspector"
     private let logConsoleId = "__log__"
     private let canvasInspectorUrl = "aos://toolkit/components/surface-inspector/index.html"

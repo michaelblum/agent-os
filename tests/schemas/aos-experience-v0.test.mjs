@@ -73,12 +73,16 @@ process.exit(0);
     AOS_RUNTIME_MODE: 'repo',
     FAKE_AOS_LOG: logPath,
   };
+  await fs.writeFile(path.join(tmp, 'experience-state.json'), JSON.stringify({ active_experience: 'legacy-sigil', exclusive: true }));
   const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
     cwd: repoRoot,
     env,
     encoding: 'utf8',
   });
   assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
+  const activeState = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'experience-state.json'), 'utf8'));
+  assert.equal(activeState.active_experience, 'sigil');
+  await assert.rejects(fs.stat(path.join(tmp, 'experience-state.json')));
 
   const deactivate = spawnSync('node', ['scripts/aos-experience.mjs', 'deactivate', '--json'], {
     cwd: repoRoot,
@@ -86,6 +90,8 @@ process.exit(0);
     encoding: 'utf8',
   });
   assert.equal(deactivate.status, 0, `${deactivate.stdout}${deactivate.stderr}`);
+  const inactiveState = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'experience-state.json'), 'utf8'));
+  assert.equal(inactiveState.active_experience, null);
   const payload = JSON.parse(deactivate.stdout);
   assert.equal(payload.active_experience, null);
   assert.equal(payload.status_item.enabled, false);
@@ -95,6 +101,19 @@ process.exit(0);
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
+  assert(calls.some((args) => args.join('\0') === ['content', 'status', '--json'].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === ['service', 'restart', '--mode', 'repo'].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === [
+    'content',
+    'wait',
+    '--root',
+    'toolkit_feat_command_surface_extraction',
+    '--root',
+    'sigil_feat_command_surface_extraction',
+    '--auto-start',
+    '--timeout',
+    '15s',
+  ].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.enabled', 'false'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'avatar'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_url', ''].join('\0')), calls);

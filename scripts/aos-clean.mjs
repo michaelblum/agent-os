@@ -166,12 +166,18 @@ function listCanvases(mode) {
 }
 
 function activeExperience(mode) {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(path.join(stateDir(mode), 'experience-state.json'), 'utf8'));
-    return parsed.active_experience || null;
-  } catch {
-    return null;
+  for (const file of [
+    path.join(stateDir(mode), 'experience-state.json'),
+    path.join(stateRoot(), 'experience-state.json'),
+  ]) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return parsed.active_experience || null;
+    } catch {
+      // Fall through to the legacy unscoped state path if the canonical file is absent.
+    }
   }
+  return null;
 }
 
 function sigilOwnedCanvas(canvas) {
