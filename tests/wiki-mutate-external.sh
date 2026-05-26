@@ -72,4 +72,64 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-add-bogus.err" || {
   exit 1
 }
 
+if ./aos wiki create-plugin too many --json 2>"$ROOT/wiki-create-plugin-extra.err"; then
+  echo "FAIL: wiki create-plugin accepted extra positional argument"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-create-plugin-extra.err" || {
+  echo "FAIL: wiki create-plugin extra positional did not use external script error contract"
+  cat "$ROOT/wiki-create-plugin-extra.err"
+  exit 1
+}
+grep -q 'Unknown argument: many' "$ROOT/wiki-create-plugin-extra.err" || {
+  echo "FAIL: wiki create-plugin extra positional did not name offending argument"
+  cat "$ROOT/wiki-create-plugin-extra.err"
+  exit 1
+}
+
+if ./aos wiki add entity extra-page unexpected --json 2>"$ROOT/wiki-add-extra.err"; then
+  echo "FAIL: wiki add accepted extra positional argument"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-add-extra.err" || {
+  echo "FAIL: wiki add extra positional did not use external script error contract"
+  cat "$ROOT/wiki-add-extra.err"
+  exit 1
+}
+grep -q 'Unknown argument: unexpected' "$ROOT/wiki-add-extra.err" || {
+  echo "FAIL: wiki add extra positional did not name offending argument"
+  cat "$ROOT/wiki-add-extra.err"
+  exit 1
+}
+
+if ./aos wiki link gateway sigil unexpected --json 2>"$ROOT/wiki-link-extra.err"; then
+  echo "FAIL: wiki link accepted extra positional argument"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-link-extra.err" || {
+  echo "FAIL: wiki link extra positional did not use external script error contract"
+  cat "$ROOT/wiki-link-extra.err"
+  exit 1
+}
+grep -q 'Unknown argument: unexpected' "$ROOT/wiki-link-extra.err" || {
+  echo "FAIL: wiki link extra positional did not name offending argument"
+  cat "$ROOT/wiki-link-extra.err"
+  exit 1
+}
+
+if ./aos wiki rm gateway unexpected --json 2>"$ROOT/wiki-rm-extra.err"; then
+  echo "FAIL: wiki rm accepted extra positional argument"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-rm-extra.err" || {
+  echo "FAIL: wiki rm extra positional did not use external script error contract"
+  cat "$ROOT/wiki-rm-extra.err"
+  exit 1
+}
+grep -q 'Unknown argument: unexpected' "$ROOT/wiki-rm-extra.err" || {
+  echo "FAIL: wiki rm extra positional did not name offending argument"
+  cat "$ROOT/wiki-rm-extra.err"
+  exit 1
+}
+
 echo "PASS"

@@ -12,6 +12,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+}
+
 function runtimeMode() {
   return process.env.AOS_RUNTIME_MODE === 'installed' ? 'installed' : 'repo';
 }
@@ -112,8 +116,10 @@ function frontmatterName(content, fallback) {
 function createPlugin(args) {
   rejectUnknownFlags(args);
   const json = asJSON(args);
-  const name = nonFlags(args)[0];
+  const positional = nonFlags(args);
+  const name = positional[0];
   if (!name) error('wiki create-plugin requires a name. Usage: aos wiki create-plugin <name>', 'MISSING_ARG');
+  if (positional.length > 1) unknownArg(positional[1]);
   const pluginDir = path.join(wikiRoot(), namespace, 'plugins', name);
   const skillPath = path.join(pluginDir, 'SKILL.md');
   if (fs.existsSync(skillPath)) error(`Plugin '${name}' already exists at ${pluginDir}`, 'WIKI_PLUGIN_EXISTS');
@@ -156,6 +162,7 @@ function addPage(args) {
   const json = asJSON(args);
   const positional = nonFlags(args);
   if (positional.length < 2) error('wiki add requires <entity|concept> <name>. Usage: aos wiki add <entity|concept> <name> [--description <d>]', 'MISSING_ARG');
+  if (positional.length > 2) unknownArg(positional[2]);
   const [typeArg, name] = positional;
   if (!['entity', 'concept'].includes(typeArg)) error(`Type must be 'entity' or 'concept', got '${typeArg}'`, 'WIKI_INVALID_TYPE');
   const dirName = typeArg === 'entity' ? 'entities' : 'concepts';
@@ -187,8 +194,10 @@ tags: []
 function removePage(args) {
   rejectUnknownFlags(args);
   const json = asJSON(args);
-  const target = nonFlags(args)[0];
+  const positional = nonFlags(args);
+  const target = positional[0];
   if (!target) error('wiki rm requires a path. Usage: aos wiki rm <path>', 'MISSING_ARG');
+  if (positional.length > 1) unknownArg(positional[1]);
   const resolved = resolveWikiPath(target);
   if (!resolved) error(`Page '${target}' not found`, 'WIKI_NOT_FOUND');
   let incoming = [];
@@ -214,6 +223,7 @@ function linkPages(args) {
   const json = asJSON(args);
   const positional = nonFlags(args);
   if (positional.length < 2) error('wiki link requires <from> and <to>. Usage: aos wiki link <from> <to>', 'MISSING_ARG');
+  if (positional.length > 2) unknownArg(positional[2]);
   const from = resolveWikiPath(positional[0]);
   if (!from) error(`Source page '${positional[0]}' not found`, 'WIKI_NOT_FOUND');
   const to = resolveWikiPath(positional[1]);
