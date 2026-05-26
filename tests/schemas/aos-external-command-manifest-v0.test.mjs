@@ -186,6 +186,32 @@ test('duplicate external command route conditions include dispatch predicates', 
   }
 });
 
+test('broad child-index-only conditions are limited to unknown family routers', async () => {
+  const manifest = await loadJson(manifestPath);
+  const paths = new Set(manifest.commands.map((command) => command.path.join('\0')));
+
+  for (const command of manifest.commands) {
+    if (!command.when) continue;
+    const conditionKeys = Object.keys(command.when);
+    const broadIndexOnly = conditionKeys.length === 1 && conditionKeys[0] === 'child_arg_index';
+    if (!broadIndexOnly) continue;
+
+    assert.equal(
+      command.argv_prefix[1],
+      'scripts/aos-family-router.mjs',
+      `${command.path.join(' ')} broad condition must be a generic unknown-command router`,
+    );
+    assert.ok(
+      command.argv_prefix.some((arg) => arg.startsWith('UNKNOWN_')),
+      `${command.path.join(' ')} broad family router must emit an UNKNOWN_* code`,
+    );
+    assert.ok(
+      [...paths].some((key) => key.startsWith(`${command.path.join('\0')}\0`)),
+      `${command.path.join(' ')} broad family router must have explicit child routes`,
+    );
+  }
+});
+
 test('duplicate external command routes do not overlap for representative child args', async () => {
   const manifest = await loadJson(manifestPath);
   const byPath = new Map();
