@@ -267,9 +267,16 @@ test('registry command paths have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
   const externalPaths = new Set(manifest.commands.map((command) => command.path.join('\0')));
+  const registryPaths = new Map();
 
   for (const command of registry.commands) {
-    assert.equal(externalPaths.has(command.path.join('\0')), true, `${command.path.join(' ')} missing external route`);
+    const key = command.path.join('\0');
+    registryPaths.set(key, (registryPaths.get(key) ?? 0) + 1);
+    assert.equal(externalPaths.has(key), true, `${command.path.join(' ')} missing external route`);
+  }
+
+  for (const [key, count] of registryPaths) {
+    assert.equal(count, 1, `${key.replaceAll('\0', ' ')} registry command path is duplicated`);
   }
 });
 
