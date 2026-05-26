@@ -61,6 +61,33 @@ function concreteUsagePath(form) {
   return concrete;
 }
 
+function externalRouteMatches(command, args) {
+  if (args.length < command.path.length) return false;
+  if (!command.path.every((part, index) => args[index] === part)) return false;
+  if (!command.when) return true;
+  const childArgs = args.slice(command.path.length);
+  const childArgIndex = command.when.child_arg_index;
+  if (childArgIndex === undefined) return true;
+  const childArg = childArgs[childArgIndex];
+  if (childArg === undefined) return command.when.child_arg_missing === true;
+  if (command.when.child_arg_missing === true) return false;
+  if (command.when.prefix !== undefined && !childArg.startsWith(command.when.prefix)) return false;
+  if (command.when.excluded_prefixes?.some((prefix) => childArg.startsWith(prefix))) return false;
+  if (command.when.excluded_values?.includes(childArg)) return false;
+  return true;
+}
+
+function routeConditionSamples(routes) {
+  const samples = new Set(['__missing__', 'example']);
+  for (const route of routes) {
+    if (!route.when) continue;
+    if (route.when.prefix) samples.add(`${route.when.prefix}sample`);
+    for (const prefix of route.when.excluded_prefixes ?? []) samples.add(`${prefix}sample`);
+    for (const value of route.when.excluded_values ?? []) samples.add(value);
+  }
+  return [...samples];
+}
+
 test('canonical external command manifest matches the schema', () => {
   const result = validate(manifestPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -155,6 +182,28 @@ test('duplicate external command route conditions include dispatch predicates', 
     for (const route of routes) {
       const predicates = predicateKeys.filter((predicateKey) => route.when[predicateKey] !== undefined);
       assert.notEqual(predicates.length, 0, `${key.replaceAll('\0', ' ')} duplicate condition only names an arg index`);
+    }
+  }
+});
+
+test('duplicate external command routes do not overlap for representative child args', async () => {
+  const manifest = await loadJson(manifestPath);
+  const byPath = new Map();
+  for (const command of manifest.commands) {
+    const key = command.path.join('\0');
+    byPath.set(key, [...(byPath.get(key) ?? []), command]);
+  }
+
+  for (const [key, routes] of byPath) {
+    if (routes.length <= 1) continue;
+    const pathArgs = key.split('\0');
+    for (const sample of routeConditionSamples(routes)) {
+      const args = sample === '__missing__' ? pathArgs : [...pathArgs, sample];
+      const matches = routes.filter((route) => externalRouteMatches(route, args));
+      assert.ok(
+        matches.length <= 1,
+        `${pathArgs.join(' ')} duplicate routes overlap for child ${sample}: ${matches.map((route) => route.argv_prefix.join(' ')).join(' | ')}`,
+      );
     }
   }
 });
