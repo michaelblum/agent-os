@@ -583,8 +583,20 @@ async function listenCommand(args) {
     if (closing) return;
     closing = true;
     socket.end();
-    if (daemon && !daemon.killed) daemon.kill('SIGKILL');
-    process.exit(0);
+    if (!daemon || daemon.killed) {
+      process.exit(0);
+    }
+    let daemonExited = false;
+    const exitAfterDaemon = () => process.exit(0);
+    daemon.once('exit', () => {
+      daemonExited = true;
+      exitAfterDaemon();
+    });
+    daemon.kill('SIGTERM');
+    setTimeout(() => {
+      if (!daemonExited) daemon.kill('SIGKILL');
+    }, 250).unref();
+    setTimeout(exitAfterDaemon, 1000).unref();
   };
   process.once('SIGINT', close);
   process.once('SIGTERM', close);

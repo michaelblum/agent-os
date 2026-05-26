@@ -56,18 +56,18 @@ function connectOnce(timeoutMs = 1000) {
   });
 }
 
-function startDaemon() {
+function startDaemon({ managed = false } = {}) {
   if (process.env.AOS_STATE_ROOT) {
     process.stderr.write('ipc: starting isolated daemon with explicit AOS_STATE_ROOT...\n');
     fs.mkdirSync(path.dirname(daemonLogPath()), { recursive: true });
     const log = fs.openSync(daemonLogPath(), 'a');
     const child = spawn(aosPath(), ['serve', '--idle-timeout', '5m'], {
-      detached: true,
+      detached: !managed,
       stdio: ['ignore', 'ignore', log],
       env: process.env,
     });
-    child.unref();
-    return;
+    if (!managed) child.unref();
+    return managed ? child : null;
   }
   process.stderr.write(`ipc: starting ${runtimeMode()} daemon via launchd service...\n`);
   const child = spawn(aosPath(), ['service', 'start', '--mode', runtimeMode(), '--json'], {
@@ -76,22 +76,32 @@ function startDaemon() {
     env: process.env,
   });
   child.unref();
+  return null;
 }
 
-async function connectWithAutoStart() {
+async function connectWithAutoStart(options = {}) {
   let socket = await connectOnce();
-  if (socket) return socket;
+  if (socket) return { socket, daemon: null };
   if (autoStartDisabled()) {
     process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
     return null;
   }
-  startDaemon();
+  const daemon = startDaemon(options);
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 100));
     socket = await connectOnce();
-    if (socket) return socket;
+    if (socket) return { socket, daemon };
   }
+  stopManagedDaemon(daemon);
   return null;
+}
+
+function stopManagedDaemon(daemon) {
+  if (!daemon || daemon.exitCode !== null || daemon.signalCode !== null) return;
+  daemon.kill('SIGTERM');
+  setTimeout(() => {
+    if (daemon.exitCode === null && daemon.signalCode === null) daemon.kill('SIGKILL');
+  }, 250).unref();
 }
 
 function readOneJSON(socket, timeoutMs = 3000) {
@@ -121,7 +131,8 @@ function readOneJSON(socket, timeoutMs = 3000) {
 }
 
 async function sendEnvelope(service, action, data = {}) {
-  const socket = await connectWithAutoStart();
+  const connection = await connectWithAutoStart();
+  const socket = connection?.socket ?? null;
   if (!socket) error('Cannot connect to daemon', 'DAEMON_UNREACHABLE');
   socket.write(`${JSON.stringify({ v: 1, service, action, data })}\n`);
   const response = await readOneJSON(socket);
@@ -296,7 +307,9 @@ async function listenCommand(args) {
 }
 
 async function listenFollow(channel, since) {
-  const socket = await connectWithAutoStart();
+  const connection = await connectWithAutoStart({ managed: true });
+  const socket = connection?.socket ?? null;
+  const daemon = connection?.daemon ?? null;
   if (!socket) error('Cannot connect to daemon', 'DAEMON_UNREACHABLE');
   socket.write(`${JSON.stringify({ action: 'subscribe' })}\n`);
   await readOneJSON(socket, 2000);
@@ -325,9 +338,14 @@ async function listenFollow(channel, since) {
       process.stdout.write(`${JSON.stringify(json.data)}\n`);
     }
   });
-  socket.on('close', () => process.exit(0));
-  process.on('SIGINT', () => { socket.end(); process.exit(0); });
-  process.on('SIGTERM', () => { socket.end(); process.exit(0); });
+  const close = () => {
+    socket.end();
+    stopManagedDaemon(daemon);
+    process.exit(0);
+  };
+  socket.on('close', close);
+  process.on('SIGINT', close);
+  process.on('SIGTERM', close);
 }
 
 const [command, ...rest] = process.argv.slice(2);
