@@ -39,48 +39,6 @@ func wikiBareNameCandidates(_ arg: String) -> [String] {
     ]
 }
 
-// MARK: - Command Router
-
-func wikiCommand(args: [String]) {
-    guard let sub = args.first else {
-        exitError("wiki requires a subcommand. Usage: aos wiki <list|show|graph|add|rm|link|search|seed|project-docs|reindex|lint|invoke|create-plugin|migrate-namespaces> ...",
-                  code: "MISSING_SUBCOMMAND")
-    }
-    let subArgs = Array(args.dropFirst())
-    switch sub {
-    case "reindex":
-        wikiReindexCommand(args: subArgs)
-    case "create-plugin":
-        wikiCreatePluginCommand(args: subArgs)
-    case "add":
-        wikiAddCommand(args: subArgs)
-    case "rm":
-        wikiRmCommand(args: subArgs)
-    case "list":
-        wikiListCommand(args: subArgs)
-    case "search":
-        wikiSearchCommand(args: subArgs)
-    case "show":
-        wikiShowCommand(args: subArgs)
-    case "graph":
-        wikiGraphCommand(args: subArgs)
-    case "link":
-        wikiLinkCommand(args: subArgs)
-    case "lint":
-        wikiLintCommand(args: subArgs)
-    case "invoke":
-        wikiInvokeCommand(args: subArgs)
-    case "seed":
-        wikiSeedCommand(args: subArgs)
-    case "project-docs":
-        wikiProjectDocsCommand(args: subArgs)
-    case "migrate-namespaces":
-        wikiMigrateNamespacesCommand(args: subArgs)
-    default:
-        exitError("Unknown wiki subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
-    }
-}
-
 // MARK: - Reindex
 
 func wikiReindexCommand(args: [String]) {
