@@ -11,6 +11,7 @@ const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-external-command-manifest-v0.schema.json');
 const manifestPath = path.join(repoRoot, 'manifests/commands/aos-external-commands.json');
 const registryPath = path.join(repoRoot, 'manifests/commands/aos-commands.json');
+const mainSwiftPath = path.join(repoRoot, 'src/main.swift');
 
 function validate(instancePath) {
   return spawnSync(
@@ -95,6 +96,33 @@ test('external command manifest only routes bootstrap families to Swift', async 
     assert.ok(allowedPrefix, `${publicPath} must route through an external script, not $AOS_PATH`);
     assert.deepEqual(command.argv_prefix, allowedPrefix, `${publicPath} must use the bootstrap primitive only`);
   }
+});
+
+test('Swift entry point exposes only private bootstrap and native primitives', async () => {
+  const source = await fs.readFile(mainSwiftPath, 'utf8');
+  const commandSwitch = source.match(/switch command \{([\s\S]*?)\n\s*default:/);
+  assert.ok(commandSwitch, 'src/main.swift must keep a visible top-level command switch');
+
+  const allowedCases = new Set([
+    '__serve',
+    '__status',
+    '__ready',
+    '__doctor',
+    '__permissions',
+    '__render',
+    '__see',
+    '__say',
+    '__do',
+  ]);
+  const cases = [...commandSwitch[1].matchAll(/case "([^"]+)":/g)].map((match) => match[1]);
+  assert.deepEqual(cases.filter((name) => !allowedCases.has(name)), [], 'top-level Swift command cases must stay private');
+
+  for (const required of allowedCases) {
+    assert.ok(cases.includes(required), `missing private Swift primitive ${required}`);
+  }
+  assert.equal(source.includes('case "help"'), false, 'help must stay external');
+  assert.equal(source.includes('helpCommand(args:'), false, 'Swift help renderer must not return');
+  assert.equal(source.includes('buildCommandRegistry'), false, 'Swift command registry must not return');
 });
 
 test('registry command paths have external routes', async () => {
