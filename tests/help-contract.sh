@@ -342,6 +342,8 @@ assert 'case "__help"' not in source
 assert "helpCommand(args:" not in source
 assert "commandRegistry = buildCommandRegistry()" not in source
 assert "COMMAND_ROUTE_UNAVAILABLE" in source
+assert not Path("src/shared/command-help.swift").exists()
+assert not Path("src/shared/command-registry.swift").exists()
 PY
 then
     pass "main entry point has no active Swift help fallback"
