@@ -207,7 +207,7 @@ assert all(s.get("status") == "planned" for s in d.get("service_resets", [])), d
 PY
 echo "PASS: permissions reset-runtime emergency dry-run"
 
-if rg -n 'After the human returns with `ready`|After the human returns with "ready"|Then stop with `human_needed`\. After the human returns with `ready`|return to the GDI session and say `ready`|returns with `ready`, run `\./aos ready --post-permission`' docs/design/work-cards >/tmp/aos-stale-ready-workcards.txt; then
+if rg -n 'After the human returns with `ready`|After the human returns with "ready"|Then stop with `human_needed`\. After the human returns with `ready`|return to the GDI session and say `ready`|returns with `ready`, run `\./aos ready --post-permission`|says `ready`, run `\./aos ready --post-permission`|says `ready`' docs/design/work-cards >/tmp/aos-stale-ready-workcards.txt; then
   echo "FAIL: work-card TCC recovery guidance still uses ready instead of finished"
   cat /tmp/aos-stale-ready-workcards.txt
   exit 1

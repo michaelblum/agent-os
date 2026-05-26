@@ -117,7 +117,7 @@ Success for this preliminary fix:
 
 - one rebuild/TCC blocker produces one concise pause packet;
 - the current goal is paused with `/goal pause`;
-- the human returns with `ready`;
+- the human returns with `finished`;
 - GDI runs only `./aos ready --post-permission` before resuming.
 
 ## Non-Goals
