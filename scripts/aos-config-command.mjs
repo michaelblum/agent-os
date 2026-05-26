@@ -77,6 +77,11 @@ function usage(message) {
   process.exit(1);
 }
 
+function error(message, code) {
+  console.error(JSON.stringify({ code, error: message }, null, 2));
+  process.exit(1);
+}
+
 function stateRoot() {
   return process.env.AOS_STATE_ROOT || join(homedir(), '.config', 'aos');
 }
@@ -355,11 +360,14 @@ async function main(argv) {
   }
   if (command === 'get') {
     const jsonMode = argv.includes('--json');
-    const args = argv.slice(1).filter((arg) => arg !== '--json');
-    if (args.length !== 1) usage('Usage: aos config get <key>');
+    const args = argv.slice(1);
+    const unknownFlag = args.find((arg) => arg.startsWith('--') && arg !== '--json');
+    if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
+    const positional = args.filter((arg) => arg !== '--json');
+    if (positional.length !== 1) error('config get requires exactly one key. Usage: aos config get <key> [--json]', 'MISSING_ARG');
     const config = await loadConfig();
-    const value = lookupConfigValue(args[0], config);
-    if (value === undefined) throw new Error(`Unknown config key: ${args[0]}`);
+    const value = lookupConfigValue(positional[0], config);
+    if (value === undefined) throw new Error(`Unknown config key: ${positional[0]}`);
     printValue(value, jsonMode);
     return;
   }

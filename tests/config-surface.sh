@@ -46,4 +46,13 @@ OUT="$(./aos config get content.port)"
 [ "$OUT" = "null" ] || fail "expected unset optional content.port=null, got '$OUT'"
 pass "config get returns null for known but unset optional values"
 
+if ./aos config get voice.enabled --bogus 2>"$STATE_ROOT/config-get-bogus.err"; then
+  fail "config get accepted unknown flag"
+fi
+grep -q '"code": "UNKNOWN_FLAG"' "$STATE_ROOT/config-get-bogus.err" || {
+  cat "$STATE_ROOT/config-get-bogus.err"
+  fail "config get unknown flag did not use external JSON error contract"
+}
+pass "config get rejects unknown flags with JSON error"
+
 echo "config-surface: all checks passed"
