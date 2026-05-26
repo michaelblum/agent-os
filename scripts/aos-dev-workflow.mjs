@@ -76,7 +76,7 @@ function parseCommon(args, allowed, positionalMode = 'collect') {
       options.json = true;
       i += 1;
     } else if (allowed[arg]) {
-      if (i + 1 >= args.length) error(`${arg} requires ${allowed[arg]}`, 'MISSING_ARG');
+      if (i + 1 >= args.length || args[i + 1].startsWith('--')) error(`${arg} requires ${allowed[arg]}`, 'MISSING_ARG');
       options[allowed[arg].replace(/ .*/, '').replaceAll('-', '_')] = args[i + 1];
       i += 2;
     } else if (arg.startsWith('--')) {
@@ -99,16 +99,16 @@ function parseWorkflowOptions(args) {
       case '--json':
         options.json = true; i += 1; break;
       case '--repo':
-        if (i + 1 >= args.length) error('--repo requires a path', 'MISSING_ARG');
+        if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--repo requires a path', 'MISSING_ARG');
         options.repo = args[i + 1]; i += 2; break;
       case '--base':
-        if (i + 1 >= args.length) error('--base requires a ref', 'MISSING_ARG');
+        if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--base requires a ref', 'MISSING_ARG');
         options.base = args[i + 1]; i += 2; break;
       case '--manifest':
-        if (i + 1 >= args.length) error('--manifest requires a path', 'MISSING_ARG');
+        if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--manifest requires a path', 'MISSING_ARG');
         options.manifest = args[i + 1]; i += 2; break;
       case '--paths':
-        if (i + 1 >= args.length) error('--paths requires a comma-separated path list', 'MISSING_ARG');
+        if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--paths requires a comma-separated path list', 'MISSING_ARG');
         options.files.push(...args[i + 1].split(',').filter(Boolean)); i += 2; break;
       case '--files': {
         i += 1;
@@ -137,10 +137,10 @@ function parseAuditOptions(args) {
       case '--json':
         options.json = true; i += 1; break;
       case '--repo':
-        if (i + 1 >= args.length) error('--repo requires a path', 'MISSING_ARG');
+        if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--repo requires a path', 'MISSING_ARG');
         options.repo = args[i + 1]; i += 2; break;
       case '--manifest':
-        if (i + 1 >= args.length) error('--manifest requires a path', 'MISSING_ARG');
+        if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--manifest requires a path', 'MISSING_ARG');
         options.manifest = args[i + 1]; i += 2; break;
       default:
         error(`Unknown dev audit flag: ${arg}`, 'UNKNOWN_FLAG');

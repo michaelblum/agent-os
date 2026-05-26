@@ -140,7 +140,10 @@ private func rawOptionValue(_ args: [String], _ token: String) -> String? {
     var i = 0
     while i < args.count {
         if args[i] == token, i + 1 < args.count {
-            return args[i + 1]
+            let value = args[i + 1]
+            if !value.hasPrefix("--") {
+                return value
+            }
         }
         i += 1
     }

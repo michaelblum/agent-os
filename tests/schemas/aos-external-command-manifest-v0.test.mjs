@@ -181,6 +181,16 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
   assert.equal(source.includes('buildCommandRegistry'), false, 'Swift command registry must not return');
 });
 
+test('Swift external dispatcher does not consume flags as --repo values', async () => {
+  const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
+  const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);
+  assert.ok(rawOptionValue, 'external dispatcher must keep rawOptionValue visible');
+  assert.ok(
+    rawOptionValue[0].includes('!value.hasPrefix("--")'),
+    'external dispatcher must leave flag-shaped values for external parsers to classify as MISSING_ARG',
+  );
+});
+
 test('private Swift primitives are reachable only through expected external wrappers', async () => {
   const manifest = await loadJson(manifestPath);
   const expectedBootstrapRoutes = new Map([

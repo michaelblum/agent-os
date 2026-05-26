@@ -101,6 +101,22 @@ else
     fail "dev recommend invalid --base error mismatch: $ERR"
 fi
 
+if ERR="$(./aos dev recommend --base --json 2>&1 >/dev/null)"; then
+    fail "dev recommend should reject missing --base values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev recommend treats flag-after---base as missing value"
+else
+    fail "dev recommend missing --base error mismatch: $ERR"
+fi
+
+if ERR="$(node scripts/aos-dev-workflow.mjs audit --repo --json 2>&1 >/dev/null)"; then
+    fail "dev audit should reject missing --repo values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev audit treats flag-after---repo as missing value"
+else
+    fail "dev audit missing --repo error mismatch: $ERR"
+fi
+
 if OUT="$(./aos help dev --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -317,6 +333,14 @@ else
     fail "dev capabilities list did not expose expected manifest entries"
 fi
 
+if ERR="$(./aos dev capabilities list --role --json 2>&1 >/dev/null)"; then
+    fail "dev capabilities list should reject missing --role values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev capabilities list treats flag-after---role as missing value"
+else
+    fail "dev capabilities list missing --role error mismatch: $ERR"
+fi
+
 if OUT="$(./aos dev capabilities explain dev.github.issue_comment --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -450,6 +474,14 @@ then
     pass "dev docks capabilities allows operator assigned read-only dev path"
 else
     fail "dev docks capabilities operator assigned path drifted"
+fi
+
+if ERR="$(./aos dev docks capabilities operator --entry-path --json 2>&1 >/dev/null)"; then
+    fail "dev docks capabilities should reject missing --entry-path values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev docks capabilities treats flag-after---entry-path as missing value"
+else
+    fail "dev docks capabilities missing --entry-path error mismatch: $ERR"
 fi
 
 TMPDIR="$(mktemp -d)"
