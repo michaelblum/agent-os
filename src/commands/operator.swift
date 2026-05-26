@@ -433,6 +433,16 @@ func readyCommand(args: [String]) {
     }
 
     if repair && !response.ready {
+        if response.blockers.contains(where: { $0.id == "stale_daemons" }) {
+            response = runReadyCleanRepair(
+                startup: startup,
+                actionTrace: actionTrace,
+                mode: mode,
+                prefix: prefix
+            )
+            actionTrace = response.action_trace
+        }
+
         if response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) }) {
             response = runReadyRuntimeRepair(
                 startup: startup,
@@ -1267,6 +1277,7 @@ private func buildReadyResponse(
     let setup = currentPermissionsSetupState(permissions: permissions)
     let daemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
     let runtime = currentRuntimeState(preFetchedHealth: daemonHealth)
+    let cleanReport = currentCleanReport()
     let evaluation = evaluateReadyForTesting(
         daemon: daemonHealth?.asView,
         cliAccessibility: permissions.accessibility,
@@ -1278,6 +1289,7 @@ private func buildReadyResponse(
         daemon: daemonHealth?.asView,
         permissions: permissions,
         setup: setup,
+        cleanReport: cleanReport,
         mode: mode
     )
     let ready = runtime.socket_reachable && evaluation.readyForTesting && blockers.isEmpty
@@ -1310,6 +1322,7 @@ private func buildReadyResponse(
             daemon: daemonHealth?.asView,
             permissions: permissions,
             setup: setup,
+            cleanReport: cleanReport,
             mode: mode
         )
     )
@@ -1341,6 +1354,9 @@ private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bo
     guard !response.ready else { return nil }
     let blockerIDs = Set(response.blockers.map(\.id))
     let hasRepairableRuntimeBlocker = response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) })
+    if blockerIDs.contains("stale_daemons") {
+        return nil
+    }
     if postPermission && hasRepairableRuntimeBlocker {
         return "post-permission bounded daemon restart/recheck"
     }
@@ -1351,6 +1367,22 @@ private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bo
         return "automatic after input tap inactive"
     }
     return nil
+}
+
+private func runReadyCleanRepair(
+    startup: ReadyStartupBlock,
+    actionTrace: [ReadyActionStep],
+    mode: AOSRuntimeMode,
+    prefix: String
+) -> ReadyResponse {
+    let clean = runProcess(aosExecutablePath(), arguments: ["clean", "--json"])
+    var trace = actionTrace
+    trace.append(ReadyActionStep(
+        step: "clean",
+        result: clean.exitCode == 0 ? "ok" : "failed",
+        detail: compactProcessDetail(clean)
+    ))
+    return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
 }
 
 private func runReadyRuntimeRepair(
@@ -1430,6 +1462,7 @@ private func readyPhase(ready: Bool, blockers: [ReadyBlocker]) -> String {
     if ready { return "ready" }
     if blockers.contains(where: { $0.id == "daemon_unreachable" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) { return "runtime_blocked" }
+    if blockers.contains(where: { $0.id == "stale_daemons" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "permission" }) { return "human_required" }
     if blockers.contains(where: { $0.id == "input_tap_not_active" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "setup" }) { return "setup_required" }
@@ -1445,6 +1478,9 @@ private func readyDiagnosis(
     if ready { return "ready" }
     if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) {
         return "daemon_ownership_mismatch"
+    }
+    if blockers.contains(where: { $0.id == "stale_daemons" }) {
+        return "stale_daemons"
     }
     if blockers.contains(where: { $0.id == "daemon_unreachable" }) {
         return "daemon_socket_unreachable"
@@ -1468,6 +1504,7 @@ private func readyBlockers(
     daemon: DaemonHealthView?,
     permissions: PermissionsState,
     setup: PermissionsSetupState,
+    cleanReport: StatusCleanReport,
     mode: AOSRuntimeMode
 ) -> [ReadyBlocker] {
     var blockers: [ReadyBlocker] = []
@@ -1497,6 +1534,19 @@ private func readyBlockers(
             id: "daemon_ownership_mismatch",
             scope: "daemon",
             message: "Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).",
+            target_path: daemonPath,
+            settings_url: nil,
+            blocks: ["see", "do", "show", "tell", "listen"]
+        ))
+    }
+
+    if !cleanReport.stale_daemons.isEmpty {
+        let pids = cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")
+        blockers.append(ReadyBlocker(
+            kind: "runtime",
+            id: "stale_daemons",
+            scope: "daemon",
+            message: "Stale AOS daemon process(es) detected: \(pids). Run cleanup before treating this runtime as ready.",
             target_path: daemonPath,
             settings_url: nil,
             blocks: ["see", "do", "show", "tell", "listen"]
@@ -1593,6 +1643,7 @@ private func readyBlockers(
 private func isRepairableRuntimeBlockerID(_ id: String) -> Bool {
     return id == "daemon_unreachable" ||
         id == "daemon_ownership_mismatch" ||
+        id == "stale_daemons" ||
         id == "input_tap_not_active"
 }
 
@@ -1633,6 +1684,13 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
     }
 
     if hasRepairableRuntimeBlocker && !hasPermissionBlocker {
+        if blockers.contains(where: { $0.id == "stale_daemons" }) {
+            append(ReadyNextAction(
+                type: "command",
+                label: "clean stale daemon processes and stale runtime resources",
+                command: "\(prefix) clean"
+            ))
+        }
         append(ReadyNextAction(
             type: "command",
             label: "run automated repair: restart/recheck, then print human instructions if needed",
@@ -1706,6 +1764,7 @@ private func readyNotes(
     daemon: DaemonHealthView?,
     permissions: PermissionsState,
     setup: PermissionsSetupState,
+    cleanReport: StatusCleanReport,
     mode: AOSRuntimeMode
 ) -> [String] {
     var notes: [String] = []
@@ -1740,6 +1799,10 @@ private func readyNotes(
     }
     if !setup.setup_completed, let command = setup.recommended_command {
         notes.append("Run '\(command)' before interactive testing.")
+    }
+    if !cleanReport.stale_daemons.isEmpty {
+        let pids = cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")
+        notes.append("Stale daemon cleanup required before readiness: \(pids). Run '\(aosInvocationDisplayName()) clean'.")
     }
     return notes
 }

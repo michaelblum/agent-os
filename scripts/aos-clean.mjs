@@ -210,6 +210,32 @@ function removeCanvas(mode, id) {
   return run(aosPath(), ['show', 'remove', '--id', id], { env }).status === 0;
 }
 
+function pidExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function waitForDaemonExit(pids, timeoutMs = 2500) {
+  const pending = new Set(pids);
+  const deadline = Date.now() + timeoutMs;
+  while (pending.size > 0 && Date.now() < deadline) {
+    for (const pid of Array.from(pending)) {
+      if (!pidExists(pid)) pending.delete(pid);
+    }
+    if (pending.size > 0) {
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+    }
+  }
+  for (const pid of Array.from(pending)) {
+    if (!pidExists(pid)) pending.delete(pid);
+  }
+  return Array.from(pending);
+}
+
 function waitForCanvasRemoval(mode, timeoutMs = 2500) {
   const deadline = Date.now() + timeoutMs;
   let remaining = staleCanvasesForMode(mode);
@@ -232,6 +258,7 @@ function runClean(dryRun) {
   const protectedPIDs = addProcessFamily(protectedRoots);
 
   const staleDaemons = [];
+  let remainingStaleDaemons = [];
   const orphanedClients = orphanedClientProcesses();
   const actions = [];
   const notes = [];
@@ -245,6 +272,14 @@ function runClean(dryRun) {
       } catch {
         notes.push(`failed to kill stale daemon pid=${pid}`);
       }
+    }
+  }
+  if (!dryRun && staleDaemons.length > 0) {
+    const stalePIDs = staleDaemons.map((daemon) => daemon.pid);
+    const remainingPIDs = waitForDaemonExit(stalePIDs);
+    remainingStaleDaemons = staleDaemons.filter((daemon) => remainingPIDs.includes(daemon.pid));
+    for (const daemon of remainingStaleDaemons) {
+      notes.push(`failed to verify stale daemon exit pid=${daemon.pid}`);
     }
   }
   for (const client of orphanedClients) {
@@ -299,14 +334,14 @@ function runClean(dryRun) {
   let status = 'clean';
   if (dryRun && foundResources) {
     status = 'dirty';
-  } else if (!dryRun && remainingCanvases.length > 0) {
+  } else if (!dryRun && (remainingCanvases.length > 0 || remainingStaleDaemons.length > 0)) {
     status = 'failed';
   } else if (!dryRun && foundResources) {
     status = 'cleaned';
   }
   return {
     status,
-    stale_daemons: staleDaemons,
+    stale_daemons: dryRun ? staleDaemons : remainingStaleDaemons,
     orphaned_clients: orphanedClients,
     canvases: dryRun ? canvases : remainingCanvases,
     actions_taken: actions,
