@@ -41,6 +41,28 @@ check_unknown_arg() {
 }
 
 check_unknown_flag inspect ./aos inspect --bogus
+err="$STATE_ROOT/inspect-at-missing.err"
+if ./aos inspect --at --size 10,10 2>"$err"; then
+  echo "FAIL: inspect accepted missing --at value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: inspect missing --at value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+
+err="$STATE_ROOT/inspect-size-missing.err"
+if ./aos inspect --size --at 0,0 2>"$err"; then
+  echo "FAIL: inspect accepted missing --size value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: inspect missing --size value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+
 check_unknown_flag show-exists ./aos show exists --id parser-test --bogus
 check_unknown_flag show-get ./aos show get --id parser-test --bogus
 check_unknown_flag do-profiles-root ./aos do profiles --bogus

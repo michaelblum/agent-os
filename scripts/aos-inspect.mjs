@@ -64,7 +64,7 @@ function parseArgs(args) {
     switch (args[i]) {
       case '--at': {
         i += 1;
-        if (i >= args.length) error('--at requires x,y[,w,h]', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--at requires x,y[,w,h]', 'MISSING_ARG');
         const parts = parsePair(args[i], '--at requires x,y[,w,h]');
         options.x = parts[0];
         options.y = parts[1];
@@ -76,7 +76,7 @@ function parseArgs(args) {
       }
       case '--size': {
         i += 1;
-        if (i >= args.length) error('--size requires w,h', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--size requires w,h', 'MISSING_ARG');
         const parts = parsePair(args[i], '--size requires w,h');
         options.width = parts[0];
         options.height = parts[1];
