@@ -69,6 +69,11 @@ check_unknown_arg service-verify-extra ./aos service _verify-readiness unexpecte
 check_unknown_arg reset-extra ./aos reset unexpected
 check_unknown_arg ops-list-extra ./aos ops list unexpected
 check_unknown_arg ops-explain-extra ./aos ops explain runtime/status-snapshot unexpected
+check_unknown_flag tell-unknown-flag ./aos tell channel --bogus hello
+check_unknown_arg tell-who-extra ./aos tell --who unexpected
+check_unknown_flag listen-unknown-flag ./aos listen channel --bogus
+check_unknown_arg listen-extra ./aos listen channel unexpected
+check_unknown_arg listen-channels-extra ./aos listen --channels unexpected
 
 err="$STATE_ROOT/see-observe-depth-missing.err"
 if ./aos see observe --depth 2>"$err"; then

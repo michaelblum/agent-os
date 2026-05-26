@@ -11,6 +11,11 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  const text = String(arg);
+  error(`Unknown ${text.startsWith('--') ? 'flag' : 'argument'}: ${text}`, text.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
@@ -168,10 +173,12 @@ function readStdinIfAvailable() {
 
 async function tellCommand(args) {
   if (args.includes('--who')) {
+    for (const arg of args) if (arg !== '--who') unknownArg(arg);
     await sendEnvelope('session', 'who', {});
     return;
   }
   if (args.includes('--register')) {
+    validateValueFlags(args, new Set(['--register', '--session-id', '--role', '--harness', '--name']));
     const sessionID = valueAfter(args, '--session-id') || process.env.AOS_SESSION_ID;
     if (!sessionID) error('--register requires --session-id <id>', 'MISSING_ARG');
     const payload = {
@@ -185,6 +192,7 @@ async function tellCommand(args) {
     return;
   }
   if (args.includes('--unregister')) {
+    validateValueFlags(args, new Set(['--unregister', '--session-id']));
     const sessionID = valueAfter(args, '--session-id') || process.env.AOS_SESSION_ID;
     const name = legacyValue(args, '--unregister');
     if (!sessionID && !name) error('--unregister requires --session-id <id> or a legacy name argument', 'MISSING_ARG');
@@ -232,7 +240,7 @@ async function tellCommand(args) {
         if (!arg.startsWith('--')) {
           if (!explicitSessionAudience && !audience) audience = arg;
           else textParts.push(arg);
-        }
+        } else unknownArg(arg);
     }
   }
 
@@ -252,6 +260,23 @@ async function tellCommand(args) {
     }
   }
   await sendEnvelope('tell', 'send', payload);
+}
+
+function validateValueFlags(args, allowed) {
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (!arg.startsWith('--')) {
+      unknownArg(arg);
+    }
+    if (!allowed.has(arg)) unknownArg(arg);
+    if (arg === '--register' || arg === '--unregister') {
+      const next = args[i + 1];
+      if (next && !next.startsWith('--')) i += 1;
+      continue;
+    }
+    i += 1;
+    if (i >= args.length || args[i].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
+  }
 }
 
 function parseListenArgs(args) {
@@ -284,12 +309,16 @@ function parseListenArgs(args) {
         break;
       default:
         if (!arg.startsWith('--') && !options.channel) options.channel = arg;
+        else unknownArg(arg);
     }
   }
   return options;
 }
 
 async function listenCommand(args) {
+  if (args.includes('--channels')) {
+    for (const arg of args) if (arg !== '--channels') unknownArg(arg);
+  }
   const options = parseListenArgs(args);
   if (options.channels) {
     await sendEnvelope('listen', 'channels', {});
