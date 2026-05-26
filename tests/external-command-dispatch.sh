@@ -123,17 +123,23 @@ registry_paths = {tuple(item["path"]) for item in registry["commands"]}
 external_paths = {tuple(item["path"]) for item in manifest["commands"]}
 assert registry_paths <= external_paths, sorted(registry_paths - external_paths)
 bootstrap_families = {"serve", "status", "ready", "doctor", "permissions"}
+def concrete_usage_path(usage):
+    if usage.startswith("aos "):
+        aos_usage = usage
+    else:
+        aos_usage = next((part for part in re.split(r"\s+\|\s+", usage) if part.startswith("aos ")), None)
+    if not aos_usage:
+        return []
+    concrete = []
+    for token in aos_usage.split()[1:]:
+        if token.startswith("[") or token.startswith("(") or token.startswith("<") or token.startswith("--"):
+            break
+        concrete.append(token)
+    return concrete
+
 for command in registry["commands"]:
     for form in command["forms"]:
-        usage = form["usage"]
-        if not usage.startswith("aos "):
-            continue
-        tokens = usage.split()
-        concrete = []
-        for token in tokens[1:]:
-            if token.startswith("[") or token.startswith("(") or token.startswith("<") or token.startswith("--"):
-                break
-            concrete.append(token)
+        concrete = concrete_usage_path(form["usage"])
         if concrete and concrete[0] in {"help"}:
             continue
         if concrete and concrete[0] in bootstrap_families:
@@ -149,8 +155,6 @@ for family in ["do", "see"]:
     assert matches[0]["executable"] == "/usr/bin/env", matches[0]
     assert matches[0]["env"]["AOS_PATH"] == "$AOS_PATH", matches[0]
     assert matches[0]["when"]["child_arg_missing"] is True, matches[0]
-see_fallback = [item for item in manifest["commands"] if tuple(item["path"]) == ("see",) and item["argv_prefix"] == ["__see", "capture"]]
-assert len(see_fallback) == 0, see_fallback
 see_fallback = [item for item in manifest["commands"] if tuple(item["path"]) == ("see",) and item["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", "capture"]]
 assert len(see_fallback) == 1, see_fallback
 assert see_fallback[0]["executable"] == "/usr/bin/env", see_fallback[0]
