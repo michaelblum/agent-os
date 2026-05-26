@@ -69,11 +69,39 @@ else
 fi
 rm -f /tmp/aos-show-bogus.out /tmp/aos-show-bogus.err
 
+if ./aos see zone >/tmp/aos-see-zone-missing.out 2>/tmp/aos-see-zone-missing.err; then
+    fail "see zone missing subcommand succeeded"
+else
+    if grep -q '"code" : "MISSING_SUBCOMMAND"' /tmp/aos-see-zone-missing.err \
+        && grep -q 'see zone requires a subcommand' /tmp/aos-see-zone-missing.err; then
+        pass "see zone missing subcommand routes through external subcommand router"
+    else
+        fail "see zone missing subcommand error drifted: $(cat /tmp/aos-see-zone-missing.err)"
+    fi
+fi
+rm -f /tmp/aos-see-zone-missing.out /tmp/aos-see-zone-missing.err
+
+if ./aos see zone external-dispatch-bogus >/tmp/aos-see-zone-bogus.out 2>/tmp/aos-see-zone-bogus.err; then
+    fail "see zone unknown subcommand succeeded"
+else
+    if grep -q '"code" : "UNKNOWN_SUBCOMMAND"' /tmp/aos-see-zone-bogus.err \
+        && grep -q 'Unknown see zone subcommand: external-dispatch-bogus' /tmp/aos-see-zone-bogus.err; then
+        pass "see zone unknown subcommands route through external subcommand router"
+    else
+        fail "see zone unknown subcommand error drifted: $(cat /tmp/aos-see-zone-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-see-zone-bogus.out /tmp/aos-see-zone-bogus.err
+
 if python3 - <<'PY'
 import json
 
 manifest = json.load(open("manifests/commands/aos-external-commands.json", encoding="utf-8"))
 commands = {tuple(item["path"]): item for item in manifest["commands"]}
+registry = json.load(open("manifests/commands/aos-commands.json", encoding="utf-8"))
+registry_paths = {tuple(item["path"]) for item in registry["commands"]}
+external_paths = {tuple(item["path"]) for item in manifest["commands"]}
+assert registry_paths <= external_paths, sorted(registry_paths - external_paths)
 command = commands[("help",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-help-proxy.mjs"], command
