@@ -43,4 +43,17 @@ grep -q '"code": "UNKNOWN_FLAG"' "$STATE_ROOT/bogus.err" || {
 }
 pass "introspect review rejects unknown flags with JSON error"
 
+if ./aos introspect review extra 2>"$STATE_ROOT/extra.err"; then
+  fail "introspect review accepted extra positional"
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$STATE_ROOT/extra.err" || {
+  cat "$STATE_ROOT/extra.err"
+  fail "introspect review extra positional did not use UNKNOWN_ARG"
+}
+grep -q '"error": "Unknown argument: extra"' "$STATE_ROOT/extra.err" || {
+  cat "$STATE_ROOT/extra.err"
+  fail "introspect review extra positional message did not say Unknown argument"
+}
+pass "introspect review rejects extra positionals with JSON error"
+
 echo "introspect-review: all checks passed"

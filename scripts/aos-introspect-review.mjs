@@ -76,7 +76,8 @@ function parseArgs(argv) {
       if (i >= argv.length) error('--session requires a key. Usage: aos introspect review [--session <key>] [--json]', 'MISSING_ARG');
       parsed.session = sanitizeSessionComponent(argv[i]);
     } else {
-      error(`Unknown flag: ${argv[i]}`, argv[i].startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+      const kind = argv[i].startsWith('--') ? 'flag' : 'argument';
+      error(`Unknown ${kind}: ${argv[i]}`, argv[i].startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
     }
   }
   return parsed;
