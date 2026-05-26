@@ -273,6 +273,30 @@ test('registry command paths have external routes', async () => {
   }
 });
 
+test('registry form ids are unique and usage paths stay under their command', async () => {
+  const registry = await loadJson(registryPath);
+  const formIds = new Map();
+
+  for (const command of registry.commands) {
+    const commandPath = command.path.join(' ');
+    for (const form of command.forms) {
+      formIds.set(form.id, [...(formIds.get(form.id) ?? []), commandPath]);
+
+      const concrete = concreteUsagePath(form);
+      if (!concrete?.length) continue;
+      assert.deepEqual(
+        concrete.slice(0, command.path.length),
+        command.path,
+        `${form.id} usage path ${concrete.join(' ')} must stay under registry command ${commandPath}`,
+      );
+    }
+  }
+
+  for (const [id, owners] of formIds) {
+    assert.equal(owners.length, 1, `${id} registry form id is duplicated under: ${owners.join(', ')}`);
+  }
+});
+
 test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
