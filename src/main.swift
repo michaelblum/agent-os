@@ -45,6 +45,8 @@ struct AOS {
             permissionsCommand(args: Array(args.dropFirst()))
         case "__render":
             renderCommand(args: Array(args.dropFirst()))
+        case "__see":
+            handleSeePrimitive(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             helpCommand(args: Array(args.dropFirst()))
         default:
@@ -123,13 +125,24 @@ func handleSee(args: [String]) {
         exit(0)
     }
     switch sub {
-    case "cursor":
-        ensureInteractivePreflight(command: "aos see cursor")
-        cursorCommand()
     case "capture":
         let subArgs = Array(args.dropFirst())
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos see capture") }
         runCaptureAsync(args: subArgs)
+    default:
+        ensureInteractivePreflight(command: "aos see \(sub)")
+        runCaptureAsync(args: args)
+    }
+}
+
+private func handleSeePrimitive(args: [String]) {
+    guard let sub = args.first else {
+        exitError("__see requires a primitive", code: "MISSING_ARG")
+    }
+    switch sub {
+    case "cursor":
+        ensureInteractivePreflight(command: "aos see cursor")
+        cursorCommand()
     case "list":
         ensureInteractivePreflight(command: "aos see list")
         seeListCommand()
@@ -137,8 +150,7 @@ func handleSee(args: [String]) {
         ensureInteractivePreflight(command: "aos see selection")
         selectionCommand()
     default:
-        ensureInteractivePreflight(command: "aos see \(sub)")
-        runCaptureAsync(args: args)
+        exitError("Unknown __see primitive: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
 }
 

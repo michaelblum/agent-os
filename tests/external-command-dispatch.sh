@@ -69,6 +69,22 @@ else
 fi
 rm -f /tmp/aos-show-bogus.out /tmp/aos-show-bogus.err
 
+if python3 - <<'PY'
+import json
+
+manifest = json.load(open("manifests/commands/aos-external-commands.json", encoding="utf-8"))
+commands = {tuple(item["path"]): item for item in manifest["commands"]}
+for path in [("see", "cursor"), ("see", "list"), ("see", "selection")]:
+    command = commands[path]
+    assert command["executable"] == "$AOS_PATH", command
+    assert command["argv_prefix"] == ["__see", path[-1]], command
+PY
+then
+    pass "live-sensitive see primitives are routed through the external command manifest"
+else
+    fail "see primitive external manifest routing drifted"
+fi
+
 LISTEN_ROOT="$(mktemp -d)"
 if AOS_STATE_ROOT="$LISTEN_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos show listen >/tmp/aos-show-listen-cleanup.out 2>/tmp/aos-show-listen-cleanup.err < /dev/null; then
     sleep 1

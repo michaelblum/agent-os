@@ -332,6 +332,27 @@
       }
     },
     {
+      "path": ["see", "cursor"],
+      "summary": "Read cursor metadata through the native perception primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__see", "cursor"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["see", "list"],
+      "summary": "Read spatial topology through the native perception primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__see", "list"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["see", "selection"],
+      "summary": "Read selected text through the native perception primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__see", "selection"],
+      "cwd": "repo"
+    },
+    {
       "path": ["see", "zone", "list"],
       "summary": "List named capture zones through the external zone command.",
       "executable": "/usr/bin/env",
