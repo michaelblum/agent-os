@@ -318,6 +318,21 @@ else
     fail "external command registry manifest did not override help: $OUT"
 fi
 
+# --- 22. help renderer stays external and does not delegate back into Swift ---
+if python3 - <<'PY'
+from pathlib import Path
+
+source = Path("scripts/aos-help-proxy.mjs").read_text(encoding="utf-8")
+assert "__help" not in source
+assert "manifests/commands/aos-commands.json" in source
+assert "spawnSync(aosPath()" not in source
+PY
+then
+    pass "help renderer is external and does not delegate to Swift __help"
+else
+    fail "help renderer delegated back into Swift"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"
