@@ -7,6 +7,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function aosPath() {
   return process.env.AOS_PATH || './aos';
 }
@@ -52,12 +56,16 @@ function validateRef(value) {
   }
 }
 
-function positionalArgs(args) {
+function positionalArgs(args, allowedFlags = []) {
   const positional = [];
+  const valueFlags = new Set(['--state-id']);
+  const allowed = new Set(['--state-id', ...allowedFlags]);
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
-    if (arg === '--state-id') {
+    if (arg.startsWith('--') && !allowed.has(arg)) unknownArg(arg);
+    if (valueFlags.has(arg)) {
       i += 1;
+      if (i >= args.length) error(`${arg} requires a value`, 'MISSING_ARG');
       continue;
     }
     if (!arg.startsWith('--')) positional.push(arg);
@@ -135,6 +143,7 @@ function emitDoResult(result, strategy, stateID) {
 function fillCommand(args) {
   const positional = positionalArgs(args);
   if (positional.length < 2) error('Usage: aos do fill <browser:<s>/<ref>> <text>', 'MISSING_ARG');
+  if (positional.length > 2) unknownArg(positional[2]);
   const [targetString, text] = positional;
   if (!targetString.startsWith('browser:')) {
     error('aos do fill is browser-only in v1. Target must be browser:<s>/<ref>.', 'BROWSER_ONLY');
@@ -149,6 +158,8 @@ function fillCommand(args) {
 
 function navigateCommand(args) {
   if (args.length < 2) error('Usage: aos do navigate <browser:<s>> <url>', 'MISSING_ARG');
+  for (const arg of args) if (arg.startsWith('--')) unknownArg(arg);
+  if (args.length > 2) unknownArg(args[2]);
   const [targetString, url] = args;
   if (!targetString.startsWith('browser:')) error('aos do navigate is browser-only in v1.', 'BROWSER_ONLY');
   const target = parseBrowserTarget(targetString);
@@ -159,7 +170,7 @@ function navigateCommand(args) {
 }
 
 function singleTargetCommand(command, args) {
-  const positional = positionalArgs(args);
+  const positional = positionalArgs(args, command === 'click' ? ['--double', '--right'] : []);
   if (positional.length < 1) error(`Usage: aos do ${command} <browser:<s>[/<ref>]>`, 'MISSING_ARG');
   const target = parseBrowserTarget(positional[0]);
   ensureVersion();
@@ -168,6 +179,7 @@ function singleTargetCommand(command, args) {
   let extra = [];
   let strategy = `playwright_${command}`;
   if (command === 'click') {
+    if (positional.length > 1) unknownArg(positional[1]);
     if (args.includes('--double')) {
       verb = 'dblclick';
       strategy = 'playwright_dblclick';
@@ -175,18 +187,23 @@ function singleTargetCommand(command, args) {
       extra = args.includes('--right') ? ['right'] : [];
     }
   } else if (command === 'scroll') {
+    if (positional.length > 2) unknownArg(positional[2]);
     const deltas = positional[1]?.split(',') || [];
     if (deltas.length === 2) extra = [deltas[0], deltas[1]];
     verb = 'mousewheel';
     strategy = 'playwright_mousewheel';
   } else if (command === 'type') {
     if (positional.length < 2) error('type requires a text argument', 'MISSING_ARG');
+    if (positional.length > 2) unknownArg(positional[2]);
     extra = [positional[1]];
   } else if (command === 'key') {
     if (positional.length < 2) error('key requires a key combo argument (e.g. cmd+s)', 'MISSING_ARG');
+    if (positional.length > 2) unknownArg(positional[2]);
     verb = 'press';
     strategy = 'playwright_press';
     extra = [positional[1]];
+  } else if (positional.length > 1) {
+    unknownArg(positional[1]);
   }
 
   const argv = [];
@@ -200,6 +217,7 @@ function singleTargetCommand(command, args) {
 function dragCommand(args) {
   const positional = positionalArgs(args);
   if (positional.length < 2) error('drag requires two browser targets', 'MISSING_ARG');
+  if (positional.length > 2) unknownArg(positional[2]);
   const from = parseBrowserTarget(positional[0]);
   const to = parseBrowserTarget(positional[1]);
   if (from.session !== to.session) error('drag endpoints must share the same browser session', 'INVALID_TARGET');

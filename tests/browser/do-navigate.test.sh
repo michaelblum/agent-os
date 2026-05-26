@@ -27,4 +27,16 @@ if out=$(./aos do navigate "browser:todo" 2>&1); then
     fi
 fi
 
+if out=$(./aos do navigate "browser:todo" "https://example.com" unexpected 2>&1); then
+    echo "FAIL extra positional: expected error, got: $out" >&2; exit 1
+fi
+echo "$out" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_ARG"' \
+    || { echo "FAIL extra positional code: $out" >&2; exit 1; }
+
+if out=$(./aos do navigate "browser:todo" "https://example.com" --bogus 2>&1); then
+    echo "FAIL unknown flag: expected error, got: $out" >&2; exit 1
+fi
+echo "$out" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_FLAG"' \
+    || { echo "FAIL unknown flag code: $out" >&2; exit 1; }
+
 echo "PASS"

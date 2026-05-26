@@ -24,6 +24,12 @@ if out=$(./aos do fill "browser:todo/e21" 2>&1); then
     fi
 fi
 
+if out=$(./aos do fill "browser:todo/e21" "hello" unexpected 2>&1); then
+    echo "FAIL extra positional: expected error, got: $out" >&2; exit 1
+fi
+echo "$out" | grep -Eq '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_ARG"' \
+    || { echo "FAIL extra positional code: $out" >&2; exit 1; }
+
 # Missing ref errors cleanly (fill requires a ref to know which element)
 if out=$(./aos do fill "browser:todo" "hello" 2>&1); then
     if echo "$out" | grep -q '"status":"success"'; then
