@@ -1046,10 +1046,16 @@
     },
     {
       "path": ["show", "render"],
-      "summary": "Render HTML to PNG through the native render primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__render"],
-      "cwd": "repo"
+      "summary": "Render HTML to PNG through the external show render command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-render.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["show", "exists"],
