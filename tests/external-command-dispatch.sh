@@ -86,8 +86,10 @@ for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "se
     assert command["executable"] == "$AOS_PATH", command
     assert command["argv_prefix"] == ["__see", path[-1]], command
 command = commands[("say",)]
-assert command["executable"] == "$AOS_PATH", command
-assert command["argv_prefix"] == ["__say"], command
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-say.mjs"], command
+assert command["stdio"] == "inherit", command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 for path, primitive in [
     (("serve",), "__serve"),
     (("status",), "__status"),
