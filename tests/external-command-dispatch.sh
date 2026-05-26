@@ -74,7 +74,7 @@ import json
 
 manifest = json.load(open("manifests/commands/aos-external-commands.json", encoding="utf-8"))
 commands = {tuple(item["path"]): item for item in manifest["commands"]}
-for path in [("see", "cursor"), ("see", "list"), ("see", "selection")]:
+for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "selection")]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
     assert command["argv_prefix"] == ["__see", path[-1]], command

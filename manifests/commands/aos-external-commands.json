@@ -441,6 +441,13 @@
       "cwd": "repo"
     },
     {
+      "path": ["see", "capture"],
+      "summary": "Capture screen or browser targets through the native capture primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__see", "capture"],
+      "cwd": "repo"
+    },
+    {
       "path": ["see", "observe"],
       "summary": "Subscribe to perception events through the external observe command.",
       "executable": "/usr/bin/env",

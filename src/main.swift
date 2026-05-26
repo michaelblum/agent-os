@@ -137,10 +137,6 @@ func handleSee(args: [String]) {
         exit(0)
     }
     switch sub {
-    case "capture":
-        let subArgs = Array(args.dropFirst())
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos see capture") }
-        runCaptureAsync(args: subArgs)
     default:
         ensureInteractivePreflight(command: "aos see \(sub)")
         runCaptureAsync(args: args)
@@ -152,6 +148,10 @@ private func handleSeePrimitive(args: [String]) {
         exitError("__see requires a primitive", code: "MISSING_ARG")
     }
     switch sub {
+    case "capture":
+        let subArgs = Array(args.dropFirst())
+        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos see capture") }
+        runCaptureAsync(args: subArgs)
     case "cursor":
         ensureInteractivePreflight(command: "aos see cursor")
         cursorCommand()
