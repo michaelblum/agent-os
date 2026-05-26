@@ -1488,6 +1488,18 @@
       }
     },
     {
+      "path": ["launch"],
+      "summary": "Launch source-owned apps through the generic app launcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-launch.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
       "path": ["ops"],
       "summary": "Compatibility route for source-backed executable recipes.",
       "executable": "/usr/bin/env",

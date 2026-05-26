@@ -124,16 +124,18 @@ import json
 import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
-shell = data["steps"][0]
-assert shell["kind"] == "shell", shell
-assert shell["shell"]["script"] == "scripts/recipes-sigil-configure-status-item.sh", shell
-assert any(step["shell"]["script"] == "apps/sigil/workbench/launch.sh" for step in data["steps"] if step["kind"] == "shell"), data
+launch = data["steps"][0]
+assert launch["kind"] == "aos_command", launch
+assert launch["command"]["path"] == ["launch"], launch
+assert launch["command"]["form_id"] == "launch-app", launch
+assert launch["argv"] == ["sigil", "workbench"], launch
+assert launch["supports_delegate_dry_run"] is True, launch
 assert data["mutates"] is True, data
 PY
 then
-    pass "recipe explain reports shell block refs"
+    pass "recipe explain reports Sigil launch command ref"
 else
-    fail "recipe explain shell contract failed"
+    fail "recipe explain launch contract failed"
 fi
 
 # --- 5. recipe dry-run is static and side-effect-free. ---

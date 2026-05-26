@@ -61,7 +61,7 @@ bash apps/sigil/workbench/launch.sh >"$LAUNCH_OUT"
 
 ./aos show wait \
   --id sigil-workbench \
-  --js 'window.__sigilWorkbenchState && window.__sigilWorkbenchState.activationCount === 1 && window.__sigilWorkbenchState.lastActivation && window.__sigilWorkbenchState.lastActivation.title === "Studio"' \
+  --js 'window.__sigilWorkbenchState && window.__sigilWorkbenchState.activationCount === 1 && window.__sigilWorkbenchState.lastActivation && window.__sigilWorkbenchState.lastActivation.title === "Knowledge Base" && window.__sigilWorkbenchState.sequesteredStudio === true' \
   --timeout 10s >/dev/null
 
 ./aos show post --id sigil-workbench --event '{"type":"tabs/activate","payload":{"name":"wiki-kb"}}' >/dev/null

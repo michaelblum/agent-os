@@ -1,7 +1,7 @@
 {
   "id": "sigil/start",
   "version": 1,
-  "summary": "Configure branch-scoped Sigil content roots and launch the avatar plus workbench surfaces.",
+  "summary": "Launch the Sigil avatar plus workbench surfaces through the generic app launcher.",
   "scope": "source",
   "mutates": true,
   "requires": ["content", "service", "show"],
@@ -20,28 +20,13 @@
   ],
   "steps": [
     {
-      "id": "configure-status-item",
-      "kind": "shell",
-      "shell": {
-        "script": "scripts/recipes-sigil-configure-status-item.sh",
-        "cwd": "."
-      },
-      "timeout_ms": 20000,
-      "mutates": true,
-      "assertions": [
-        {
-          "path": ["status"],
-          "equals": "success"
-        }
-      ]
-    },
-    {
       "id": "launch-workbench",
-      "kind": "shell",
-      "shell": {
-        "script": "apps/sigil/workbench/launch.sh",
-        "cwd": "."
+      "kind": "aos_command",
+      "command": {
+        "path": ["launch"],
+        "form_id": "launch-app"
       },
+      "argv": ["sigil", "workbench"],
       "timeout_ms": 45000,
       "mutates": true
     },

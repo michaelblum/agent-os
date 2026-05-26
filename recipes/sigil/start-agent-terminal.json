@@ -1,7 +1,7 @@
 {
   "id": "sigil/start-agent-terminal",
   "version": 1,
-  "summary": "Configure Sigil content roots, ensure the Agent Terminal bridge, and launch the terminal surface.",
+  "summary": "Launch the Sigil Agent Terminal through the generic app launcher.",
   "scope": "source",
   "mutates": true,
   "requires": ["content", "show"],
@@ -25,28 +25,13 @@
   ],
   "steps": [
     {
-      "id": "configure-status-item",
-      "kind": "shell",
-      "shell": {
-        "script": "scripts/recipes-sigil-configure-status-item.sh",
-        "cwd": "."
-      },
-      "timeout_ms": 20000,
-      "mutates": true,
-      "assertions": [
-        {
-          "path": ["status"],
-          "equals": "success"
-        }
-      ]
-    },
-    {
       "id": "launch-agent-terminal",
-      "kind": "shell",
-      "shell": {
-        "script": "apps/sigil/agent-terminal/launch.sh",
-        "cwd": "."
+      "kind": "aos_command",
+      "command": {
+        "path": ["launch"],
+        "form_id": "launch-app"
       },
+      "argv": ["sigil", "agent-terminal"],
       "timeout_ms": 45000,
       "mutates": true
     },

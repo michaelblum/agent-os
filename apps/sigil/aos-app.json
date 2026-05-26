@@ -1,0 +1,120 @@
+{
+  "$schema": "../../shared/schemas/aos-app-v0.schema.json",
+  "schema_version": 0,
+  "id": "sigil",
+  "title": "Sigil",
+  "version": "0.1.0",
+  "default_entry": "workbench",
+  "content_roots": [
+    {
+      "id": "toolkit",
+      "path": "packages/toolkit",
+      "branch_scoped": true
+    },
+    {
+      "id": "sigil",
+      "path": "apps/sigil",
+      "branch_scoped": true
+    }
+  ],
+  "status_item": {
+    "enabled": true,
+    "toggle_entry": "avatar",
+    "toggle_track": "union"
+  },
+  "entries": {
+    "avatar": {
+      "summary": "Launch the Sigil avatar surface.",
+      "surfaces": [
+        {
+          "id": "avatar-main",
+          "url": "aos://${root:sigil}/renderer/index.html?toolkit-root=${root:toolkit}",
+          "track": "union",
+          "create_if_missing": true,
+          "wait_js": "typeof window.liveJs === \"object\"",
+          "wait_timeout": "5s"
+        }
+      ],
+      "verify_surfaces": ["avatar-main"]
+    },
+    "workbench": {
+      "summary": "Launch the Sigil avatar and workbench surfaces.",
+      "requires_entries": ["avatar"],
+      "remove_surfaces": ["sigil-workbench", "avatar-main"],
+      "hooks": [
+        {
+          "phase": "before_surfaces",
+          "script": "apps/sigil/sigilctl-seed.sh",
+          "argv": ["--mode", "${mode}"]
+        }
+      ],
+      "surfaces": [
+        {
+          "id": "avatar-main",
+          "url": "aos://${root:sigil}/renderer/index.html?toolkit-root=${root:toolkit}",
+          "track": "union",
+          "wait_js": "typeof window.liveJs === \"object\"",
+          "wait_timeout": "5s"
+        },
+        {
+          "id": "sigil-workbench",
+          "url": "aos://${root:sigil}/workbench/index.html?toolkit-root=${root:toolkit}",
+          "interactive": true,
+          "focus": true,
+          "frame": {
+            "kind": "sigil_workbench"
+          },
+          "wait_js": "!!document.querySelector(\".surface-frame\")",
+          "wait_timeout": "5s"
+        }
+      ],
+      "post_launch": [
+        {
+          "kind": "sigil_stage_avatar",
+          "surface": "avatar-main"
+        },
+        {
+          "kind": "show_post",
+          "surface": "sigil-workbench",
+          "event": {
+            "type": "log/append",
+            "payload": {
+              "level": "info",
+              "text": "Workbench ready."
+            }
+          }
+        }
+      ],
+      "verify_surfaces": ["avatar-main", "sigil-workbench"]
+    },
+    "agent-terminal": {
+      "summary": "Launch the Sigil Agent Terminal surface.",
+      "requires_entries": ["avatar"],
+      "remove_surfaces": ["sigil-agent-terminal", "sigil-codex-terminal"],
+      "hooks": [
+        {
+          "phase": "before_surfaces",
+          "script": "apps/sigil/agent-terminal/bridge-launch.sh"
+        }
+      ],
+      "surfaces": [
+        {
+          "id": "avatar-main",
+          "url": "aos://${root:sigil}/renderer/index.html?toolkit-root=${root:toolkit}",
+          "track": "union",
+          "create_if_missing": true
+        },
+        {
+          "id": "sigil-agent-terminal",
+          "url": "aos://${root:sigil}/agent-terminal/index.html?port=${env:PORT:17761}&session=${env:SESSION:sigil-agent-terminal-agent-os}&cwd=${urlenv:CWD_TARGET:${repo_root}}&toolkit-root=${root:toolkit}",
+          "interactive": true,
+          "focus": true,
+          "frame": {
+            "kind": "sigil_agent_terminal"
+          }
+        }
+      ],
+      "verify_surfaces": ["avatar-main", "sigil-agent-terminal"]
+    }
+  }
+}
