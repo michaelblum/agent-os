@@ -28,19 +28,19 @@ function parseOptions(args) {
       options.json = true;
       i += 1;
     } else if (arg === '--repo') {
-      if (i + 1 >= args.length) die('--repo requires a GitHub repository in owner/name form', 'MISSING_ARG');
+      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--repo requires a GitHub repository in owner/name form', 'MISSING_ARG');
       options.repo = args[i + 1];
       i += 2;
     } else if (arg === '--cwd') {
-      if (i + 1 >= args.length) die('--cwd requires a local checkout path', 'MISSING_ARG');
+      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--cwd requires a local checkout path', 'MISSING_ARG');
       options.cwd = args[i + 1];
       i += 2;
     } else if (arg === '--body-file') {
-      if (i + 1 >= args.length) die('--body-file requires a path', 'MISSING_ARG');
+      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--body-file requires a path', 'MISSING_ARG');
       options.bodyFile = args[i + 1];
       i += 2;
     } else if (arg === '--pr') {
-      if (i + 1 >= args.length) die('--pr requires a PR number', 'MISSING_ARG');
+      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--pr requires a PR number', 'MISSING_ARG');
       options.prNumber = args[i + 1];
       i += 2;
     } else if (arg.startsWith('--')) {

@@ -546,6 +546,14 @@ else
     fail "dev gh context did not report expected local gh state"
 fi
 
+if ERR="$(node scripts/aos-dev-gh.mjs context --repo --json 2>&1 >/dev/null)"; then
+    fail "dev gh context should reject missing --repo values before a flag"
+elif echo "$ERR" | grep -q -- '--repo requires a GitHub repository'; then
+    pass "dev gh context treats flag-after---repo as missing value"
+else
+    fail "dev gh context missing --repo error mismatch: $ERR"
+fi
+
 if ERR="$(./aos dev gh issue view 298 extra --json 2>&1 >/dev/null)"; then
     fail "dev gh issue view should reject extra positional args"
 elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
@@ -573,6 +581,14 @@ else
     fail "dev gh issue comment extra positional error mismatch: $ERR"
 fi
 
+if ERR="$(./aos dev gh issue comment 298 --body-file --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue comment should reject missing --body-file values before a flag"
+elif echo "$ERR" | grep -q -- '--body-file requires a path'; then
+    pass "dev gh issue comment treats flag-after---body-file as missing value"
+else
+    fail "dev gh issue comment missing --body-file error mismatch: $ERR"
+fi
+
 if ERR="$(./aos dev gh pr comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
     fail "dev gh pr comment should reject extra positional args"
 elif echo "$ERR" | grep -q 'Unknown dev gh pr argument: extra'; then
@@ -598,6 +614,14 @@ then
     pass "dev gh ci inspect --json preserves JSON errors while inferring PR"
 else
     fail "dev gh ci inspect --json did not emit parseable JSON error"
+fi
+
+if ERR="$(./aos dev gh ci inspect --pr --json 2>&1 >/dev/null)"; then
+    fail "dev gh ci inspect should reject missing --pr values before a flag"
+elif echo "$ERR" | grep -q -- '--pr requires a PR number'; then
+    pass "dev gh ci inspect treats flag-after---pr as missing value"
+else
+    fail "dev gh ci inspect missing --pr error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev gh ci inspect --pr 298 --json 2>/dev/null)" python3 - <<'PY'
