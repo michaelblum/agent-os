@@ -44,7 +44,7 @@ grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-seed-extra.err" || {
   exit 1
 }
 
-if ./aos wiki seed --namespace 2>"$ROOT/wiki-seed-missing-value.err"; then
+if ./aos wiki seed --namespace --json 2>"$ROOT/wiki-seed-missing-value.err"; then
   echo "FAIL: wiki seed accepted missing --namespace value"
   exit 1
 fi

@@ -43,7 +43,7 @@ function parseArgs(args) {
     if (arg === '--json') options.json = true;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--manifest') {
-      if (i + 1 >= args.length) error('--manifest requires a value', 'MISSING_ARG');
+      if (i + 1 >= args.length || args[i + 1].startsWith('--')) error('--manifest requires a value', 'MISSING_ARG');
       options.manifest = args[i + 1];
       i += 1;
     } else if (arg.startsWith('--')) error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');

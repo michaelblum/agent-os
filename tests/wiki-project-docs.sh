@@ -141,6 +141,16 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-project-docs-bogus.err" || {
   exit 1
 }
 
+if "$AOS" wiki project-docs --manifest --json 2>"$ROOT/wiki-project-docs-manifest-missing.err"; then
+  echo "FAIL: wiki project-docs accepted missing --manifest value"
+  exit 1
+fi
+grep -q '"code": "MISSING_ARG"' "$ROOT/wiki-project-docs-manifest-missing.err" || {
+  echo "FAIL: wiki project-docs missing --manifest value did not use MISSING_ARG"
+  cat "$ROOT/wiki-project-docs-manifest-missing.err"
+  exit 1
+}
+
 if "$AOS" wiki project-docs extra 2>"$ROOT/wiki-project-docs-extra.err"; then
   echo "FAIL: wiki project-docs accepted extra positional"
   exit 1

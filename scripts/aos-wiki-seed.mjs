@@ -128,7 +128,7 @@ for (let i = 0; i < args.length; i += 1) {
   if (!allowed.has(arg)) unknownArg(arg);
   if (['--from', '--namespace', '--file'].includes(arg)) {
     i += 1;
-    if (i >= args.length) error(`${arg} requires a value`, 'MISSING_ARG');
+    if (i >= args.length || args[i].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
   }
 }
 

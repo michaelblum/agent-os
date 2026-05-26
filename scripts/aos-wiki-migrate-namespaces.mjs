@@ -66,7 +66,7 @@ for (let i = 0; i < args.length; i += 1) {
   if (arg === '--json') continue;
   if (arg === '--wiki-root') {
     i += 1;
-    if (i >= args.length) error('--wiki-root requires a value', 'MISSING_ARG');
+    if (i >= args.length || args[i].startsWith('--')) error('--wiki-root requires a value', 'MISSING_ARG');
     continue;
   }
   unknownArg(arg);

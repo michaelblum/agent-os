@@ -82,7 +82,7 @@ grep -q '"code": "UNKNOWN_ARG"' "$TMP/wiki-migrate-extra.err" || {
   exit 1
 }
 
-if ./aos wiki migrate-namespaces --wiki-root 2>"$TMP/wiki-migrate-missing-value.err"; then
+if ./aos wiki migrate-namespaces --wiki-root --json 2>"$TMP/wiki-migrate-missing-value.err"; then
   echo "FAIL: migrate-namespaces accepted missing --wiki-root value"
   exit 1
 fi
