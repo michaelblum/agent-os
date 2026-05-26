@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,4 +54,49 @@ test('Sigil experience is exclusive and status-item-first', async () => {
   assert.equal(manifest.branding.display_name, 'Sigil');
   assert.deepEqual(manifest.vanilla_fallback.tools, ['avatar-terminal', 'graph-wiki', 'inspectors']);
   assert.equal(manifest.surfaces['legacy-workbench'].legacy, true);
+});
+
+test('experience deactivate reports and writes honest disabled status-item config', async () => {
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'aos-experience-deactivate-'));
+  const fakeAos = path.join(tmp, 'fake-aos.mjs');
+  const logPath = path.join(tmp, 'aos-calls.jsonl');
+  await fs.writeFile(fakeAos, `#!/usr/bin/env node
+import fs from 'node:fs';
+fs.appendFileSync(process.env.FAKE_AOS_LOG, JSON.stringify(process.argv.slice(2)) + '\\n');
+process.exit(0);
+`, { mode: 0o755 });
+
+  const env = {
+    ...process.env,
+    AOS_PATH: fakeAos,
+    AOS_STATE_ROOT: tmp,
+    AOS_RUNTIME_MODE: 'repo',
+    FAKE_AOS_LOG: logPath,
+  };
+  const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
+    cwd: repoRoot,
+    env,
+    encoding: 'utf8',
+  });
+  assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
+
+  const deactivate = spawnSync('node', ['scripts/aos-experience.mjs', 'deactivate', '--json'], {
+    cwd: repoRoot,
+    env,
+    encoding: 'utf8',
+  });
+  assert.equal(deactivate.status, 0, `${deactivate.stdout}${deactivate.stderr}`);
+  const payload = JSON.parse(deactivate.stdout);
+  assert.equal(payload.active_experience, null);
+  assert.equal(payload.status_item.enabled, false);
+  assert.deepEqual(payload.status_item.menu, []);
+
+  const calls = (await fs.readFile(logPath, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.enabled', 'false'].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'avatar'].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_url', ''].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_track', 'none'].join('\0')), calls);
 });

@@ -31,7 +31,6 @@ class StatusItemManager {
     private var isAnimating = false
     private var persistentVisible = false
     private var hasPersistentStateSource = false
-    private var utilityWarmStarted = false
     private var canvasInspectorAnnotationModeActive = false
     private var filledIcon: NSImage?
     private var unfilledIcon: NSImage?
@@ -63,8 +62,6 @@ class StatusItemManager {
         statusItem?.button?.toolTip = Self.accessibilityLabel
         statusItem?.button?.setAccessibilityLabel(Self.accessibilityLabel)
         restoreUtilityPanels()
-        warmPersistentCanvasIfNeeded()
-        warmUtilityCanvases()
     }
 
     func teardown() {
@@ -91,7 +88,6 @@ class StatusItemManager {
             persistentVisible = canvasManager.hasCanvas(toggleId) && !isCanvasSuspended()
         } else if !canvasManager.hasCanvas(toggleId) {
             persistentVisible = false
-            warmPersistentCanvasIfNeeded()
         }
         updateIcon()
     }
@@ -404,30 +400,6 @@ class StatusItemManager {
         canvasManager.canvas(forID: id)?.suspended == true
     }
 
-    private func warmUtilityCanvases() {
-        guard !utilityWarmStarted else { return }
-        utilityWarmStarted = true
-        let state = loadUtilityPanelState()
-        if state[logConsoleId] != true && !canvasManager.hasCanvas(logConsoleId) {
-            createUtilityCanvas(
-                id: logConsoleId,
-                url: logConsoleUrl,
-                frame: logConsoleFrame(),
-                suspended: true,
-                focus: false
-            )
-        }
-        if state[canvasInspectorId] != true && !canvasManager.hasCanvas(canvasInspectorId) {
-            createUtilityCanvas(
-                id: canvasInspectorId,
-                url: canvasInspectorUrl,
-                frame: canvasInspectorFrame(),
-                suspended: true,
-                focus: false
-            )
-        }
-    }
-
     private func createUtilityCanvas(id: String, url: String, frame: [CGFloat], suspended: Bool, focus: Bool) {
         var req = CanvasRequest(action: "create")
         req.id = id
@@ -628,11 +600,6 @@ class StatusItemManager {
             _ = canvasManager.handle(req)
             updateIcon()
         }
-    }
-
-    private func warmPersistentCanvasIfNeeded() {
-        guard usesPersistentCanvas, !toggleUrl.isEmpty, !canvasManager.hasCanvas(toggleId) else { return }
-        summonCanvas()
     }
 
     // MARK: - Persistent Intent Flow

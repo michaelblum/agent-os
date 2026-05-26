@@ -271,24 +271,29 @@ function deactivate(asJSON, dryRun) {
     next_active_experience: null,
     vanilla_fallback: vanillaFallback(),
     status_item: {
-      enabled: true,
+      enabled: false,
       label: 'AOS',
       icon: 'aos',
-      menu: vanillaFallback().tools,
+      menu: [],
+      note: 'vanilla status-item menu is not implemented yet; status item disabled',
     },
   };
   if (dryRun) {
     if (asJSON) emitJSON({ status: 'dry_run', code: 'OK', ...planned });
-    else process.stdout.write('dry-run deactivate experience: vanilla status item\n');
+    else process.stdout.write('dry-run deactivate experience: disable status item\n');
     return;
   }
   const values = [
-    ['status_item.enabled', 'true'],
+    ['status_item.enabled', 'false'],
+    ['status_item.toggle_id', 'avatar'],
+    ['status_item.toggle_url', ''],
+    ['status_item.toggle_track', 'none'],
+    ['status_item.icon', 'aos'],
   ];
   for (const [key, value] of values) requireSuccess(runAos(['config', 'set', key, value]), `set ${key}`);
   writeActiveExperience(null);
-  if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: null, steps: [{ id: 'experience:inactive', status: 'success' }] });
-  else process.stdout.write('active experience cleared; vanilla AOS status item remains.\n');
+  if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: null, steps: [{ id: 'experience:inactive', status: 'success' }, { id: 'status-item', status: 'success', mode: 'disabled' }] });
+  else process.stdout.write('active experience cleared; status item disabled until vanilla menu is implemented.\n');
 }
 
 try {

@@ -282,12 +282,25 @@ function avatarHome() {
 }
 
 function surfaceExists(id) {
-  return runAos(['show', 'exists', '--id', id]).status === 0;
+  const result = runAos(['show', 'exists', '--id', id, '--json']);
+  if (result.status !== 0) return false;
+  try {
+    return JSON.parse(result.stdout).exists === true;
+  } catch {
+    return false;
+  }
 }
 
 function removeSurfaces(ids, steps) {
   for (const id of ids || []) {
     runAos(['show', 'remove', '--id', id]);
+    const deadline = Date.now() + 5000;
+    while (surfaceExists(id) && Date.now() < deadline) {
+      spawnSync('/bin/sleep', ['0.1']);
+    }
+    if (surfaceExists(id)) {
+      throw new LaunchFailure(`Timed out waiting for removed surface to disappear: ${id}`, 'SURFACE_REMOVE_TIMEOUT');
+    }
     steps.push({ id: `surface:remove:${id}`, status: 'success' });
   }
 }
@@ -314,6 +327,12 @@ function createSurface(surface, context, steps) {
   if (surface.interactive) args.push('--interactive');
   if (surface.focus) args.push('--focus');
   requireSuccess(runAos(args), `create surface ${id}`);
+  if (!surfaceExists(id)) {
+    spawnSync('/bin/sleep', ['0.2']);
+    if (!surfaceExists(id)) {
+      requireSuccess(runAos(args), `retry create surface ${id}`);
+    }
+  }
   steps.push({ id: `surface:create:${id}`, status: 'success' });
 }
 
