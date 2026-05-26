@@ -6,10 +6,27 @@ INFO_PLIST="$TARGET_APP/Contents/Info.plist"
 EXECUTABLE="$TARGET_APP/Contents/MacOS/aos"
 JSON=false
 
+unknown_arg() {
+  local arg="$1"
+  local kind="argument"
+  local code="UNKNOWN_ARG"
+  if [[ "$arg" == --* ]]; then
+    kind="flag"
+    code="UNKNOWN_FLAG"
+  fi
+  python3 - <<'PY' "$code" "Unknown ${kind}: ${arg}. Usage: aos runtime status [--json]"
+import json
+import sys
+
+print(json.dumps({"code": sys.argv[1], "error": sys.argv[2]}, separators=(",", ":")), file=sys.stderr)
+PY
+  exit 1
+}
+
 for arg in "$@"; do
   case "$arg" in
     --json) JSON=true ;;
-    *) echo "Usage: scripts/aos-runtime-status [--json]" >&2; exit 1 ;;
+    *) unknown_arg "$arg" ;;
   esac
 done
 
