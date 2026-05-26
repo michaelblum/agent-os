@@ -160,6 +160,42 @@ else
     fail "dev recommend gateway doctor CLI routing drifted"
 fi
 
+if OUT="$(node - <<'NODE'
+const { spawnSync } = require('node:child_process');
+const manifest = require('./manifests/commands/aos-external-commands.json');
+const targets = [...new Set(
+  manifest.commands
+    .flatMap((command) => command.argv_prefix || [])
+    .filter((arg) => /^(scripts|packages)\//.test(arg))
+)].sort();
+const result = spawnSync('./aos', ['dev', 'classify', '--json', '--files', ...targets], { encoding: 'utf8' });
+if (result.stderr) process.stderr.write(result.stderr);
+if (result.stdout) process.stdout.write(result.stdout);
+process.exit(result.status ?? 1);
+NODE
+)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["files"], data
+for item in data["files"]:
+    rules = set(item["rules"])
+    assert "command-surface-implementations" in rules, item
+    assert "unclassified" not in rules, item
+    assert item["hot_swappable"] is True, item
+    assert item["tcc_identity_sensitive"] is False, item
+summary = data["summary"]
+assert summary["requires_swift_build"] is False, summary
+assert summary["tcc_identity_sensitive"] is False, summary
+PY
+then
+    pass "dev classify routes every external manifest implementation target to command-surface checks"
+else
+    fail "dev classify external manifest implementation target routing drifted"
+fi
+
 if OUT="$(./aos dev classify --json --files apps/example/feature.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
