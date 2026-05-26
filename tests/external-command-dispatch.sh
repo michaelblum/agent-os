@@ -79,12 +79,17 @@ for family in ["do", "see"]:
     assert len(matches) == 1, (family, matches)
     assert matches[0]["when"]["child_arg_missing"] is True, matches[0]
 see_fallback = [item for item in manifest["commands"] if tuple(item["path"]) == ("see",) and item["argv_prefix"] == ["__see", "capture"]]
+assert len(see_fallback) == 0, see_fallback
+see_fallback = [item for item in manifest["commands"] if tuple(item["path"]) == ("see",) and item["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", "capture"]]
 assert len(see_fallback) == 1, see_fallback
+assert see_fallback[0]["executable"] == "/usr/bin/env", see_fallback[0]
+assert see_fallback[0]["env"]["AOS_PATH"] == "$AOS_PATH", see_fallback[0]
 assert "capture" in see_fallback[0]["when"]["excluded_values"], see_fallback[0]
 for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "selection")]:
     command = commands[path]
-    assert command["executable"] == "$AOS_PATH", command
-    assert command["argv_prefix"] == ["__see", path[-1]], command
+    assert command["executable"] == "/usr/bin/env", command
+    assert command["argv_prefix"] == ["node", "scripts/aos-see-native.mjs", path[-1]], command
+    assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 command = commands[("say",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-say.mjs"], command

@@ -571,21 +571,31 @@
     },
     {
       "path": ["see"],
-      "summary": "Route legacy see capture shorthand through the native capture primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__see", "capture"],
+      "summary": "Route legacy see capture shorthand through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "capture"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "excluded_values": ["capture", "observe", "cursor", "list", "selection", "zone"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
       "path": ["see", "capture"],
-      "summary": "Capture screen or browser targets through the native capture primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__see", "capture"],
-      "cwd": "repo"
+      "summary": "Capture screen or browser targets through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "capture"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["see", "observe"],
@@ -602,24 +612,39 @@
     },
     {
       "path": ["see", "cursor"],
-      "summary": "Read cursor metadata through the native perception primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__see", "cursor"],
-      "cwd": "repo"
+      "summary": "Read cursor metadata through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "cursor"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["see", "list"],
-      "summary": "Read spatial topology through the native perception primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__see", "list"],
-      "cwd": "repo"
+      "summary": "Read spatial topology through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["see", "selection"],
-      "summary": "Read selected text through the native perception primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__see", "selection"],
-      "cwd": "repo"
+      "summary": "Read selected text through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "selection"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["see", "zone", "list"],
