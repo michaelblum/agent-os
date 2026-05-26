@@ -70,6 +70,16 @@ check_unknown_flag do-profiles ./aos do profiles natural --bogus
 check_unknown_arg do-profiles-list-extra ./aos do profiles list unexpected
 check_unknown_flag do-native-click ./aos do click 10,10 --bogus
 check_unknown_arg do-native-click-extra ./aos do click 10,10 unexpected --dry-run
+err="$STATE_ROOT/do-native-scroll-dx-missing.err"
+if ./aos do scroll 10,10 --dx --dy 1 --dry-run 2>"$err"; then
+  echo "FAIL: do native scroll accepted missing --dx value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: do native scroll missing --dx value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_unknown_arg do-native-drag-extra ./aos do drag 10,10 20,20 unexpected --dry-run
 check_unknown_arg do-native-scroll-extra ./aos do scroll 10,10 unexpected --dx 0 --dy 1 --dry-run
 check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run

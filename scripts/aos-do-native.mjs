@@ -31,7 +31,7 @@ function positionalArgs(args) {
     if (arg.startsWith('--')) {
       if (valueFlags.has(arg)) {
         i += 1;
-        if (i >= args.length) error(`${arg} requires a value`, 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
       } else if (!booleanFlags.has(arg)) {
         unknownArg(arg);
       }
