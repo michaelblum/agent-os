@@ -43,6 +43,8 @@ struct AOS {
             doctorCommand(args: Array(args.dropFirst()))
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
+        case "__render":
+            renderCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             helpCommand(args: Array(args.dropFirst()))
         default:

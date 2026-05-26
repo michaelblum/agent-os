@@ -812,6 +812,13 @@
       }
     },
     {
+      "path": ["show", "render"],
+      "summary": "Render HTML to PNG through the native render primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__render"],
+      "cwd": "repo"
+    },
+    {
       "path": ["show", "exists"],
       "summary": "Look up canvas existence through the external show lookup command.",
       "executable": "/usr/bin/env",

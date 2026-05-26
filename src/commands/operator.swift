@@ -1904,9 +1904,15 @@ private func fetchCanvasSnapshot() -> CanvasSnapshot {
         )
     }
 
-    let request = CanvasRequest(action: "list")
-    let client = DaemonClient()
-    let response = client.send(request)
+    guard let responseDict = sendEnvelopeRequest(service: "show", action: "list", data: [:]) else {
+        return CanvasSnapshot(
+            daemonRunning: runtime.daemon_running,
+            socketReachable: true,
+            canvases: [],
+            notes: ["Failed to read canvas list from daemon."]
+        )
+    }
+    let response = CanvasResponse.fromDict(responseDict)
     if let canvases = response.canvases {
         return CanvasSnapshot(
             daemonRunning: runtime.daemon_running,
