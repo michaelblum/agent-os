@@ -29,28 +29,12 @@ struct AOS {
         switch command {
         case "see":
             handleSee(args: Array(args.dropFirst()))
-        case "show":
-            handleShow(args: Array(args.dropFirst()))
         case "do":
             handleDo(args: Array(args.dropFirst()))
         case "say":
             handleSay(args: Array(args.dropFirst()))
-        case "gate":
-            let gateArgs = Array(args.dropFirst())
-            if gateArgs.isEmpty {
-                printCommandHelp(["gate"], json: false)
-                exit(0)
-            }
-            exitError("Unknown gate subcommand: \(gateArgs[0])", code: "UNKNOWN_SUBCOMMAND")
         case "serve":
             handleServe(args: Array(args.dropFirst()))
-        case "content":
-            let contentArgs = Array(args.dropFirst())
-            guard contentArgs.count > 0 else {
-                printCommandHelp(["content"], json: false)
-                exit(0)
-            }
-            exitError("Unknown content command: \(contentArgs[0])", code: "UNKNOWN_COMMAND")
         case "status":
             statusCommand(args: Array(args.dropFirst()))
         case "ready":
@@ -59,17 +43,8 @@ struct AOS {
             doctorCommand(args: Array(args.dropFirst()))
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
-        case "introspect":
-            let introspectArgs = Array(args.dropFirst())
-            if introspectArgs.isEmpty {
-                printCommandHelp(["introspect"], json: false)
-                exit(0)
-            }
-            exitError("Unknown introspect subcommand: \(introspectArgs[0])", code: "UNKNOWN_SUBCOMMAND")
         case "wiki":
             wikiCommand(args: Array(args.dropFirst()))
-        case "browser":
-            handleBrowserInternal(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             helpCommand(args: Array(args.dropFirst()))
         default:
@@ -199,36 +174,6 @@ private func runCaptureAsync(args: [String]) {
     // Keep main thread alive for AppKit work while async task runs
     while done.wait(timeout: .now()) == .timedOut {
         RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
-    }
-}
-
-func handleShow(args: [String]) {
-    _ = NSApplication.shared
-
-    guard let sub = args.first else {
-        printCommandHelp(["show"], json: false)
-        exit(0)
-    }
-
-    let subArgs = Array(args.dropFirst())
-
-    switch sub {
-    case "render":   renderCommand(args: subArgs)
-    case "create":   createCommand(args: subArgs)
-    case "update":   updateCommand(args: subArgs)
-    case "remove":   removeCommand(args: subArgs)
-    case "remove-all": removeAllCommand(args: subArgs)
-    case "list":     listCommand(args: subArgs)
-    case "eval":     evalCommand(args: subArgs)
-    case "listen":   listenCommand(args: subArgs)
-    case "ping":     pingCommand(args: subArgs)
-    case "wait":     showWaitCommand(args: subArgs)
-    case "exists":   showExistsCommand(args: subArgs)
-    case "get":      showGetCommand(args: subArgs)
-    case "to-front": toFrontCommand(args: subArgs)
-    case "post":     postCommand(args: subArgs)
-    default:
-        exitError("Unknown show subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
 }
 
