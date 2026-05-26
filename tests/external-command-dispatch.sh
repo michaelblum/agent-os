@@ -106,12 +106,13 @@ for path, primitive in [
     assert command["executable"] == "$AOS_PATH", command
     assert command["argv_prefix"] == [primitive], command
 for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
-    matches = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["executable"] == "$AOS_PATH"]
-    assert len(matches) == 1, (primitive, matches)
-    assert matches[0]["argv_prefix"] == ["__do", primitive], matches[0]
+    native = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-native.mjs", primitive]]
+    assert len(native) == 1, (primitive, native)
+    assert native[0]["executable"] == "/usr/bin/env", native[0]
+    assert native[0]["env"]["AOS_PATH"] == "$AOS_PATH", native[0]
     if primitive in ["click", "hover", "drag", "scroll", "type", "key"]:
-        assert matches[0]["when"]["excluded_prefixes"] == ["browser:"], matches[0]
-        browser = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["executable"] == "/usr/bin/env"]
+        assert native[0]["when"]["excluded_prefixes"] == ["browser:"], native[0]
+        browser = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive]]
         assert len(browser) == 1, (primitive, browser)
         assert browser[0]["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive], browser[0]
         assert browser[0]["when"]["prefix"] == "browser:", browser[0]

@@ -78,13 +78,18 @@
     },
     {
       "path": ["do", "click"],
-      "summary": "Click a native input target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "click"],
+      "summary": "Click a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "click"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
@@ -105,13 +110,18 @@
     },
     {
       "path": ["do", "hover"],
-      "summary": "Hover a native input target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "hover"],
+      "summary": "Hover a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "hover"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
@@ -132,13 +142,18 @@
     },
     {
       "path": ["do", "drag"],
-      "summary": "Drag a native input target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "drag"],
+      "summary": "Drag a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "drag"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
@@ -159,13 +174,18 @@
     },
     {
       "path": ["do", "scroll"],
-      "summary": "Scroll a native input target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "scroll"],
+      "summary": "Scroll a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "scroll"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
@@ -186,13 +206,18 @@
     },
     {
       "path": ["do", "type"],
-      "summary": "Type into a native input target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "type"],
+      "summary": "Type into a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "type"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
@@ -213,13 +238,18 @@
     },
     {
       "path": ["do", "key"],
-      "summary": "Press native keys through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "key"],
+      "summary": "Press native keys through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "key"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
@@ -259,59 +289,99 @@
     },
     {
       "path": ["do", "press"],
-      "summary": "Press a native input target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "press"],
-      "cwd": "repo"
+      "summary": "Press a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "press"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do", "set-value"],
-      "summary": "Set a native field value through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "set-value"],
-      "cwd": "repo"
+      "summary": "Set a native field value through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "set-value"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do", "focus"],
-      "summary": "Focus a native target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "focus"],
-      "cwd": "repo"
+      "summary": "Focus a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "focus"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do", "raise"],
-      "summary": "Raise a native target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "raise"],
-      "cwd": "repo"
+      "summary": "Raise a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "raise"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do", "move"],
-      "summary": "Move a native target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "move"],
-      "cwd": "repo"
+      "summary": "Move a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "move"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do", "resize"],
-      "summary": "Resize a native target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "resize"],
-      "cwd": "repo"
+      "summary": "Resize a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "resize"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do", "tell"],
-      "summary": "Tell a native target through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "tell"],
-      "cwd": "repo"
+      "summary": "Tell a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "tell"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do", "session"],
-      "summary": "Run a native action session through the native action primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__do", "session"],
-      "cwd": "repo"
+      "summary": "Run a native action session through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "session"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["inspect"],
