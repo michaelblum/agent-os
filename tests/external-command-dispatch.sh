@@ -120,6 +120,23 @@ registry = json.load(open("manifests/commands/aos-commands.json", encoding="utf-
 registry_paths = {tuple(item["path"]) for item in registry["commands"]}
 external_paths = {tuple(item["path"]) for item in manifest["commands"]}
 assert registry_paths <= external_paths, sorted(registry_paths - external_paths)
+bootstrap_families = {"serve", "status", "ready", "doctor", "permissions"}
+for command in registry["commands"]:
+    for form in command["forms"]:
+        usage = form["usage"]
+        if not usage.startswith("aos "):
+            continue
+        tokens = usage.split()
+        concrete = []
+        for token in tokens[1:]:
+            if token.startswith("[") or token.startswith("(") or token.startswith("<") or token.startswith("--"):
+                break
+            concrete.append(token)
+        if concrete and concrete[0] in {"help"}:
+            continue
+        if concrete and concrete[0] in bootstrap_families:
+            continue
+        assert tuple(concrete) in external_paths, (form["id"], concrete)
 command = commands[("help",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-help-proxy.mjs"], command

@@ -1355,6 +1355,30 @@
       }
     },
     {
+      "path": ["log", "push"],
+      "summary": "Push log entries through the external log command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-log.mjs", "push"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["log", "clear"],
+      "summary": "Clear log entries through the external log command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-log.mjs", "clear"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["browser"],
       "summary": "Validate hidden browser command routing through the external browser helper.",
       "executable": "/usr/bin/env",
@@ -1381,6 +1405,50 @@
       "summary": "Manage browser session registry records through the external browser helper.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "list"],
+      "summary": "List browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "add"],
+      "summary": "Add browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "add"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "remove"],
+      "summary": "Remove browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "remove"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "find"],
+      "summary": "Find browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "find"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
@@ -1432,6 +1500,54 @@
       }
     },
     {
+      "path": ["ops", "list"],
+      "summary": "List source-backed operator recipes through the external ops command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["ops", "explain"],
+      "summary": "Explain source-backed operator recipes through the external ops command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "explain"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["ops", "dry-run"],
+      "summary": "Dry-run source-backed operator recipes through the external ops command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "dry-run"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["ops", "run"],
+      "summary": "Run source-backed operator recipes through the external ops command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "run"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
       "path": ["focus"],
       "summary": "Manage focus channels through the external focus command.",
       "executable": "/usr/bin/env",
@@ -1444,10 +1560,106 @@
       }
     },
     {
+      "path": ["focus", "create"],
+      "summary": "Create focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "create"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["focus", "update"],
+      "summary": "Update focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "update"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["focus", "list"],
+      "summary": "List focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["focus", "remove"],
+      "summary": "Remove focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "remove"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["graph"],
       "summary": "Read spatial graph data through the external graph command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "displays"],
+      "summary": "Read display graph data through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "displays"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "windows"],
+      "summary": "Read window graph data through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "windows"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "deepen"],
+      "summary": "Deepen graph focus through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "deepen"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "collapse"],
+      "summary": "Collapse graph focus through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "collapse"],
       "cwd": "repo",
       "env": {
         "AOS_PATH": "$AOS_PATH",
