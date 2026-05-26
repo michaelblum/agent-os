@@ -141,6 +141,24 @@ test('duplicate external command paths are explicitly condition-gated', async ()
   }
 });
 
+test('duplicate external command route conditions include dispatch predicates', async () => {
+  const manifest = await loadJson(manifestPath);
+  const byPath = new Map();
+  for (const command of manifest.commands) {
+    const key = command.path.join('\0');
+    byPath.set(key, [...(byPath.get(key) ?? []), command]);
+  }
+  const predicateKeys = ['child_arg_missing', 'prefix', 'excluded_prefixes', 'excluded_values'];
+
+  for (const [key, routes] of byPath) {
+    if (routes.length <= 1) continue;
+    for (const route of routes) {
+      const predicates = predicateKeys.filter((predicateKey) => route.when[predicateKey] !== undefined);
+      assert.notEqual(predicates.length, 0, `${key.replaceAll('\0', ' ')} duplicate condition only names an arg index`);
+    }
+  }
+});
+
 test('registry command paths have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
