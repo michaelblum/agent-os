@@ -9,6 +9,12 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  const text = String(arg);
+  if (text.startsWith('-')) error(`Unknown flag: ${text}`, 'UNKNOWN_FLAG');
+  error(`Unknown argument: ${text}`, 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
@@ -33,7 +39,7 @@ function parseArgs(args) {
       case '--json':
         break;
       default:
-        error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        unknownArg(args[i]);
     }
   }
   if (!id) error('Missing required argument: --id <name>', 'MISSING_ARG');

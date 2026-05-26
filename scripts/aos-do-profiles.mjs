@@ -35,6 +35,12 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  const text = String(arg);
+  if (text.startsWith('-')) error(`Unknown flag: ${text}`, 'UNKNOWN_FLAG');
+  error(`Unknown argument: ${text}`, 'UNKNOWN_ARG');
+}
+
 function runtimeMode() {
   return process.env.AOS_RUNTIME_MODE?.toLowerCase() === 'installed' ? 'installed' : 'repo';
 }
@@ -100,5 +106,5 @@ if (args.length === 0 || args[0] === 'list') {
   if (!profile) error(`Profile not found: ${args[0]}`, 'PROFILE_NOT_FOUND');
   process.stdout.write(`${JSON.stringify(profile, null, 2)}\n`);
 } else {
-  error(`Unknown argument: ${args[1]}`, 'UNKNOWN_ARG');
+  unknownArg(args[1]);
 }
