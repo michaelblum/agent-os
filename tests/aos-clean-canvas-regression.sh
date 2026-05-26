@@ -64,19 +64,110 @@ cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
 }
 JSON
 
-./aos show create \
-  --id avatar-main \
-  --at 80,80,240,120 \
-  --html '<html><body>owned sigil avatar</body></html>' \
-  >/dev/null
+create_canvas() {
+  local id="$1"
+  ./aos show create \
+    --id "$id" \
+    --at 80,80,240,120 \
+    --html "<html><body>$id</body></html>" \
+    >/dev/null
+}
+
+for id in \
+  avatar-main \
+  sigil-hit-avatar-main \
+  sigil-radial-menu-avatar-main \
+  sigil-agent-terminal \
+  sigil-wiki-workbench \
+  sigil-render-performance \
+  sigil-interaction-trace \
+  surface-inspector \
+  __log__ \
+  clean-unowned-canvas
+do
+  create_canvas "$id"
+done
+
+./aos show eval --id sigil-wiki-workbench --js '
+window.webkit.messageHandlers.headsup.postMessage({
+  type: "canvas.create",
+  payload: {
+    id: "aos-desktop-world-stage",
+    url: "aos://sigil/tests/mutation/child.html",
+    surface: "desktop-world",
+    request_id: "clean-regression-stage"
+  }
+});
+"requested";
+' >/dev/null
+
+python3 - <<'PY'
+import json, subprocess, time
+
+deadline = time.time() + 5
+while time.time() < deadline:
+    payload = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"]))
+    canvases = {canvas.get("id"): canvas for canvas in payload.get("canvases", [])}
+    stage = canvases.get("aos-desktop-world-stage")
+    if stage and stage.get("parent") == "sigil-wiki-workbench":
+        break
+    time.sleep(0.1)
+else:
+    raise SystemExit(f"FAIL: parented desktop-world stage was not created: {canvases!r}")
+PY
+
+OWNED_IDS="avatar-main sigil-hit-avatar-main sigil-radial-menu-avatar-main sigil-agent-terminal sigil-wiki-workbench sigil-render-performance sigil-interaction-trace aos-desktop-world-stage"
+UNOWNED_IDS="surface-inspector __log__ clean-unowned-canvas"
 
 OWNED_DRY_RUN="$(./aos clean --dry-run --json)"
-OWNED_DRY_RUN="$OWNED_DRY_RUN" python3 - <<'PY'
+OWNED_DRY_RUN="$OWNED_DRY_RUN" OWNED_IDS="$OWNED_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
 import json, os
 
 payload = json.loads(os.environ["OWNED_DRY_RUN"])
-assert payload["status"] == "clean", payload
-assert not payload.get("canvases"), payload
+stale_ids = {canvas.get("id") for canvas in payload.get("canvases", [])}
+for canvas_id in os.environ["OWNED_IDS"].split():
+    assert canvas_id not in stale_ids, (canvas_id, payload)
+for canvas_id in os.environ["UNOWNED_IDS"].split():
+    assert canvas_id in stale_ids, (canvas_id, payload)
+PY
+
+OWNED_STATUS="$(./aos status --json)"
+OWNED_STATUS="$OWNED_STATUS" OWNED_IDS="$OWNED_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["OWNED_STATUS"])
+stale_ids = set(payload.get("stale_resources", {}).get("canvases", []))
+for canvas_id in os.environ["OWNED_IDS"].split():
+    assert canvas_id not in stale_ids, (canvas_id, payload)
+for canvas_id in os.environ["UNOWNED_IDS"].split():
+    assert canvas_id in stale_ids, (canvas_id, payload)
+PY
+
+OWNED_CLEANED="$(./aos clean --json)"
+OWNED_CLEANED="$OWNED_CLEANED" OWNED_IDS="$OWNED_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
+import json, os, subprocess
+
+payload = json.loads(os.environ["OWNED_CLEANED"])
+assert payload["status"] in {"clean", "cleaned"}, payload
+remaining_stale_ids = {canvas.get("id") for canvas in payload.get("canvases", [])}
+for canvas_id in os.environ["OWNED_IDS"].split():
+    assert canvas_id not in remaining_stale_ids, (canvas_id, payload)
+for canvas_id in os.environ["UNOWNED_IDS"].split():
+    assert any(f"removed canvas id={canvas_id}" in action for action in payload.get("actions_taken", [])), (canvas_id, payload)
+
+canvases = {canvas.get("id") for canvas in json.loads(subprocess.check_output(["./aos", "show", "list", "--json"])).get("canvases", [])}
+for canvas_id in os.environ["OWNED_IDS"].split():
+    assert canvas_id in canvases, (canvas_id, canvases)
+for canvas_id in os.environ["UNOWNED_IDS"].split():
+    assert canvas_id not in canvases, (canvas_id, canvases)
+PY
+
+OWNED_CLEAN_STATUS="$(./aos status --json)"
+OWNED_CLEAN_STATUS="$OWNED_CLEAN_STATUS" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["OWNED_CLEAN_STATUS"])
+assert payload.get("stale_resources", {}).get("canvases") == [], payload
 PY
 
 cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
@@ -87,22 +178,25 @@ cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
 JSON
 
 STALE_DRY_RUN="$(./aos clean --dry-run --json)"
-STALE_DRY_RUN="$STALE_DRY_RUN" python3 - <<'PY'
+STALE_DRY_RUN="$STALE_DRY_RUN" OWNED_IDS="$OWNED_IDS" python3 - <<'PY'
 import json, os
 
 payload = json.loads(os.environ["STALE_DRY_RUN"])
 assert payload["status"] == "dirty", payload
-assert any(canvas.get("id") == "avatar-main" for canvas in payload.get("canvases", [])), payload
+stale_ids = {canvas.get("id") for canvas in payload.get("canvases", [])}
+for canvas_id in os.environ["OWNED_IDS"].split():
+    assert canvas_id in stale_ids, (canvas_id, payload)
 PY
 
 STALE_CLEANED="$(./aos clean --json)"
-STALE_CLEANED="$STALE_CLEANED" python3 - <<'PY'
+STALE_CLEANED="$STALE_CLEANED" OWNED_IDS="$OWNED_IDS" python3 - <<'PY'
 import json, os
 
 payload = json.loads(os.environ["STALE_CLEANED"])
 assert payload["status"] in {"clean", "cleaned"}, payload
 assert not payload.get("canvases"), payload
-assert any("removed canvas id=avatar-main" in action for action in payload.get("actions_taken", [])), payload
+for canvas_id in os.environ["OWNED_IDS"].split():
+    assert any(f"removed canvas id={canvas_id}" in action for action in payload.get("actions_taken", [])), (canvas_id, payload)
 PY
 
 echo "PASS"

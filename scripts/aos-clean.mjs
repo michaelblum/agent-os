@@ -180,14 +180,21 @@ function activeExperience(mode) {
   return null;
 }
 
+const SIGIL_OWNED_CANVAS_IDS = new Set([
+  'avatar-main',
+  'sigil-hit-avatar-main',
+  'sigil-radial-menu-avatar-main',
+  'sigil-agent-terminal',
+  'sigil-wiki-workbench',
+  'sigil-render-performance',
+  'sigil-interaction-trace',
+]);
+
 function sigilOwnedCanvas(canvas) {
   const id = canvas.id || '';
   const parent = canvas.parent || '';
-  return id === 'avatar-main'
-    || id === 'sigil-hit-avatar-main'
-    || id === 'sigil-radial-menu-avatar-main'
-    || id === 'sigil-agent-terminal'
-    || (id === 'aos-desktop-world-stage' && parent === 'sigil-agent-terminal');
+  return SIGIL_OWNED_CANVAS_IDS.has(id)
+    || (id === 'aos-desktop-world-stage' && SIGIL_OWNED_CANVAS_IDS.has(parent));
 }
 
 function staleCanvasesForMode(mode) {
