@@ -58,6 +58,46 @@ grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-get-id
   exit 1
 }
 
+if ./aos show create --id parser-test --html --json 2>"$STATE_ROOT/show-create-html-missing.err"; then
+  echo "FAIL: show create accepted missing --html value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-create-html-missing.err" || {
+  echo "FAIL: show create missing --html value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-create-html-missing.err" >&2
+  exit 1
+}
+
+if ./aos show wait --id parser-test --timeout --json 2>"$STATE_ROOT/show-wait-timeout-missing.err"; then
+  echo "FAIL: show wait accepted missing --timeout value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-wait-timeout-missing.err" || {
+  echo "FAIL: show wait missing --timeout value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-wait-timeout-missing.err" >&2
+  exit 1
+}
+
+if ./aos show eval --id parser-test --js --json 2>"$STATE_ROOT/show-eval-js-missing.err"; then
+  echo "FAIL: show eval accepted missing --js value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-eval-js-missing.err" || {
+  echo "FAIL: show eval missing --js value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-eval-js-missing.err" >&2
+  exit 1
+}
+
+if ./aos show post --id parser-test --event --json 2>"$STATE_ROOT/show-post-event-missing.err"; then
+  echo "FAIL: show post accepted missing --event value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-post-event-missing.err" || {
+  echo "FAIL: show post missing --event value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-post-event-missing.err" >&2
+  exit 1
+}
+
 if ./aos show render --width --html '<p>parser</p>' --base64 2>"$STATE_ROOT/show-render-width-missing.err"; then
   echo "FAIL: show render accepted missing --width value" >&2
   exit 1
