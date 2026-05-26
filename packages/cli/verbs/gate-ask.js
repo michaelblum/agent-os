@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { createGateService, normalizeGateRequest } from '../../daemon/gate/index.js';
 import { createDefaultGateRecordStore } from '../../daemon/gate/records.js';
 
+const PRESETS = new Set(['yes_no_with_escape', 'approve_deny', 'single_choice', 'multi_choice', 'freetext']);
+
 function usage() {
   return `Usage:
   aos gate ask "Prompt title"
@@ -62,6 +64,9 @@ function parseArgs(argv) {
   }
 
   if (!parsed.title && positional.length) parsed.title = positional.join(' ');
+  if (parsed.preset !== null && !PRESETS.has(parsed.preset)) {
+    throw new Error(`--preset must be one of: ${[...PRESETS].join(', ')}`);
+  }
   return parsed;
 }
 
