@@ -247,15 +247,6 @@ private struct RuntimeTCCResetTarget {
     let unavailableReason: String?
 }
 
-private struct CanvasLookupResponse: Encodable {
-    let status: String
-    let exists: Bool
-    let daemon_running: Bool
-    let socket_reachable: Bool
-    let canvas: CanvasInfo?
-    let notes: [String]
-}
-
 private struct GitStatusState: Encodable {
     let branch: String
     let ahead_of_origin_main: Int?
@@ -910,87 +901,11 @@ func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false)
     }
 }
 
-func showExistsCommand(args: [String]) {
-    let options = parseCanvasLookupArgs(args)
-    let snapshot = fetchCanvasSnapshot()
-    let canvas = snapshot.canvases.first(where: { $0.id == options.id })
-
-    var notes = snapshot.notes
-    if !snapshot.socketReachable {
-        notes.append("Daemon socket is not reachable.")
-    }
-
-    let response = CanvasLookupResponse(
-        status: snapshot.socketReachable ? "ok" : "degraded",
-        exists: canvas != nil,
-        daemon_running: snapshot.daemonRunning,
-        socket_reachable: snapshot.socketReachable,
-        canvas: nil,
-        notes: notes
-    )
-    print(jsonString(response))
-}
-
-func showGetCommand(args: [String]) {
-    let options = parseCanvasLookupArgs(args)
-    let snapshot = fetchCanvasSnapshot()
-    let canvas = snapshot.canvases.first(where: { $0.id == options.id })
-
-    var notes = snapshot.notes
-    if !snapshot.socketReachable {
-        notes.append("Daemon socket is not reachable.")
-    } else if canvas == nil {
-        notes.append("Canvas '\(options.id)' was not found.")
-    }
-
-    let response = CanvasLookupResponse(
-        status: snapshot.socketReachable ? "ok" : "degraded",
-        exists: canvas != nil,
-        daemon_running: snapshot.daemonRunning,
-        socket_reachable: snapshot.socketReachable,
-        canvas: canvas,
-        notes: notes
-    )
-    print(jsonString(response))
-}
-
 // MARK: - Shared Introspection Helpers
-
-private struct CanvasLookupOptions {
-    let id: String
-}
-
-private struct CanvasSnapshot {
-    let daemonRunning: Bool
-    let socketReachable: Bool
-    let canvases: [CanvasInfo]
-    let notes: [String]
-}
 
 private struct SpatialSnapshotResult {
     let snapshot: SpatialSnapshotData?
     let notes: [String]
-}
-
-private func parseCanvasLookupArgs(_ args: [String]) -> CanvasLookupOptions {
-    var id: String? = nil
-    var i = 0
-    while i < args.count {
-        switch args[i] {
-        case "--id":
-            i += 1
-            guard i < args.count else { exitError("--id requires a value", code: "MISSING_ARG") }
-            id = args[i]
-        case "--json":
-            break
-        default:
-            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
-        }
-        i += 1
-    }
-
-    guard let canvasID = id else { exitError("Missing required argument: --id <name>", code: "MISSING_ARG") }
-    return CanvasLookupOptions(id: canvasID)
 }
 
 private func currentGitStatus() -> GitStatusState? {
@@ -1888,45 +1803,6 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
         legacy_state_dir: aosLegacyStateDir(),
         legacy_state_items: legacyStateItems(),
         repo_artifacts: repoArtifactList()
-    )
-}
-
-private func fetchCanvasSnapshot() -> CanvasSnapshot {
-    let runtime = currentRuntimeState()
-    guard runtime.socket_reachable else {
-        return CanvasSnapshot(
-            daemonRunning: runtime.daemon_running,
-            socketReachable: false,
-            canvases: [],
-            notes: runtime.daemon_running
-                ? ["Daemon appears to be running, but canvas state is unavailable because the socket is not reachable."]
-                : ["Daemon is not running."]
-        )
-    }
-
-    guard let responseDict = sendEnvelopeRequest(service: "show", action: "list", data: [:]) else {
-        return CanvasSnapshot(
-            daemonRunning: runtime.daemon_running,
-            socketReachable: true,
-            canvases: [],
-            notes: ["Failed to read canvas list from daemon."]
-        )
-    }
-    let response = CanvasResponse.fromDict(responseDict)
-    if let canvases = response.canvases {
-        return CanvasSnapshot(
-            daemonRunning: runtime.daemon_running,
-            socketReachable: true,
-            canvases: canvases,
-            notes: []
-        )
-    }
-
-    return CanvasSnapshot(
-        daemonRunning: runtime.daemon_running,
-        socketReachable: true,
-        canvases: [],
-        notes: response.error.map { [$0] } ?? ["Failed to decode canvas list."]
     )
 }
 
