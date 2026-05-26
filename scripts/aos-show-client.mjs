@@ -6,6 +6,8 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
+const ORIGINAL_PARENT_PID = process.ppid;
+
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
   process.exit(1);
@@ -606,6 +608,7 @@ async function listenCommand(args) {
   };
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
+  installParentExitWatchdog(close);
 
   socket.on('data', (chunk) => {
     process.stdout.write(chunk);
@@ -619,6 +622,13 @@ async function listenCommand(args) {
   process.stdin.once('end', close);
 
   socket.write(`${JSON.stringify({ action: 'subscribe' })}\n`);
+}
+
+function installParentExitWatchdog(close, intervalMs = 1000) {
+  const timer = setInterval(() => {
+    if (process.ppid !== ORIGINAL_PARENT_PID) close();
+  }, intervalMs);
+  timer.unref();
 }
 
 const [command, ...args] = process.argv.slice(2);

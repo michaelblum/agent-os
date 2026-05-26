@@ -305,6 +305,77 @@ else
 fi
 rm -rf "$SIGNAL_LISTEN_ROOT" /tmp/aos-show-listen-signal.out /tmp/aos-show-listen-signal.err
 
+WATCHDOG_LISTEN_ROOT="$(mktemp -d)"
+WATCHDOG_PID_FILE="$WATCHDOG_LISTEN_ROOT/listen.pid"
+ROOT="$WATCHDOG_LISTEN_ROOT" AOS_BIN="$PWD/aos" PID_FILE="$WATCHDOG_PID_FILE" node - <<'NODE'
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+
+const child = spawn(process.env.AOS_BIN, ['show', 'listen'], {
+  detached: true,
+  env: {
+    ...process.env,
+    AOS_STATE_ROOT: process.env.ROOT,
+    AOS_RUNTIME_MODE: 'repo',
+    AOS_PATH: process.env.AOS_BIN,
+  },
+  stdio: 'ignore',
+});
+child.unref();
+fs.writeFileSync(process.env.PID_FILE, String(child.pid));
+NODE
+WATCHDOG_PID="$(cat "$WATCHDOG_PID_FILE")"
+for _ in $(seq 1 60); do
+    if ! ps -p "$WATCHDOG_PID" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 0.1
+done
+if WATCHDOG_PID="$WATCHDOG_PID" SOCK="$WATCHDOG_LISTEN_ROOT/repo/sock" node - <<'NODE'
+const net = require('node:net');
+
+function pidAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function probeSocket(sock) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection(sock);
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(false);
+    }, 250);
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      socket.end();
+      resolve(true);
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+}
+
+(async () => {
+  const alive = pidAlive(Number(process.env.WATCHDOG_PID));
+  const reachable = await probeSocket(process.env.SOCK);
+  process.exit(!alive && !reachable ? 0 : 1);
+})();
+NODE
+then
+    pass "show listen parent-exit watchdog cleans up isolated auto-start daemon"
+else
+    fail "show listen parent-exit watchdog left stale listener or daemon"
+fi
+kill "$WATCHDOG_PID" >/dev/null 2>&1 || true
+rm -rf "$WATCHDOG_LISTEN_ROOT"
+
 ORPHAN_ROOT="$(mktemp -d)"
 ORPHAN_PID_FILE="$ORPHAN_ROOT/pid"
 node - "$ORPHAN_PID_FILE" <<'NODE'
