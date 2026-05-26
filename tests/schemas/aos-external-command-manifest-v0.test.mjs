@@ -45,9 +45,12 @@ async function loadJson(file) {
 }
 
 function concreteUsagePath(form) {
-  if (!form.usage?.startsWith('aos ')) return null;
+  const aosUsage = form.usage?.startsWith('aos ')
+    ? form.usage
+    : form.usage?.split(/\s+\|\s+/).find((part) => part.startsWith('aos '));
+  if (!aosUsage) return null;
   const concrete = [];
-  for (const token of form.usage.split(/\s+/).slice(1)) {
+  for (const token of aosUsage.split(/\s+/).slice(1)) {
     if (
       token.startsWith('[')
       || token.startsWith('(')
@@ -285,4 +288,14 @@ test('registry concrete usage forms have external routes', async () => {
       assert.equal(externalPaths.has(concrete.join('\0')), true, `${form.id} missing external route: ${concrete.join(' ')}`);
     }
   }
+});
+
+test('piped registry usage forms resolve to their aos command path', async () => {
+  const registry = await loadJson(registryPath);
+  const logCommand = registry.commands.find((command) => command.path.join(' ') === 'log');
+  const logStream = logCommand?.forms.find((form) => form.id === 'log-stream');
+
+  assert.ok(logStream, 'log-stream registry form must exist');
+  assert.equal(logStream.usage.includes('| aos log'), true, 'log-stream must preserve its piped usage example');
+  assert.deepEqual(concreteUsagePath(logStream), ['log']);
 });
