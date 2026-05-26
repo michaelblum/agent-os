@@ -132,6 +132,36 @@ test('continuation readback rejects status values outside the manifest enum', as
   assert.match(stderr.text(), /--status must be one of: pending, submitted, cancelled, expired/);
 });
 
+test('continuation readback rejects flag-shaped values for value flags', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateContinuations(['--id', '--json'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--id requires a value/);
+});
+
+test('gate defer rejects flag-shaped values for value flags', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateDefer(['--request', '--json', '--session-id', 'codex', '--harness', 'codex'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--request requires a value/);
+});
+
+test('gate submit rejects flag-shaped values for value flags', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateSubmit(['--continuation-id', '--json', '{"decision":"approve"}'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--continuation-id requires a value/);
+});
+
 test('submit marks pending continuation submitted and writes a human-authored resume event and one gate record', async () => {
   const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-submit-'));
   const recordStore = new GateRecordStore({ path: join(stateRoot, 'repo', 'gate', 'records.jsonl') });

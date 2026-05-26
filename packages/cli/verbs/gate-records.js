@@ -19,13 +19,22 @@ function parseArgs(argv) {
     status: null,
     help: false,
   };
+  const nextValue = (index, flag) => {
+    if (index + 1 >= argv.length || argv[index + 1].startsWith('--')) {
+      throw new Error(`${flag} requires a value`);
+    }
+    return [argv[index + 1], index + 1];
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') parsed.help = true;
     else if (arg === '--json') parsed.json = true;
-    else if (arg === '--limit') parsed.limit = Number(argv[++index]);
-    else if (arg === '--id') parsed.gateId = argv[++index];
-    else if (arg === '--status') parsed.status = argv[++index];
+    else if (arg === '--limit') {
+      let value;
+      [value, index] = nextValue(index, arg);
+      parsed.limit = Number(value);
+    } else if (arg === '--id') [parsed.gateId, index] = nextValue(index, arg);
+    else if (arg === '--status') [parsed.status, index] = nextValue(index, arg);
     else throw new Error(`unknown option: ${arg}`);
   }
   if (!Number.isFinite(parsed.limit) || parsed.limit < 0) {

@@ -60,3 +60,13 @@ test('gate records rejects status values outside the manifest enum', async () =>
   assert.equal(stdout.text(), '');
   assert.match(stderr.text(), /--status must be one of: answered, dismissed, timeout, error/);
 });
+
+test('gate records rejects flag-shaped values for value flags', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateRecords(['--id', '--json'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--id requires a value/);
+});

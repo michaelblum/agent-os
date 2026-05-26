@@ -26,6 +26,12 @@ function parseArgs(argv) {
     show: false,
     help: false,
   };
+  const nextValue = (index, flag) => {
+    if (index + 1 >= argv.length || argv[index + 1].startsWith('--')) {
+      throw new Error(`${flag} requires a value`);
+    }
+    return [argv[index + 1], index + 1];
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') parsed.help = true;
@@ -33,14 +39,14 @@ function parseArgs(argv) {
       const next = argv[index + 1];
       if (next && !next.startsWith('--')) parsed.requestJson = argv[++index];
       else parsed.jsonOut = true;
-    } else if (arg === '--request') parsed.requestFile = argv[++index];
-    else if (arg === '--session-id') parsed.sessionId = argv[++index];
-    else if (arg === '--harness') parsed.harness = argv[++index];
-    else if (arg === '--dock') parsed.dock = argv[++index];
-    else if (arg === '--cwd') parsed.cwd = argv[++index];
-    else if (arg === '--resume-policy') parsed.resumePolicy = argv[++index];
-    else if (arg === '--adapter-hint') parsed.adapterHint = argv[++index];
-    else if (arg === '--entrypoint') parsed.entrypoint = argv[++index];
+    } else if (arg === '--request') [parsed.requestFile, index] = nextValue(index, arg);
+    else if (arg === '--session-id') [parsed.sessionId, index] = nextValue(index, arg);
+    else if (arg === '--harness') [parsed.harness, index] = nextValue(index, arg);
+    else if (arg === '--dock') [parsed.dock, index] = nextValue(index, arg);
+    else if (arg === '--cwd') [parsed.cwd, index] = nextValue(index, arg);
+    else if (arg === '--resume-policy') [parsed.resumePolicy, index] = nextValue(index, arg);
+    else if (arg === '--adapter-hint') [parsed.adapterHint, index] = nextValue(index, arg);
+    else if (arg === '--entrypoint') [parsed.entrypoint, index] = nextValue(index, arg);
     else if (arg === '--show') parsed.show = true;
     else throw new Error(`unknown option: ${arg}`);
   }
