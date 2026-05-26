@@ -2,6 +2,17 @@
 set -euo pipefail
 
 native=0
+
+unknown_arg() {
+  local arg="$1"
+  if [[ "$arg" == --* ]]; then
+    echo "{\"code\":\"UNKNOWN_FLAG\",\"error\":\"Unknown flag: $arg. Usage: aos runtime display-union [--native]\"}" >&2
+  else
+    echo "{\"code\":\"UNKNOWN_ARG\",\"error\":\"Unknown argument: $arg. Usage: aos runtime display-union [--native]\"}" >&2
+  fi
+  exit 1
+}
+
 for arg in "$@"; do
   case "$arg" in
     --native)
@@ -19,8 +30,7 @@ EOF
       exit 0
       ;;
     *)
-      echo "{\"code\":\"UNKNOWN_FLAG\",\"error\":\"Unknown flag: $arg. Usage: aos runtime display-union [--native]\"}" >&2
-      exit 1
+      unknown_arg "$arg"
       ;;
   esac
 done

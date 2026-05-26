@@ -48,6 +48,28 @@ else
     fail "runtime display-union external dispatch drifted: ${OUT:-}"
 fi
 
+if ./aos runtime display-union --bogus >/tmp/aos-runtime-display-union-bogus.out 2>/tmp/aos-runtime-display-union-bogus.err; then
+    fail "runtime display-union accepted an unknown flag"
+else
+    if grep -q '"code":"UNKNOWN_FLAG"' /tmp/aos-runtime-display-union-bogus.err; then
+        pass "runtime display-union external script rejects unknown flags"
+    else
+        fail "runtime display-union unknown flag error drifted: $(cat /tmp/aos-runtime-display-union-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-runtime-display-union-bogus.out /tmp/aos-runtime-display-union-bogus.err
+
+if ./aos runtime display-union extra >/tmp/aos-runtime-display-union-extra.out 2>/tmp/aos-runtime-display-union-extra.err; then
+    fail "runtime display-union accepted an extra positional argument"
+else
+    if grep -q '"code":"UNKNOWN_ARG"' /tmp/aos-runtime-display-union-extra.err; then
+        pass "runtime display-union external script rejects extra positionals"
+    else
+        fail "runtime display-union extra positional error drifted: $(cat /tmp/aos-runtime-display-union-extra.err)"
+    fi
+fi
+rm -f /tmp/aos-runtime-display-union-extra.out /tmp/aos-runtime-display-union-extra.err
+
 if ./aos runtime path --bogus >/tmp/aos-runtime-path-bogus.out 2>/tmp/aos-runtime-path-bogus.err; then
     fail "runtime path accepted an unknown flag"
 else
