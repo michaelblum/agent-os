@@ -725,6 +725,17 @@
       "cwd": "repo"
     },
     {
+      "path": ["say"],
+      "summary": "Speak text through the native speech primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__say"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["voice", "list"],
       "summary": "List voice registry entries through the external voice command.",
       "executable": "/usr/bin/env",

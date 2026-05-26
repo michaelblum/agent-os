@@ -31,8 +31,6 @@ struct AOS {
             handleSee(args: Array(args.dropFirst()))
         case "do":
             handleDo(args: Array(args.dropFirst()))
-        case "say":
-            handleSay(args: Array(args.dropFirst()))
         case "serve":
             handleServe(args: Array(args.dropFirst()))
         case "status":
@@ -47,6 +45,8 @@ struct AOS {
             renderCommand(args: Array(args.dropFirst()))
         case "__see":
             handleSeePrimitive(args: Array(args.dropFirst()))
+        case "__say":
+            sayCommand(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             helpCommand(args: Array(args.dropFirst()))
         default:
@@ -167,10 +167,6 @@ private func runCaptureAsync(args: [String]) {
     while done.wait(timeout: .now()) == .timedOut {
         RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
     }
-}
-
-func handleSay(args: [String]) {
-    sayCommand(args: args)
 }
 
 func handleServe(args: [String]) {

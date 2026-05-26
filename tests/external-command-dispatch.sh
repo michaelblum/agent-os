@@ -78,11 +78,14 @@ for path in [("see", "cursor"), ("see", "list"), ("see", "selection")]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
     assert command["argv_prefix"] == ["__see", path[-1]], command
+command = commands[("say",)]
+assert command["executable"] == "$AOS_PATH", command
+assert command["argv_prefix"] == ["__say"], command
 PY
 then
-    pass "live-sensitive see primitives are routed through the external command manifest"
+    pass "live-sensitive native primitives are routed through the external command manifest"
 else
-    fail "see primitive external manifest routing drifted"
+    fail "native primitive external manifest routing drifted"
 fi
 
 LISTEN_ROOT="$(mktemp -d)"
@@ -215,6 +218,19 @@ COMM_REGISTER="$(mktemp)"
 COMM_WHO="$(mktemp)"
 COMM_SEND="$(mktemp)"
 COMM_READ="$(mktemp)"
+cleanup_isolated_daemon() {
+    local root="$1"
+    local lock="$root/repo/daemon.lock"
+    if [[ ! -f "$lock" ]]; then
+        return
+    fi
+    local pid
+    pid="$(sed -n 's/.*"pid"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$lock" | head -1)"
+    if [[ -n "$pid" ]]; then
+        kill "$pid" 2>/dev/null || true
+    fi
+}
+trap 'cleanup_isolated_daemon "$COMM_ROOT"; rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"' EXIT
 AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --register --session-id external-dispatch-session --name external-dispatch --role worker --harness test >"$COMM_REGISTER" 2>/dev/null
 AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --who >"$COMM_WHO" 2>/dev/null
 AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell external-dispatch "hello from external dispatch" >"$COMM_SEND" 2>/dev/null
@@ -237,8 +253,9 @@ then
 else
     fail "tell/listen external dispatch drifted"
 fi
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos service stop --mode repo >/dev/null 2>&1 || true
+cleanup_isolated_daemon "$COMM_ROOT"
 rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"
+trap - EXIT
 
 echo
 if [ "$FAILS" -eq 0 ]; then
