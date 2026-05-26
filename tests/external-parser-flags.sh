@@ -43,7 +43,9 @@ check_unknown_arg() {
 check_unknown_flag inspect ./aos inspect --bogus
 check_unknown_flag show-exists ./aos show exists --id parser-test --bogus
 check_unknown_flag show-get ./aos show get --id parser-test --bogus
+check_unknown_flag do-profiles-root ./aos do profiles --bogus
 check_unknown_flag do-profiles ./aos do profiles natural --bogus
+check_unknown_arg do-profiles-list-extra ./aos do profiles list unexpected
 check_unknown_flag do-native-click ./aos do click 10,10 --bogus
 check_unknown_arg do-native-click-extra ./aos do click 10,10 unexpected --dry-run
 check_unknown_arg do-native-drag-extra ./aos do drag 10,10 20,20 unexpected --dry-run
