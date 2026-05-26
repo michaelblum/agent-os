@@ -343,6 +343,15 @@ else
     fail "dev capabilities explain unknown id error mismatch: $ERR"
 fi
 
+if ERR="$(./aos dev capabilities explain dev.github.issue_comment extra --json 2>&1 >/dev/null)"; then
+    fail "dev capabilities explain should reject extra positional args"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
+    && echo "$ERR" | grep -q 'Unknown dev capabilities argument: extra'; then
+    pass "dev capabilities explain rejects extra positional args"
+else
+    fail "dev capabilities explain extra positional error mismatch: $ERR"
+fi
+
 if OUT="$(./aos dev docks list --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -375,6 +384,24 @@ then
     pass "dev docks capabilities resolves foreman envelope"
 else
     fail "dev docks capabilities did not resolve foreman envelope"
+fi
+
+if ERR="$(./aos dev docks explain foreman extra --json 2>&1 >/dev/null)"; then
+    fail "dev docks explain should reject extra positional args"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
+    && echo "$ERR" | grep -q 'Unknown dev docks argument: extra'; then
+    pass "dev docks explain rejects extra positional args"
+else
+    fail "dev docks explain extra positional error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev docks capabilities foreman extra --json 2>&1 >/dev/null)"; then
+    fail "dev docks capabilities should reject extra positional args"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
+    && echo "$ERR" | grep -q 'Unknown dev docks argument: extra'; then
+    pass "dev docks capabilities rejects extra positional args"
+else
+    fail "dev docks capabilities extra positional error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev docks capabilities gdi --json 2>/dev/null)" python3 - <<'PY'

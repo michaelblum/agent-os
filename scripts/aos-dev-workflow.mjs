@@ -389,7 +389,8 @@ function capabilitiesCommand(action, args) {
     return;
   }
   if (action === 'explain') {
-    if (options.positionals.length !== 1) error('dev capabilities explain requires exactly one capability id', 'MISSING_ARG');
+    if (options.positionals.length === 0) error('dev capabilities explain requires exactly one capability id', 'MISSING_ARG');
+    if (options.positionals.length > 1) error(`Unknown dev capabilities argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     const loaded = loadCapabilityManifest(options);
     const capability = loaded.capabilities.find((item) => item.id === options.positionals[0]);
     if (!capability) error(`Unknown capability id: ${options.positionals[0]}`, 'UNKNOWN_CAPABILITY');
@@ -475,7 +476,8 @@ function docksCommand(action, args) {
     return;
   }
   if (action === 'explain') {
-    if (options.positionals.length !== 1) error('dev docks explain requires exactly one dock name', 'MISSING_ARG');
+    if (options.positionals.length === 0) error('dev docks explain requires exactly one dock name', 'MISSING_ARG');
+    if (options.positionals.length > 1) error(`Unknown dev docks argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     const loaded = loadDockProfiles(options);
     const profile = loaded.profiles.find((item) => item.name === options.positionals[0]);
     if (!profile) error(`Unknown dock profile: ${options.positionals[0]}`, 'UNKNOWN_DOCK');
@@ -484,7 +486,8 @@ function docksCommand(action, args) {
     return;
   }
   if (action === 'capabilities') {
-    if (options.positionals.length !== 1) error('dev docks capabilities requires exactly one dock name', 'MISSING_ARG');
+    if (options.positionals.length === 0) error('dev docks capabilities requires exactly one dock name', 'MISSING_ARG');
+    if (options.positionals.length > 1) error(`Unknown dev docks argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     const loaded = loadDockProfiles(options);
     const profile = loaded.profiles.find((item) => item.name === options.positionals[0]);
     if (!profile) error(`Unknown dock profile: ${options.positionals[0]}`, 'UNKNOWN_DOCK');
