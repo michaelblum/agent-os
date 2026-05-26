@@ -394,10 +394,12 @@ async function main(argv) {
       console.log(formatJSON(await loadConfig()));
       return;
     }
+    const unknownFlag = args.find((arg) => arg.startsWith('--'));
+    if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
     if (args.length < 2) {
-      console.log(formatJSON(await loadConfig()));
-      return;
+      error('set requires exactly one key and one value. Usage: aos set <key> <value>', 'MISSING_ARG');
     }
+    if (args.length > 2) error(`Unknown argument: ${args[2]}`, 'UNKNOWN_ARG');
     const config = await loadConfig();
     setConfigValue(config, args[0], args[1]);
     await saveConfig(config);
