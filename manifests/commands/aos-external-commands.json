@@ -2,6 +2,18 @@
   "schema_version": 1,
   "commands": [
     {
+      "path": ["help"],
+      "summary": "Print command help through the external help proxy.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-help-proxy.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["serve"],
       "summary": "Run the AOS daemon through the native serve primitive.",
       "executable": "$AOS_PATH",

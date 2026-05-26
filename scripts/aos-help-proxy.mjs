@@ -11,10 +11,9 @@ function aosPath() {
   return process.env.AOS_PATH || './aos';
 }
 
-const [family, ...args] = process.argv.slice(2);
-if (!family) error('help proxy requires a command family', 'MISSING_ARG');
+const args = process.argv.slice(2);
 
-const result = spawnSync(aosPath(), ['help', family, ...args], {
+const result = spawnSync(aosPath(), ['__help', ...args], {
   encoding: 'utf8',
   env: process.env,
 });

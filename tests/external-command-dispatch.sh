@@ -74,6 +74,10 @@ import json
 
 manifest = json.load(open("manifests/commands/aos-external-commands.json", encoding="utf-8"))
 commands = {tuple(item["path"]): item for item in manifest["commands"]}
+command = commands[("help",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-help-proxy.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 for family in ["do", "see"]:
     matches = [item for item in manifest["commands"] if tuple(item["path"]) == (family,) and item["argv_prefix"] == ["node", "scripts/aos-help-proxy.mjs", family]]
     assert len(matches) == 1, (family, matches)
