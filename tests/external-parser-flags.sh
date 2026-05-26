@@ -52,6 +52,16 @@ check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run
 check_unknown_arg do-native-key-extra ./aos do key Enter unexpected --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected
+check_unknown_flag focus-list ./aos focus list --bogus
+check_unknown_arg focus-list-extra ./aos focus list unexpected
+check_unknown_flag focus-create ./aos focus create --id parser-focus --window 1 --bogus
+check_unknown_arg focus-create-extra ./aos focus create --id parser-focus --window 1 unexpected
+check_unknown_flag graph-displays ./aos graph displays --bogus
+check_unknown_arg graph-displays-extra ./aos graph displays unexpected
+check_unknown_flag graph-windows ./aos graph windows --bogus
+check_unknown_arg graph-windows-extra ./aos graph windows unexpected
+check_unknown_flag graph-deepen ./aos graph deepen --id parser-node --bogus
+check_unknown_flag graph-collapse-subtree ./aos graph collapse --id parser-node --subtree-role button
 
 err="$STATE_ROOT/see-observe-depth-missing.err"
 if ./aos see observe --depth 2>"$err"; then

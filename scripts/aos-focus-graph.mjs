@@ -11,6 +11,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function mode() {
   return process.env.AOS_RUNTIME_MODE === 'installed' ? 'installed' : 'repo';
 }
@@ -34,6 +38,24 @@ function aosPath() {
 function valueAfter(args, key) {
   const idx = args.indexOf(key);
   return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : undefined;
+}
+
+function validateArgs(args, { valueFlags = [], booleanFlags = [] } = {}) {
+  const values = new Set(valueFlags);
+  const booleans = new Set(booleanFlags);
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg.startsWith('--')) {
+      if (values.has(arg)) {
+        i += 1;
+        if (i >= args.length) error(`${arg} requires a value`, 'MISSING_ARG');
+      } else if (!booleans.has(arg)) {
+        unknownArg(arg);
+      }
+      continue;
+    }
+    unknownArg(arg);
+  }
 }
 
 function numberAfter(args, key) {
@@ -213,6 +235,10 @@ function makeBrowserEntry(record) {
 }
 
 async function focusCreate(args) {
+  validateArgs(args, {
+    valueFlags: ['--id', '--target', '--window', '--pid', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier', '--cdp', '--url'],
+    booleanFlags: ['--extension', '--headless', '--persistent'],
+  });
   const id = valueAfter(args, '--id');
   if (!id) error('--id is required', 'MISSING_ARG');
   const target = valueAfter(args, '--target');
@@ -282,6 +308,9 @@ async function focusCommand(args) {
       await focusCreate(rest);
       return;
     case 'update': {
+      validateArgs(rest, {
+        valueFlags: ['--id', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier'],
+      });
       const id = valueAfter(rest, '--id');
       if (!id) error('--id is required', 'MISSING_ARG');
       const data = { id };
@@ -293,6 +322,7 @@ async function focusCommand(args) {
       return;
     }
     case 'list': {
+      validateArgs(rest);
       const response = await request('focus', 'list', {}, { autoStart: false, optional: true });
       const channels = response?.error ? [] : response?.channels ?? response?.data?.channels ?? [];
       emit({
@@ -305,6 +335,7 @@ async function focusCommand(args) {
       return;
     }
     case 'remove': {
+      validateArgs(rest, { valueFlags: ['--id'] });
       const id = valueAfter(rest, '--id');
       if (!id) error('--id is required', 'MISSING_ARG');
       const record = readRegistry().find((item) => item.id === id);
@@ -328,9 +359,11 @@ async function graphCommand(args) {
   const rest = args.slice(1);
   switch (sub) {
     case 'displays':
+      validateArgs(rest);
       emit(await request('graph', 'displays', {}));
       return;
     case 'windows': {
+      validateArgs(rest, { valueFlags: ['--display'] });
       const data = {};
       const display = numberAfter(rest, '--display');
       if (display !== undefined) data.display = display;
@@ -339,6 +372,11 @@ async function graphCommand(args) {
     }
     case 'deepen':
     case 'collapse': {
+      validateArgs(rest, {
+        valueFlags: sub === 'deepen'
+          ? ['--id', '--depth', '--subtree-role', '--subtree-title', '--subtree-identifier']
+          : ['--id', '--depth'],
+      });
       const id = valueAfter(rest, '--id');
       if (!id) error('--id is required', 'MISSING_ARG');
       const data = { id };
