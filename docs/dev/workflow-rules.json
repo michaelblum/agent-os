@@ -224,7 +224,7 @@
         {
           "id": "dev-workflow-router-test",
           "command": "bash tests/dev-workflow-router.sh",
-          "reason": "Verify the router parser, help registry, and manifest-backed recommendations agree."
+          "reason": "Verify the router parser, external help manifest, and manifest-backed recommendations agree."
         },
         {
           "id": "dev-audit-test",

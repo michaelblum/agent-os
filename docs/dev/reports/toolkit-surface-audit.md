@@ -100,4 +100,4 @@ Shallow path scan only; these paths contain HTML/control-like markup or direct U
 - `src/display/canvas.swift`
 - `src/display/protocol.swift`
 - `src/perceive/capture-pipeline.swift`
-- `src/shared/command-registry-data.swift`
+- `manifests/commands/aos-commands.json`
