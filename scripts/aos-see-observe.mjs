@@ -103,7 +103,7 @@ function parseArgs(args) {
     switch (args[i]) {
       case '--depth': {
         i += 1;
-        if (i >= args.length) error('--depth requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--depth requires a value', 'MISSING_ARG');
         const depth = Number(args[i]);
         if (!Number.isInteger(depth) || depth < 0 || depth > 3) {
           error('--depth requires 0-3', 'INVALID_ARG');
@@ -113,7 +113,7 @@ function parseArgs(args) {
       }
       case '--rate':
         i += 1;
-        if (i >= args.length) error('--rate requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--rate requires a value', 'MISSING_ARG');
         if (!['continuous', 'on-change', 'on-settle'].includes(args[i])) {
           error('--rate requires: continuous, on-change, on-settle', 'INVALID_ARG');
         }

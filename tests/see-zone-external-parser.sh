@@ -27,4 +27,24 @@ check_unknown_flag() {
 check_unknown_flag see-zone-list ./aos see zone list --bogus
 check_unknown_flag see-zone-delete ./aos see zone delete parser-test --bogus
 
+if ./aos see zone define parser-test --target --bounds 0,0,10,10 2>"$STATE_ROOT/see-zone-target-missing.err"; then
+  echo "FAIL: see zone define accepted missing --target value" >&2
+  exit 1
+fi
+if ! grep -q '"code" : "MISSING_ARG"' "$STATE_ROOT/see-zone-target-missing.err"; then
+  echo "FAIL: see zone define missing --target value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/see-zone-target-missing.err" >&2
+  exit 1
+fi
+
+if ./aos see zone define parser-test --bounds --target main 2>"$STATE_ROOT/see-zone-bounds-missing.err"; then
+  echo "FAIL: see zone define accepted missing --bounds value" >&2
+  exit 1
+fi
+if ! grep -q '"code" : "MISSING_ARG"' "$STATE_ROOT/see-zone-bounds-missing.err"; then
+  echo "FAIL: see zone define missing --bounds value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/see-zone-bounds-missing.err" >&2
+  exit 1
+fi
+
 echo "see-zone-external-parser: all checks passed"

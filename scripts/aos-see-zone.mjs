@@ -72,11 +72,11 @@ function saveCommand(args) {
   for (let i = 1; i < args.length; i += 1) {
     if (args[i] === '--target') {
       i += 1;
-      if (i >= args.length) error('--target requires a value', 'MISSING_ARG');
+      if (i >= args.length || args[i].startsWith('--')) error('--target requires a value', 'MISSING_ARG');
       target = args[i];
     } else if (args[i] === '--bounds') {
       i += 1;
-      if (i >= args.length) error('--bounds requires a value', 'MISSING_ARG');
+      if (i >= args.length || args[i].startsWith('--')) error('--bounds requires a value', 'MISSING_ARG');
       bounds = args[i];
     } else {
       bounds = args[i];

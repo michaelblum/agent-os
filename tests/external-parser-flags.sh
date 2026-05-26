@@ -108,7 +108,7 @@ check_unknown_arg listen-extra ./aos listen channel unexpected
 check_unknown_arg listen-channels-extra ./aos listen --channels unexpected
 
 err="$STATE_ROOT/see-observe-depth-missing.err"
-if ./aos see observe --depth 2>"$err"; then
+if ./aos see observe --depth --rate on-settle 2>"$err"; then
   echo "FAIL: see observe accepted missing --depth value" >&2
   exit 1
 fi
@@ -119,7 +119,7 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
 fi
 
 err="$STATE_ROOT/see-observe-rate-missing.err"
-if ./aos see observe --rate 2>"$err"; then
+if ./aos see observe --rate --depth 2 2>"$err"; then
   echo "FAIL: see observe accepted missing --rate value" >&2
   exit 1
 fi
