@@ -368,7 +368,8 @@ async function main(argv) {
     const unknownFlag = args.find((arg) => arg.startsWith('--') && arg !== '--json');
     if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
     const positional = args.filter((arg) => arg !== '--json');
-    if (positional.length !== 1) error('config get requires exactly one key. Usage: aos config get <key> [--json]', 'MISSING_ARG');
+    if (positional.length === 0) error('config get requires exactly one key. Usage: aos config get <key> [--json]', 'MISSING_ARG');
+    if (positional.length > 1) error(`Unknown argument: ${positional[1]}`, 'UNKNOWN_ARG');
     const config = await loadConfig();
     const value = lookupConfigValue(positional[0], config);
     if (value === undefined) throw new Error(`Unknown config key: ${positional[0]}`);
@@ -379,7 +380,8 @@ async function main(argv) {
     const args = argv.slice(1);
     const unknownFlag = args.find((arg) => arg.startsWith('--'));
     if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
-    if (args.length !== 2) error('config set requires exactly one key and one value. Usage: aos config set <key> <value>', 'MISSING_ARG');
+    if (args.length < 2) error('config set requires exactly one key and one value. Usage: aos config set <key> <value>', 'MISSING_ARG');
+    if (args.length > 2) error(`Unknown argument: ${args[2]}`, 'UNKNOWN_ARG');
     const config = await loadConfig();
     setConfigValue(config, args[0], args[1]);
     await saveConfig(config);

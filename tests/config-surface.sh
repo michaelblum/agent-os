@@ -55,6 +55,19 @@ grep -q '"code": "UNKNOWN_FLAG"' "$STATE_ROOT/config-get-bogus.err" || {
 }
 pass "config get rejects unknown flags with JSON error"
 
+if ./aos config get voice.enabled extra 2>"$STATE_ROOT/config-get-extra.err"; then
+  fail "config get accepted extra positional"
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$STATE_ROOT/config-get-extra.err" || {
+  cat "$STATE_ROOT/config-get-extra.err"
+  fail "config get extra positional did not use UNKNOWN_ARG"
+}
+grep -q '"error": "Unknown argument: extra"' "$STATE_ROOT/config-get-extra.err" || {
+  cat "$STATE_ROOT/config-get-extra.err"
+  fail "config get extra positional message did not say Unknown argument"
+}
+pass "config get rejects extra positional args with JSON error"
+
 if ./aos config --bogus 2>"$STATE_ROOT/config-dump-bogus.err"; then
   fail "config accepted unknown flag"
 fi
@@ -72,5 +85,18 @@ grep -q '"code": "UNKNOWN_FLAG"' "$STATE_ROOT/config-set-bogus.err" || {
   fail "config set unknown flag did not use external JSON error contract"
 }
 pass "config set rejects unknown flags with JSON error"
+
+if ./aos config set voice.enabled true extra 2>"$STATE_ROOT/config-set-extra.err"; then
+  fail "config set accepted extra positional"
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$STATE_ROOT/config-set-extra.err" || {
+  cat "$STATE_ROOT/config-set-extra.err"
+  fail "config set extra positional did not use UNKNOWN_ARG"
+}
+grep -q '"error": "Unknown argument: extra"' "$STATE_ROOT/config-set-extra.err" || {
+  cat "$STATE_ROOT/config-set-extra.err"
+  fail "config set extra positional message did not say Unknown argument"
+}
+pass "config set rejects extra positional args with JSON error"
 
 echo "config-surface: all checks passed"
