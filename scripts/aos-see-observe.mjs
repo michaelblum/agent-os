@@ -11,6 +11,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
@@ -99,6 +103,7 @@ function parseArgs(args) {
     switch (args[i]) {
       case '--depth': {
         i += 1;
+        if (i >= args.length) error('--depth requires a value', 'MISSING_ARG');
         const depth = Number(args[i]);
         if (!Number.isInteger(depth) || depth < 0 || depth > 3) {
           error('--depth requires 0-3', 'INVALID_ARG');
@@ -108,13 +113,14 @@ function parseArgs(args) {
       }
       case '--rate':
         i += 1;
+        if (i >= args.length) error('--rate requires a value', 'MISSING_ARG');
         if (!['continuous', 'on-change', 'on-settle'].includes(args[i])) {
           error('--rate requires: continuous, on-change, on-settle', 'INVALID_ARG');
         }
         options.rate = args[i];
         break;
       default:
-        error(`Unknown option: ${args[i]}`, 'INVALID_ARG');
+        unknownArg(args[i]);
     }
   }
   return options;

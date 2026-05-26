@@ -50,5 +50,29 @@ check_unknown_arg do-native-drag-extra ./aos do drag 10,10 20,20 unexpected --dr
 check_unknown_arg do-native-scroll-extra ./aos do scroll 10,10 unexpected --dx 0 --dy 1 --dry-run
 check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run
 check_unknown_arg do-native-key-extra ./aos do key Enter unexpected --dry-run
+check_unknown_flag see-observe ./aos see observe --bogus
+check_unknown_arg see-observe-extra ./aos see observe unexpected
+
+err="$STATE_ROOT/see-observe-depth-missing.err"
+if ./aos see observe --depth 2>"$err"; then
+  echo "FAIL: see observe accepted missing --depth value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: see observe missing --depth value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+
+err="$STATE_ROOT/see-observe-rate-missing.err"
+if ./aos see observe --rate 2>"$err"; then
+  echo "FAIL: see observe accepted missing --rate value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: see observe missing --rate value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 
 echo "external-parser-flags: all checks passed"
