@@ -37,23 +37,31 @@ function parseArgs(argv) {
     storeResponse: false,
   };
   const positional = [];
+  const nextValue = (index, flag) => {
+    if (index + 1 >= argv.length || argv[index + 1].startsWith('--')) {
+      throw new Error(`${flag} requires a value`);
+    }
+    return [argv[index + 1], index + 1];
+  };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') {
       parsed.help = true;
     } else if (arg === '--request') {
-      parsed.requestFile = argv[++index];
+      [parsed.requestFile, index] = nextValue(index, arg);
     } else if (arg === '--json') {
-      parsed.json = argv[++index];
+      [parsed.json, index] = nextValue(index, arg);
     } else if (arg === '--preset') {
-      parsed.preset = argv[++index];
+      [parsed.preset, index] = nextValue(index, arg);
     } else if (arg === '--title') {
-      parsed.title = argv[++index];
+      [parsed.title, index] = nextValue(index, arg);
     } else if (arg === '--message' || arg === '--body') {
-      parsed.message = argv[++index];
+      [parsed.message, index] = nextValue(index, arg);
     } else if (arg === '--timeout') {
-      parsed.timeoutSeconds = Number(argv[++index]);
+      let value;
+      [value, index] = nextValue(index, arg);
+      parsed.timeoutSeconds = Number(value);
     } else if (arg === '--store-response') {
       parsed.storeResponse = true;
     } else if (arg.startsWith('--')) {

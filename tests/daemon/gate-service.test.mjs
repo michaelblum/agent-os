@@ -90,6 +90,16 @@ test('gate ask rejects preset values outside the manifest enum', async () => {
   assert.match(stderr.text(), /--preset must be one of: yes_no_with_escape, approve_deny, single_choice, multi_choice, freetext/);
 });
 
+test('gate ask rejects flag-shaped values for value flags', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateAsk(['--request', '--store-response'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--request requires a value/);
+});
+
 test('ask resolves with user values and cleans up pending gate', async () => {
   const harness = timeoutHarness();
   let receptor;
