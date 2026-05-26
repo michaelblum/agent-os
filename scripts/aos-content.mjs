@@ -11,6 +11,12 @@ function prettyError(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  const text = String(arg);
+  if (text.startsWith('-')) prettyError(`Unknown flag: ${text}`, 'UNKNOWN_FLAG');
+  prettyError(`Unknown argument: ${text}`, 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   if (process.env.AOS_STATE_ROOT) return path.resolve(process.env.AOS_STATE_ROOT);
   return path.join(os.homedir(), '.config', 'aos');
@@ -163,7 +169,7 @@ function printStatus(response, json) {
 async function statusCommand(args) {
   const json = args.includes('--json');
   for (const arg of args) {
-    if (arg !== '--json') prettyError(`Unknown flag: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+    if (arg !== '--json') unknownArg(arg);
   }
   const socket = await connectWithAutoStart(false);
   if (!socket) prettyError("Cannot connect to daemon — is 'aos serve' running?", 'NO_DAEMON');
@@ -191,7 +197,7 @@ function parseWaitArgs(args) {
     } else if (arg === '--json') {
       options.json = true;
     } else {
-      prettyError(`Unknown flag: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+      unknownArg(arg);
     }
     i += 1;
   }

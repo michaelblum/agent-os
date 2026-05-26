@@ -44,6 +44,21 @@ grep -q '"code" : "UNKNOWN_FLAG"' "$ROOT/content-status-bogus.err" || {
   exit 1
 }
 
+if ./aos content status extra 2>"$ROOT/content-status-extra.err"; then
+  echo "FAIL: content status accepted extra positional"
+  exit 1
+fi
+grep -q '"code" : "UNKNOWN_ARG"' "$ROOT/content-status-extra.err" || {
+  cat "$ROOT/content-status-extra.err"
+  echo "FAIL: content status extra positional did not use UNKNOWN_ARG"
+  exit 1
+}
+grep -q '"error" : "Unknown argument: extra"' "$ROOT/content-status-extra.err" || {
+  cat "$ROOT/content-status-extra.err"
+  echo "FAIL: content status extra positional message did not say Unknown argument"
+  exit 1
+}
+
 if ./aos content wait --bogus 2>"$ROOT/content-wait-bogus.err"; then
   echo "FAIL: content wait accepted unknown flag"
   exit 1
@@ -51,5 +66,20 @@ fi
 grep -q '"code" : "UNKNOWN_FLAG"' "$ROOT/content-wait-bogus.err" || {
   cat "$ROOT/content-wait-bogus.err"
   echo "FAIL: content wait unknown flag did not use UNKNOWN_FLAG"
+  exit 1
+}
+
+if ./aos content wait extra 2>"$ROOT/content-wait-extra.err"; then
+  echo "FAIL: content wait accepted extra positional"
+  exit 1
+fi
+grep -q '"code" : "UNKNOWN_ARG"' "$ROOT/content-wait-extra.err" || {
+  cat "$ROOT/content-wait-extra.err"
+  echo "FAIL: content wait extra positional did not use UNKNOWN_ARG"
+  exit 1
+}
+grep -q '"error" : "Unknown argument: extra"' "$ROOT/content-wait-extra.err" || {
+  cat "$ROOT/content-wait-extra.err"
+  echo "FAIL: content wait extra positional message did not say Unknown argument"
   exit 1
 }
