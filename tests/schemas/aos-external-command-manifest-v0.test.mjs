@@ -375,6 +375,35 @@ test('help registry forms expose their json flag metadata', async () => {
   }
 });
 
+test('operational registry forms expose json flag metadata', async () => {
+  const registry = await loadJson(registryPath);
+  const requiredForms = new Set([
+    'content-status',
+    'status',
+    'reset',
+    'clean',
+    'permissions-setup',
+    'permissions-reset-runtime',
+  ]);
+  const forms = new Map();
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      forms.set(form.id, form);
+    }
+  }
+
+  for (const id of requiredForms) {
+    const form = forms.get(id);
+    assert.ok(form, `${id} registry form must exist`);
+    assert.equal(form.output?.supports_json_flag, true, `${id} must advertise JSON output support`);
+    assert.ok(
+      form.args.some((arg) => arg.kind === 'flag' && arg.token === '--json' && arg.value_type === 'bool'),
+      `${id} must expose --json as a boolean flag argument`,
+    );
+  }
+});
+
 test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);

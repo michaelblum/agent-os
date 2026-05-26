@@ -4694,7 +4694,14 @@
       "forms" : [
         {
           "args" : [
-
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
           ],
           "examples" : [
             "aos content status",
@@ -6222,7 +6229,14 @@
       "forms" : [
         {
           "args" : [
-
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
           ],
           "examples" : [
             "aos status",
@@ -6446,6 +6460,14 @@
                   }
                 ]
               }
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
             }
           ],
           "examples" : [
@@ -6486,6 +6508,14 @@
               "required" : false,
               "summary" : "Show what would be cleaned without doing it",
               "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
               "value_type" : "bool"
             }
           ],
@@ -6619,6 +6649,14 @@
               "summary" : "Run only if not already completed",
               "token" : "--once",
               "value_type" : "bool"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
             }
           ],
           "examples" : [
@@ -6685,6 +6723,14 @@
               "required" : false,
               "summary" : "Print planned daemon stop and tccutil reset without changing state",
               "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
               "value_type" : "bool"
             }
           ],
