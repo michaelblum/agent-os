@@ -7827,7 +7827,14 @@
       "forms" : [
         {
           "args" : [
-
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
           ],
           "examples" : [
             "aos help",
@@ -7860,6 +7867,14 @@
               "summary" : "Command path to look up (e.g. show create)",
               "value_type" : "string",
               "variadic" : true
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
             }
           ],
           "examples" : [

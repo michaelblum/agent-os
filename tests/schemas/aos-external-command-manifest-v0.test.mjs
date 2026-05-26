@@ -361,6 +361,20 @@ test('registry form ids are unique and usage paths stay under their command', as
   }
 });
 
+test('help registry forms expose their json flag metadata', async () => {
+  const registry = await loadJson(registryPath);
+  const help = registry.commands.find((command) => command.path.join(' ') === 'help');
+  assert.ok(help, 'help command must exist in registry');
+
+  for (const form of help.forms) {
+    assert.equal(form.output?.supports_json_flag, true, `${form.id} must advertise JSON output support`);
+    assert.ok(
+      form.args.some((arg) => arg.kind === 'flag' && arg.token === '--json' && arg.value_type === 'bool'),
+      `${form.id} must expose --json as a boolean flag argument`,
+    );
+  }
+});
+
 test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
