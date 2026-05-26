@@ -109,17 +109,6 @@ func handleDo(args: [String]) {
     let subArgs = Array(args.dropFirst())
 
     switch sub {
-    case "--help", "-h":
-        printCommandHelp(["do"], json: args.contains("--json"))
-        exit(0)
-    default:
-        if subArgs.contains("--help") || subArgs.contains("-h") {
-            printCommandHelp(["do", sub], json: subArgs.contains("--json"))
-            exit(0)
-        }
-    }
-
-    switch sub {
     case "click":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do click", requiresInputTap: true) }
         cliClick(args: subArgs)
@@ -187,9 +176,6 @@ func handleSee(args: [String]) {
         exit(0)
     }
     switch sub {
-    case "--help", "-h":
-        printCommandHelp(["see"], json: args.contains("--json"))
-        exit(0)
     case "cursor":
         ensureInteractivePreflight(command: "aos see cursor")
         cursorCommand()
@@ -198,10 +184,6 @@ func handleSee(args: [String]) {
         observeCommand(args: Array(args.dropFirst()))
     case "capture":
         let subArgs = Array(args.dropFirst())
-        if subArgs.contains("--help") || subArgs.contains("-h") {
-            printCommandHelp(["see"], json: subArgs.contains("--json"))
-            exit(0)
-        }
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos see capture") }
         runCaptureAsync(args: subArgs)
     case "list":
@@ -212,10 +194,6 @@ func handleSee(args: [String]) {
         selectionCommand()
     case "zone":
         let subArgs = Array(args.dropFirst())
-        if subArgs.contains("--help") || subArgs.contains("-h") {
-            printCommandHelp(["see", "zone"], json: subArgs.contains("--json"))
-            exit(0)
-        }
         zoneCommand(args: subArgs)
     default:
         ensureInteractivePreflight(command: "aos see \(sub)")
@@ -249,17 +227,6 @@ func handleShow(args: [String]) {
     let subArgs = Array(args.dropFirst())
 
     switch sub {
-    case "--help", "-h":
-        printCommandHelp(["show"], json: args.contains("--json"))
-        exit(0)
-    default:
-        if subArgs.contains("--help") || subArgs.contains("-h") {
-            printCommandHelp(["show", sub], json: subArgs.contains("--json"))
-            exit(0)
-        }
-    }
-
-    switch sub {
     case "render":   renderCommand(args: subArgs)
     case "create":   createCommand(args: subArgs)
     case "update":   updateCommand(args: subArgs)
@@ -280,17 +247,9 @@ func handleShow(args: [String]) {
 }
 
 func handleSay(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["say"], json: args.contains("--json"))
-        exit(0)
-    }
     sayCommand(args: args)
 }
 
 func handleServe(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["serve"], json: args.contains("--json"))
-        exit(0)
-    }
     serveCommand(args: args)
 }
