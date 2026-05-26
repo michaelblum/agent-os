@@ -354,7 +354,11 @@ function setConfigValue(config, key, value) {
 async function main(argv) {
   const command = argv[0];
   if (command === 'dump') {
-    if (argv.length !== 1) usage('Usage: aos config');
+    if (argv.length !== 1) {
+      const unknownFlag = argv.slice(1).find((arg) => arg.startsWith('--'));
+      if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
+      error('config accepts no positional arguments. Usage: aos config', 'MISSING_ARG');
+    }
     console.log(formatJSON(await loadConfig()));
     return;
   }
@@ -373,7 +377,9 @@ async function main(argv) {
   }
   if (command === 'set') {
     const args = argv.slice(1);
-    if (args.length !== 2) usage('Usage: aos config set <key> <value>');
+    const unknownFlag = args.find((arg) => arg.startsWith('--'));
+    if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
+    if (args.length !== 2) error('config set requires exactly one key and one value. Usage: aos config set <key> <value>', 'MISSING_ARG');
     const config = await loadConfig();
     setConfigValue(config, args[0], args[1]);
     await saveConfig(config);
@@ -396,7 +402,7 @@ async function main(argv) {
     console.log(formatJSON(config));
     return;
   }
-  usage('Unknown config subcommand');
+  error(`Unknown config subcommand: ${command ?? ''}`, 'UNKNOWN_COMMAND');
 }
 
 main(process.argv.slice(2)).catch((error) => {

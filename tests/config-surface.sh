@@ -55,4 +55,22 @@ grep -q '"code": "UNKNOWN_FLAG"' "$STATE_ROOT/config-get-bogus.err" || {
 }
 pass "config get rejects unknown flags with JSON error"
 
+if ./aos config --bogus 2>"$STATE_ROOT/config-dump-bogus.err"; then
+  fail "config accepted unknown flag"
+fi
+grep -q '"code": "UNKNOWN_FLAG"' "$STATE_ROOT/config-dump-bogus.err" || {
+  cat "$STATE_ROOT/config-dump-bogus.err"
+  fail "config unknown flag did not use external JSON error contract"
+}
+pass "config rejects unknown flags with JSON error"
+
+if ./aos config set voice.enabled true --json 2>"$STATE_ROOT/config-set-bogus.err"; then
+  fail "config set accepted unknown flag"
+fi
+grep -q '"code": "UNKNOWN_FLAG"' "$STATE_ROOT/config-set-bogus.err" || {
+  cat "$STATE_ROOT/config-set-bogus.err"
+  fail "config set unknown flag did not use external JSON error contract"
+}
+pass "config set rejects unknown flags with JSON error"
+
 echo "config-surface: all checks passed"
