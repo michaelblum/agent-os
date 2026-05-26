@@ -627,7 +627,8 @@ function findRecipe(id) {
 }
 
 function singleRecipeID(positional, usage) {
-  if (positional.length !== 1 || !positional[0]) throw new OpsFailure(`Usage: ${invocationName()} ${usage}`, 'INVALID_ARG');
+  if (positional.length === 0 || !positional[0]) throw new OpsFailure(`Usage: ${invocationName()} ${usage}`, 'MISSING_ARG');
+  if (positional.length > 1) throw new OpsFailure(`Unknown argument: ${positional[1]}`, 'UNKNOWN_ARG');
   return positional[0];
 }
 
@@ -639,7 +640,7 @@ function main() {
       return;
     }
     if (subcommand === 'list') {
-      if (positional.length) throw new OpsFailure(`Usage: ${invocationName()} ops list [--json]`, 'INVALID_ARG');
+      if (positional.length) throw new OpsFailure(`Unknown argument: ${positional[0]}`, 'UNKNOWN_ARG');
       emitList(loadRecipes(), json);
     } else if (subcommand === 'explain') {
       const recipe = findRecipe(singleRecipeID(positional, 'ops explain <id> [--json]'));
