@@ -56,14 +56,17 @@ function migrateIfNeeded(wikiRoot) {
 }
 
 const args = process.argv.slice(2);
-const unknownFlag = args.find((arg, idx) => arg.startsWith('--') && arg !== '--wiki-root' && args[idx - 1] !== '--wiki-root');
+const asJSON = args.includes('--json');
+const unknownFlag = args.find((arg, idx) => arg.startsWith('--') && !['--wiki-root', '--json'].includes(arg) && args[idx - 1] !== '--wiki-root');
 if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
 
 const wikiRoot = path.resolve(expandHome(valueAfter(args, '--wiki-root') || defaultWikiRoot()));
 
 try {
   const migrated = migrateIfNeeded(wikiRoot);
-  if (migrated) {
+  if (asJSON) {
+    process.stdout.write(`${JSON.stringify({ status: 'ok', migrated, wiki_root: wikiRoot }, null, 2)}\n`);
+  } else if (migrated) {
     process.stdout.write(`Migrated wiki at ${wikiRoot} -> ${wikiRoot}/aos/\n`);
   } else {
     process.stdout.write('Already migrated (aos/ namespace present or no legacy dirs found). No-op.\n');

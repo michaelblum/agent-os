@@ -51,6 +51,17 @@ test -f "$TMP2/wiki/aos/concepts/coordinate.md" || { echo "FAIL: partial migrati
 test ! -d "$TMP2/wiki/concepts" || { echo "FAIL: top-level concepts/ still present after partial-migration recovery"; exit 1; }
 test -f "$TMP2/wiki/aos/entities/daemon.md" || { echo "FAIL: existing aos/entities content lost"; exit 1; }
 
+JSON_OUT="$(./aos wiki migrate-namespaces --wiki-root "$TMP2/wiki" --json)"
+JSON_OUT="$JSON_OUT" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["JSON_OUT"])
+assert payload["status"] == "ok", payload
+assert payload["migrated"] is False, payload
+assert payload["wiki_root"], payload
+PY
+
 if ./aos wiki migrate-namespaces --bogus 2>"$TMP/wiki-migrate-bogus.err"; then
   echo "FAIL: migrate-namespaces accepted unknown flag"
   exit 1
