@@ -96,9 +96,13 @@ test('canonical external command manifest matches the schema', () => {
 test('external command manifest executable targets exist', async () => {
   const manifest = await loadJson(manifestPath);
   for (const command of manifest.commands) {
-    const [first, second] = command.argv_prefix;
-    if (command.executable === '/usr/bin/env' && first === 'node' && second?.startsWith('scripts/')) {
-      assert.equal(existsSync(path.join(repoRoot, second)), true, `${command.path.join(' ')} script missing: ${second}`);
+    const [first] = command.argv_prefix;
+    const repoTargets = command.executable === '/usr/bin/env'
+      ? command.argv_prefix.slice(1).filter((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/'))
+      : command.argv_prefix.filter((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/'));
+
+    for (const target of repoTargets) {
+      assert.equal(existsSync(path.join(repoRoot, target)), true, `${command.path.join(' ')} script missing: ${target}`);
     }
     if (command.executable === '/bin/bash' && first?.startsWith('scripts/')) {
       assert.equal(existsSync(path.join(repoRoot, first)), true, `${command.path.join(' ')} script missing: ${first}`);
