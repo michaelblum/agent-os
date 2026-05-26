@@ -70,6 +70,16 @@ function usageFlags(form) {
   return [...new Set([...matches].map((match) => match[0]))];
 }
 
+function exampleFlags(form) {
+  return [
+    ...new Set(
+      (form.examples ?? [])
+        .flatMap((example) => [...example.matchAll(/--[a-zA-Z0-9][a-zA-Z0-9_-]*/g)])
+        .map((match) => match[0]),
+    ),
+  ];
+}
+
 function externalRouteMatches(command, args) {
   if (args.length < command.path.length) return false;
   if (!command.path.every((part, index) => args[index] === part)) return false;
@@ -402,6 +412,27 @@ test('registry usage flags are declared as form arguments', async () => {
         assert.ok(
           declaredFlags.has(flag),
           `${form.id} usage mentions ${flag} but does not declare it as a flag argument`,
+        );
+      }
+    }
+  }
+});
+
+test('registry example flags are declared as form arguments', async () => {
+  const registry = await loadJson(registryPath);
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      const declaredFlags = new Set(
+        form.args
+          .filter((arg) => arg.kind === 'flag')
+          .map((arg) => arg.token),
+      );
+
+      for (const flag of exampleFlags(form)) {
+        assert.ok(
+          declaredFlags.has(flag),
+          `${form.id} examples mention ${flag} but do not declare it as a flag argument`,
         );
       }
     }
