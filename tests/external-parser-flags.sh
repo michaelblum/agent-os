@@ -330,4 +330,15 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
   exit 1
 fi
 
+err="$STATE_ROOT/see-observe-rate-invalid.err"
+if ./aos see observe --rate instant 2>"$err"; then
+  echo "FAIL: see observe accepted invalid --rate value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: see observe invalid --rate value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+
 echo "external-parser-flags: all checks passed"
