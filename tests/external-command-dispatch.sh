@@ -277,6 +277,25 @@ else
 fi
 rm -f /tmp/aos-dev-bogus.out /tmp/aos-dev-bogus.err
 
+if ./aos dev afk-session-trigger --definitely-bogus >/tmp/aos-afk-trigger-bogus.out 2>/tmp/aos-afk-trigger-bogus.err; then
+    fail "dev afk-session-trigger bogus flag succeeded"
+else
+    if python3 - <<'PY'
+import json
+
+data = json.load(open('/tmp/aos-afk-trigger-bogus.err', encoding='utf-8'))
+assert data['script'] == 'afk-session-trigger-prototype.mjs', data
+assert data['status'] == 'blocked', data
+assert data['error'] == 'Missing value for --definitely-bogus', data
+PY
+    then
+        pass "dev afk-session-trigger routes through external Node prototype"
+    else
+        fail "dev afk-session-trigger external route drifted: $(cat /tmp/aos-afk-trigger-bogus.out /tmp/aos-afk-trigger-bogus.err)"
+    fi
+fi
+rm -f /tmp/aos-afk-trigger-bogus.out /tmp/aos-afk-trigger-bogus.err
+
 if ./aos service >/tmp/aos-service-empty.out 2>/tmp/aos-service-empty.err; then
     fail "service without subcommand succeeded"
 else
