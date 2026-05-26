@@ -4,8 +4,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-python3 - "$ROOT/.codex/hooks.json" "$ROOT/.claude/settings.json" <<'PY'
+python3 - "$ROOT" "$ROOT/.claude/settings.json" <<'PY'
 import json
+from pathlib import Path
 import sys
 
 def flatten_commands(payload, hook_name):
@@ -16,22 +17,41 @@ def flatten_commands(payload, hook_name):
             commands.append(hook.get("command", ""))
     return hooks, commands
 
-def assert_hooks(label, path):
+def assert_claude_hooks(path):
     payload = json.load(open(path))
     _, session_start = flatten_commands(payload, "SessionStart")
     _, stop_hooks = flatten_commands(payload, "Stop")
 
     if not any("git-health.sh" in command for command in session_start):
-        raise SystemExit(f"FAIL: {label} missing SessionStart git-health hook: {session_start}")
+        raise SystemExit(f"FAIL: claude missing SessionStart git-health hook: {session_start}")
     if any("session-start.sh" in command for command in session_start):
-        raise SystemExit(f"FAIL: {label} SessionStart should not invoke session-start.sh: {session_start}")
-    if label == "codex" and any("final-response.sh" in command for command in stop_hooks):
-        raise SystemExit(f"FAIL: {label} should not use repo-root Stop final-response hook: {stop_hooks}")
-    if label != "codex" and not any("final-response.sh" in command for command in stop_hooks):
-        raise SystemExit(f"FAIL: {label} missing Stop final-response hook: {stop_hooks}")
+        raise SystemExit(f"FAIL: claude SessionStart should not invoke session-start.sh: {session_start}")
+    if not any("final-response.sh" in command for command in stop_hooks):
+        raise SystemExit(f"FAIL: claude missing Stop final-response hook: {stop_hooks}")
 
-assert_hooks("codex", sys.argv[1])
-assert_hooks("claude", sys.argv[2])
+def assert_dock_codex_hooks(root):
+    for role in ["foreman", "gdi", "operator"]:
+        path = Path(root) / ".docks" / role / ".codex" / "hooks.json"
+        payload = json.load(open(path))
+        _, session_start = flatten_commands(payload, "SessionStart")
+        _, stop_hooks = flatten_commands(payload, "Stop")
+        _, post_tool = flatten_commands(payload, "PostToolUse")
+
+        if session_start:
+            raise SystemExit(f"FAIL: {role} Codex hooks should not declare SessionStart: {session_start}")
+        if any("final-response.sh" in command for command in stop_hooks):
+            raise SystemExit(f"FAIL: {role} Codex hooks should not use repo-root Stop final-response hook: {stop_hooks}")
+        if not any(f".docks/{role}/hooks/stop.sh" in command for command in stop_hooks):
+            raise SystemExit(f"FAIL: {role} Codex hooks missing role-local Stop hook: {stop_hooks}")
+        if not any(f".docks/{role}/hooks/post-tool-use.sh" in command for command in post_tool):
+            raise SystemExit(f"FAIL: {role} Codex hooks missing role-local PostToolUse hook: {post_tool}")
+        if role == "gdi":
+            _, pre_tool = flatten_commands(payload, "PreToolUse")
+            if not any(".docks/gdi/hooks/pre-tool-use.sh" in command for command in pre_tool):
+                raise SystemExit(f"FAIL: GDI Codex hooks missing role-local PreToolUse hook: {pre_tool}")
+
+assert_dock_codex_hooks(sys.argv[1])
+assert_claude_hooks(sys.argv[2])
 
 claude_payload = json.load(open(sys.argv[2]))
 precompact = claude_payload.get("hooks", {}).get("PreCompact", [])
