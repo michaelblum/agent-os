@@ -163,7 +163,7 @@ function printStatus(response, json) {
 async function statusCommand(args) {
   const json = args.includes('--json');
   for (const arg of args) {
-    if (arg !== '--json') prettyError(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+    if (arg !== '--json') prettyError(`Unknown flag: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
   }
   const socket = await connectWithAutoStart(false);
   if (!socket) prettyError("Cannot connect to daemon — is 'aos serve' running?", 'NO_DAEMON');
@@ -191,7 +191,7 @@ function parseWaitArgs(args) {
     } else if (arg === '--json') {
       options.json = true;
     } else {
-      prettyError(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+      prettyError(`Unknown flag: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
     }
     i += 1;
   }

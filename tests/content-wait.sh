@@ -33,3 +33,23 @@ expected = str((pathlib.Path.cwd() / "packages/toolkit").resolve())
 assert payload["roots"]["toolkit"] == expected, payload
 print("PASS")
 PY
+
+if ./aos content status --bogus 2>"$ROOT/content-status-bogus.err"; then
+  echo "FAIL: content status accepted unknown flag"
+  exit 1
+fi
+grep -q '"code" : "UNKNOWN_FLAG"' "$ROOT/content-status-bogus.err" || {
+  cat "$ROOT/content-status-bogus.err"
+  echo "FAIL: content status unknown flag did not use UNKNOWN_FLAG"
+  exit 1
+}
+
+if ./aos content wait --bogus 2>"$ROOT/content-wait-bogus.err"; then
+  echo "FAIL: content wait accepted unknown flag"
+  exit 1
+fi
+grep -q '"code" : "UNKNOWN_FLAG"' "$ROOT/content-wait-bogus.err" || {
+  cat "$ROOT/content-wait-bogus.err"
+  echo "FAIL: content wait unknown flag did not use UNKNOWN_FLAG"
+  exit 1
+}
