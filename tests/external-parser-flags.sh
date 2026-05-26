@@ -249,7 +249,27 @@ check_unknown_flag graph-deepen ./aos graph deepen --id parser-node --bogus
 check_unknown_flag graph-collapse-subtree ./aos graph collapse --id parser-node --subtree-role button
 check_unknown_arg service-status-extra ./aos service status unexpected
 check_unknown_arg service-verify-extra ./aos service _verify-readiness unexpected
+err="$STATE_ROOT/service-status-mode-invalid.err"
+if ./aos service status --mode current 2>"$err"; then
+  echo "FAIL: service status accepted invalid --mode value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: service status invalid --mode value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_unknown_arg reset-extra ./aos reset unexpected
+err="$STATE_ROOT/reset-mode-invalid.err"
+if ./aos reset --mode temporary 2>"$err"; then
+  echo "FAIL: reset accepted invalid --mode value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: reset invalid --mode value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_unknown_arg ops-list-extra ./aos ops list unexpected
 check_unknown_arg ops-explain-extra ./aos ops explain runtime/status-snapshot unexpected
 check_unknown_flag tell-unknown-flag ./aos tell channel --bogus hello
@@ -337,6 +357,17 @@ if ./aos see observe --rate instant 2>"$err"; then
 fi
 if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
   echo "FAIL: see observe invalid --rate value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+
+err="$STATE_ROOT/wiki-add-type-invalid.err"
+if ./aos wiki add page parser-test 2>"$err"; then
+  echo "FAIL: wiki add accepted invalid type value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"WIKI_INVALID_TYPE"' "$err"; then
+  echo "FAIL: wiki add invalid type value did not use WIKI_INVALID_TYPE" >&2
   cat "$err" >&2
   exit 1
 fi
