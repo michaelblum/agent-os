@@ -125,6 +125,22 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
   assert.equal(source.includes('buildCommandRegistry'), false, 'Swift command registry must not return');
 });
 
+test('duplicate external command paths are explicitly condition-gated', async () => {
+  const manifest = await loadJson(manifestPath);
+  const byPath = new Map();
+  for (const command of manifest.commands) {
+    const key = command.path.join('\0');
+    byPath.set(key, [...(byPath.get(key) ?? []), command]);
+  }
+
+  for (const [key, routes] of byPath) {
+    if (routes.length <= 1) continue;
+    for (const route of routes) {
+      assert.ok(route.when, `${key.replaceAll('\0', ' ')} duplicate route is missing a when condition`);
+    }
+  }
+});
+
 test('registry command paths have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
