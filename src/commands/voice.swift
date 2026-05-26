@@ -1,15 +1,6 @@
 import Foundation
 
 func voiceCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        if let subcommand = args.first, !subcommand.hasPrefix("--") {
-            printCommandHelp(["voice", subcommand], json: args.contains("--json"))
-            exit(0)
-        }
-        printCommandHelp(["voice"], json: args.contains("--json"))
-        exit(0)
-    }
-
     guard let subcommand = args.first else {
         printCommandHelp(["voice"], json: false)
         exit(0)

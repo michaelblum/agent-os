@@ -3,10 +3,6 @@
 import Foundation
 
 func runtimeCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["runtime"], json: args.contains("--json"))
-        exit(0)
-    }
     guard let sub = args.first else {
         exitError("runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union [--native]> ...",
                   code: "MISSING_SUBCOMMAND")
@@ -27,18 +23,6 @@ func runtimeCommand(args: [String]) {
 /// by AppKit/CG boundary callers (matches the `display_geometry` channel's
 /// `global_bounds` field).
 private func runtimeDisplayUnionCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        print("Usage: aos runtime display-union [--native]")
-        print("")
-        print("Print the bounding box of all connected displays as x,y,w,h")
-        print("(integers, comma-separated). Default output is DesktopWorld")
-        print("(top-left of the arranged full-display union = 0,0).")
-        print("")
-        print("Flags:")
-        print("  --native   Print native desktop compatibility coordinates")
-        print("             (top-left of the macOS main display = 0,0).")
-        return
-    }
     var asNative = false
     for arg in args {
         switch arg {

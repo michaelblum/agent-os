@@ -403,10 +403,6 @@ private struct DaemonHealthState {
 // MARK: - Public Commands
 
 func readyCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["ready"], json: args.contains("--json"))
-        exit(0)
-    }
     guard args.allSatisfy({ $0 == "--json" || $0 == "--repair" || $0 == "--post-permission" }) else {
         let unknown = args.first(where: { $0 != "--json" && $0 != "--repair" && $0 != "--post-permission" }) ?? ""
         exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) ready [--json] [--repair] [--post-permission]", code: "UNKNOWN_FLAG")
@@ -538,10 +534,6 @@ private func printReadyHumanHandoff(response: ReadyResponse, mode: AOSRuntimeMod
 }
 
 func statusCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["status"], json: args.contains("--json"))
-        exit(0)
-    }
     guard args.allSatisfy({ $0 == "--json" }) else {
         let unknown = args.first(where: { $0 != "--json" }) ?? ""
         exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) status [--json]", code: "UNKNOWN_FLAG")
@@ -677,10 +669,6 @@ private func currentCleanReport() -> StatusCleanReport {
 }
 
 func doctorCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["doctor"], json: args.contains("--json"))
-        exit(0)
-    }
     guard args.allSatisfy({ $0 == "--json" }) else {
         let unknown = args.first(where: { $0 != "--json" }) ?? ""
         exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) doctor [--json]", code: "UNKNOWN_FLAG")
@@ -787,10 +775,6 @@ func doctorCommand(args: [String]) {
 }
 
 func permissionsCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["permissions"], json: args.contains("--json"))
-        exit(0)
-    }
     guard let sub = args.first else {
         exitError("permissions requires a subcommand. Usage: aos permissions <check|preflight|setup|reset-runtime> ...",
                   code: "MISSING_SUBCOMMAND")

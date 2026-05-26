@@ -43,11 +43,6 @@ private enum OpsValueLookupResult {
 }
 
 func opsCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["ops"], json: args.contains("--json"))
-        exit(0)
-    }
-
     guard let subcommand = args.first else {
         printCommandHelp(["ops"], json: false)
         exit(0)

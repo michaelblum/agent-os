@@ -42,10 +42,6 @@ func wikiBareNameCandidates(_ arg: String) -> [String] {
 // MARK: - Command Router
 
 func wikiCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["wiki"], json: args.contains("--json"))
-        exit(0)
-    }
     guard let sub = args.first else {
         exitError("wiki requires a subcommand. Usage: aos wiki <list|show|graph|add|rm|link|search|seed|project-docs|reindex|lint|invoke|create-plugin|migrate-namespaces> ...",
                   code: "MISSING_SUBCOMMAND")
