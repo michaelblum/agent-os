@@ -138,7 +138,7 @@ async function sendEnvelope(action, data = {}) {
 
 function takeValue(args, index, flag) {
   const next = index + 1;
-  if (next >= args.length) error(`${flag} requires a value`, 'MISSING_ARG');
+  if (next >= args.length || args[next].startsWith('--')) error(`${flag} requires a value`, 'MISSING_ARG');
   return [args[next], next];
 }
 
