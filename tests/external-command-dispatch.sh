@@ -227,6 +227,84 @@ else
 fi
 rm -rf "$LISTEN_ROOT" /tmp/aos-show-listen-cleanup.out /tmp/aos-show-listen-cleanup.err
 
+SIGNAL_LISTEN_ROOT="$(mktemp -d)"
+if ROOT="$SIGNAL_LISTEN_ROOT" AOS_BIN="$PWD/aos" node - <<'NODE'
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const net = require('node:net');
+
+const root = process.env.ROOT;
+const sock = `${root}/repo/sock`;
+const out = '/tmp/aos-show-listen-signal.out';
+const err = '/tmp/aos-show-listen-signal.err';
+fs.writeFileSync(out, '');
+fs.writeFileSync(err, '');
+
+function probe(expectConnect) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection(sock);
+    const timer = setTimeout(() => {
+      socket.destroy();
+      resolve(!expectConnect);
+    }, 250);
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      socket.end();
+      resolve(expectConnect);
+    });
+    socket.once('error', () => {
+      clearTimeout(timer);
+      resolve(!expectConnect);
+    });
+  });
+}
+
+async function main() {
+  const child = spawn(process.env.AOS_BIN, ['show', 'listen'], {
+    env: {
+      ...process.env,
+      AOS_STATE_ROOT: root,
+      AOS_RUNTIME_MODE: 'repo',
+      AOS_PATH: process.env.AOS_BIN,
+    },
+    stdio: ['pipe', fs.openSync(out, 'a'), fs.openSync(err, 'a')],
+  });
+
+  let connected = false;
+  for (let i = 0; i < 20; i += 1) {
+    if (await probe(true)) {
+      connected = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+
+  if (!connected) {
+    child.kill('SIGTERM');
+    await new Promise((resolve) => child.once('exit', resolve));
+    process.exit(2);
+  }
+
+  child.kill('SIGTERM');
+  await new Promise((resolve) => child.once('exit', resolve));
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  process.exit((await probe(false)) ? 0 : 3);
+}
+
+main();
+NODE
+then
+    pass "show listen cleans up isolated auto-start daemon on SIGTERM"
+else
+    rc=$?
+    if [ "$rc" -eq 2 ]; then
+        fail "show listen did not start isolated daemon for signal cleanup smoke: $(cat /tmp/aos-show-listen-signal.err)"
+    else
+        fail "show listen left isolated daemon reachable after SIGTERM"
+    fi
+fi
+rm -rf "$SIGNAL_LISTEN_ROOT" /tmp/aos-show-listen-signal.out /tmp/aos-show-listen-signal.err
+
 ORPHAN_ROOT="$(mktemp -d)"
 ORPHAN_PID_FILE="$ORPHAN_ROOT/pid"
 node - "$ORPHAN_PID_FILE" <<'NODE'
