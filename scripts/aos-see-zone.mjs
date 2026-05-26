@@ -103,6 +103,7 @@ switch (command) {
     listCommand(args);
     break;
   case 'save':
+  case 'define':
     saveCommand(args);
     break;
   case 'delete':

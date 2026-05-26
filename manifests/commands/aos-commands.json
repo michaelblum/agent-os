@@ -512,18 +512,25 @@
               "summary" : "Target display",
               "token" : "--target",
               "value_type" : "string"
+            },
+            {
+              "id" : "bounds",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Zone bounds as x,y,w,h",
+              "value_type" : "string"
             }
           ],
           "examples" : [
-            "aos see zone define header"
+            "aos see zone define header --target main 0,0,1920,100"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
-            "interactive" : true,
-            "mutates_state" : false,
+            "interactive" : false,
+            "mutates_state" : true,
             "read_only" : false,
-            "requires_permissions" : true,
-            "streaming" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
             "supports_dry_run" : false
           },
           "id" : "zone-define",
@@ -533,7 +540,7 @@
             "streaming" : false,
             "supports_json_flag" : false
           },
-          "usage" : "aos see zone define <name> [--target <display>]"
+          "usage" : "aos see zone define <name> [--target <display>] <x,y,w,h>"
         },
         {
           "args" : [

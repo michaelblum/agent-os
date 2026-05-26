@@ -709,6 +709,17 @@
       }
     },
     {
+      "path": ["see", "zone", "define"],
+      "summary": "Define named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "define"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["see", "zone", "delete"],
       "summary": "Delete named capture zones through the external zone command.",
       "executable": "/usr/bin/env",

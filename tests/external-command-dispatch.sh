@@ -93,6 +93,24 @@ else
 fi
 rm -f /tmp/aos-see-zone-bogus.out /tmp/aos-see-zone-bogus.err
 
+ZONE_ROOT="$(mktemp -d)"
+if AOS_STATE_ROOT="$ZONE_ROOT" ./aos see zone define header --target main 0,0,100,50 >/tmp/aos-see-zone-define.out 2>/tmp/aos-see-zone-define.err \
+    && AOS_STATE_ROOT="$ZONE_ROOT" ./aos see zone list >/tmp/aos-see-zone-list.out 2>/tmp/aos-see-zone-list.err \
+    && python3 - <<'PY'
+import json
+
+saved = json.load(open('/tmp/aos-see-zone-define.out', encoding='utf-8'))
+zones = json.load(open('/tmp/aos-see-zone-list.out', encoding='utf-8'))
+assert saved == {'status': 'saved', 'zone': 'header'}, saved
+assert zones['header'] == {'crop': '0,0,100,50', 'target': 'main'}, zones
+PY
+then
+    pass "see zone define persists explicit bounds through the external zone command"
+else
+    fail "see zone define external command drifted: $(cat /tmp/aos-see-zone-define.err /tmp/aos-see-zone-list.err 2>/dev/null)"
+fi
+rm -rf "$ZONE_ROOT" /tmp/aos-see-zone-define.out /tmp/aos-see-zone-define.err /tmp/aos-see-zone-list.out /tmp/aos-see-zone-list.err
+
 if python3 - <<'PY'
 import json
 

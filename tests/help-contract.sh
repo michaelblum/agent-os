@@ -231,7 +231,30 @@ else
     fail "do click help is missing ref target forms: $OUT"
 fi
 
-# --- 18. dev build only wraps the build step and disables daemon restart ---
+# --- 18. see zone define help matches the external deterministic parser ---
+OUT=$(./aos help see zone define --json 2>/dev/null)
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+form = next(item for item in data["forms"] if item["id"] == "zone-define")
+tokens = {arg.get("token") for arg in form["args"]}
+arg_ids = [arg["id"] for arg in form["args"]]
+assert form["usage"] == "aos see zone define <name> [--target <display>] <x,y,w,h>", form
+assert arg_ids == ["name", "target", "bounds"], arg_ids
+assert "--target" in tokens, tokens
+assert form["execution"]["mutates_state"] is True, form
+assert form["execution"]["interactive"] is False, form
+assert form["execution"]["requires_permissions"] is False, form
+PY
+then
+    pass "see zone define help matches external parser"
+else
+    fail "see zone define help drifted from parser: $OUT"
+fi
+
+# --- 19. dev build only wraps the build step and disables daemon restart ---
 if python3 - <<'PY'
 from pathlib import Path
 
@@ -249,7 +272,7 @@ else
     fail "dev build wrapper telemetry or readiness boundary regressed"
 fi
 
-# --- 19. dev build-checkpoint owns post-build pause/recovery contract ---
+# --- 20. dev build-checkpoint owns post-build pause/recovery contract ---
 OUT=$(./aos dev build-checkpoint --json 2>/dev/null)
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -273,7 +296,7 @@ else
     fail "dev build-checkpoint contract regressed: $OUT"
 fi
 
-# --- 20. dev afk-session-trigger help exposes guarded trigger flags ---
+# --- 21. dev afk-session-trigger help exposes guarded trigger flags ---
 OUT=$(./aos help dev afk-session-trigger --json 2>/dev/null)
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -298,7 +321,7 @@ else
     fail "dev afk-session-trigger help is missing guarded trigger flags: $OUT"
 fi
 
-# --- 21. command registry metadata is externally hot-swappable ---
+# --- 22. command registry metadata is externally hot-swappable ---
 TMP_REGISTRY="$(mktemp "${TMPDIR:-/tmp}/aos-command-registry.XXXXXX.json")"
 python3 - "$TMP_REGISTRY" <<'PY'
 import json
@@ -318,7 +341,7 @@ else
     fail "external command registry manifest did not override help: $OUT"
 fi
 
-# --- 22. help renderer stays external and does not delegate back into Swift ---
+# --- 23. help renderer stays external and does not delegate back into Swift ---
 if python3 - <<'PY'
 from pathlib import Path
 
@@ -333,7 +356,7 @@ else
     fail "help renderer delegated back into Swift"
 fi
 
-# --- 23. main entry point has no active Swift help fallback ---
+# --- 24. main entry point has no active Swift help fallback ---
 if python3 - <<'PY'
 from pathlib import Path
 
