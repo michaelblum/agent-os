@@ -218,6 +218,28 @@ Preserve the good parts of the previous slice:
 - context menu remains in `apps/sigil/context-menu/` untouched;
 - Sigil remains an experience over AOS, not a normal app.
 
+### 6. Do not block future action shortcuts
+
+Michael wants avatar dock/undock to be invokable by shortcut later, and expects
+other experience actions to gain shortcuts too. Those shortcuts will also be
+used by macOS Vocal Shortcuts to summon the avatar and eventually start a duplex
+voice chat with a dock session.
+
+This hygiene correction should not implement the full shortcut/voice path unless
+you discover a tiny existing binding that must be updated for lifecycle
+correctness. Do keep the data model and command shape from hard-coding
+status-click-only behavior:
+
+- treat dock/undock as an experience action that can be triggered by status-item
+  click today and by keyboard/voice alias later;
+- avoid naming fields or hooks as if the status item is the only invoker;
+- if you touch the experience manifest/schema, allow or leave an obvious place
+  for future `shortcut`, `voice_alias`, or action-binding metadata on menu/tool
+  entries.
+
+Do not broaden into post-MVP voice chat or dock-session duplex work in this
+round.
+
 ## Read First
 
 - `docs/design/work-cards/gdi-sigil-launch-product-boundary-correction-v0.md`
