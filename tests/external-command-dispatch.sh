@@ -88,6 +88,16 @@ for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "se
 command = commands[("say",)]
 assert command["executable"] == "$AOS_PATH", command
 assert command["argv_prefix"] == ["__say"], command
+for path, primitive in [
+    (("serve",), "__serve"),
+    (("status",), "__status"),
+    (("ready",), "__ready"),
+    (("doctor",), "__doctor"),
+    (("permissions",), "__permissions"),
+]:
+    command = commands[path]
+    assert command["executable"] == "$AOS_PATH", command
+    assert command["argv_prefix"] == [primitive], command
 for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
     matches = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["executable"] == "$AOS_PATH"]
     assert len(matches) == 1, (primitive, matches)

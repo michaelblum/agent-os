@@ -27,15 +27,15 @@ struct AOS {
         }
 
         switch command {
-        case "serve":
+        case "__serve":
             handleServe(args: Array(args.dropFirst()))
-        case "status":
+        case "__status":
             statusCommand(args: Array(args.dropFirst()))
-        case "ready":
+        case "__ready":
             readyCommand(args: Array(args.dropFirst()))
-        case "doctor":
+        case "__doctor":
             doctorCommand(args: Array(args.dropFirst()))
-        case "permissions":
+        case "__permissions":
             permissionsCommand(args: Array(args.dropFirst()))
         case "__render":
             renderCommand(args: Array(args.dropFirst()))

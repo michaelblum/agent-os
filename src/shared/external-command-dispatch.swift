@@ -237,7 +237,25 @@ private func runExternalProcessInheritingStdio(
         return 1
     }
 
+    let sigterm = DispatchSource.makeSignalSource(signal: SIGTERM)
+    let sigint = DispatchSource.makeSignalSource(signal: SIGINT)
+    signal(SIGTERM, SIG_IGN)
+    signal(SIGINT, SIG_IGN)
+    sigterm.setEventHandler {
+        if process.isRunning {
+            process.terminate()
+        }
+    }
+    sigint.setEventHandler {
+        if process.isRunning {
+            process.terminate()
+        }
+    }
+    sigterm.resume()
+    sigint.resume()
     process.waitUntilExit()
+    sigterm.cancel()
+    sigint.cancel()
     return process.terminationStatus
 }
 

@@ -2,6 +2,43 @@
   "schema_version": 1,
   "commands": [
     {
+      "path": ["serve"],
+      "summary": "Run the AOS daemon through the native serve primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__serve"],
+      "cwd": "repo",
+      "stdio": "inherit"
+    },
+    {
+      "path": ["status"],
+      "summary": "Inspect runtime status through the native status primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__status"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["ready"],
+      "summary": "Run readiness checks through the native ready primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__ready"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["doctor"],
+      "summary": "Run diagnostics through the native doctor primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__doctor"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["permissions"],
+      "summary": "Run permission workflows through the native permissions primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__permissions"],
+      "cwd": "repo",
+      "stdio": "inherit"
+    },
+    {
       "path": ["do"],
       "summary": "Print do command help when no subcommand is provided.",
       "executable": "$AOS_PATH",
