@@ -47,7 +47,7 @@ function parseArgs(args) {
       options.manifest = args[i + 1];
       i += 1;
     } else if (arg.startsWith('--')) error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
-    else error(`Unexpected argument: ${arg}`, 'UNKNOWN_ARG');
+    else error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
   }
   return options;
 }

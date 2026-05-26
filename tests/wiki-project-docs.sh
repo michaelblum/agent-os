@@ -141,6 +141,21 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-project-docs-bogus.err" || {
   exit 1
 }
 
+if "$AOS" wiki project-docs extra 2>"$ROOT/wiki-project-docs-extra.err"; then
+  echo "FAIL: wiki project-docs accepted extra positional"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-project-docs-extra.err" || {
+  echo "FAIL: wiki project-docs extra positional did not use UNKNOWN_ARG"
+  cat "$ROOT/wiki-project-docs-extra.err"
+  exit 1
+}
+grep -q '"error": "Unknown argument: extra"' "$ROOT/wiki-project-docs-extra.err" || {
+  echo "FAIL: wiki project-docs extra positional message did not say Unknown argument"
+  cat "$ROOT/wiki-project-docs-extra.err"
+  exit 1
+}
+
 cat > "$MANIFEST" <<EOF
 {
   "projection": "repo_docs_v0",
