@@ -103,18 +103,18 @@ function connectOnce(timeoutMs = 1000) {
   });
 }
 
-function startDaemon() {
+function startDaemon({ managed = false } = {}) {
   if (process.env.AOS_STATE_ROOT) {
     process.stderr.write('ipc: starting isolated daemon with explicit AOS_STATE_ROOT...\n');
     fs.mkdirSync(path.dirname(daemonLogPath()), { recursive: true });
     const log = fs.openSync(daemonLogPath(), 'a');
     const child = spawn(aosPath(), ['serve', '--idle-timeout', '5m'], {
-      detached: true,
+      detached: !managed,
       stdio: ['ignore', 'ignore', log],
       env: process.env,
     });
-    child.unref();
-    return;
+    if (!managed) child.unref();
+    return managed ? child : null;
   }
 
   process.stderr.write(`ipc: starting ${runtimeMode()} daemon via launchd service...\n`);
@@ -124,21 +124,23 @@ function startDaemon() {
     env: process.env,
   });
   child.unref();
+  return null;
 }
 
-async function connectWithAutoStart() {
+async function connectWithAutoStart(options = {}) {
   let socket = await connectOnce();
-  if (socket) return socket;
+  if (socket) return { socket, daemon: null };
   if (autoStartDisabled()) {
     process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
     return null;
   }
-  startDaemon();
+  const daemon = startDaemon(options);
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 100));
     socket = await connectOnce();
-    if (socket) return socket;
+    if (socket) return { socket, daemon };
   }
+  if (daemon && !daemon.killed) daemon.kill('SIGTERM');
   return null;
 }
 
@@ -173,7 +175,8 @@ async function sendEnvelope(socket, action, data = {}, timeoutMs = 3000) {
 }
 
 async function oneShot(action, data, { autoStart = false, emptyListOnNoDaemon = false } = {}) {
-  const socket = autoStart ? await connectWithAutoStart() : await connectOnce();
+  const connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+  const socket = connection?.socket ?? null;
   if (!socket) {
     if (emptyListOnNoDaemon) {
       process.stdout.write('{"status":"success","canvases":[]}\n');
@@ -511,7 +514,8 @@ async function waitCommand(args) {
   }
 
   if (!id) error('wait requires --id <name>', 'MISSING_ARG');
-  const socket = autoStart ? await connectWithAutoStart() : await connectOnce();
+  const connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+  const socket = connection?.socket ?? null;
   if (!socket) error('Cannot connect to daemon', autoStart ? 'CONNECT_ERROR' : 'NO_DAEMON');
 
   let condition = "window.headsup && typeof window.headsup.receive === 'function'";
@@ -569,11 +573,17 @@ async function postCommand(args) {
 
 async function listenCommand(args) {
   if (args.length > 0) error(`Unknown argument: ${args[0]}`, 'UNKNOWN_ARG');
-  const socket = await connectWithAutoStart();
+  const connection = await connectWithAutoStart({ managed: true });
+  const socket = connection?.socket ?? null;
+  const daemon = connection?.daemon ?? null;
   if (!socket) error('Failed to start aos daemon', 'DAEMON_START_FAILED');
 
+  let closing = false;
   const close = () => {
+    if (closing) return;
+    closing = true;
     socket.end();
+    if (daemon && !daemon.killed) daemon.kill('SIGKILL');
     process.exit(0);
   };
   process.once('SIGINT', close);
@@ -582,12 +592,13 @@ async function listenCommand(args) {
   socket.on('data', (chunk) => {
     process.stdout.write(chunk);
   });
-  socket.once('close', () => process.exit(0));
-  socket.once('error', () => process.exit(0));
+  socket.once('close', close);
+  socket.once('error', close);
 
   process.stdin.on('data', (chunk) => {
     socket.write(chunk);
   });
+  process.stdin.once('end', close);
 
   socket.write(`${JSON.stringify({ action: 'subscribe' })}\n`);
 }

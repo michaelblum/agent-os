@@ -69,6 +69,36 @@ else
 fi
 rm -f /tmp/aos-show-bogus.out /tmp/aos-show-bogus.err
 
+LISTEN_ROOT="$(mktemp -d)"
+if AOS_STATE_ROOT="$LISTEN_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos show listen >/tmp/aos-show-listen-cleanup.out 2>/tmp/aos-show-listen-cleanup.err < /dev/null; then
+    sleep 1
+    if SOCK="$LISTEN_ROOT/repo/sock" node - <<'NODE'
+const net = require('node:net');
+const socket = net.createConnection(process.env.SOCK);
+const timer = setTimeout(() => {
+  socket.destroy();
+  process.exit(0);
+}, 250);
+socket.once('connect', () => {
+  clearTimeout(timer);
+  socket.end();
+  process.exit(1);
+});
+socket.once('error', () => {
+  clearTimeout(timer);
+  process.exit(0);
+});
+NODE
+    then
+        pass "show listen cleans up isolated auto-start daemon on stdin close"
+    else
+        fail "show listen left isolated daemon reachable after stdin close"
+    fi
+else
+    fail "show listen cleanup smoke failed: $(cat /tmp/aos-show-listen-cleanup.err)"
+fi
+rm -rf "$LISTEN_ROOT" /tmp/aos-show-listen-cleanup.out /tmp/aos-show-listen-cleanup.err
+
 if ./aos dev external-dispatch-bogus >/tmp/aos-dev-bogus.out 2>/tmp/aos-dev-bogus.err; then
     fail "dev unknown subcommand succeeded"
 else
