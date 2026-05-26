@@ -34,5 +34,25 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-seed-bogus.err" || {
   exit 1
 }
 
+if ./aos wiki seed extra 2>"$ROOT/wiki-seed-extra.err"; then
+  echo "FAIL: wiki seed accepted extra positional"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-seed-extra.err" || {
+  echo "FAIL: wiki seed extra positional did not use UNKNOWN_ARG"
+  cat "$ROOT/wiki-seed-extra.err"
+  exit 1
+}
+
+if ./aos wiki seed --namespace 2>"$ROOT/wiki-seed-missing-value.err"; then
+  echo "FAIL: wiki seed accepted missing --namespace value"
+  exit 1
+fi
+grep -q '"code": "MISSING_ARG"' "$ROOT/wiki-seed-missing-value.err" || {
+  echo "FAIL: wiki seed missing --namespace value did not use MISSING_ARG"
+  cat "$ROOT/wiki-seed-missing-value.err"
+  exit 1
+}
+
 rm -rf "$TESTDIR"
 echo "PASS"

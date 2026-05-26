@@ -72,4 +72,24 @@ grep -q '"code": "UNKNOWN_FLAG"' "$TMP/wiki-migrate-bogus.err" || {
   exit 1
 }
 
+if ./aos wiki migrate-namespaces extra 2>"$TMP/wiki-migrate-extra.err"; then
+  echo "FAIL: migrate-namespaces accepted extra positional"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$TMP/wiki-migrate-extra.err" || {
+  echo "FAIL: migrate-namespaces extra positional did not use UNKNOWN_ARG"
+  cat "$TMP/wiki-migrate-extra.err"
+  exit 1
+}
+
+if ./aos wiki migrate-namespaces --wiki-root 2>"$TMP/wiki-migrate-missing-value.err"; then
+  echo "FAIL: migrate-namespaces accepted missing --wiki-root value"
+  exit 1
+fi
+grep -q '"code": "MISSING_ARG"' "$TMP/wiki-migrate-missing-value.err" || {
+  echo "FAIL: migrate-namespaces missing --wiki-root value did not use MISSING_ARG"
+  cat "$TMP/wiki-migrate-missing-value.err"
+  exit 1
+}
+
 echo "PASS"

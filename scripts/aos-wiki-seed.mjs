@@ -10,6 +10,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${arg.startsWith('--') ? 'flag' : 'argument'}: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function runtimeMode() {
   return process.env.AOS_RUNTIME_MODE === 'installed' ? 'installed' : 'repo';
 }
@@ -120,9 +124,12 @@ const namespace = valueAfter(args, '--namespace');
 const allowed = new Set(['--json', '--force', '--from', '--namespace', '--file']);
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i];
-  if (!arg.startsWith('--')) continue;
-  if (!allowed.has(arg)) error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
-  if (['--from', '--namespace', '--file'].includes(arg)) i += 1;
+  if (!arg.startsWith('--')) unknownArg(arg);
+  if (!allowed.has(arg)) unknownArg(arg);
+  if (['--from', '--namespace', '--file'].includes(arg)) {
+    i += 1;
+    if (i >= args.length) error(`${arg} requires a value`, 'MISSING_ARG');
+  }
 }
 
 if (namespace) {

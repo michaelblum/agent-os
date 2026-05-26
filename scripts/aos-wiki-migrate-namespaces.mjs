@@ -9,6 +9,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${arg.startsWith('--') ? 'flag' : 'argument'}: ${arg}`, arg.startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function runtimeMode() {
   return process.env.AOS_RUNTIME_MODE === 'installed' ? 'installed' : 'repo';
 }
@@ -57,8 +61,16 @@ function migrateIfNeeded(wikiRoot) {
 
 const args = process.argv.slice(2);
 const asJSON = args.includes('--json');
-const unknownFlag = args.find((arg, idx) => arg.startsWith('--') && !['--wiki-root', '--json'].includes(arg) && args[idx - 1] !== '--wiki-root');
-if (unknownFlag) error(`Unknown flag: ${unknownFlag}`, 'UNKNOWN_FLAG');
+for (let i = 0; i < args.length; i += 1) {
+  const arg = args[i];
+  if (arg === '--json') continue;
+  if (arg === '--wiki-root') {
+    i += 1;
+    if (i >= args.length) error('--wiki-root requires a value', 'MISSING_ARG');
+    continue;
+  }
+  unknownArg(arg);
+}
 
 const wikiRoot = path.resolve(expandHome(valueAfter(args, '--wiki-root') || defaultWikiRoot()));
 
