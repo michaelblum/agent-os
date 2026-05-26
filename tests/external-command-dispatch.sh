@@ -113,6 +113,8 @@ rm -rf "$ZONE_ROOT" /tmp/aos-see-zone-define.out /tmp/aos-see-zone-define.err /t
 
 if python3 - <<'PY'
 import json
+import re
+from pathlib import Path
 
 manifest = json.load(open("manifests/commands/aos-external-commands.json", encoding="utf-8"))
 commands = {tuple(item["path"]): item for item in manifest["commands"]}
@@ -169,6 +171,10 @@ assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-show-render.mjs"], command
 assert command["stdio"] == "inherit", command
 assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+show_client = Path("scripts/aos-show-client.mjs").read_text(encoding="utf-8")
+update_case = re.search(r"case 'update':(?P<body>.*?)break;", show_client, re.S)
+assert update_case, "show update switch case missing"
+assert update_case.group("body").count("mutationCommand(args, 'update')") == 1, update_case.group("body")
 for path, primitive in [
     (("serve",), "__serve"),
     (("status",), "__status"),
