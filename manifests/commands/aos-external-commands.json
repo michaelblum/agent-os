@@ -41,12 +41,17 @@
     {
       "path": ["do"],
       "summary": "Print do command help when no subcommand is provided.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["help", "do"],
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-help-proxy.mjs", "do"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "child_arg_missing": true
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
@@ -561,12 +566,17 @@
     {
       "path": ["see"],
       "summary": "Print see command help when no subcommand is provided.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["help", "see"],
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-help-proxy.mjs", "see"],
       "cwd": "repo",
       "when": {
         "child_arg_index": 0,
         "child_arg_missing": true
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
       }
     },
     {
