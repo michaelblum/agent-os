@@ -107,12 +107,21 @@ function parseCaptureArgs(args) {
   if (surfaceSelectors.length > 1) error('Use only one of --region, --canvas, or --channel', 'INVALID_ARG');
 }
 
+function parseNoArgPrimitive(primitive, args) {
+  for (const arg of args) {
+    if (arg === '--json') continue;
+    if (String(arg).startsWith('--')) error(`Unknown see ${primitive} flag: ${arg}`, 'UNKNOWN_FLAG');
+    error(`Unknown see ${primitive} argument: ${arg}`, 'UNKNOWN_ARG');
+  }
+}
+
 const [primitive, ...args] = process.argv.slice(2);
 if (!primitive) error('see native wrapper requires a primitive', 'MISSING_ARG');
 if (!['capture', 'cursor', 'list', 'selection'].includes(primitive)) {
   error(`Unknown see native primitive: ${primitive}`, 'UNKNOWN_SUBCOMMAND');
 }
 if (primitive === 'capture') parseCaptureArgs(args);
+if (['cursor', 'list', 'selection'].includes(primitive)) parseNoArgPrimitive(primitive, args);
 
 const result = spawnSync(aosPath(), ['__see', primitive, ...args], {
   encoding: 'utf8',

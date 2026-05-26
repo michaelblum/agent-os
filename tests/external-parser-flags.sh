@@ -116,6 +116,12 @@ check_missing_arg do-native-resize-pid-invalid ./aos do resize --pid nope --to 3
 check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected
+check_unknown_flag see-cursor-unknown-flag ./aos see cursor --bogus
+check_unknown_arg see-cursor-extra ./aos see cursor unexpected
+check_unknown_flag see-list-unknown-flag ./aos see list --bogus
+check_unknown_arg see-list-extra ./aos see list unexpected
+check_unknown_flag see-selection-unknown-flag ./aos see selection --bogus
+check_unknown_arg see-selection-extra ./aos see selection unexpected
 check_unknown_flag see-capture-unknown-flag ./aos see capture main --bogus
 check_unknown_arg see-capture-extra ./aos see capture main unexpected
 check_missing_arg see-capture-out-missing ./aos see capture main --out
