@@ -222,7 +222,7 @@ aos_visual_launch_canvas_inspector() {
   "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
   "$aos_bin" content wait --root toolkit --auto-start --timeout 15s >/dev/null
 
-  display_json="$("$aos_bin" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
+  display_json="$("$aos_bin" graph displays 2>/dev/null || echo '{"data":{"displays":[]}}')"
   read -r x y <<EOF
 $(PANEL_W="$panel_w" PANEL_H="$panel_h" python3 -c "
 import json, os, sys

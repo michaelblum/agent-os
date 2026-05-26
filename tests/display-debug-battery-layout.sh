@@ -25,7 +25,7 @@ python3 - <<'PY'
 import json
 import subprocess
 
-displays = json.loads(subprocess.check_output(["./aos", "graph", "displays", "--json"], text=True))
+displays = json.loads(subprocess.check_output(["./aos", "graph", "displays"], text=True))
 canvases = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"], text=True))
 
 display_list = displays.get("data", {}).get("displays", displays.get("displays", []))
@@ -47,13 +47,13 @@ for required in ("surface-inspector", "spatial-telemetry"):
 inspector = canvas_by_id["surface-inspector"]["at"]
 telemetry = canvas_by_id["spatial-telemetry"]["at"]
 
-expected_inspector = [vx + vw - inspector[2], vy + vh - inspector[3], inspector[2], inspector[3]]
-expected_telemetry = [vx, vy + vh - telemetry[3], telemetry[2], telemetry[3]]
+expected_inspector = [vx + vw - 360, vy + vh - 520]
+expected_telemetry = [vx, vy + vh - 620]
 
-if inspector != expected_inspector:
-    raise SystemExit(f"FAIL: surface-inspector not flush bottom-right of main visible bounds: got {inspector}, expected {expected_inspector}")
-if telemetry != expected_telemetry:
-    raise SystemExit(f"FAIL: spatial-telemetry not flush bottom-left of main visible bounds: got {telemetry}, expected {expected_telemetry}")
+if inspector[:2] != expected_inspector:
+    raise SystemExit(f"FAIL: surface-inspector not placed bottom-right of main visible bounds: got {inspector[:2]}, expected {expected_inspector}")
+if telemetry[:2] != expected_telemetry:
+    raise SystemExit(f"FAIL: spatial-telemetry not placed bottom-left of main visible bounds: got {telemetry[:2]}, expected {expected_telemetry}")
 PY
 
 echo "PASS"

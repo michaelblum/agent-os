@@ -26,7 +26,7 @@ fi
 aos_ensure_content_roots_live "$AOS" \
   "$TOOLKIT_CONTENT_ROOT" "$ROOT/packages/toolkit"
 
-DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"displays":[]}')"
+DISPLAY_JSON="$("$AOS" graph displays 2>/dev/null || echo '{"displays":[]}')"
 GEOMETRY="$(
   echo "$DISPLAY_JSON" | python3 -c '
 import json, sys
