@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Observed schema (as of Task 15): CommandDescriptor paths are single-element
-# for `do`, `show`, `focus` — subcommands like `focus create` are distinguished
-# by form .id (e.g. "focus-create"), not by a compound path array. (Contrast:
-# `see zone` does register as ["see","zone"].) Filter by form id, not by a
-# presumed compound path.
+# The external help manifest keeps several command families at a single public
+# path. For `do`, `show`, and `focus`, forms such as `focus create` are
+# distinguished by form .id (for example "focus-create"), not by a compound
+# path array. `see zone` is intentionally registered as ["see","zone"]. Filter
+# by form id when asserting family-level forms.
 
 j=$(./aos help --json)
 
