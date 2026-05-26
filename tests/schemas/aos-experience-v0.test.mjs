@@ -11,6 +11,14 @@ const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-experience-v0.schema.json');
 const sigilManifestPath = path.join(repoRoot, 'experiences/sigil/aos-experience.json');
 
+function scopedRootName(prefix) {
+  const result = spawnSync('git', ['-C', repoRoot, 'branch', '--show-current'], { encoding: 'utf8' });
+  const branch = result.status === 0 ? result.stdout.trim() : '';
+  if (!branch || branch === 'main') return prefix;
+  const suffix = branch.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'worktree';
+  return `${prefix}_${suffix}`;
+}
+
 function validate(instancePath) {
   return spawnSync(
     'python3',
@@ -51,6 +59,13 @@ test('Sigil experience is exclusive and status-item-first', async () => {
   assert.equal(manifest.default_activation.status_item_first, true);
   assert.equal(manifest.default_activation.avatar_entry, 'avatar');
   assert.equal(manifest.status_item.toggle_surface.id, 'avatar-main');
+  assert.deepEqual(manifest.hooks, [
+    {
+      phase: 'before_activate',
+      script: 'apps/sigil/sigilctl-seed.sh',
+      argv: ['--mode', '${mode}'],
+    },
+  ]);
   assert.equal(manifest.branding.display_name, 'Sigil');
   assert.deepEqual(manifest.vanilla_fallback.tools, ['avatar-terminal', 'graph-wiki', 'inspectors']);
   assert.equal(manifest.surfaces['legacy-workbench'].legacy, true);
@@ -101,19 +116,23 @@ process.exit(0);
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line));
+  const toolkitRoot = scopedRootName('toolkit');
+  const sigilRoot = scopedRootName('sigil');
   assert(calls.some((args) => args.join('\0') === ['content', 'status', '--json'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['service', 'restart', '--mode', 'repo'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === [
     'content',
     'wait',
     '--root',
-    'toolkit_feat_command_surface_extraction',
+    toolkitRoot,
     '--root',
-    'sigil_feat_command_surface_extraction',
+    sigilRoot,
     '--auto-start',
     '--timeout',
     '15s',
   ].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === ['wiki', 'seed'].join('\0')), calls);
+  assert(calls.some((args) => args[0] === 'wiki' && args[1] === 'seed' && args[2] === '--namespace' && args[3] === 'sigil'), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.enabled', 'false'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'avatar'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_url', ''].join('\0')), calls);

@@ -26,6 +26,13 @@
       "branch_scoped": true
     }
   ],
+  "hooks": [
+    {
+      "phase": "before_activate",
+      "script": "apps/sigil/sigilctl-seed.sh",
+      "argv": ["--mode", "${mode}"]
+    }
+  ],
   "status_item": {
     "enabled": true,
     "label": "Sigil",

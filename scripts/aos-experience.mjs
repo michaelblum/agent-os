@@ -73,6 +73,12 @@ function discoverExperience(id) {
   return manifest;
 }
 
+function findExperience(id) {
+  if (!id) return null;
+  const file = path.join(repoRoot, 'experiences', id, 'aos-experience.json');
+  return fs.existsSync(file) ? discoverExperience(id) : null;
+}
+
 function branchName() {
   const result = run('git', ['-C', repoRoot, 'branch', '--show-current']);
   return result.status === 0 ? result.stdout.trim() : '';
@@ -114,11 +120,14 @@ function rootMap(roots) {
 
 function template(value, rootsByID) {
   if (typeof value !== 'string') return value;
-  return value.replace(/\$\{root:([A-Za-z0-9_-]+)\}/g, (_, id) => {
-    const root = rootsByID[id];
-    if (!root) throw new ExperienceFailure(`Unknown content root template: ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
-    return root.key;
-  });
+  return value
+    .replace(/\$\{root:([A-Za-z0-9_-]+)\}/g, (_, id) => {
+      const root = rootsByID[id];
+      if (!root) throw new ExperienceFailure(`Unknown content root template: ${id}`, 'INVALID_EXPERIENCE_MANIFEST');
+      return root.key;
+    })
+    .replace(/\$\{mode\}/g, mode)
+    .replace(/\$\{repo_root\}/g, repoRoot);
 }
 
 function runContentStatus() {
@@ -292,6 +301,17 @@ function configureStatusItem(manifest, roots, steps) {
   steps.push({ id: 'status-item', status: 'success', mode: 'experience', label: manifest.status_item.label });
 }
 
+function runHooks(manifest, phase, roots, steps) {
+  const rootsByID = rootMap(roots);
+  for (const hook of manifest.hooks || []) {
+    if (hook.phase !== phase) continue;
+    const scriptPath = resolveRepoPath(hook.script, 'hook.script');
+    const argv = (hook.argv || []).map((arg) => template(arg, rootsByID));
+    requireSuccess(run(scriptPath, argv, { cwd: repoRoot }), `hook ${hook.script}`);
+    steps.push({ id: `hook:${phase}:${hook.script}`, status: 'success', argv });
+  }
+}
+
 function activate(id, asJSON, dryRun) {
   const manifest = discoverExperience(id);
   const roots = resolveContentRoots(manifest);
@@ -303,9 +323,11 @@ function activate(id, asJSON, dryRun) {
   }
   const steps = [];
   ensureContentRoots(roots, steps);
+  runHooks(manifest, 'before_activate', roots, steps);
   configureStatusItem(manifest, roots, steps);
   writeActiveExperience(manifest.id);
   steps.push({ id: 'experience:active', status: 'success', active_experience: manifest.id, exclusive: true });
+  runHooks(manifest, 'after_activate', roots, steps);
   if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: manifest.id, steps });
   else process.stdout.write(`${manifest.title} experience active.\n`);
 }
@@ -331,6 +353,10 @@ function deactivate(asJSON, dryRun) {
     else process.stdout.write('dry-run deactivate experience: disable status item\n');
     return;
   }
+  const manifest = findExperience(activeID);
+  const roots = manifest ? resolveContentRoots(manifest) : [];
+  const steps = [];
+  if (manifest) runHooks(manifest, 'before_deactivate', roots, steps);
   const values = [
     ['status_item.enabled', 'false'],
     ['status_item.toggle_id', 'avatar'],
@@ -340,7 +366,9 @@ function deactivate(asJSON, dryRun) {
   ];
   for (const [key, value] of values) requireSuccess(runAos(['config', 'set', key, value]), `set ${key}`);
   writeActiveExperience(null);
-  if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: null, steps: [{ id: 'experience:inactive', status: 'success' }, { id: 'status-item', status: 'success', mode: 'disabled' }] });
+  steps.push({ id: 'experience:inactive', status: 'success' }, { id: 'status-item', status: 'success', mode: 'disabled' });
+  if (manifest) runHooks(manifest, 'after_deactivate', roots, steps);
+  if (asJSON) emitJSON({ status: 'success', code: 'OK', ...planned, active_experience: null, steps });
   else process.stdout.write('active experience cleared; status item disabled until vanilla menu is implemented.\n');
 }
 
