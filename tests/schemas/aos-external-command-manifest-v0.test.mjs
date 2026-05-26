@@ -88,6 +88,17 @@ function routeConditionSamples(routes) {
   return [...samples];
 }
 
+function collectManifestPlaceholders(value, out = new Set()) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectManifestPlaceholders(item, out);
+  } else if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) collectManifestPlaceholders(item, out);
+  } else if (typeof value === 'string' && value.startsWith('$')) {
+    out.add(value.split('/')[0]);
+  }
+  return out;
+}
+
 test('canonical external command manifest matches the schema', () => {
   const result = validate(manifestPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -107,6 +118,17 @@ test('external command manifest executable targets exist', async () => {
     if (command.executable === '/bin/bash' && first?.startsWith('scripts/')) {
       assert.equal(existsSync(path.join(repoRoot, first)), true, `${command.path.join(' ')} script missing: ${first}`);
     }
+  }
+});
+
+test('external command manifest placeholders are resolved by Swift dispatcher', async () => {
+  const manifest = await loadJson(manifestPath);
+  const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
+  const resolved = new Set([...source.matchAll(/value == "(\$[A-Z0-9_]+)"/g)].map((match) => match[1]));
+  resolved.add('$REPO_ROOT');
+
+  for (const placeholder of collectManifestPlaceholders(manifest)) {
+    assert.ok(resolved.has(placeholder), `manifest placeholder is not resolved by Swift dispatcher: ${placeholder}`);
   }
 });
 
