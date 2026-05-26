@@ -5,6 +5,8 @@ import {
   gateContinuationDir,
 } from '../../daemon/gate/continuations.js';
 
+const STATUSES = new Set(['pending', 'submitted', 'cancelled', 'expired']);
+
 function usage() {
   return `Usage:
   aos gate continuations --json
@@ -32,6 +34,9 @@ function parseArgs(argv) {
   }
   if (!Number.isFinite(parsed.limit) || parsed.limit < 0) {
     throw new Error('--limit must be a non-negative number');
+  }
+  if (parsed.status !== null && !STATUSES.has(parsed.status)) {
+    throw new Error(`--status must be one of: ${[...STATUSES].join(', ')}`);
   }
   return parsed;
 }

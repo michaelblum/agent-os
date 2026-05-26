@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { GateRecordStore, gateRecordPath } from '../../daemon/gate/records.js';
 
+const STATUSES = new Set(['answered', 'dismissed', 'timeout', 'error']);
+
 function usage() {
   return `Usage:
   aos gate records --json
@@ -28,6 +30,9 @@ function parseArgs(argv) {
   }
   if (!Number.isFinite(parsed.limit) || parsed.limit < 0) {
     throw new Error('--limit must be a non-negative number');
+  }
+  if (parsed.status !== null && !STATUSES.has(parsed.status)) {
+    throw new Error(`--status must be one of: ${[...STATUSES].join(', ')}`);
   }
   return parsed;
 }

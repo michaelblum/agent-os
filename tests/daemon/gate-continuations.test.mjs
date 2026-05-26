@@ -122,6 +122,16 @@ test('readback filters continuations by id and status', async () => {
   assert.equal((await store.list({ id: second.continuation_id, status: 'expired' })).length, 1);
 });
 
+test('continuation readback rejects status values outside the manifest enum', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateContinuations(['--status', 'answered', '--json'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--status must be one of: pending, submitted, cancelled, expired/);
+});
+
 test('submit marks pending continuation submitted and writes a human-authored resume event and one gate record', async () => {
   const stateRoot = await mkdtemp(join(tmpdir(), 'aos-deferred-submit-'));
   const recordStore = new GateRecordStore({ path: join(stateRoot, 'repo', 'gate', 'records.jsonl') });
