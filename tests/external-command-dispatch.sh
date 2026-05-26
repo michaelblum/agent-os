@@ -81,6 +81,10 @@ for path in [("see", "cursor"), ("see", "list"), ("see", "selection")]:
 command = commands[("say",)]
 assert command["executable"] == "$AOS_PATH", command
 assert command["argv_prefix"] == ["__say"], command
+for primitive in ["press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
+    command = commands[("do", primitive)]
+    assert command["executable"] == "$AOS_PATH", command
+    assert command["argv_prefix"] == ["__do", primitive], command
 PY
 then
     pass "live-sensitive native primitives are routed through the external command manifest"

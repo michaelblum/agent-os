@@ -47,6 +47,8 @@ struct AOS {
             handleSeePrimitive(args: Array(args.dropFirst()))
         case "__say":
             sayCommand(args: Array(args.dropFirst()))
+        case "__do":
+            handleDoPrimitive(args: Array(args.dropFirst()))
         case "--help", "-h", "help":
             helpCommand(args: Array(args.dropFirst()))
         default:
@@ -90,6 +92,18 @@ func handleDo(args: [String]) {
     case "key":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do key", requiresInputTap: true) }
         cliKey(args: subArgs)
+    default:
+        exitError("Unknown do subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func handleDoPrimitive(args: [String]) {
+    guard let sub = args.first else {
+        exitError("__do requires a primitive", code: "MISSING_ARG")
+    }
+
+    let subArgs = Array(args.dropFirst())
+    switch sub {
     case "press":
         ensureInteractivePreflight(command: "aos do press", requiresInputTap: true)
         cliPress(args: subArgs)
@@ -115,7 +129,7 @@ func handleDo(args: [String]) {
         ensureInteractivePreflight(command: "aos do session", requiresInputTap: true)
         runSession(profileName: getArg(subArgs, "--profile") ?? "natural")
     default:
-        exitError("Unknown do subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
+        exitError("Unknown __do primitive: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
 }
 

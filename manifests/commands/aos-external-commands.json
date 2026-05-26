@@ -144,6 +144,62 @@
       }
     },
     {
+      "path": ["do", "press"],
+      "summary": "Press a native input target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "press"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["do", "set-value"],
+      "summary": "Set a native field value through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "set-value"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["do", "focus"],
+      "summary": "Focus a native target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "focus"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["do", "raise"],
+      "summary": "Raise a native target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "raise"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["do", "move"],
+      "summary": "Move a native target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "move"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["do", "resize"],
+      "summary": "Resize a native target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "resize"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["do", "tell"],
+      "summary": "Tell a native target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "tell"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["do", "session"],
+      "summary": "Run a native action session through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "session"],
+      "cwd": "repo"
+    },
+    {
       "path": ["inspect"],
       "summary": "Run the live AX inspector overlay through the external inspect command.",
       "executable": "/usr/bin/env",
