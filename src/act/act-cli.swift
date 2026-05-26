@@ -306,11 +306,6 @@ func cliResize(args: [String]) {
 /// `aos do click` — click at coordinates.
 func cliClick(args: [String]) {
     let positional = positionalArgs(args)
-    if let first = positional.first, first.hasPrefix("browser:") {
-        dispatchBrowserVerb("click", targetString: first,
-                            remaining: Array(positional.dropFirst()), flags: args)
-        return
-    }
     if let first = positional.first, first.hasPrefix("canvas:") {
         cliClickCanvasRef(targetString: first, args: args)
         return
@@ -320,7 +315,7 @@ func cliClick(args: [String]) {
     let state = cliSessionState(args: args)
 
     guard let first = positional.first, let coords = parseCoords(first) else {
-        exitError("click requires coordinates (x,y), browser:<session>/<ref>, or canvas:<canvas-id>/<ref>", code: "MISSING_ARG")
+        exitError("click requires coordinates (x,y) or canvas:<canvas-id>/<ref>", code: "MISSING_ARG")
     }
 
     let isRight = hasFlag(args, "--right")
@@ -397,11 +392,6 @@ private func cliClickCanvasRef(targetString: String, args: [String]) {
 /// `aos do hover` — move cursor to coordinates.
 func cliHover(args: [String]) {
     let positional = positionalArgs(args)
-    if let first = positional.first, first.hasPrefix("browser:") {
-        dispatchBrowserVerb("hover", targetString: first,
-                            remaining: Array(positional.dropFirst()), flags: args)
-        return
-    }
     let dryRun = hasFlag(args, "--dry-run")
     let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
@@ -430,38 +420,6 @@ func cliHover(args: [String]) {
 /// `aos do drag` — drag from one point to another.
 func cliDrag(args: [String]) {
     let positional = positionalArgs(args)
-    if let first = positional.first, first.hasPrefix("browser:"),
-       positional.indices.contains(1), positional[1].hasPrefix("browser:") {
-        // Both endpoints must be the same session. Playwright's drag verb
-        // takes two refs on a single page; we bypass the single-target
-        // doVerb() helper and call runPlaywright() directly.
-        do {
-            let fromT = try parseBrowserTarget(first)
-            let toT = try parseBrowserTarget(positional[1])
-            guard fromT.session == toT.session else {
-                exitError("drag endpoints must share the same browser session", code: "INVALID_TARGET")
-            }
-            guard let fromRef = fromT.ref, let toRef = toT.ref else {
-                exitError("drag requires ref on both endpoints (browser:<s>/<ref>)", code: "INVALID_TARGET")
-            }
-            let r = try runPlaywright(PlaywrightInvocation(
-                session: fromT.session, verb: "drag",
-                args: [fromRef, toRef],
-                withTempFilename: false
-            ))
-            try requireSuccess(r, action: "drag")
-            emitDoResult(r, backend: "playwright", strategy: "playwright_drag", stateID: getArg(args, "--state-id"))
-            return
-        } catch BrowserTargetError.invalid(let msg) {
-            exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")
-        } catch BrowserTargetError.missingSession {
-            exitError("PLAYWRIGHT_CLI_SESSION not set", code: "MISSING_SESSION")
-        } catch BrowserAdapterError.subprocess(let msg, let code) {
-            exitError(msg, code: code)
-        } catch {
-            exitError("\(error)", code: "INTERNAL")
-        }
-    }
     let dryRun = hasFlag(args, "--dry-run")
     let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
@@ -504,11 +462,6 @@ func cliDrag(args: [String]) {
 /// `aos do scroll` — scroll at coordinates.
 func cliScroll(args: [String]) {
     let positional = positionalArgs(args)
-    if let first = positional.first, first.hasPrefix("browser:") {
-        dispatchBrowserVerb("scroll", targetString: first,
-                            remaining: Array(positional.dropFirst()), flags: args)
-        return
-    }
     let dryRun = hasFlag(args, "--dry-run")
     let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
@@ -552,11 +505,6 @@ func cliScroll(args: [String]) {
 /// `aos do type` — type text string.
 func cliType(args: [String]) {
     let positional = positionalArgs(args)
-    if let first = positional.first, first.hasPrefix("browser:") {
-        dispatchBrowserVerb("type", targetString: first,
-                            remaining: Array(positional.dropFirst()), flags: args)
-        return
-    }
     let dryRun = hasFlag(args, "--dry-run")
     let state = cliSessionState(args: args)
 
@@ -593,11 +541,6 @@ func cliType(args: [String]) {
 /// `aos do key` — press a key combo (e.g. cmd+s).
 func cliKey(args: [String]) {
     let positional = positionalArgs(args)
-    if let first = positional.first, first.hasPrefix("browser:") {
-        dispatchBrowserVerb("key", targetString: first,
-                            remaining: Array(positional.dropFirst()), flags: args)
-        return
-    }
     let dryRun = hasFlag(args, "--dry-run")
     let state = cliSessionState(args: args)
 
@@ -656,103 +599,4 @@ func cliTell(args: [String]) {
 
     let detail = result?.stringValue
     cliPrintLegacy(action: "tell", backend: "applescript", target: target, detail: detail, dryRun: false)
-}
-
-// MARK: - Browser-Target Dispatch (Task 9)
-
-/// Route an aos `do` verb to playwright-cli when the first positional argument
-/// is a `browser:<session>[/<ref>]` target. Verb translation (key -> press,
-/// scroll -> mousewheel) happens here so the browser adapter stays
-/// playwright-native.
-///
-/// - Parameters:
-///   - aosVerb: the aos verb name ("click", "hover", "scroll", "type", "key").
-///   - targetString: the raw `browser:...` string for `parseBrowserTarget`.
-///   - remaining: positional args after the target (e.g. text to type,
-///     "100,200" scroll deltas, or the key combo).
-///   - flags: the full original arg list, still containing `--right` /
-///     `--double` / similar flag tokens stripped by `positionalArgs(_:)`.
-func dispatchBrowserVerb(_ aosVerb: String, targetString: String, remaining: [String], flags: [String]) {
-    let pwVerb: String
-    switch aosVerb {
-    case "key":      pwVerb = "press"
-    case "scroll":   pwVerb = "mousewheel"
-    case "navigate": pwVerb = "goto"
-    default:         pwVerb = aosVerb
-    }
-    do {
-        let t = try parseBrowserTarget(targetString)
-        var extra: [String] = []
-        switch pwVerb {
-        case "click":
-            if flags.contains("--right") {
-                extra = ["right"]
-            } else if flags.contains("--double") {
-                // Translate `aos do click --double browser:<s>/<ref>` into
-                // playwright's dblclick verb.
-                let r = try doVerb("dblclick", target: t)
-                try requireSuccess(r, action: "dblclick")
-                emitDoResult(r, backend: "playwright", strategy: "playwright_dblclick", stateID: getArg(flags, "--state-id"))
-                return
-            }
-        case "type", "press":
-            if remaining.indices.contains(0) {
-                extra.append(remaining[0])
-            }
-        case "mousewheel":
-            if remaining.indices.contains(0) {
-                let parts = remaining[0].split(separator: ",").map(String.init)
-                if parts.count == 2 {
-                    extra = [parts[0], parts[1]]
-                }
-            }
-        case "fill":
-            // fill requires target.ref to know which element to fill.
-            guard t.ref != nil else {
-                exitError("aos do fill requires a ref (browser:<session>/<ref>)",
-                          code: "INVALID_TARGET")
-            }
-            if remaining.indices.contains(0) { extra.append(remaining[0]) }
-        case "goto":
-            if remaining.indices.contains(0) { extra.append(remaining[0]) }
-        default:
-            break
-        }
-        let r = try doVerb(pwVerb, target: t, extraArgs: extra)
-        try requireSuccess(r, action: pwVerb)
-        emitDoResult(r, backend: "playwright", strategy: "playwright_\(pwVerb)", stateID: getArg(flags, "--state-id"))
-    } catch BrowserTargetError.invalid(let msg) {
-        exitError("invalid browser target: \(msg)", code: "INVALID_TARGET")
-    } catch BrowserTargetError.missingSession {
-        exitError("PLAYWRIGHT_CLI_SESSION not set", code: "MISSING_SESSION")
-    } catch BrowserAdapterError.versionCheckFailed(let msg, let code) {
-        exitError(msg, code: code)
-    } catch BrowserAdapterError.subprocess(let msg, let code) {
-        exitError(msg, code: code)
-    } catch {
-        exitError("\(error)", code: "INTERNAL")
-    }
-}
-
-/// Emit the `{status, result}` JSON payload for a PlaywrightResult from a
-/// browser-target `do` verb.
-func emitDoResult(_ r: PlaywrightResult, backend: String = "playwright", strategy: String = "playwright_do", stateID: String? = nil) {
-    struct Payload: Encodable {
-        let status: String
-        let result: PlaywrightResult
-        let execution: ActionExecutionMetadata
-    }
-    let payload = Payload(
-        status: r.exit_code == 0 ? "success" : "error",
-        result: r,
-        execution: ActionExecutionMetadata(
-            strategy: strategy,
-            backend: backend,
-            fallback_used: false,
-            state_id: stateID
-        )
-    )
-    let enc = JSONEncoder()
-    enc.outputFormatting = [.sortedKeys]
-    print(String(data: try! enc.encode(payload), encoding: .utf8)!)
 }
