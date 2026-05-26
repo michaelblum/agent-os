@@ -290,6 +290,30 @@ test('registry concrete usage forms have external routes', async () => {
   }
 });
 
+test('external-only routes are explicitly private helper paths', async () => {
+  const manifest = await loadJson(manifestPath);
+  const registry = await loadJson(registryPath);
+  const registryPaths = new Set(registry.commands.map((command) => command.path.join('\0')));
+  const formPaths = new Set();
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      const concrete = concreteUsagePath(form);
+      if (concrete?.length) formPaths.add(concrete.join('\0'));
+    }
+  }
+
+  for (const command of manifest.commands) {
+    const key = command.path.join('\0');
+    if (registryPaths.has(key) || formPaths.has(key)) continue;
+
+    assert.ok(
+      command.path.some((part) => part.startsWith('_')),
+      `${command.path.join(' ')} is externally routed but not discoverable in the registry`,
+    );
+  }
+});
+
 test('piped registry usage forms resolve to their aos command path', async () => {
   const registry = await loadJson(registryPath);
   const logCommand = registry.commands.find((command) => command.path.join(' ') === 'log');
