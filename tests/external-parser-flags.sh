@@ -207,6 +207,26 @@ if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
   cat "$err" >&2
   exit 1
 fi
+err="$STATE_ROOT/see-capture-format-invalid.err"
+if ./aos see capture main --format gif 2>"$err"; then
+  echo "FAIL: see capture accepted invalid --format value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: see capture invalid --format value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/see-capture-quality-invalid.err"
+if ./aos see capture main --quality ultra 2>"$err"; then
+  echo "FAIL: see capture accepted invalid --quality value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: see capture invalid --quality value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 err="$STATE_ROOT/see-capture-region-canvas-conflict.err"
 if ./aos see capture --region 0,0,10,10 --canvas parser-canvas 2>"$err"; then
   echo "FAIL: see capture accepted conflicting --region and --canvas" >&2

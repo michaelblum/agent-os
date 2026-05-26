@@ -2,6 +2,9 @@
 
 import { spawnSync } from 'node:child_process';
 
+const CAPTURE_FORMATS = new Set(['png', 'jpg', 'heic']);
+const CAPTURE_QUALITIES = new Set(['high', 'med', 'low']);
+
 function error(message, code) {
   process.stderr.write(`${JSON.stringify({ code, error: message })}\n`);
   process.exit(1);
@@ -92,6 +95,8 @@ function parseCaptureArgs(args) {
       if (arg === '--delay' && (!isNumeric(value) || Number(value) < 0)) error('--delay must be a non-negative number', 'INVALID_ARG');
       if (arg === '--grid' && !/^[1-9]\d*x[1-9]\d*$/i.test(value)) error('--grid format: COLSxROWS (e.g., 4x3)', 'INVALID_ARG');
       if (arg === '--thickness' && (!isNumeric(value) || Number(value) <= 0)) error('--thickness must be a positive number', 'INVALID_ARG');
+      if (arg === '--format' && !CAPTURE_FORMATS.has(value)) error(`--format must be one of: ${[...CAPTURE_FORMATS].join(', ')}`, 'INVALID_ARG');
+      if (arg === '--quality' && !CAPTURE_QUALITIES.has(value)) error(`--quality must be one of: ${[...CAPTURE_QUALITIES].join(', ')}`, 'INVALID_ARG');
       i += 2;
       continue;
     }
