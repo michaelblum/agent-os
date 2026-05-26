@@ -79,7 +79,7 @@ import subprocess
 import sys
 
 launch_out = pathlib.Path(sys.argv[1]).read_text()
-if "Sigil workbench launched." not in launch_out:
+if "Sigil legacy-workbench launched." not in launch_out:
     raise SystemExit(f"FAIL: launcher did not report success:\n{launch_out}")
 
 payload = json.loads(subprocess.check_output([

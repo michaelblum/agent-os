@@ -40,7 +40,7 @@ test('Sigil radial activation maps wiki item to generic menu activation request'
   assert.equal(request.input_source.kind, 'gesture')
   assert.equal(request.input_source.source, 'sigil.avatar')
   assert.deepEqual(request.input_source.pointer, { x: 160, y: 120 })
-  assert.equal(request.target_surface.kind, 'markdown-workbench')
+  assert.equal(request.target_surface.kind, 'wiki-subject-browser')
   assert.equal(request.target_surface.canvas_id, 'wiki-canvas')
   assert.equal(request.target_surface.subject.id, 'wiki:aos/concepts/example.md')
   assert.equal(request.transition.preset, 'wiki-brain-zoom-dissolve')
@@ -55,6 +55,26 @@ test('Sigil radial activation maps wiki item to generic menu activation request'
     origin: { x: 100, y: 120 },
     release_point: { x: 160, y: 120 },
     item_center: { x: 160, y: 120 },
+  })
+})
+
+test('Sigil radial wiki action targets the current graph-first browser surface', () => {
+  const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
+  const surface = sigilRadialTargetSurfaceForItem(wikiItem, {
+    wikiWorkbenchCanvasId: 'sigil-wiki-workbench',
+    wikiPath: 'aos/concepts/employer-brand-workflow-map.md',
+  })
+
+  assert.deepEqual(surface, {
+    kind: 'wiki-subject-browser',
+    canvas_id: 'sigil-wiki-workbench',
+    subject: {
+      id: 'wiki:aos/concepts/employer-brand-workflow-map.md',
+      source: {
+        kind: 'wiki',
+        path: 'aos/concepts/employer-brand-workflow-map.md',
+      },
+    },
   })
 })
 

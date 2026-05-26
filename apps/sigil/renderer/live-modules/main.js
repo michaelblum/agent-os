@@ -172,7 +172,7 @@ const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
 const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/employer-brand-workflow-map.md';
 const SIGIL_CONTENT_ROOT = currentSigilRoot();
 const TOOLKIT_CONTENT_ROOT = currentToolkitRoot();
-const WIKI_WORKBENCH_URL = toolkitUrl('components/markdown-workbench/index.html');
+const WIKI_WORKBENCH_URL = toolkitUrl('components/wiki-subject-browser/index.html');
 const WIKI_WORKBENCH_DEFAULT_URL = withQuery(WIKI_WORKBENCH_URL, {
     wiki: WIKI_WORKBENCH_DEFAULT_PATH,
     transition: 'fade-in',
@@ -1232,9 +1232,7 @@ async function openWikiWorkbench(path = WIKI_WORKBENCH_DEFAULT_PATH, activation 
         });
     }
     const message = await fetchWikiMarkdownDocument(path);
-    if (!canvas.created) {
-        sendCanvasMessage(WIKI_WORKBENCH_CANVAS_ID, message);
-    }
+    sendCanvasMessage(WIKI_WORKBENCH_CANVAS_ID, message);
     if (currentActivation) {
         sendActivationUpdate(currentActivation, 'completed', {
             result: {

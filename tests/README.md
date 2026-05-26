@@ -56,6 +56,85 @@ Examples:
 - `cd packages/gateway && npm test`
 - `cd packages/host && npm test`
 
+## Sigil Radial / Wiki / Toolkit Surface Family
+
+Use this focused family when a change touches Sigil radial menu activation, the
+Wiki Graph radial item, the graph-first wiki browser/workshop surface, or the
+toolkit runtime primitives that route pointer input and target surfaces.
+
+Deterministic radial, renderer, and runtime contract:
+
+```bash
+node --test \
+  tests/renderer/radial-menu-activation.test.mjs \
+  tests/renderer/radial-gesture-menu.test.mjs \
+  tests/renderer/radial-gesture-visuals.test.mjs \
+  tests/renderer/radial-menu-target-surface.test.mjs \
+  tests/renderer/radial-activation-transition.test.mjs \
+  tests/renderer/sigil-content-roots.test.mjs \
+  tests/toolkit/runtime-radial-gesture.test.mjs \
+  tests/toolkit/runtime-radial-menu-config.test.mjs \
+  tests/toolkit/runtime-radial-item-transition.test.mjs \
+  tests/toolkit/runtime-menu-activation.test.mjs \
+  tests/toolkit/runtime-input-events.test.mjs \
+  tests/toolkit/runtime-input-region.test.mjs \
+  tests/toolkit/runtime-interaction-region.test.mjs \
+  tests/toolkit/runtime-desktop-world-hit-region.test.mjs
+```
+
+Deterministic wiki browser/workshop and workbench contract:
+
+```bash
+node --test \
+  tests/toolkit/wiki-kb.test.mjs \
+  tests/toolkit/wiki-kb-semantics.test.mjs \
+  tests/toolkit/wiki-kb-layout-modes.test.mjs \
+  tests/toolkit/wiki-subject-browser.test.mjs \
+  tests/toolkit/wiki-subject-opening.test.mjs \
+  tests/toolkit/wiki-subject.test.mjs \
+  tests/toolkit/workbench-subject.test.mjs \
+  tests/toolkit/radial-menu-subject.test.mjs \
+  tests/schemas/aos-workbench-subject.test.mjs
+```
+
+Launcher and shell checks:
+
+```bash
+bash tests/wiki-kb-smoke.sh
+bash tests/sigil-workbench-kb.sh
+bash tests/sigil-status-item-lifecycle.sh
+bash tests/help-contract.sh
+bash tests/external-parser-flags.sh
+git diff --check
+```
+
+Inventory for this family:
+
+| Test or scenario | Class | Contract |
+| --- | --- | --- |
+| `tests/renderer/radial-menu-activation.test.mjs` | renderer/model | Radial committed item requests, target-surface descriptors, and Wiki Graph routing to the current graph-first browser surface. |
+| `tests/renderer/radial-gesture-menu.test.mjs` | renderer/model | Sigil radial gesture state, configured item order, commit/cancel behavior, and fast-travel handoff boundaries. |
+| `tests/renderer/radial-gesture-visuals.test.mjs` | renderer/model | 3D radial item visual config, Wiki Brain effect hooks, and default geometry projection. |
+| `tests/renderer/radial-menu-target-surface.test.mjs` | renderer/model | Externally observable radial child hit surface geometry, labels, and semantic target payloads. |
+| `tests/renderer/radial-activation-transition.test.mjs` | renderer/model | Transition lifecycle for committed radial items and surface fade timing. |
+| `tests/renderer/sigil-content-roots.test.mjs` | renderer/model | Worktree-scoped content roots for Sigil child surfaces and the radial Wiki Graph browser URL. |
+| `tests/toolkit/runtime-*.test.mjs` in the command above | toolkit model | Shared radial, menu activation, input event, input region, and DesktopWorld hit-region primitives. |
+| `tests/toolkit/wiki-kb*.test.mjs` | toolkit component model | Wiki KB graph/radial graph state, semantics, and layout-mode behavior. |
+| `tests/toolkit/wiki-subject-browser.test.mjs` | toolkit component model | Graph-first Subject Browser shell, Catalog/Index/Details/Trail semantics, Markdown opening, and root clear behavior. |
+| `tests/toolkit/wiki-subject-opening.test.mjs` and `tests/toolkit/wiki-subject.test.mjs` | toolkit workbench model | Wiki subject descriptors and Markdown open request mapping. |
+| `tests/toolkit/workbench-subject.test.mjs`, `tests/toolkit/radial-menu-subject.test.mjs`, `tests/schemas/aos-workbench-subject.test.mjs` | toolkit/schema model | Reusable workbench subject descriptors and schema compatibility for radial/wiki surfaces. |
+| `tests/wiki-kb-smoke.sh` | isolated-daemon launcher | Wiki KB launcher, content-root setup, sample graph load, radial graph switch, and optional capture. |
+| `tests/sigil-workbench-kb.sh` | isolated-daemon launcher | Legacy Sigil workbench KB tab smoke retained as a compatibility boundary, not the radial Wiki Graph product path. |
+| `tests/sigil-status-item-lifecycle.sh` | live repo-daemon shell | Status item activation lifecycle and active Sigil canvas ownership. |
+| `tests/scenarios/sigil/radial-menu/real-input.sh` | live real-input | User-facing status item, avatar, radial target surface semantics, and native pointer selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
+| `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh` | live real-input | Topology-neutral DesktopWorld fast-travel plus radial selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
+
+Do not use direct DOM or `show eval` activation as the acceptance proof for
+radial menu user behavior. Eval remains useful for observation after native or
+realistic input has opened the relevant surface. If `./aos ready` reports a
+repo-mode TCC/input-tap blocker, follow the dock stall contract instead of
+retrying live real-input scenarios.
+
 ## Mixed Work
 
 If a change spans both Swift and JS/package surfaces:
