@@ -42,8 +42,6 @@ struct AOS {
                 exit(0)
             }
             exitError("Unknown gate subcommand: \(gateArgs[0])", code: "UNKNOWN_SUBCOMMAND")
-        case "voice":
-            voiceCommand(args: Array(args.dropFirst()))
         case "serve":
             handleServe(args: Array(args.dropFirst()))
         case "content":
@@ -53,12 +51,6 @@ struct AOS {
                 exit(0)
             }
             exitError("Unknown content command: \(contentArgs[0])", code: "UNKNOWN_COMMAND")
-        case "service":
-            serviceCommand(args: Array(args.dropFirst()))
-        case "runtime":
-            runtimeCommand(args: Array(args.dropFirst()))
-        case "dev":
-            devCommand(args: Array(args.dropFirst()))
         case "status":
             statusCommand(args: Array(args.dropFirst()))
         case "ready":
@@ -67,10 +59,6 @@ struct AOS {
             doctorCommand(args: Array(args.dropFirst()))
         case "permissions":
             permissionsCommand(args: Array(args.dropFirst()))
-        case "inspect":
-            inspectCommand(args: Array(args.dropFirst()))
-        case "log":
-            logCommand(args: Array(args.dropFirst()))
         case "introspect":
             let introspectArgs = Array(args.dropFirst())
             if introspectArgs.isEmpty {
