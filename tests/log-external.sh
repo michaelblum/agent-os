@@ -39,6 +39,26 @@ grep -q '"code":"UNKNOWN_FLAG"' "$ROOT/log-clear-bogus.err" || {
   exit 1
 }
 
+if ./aos log push message --level --bogus 2>"$ROOT/log-push-level-missing.err"; then
+  echo "FAIL: log push accepted missing --level value" >&2
+  exit 1
+fi
+grep -q '"code":"MISSING_ARG"' "$ROOT/log-push-level-missing.err" || {
+  echo "FAIL: log push missing --level value did not use MISSING_ARG" >&2
+  cat "$ROOT/log-push-level-missing.err" >&2
+  exit 1
+}
+
+if ./aos log --at --level info 2>"$ROOT/log-stream-at-missing.err"; then
+  echo "FAIL: log stream accepted missing --at value" >&2
+  exit 1
+fi
+grep -q '"code":"MISSING_ARG"' "$ROOT/log-stream-at-missing.err" || {
+  echo "FAIL: log stream missing --at value did not use MISSING_ARG" >&2
+  cat "$ROOT/log-stream-at-missing.err" >&2
+  exit 1
+}
+
 ./aos set content.roots.toolkit packages/toolkit >/dev/null
 
 printf 'first line\n{"message":"json line","level":"warn"}\n' \

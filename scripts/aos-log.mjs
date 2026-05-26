@@ -56,12 +56,12 @@ function parseOptions(args) {
     switch (args[i]) {
       case '--at':
         i += 1;
-        if (i >= args.length) error('--at requires x,y,w,h', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--at requires x,y,w,h', 'MISSING_ARG');
         options.at = parseAt(args[i]);
         break;
       case '--level':
         i += 1;
-        if (i >= args.length) error('--level requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--level requires a value', 'MISSING_ARG');
         options.level = args[i];
         break;
       default:
