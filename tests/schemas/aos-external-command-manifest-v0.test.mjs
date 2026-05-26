@@ -78,6 +78,25 @@ test('external command manifest executable targets exist', async () => {
   }
 });
 
+test('external command manifest only routes bootstrap families to Swift', async () => {
+  const manifest = await loadJson(manifestPath);
+  const allowedSwiftRoutes = new Map([
+    ['serve', ['__serve']],
+    ['status', ['__status']],
+    ['ready', ['__ready']],
+    ['doctor', ['__doctor']],
+    ['permissions', ['__permissions']],
+  ]);
+
+  for (const command of manifest.commands) {
+    if (command.executable !== '$AOS_PATH') continue;
+    const publicPath = command.path.join(' ');
+    const allowedPrefix = allowedSwiftRoutes.get(publicPath);
+    assert.ok(allowedPrefix, `${publicPath} must route through an external script, not $AOS_PATH`);
+    assert.deepEqual(command.argv_prefix, allowedPrefix, `${publicPath} must use the bootstrap primitive only`);
+  }
+});
+
 test('registry command paths have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
