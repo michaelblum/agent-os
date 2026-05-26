@@ -654,7 +654,7 @@ Primary public verbs:
 Example:
 
 ```bash
-aos graph displays --json
+aos graph displays
 ```
 
 `displays[].visible_bounds` uses the same top-left-origin logical coordinate
