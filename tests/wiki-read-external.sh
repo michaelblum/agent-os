@@ -41,4 +41,34 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-show-bogus.err" || {
   exit 1
 }
 
+if ./aos wiki show gateway unexpected --json 2>"$ROOT/wiki-show-extra.err"; then
+  echo "FAIL: wiki show accepted extra positional argument"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-show-extra.err" || {
+  echo "FAIL: wiki show extra positional did not use external script error contract"
+  cat "$ROOT/wiki-show-extra.err"
+  exit 1
+}
+grep -q 'Unknown argument: unexpected' "$ROOT/wiki-show-extra.err" || {
+  echo "FAIL: wiki show extra positional did not name offending argument"
+  cat "$ROOT/wiki-show-extra.err"
+  exit 1
+}
+
+if ./aos wiki invoke self-check unexpected --json 2>"$ROOT/wiki-invoke-extra.err"; then
+  echo "FAIL: wiki invoke accepted extra positional argument"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-invoke-extra.err" || {
+  echo "FAIL: wiki invoke extra positional did not use external script error contract"
+  cat "$ROOT/wiki-invoke-extra.err"
+  exit 1
+}
+grep -q 'Unknown argument: unexpected' "$ROOT/wiki-invoke-extra.err" || {
+  echo "FAIL: wiki invoke extra positional did not name offending argument"
+  cat "$ROOT/wiki-invoke-extra.err"
+  exit 1
+}
+
 echo "PASS"

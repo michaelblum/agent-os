@@ -11,6 +11,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+}
+
 function runtimeMode() {
   return process.env.AOS_RUNTIME_MODE === 'installed' ? 'installed' : 'repo';
 }
@@ -99,8 +103,10 @@ function showCommand(args) {
   rejectUnknownFlags(args, ['--json', '--raw']);
   const json = asJSON(args);
   const rawMode = args.includes('--raw');
-  const target = nonFlags(args)[0];
+  const positional = nonFlags(args);
+  const target = positional[0];
   if (!target) error('wiki show requires a path. Usage: aos wiki show <path> [--raw] [--json]', 'MISSING_ARG');
+  if (positional.length > 1) unknownArg(positional[1]);
   const resolved = resolveWikiPath(target);
   if (!resolved) error(`Page '${target}' not found. Try 'aos wiki list' to see available pages.`, 'WIKI_NOT_FOUND');
   const content = fs.readFileSync(resolved.absolute, 'utf8');
@@ -127,8 +133,10 @@ function showCommand(args) {
 function invokeCommand(args) {
   rejectUnknownFlags(args, ['--json']);
   const json = asJSON(args);
-  const name = nonFlags(args)[0];
+  const positional = nonFlags(args);
+  const name = positional[0];
   if (!name) error('wiki invoke requires a plugin name. Usage: aos wiki invoke <name>', 'MISSING_ARG');
+  if (positional.length > 1) unknownArg(positional[1]);
   const resolved = resolvePluginSkill(name);
   if (!resolved) error(`Plugin '${name}' not found`, 'WIKI_NOT_FOUND');
   const pluginDir = path.dirname(resolved.absolute);
