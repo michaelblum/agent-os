@@ -88,6 +88,46 @@ grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$STATE_ROOT/show-create
   exit 1
 }
 
+if ./aos show create --id parser-test --scope session 2>"$STATE_ROOT/show-create-scope-invalid.err"; then
+  echo "FAIL: show create accepted invalid --scope value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$STATE_ROOT/show-create-scope-invalid.err" || {
+  echo "FAIL: show create invalid --scope value did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/show-create-scope-invalid.err" >&2
+  exit 1
+}
+
+if ./aos show create --id parser-test --track display 2>"$STATE_ROOT/show-create-track-invalid.err"; then
+  echo "FAIL: show create accepted invalid --track value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$STATE_ROOT/show-create-track-invalid.err" || {
+  echo "FAIL: show create invalid --track value did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/show-create-track-invalid.err" >&2
+  exit 1
+}
+
+if ./aos show create --id parser-test --surface panel 2>"$STATE_ROOT/show-create-surface-invalid.err"; then
+  echo "FAIL: show create accepted invalid --surface value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$STATE_ROOT/show-create-surface-invalid.err" || {
+  echo "FAIL: show create invalid --surface value did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/show-create-surface-invalid.err" >&2
+  exit 1
+}
+
+if ./aos show update --id parser-test --track display 2>"$STATE_ROOT/show-update-track-invalid.err"; then
+  echo "FAIL: show update accepted invalid --track value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$STATE_ROOT/show-update-track-invalid.err" || {
+  echo "FAIL: show update invalid --track value did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/show-update-track-invalid.err" >&2
+  exit 1
+}
+
 if ./aos show wait --id parser-test --timeout --json 2>"$STATE_ROOT/show-wait-timeout-missing.err"; then
   echo "FAIL: show wait accepted missing --timeout value" >&2
   exit 1
