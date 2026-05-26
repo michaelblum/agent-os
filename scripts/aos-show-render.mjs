@@ -8,6 +8,12 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  const text = String(arg);
+  if (text.startsWith('-')) error(`Unknown flag: ${text}`, 'UNKNOWN_FLAG');
+  error(`Unknown argument: ${text}`, 'UNKNOWN_ARG');
+}
+
 function aosPath() {
   return process.env.AOS_PATH || './aos';
 }
@@ -59,7 +65,7 @@ function parseArgs(args) {
         parsed.base64 = true;
         break;
       default:
-        error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+        unknownArg(arg);
     }
   }
   if (!parsed.html && !parsed.file && process.stdin.isTTY) {

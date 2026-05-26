@@ -9,6 +9,12 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  const text = String(arg);
+  if (text.startsWith('-')) error(`Unknown flag: ${text}`, 'UNKNOWN_FLAG');
+  error(`Unknown argument: ${text}`, 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
@@ -52,7 +58,7 @@ function parseBounds(value) {
 }
 
 function listCommand(args) {
-  if (args.length > 0) error(`Unknown argument: ${args[0]}`, 'UNKNOWN_ARG');
+  if (args.length > 0) unknownArg(args[0]);
   process.stdout.write(`${JSON.stringify(loadZones(), null, 2)}\n`);
 }
 
@@ -87,7 +93,7 @@ function deleteCommand(args) {
   if (args.length < 1) {
     error('zone delete requires <name>. Usage: aos see zone delete <name>', 'MISSING_ARG');
   }
-  if (args.length > 1) error(`Unknown argument: ${args[1]}`, 'UNKNOWN_ARG');
+  if (args.length > 1) unknownArg(args[1]);
   const zones = loadZones();
   if (!Object.prototype.hasOwnProperty.call(zones, args[0])) {
     error(`Zone '${args[0]}' not found`, 'ZONE_NOT_FOUND');

@@ -18,7 +18,7 @@ check_unknown_flag() {
     echo "FAIL: $label accepted unknown flag" >&2
     exit 1
   fi
-  if ! grep -q '"code" : "UNKNOWN_FLAG"' "$err"; then
+  if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"UNKNOWN_FLAG"' "$err"; then
     echo "FAIL: $label did not use UNKNOWN_FLAG" >&2
     cat "$err" >&2
     exit 1
@@ -36,5 +36,6 @@ check_unknown_flag show-wait ./aos show wait --id parser-test --bogus
 check_unknown_flag show-eval ./aos show eval --id parser-test --js '"ok"' --bogus
 check_unknown_flag show-post ./aos show post --id parser-test --event '{"type":"test"}' --bogus
 check_unknown_flag show-listen ./aos show listen --bogus
+check_unknown_flag show-render ./aos show render --html '<p>parser</p>' --base64 --bogus
 
 echo "show-external-parser: all checks passed"
