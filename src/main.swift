@@ -77,10 +77,6 @@ func handleDo(args: [String]) {
     case "drag":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do drag", requiresInputTap: true) }
         cliDrag(args: subArgs)
-    case "fill":
-        // Browser-only in v1: cliFill errors with BROWSER_ONLY on non-browser
-        // targets, so no interactive preflight is needed.
-        cliFill(args: subArgs)
     case "scroll":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do scroll", requiresInputTap: true) }
         cliScroll(args: subArgs)
@@ -90,10 +86,6 @@ func handleDo(args: [String]) {
     case "key":
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do key", requiresInputTap: true) }
         cliKey(args: subArgs)
-    case "navigate":
-        // Browser-only in v1 — no macOS preflight. cliNavigate owns the
-        // BROWSER_ONLY rejection for non-browser targets.
-        cliNavigate(args: subArgs)
     case "press":
         ensureInteractivePreflight(command: "aos do press", requiresInputTap: true)
         cliPress(args: subArgs)
@@ -118,12 +110,6 @@ func handleDo(args: [String]) {
     case "session":
         ensureInteractivePreflight(command: "aos do session", requiresInputTap: true)
         runSession(profileName: getArg(subArgs, "--profile") ?? "natural")
-    case "profiles":
-        if let name = subArgs.first, name != "list" {
-            profilesShowCommand(name: name)
-        } else {
-            profilesListCommand()
-        }
     default:
         exitError("Unknown do subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -138,9 +124,6 @@ func handleSee(args: [String]) {
     case "cursor":
         ensureInteractivePreflight(command: "aos see cursor")
         cursorCommand()
-    case "observe":
-        ensureInteractivePreflight(command: "aos see observe")
-        observeCommand(args: Array(args.dropFirst()))
     case "capture":
         let subArgs = Array(args.dropFirst())
         if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos see capture") }
@@ -151,9 +134,6 @@ func handleSee(args: [String]) {
     case "selection":
         ensureInteractivePreflight(command: "aos see selection")
         selectionCommand()
-    case "zone":
-        let subArgs = Array(args.dropFirst())
-        zoneCommand(args: subArgs)
     default:
         ensureInteractivePreflight(command: "aos see \(sub)")
         runCaptureAsync(args: args)

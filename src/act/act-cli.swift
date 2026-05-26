@@ -621,22 +621,6 @@ func cliKey(args: [String]) {
     cliPrintLegacy(action: "key", backend: "cgevent", target: target, dryRun: false)
 }
 
-/// `aos do fill` — browser-only in v1. Clears and enters text into an input
-/// element identified by a `browser:<session>/<ref>` target.
-func cliFill(args: [String]) {
-    let positional = positionalArgs(args)
-    guard positional.count >= 2 else {
-        exitError("Usage: aos do fill <browser:<s>/<ref>> <text>", code: "MISSING_ARG")
-    }
-    let targetString = positional[0]
-    let text = positional[1]
-    guard targetString.hasPrefix("browser:") else {
-        exitError("aos do fill is browser-only in v1. Target must be browser:<s>/<ref>.",
-                  code: "BROWSER_ONLY")
-    }
-    dispatchBrowserVerb("fill", targetString: targetString, remaining: [text], flags: args)
-}
-
 // MARK: - AppleScript CLI Command
 
 /// `aos do tell` — run AppleScript tell block.
@@ -672,22 +656,6 @@ func cliTell(args: [String]) {
 
     let detail = result?.stringValue
     cliPrintLegacy(action: "tell", backend: "applescript", target: target, detail: detail, dryRun: false)
-}
-
-/// `aos do navigate` — browser-only in v1. Navigates the session to a URL by
-/// dispatching playwright-cli's `goto` verb. macOS equivalent is deferred.
-func cliNavigate(args: [String]) {
-    guard args.count >= 2 else {
-        exitError("Usage: aos do navigate <browser:<s>> <url>", code: "MISSING_ARG")
-    }
-    let targetString = args[0]
-    let url = args[1]
-    guard targetString.hasPrefix("browser:") else {
-        exitError("aos do navigate is browser-only in v1.", code: "BROWSER_ONLY")
-    }
-    // navigate is aos's alias for playwright's "goto" verb; pass aosVerb="navigate"
-    // so the translation reaches goto via the switch in dispatchBrowserVerb.
-    dispatchBrowserVerb("navigate", targetString: targetString, remaining: [url], flags: [])
 }
 
 // MARK: - Browser-Target Dispatch (Task 9)
