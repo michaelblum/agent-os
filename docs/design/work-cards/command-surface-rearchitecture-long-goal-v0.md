@@ -174,31 +174,39 @@ exist on the remote tracking ref yet.
 - `AGENTS.md`
 - `src/AGENTS.md` if present
 - `src/main.swift`
-- `src/shared/command-registry.swift`
-- `src/shared/command-registry-data.swift`
-- `src/shared/command-help.swift`
-- `src/commands/dev.swift`
+- `src/shared/external-command-dispatch.swift`
+- `manifests/commands/aos-commands.json`
+- `manifests/commands/aos-external-commands.json`
+- `scripts/aos-help-proxy.mjs`
+- `scripts/aos-dev-workflow.mjs`
 - `scripts/afk-session-trigger-prototype.mjs`
 - `tests/afk-session-trigger-prototype.test.mjs`
 - `tests/help-contract.sh`
 - `tests/dev-workflow-router.sh`
+- `tests/external-command-dispatch.sh`
+- `tests/schemas/aos-external-command-manifest-v0.test.mjs`
 - `tests/dock-hook-isolation.sh`
 - `docs/archive/superpowers/specs/2026-04-15-command-registry-design.md`
 - `docs/design/durable-agent-cognition-and-afk-primitives.md`
 - `docs/design/work-cards/gdi-input-tap-permission-reset-safety-v0.md`
 - `docs/design/notes/aos-interaction-surfaces-map-2026-05-25.md`
+- `docs/dev/command-surface.md`
 - `docs/dev/workflow-rules.json`
 
-Then search broadly. The command surface is not only the old help registry.
-Expect routing, tests, docs, workflow rules, shell scripts, and Node prototypes
-to encode command behavior.
+Then search broadly. The command surface is not only the external help manifest.
+Expect dispatch routing, tests, docs, workflow rules, shell scripts, Python
+helpers, and Node prototypes to encode command behavior. The old Swift
+`command-registry`, `command-registry-data`, `command-help`, and `dev.swift`
+surfaces should remain absent except in historical notes or explicit regression
+tests.
 
 Useful starting searches:
 
 ```bash
-rg -n "buildCommandRegistry|commandRegistry|printCommandHelp|helpCommand|InvocationForm|CommandDescriptor" src tests docs scripts
-rg -n "afk-session-trigger|afk-launch-attempt|afk-dry-run|dev workflow|workflow-rules" src scripts tests docs shared
-rg -n "aos help|--help|UNKNOWN_COMMAND|UNKNOWN_FLAG|MISSING_ARG|MISSING_SUBCOMMAND" src tests docs scripts
+rg -n "buildCommandRegistry|commandRegistry|printCommandHelp|helpCommand|InvocationForm|CommandDescriptor|command-registry-data.swift|src/commands/dev.swift" src tests docs scripts manifests
+rg -n "afk-session-trigger|afk-launch-attempt|afk-dry-run|dev workflow|workflow-rules" scripts tests docs shared manifests
+rg -n "aos help|--help|UNKNOWN_COMMAND|UNKNOWN_FLAG|MISSING_ARG|MISSING_SUBCOMMAND" src tests docs scripts manifests
+rg -n "__serve|__status|__ready|__doctor|__permissions|__render|__see|__say|__do" src scripts tests manifests
 ```
 
 ## Design Constraints
