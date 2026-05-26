@@ -81,4 +81,19 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-reindex-bogus.err" || {
   exit 1
 }
 
+if ./aos wiki reindex extra 2>"$ROOT/wiki-reindex-extra.err"; then
+  echo "FAIL: wiki reindex accepted extra positional"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-reindex-extra.err" || {
+  echo "FAIL: wiki reindex extra positional did not use UNKNOWN_ARG"
+  cat "$ROOT/wiki-reindex-extra.err"
+  exit 1
+}
+grep -q '"error": "Unknown argument: extra"' "$ROOT/wiki-reindex-extra.err" || {
+  echo "FAIL: wiki reindex extra positional message did not say Unknown argument"
+  cat "$ROOT/wiki-reindex-extra.err"
+  exit 1
+}
+
 echo "PASS"

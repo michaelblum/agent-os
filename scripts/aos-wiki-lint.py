@@ -45,7 +45,7 @@ def parse_args(args):
         elif arg.startswith("--"):
             fail(f"Unknown flag: {arg}", "UNKNOWN_FLAG")
         else:
-            fail(f"Unexpected argument: {arg}", "UNKNOWN_ARG")
+            fail(f"Unknown argument: {arg}", "UNKNOWN_ARG")
     return options
 
 

@@ -61,4 +61,19 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-graph-bogus.err" || {
   exit 1
 }
 
+if ./aos wiki graph extra 2>"$ROOT/wiki-graph-extra.err"; then
+  echo "FAIL: wiki graph accepted extra positional"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-graph-extra.err" || {
+  echo "FAIL: wiki graph extra positional did not use UNKNOWN_ARG"
+  cat "$ROOT/wiki-graph-extra.err"
+  exit 1
+}
+grep -q '"error": "Unknown argument: extra"' "$ROOT/wiki-graph-extra.err" || {
+  echo "FAIL: wiki graph extra positional message did not say Unknown argument"
+  cat "$ROOT/wiki-graph-extra.err"
+  exit 1
+}
+
 echo "PASS"
