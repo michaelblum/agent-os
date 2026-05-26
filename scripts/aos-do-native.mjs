@@ -42,6 +42,17 @@ function positionalArgs(args) {
   return positional;
 }
 
+function flagValue(args, flag) {
+  const index = args.indexOf(flag);
+  if (index < 0) return null;
+  return args[index + 1] ?? null;
+}
+
+function requireFlag(args, flag, message, validator = (value) => Boolean(value)) {
+  const value = flagValue(args, flag);
+  if (!validator(value)) error(message, 'MISSING_ARG');
+}
+
 function isCoord(value) {
   return /^-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?$/.test(value);
 }
@@ -79,6 +90,32 @@ function validate(verb, args) {
       if (pos[0]?.startsWith('browser:')) error('native do key does not accept browser targets', 'INVALID_TARGET');
       if (!pos[0]) error('key requires a key combo argument (e.g. cmd+s)', 'MISSING_ARG');
       if (pos.length > 1) unknownArg(pos[1]);
+      break;
+    case 'press':
+      requireFlag(args, '--pid', 'press requires --pid');
+      break;
+    case 'set-value':
+      requireFlag(args, '--pid', 'set-value requires --pid');
+      requireFlag(args, '--role', 'set-value requires --role');
+      requireFlag(args, '--value', 'set-value requires --value');
+      break;
+    case 'focus':
+      requireFlag(args, '--pid', 'focus requires --pid');
+      requireFlag(args, '--role', 'focus requires --role');
+      break;
+    case 'raise':
+      requireFlag(args, '--pid', 'raise requires --pid');
+      break;
+    case 'move':
+      requireFlag(args, '--pid', 'move requires --pid');
+      requireFlag(args, '--to', 'move requires --to x,y', isCoord);
+      break;
+    case 'resize':
+      requireFlag(args, '--pid', 'resize requires --pid');
+      requireFlag(args, '--to', 'resize requires --to w,h', isCoord);
+      break;
+    case 'tell':
+      if (pos.length < 2) error('tell requires an app name and a script body', 'MISSING_ARG');
       break;
     default:
       break;

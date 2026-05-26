@@ -40,6 +40,21 @@ check_unknown_arg() {
   fi
 }
 
+check_missing_arg() {
+  local label="$1"
+  shift
+  local err="$STATE_ROOT/${label}.err"
+  if "$@" 2>"$err"; then
+    echo "FAIL: $label accepted missing argument" >&2
+    exit 1
+  fi
+  if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+    echo "FAIL: $label did not use MISSING_ARG" >&2
+    cat "$err" >&2
+    exit 1
+  fi
+}
+
 check_unknown_flag inspect ./aos inspect --bogus
 err="$STATE_ROOT/inspect-at-missing.err"
 if ./aos inspect --at --size 10,10 2>"$err"; then
@@ -84,6 +99,15 @@ check_unknown_arg do-native-drag-extra ./aos do drag 10,10 20,20 unexpected --dr
 check_unknown_arg do-native-scroll-extra ./aos do scroll 10,10 unexpected --dx 0 --dy 1 --dry-run
 check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run
 check_unknown_arg do-native-key-extra ./aos do key Enter unexpected --dry-run
+check_missing_arg do-native-press-pid-missing ./aos do press --dry-run
+check_missing_arg do-native-set-value-pid-missing ./aos do set-value --role AXTextField --value hello --dry-run
+check_missing_arg do-native-set-value-role-missing ./aos do set-value --pid 123 --value hello --dry-run
+check_missing_arg do-native-set-value-value-missing ./aos do set-value --pid 123 --role AXTextField --dry-run
+check_missing_arg do-native-focus-role-missing ./aos do focus --pid 123 --dry-run
+check_missing_arg do-native-raise-pid-missing ./aos do raise --dry-run
+check_missing_arg do-native-move-to-missing ./aos do move --pid 123 --dry-run
+check_missing_arg do-native-resize-to-missing ./aos do resize --pid 123 --dry-run
+check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected
 check_unknown_flag focus-list ./aos focus list --bogus
