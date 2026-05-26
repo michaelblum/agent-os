@@ -52,4 +52,16 @@ grep -q '"code": "UNKNOWN_FLAG"' <<<"$err" || {
   exit 1
 }
 
+err="$(./aos voice _internal-canonicalize --id voice://system/a extra 2>&1 >/dev/null || true)"
+grep -q '"code": "UNKNOWN_ARG"' <<<"$err" || {
+  echo "FAIL: extra arg did not use external error contract: $err" >&2
+  exit 1
+}
+
+err="$(./aos voice _internal-id-roundtrip --provider system --suffix 2>&1 >/dev/null || true)"
+grep -q '"code": "MISSING_ARG"' <<<"$err" || {
+  echo "FAIL: missing flag value did not use external error contract: $err" >&2
+  exit 1
+}
+
 echo "ok"

@@ -28,23 +28,27 @@ function canonicalize(rawID) {
   return makeVoiceID('system', rawID);
 }
 
-function valueAfter(args, key) {
-  const idx = args.indexOf(key);
-  return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : undefined;
+function unknownArg(arg) {
+  if (String(arg).startsWith('-')) error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+  error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
 }
 
-function rejectUnknownFlags(args, allowed) {
+function parseValueFlags(args, allowed) {
+  const values = new Map();
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
-    if (!arg.startsWith('--')) continue;
-    if (!allowed.includes(arg)) error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+    if (!arg.startsWith('--')) unknownArg(arg);
+    if (!allowed.includes(arg)) unknownArg(arg);
+    if (i + 1 >= args.length || args[i + 1].startsWith('--')) error(`Missing value for ${arg}`, 'MISSING_ARG');
+    values.set(arg, args[i + 1]);
     i += 1;
   }
+  return values;
 }
 
 function idRoundtrip(args) {
-  rejectUnknownFlags(args, ['--provider', '--suffix', '--raw']);
-  const raw = valueAfter(args, '--raw');
+  const flags = parseValueFlags(args, ['--provider', '--suffix', '--raw']);
+  const raw = flags.get('--raw');
   if (raw !== undefined) {
     const parsed = parseVoiceID(raw);
     if (!parsed) {
@@ -55,8 +59,8 @@ function idRoundtrip(args) {
     return;
   }
 
-  const provider = valueAfter(args, '--provider');
-  const suffix = valueAfter(args, '--suffix');
+  const provider = flags.get('--provider');
+  const suffix = flags.get('--suffix');
   const uri = makeVoiceID(provider, suffix);
   if (!uri) error('missing --provider/--suffix', 'MISSING_ARG');
   const parsed = parseVoiceID(uri);
@@ -65,8 +69,8 @@ function idRoundtrip(args) {
 }
 
 function canonicalizeCommand(args) {
-  rejectUnknownFlags(args, ['--id']);
-  const id = valueAfter(args, '--id');
+  const flags = parseValueFlags(args, ['--id']);
+  const id = flags.get('--id');
   if (id === undefined) error('missing --id', 'MISSING_ARG');
   process.stdout.write(`${canonicalize(id)}\n`);
 }
@@ -120,7 +124,7 @@ function elevenLabsVoices() {
 }
 
 function registrySnapshot(args) {
-  rejectUnknownFlags(args, []);
+  if (args.length > 0) unknownArg(args[0]);
   const voices = [...elevenLabsVoices()];
   if (process.env.AOS_VOICE_TEST_PROVIDERS === 'mock') voices.push(...mockVoices());
   voices.sort((a, b) => (

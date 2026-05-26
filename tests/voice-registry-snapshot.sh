@@ -2,6 +2,15 @@
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+if err=$(AOS_VOICE_TEST_PROVIDERS=mock ./aos voice _internal-registry-snapshot extra 2>&1 >/dev/null); then
+  echo "FAIL: registry snapshot extra arg should error" >&2
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' <<<"$err" || {
+  echo "FAIL: extra arg did not use external error contract: $err" >&2
+  exit 1
+}
+
 out=$(AOS_VOICE_TEST_PROVIDERS=mock ./aos voice _internal-registry-snapshot)
 echo "$out" | python3 -c "
 import json, sys
