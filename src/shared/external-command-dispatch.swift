@@ -37,11 +37,13 @@ private struct ExternalCommand: Decodable {
 private struct ExternalCommandCondition: Decodable {
     let childArgIndex: Int?
     let prefix: String?
+    let excludedPrefixes: [String]?
     let excludedValues: [String]?
 
     enum CodingKeys: String, CodingKey {
         case childArgIndex = "child_arg_index"
         case prefix
+        case excludedPrefixes = "excluded_prefixes"
         case excludedValues = "excluded_values"
     }
 }
@@ -115,11 +117,15 @@ private func externalCommandMatches(_ command: ExternalCommand, args: [String]) 
     }
     let childArgs = Array(args.dropFirst(command.path.count))
     if let childArgIndex = condition.childArgIndex {
-        guard childArgIndex >= 0, childArgs.indices.contains(childArgIndex) else {
-            return false
+        guard childArgIndex >= 0 else { return false }
+        guard childArgs.indices.contains(childArgIndex) else {
+            return condition.prefix == nil && condition.excludedValues == nil
         }
         let childArg = childArgs[childArgIndex]
         if let prefix = condition.prefix, !childArg.hasPrefix(prefix) {
+            return false
+        }
+        if condition.excludedPrefixes?.contains(where: { childArg.hasPrefix($0) }) == true {
             return false
         }
         if condition.excludedValues?.contains(childArg) == true { return false }

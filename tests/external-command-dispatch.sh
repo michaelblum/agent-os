@@ -81,10 +81,16 @@ for path in [("see", "cursor"), ("see", "list"), ("see", "selection")]:
 command = commands[("say",)]
 assert command["executable"] == "$AOS_PATH", command
 assert command["argv_prefix"] == ["__say"], command
-for primitive in ["press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
-    command = commands[("do", primitive)]
-    assert command["executable"] == "$AOS_PATH", command
-    assert command["argv_prefix"] == ["__do", primitive], command
+for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
+    matches = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["executable"] == "$AOS_PATH"]
+    assert len(matches) == 1, (primitive, matches)
+    assert matches[0]["argv_prefix"] == ["__do", primitive], matches[0]
+    if primitive in ["click", "hover", "drag", "scroll", "type", "key"]:
+        assert matches[0]["when"]["excluded_prefixes"] == ["browser:"], matches[0]
+        browser = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["executable"] == "/usr/bin/env"]
+        assert len(browser) == 1, (primitive, browser)
+        assert browser[0]["argv_prefix"] == ["node", "scripts/aos-do-browser.mjs", primitive], browser[0]
+        assert browser[0]["when"]["prefix"] == "browser:", browser[0]
 PY
 then
     pass "live-sensitive native primitives are routed through the external command manifest"

@@ -71,27 +71,7 @@ func handleDo(args: [String]) {
         exit(0)
     }
 
-    let subArgs = Array(args.dropFirst())
-
     switch sub {
-    case "click":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do click", requiresInputTap: true) }
-        cliClick(args: subArgs)
-    case "hover":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do hover", requiresInputTap: true) }
-        cliHover(args: subArgs)
-    case "drag":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do drag", requiresInputTap: true) }
-        cliDrag(args: subArgs)
-    case "scroll":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do scroll", requiresInputTap: true) }
-        cliScroll(args: subArgs)
-    case "type":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do type", requiresInputTap: true) }
-        cliType(args: subArgs)
-    case "key":
-        if !hasBrowserTarget(subArgs) { ensureInteractivePreflight(command: "aos do key", requiresInputTap: true) }
-        cliKey(args: subArgs)
     default:
         exitError("Unknown do subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
@@ -104,6 +84,24 @@ private func handleDoPrimitive(args: [String]) {
 
     let subArgs = Array(args.dropFirst())
     switch sub {
+    case "click":
+        ensureInteractivePreflight(command: "aos do click", requiresInputTap: true)
+        cliClick(args: subArgs)
+    case "hover":
+        ensureInteractivePreflight(command: "aos do hover", requiresInputTap: true)
+        cliHover(args: subArgs)
+    case "drag":
+        ensureInteractivePreflight(command: "aos do drag", requiresInputTap: true)
+        cliDrag(args: subArgs)
+    case "scroll":
+        ensureInteractivePreflight(command: "aos do scroll", requiresInputTap: true)
+        cliScroll(args: subArgs)
+    case "type":
+        ensureInteractivePreflight(command: "aos do type", requiresInputTap: true)
+        cliType(args: subArgs)
+    case "key":
+        ensureInteractivePreflight(command: "aos do key", requiresInputTap: true)
+        cliKey(args: subArgs)
     case "press":
         ensureInteractivePreflight(command: "aos do press", requiresInputTap: true)
         cliPress(args: subArgs)

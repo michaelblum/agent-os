@@ -29,6 +29,17 @@
       }
     },
     {
+      "path": ["do", "click"],
+      "summary": "Click a native input target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "click"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      }
+    },
+    {
       "path": ["do", "hover"],
       "summary": "Hover browser targets through the external do browser command.",
       "executable": "/usr/bin/env",
@@ -42,6 +53,17 @@
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "hover"],
+      "summary": "Hover a native input target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "hover"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
       }
     },
     {
@@ -61,6 +83,17 @@
       }
     },
     {
+      "path": ["do", "drag"],
+      "summary": "Drag a native input target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "drag"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      }
+    },
+    {
       "path": ["do", "scroll"],
       "summary": "Scroll browser targets through the external do browser command.",
       "executable": "/usr/bin/env",
@@ -74,6 +107,17 @@
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "scroll"],
+      "summary": "Scroll a native input target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "scroll"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
       }
     },
     {
@@ -93,6 +137,17 @@
       }
     },
     {
+      "path": ["do", "type"],
+      "summary": "Type into a native input target through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "type"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      }
+    },
+    {
       "path": ["do", "key"],
       "summary": "Press keys in browser targets through the external do browser command.",
       "executable": "/usr/bin/env",
@@ -106,6 +161,17 @@
         "AOS_PATH": "$AOS_PATH",
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
         "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "key"],
+      "summary": "Press native keys through the native action primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__do", "key"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
       }
     },
     {
