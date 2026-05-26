@@ -37,7 +37,7 @@ resolved = str(pathlib.Path(root).resolve())
 out = subprocess.check_output(["ps", "eww", "-Ao", "pid=,command="], text=True)
 for line in out.splitlines():
     line = line.strip()
-    if not line or "aos serve" not in line:
+    if not line or ("aos serve" not in line and "aos __serve" not in line):
         continue
     if (
         f"AOS_STATE_ROOT={root}" not in line

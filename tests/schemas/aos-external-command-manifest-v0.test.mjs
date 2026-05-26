@@ -12,6 +12,7 @@ const schemaPath = path.join(repoRoot, 'shared/schemas/aos-external-command-mani
 const manifestPath = path.join(repoRoot, 'manifests/commands/aos-external-commands.json');
 const registryPath = path.join(repoRoot, 'manifests/commands/aos-commands.json');
 const mainSwiftPath = path.join(repoRoot, 'src/main.swift');
+const operatorSwiftPath = path.join(repoRoot, 'src/commands/operator.swift');
 
 function validate(instancePath) {
   return spawnSync(
@@ -188,6 +189,16 @@ test('Swift external dispatcher does not consume flags as --repo values', async 
   assert.ok(
     rawOptionValue[0].includes('!value.hasPrefix("--")'),
     'external dispatcher must leave flag-shaped values for external parsers to classify as MISSING_ARG',
+  );
+});
+
+test('ready ownership classifier accepts managed parent child daemon shape', async () => {
+  const source = await fs.readFile(operatorSwiftPath, 'utf8');
+  const classifier = source.match(/private func currentOwnershipState\([\s\S]*?\n\}/);
+  assert.ok(classifier, 'ready ownership classifier must stay visible');
+  assert.ok(
+    classifier[0].includes('parentProcessID(of: ownerPID) == servicePID'),
+    'ready must treat launchd-managed aos serve parent plus aos __serve socket owner as consistent',
   );
 });
 

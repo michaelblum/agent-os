@@ -1903,11 +1903,26 @@ private func currentOwnershipState(
     lockOwnerPID: Int?,
     servicePID: Int?
 ) -> String {
-    let pids = [servingPID, lockOwnerPID, servicePID].compactMap { $0 }
+    if let servingPID, let lockOwnerPID, servingPID != lockOwnerPID {
+        return "mismatch"
+    }
+
+    let ownerPID = servingPID ?? lockOwnerPID
+    if let ownerPID, let servicePID, ownerPID != servicePID {
+        return parentProcessID(of: ownerPID) == servicePID ? "consistent" : "mismatch"
+    }
+
+    let pids = [ownerPID, servicePID].compactMap { $0 }
     if pids.isEmpty {
         return socketReachable ? "unknown" : "absent"
     }
     return Set(pids).count <= 1 ? "consistent" : "mismatch"
+}
+
+private func parentProcessID(of pid: Int) -> Int? {
+    let output = runProcess("/bin/ps", arguments: ["-o", "ppid=", "-p", String(pid)])
+    guard output.exitCode == 0 else { return nil }
+    return Int(output.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
 }
 
 private func runtimeHealthNotes(_ runtime: RuntimeState) -> [String] {
