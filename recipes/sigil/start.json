@@ -1,51 +1,29 @@
 {
   "id": "sigil/start",
   "version": 1,
-  "summary": "Launch the Sigil avatar plus workbench surfaces through the generic app launcher.",
+  "summary": "Activate the Sigil AOS experience layer.",
   "scope": "source",
   "mutates": true,
   "requires": ["content", "service", "show"],
   "docs": "apps/sigil/AGENTS.md",
   "owned_resources": [
     {
-      "name": "avatar",
-      "type": "surface",
-      "id": "avatar-main"
-    },
-    {
-      "name": "workbench",
-      "type": "surface",
-      "id": "sigil-workbench"
+      "name": "experience",
+      "type": "config",
+      "id": "sigil"
     }
   ],
   "steps": [
     {
-      "id": "launch-workbench",
+      "id": "activate-sigil-experience",
       "kind": "aos_command",
       "command": {
-        "path": ["launch"],
-        "form_id": "launch-app"
+        "path": ["experience", "activate"],
+        "form_id": "activate-experience"
       },
-      "argv": ["sigil", "workbench"],
+      "argv": ["sigil"],
       "timeout_ms": 45000,
       "mutates": true
-    },
-    {
-      "id": "verify-surfaces",
-      "kind": "shell",
-      "shell": {
-        "script": "scripts/recipes-sigil-verify-surfaces.sh",
-        "cwd": "."
-      },
-      "argv": ["avatar-main", "sigil-workbench"],
-      "timeout_ms": 15000,
-      "mutates": false,
-      "assertions": [
-        {
-          "path": ["status"],
-          "equals": "success"
-        }
-      ]
     }
   ]
 }

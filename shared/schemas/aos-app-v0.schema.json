@@ -86,7 +86,7 @@
                   "additionalProperties": false,
                   "required": ["kind"],
                   "properties": {
-                    "kind": { "enum": ["sigil_workbench", "sigil_agent_terminal"] }
+                    "kind": { "enum": ["workbench", "agent_terminal"] }
                   }
                 },
                 "create_if_missing": { "type": "boolean" },
@@ -102,8 +102,12 @@
               "additionalProperties": false,
               "required": ["kind"],
               "properties": {
-                "kind": { "enum": ["sigil_stage_avatar", "show_post"] },
+                "kind": { "enum": ["show_eval", "show_post"] },
                 "surface": { "type": "string" },
+                "js": { "type": "string" },
+                "success_match": { "type": "string" },
+                "retries": { "type": "integer", "minimum": 1 },
+                "retry_delay_ms": { "type": "integer", "minimum": 0 },
                 "event": {}
               }
             }

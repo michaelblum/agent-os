@@ -126,9 +126,9 @@ data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 launch = data["steps"][0]
 assert launch["kind"] == "aos_command", launch
-assert launch["command"]["path"] == ["launch"], launch
-assert launch["command"]["form_id"] == "launch-app", launch
-assert launch["argv"] == ["sigil", "workbench"], launch
+assert launch["command"]["path"] == ["experience", "activate"], launch
+assert launch["command"]["form_id"] == "activate-experience", launch
+assert launch["argv"] == ["sigil"], launch
 assert launch["supports_delegate_dry_run"] is True, launch
 assert data["mutates"] is True, data
 PY

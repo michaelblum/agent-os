@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
-const schemaPath = path.join(repoRoot, 'shared/schemas/aos-app-v0.schema.json');
-const sigilManifestPath = path.join(repoRoot, 'apps/sigil/aos-app.json');
+const schemaPath = path.join(repoRoot, 'shared/schemas/aos-experience-v0.schema.json');
+const sigilManifestPath = path.join(repoRoot, 'experiences/sigil/aos-experience.json');
 
 function validate(instancePath) {
   return spawnSync(
@@ -37,18 +37,20 @@ if errors:
   );
 }
 
-test('Sigil app manifest validates against the generic app schema', () => {
+test('Sigil experience manifest validates against the experience schema', () => {
   const result = validate(sigilManifestPath);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
-test('Sigil manifest keeps launch policy data-owned', async () => {
+test('Sigil experience is exclusive and status-item-first', async () => {
   const manifest = JSON.parse(await fs.readFile(sigilManifestPath, 'utf8'));
   assert.equal(manifest.id, 'sigil');
-  assert.equal(manifest.default_entry, 'avatar');
-  assert.deepEqual(Object.keys(manifest.entries).sort(), ['agent-terminal', 'avatar', 'legacy-workbench']);
-  assert.ok(manifest.content_roots.every((root) => root.branch_scoped === true));
-  assert.equal(manifest.status_item.toggle_entry, 'avatar');
-  assert.equal(manifest.entries['legacy-workbench'].requires_entries[0], 'avatar');
-  assert.doesNotMatch(JSON.stringify(manifest), /studio/i);
+  assert.equal(manifest.exclusive, true);
+  assert.equal(manifest.default_activation.kind, 'status_item');
+  assert.equal(manifest.default_activation.status_item_first, true);
+  assert.equal(manifest.default_activation.avatar_entry, 'avatar');
+  assert.equal(manifest.status_item.toggle_surface.id, 'avatar-main');
+  assert.equal(manifest.branding.display_name, 'Sigil');
+  assert.deepEqual(manifest.vanilla_fallback.tools, ['avatar-terminal', 'graph-wiki', 'inspectors']);
+  assert.equal(manifest.surfaces['legacy-workbench'].legacy, true);
 });

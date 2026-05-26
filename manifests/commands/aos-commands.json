@@ -37,7 +37,7 @@
           ],
           "examples" : [
             "aos launch sigil",
-            "aos launch sigil workbench",
+            "aos launch sigil legacy-workbench",
             "aos launch sigil agent-terminal",
             "aos launch sigil --json",
             "aos launch sigil --dry-run --json"
@@ -65,6 +65,161 @@
         "launch"
       ],
       "summary" : "Launch source-owned apps through one manifest-backed AOS app launcher"
+    },
+    {
+      "forms" : [
+      ],
+      "path" : [
+        "experience"
+      ],
+      "summary" : "Activate and inspect source-owned AOS experience layers"
+    },
+    {
+      "forms" : [
+        {
+          "args" : [
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable status",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos experience status --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "experience-status",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos experience status [--json]"
+        }
+      ],
+      "path" : [
+        "experience",
+        "status"
+      ],
+      "summary" : "Inspect active source-owned AOS experience state"
+    },
+    {
+      "forms" : [
+        {
+          "args" : [
+            {
+              "id" : "id",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Experience id",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable activation result",
+              "token" : "--json",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Plan activation without mutating runtime state",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos experience activate sigil --dry-run --json",
+            "aos experience activate sigil"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "activate-experience",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos experience activate <id> [--json] [--dry-run]"
+        }
+      ],
+      "path" : [
+        "experience",
+        "activate"
+      ],
+      "summary" : "Activate a source-owned AOS experience layer"
+    },
+    {
+      "forms" : [
+        {
+          "args" : [
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable deactivation result",
+              "token" : "--json",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Plan deactivation without mutating runtime state",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos experience deactivate --dry-run --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "deactivate-experience",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos experience deactivate [--json] [--dry-run]"
+        }
+      ],
+      "path" : [
+        "experience",
+        "deactivate"
+      ],
+      "summary" : "Deactivate the active AOS experience layer"
     },
     {
       "forms" : [

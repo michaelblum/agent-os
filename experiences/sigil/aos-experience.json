@@ -1,0 +1,80 @@
+{
+  "$schema": "../../shared/schemas/aos-experience-v0.schema.json",
+  "schema_version": 0,
+  "id": "sigil",
+  "title": "Sigil",
+  "version": "0.1.0",
+  "exclusive": true,
+  "default_activation": {
+    "kind": "status_item",
+    "status_item_first": true,
+    "avatar_entry": "avatar"
+  },
+  "vanilla_fallback": {
+    "status_item": true,
+    "tools": ["avatar-terminal", "graph-wiki", "inspectors"]
+  },
+  "content_roots": [
+    {
+      "id": "toolkit",
+      "path": "packages/toolkit",
+      "branch_scoped": true
+    },
+    {
+      "id": "sigil",
+      "path": "apps/sigil",
+      "branch_scoped": true
+    }
+  ],
+  "status_item": {
+    "enabled": true,
+    "label": "Sigil",
+    "icon": "sigil",
+    "toggle_surface": {
+      "id": "avatar-main",
+      "url": "aos://${root:sigil}/renderer/index.html?toolkit-root=${root:toolkit}",
+      "track": "union"
+    }
+  },
+  "branding": {
+    "display_name": "Sigil",
+    "surface_title_prefix": "Sigil",
+    "theme_ref": "apps/sigil/context-menu",
+    "about": "Sigil is the default first-party AOS experience layer."
+  },
+  "menu": [
+    {
+      "id": "toggle-avatar",
+      "label": "Dock or undock avatar",
+      "kind": "toggle_surface",
+      "entry": "avatar"
+    },
+    {
+      "id": "agent-terminal",
+      "label": "Agent Terminal",
+      "kind": "launch_tool",
+      "tool": "sigil-agent-terminal"
+    },
+    {
+      "id": "graph-wiki-brain",
+      "label": "Graph Wiki Brain",
+      "kind": "future_tool",
+      "tool": "graph-wiki"
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "kind": "future_tool",
+      "tool": "settings"
+    }
+  ],
+  "surfaces": {
+    "avatar": {
+      "summary": "Status-item controlled Sigil avatar shell."
+    },
+    "legacy-workbench": {
+      "summary": "Historical multi-tab Sigil workbench retained for explicit dev use only.",
+      "legacy": true
+    }
+  }
+}

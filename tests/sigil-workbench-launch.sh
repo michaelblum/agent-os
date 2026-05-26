@@ -25,8 +25,8 @@ AOS_RUNTIME_MODE=repo \
 MODE=repo \
 bash apps/sigil/workbench/launch.sh >"$LAUNCH_OUT"
 
-if ! AOS="$(pwd)/aos" AOS_PATH="$(pwd)/aos" AOS_RUNTIME_MODE=repo ./aos launch sigil --dry-run --json >/tmp/aos-sigil-launch-dry-run.json; then
-    echo "FAIL: generic Sigil launcher dry-run failed"
+if ! AOS="$(pwd)/aos" AOS_PATH="$(pwd)/aos" AOS_RUNTIME_MODE=repo ./aos launch sigil legacy-workbench --dry-run --json >/tmp/aos-sigil-launch-dry-run.json; then
+    echo "FAIL: generic Sigil legacy workbench dry-run failed"
     exit 1
 fi
 
@@ -49,7 +49,7 @@ import sys
 
 
 launch_out = pathlib.Path(sys.argv[1]).read_text()
-if "Sigil workbench launched." not in launch_out:
+if "Sigil legacy-workbench launched." not in launch_out:
     raise SystemExit(f"FAIL: launcher did not report success:\n{launch_out}")
 
 

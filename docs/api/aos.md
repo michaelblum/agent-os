@@ -115,6 +115,7 @@ The current top-level commands are:
 | `aos content` | Content-server status |
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
+| `aos experience` | active AOS experience-layer status, activation, and deactivation |
 | `aos runtime` | packaged runtime utilities |
 | `aos dev` | repo development workflow classification, recommendations, and build wrapper |
 | `aos permissions` | preflight and onboarding |

@@ -71,6 +71,16 @@ function parseArgs(argv) {
   return { app, entry, json, dryRun };
 }
 
+function delegateSigilDefaultToExperience({ json, dryRun }) {
+  const delegateArgs = ['experience', 'activate', 'sigil'];
+  if (dryRun) delegateArgs.push('--dry-run');
+  if (json) delegateArgs.push('--json');
+  const result = runAos(delegateArgs);
+  process.stdout.write(result.stdout);
+  process.stderr.write(result.stderr);
+  process.exit(result.status);
+}
+
 function readJSON(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -156,6 +166,8 @@ function template(value, context) {
     })
     .replace(/\$\{repo_root\}/g, repoRoot)
     .replace(/\$\{mode\}/g, mode)
+    .replace(/\$\{avatar_home_x\}/g, String(avatarHome().x))
+    .replace(/\$\{avatar_home_y\}/g, String(avatarHome().y))
     .replace(/\$\{env:([A-Za-z0-9_]+):([^}]+)\}/g, (_, name, fallback) => process.env[name] || template(fallback, context))
     .replace(/\$\{urlenv:([A-Za-z0-9_]+):([^}]+)\}/g, (_, name, fallback) => urlencode(process.env[name] || template(fallback, context)));
 }
@@ -244,8 +256,8 @@ function mainBounds() {
 
 function frameFor(kind) {
   const bounds = mainBounds();
-  if (!bounds) return kind === 'sigil_agent_terminal' ? '240,180,860,560' : '120,120,960,720';
-  if (kind === 'sigil_agent_terminal') {
+  if (!bounds) return kind === 'agent_terminal' ? '240,180,860,560' : '120,120,960,720';
+  if (kind === 'agent_terminal') {
     const w = Math.min(940, Math.max(720, Math.round(bounds.w - 240)));
     const h = Math.min(720, Math.max(480, Math.round(bounds.h - 180)));
     const x = Math.round(bounds.x + Math.min(120, Math.max(28, bounds.w - w - 28)));
@@ -265,8 +277,8 @@ function frameFor(kind) {
 
 function avatarHome() {
   const bounds = mainBounds();
-  if (!bounds) return '240,180';
-  return `${Number(bounds.x) + Number(bounds.w) / 6},${Number(bounds.y) + Number(bounds.h) / 6}`;
+  if (!bounds) return { x: 240, y: 180 };
+  return { x: Number(bounds.x) + Number(bounds.w) / 6, y: Number(bounds.y) + Number(bounds.h) / 6 };
 }
 
 function surfaceExists(id) {
@@ -316,19 +328,21 @@ function waitSurface(surface, context, steps) {
 }
 
 function postLaunch(action, context, steps) {
-  if (action.kind === 'sigil_stage_avatar') {
-    const [x, y] = avatarHome().split(',');
-    const js = `(function(){if(!window.liveJs) return 'no-liveJs'; var p={x:${x},y:${y},valid:true}; liveJs.travel=null; liveJs.avatarPos=p; liveJs.currentCursor=p; liveJs.cursorTarget=p; if(typeof postLastPositionToDaemon==='function') postLastPositionToDaemon(); return 'staged';})()`;
+  if (action.kind === 'show_eval') {
     const id = template(action.surface, context);
-    for (let index = 0; index < 10; index += 1) {
+    const js = template(action.js || '', context);
+    const success = action.success_match || '';
+    const retries = action.retries || 1;
+    const delay = String((action.retry_delay_ms || 0) / 1000);
+    for (let index = 0; index < retries; index += 1) {
       const result = runAos(['show', 'eval', '--id', id, '--js', js]);
-      if (result.stdout.includes('"staged"')) {
-        steps.push({ id: `post:sigil-stage-avatar:${id}`, status: 'success' });
+      if (!success || result.stdout.includes(success)) {
+        steps.push({ id: `post:show-eval:${id}`, status: 'success' });
         return;
       }
-      spawnSync('/bin/sleep', ['0.2']);
+      if (index + 1 < retries && delay !== '0') spawnSync('/bin/sleep', [delay]);
     }
-    steps.push({ id: `post:sigil-stage-avatar:${id}`, status: 'warning', warning: 'avatar staging timed out' });
+    steps.push({ id: `post:show-eval:${id}`, status: 'warning', warning: 'show eval success_match timed out' });
     return;
   }
   if (action.kind === 'show_post') {
@@ -401,6 +415,7 @@ function launch(manifest, entryName, roots, asJSON, dryRun) {
 
 try {
   const args = parseArgs(process.argv.slice(2));
+  if (args.app === 'sigil' && !args.entry) delegateSigilDefaultToExperience(args);
   const { manifestPath, manifest } = discoverManifest(args.app);
   validateManifest(manifest, manifestPath);
   if (manifest.id !== args.app) throw new LaunchFailure(`Manifest id ${manifest.id} does not match app ${args.app}`, 'INVALID_APP_MANIFEST');
