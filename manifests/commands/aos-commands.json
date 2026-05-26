@@ -6389,7 +6389,14 @@
       "forms" : [
         {
           "args" : [
-
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
           ],
           "examples" : [
             "aos doctor --json"
@@ -6408,7 +6415,7 @@
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
-            "supports_json_flag" : false
+            "supports_json_flag" : true
           },
           "usage" : "aos doctor [--json]"
         },
@@ -6661,7 +6668,14 @@
       "forms" : [
         {
           "args" : [
-
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
           ],
           "examples" : [
             "aos permissions check --json"
@@ -6680,13 +6694,20 @@
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
-            "supports_json_flag" : false
+            "supports_json_flag" : true
           },
           "usage" : "aos permissions check [--json]"
         },
         {
           "args" : [
-
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable JSON",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
           ],
           "examples" : [
             "aos permissions preflight --json"
@@ -6705,7 +6726,7 @@
             "default_mode" : "json",
             "error_mode" : "json_stderr",
             "streaming" : false,
-            "supports_json_flag" : false
+            "supports_json_flag" : true
           },
           "usage" : "aos permissions preflight [--json]"
         },

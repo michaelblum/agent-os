@@ -400,9 +400,12 @@ test('operational registry forms expose json flag metadata', async () => {
   const registry = await loadJson(registryPath);
   const requiredForms = new Set([
     'content-status',
+    'doctor',
     'status',
     'reset',
     'clean',
+    'permissions-check',
+    'permissions-preflight',
     'permissions-setup',
     'permissions-reset-runtime',
     'service-install',
