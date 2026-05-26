@@ -6,6 +6,8 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
+const SESSION_ROLES = new Set(['worker', 'coordinator', 'observer']);
+
 function error(message, code) {
   process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
   process.exit(1);
@@ -181,9 +183,11 @@ async function tellCommand(args) {
     validateValueFlags(args, new Set(['--register', '--session-id', '--role', '--harness', '--name']));
     const sessionID = valueAfter(args, '--session-id') || process.env.AOS_SESSION_ID;
     if (!sessionID) error('--register requires --session-id <id>', 'MISSING_ARG');
+    const role = valueAfter(args, '--role') || 'worker';
+    if (!SESSION_ROLES.has(role)) error(`Invalid --role: ${role}`, 'INVALID_ARG');
     const payload = {
       session_id: sessionID,
-      role: valueAfter(args, '--role') || 'worker',
+      role,
       harness: valueAfter(args, '--harness') || 'unknown',
     };
     const name = valueAfter(args, '--name') || legacyValue(args, '--register');

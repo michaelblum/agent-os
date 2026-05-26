@@ -257,6 +257,16 @@ fi
 check_unknown_flag listen-unknown-flag ./aos listen channel --bogus
 check_unknown_arg listen-extra ./aos listen channel unexpected
 check_unknown_arg listen-channels-extra ./aos listen --channels unexpected
+err="$STATE_ROOT/tell-register-role-invalid.err"
+if ./aos tell --register --session-id parser-test --role admin 2>"$err"; then
+  echo "FAIL: tell register accepted invalid --role value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: tell register invalid --role value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 err="$STATE_ROOT/listen-limit-missing.err"
 if ./aos listen channel --limit --since 1 2>"$err"; then
   echo "FAIL: listen accepted missing --limit value" >&2
