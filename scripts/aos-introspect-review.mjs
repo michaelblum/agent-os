@@ -34,8 +34,8 @@ function introspectionDir() {
   return join(stateRoot(), runtimeMode(), 'agent-introspection');
 }
 
-function usage() {
-  console.error('Usage: aos introspect review [--session <key>] [--json]');
+function error(message, code) {
+  console.error(JSON.stringify({ code, error: message }, null, 2));
   process.exit(1);
 }
 
@@ -73,10 +73,10 @@ function parseArgs(argv) {
       parsed.json = true;
     } else if (argv[i] === '--session') {
       i += 1;
-      if (i >= argv.length) usage();
+      if (i >= argv.length) error('--session requires a key. Usage: aos introspect review [--session <key>] [--json]', 'MISSING_ARG');
       parsed.session = sanitizeSessionComponent(argv[i]);
     } else {
-      usage();
+      error(`Unknown flag: ${argv[i]}`, argv[i].startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
     }
   }
   return parsed;
