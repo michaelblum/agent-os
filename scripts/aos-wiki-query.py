@@ -40,7 +40,7 @@ def parse_args(args, value_flags=(), boolean_flags=()):
             options[arg[2:].replace("-", "_")] = True
             i += 1
         elif arg in value_flags:
-            if i + 1 >= len(args):
+            if i + 1 >= len(args) or args[i + 1].startswith("--"):
                 fail(f"{arg} requires a value", "MISSING_ARG")
             options[arg[2:].replace("-", "_")] = args[i + 1]
             i += 2

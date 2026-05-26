@@ -78,6 +78,16 @@ grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-list-bogus.err" || {
   exit 1
 }
 
+if ./aos wiki list --type --json 2>"$ROOT/wiki-list-type-missing.err"; then
+  echo "FAIL: wiki list accepted missing --type value"
+  exit 1
+fi
+grep -q '"code": "MISSING_ARG"' "$ROOT/wiki-list-type-missing.err" || {
+  echo "FAIL: wiki list missing --type value did not use external script error contract"
+  cat "$ROOT/wiki-list-type-missing.err"
+  exit 1
+}
+
 if ./aos wiki search --bogus 2>"$ROOT/wiki-search-bogus.err"; then
   echo "FAIL: wiki search accepted unknown flag"
   exit 1
@@ -85,6 +95,16 @@ fi
 grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-search-bogus.err" || {
   echo "FAIL: wiki search unknown flag did not use external script error contract"
   cat "$ROOT/wiki-search-bogus.err"
+  exit 1
+}
+
+if ./aos wiki search gateway --type --json 2>"$ROOT/wiki-search-type-missing.err"; then
+  echo "FAIL: wiki search accepted missing --type value"
+  exit 1
+fi
+grep -q '"code": "MISSING_ARG"' "$ROOT/wiki-search-type-missing.err" || {
+  echo "FAIL: wiki search missing --type value did not use external script error contract"
+  cat "$ROOT/wiki-search-type-missing.err"
   exit 1
 }
 
