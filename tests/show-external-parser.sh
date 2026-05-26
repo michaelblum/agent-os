@@ -68,6 +68,26 @@ grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-create
   exit 1
 }
 
+if ./aos show create --id parser-test --window-level panel 2>"$STATE_ROOT/show-create-window-level-invalid.err"; then
+  echo "FAIL: show create accepted invalid --window-level value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$STATE_ROOT/show-create-window-level-invalid.err" || {
+  echo "FAIL: show create invalid --window-level value did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/show-create-window-level-invalid.err" >&2
+  exit 1
+}
+
+if ./aos show create --id parser-test --auto-project sparkle 2>"$STATE_ROOT/show-create-auto-project-invalid.err"; then
+  echo "FAIL: show create accepted invalid --auto-project value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$STATE_ROOT/show-create-auto-project-invalid.err" || {
+  echo "FAIL: show create invalid --auto-project value did not use INVALID_ARG" >&2
+  cat "$STATE_ROOT/show-create-auto-project-invalid.err" >&2
+  exit 1
+}
+
 if ./aos show wait --id parser-test --timeout --json 2>"$STATE_ROOT/show-wait-timeout-missing.err"; then
   echo "FAIL: show wait accepted missing --timeout value" >&2
   exit 1

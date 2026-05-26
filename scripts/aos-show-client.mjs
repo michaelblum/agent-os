@@ -7,6 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 const ORIGINAL_PARENT_PID = process.ppid;
+const WINDOW_LEVELS = new Set(['automatic', 'floating', 'status_bar', 'screen_saver']);
+const AUTO_PROJECT_MODES = new Set(['cursor_trail', 'highlight_focused', 'label_elements']);
 
 function error(message, code) {
   process.stderr.write(`{\n  "code" : ${JSON.stringify(code)},\n  "error" : ${JSON.stringify(message)}\n}\n`);
@@ -355,6 +357,9 @@ function parseCanvasMutationOptions(args, kind) {
         break;
       case '--window-level':
         [options.windowLevel, i] = nextValue(args, i, '--window-level');
+        if (!WINDOW_LEVELS.has(options.windowLevel)) {
+          error(`Unknown --window-level: ${options.windowLevel}. Supported: ${[...WINDOW_LEVELS].join(', ')}`, 'INVALID_ARG');
+        }
         break;
       case '--focus':
         options.focus = true;
@@ -377,6 +382,9 @@ function parseCanvasMutationOptions(args, kind) {
       case '--auto-project':
         if (kind !== 'create') unknownArg(args[i]);
         [options.autoProject, i] = nextValue(args, i, '--auto-project');
+        if (!AUTO_PROJECT_MODES.has(options.autoProject)) {
+          error(`Unknown --auto-project mode: ${options.autoProject}. Supported: ${[...AUTO_PROJECT_MODES].join(', ')}`, 'INVALID_ARG');
+        }
         break;
       case '--track': {
         let value;
