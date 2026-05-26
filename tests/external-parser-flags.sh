@@ -116,6 +116,41 @@ check_missing_arg do-native-resize-pid-invalid ./aos do resize --pid nope --to 3
 check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run
 check_unknown_flag see-observe ./aos see observe --bogus
 check_unknown_arg see-observe-extra ./aos see observe unexpected
+check_unknown_flag see-capture-unknown-flag ./aos see capture main --bogus
+check_unknown_arg see-capture-extra ./aos see capture main unexpected
+check_missing_arg see-capture-out-missing ./aos see capture main --out
+check_missing_arg see-capture-region-missing ./aos see capture main --region
+check_missing_arg see-capture-draw-rect-color-missing ./aos see capture main --draw-rect 1,2,3,4
+err="$STATE_ROOT/see-capture-radius-invalid.err"
+if ./aos see capture mouse --radius nope 2>"$err"; then
+  echo "FAIL: see capture accepted invalid --radius value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: see capture invalid --radius value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/see-capture-grid-invalid.err"
+if ./aos see capture main --grid 4by3 2>"$err"; then
+  echo "FAIL: see capture accepted invalid --grid value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: see capture invalid --grid value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/see-capture-region-canvas-conflict.err"
+if ./aos see capture --region 0,0,10,10 --canvas parser-canvas 2>"$err"; then
+  echo "FAIL: see capture accepted conflicting --region and --canvas" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: see capture conflicting selectors did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_unknown_flag focus-list ./aos focus list --bogus
 check_unknown_arg focus-list-extra ./aos focus list unexpected
 check_unknown_flag focus-create ./aos focus create --id parser-focus --window 1 --bogus
