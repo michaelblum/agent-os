@@ -1244,10 +1244,12 @@ private func permissionResetSafeSequenceLines(blockers: [ReadyBlocker], mode: AO
     var lines = [
         "Runtime mode: \(mode.rawValue)",
         "Target binary: \(targetPath)",
-        "1. Run: \(prefix) permissions reset-runtime --mode \(mode.rawValue)",
-        "2. Run: \(prefix) permissions setup --once",
-        "3. Return here and run: \(prefix) ready --post-permission",
-        "Manual Settings removal is fallback only if reset-runtime reports that targeted reset is unavailable or failed.",
+        "1. Agent: run \(prefix) permissions reset-runtime --mode \(mode.rawValue)",
+        "2. Agent: run \(prefix) permissions setup --once",
+        "3. Human: grant the macOS permission prompt, or physically remove/re-add the repo-mode aos runtime in System Settings if the grant remains stale.",
+        "4. Human: return to the waiting session and say: finished",
+        "5. Session: run \(prefix) ready --post-permission",
+        "Manual Settings removal is required when reset-runtime reports targeted reset unavailable or the grant remains stale.",
     ]
     if blockers.contains(where: { $0.id == "screen_recording" }) {
         lines.insert("Screen Recording can be re-requested by permissions setup after reset.", at: 4)
@@ -2425,7 +2427,7 @@ private func permissionResetFallbackLines(mode: AOSRuntimeMode, targetPath: Stri
         "Confirm the managed daemon is stopped: \(aosInvocationDisplayName()) service status --mode \(mode.rawValue)",
         "Normal fallback only if running=false: remove/re-add \(targetPath) in Accessibility and/or Input Monitoring.",
         "Service-wide TCC reset is break-glass only; do not run it unless Michael explicitly asks for emergency recovery.",
-        "Return and run: \(aosInvocationDisplayName()) ready --post-permission"
+        "Return to the waiting session and say: finished; the session then runs \(aosInvocationDisplayName()) ready --post-permission."
     ]
 }
 

@@ -123,7 +123,7 @@ reset path instead of asking you to remove rows in System Settings by hand.
    report the blocker. Service-wide TCC reset is break-glass only and requires
    Michael to explicitly ask for emergency recovery.
 4. After the reset, I will run `./aos permissions setup --once`.
-5. When you finish the macOS prompts and say `ready`, I will run
+5. When you finish the macOS prompts and say `finished`, I will run
    `./aos ready --post-permission`.
 
 I will not open Settings for you, run repeated repair loops, or ask you to
@@ -329,7 +329,7 @@ EOF
 fi
 
 ./aos permissions setup --once
-require_phrase "After completing the macOS prompts, type ready to run the post-permission check." "ready"
+require_phrase "After completing the macOS prompts, type finished to run the post-permission check." "finished"
 capture_json ready-after ./aos ready --post-permission --json
 validate_ready_after
 

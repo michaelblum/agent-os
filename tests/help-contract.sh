@@ -290,6 +290,7 @@ data = json.loads(os.environ["OUT"])
 assert data["schema"] == "aos.dev_build.post_build_checkpoint.v1", data
 assert data["pause_command"] == "/goal pause", data
 assert data["resume_command"] == "/goal resume", data
+assert data["return_signal"] == "finished", data
 commands = data["commands"]
 assert commands["reset_runtime"] == "./aos permissions reset-runtime --mode repo", commands
 assert commands["setup_once"] == "./aos permissions setup --once", commands

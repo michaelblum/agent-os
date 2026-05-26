@@ -38,6 +38,8 @@ elif field == "pause_command":
     print(payload["pause_command"])
 elif field == "resume_command":
     print(payload["resume_command"])
+elif field == "return_signal":
+    print(payload["return_signal"])
 elif field == "canvas_title":
     print(payload["canvas"]["title"])
 elif field == "canvas_body":

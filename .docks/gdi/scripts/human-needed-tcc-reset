@@ -17,6 +17,9 @@ echo
 echo "Running targeted repo-mode runtime reset:"
 "$aos_bin" permissions reset-runtime --mode repo || true
 echo
+echo "Requesting repo-mode permission setup:"
+"$aos_bin" permissions setup --once || true
+echo
 "$repo_root/.docks/harness/dev-build-checkpoint-contract.sh" "$repo_root" stop_system_message
 cat <<'EOF'
 

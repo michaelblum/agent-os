@@ -364,9 +364,8 @@ for required in (
     "./aos permissions reset-runtime --mode repo",
     "./aos permissions setup --once",
     "Accessibility/Input Monitoring",
-    "ready",
+    "finished",
     "./aos ready --post-permission",
-    "/goal resume",
 ):
     if required not in message:
         raise SystemExit(f"FAIL: TCC Stop systemMessage missing {required!r}: {message!r}")
@@ -599,7 +598,8 @@ for required in (
     "./aos permissions reset-runtime --mode repo",
     "./aos permissions setup --once",
     "./aos ready --post-permission",
-    "Do not run ./aos dev build again after resume",
+    "finished",
+    "Do not run ./aos dev build again after the human return",
     "continue with the next planned step after the",
     "Do not run ready/repair/status/helper loops",
 ):
@@ -651,6 +651,11 @@ grep -q '^POST_TOOL_AOS:permissions reset-runtime --mode repo$' "$post_tool_log"
   cat "$post_tool_log" >&2
   exit 1
 }
+grep -q '^POST_TOOL_AOS:permissions setup --once$' "$post_tool_log" || {
+  echo "FAIL: successful dev build hook should request repo runtime permission setup after reset" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+}
 if grep -q '^POST_TOOL_AOS:ready\|^POST_TOOL_AOS:git status' "$post_tool_log"; then
   echo "FAIL: successful dev build hook should not run readiness or status loops" >&2
   cat "$post_tool_log" >&2
@@ -696,8 +701,8 @@ grep -q 'TMUX:paste-buffer -d -b aos-dock-pty-input-.*-t %42' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
-grep -q 'TMUX_STDIN:/goal resume' "$tmux_log" || {
-  echo "FAIL: successful GDI dev build hook should stage a valid goal resume command" >&2
+grep -q 'TMUX_STDIN:finished' "$tmux_log" || {
+  echo "FAIL: successful GDI dev build hook should stage the finished return signal" >&2
   cat "$tmux_log" >&2
   exit 1
 }
@@ -719,6 +724,7 @@ for required in (
     "./aos dev build completed successfully",
     "./aos permissions setup --once",
     "./aos ready --post-permission",
+    "finished",
     "Do not run readiness, repair, status, or helper loops",
 ):
     if required not in message:
@@ -728,6 +734,11 @@ if "/goal pause" in message or "/goal resume" in message:
 PY
 grep -q '^POST_TOOL_AOS:permissions reset-runtime --mode repo$' "$post_tool_log" || {
   echo "FAIL: non-GDI successful dev build hook should reset repo runtime permissions after build" >&2
+  cat "$post_tool_log" >&2
+  exit 1
+}
+grep -q '^POST_TOOL_AOS:permissions setup --once$' "$post_tool_log" || {
+  echo "FAIL: non-GDI successful dev build hook should request repo runtime permission setup after reset" >&2
   cat "$post_tool_log" >&2
   exit 1
 }
@@ -857,11 +868,10 @@ import sys
 text = sys.argv[1]
 for required in (
     "human_needed: repo-mode AOS permission repair",
-    "Run: ./aos permissions reset-runtime --mode repo",
-    "Run: ./aos permissions setup --once",
+    "./aos permissions reset-runtime --mode repo",
+    "./aos permissions setup --once",
     "Grant the requested macOS Accessibility/Input Monitoring permission",
-    "Return to the GDI session and say: ready",
-    "/goal resume",
+    "say: finished",
     "./aos ready --post-permission",
 ):
     if required not in text:

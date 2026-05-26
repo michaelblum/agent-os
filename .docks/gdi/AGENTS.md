@@ -169,7 +169,7 @@ goal. Run the bounded stall helper once:
 ```
 
 Then stop and report `human_needed` with the script output. After the human
-returns with "ready", run:
+returns with "finished", run:
 
 ```bash
 ./aos ready --post-permission
@@ -185,15 +185,16 @@ helper's human-action block without relying on memory:
 human_needed: repo-mode AOS permission repair
 
 Human action:
-1. Run: ./aos permissions setup --once
-2. Grant the requested macOS Accessibility/Input Monitoring permission for the
-   repo-mode aos runtime if macOS prompts.
-3. Return to the GDI session and say: ready
-4. If the active goal is paused or Codex indicates it needs to resume, use:
-   /goal resume
-   Do not start a new goal for the same work.
+1. Complete the macOS System Settings permission step for the repo-mode aos
+   runtime.
+2. If macOS does not prompt or the grant remains stale, physically remove and
+   re-add the repo-mode aos runtime in Accessibility/Input Monitoring, then
+   enable it.
+3. Return to the GDI session, or the next turn for that same session, and say:
+   finished.
+4. Do not start a new goal for the same work.
 
-After the human returns, GDI runs:
+After the human says finished, GDI runs:
   ./aos ready --post-permission
 ```
 

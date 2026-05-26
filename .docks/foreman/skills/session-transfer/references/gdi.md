@@ -71,7 +71,7 @@ goal and run:
 ```
 
 Then GDI reports `human_needed` with the script output and waits for the human.
-After the human returns with "ready", run:
+After the human returns with "finished", run:
 
 ```bash
 ./aos ready --post-permission

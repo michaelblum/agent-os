@@ -85,9 +85,8 @@ or inactive input-tap blockers, include the deterministic GDI stop branch:
 The GDI helper prints the human-action command sequence, records a short-lived
 `tcc_permission_reset` stop condition for the Stop hook, and GDI must stop with
 `human_needed` instead of retrying live checks. After the human returns with
-`ready`, GDI runs `./aos ready --post-permission`. If the active goal is paused
-or Codex indicates it needs to resume, the human should use `/goal resume`
-rather than starting a new goal.
+`finished`, GDI runs `./aos ready --post-permission`. The human should keep
+using the same GDI session rather than starting a new goal.
 
 ### Existing Code To Inspect
 

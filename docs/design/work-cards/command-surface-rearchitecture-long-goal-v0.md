@@ -65,7 +65,7 @@ coverage for this guard:
   produces the concise repo-mode TCC permission repair stop condition;
 - GDI gets `/goal pause` injected through the dock PTY helper when a control
   target is available;
-- `/goal resume` guidance is staged after the pause;
+- `finished` relay guidance is staged after the pause;
 - repeat builds are blocked until `./aos ready --post-permission`;
 - successful post-permission readiness clears the checkpoint and human-needed
   surface;
@@ -80,9 +80,11 @@ Relevant accepted commits on this branch:
 The desired behavior after any successful `./aos dev build` is:
 
 ```text
-build passed; pause the current goal now with /goal pause; human should run the
-permission setup path and resume with /goal resume; after resume, run
-./aos ready --post-permission once before continuing verification
+build passed; pause the current goal now with /goal pause; AOS/hook should run
+the reset/setup commands; human should complete the macOS System Settings
+permission step, return to the same waiting session with "finished", and the
+session should run ./aos ready --post-permission once before continuing
+verification
 ```
 
 Do not proceed to Phase 1 if this guardrail regresses. Re-run
@@ -236,10 +238,10 @@ hook-enforced goal-loop rule is:
 
 - if a Codex tool call runs `./aos dev build` and it succeeds, immediately
   request `/goal pause` for the active GDI session through the control helper;
-- print only the concise human action and resume command;
+- print only the concise human action and `finished` return signal;
 - do not keep polling, do not run redundant status commands, and do not spend
   another cycle proving the same blocker;
-- after the human returns and says `ready`, run only
+- after the human returns and says `finished`, run only
   `./aos ready --post-permission`; if it reports `ready=true`, resume the next
   verification step.
 

@@ -245,7 +245,7 @@ say validation only. If the next expected work is a correction, name the exact
 finding or path. If a live AOS/TCC blocker may stall the round, put the
 repo-standard stall path in the card:
 `.docks/gdi/scripts/human-needed-tcc-reset`, then
-`./aos ready --post-permission` after the human returns.
+`./aos ready --post-permission` after the human returns with `finished`.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
 the concise plain work-card instruction, then add human-facing manual steps in
