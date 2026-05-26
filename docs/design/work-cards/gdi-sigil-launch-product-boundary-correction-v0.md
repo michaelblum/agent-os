@@ -4,10 +4,11 @@
 
 - Recipient: GDI
 - Transfer kind: correction round
-- Single next goal: correct the generic app launcher slice so `aos launch sigil`
-  launches the current Sigil product boundary, while historical workbench/studio
-  surfaces remain explicitly legacy/dev-only and Sigil-specific behavior is not
-  hard-coded into the generic launcher.
+- Single next goal: correct the generic app launcher slice so it does not
+  misclassify Sigil as a normal app. AOS is the application/control plane; Sigil
+  is an optional active AOS experience layer. The current branch must either
+  implement that experience boundary or stop short and record the exact
+  follow-up instead of cementing `aos launch sigil` as a normal app launch.
 - Source artifact: Foreman review of
   `823d3b170a933a739e02c7e08e972d3c60cf3a0a` plus Michael's clarification that
   current Sigil Studio and current Sigil Workbench should not be treated as the
@@ -21,6 +22,13 @@
   menu should be sequestered, not deleted, so its visual theme can be distilled
   into a reusable Sigil theme later. Future "graph wiki brain" and Settings
   surfaces should be toolkit-composable surfaces using that Sigil theme.
+- Additional product clarification from Michael: AOS is the application.
+  Experiences are interchangeable shells/skins over AOS. Only one experience
+  should be active at a time. Out of the box, Sigil can be the default AOS
+  experience. If no experience is loaded, AOS still shows the menu/status icon
+  with vanilla menu items for avatar terminal, graph wiki, inspectors, and other
+  core tools. An active experience such as Sigil may change status-item menu
+  config and decide which surfaces appear.
 - Branch/output expectation: continue from
   `origin/gdi/recipe-app-launch-correction-v0`, commit and push the corrected
   GDI branch. Do not open or merge a PR; Foreman will review.
@@ -46,7 +54,7 @@ editing.
 ## Review Findings To Correct
 
 The generic launcher is directionally right, but the current branch still has
-two product-boundary problems:
+three product-boundary problems:
 
 1. `apps/sigil/aos-app.json` sets `"default_entry": "workbench"`, so
    `./aos launch sigil --dry-run --json` currently expands to:
@@ -75,23 +83,37 @@ two product-boundary problems:
    hooks. The launcher should not know about Sigil frame kinds, avatar staging,
    or Sigil product names.
 
+3. The branch introduces `apps/sigil/aos-app.json`, which may be the wrong
+   concept. Sigil is better modeled as an AOS experience, not as a normal app.
+   AOS remains useful without Sigil by showing a vanilla status/menu surface.
+   Sigil, when active, configures that experiential surface.
+
 ## Goal
 
-Make these statements true:
+Make these statements true, preferring the experience model over the app model:
 
 ```bash
-./aos launch sigil --dry-run --json
-./aos launch sigil
-./aos launch sigil agent-terminal --dry-run --json
+./aos experience status --json
+./aos experience activate sigil --dry-run --json
+./aos experience activate sigil
+./aos experience deactivate --dry-run --json
 ```
 
-- `aos launch sigil` resolves to the current Sigil product-safe default, not the
-  historical workbench. Prefer the avatar/status/radial product shell as the
-  default unless local inspection proves a better current product entry already
-  exists.
-- From a visible-product standpoint, default launch should primarily make the
-  AOS/Sigil status item available. The avatar is then docked/undocked through
-  that status item and becomes the entry point for all Sigil actions.
+- If the repository already has a better command family than `experience`, use
+  it and explain why. Do not add a broad top-level command only to satisfy this
+  wording if an existing branch clearly owns runtime shell activation.
+- `aos launch sigil` should not be the canonical shape if Sigil is modeled as an
+  experience. It may remain only as a thin transitional/developer alias that
+  delegates to the experience activation path, or it may be removed before merge
+  if no external compatibility contract exists.
+- The active experience model must represent "only one active experience at a
+  time" in config/schema/command output.
+- With no active experience, AOS still owns the vanilla menu/status item and
+  vanilla access points for core tools such as avatar terminal, graph wiki, and
+  inspectors.
+- When Sigil is active, default activation should primarily make the AOS/Sigil
+  status item available. The avatar is then docked/undocked through that status
+  item and becomes the entry point for all Sigil actions.
 - Historical workbench launch, if retained, is explicitly legacy/dev-only and
   invoked by an explicit entry such as `legacy-workbench` or `dev-workbench`.
 - Sigil Studio remains sequestered/decommissioned and is not reintroduced.
@@ -103,30 +125,69 @@ Make these statements true:
 
 ## Required Design
 
-### 1. Fix the Sigil default boundary
+### 1. Introduce or record the experience boundary
 
-Update `apps/sigil/aos-app.json` so the default entry is not the historical
-workbench.
+Prefer an explicit AOS experience contract over app launch for Sigil.
+
+Candidate shape:
+
+```text
+experiences/sigil/aos-experience.json
+shared/schemas/aos-experience-v0.schema.json
+```
+
+Alternative acceptable source location if local conventions strongly favor it:
+
+```text
+apps/sigil/aos-experience.json
+```
+
+The experience manifest should cover at least:
+
+- experience id, title, version/schema version;
+- whether it may be active concurrently with another experience, which should be
+  false for Sigil;
+- status-item/menu configuration when active;
+- content roots/theme roots needed by the experience;
+- default activation behavior;
+- optional hooks for experience-specific behavior;
+- surfaces/tools exposed through the experience menu.
+
+If adding `aos experience` in this correction is too wide after inspection,
+then do the smallest reversible correction:
+
+- stop documenting/coding Sigil as a normal app default;
+- rename or mark the manifest and docs as provisional;
+- add a durable follow-up card/report for `aos experience activate sigil`;
+- keep `aos launch` generic for concrete app/tool/surface launch only.
+
+Do not silently keep `apps/sigil/aos-app.json` as the canonical product model
+without recording why that is still correct under the experience concept.
+
+### 2. Fix the Sigil default boundary
+
+Whether implemented as `aos experience activate sigil` or as a temporary
+launcher bridge, the default must not be the historical workbench.
 
 Preferred current shape:
 
 ```json
 {
-  "default_entry": "avatar"
+  "default_entry": "status"
 }
 ```
 
-The default should configure the status item and make the avatar product shell
-available. Do not open the historical workbench by default. If the cleanest
-current default entry is better named `shell`, `status`, or similar, use the
-product concept already present in source and explain the choice in the
-completion report.
+The default should configure the status item/menu and make the avatar product
+shell available through that menu. Do not open the historical workbench by
+default. If the cleanest current default entry is better named `shell`,
+`status`, `avatar`, or similar, use the product concept already present in
+source and explain the choice in the completion report.
 
-Acceptance detail: `./aos launch sigil --dry-run --json` should make it clear
-that the default plan is status-item/avatar shell readiness, not workbench
-startup.
+Acceptance detail: the dry-run JSON for the canonical command should make it
+clear that the default plan is active-experience/status-item/avatar-shell
+readiness, not workbench startup.
 
-### 2. Demote or rename the historical workbench
+### 3. Demote or rename the historical workbench
 
 The current `apps/sigil/workbench/` surface is a historical/dev surface. It is
 not the future Sigil workbench concept.
@@ -150,7 +211,7 @@ as product surface. Do not delete it. It is future source material for:
   MVP;
 - theming graph/settings/editor surfaces launched from Sigil.
 
-### 3. Remove Sigil-specific behavior from the generic launcher
+### 4. Remove Sigil-specific behavior from the generic launcher
 
 `scripts/aos-launch.mjs` must not contain hard-coded Sigil behavior or app ids.
 
@@ -164,10 +225,10 @@ Move the current special cases to one of these patterns:
 Do not leave generic-launch kinds such as `sigil_stage_avatar`,
 `sigil_workbench`, or `sigil_agent_terminal`.
 
-### 4. Keep recipes as composition, not product truth
+### 5. Keep recipes as composition, not product truth
 
-Update Sigil recipes so they compose the canonical launch entry instead of
-restoring the historical workbench as product default.
+Update Sigil recipes so they compose the canonical experience activation entry
+instead of restoring the historical workbench as product default.
 
 Expected shape for `recipes/sigil/start.json` if retained:
 
@@ -176,7 +237,7 @@ Expected shape for `recipes/sigil/start.json` if retained:
   "steps": [
     {
       "kind": "aos_command",
-      "command": { "path": ["launch"], "form_id": "launch-app" },
+      "command": { "path": ["experience", "activate"], "form_id": "activate-experience" },
       "argv": ["sigil"]
     }
   ]
@@ -185,11 +246,18 @@ Expected shape for `recipes/sigil/start.json` if retained:
 
 If a legacy/dev workbench recipe remains, name it that way.
 
-### 5. Record the future product direction without overbuilding it
+### 6. Record the future product direction without overbuilding it
 
 Add a short durable note in the most relevant existing doc or a small
 `docs/dev/reports/` note that states:
 
+- AOS is the application/control plane;
+- Sigil is an optional active experience layer over AOS, not a normal app;
+- only one experience should be active at a time;
+- without an active experience, AOS still provides a vanilla menu/status item
+  with access to core tools;
+- active experiences may configure status-item menu contents and tool launch
+  behavior;
 - current Studio is decommissioned/sequestered;
 - current workbench is legacy/dev-only;
 - current context menu, if present, is sequestered source material and should
@@ -219,7 +287,9 @@ correction.
 - `AGENTS.md`
 - `apps/sigil/AGENTS.md`
 - `apps/sigil/aos-app.json`
+- any new or renamed `aos-experience` manifest/schema files if created
 - `scripts/aos-launch.mjs`
+- any `scripts/aos-experience*.mjs` or command registry entries if created
 - `shared/schemas/aos-app-v0.schema.json`
 - `recipes/sigil/start.json`
 - `recipes/sigil/start-agent-terminal.json`
@@ -244,6 +314,8 @@ Run:
 git status --short --branch
 git rev-parse HEAD origin/gdi/recipe-app-launch-correction-v0
 AOS_PATH="$(pwd)/aos" AOS_RUNTIME_MODE=repo ./aos launch sigil --dry-run --json
+./aos experience status --json || true
+./aos experience activate sigil --dry-run --json || true
 rg -n "sigil_|Sigil" scripts/aos-launch.mjs
 rg -n "context-menu|context menu|theme|status_item|radial|settings" apps/sigil packages/toolkit tests docs/design/work-cards | head -200
 ./aos dev recommend --json --paths \
@@ -263,19 +335,32 @@ bash tests/ops-contract.sh
 bash tests/sigil-workbench-launch.sh
 node --test tests/renderer/agent-terminal-chrome.test.mjs
 AOS_PATH="$(pwd)/aos" AOS_RUNTIME_MODE=repo ./aos launch sigil --dry-run --json
-AOS_PATH="$(pwd)/aos" AOS_RUNTIME_MODE=repo ./aos launch sigil agent-terminal --dry-run --json
+./aos experience status --json
+./aos experience activate sigil --dry-run --json
+./aos experience deactivate --dry-run --json
 git diff --check
+```
+
+If you add an experience schema/test, run it directly without `|| true`, for
+example:
+
+```bash
+node --test tests/schemas/aos-experience-v0.test.mjs
 ```
 
 Adjust the exact test list if you rename/decommission the legacy workbench test,
 but keep equivalent coverage proving:
 
-- default Sigil launch no longer expands to the historical workbench;
+- default Sigil experience activation no longer expands to the historical
+  workbench;
+- only one active experience can be represented at a time;
+- the no-active-experience/vanilla status-item path remains represented;
 - any retained workbench entry is explicit legacy/dev-only;
 - the generic launcher contains no Sigil-specific action or frame kinds;
-- `aos launch sigil` and `aos launch sigil agent-terminal` still have valid dry
-  run plans;
-- Sigil recipes compose launch without becoming the product source of truth.
+- canonical Sigil activation and explicit Agent Terminal/core-tool launch still
+  have valid dry-run plans;
+- Sigil recipes compose experience activation without becoming the product
+  source of truth.
 
 If live AOS checks are needed and `./aos ready` reports repo-mode TCC/input-tap
 blockers, run:
@@ -296,6 +381,10 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - Do not build the future graph wiki brain or Settings surface in this round.
 - Do not rebuild the context menu in this round.
 - Do not delete the context menu source material if it exists.
+- Do not require `aos launch sigil` as canonical if the cleaner command is an
+  experience activation path.
+- Do not build a full experience marketplace/plugin system; model the boundary
+  narrowly enough to prevent the current Sigil-as-normal-app mistake.
 - Do not resurrect Studio.
 - Do not add a TUI.
 - Do not broaden into recipe-language redesign.
@@ -309,7 +398,9 @@ Report:
 
 - branch and head SHA;
 - files changed;
-- exact default-entry behavior for `aos launch sigil --dry-run --json`;
+- exact canonical command chosen for Sigil activation;
+- exact default-entry behavior for the canonical dry-run JSON;
+- whether `aos launch sigil` remains, delegates, or was removed;
 - where any historical workbench surface now lives and how it is invoked;
 - where any old context menu source material now lives, if touched;
 - how Sigil-specific generic-launch code was removed or replaced;
