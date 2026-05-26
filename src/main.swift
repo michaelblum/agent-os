@@ -27,10 +27,6 @@ struct AOS {
         }
 
         switch command {
-        case "see":
-            handleSee(args: Array(args.dropFirst()))
-        case "do":
-            handleDo(args: Array(args.dropFirst()))
         case "serve":
             handleServe(args: Array(args.dropFirst()))
         case "status":
@@ -63,18 +59,6 @@ struct AOS {
 // browser target — the adapter does its own version/availability gating.
 private func hasBrowserTarget(_ args: [String]) -> Bool {
     return args.first(where: { !$0.hasPrefix("--") })?.hasPrefix("browser:") == true
-}
-
-func handleDo(args: [String]) {
-    guard let sub = args.first else {
-        printCommandHelp(["do"], json: false)
-        exit(0)
-    }
-
-    switch sub {
-    default:
-        exitError("Unknown do subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
-    }
 }
 
 private func handleDoPrimitive(args: [String]) {
@@ -128,18 +112,6 @@ private func handleDoPrimitive(args: [String]) {
         runSession(profileName: getArg(subArgs, "--profile") ?? "natural")
     default:
         exitError("Unknown __do primitive: \(sub)", code: "UNKNOWN_SUBCOMMAND")
-    }
-}
-
-func handleSee(args: [String]) {
-    guard let sub = args.first else {
-        printCommandHelp(["see"], json: false)
-        exit(0)
-    }
-    switch sub {
-    default:
-        ensureInteractivePreflight(command: "aos see \(sub)")
-        runCaptureAsync(args: args)
     }
 }
 

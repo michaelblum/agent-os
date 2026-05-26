@@ -3,6 +3,17 @@
   "commands": [
     {
       "path": ["do"],
+      "summary": "Print do command help when no subcommand is provided.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["help", "do"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "child_arg_missing": true
+      }
+    },
+    {
+      "path": ["do"],
       "summary": "Validate unknown do subcommand routing through the external family router.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-family-router.mjs", "do", "UNKNOWN_SUBCOMMAND", "do subcommand"],
@@ -439,6 +450,28 @@
       "executable": "/bin/bash",
       "argv_prefix": ["scripts/aos-runtime-display-union"],
       "cwd": "repo"
+    },
+    {
+      "path": ["see"],
+      "summary": "Print see command help when no subcommand is provided.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["help", "see"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "child_arg_missing": true
+      }
+    },
+    {
+      "path": ["see"],
+      "summary": "Route legacy see capture shorthand through the native capture primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__see", "capture"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": ["capture", "observe", "cursor", "list", "selection", "zone"]
+      }
     },
     {
       "path": ["see", "capture"],

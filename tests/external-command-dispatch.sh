@@ -74,6 +74,13 @@ import json
 
 manifest = json.load(open("manifests/commands/aos-external-commands.json", encoding="utf-8"))
 commands = {tuple(item["path"]): item for item in manifest["commands"]}
+for family in ["do", "see"]:
+    matches = [item for item in manifest["commands"] if tuple(item["path"]) == (family,) and item["executable"] == "$AOS_PATH" and item["argv_prefix"] == ["help", family]]
+    assert len(matches) == 1, (family, matches)
+    assert matches[0]["when"]["child_arg_missing"] is True, matches[0]
+see_fallback = [item for item in manifest["commands"] if tuple(item["path"]) == ("see",) and item["argv_prefix"] == ["__see", "capture"]]
+assert len(see_fallback) == 1, see_fallback
+assert "capture" in see_fallback[0]["when"]["excluded_values"], see_fallback[0]
 for path in [("see", "capture"), ("see", "cursor"), ("see", "list"), ("see", "selection")]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
