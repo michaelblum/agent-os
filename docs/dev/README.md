@@ -19,6 +19,10 @@ profiles resolve against that manifest through `./aos dev docks`, so dock
 identity and capability envelopes stay declarative instead of being repeated in
 role instructions.
 
+`command-surface.md` describes the external command manifest contract: what
+remains in Swift, what lives in hot-swappable manifests/scripts, and which tests
+guard route and help behavior.
+
 Validate routing changes with:
 
 ```bash
