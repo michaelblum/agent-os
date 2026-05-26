@@ -103,9 +103,49 @@ check_unknown_arg ops-list-extra ./aos ops list unexpected
 check_unknown_arg ops-explain-extra ./aos ops explain runtime/status-snapshot unexpected
 check_unknown_flag tell-unknown-flag ./aos tell channel --bogus hello
 check_unknown_arg tell-who-extra ./aos tell --who unexpected
+err="$STATE_ROOT/tell-json-missing.err"
+if ./aos tell channel --json --from tester 2>"$err"; then
+  echo "FAIL: tell accepted missing --json value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: tell missing --json value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/tell-from-missing.err"
+if ./aos tell channel --from --json '{"ok":true}' 2>"$err"; then
+  echo "FAIL: tell accepted missing --from value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: tell missing --from value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_unknown_flag listen-unknown-flag ./aos listen channel --bogus
 check_unknown_arg listen-extra ./aos listen channel unexpected
 check_unknown_arg listen-channels-extra ./aos listen --channels unexpected
+err="$STATE_ROOT/listen-limit-missing.err"
+if ./aos listen channel --limit --since 1 2>"$err"; then
+  echo "FAIL: listen accepted missing --limit value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: listen missing --limit value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/listen-session-missing.err"
+if ./aos listen --session-id --limit 1 2>"$err"; then
+  echo "FAIL: listen accepted missing --session-id value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$err"; then
+  echo "FAIL: listen missing --session-id value did not use MISSING_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 
 err="$STATE_ROOT/see-observe-depth-missing.err"
 if ./aos see observe --depth --rate on-settle 2>"$err"; then

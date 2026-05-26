@@ -214,27 +214,27 @@ async function tellCommand(args) {
     switch (arg) {
       case '--json':
         i += 1;
-        if (i >= args.length) error('--json requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--json requires a value', 'MISSING_ARG');
         jsonData = args[i];
         break;
       case '--from':
         i += 1;
-        if (i >= args.length) error('--from requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--from requires a value', 'MISSING_ARG');
         payload.from = args[i];
         break;
       case '--from-session-id':
         i += 1;
-        if (i >= args.length) error('--from-session-id requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--from-session-id requires a value', 'MISSING_ARG');
         payload.from_session_id = args[i];
         break;
       case '--purpose':
         i += 1;
-        if (i >= args.length) error('--purpose requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--purpose requires a value', 'MISSING_ARG');
         payload.purpose = args[i];
         break;
       case '--session-id':
         i += 1;
-        if (i >= args.length) error('--session-id requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--session-id requires a value', 'MISSING_ARG');
         break;
       default:
         if (!arg.startsWith('--')) {
@@ -293,18 +293,18 @@ function parseListenArgs(args) {
         break;
       case '--since':
         i += 1;
-        if (i >= args.length) error('--since requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--since requires a value', 'MISSING_ARG');
         options.since = args[i];
         break;
       case '--limit':
         i += 1;
-        if (i >= args.length) error('--limit requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--limit requires a value', 'MISSING_ARG');
         if (!/^-?\d+$/.test(args[i])) error(`Invalid --limit: ${args[i]}`, 'INVALID_ARG');
         options.limit = Number(args[i]);
         break;
       case '--session-id':
         i += 1;
-        if (i >= args.length) error('--session-id requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--session-id requires a value', 'MISSING_ARG');
         options.sessionID = args[i];
         break;
       default:
