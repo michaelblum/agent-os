@@ -38,6 +38,26 @@ check_unknown_flag show-post ./aos show post --id parser-test --event '{"type":"
 check_unknown_flag show-listen ./aos show listen --bogus
 check_unknown_flag show-render ./aos show render --html '<p>parser</p>' --base64 --bogus
 
+if ./aos show exists --id --json 2>"$STATE_ROOT/show-exists-id-missing.err"; then
+  echo "FAIL: show exists accepted missing --id value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-exists-id-missing.err" || {
+  echo "FAIL: show exists missing --id value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-exists-id-missing.err" >&2
+  exit 1
+}
+
+if ./aos show get --id --json 2>"$STATE_ROOT/show-get-id-missing.err"; then
+  echo "FAIL: show get accepted missing --id value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-get-id-missing.err" || {
+  echo "FAIL: show get missing --id value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-get-id-missing.err" >&2
+  exit 1
+}
+
 if ./aos show render --width --html '<p>parser</p>' --base64 2>"$STATE_ROOT/show-render-width-missing.err"; then
   echo "FAIL: show render accepted missing --width value" >&2
   exit 1

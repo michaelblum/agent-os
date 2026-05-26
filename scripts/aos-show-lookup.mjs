@@ -33,7 +33,7 @@ function parseArgs(args) {
     switch (args[i]) {
       case '--id':
         i += 1;
-        if (i >= args.length) error('--id requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--id requires a value', 'MISSING_ARG');
         id = args[i];
         break;
       case '--json':
