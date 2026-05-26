@@ -15,6 +15,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
@@ -61,6 +65,7 @@ function parseOptions(args) {
         options.level = args[i];
         break;
       default:
+        if (args[i].startsWith('--')) unknownArg(args[i]);
         options.message.push(args[i]);
     }
   }
@@ -222,7 +227,7 @@ async function pushCommand(args) {
 
 async function clearCommand(args) {
   const options = parseOptions(args);
-  if (options.message.length > 0 || options.at) error(`Unknown argument: ${options.message[0] || '--at'}`, 'UNKNOWN_ARG');
+  if (options.message.length > 0 || options.at) unknownArg(options.message[0] || '--at');
   const socket = await connectOnce();
   if (!socket) error('Daemon not running or no log console active', 'CONNECT_ERROR');
   await sendEnvelope(socket, 'show', 'post', { id: LOG_CANVAS_ID, data: JSON.stringify({ type: 'log/clear' }) });
@@ -232,7 +237,7 @@ async function clearCommand(args) {
 
 async function streamCommand(args) {
   const options = parseOptions(args);
-  if (options.message.length > 0) error(`Unknown argument: ${options.message[0]}`, 'UNKNOWN_ARG');
+  if (options.message.length > 0) unknownArg(options.message[0]);
   configureToolkitRoot();
   const socket = await connectWithAutoStart();
   if (!socket) error("Cannot connect to daemon. Run 'aos serve' first.", 'CONNECT_ERROR');

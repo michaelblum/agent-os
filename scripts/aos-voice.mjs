@@ -11,6 +11,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
@@ -141,7 +145,7 @@ function takeValue(args, index, flag) {
 function rejectExtraArgs(args) {
   for (const arg of args) {
     if (arg === '--json') continue;
-    error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+    unknownArg(arg);
   }
 }
 
@@ -161,7 +165,7 @@ function listPayload(args) {
       case '--json':
         break;
       default:
-        error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        unknownArg(args[i]);
     }
   }
   return data;
@@ -209,7 +213,7 @@ function bindPayload(args) {
       case '--json':
         break;
       default:
-        error(`Unknown argument: ${arg}`, 'UNKNOWN_ARG');
+        unknownArg(arg);
     }
   }
   if (!data.session_id) error('bind requires --session-id <id>', 'MISSING_ARG');
@@ -231,7 +235,7 @@ function nextPayload(args) {
       case '--json':
         break;
       default:
-        error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        unknownArg(args[i]);
     }
   }
   if (!data.session_id) error('next requires --session-id <id>', 'MISSING_ARG');
@@ -255,7 +259,7 @@ function finalResponsePayload(args) {
         break;
       }
       default:
-        error(`Unknown argument: ${args[i]}`, 'UNKNOWN_ARG');
+        unknownArg(args[i]);
     }
   }
 

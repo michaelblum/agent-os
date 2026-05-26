@@ -19,6 +19,26 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if ./aos log push --bogus 2>"$ROOT/log-push-bogus.err"; then
+  echo "FAIL: log push accepted unknown flag" >&2
+  exit 1
+fi
+grep -q '"code":"UNKNOWN_FLAG"' "$ROOT/log-push-bogus.err" || {
+  echo "FAIL: log push unknown flag did not use UNKNOWN_FLAG" >&2
+  cat "$ROOT/log-push-bogus.err" >&2
+  exit 1
+}
+
+if ./aos log clear --bogus 2>"$ROOT/log-clear-bogus.err"; then
+  echo "FAIL: log clear accepted unknown flag" >&2
+  exit 1
+fi
+grep -q '"code":"UNKNOWN_FLAG"' "$ROOT/log-clear-bogus.err" || {
+  echo "FAIL: log clear unknown flag did not use UNKNOWN_FLAG" >&2
+  cat "$ROOT/log-clear-bogus.err" >&2
+  exit 1
+}
+
 ./aos set content.roots.toolkit packages/toolkit >/dev/null
 
 printf 'first line\n{"message":"json line","level":"warn"}\n' \
