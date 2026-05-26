@@ -570,7 +570,7 @@ function auditRegistryClaims(repoRoot) {
 function auditWorkflowManifestClaims(manifest) {
   const rule = (manifest.rules || []).find((item) => item.id === workflowRuleID);
   if (!rule) return [claim('dev-workflow-self-routes', 'The dev workflow manifest routes its own command, registry, and tests.', false, workflowRuleID, 'missing', [workflowDefaultManifest], `Add a ${workflowRuleID} rule to the workflow manifest.`)];
-  const expectedPatterns = ['docs/dev/workflow-rules.json', 'src/commands/dev.swift', 'manifests/commands/aos-commands.json', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/schemas/dev-workflow-rules.test.mjs'];
+  const expectedPatterns = ['docs/dev/workflow-rules.json', 'scripts/aos-dev-workflow.mjs', 'manifests/commands/aos-commands.json', 'tests/dev-workflow-router.sh', 'tests/dev-audit.sh', 'tests/schemas/dev-workflow-rules.test.mjs'];
   const expectedCommands = ['node --test tests/schemas/dev-workflow-rules.test.mjs', 'bash tests/dev-workflow-router.sh', 'bash tests/dev-audit.sh'];
   const patterns = rule.patterns || [];
   const commands = (rule.commands || []).map((item) => item.command);

@@ -142,7 +142,7 @@
         "docs/dev/active-profile.json",
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
-        "src/commands/dev.swift",
+        "scripts/aos-dev-workflow.mjs",
         "manifests/commands/aos-commands.json",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",

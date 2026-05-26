@@ -98,7 +98,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
       'bash tests/dev-audit.sh',
     ],
   );
-  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/commands/dev.swift'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-workflow.mjs'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('manifests/commands/aos-commands.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/workflow-profiles.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/active-profile.json'));
