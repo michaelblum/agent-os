@@ -306,13 +306,15 @@ function issueCommand(args) {
   const repoRoot = repoRootFrom(options);
   const repoFullName = repositoryFullName(options, repoRoot);
   if (action === 'view') {
-    if (options.positionals.length !== 1) die('dev gh issue view requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length === 0) die('dev gh issue view requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     const ghArgs = ['issue', 'view', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     if (options.json) ghArgs.push('--json', 'number,title,state,url,body,labels,comments');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
-    if (options.positionals.length !== 1) die('dev gh issue comment requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length === 0) die('dev gh issue comment requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     if (!options.bodyFile) die('dev gh issue comment requires --body-file <path>', 'MISSING_ARG');
     const bodyFile = resolveUserPath(options.bodyFile);
     if (!fs.existsSync(bodyFile)) die(`Missing issue comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');
@@ -346,7 +348,8 @@ function prCommand(args) {
     if (options.json) ghArgs.push('--json', 'name,state,bucket,link,startedAt,completedAt,workflow');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
-    if (options.positionals.length !== 1) die('dev gh pr comment requires exactly one PR number', 'MISSING_ARG');
+    if (options.positionals.length === 0) die('dev gh pr comment requires exactly one PR number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh pr argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     if (!options.bodyFile) die('dev gh pr comment requires --body-file <path>', 'MISSING_ARG');
     const bodyFile = resolveUserPath(options.bodyFile);
     if (!fs.existsSync(bodyFile)) die(`Missing PR comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');

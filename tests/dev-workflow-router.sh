@@ -514,6 +514,14 @@ else
     fail "dev gh context did not report expected local gh state"
 fi
 
+if ERR="$(./aos dev gh issue view 298 extra --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue view should reject extra positional args"
+elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
+    pass "dev gh issue view rejects extra positional args"
+else
+    fail "dev gh issue view extra positional error mismatch: $ERR"
+fi
+
 BODY="$TMPDIR/comment.md"
 printf 'accepted state\n' > "$BODY"
 : > "$GH_ARGS_LOG"
@@ -523,6 +531,22 @@ if OUT="$(./aos dev gh issue comment 298 --body-file "$BODY" 2>/dev/null)" &&
     pass "dev gh issue comment shells out to gh with body-file"
 else
     fail "dev gh issue comment did not shell out through expected gh invocation"
+fi
+
+if ERR="$(./aos dev gh issue comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
+    fail "dev gh issue comment should reject extra positional args"
+elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
+    pass "dev gh issue comment rejects extra positional args"
+else
+    fail "dev gh issue comment extra positional error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
+    fail "dev gh pr comment should reject extra positional args"
+elif echo "$ERR" | grep -q 'Unknown dev gh pr argument: extra'; then
+    pass "dev gh pr comment rejects extra positional args"
+else
+    fail "dev gh pr comment extra positional error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev gh ci inspect --json 2>/dev/null)"; then
