@@ -182,7 +182,9 @@
         "scripts/aos-*",
         "scripts/afk-*.mjs",
         "scripts/afk-*.py",
-        "packages/cli/**"
+        "scripts/sign-aos-runtime",
+        "packages/cli/**",
+        "packages/gateway/dist/doctor-cli.js"
       ],
       "classes": [
         "command_contract",
