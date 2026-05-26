@@ -1,0 +1,34 @@
+{
+  "id": "runtime/clean-restart",
+  "version": 1,
+  "summary": "Restart the repo runtime and verify readiness without looping on permission repair.",
+  "scope": "source",
+  "mutates": true,
+  "requires": ["service", "ready"],
+  "docs": "docs/api/aos.md#aos-recipe",
+  "owned_resources": [
+    {
+      "name": "daemon",
+      "type": "runtime",
+      "id": "repo-daemon"
+    }
+  ],
+  "steps": [
+    {
+      "id": "restart-and-ready",
+      "kind": "shell",
+      "shell": {
+        "script": "scripts/recipes-runtime-clean-restart.sh",
+        "cwd": "."
+      },
+      "timeout_ms": 30000,
+      "mutates": true,
+      "assertions": [
+        {
+          "path": ["status"],
+          "exists": true
+        }
+      ]
+    }
+  ]
+}

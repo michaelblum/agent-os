@@ -7,7 +7,7 @@
 ## Problem
 
 AOS has primitives for perception, action, projection, communication, and wiki
-workflows. It also has source-backed ops recipes, browser targets, workbench
+workflows. It also has source-backed executable recipes, browser targets, workbench
 subjects, gateway jobs, and a few specialized traces. Those pieces are useful,
 but they do not yet describe one first-class thing: work that was done and can
 be understood, repaired, replayed, or retired later.
@@ -279,7 +279,9 @@ subject executable or inspectable. Tracked in #237.
   and human feedback sidecars. Those concepts should converge here.
 - #211 and #215 define wiki-backed workbench/workflow subjects. Work records
   should attach to those subjects later as run/evidence layers.
-- #129 `aos ops` recipes are source-backed operator recipes. They can become
+- #129 `aos recipe` recipes are source-backed executable recipes. The older
+  `aos ops` spelling is a compatibility alias until old callers are removed.
+  They can become
   one execution backend or compiled projection, not the whole work-record model.
 - #161 and #163 can supply friction telemetry and semantic target-resolution
   evidence.

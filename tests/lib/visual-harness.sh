@@ -5,6 +5,7 @@ VISUAL_HARNESS_ROOT="$(cd "$VISUAL_HARNESS_DIR/../.." && pwd)"
 
 source "$VISUAL_HARNESS_DIR/isolated-daemon.sh"
 source "$VISUAL_HARNESS_DIR/status-item.sh"
+source "$VISUAL_HARNESS_ROOT/apps/sigil/scripts/launch-common.sh"
 
 aos_visual_root() {
   printf '%s\n' "$VISUAL_HARNESS_ROOT"
@@ -117,12 +118,7 @@ aos_visual_configure_sigil_status_item() {
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
-  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
-  "$aos_bin" set content.roots.sigil "$VISUAL_HARNESS_ROOT/apps/sigil" >/dev/null
-  "$aos_bin" set status_item.enabled true >/dev/null
-  "$aos_bin" set status_item.toggle_id "$avatar_id" >/dev/null
-  "$aos_bin" set status_item.toggle_url 'aos://sigil/renderer/index.html' >/dev/null
-  "$aos_bin" set status_item.toggle_track union >/dev/null
+  sigil_configure_status_item "$aos_bin" "$VISUAL_HARNESS_ROOT/apps/sigil" "$VISUAL_HARNESS_ROOT/packages/toolkit" "$avatar_id"
 }
 
 aos_visual_remove_canvas() {

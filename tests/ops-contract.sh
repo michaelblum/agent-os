@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ops-contract.sh — verify source-backed ops recipe contracts.
+# ops-contract.sh — verify source-backed executable recipe contracts.
 
 set -euo pipefail
 
@@ -32,6 +32,9 @@ with (root / "shared/schemas/ops-recipe.schema.json").open() as f:
 validator = jsonschema.Draft202012Validator(recipe_schema)
 valid_recipes = [
     "recipes/runtime/status-snapshot.json",
+    "recipes/runtime/clean-restart.json",
+    "recipes/sigil/start.json",
+    "recipes/sigil/start-agent-terminal.json",
     "recipes/canvas/window-level-smoke.json",
 ]
 for recipe_path in valid_recipes:
@@ -77,42 +80,64 @@ else
     fail "show create scope registry default drifted"
 fi
 
-# --- 3. ops list discovers the source recipe. ---
-OUT="$(./aos ops list --json 2>/dev/null)"
+# --- 3. recipe list discovers source recipes. ---
+OUT="$(./aos recipe list --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 assert any(r["id"] == "runtime/status-snapshot" for r in data["recipes"]), data
+assert any(r["id"] == "runtime/clean-restart" for r in data["recipes"]), data
+assert any(r["id"] == "sigil/start" for r in data["recipes"]), data
+assert any(r["id"] == "sigil/start-agent-terminal" for r in data["recipes"]), data
 assert any(r["id"] == "canvas/window-level-smoke" for r in data["recipes"]), data
 PY
 then
-    pass "ops list discovers source recipes"
+    pass "recipe list discovers source recipes"
 else
-    fail "ops list did not discover source recipes"
+    fail "recipe list did not discover source recipes"
 fi
 
-# --- 4. ops explain exposes the fully qualified command ref. ---
-OUT="$(./aos ops explain runtime/status-snapshot --json 2>/dev/null)"
+# --- 4. recipe explain exposes typed command and shell blocks. ---
+OUT="$(./aos recipe explain runtime/status-snapshot --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
 data = json.loads(os.environ["OUT"])
 assert data["status"] == "success", data
 step = data["steps"][0]
+assert step["kind"] == "aos_command", step
 assert step["command"]["path"] == ["status"], step
 assert step["command"]["form_id"] == "status", step
 assert step["mutates"] is False, step
 PY
 then
-    pass "ops explain reports status command ref"
+    pass "recipe explain reports status command ref"
 else
-    fail "ops explain contract failed"
+    fail "recipe explain command contract failed"
 fi
 
-# --- 5. ops dry-run is static and side-effect-free. ---
-OUT="$(./aos ops dry-run runtime/status-snapshot --json 2>/dev/null)"
+OUT="$(./aos recipe explain sigil/start --json 2>/dev/null)"
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+shell = data["steps"][0]
+assert shell["kind"] == "shell", shell
+assert shell["shell"]["script"] == "scripts/recipes-sigil-configure-status-item.sh", shell
+assert any(step["shell"]["script"] == "apps/sigil/workbench/launch.sh" for step in data["steps"] if step["kind"] == "shell"), data
+assert data["mutates"] is True, data
+PY
+then
+    pass "recipe explain reports shell block refs"
+else
+    fail "recipe explain shell contract failed"
+fi
+
+# --- 5. recipe dry-run is static and side-effect-free. ---
+OUT="$(./aos recipe dry-run runtime/status-snapshot --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -124,13 +149,13 @@ assert data["steps"][0]["status"] == "planned", data
 assert data["steps"][0]["would_run"] is True, data
 PY
 then
-    pass "ops dry-run emits static plan"
+    pass "recipe dry-run emits static plan"
 else
-    fail "ops dry-run contract failed"
+    fail "recipe dry-run contract failed"
 fi
 
 # --- 6. mutating recipe dry-run exposes owned resources without creating them. ---
-OUT="$(./aos ops dry-run canvas/window-level-smoke --json 2>/dev/null)"
+OUT="$(./aos recipe dry-run canvas/window-level-smoke --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -161,7 +186,7 @@ else
 fi
 
 # --- 7. dry-run default output is text, matching the registry. ---
-OUT="$(./aos ops dry-run runtime/status-snapshot 2>/dev/null)"
+OUT="$(./aos recipe dry-run runtime/status-snapshot 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'dry-run runtime/status-snapshot'; then
     pass "ops dry-run default output is text"
 else
@@ -169,7 +194,7 @@ else
 fi
 
 # --- 8. run default output is text, matching the registry. ---
-OUT="$(./aos ops run runtime/status-snapshot 2>/dev/null)"
+OUT="$(./aos recipe run runtime/status-snapshot 2>/dev/null)"
 if [[ "$OUT" != \{* ]] && echo "$OUT" | grep -q 'success runtime/status-snapshot'; then
     pass "ops run default output is text"
 else
@@ -180,7 +205,7 @@ fi
 mkdir -p "$TMP/dup-a" "$TMP/dup-b"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-a/status-a.json"
 cp recipes/runtime/status-snapshot.json "$TMP/dup-b/status-b.json"
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/dup-a:$TMP/dup-b" ./aos ops list --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/dup-a:$TMP/dup-b" ./aos recipe list --json 2>&1 >/dev/null)"; then
     fail "duplicate recipe IDs should fail"
 elif echo "$ERR" | grep -q '"code" : "DUPLICATE_RECIPE_ID"'; then
     pass "duplicate recipe IDs are rejected"
@@ -189,7 +214,7 @@ else
 fi
 
 # --- 10. invalid recipe explain fails before execution. ---
-if ERR="$(AOS_OPS_RECIPE_ROOTS="tests/fixtures/ops/invalid" ./aos ops explain fixture/missing-command --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_OPS_RECIPE_ROOTS="tests/fixtures/ops/invalid" ./aos recipe explain fixture/missing-command --json 2>&1 >/dev/null)"; then
     fail "invalid recipe should fail explain"
 elif echo "$ERR" | grep -q '"code" : "INVALID_RECIPE"'; then
     pass "invalid recipe is rejected during explanation"
@@ -199,7 +224,7 @@ fi
 
 # --- 11. installed-mode index discovery does not need source roots. ---
 scripts/generate-ops-recipe-index "$PWD" "$TMP/recipes-index.json"
-OUT="$(AOS_RUNTIME_MODE=installed AOS_OPS_RECIPE_INDEX="$TMP/recipes-index.json" ./aos ops list --json 2>/dev/null)"
+OUT="$(AOS_RUNTIME_MODE=installed AOS_OPS_RECIPE_INDEX="$TMP/recipes-index.json" ./aos recipe list --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -215,7 +240,7 @@ else
 fi
 
 # --- 12. missing recipes follow stderr/exit-code failure contract. ---
-if ERR="$(./aos ops dry-run runtime/not-here --json 2>&1 >/dev/null)"; then
+if ERR="$(./aos recipe dry-run runtime/not-here --json 2>&1 >/dev/null)"; then
     fail "missing recipe dry-run should fail"
 elif echo "$ERR" | grep -q '"code" : "RECIPE_NOT_FOUND"'; then
     pass "missing recipe dry-run returns RECIPE_NOT_FOUND on stderr"
@@ -223,8 +248,8 @@ else
     fail "missing recipe error code mismatch: $ERR"
 fi
 
-# --- 13. ops run executes the first read-only recipe and matches result schema. ---
-OUT="$(./aos ops run runtime/status-snapshot --json 2>/dev/null)"
+# --- 13. recipe run executes the first read-only recipe and matches result schema. ---
+OUT="$(./aos recipe run runtime/status-snapshot --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -276,7 +301,7 @@ cat >"$TMP/large/help-snapshot.json" <<'JSON'
   ]
 }
 JSON
-OUT="$(AOS_OPS_RECIPE_ROOTS="$TMP/large" ./aos ops run fixture/help-snapshot --json 2>/dev/null)"
+OUT="$(AOS_OPS_RECIPE_ROOTS="$TMP/large" ./aos recipe run fixture/help-snapshot --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -293,7 +318,7 @@ else
 fi
 
 # --- 15. ops run executes a mutating canvas smoke and cleans up owned resources. ---
-OUT="$(./aos ops run canvas/window-level-smoke --json 2>/dev/null)"
+OUT="$(./aos recipe run canvas/window-level-smoke --json 2>/dev/null)"
 if OUT="$OUT" python3 - <<'PY'
 import json
 import os
@@ -386,7 +411,7 @@ cat >"$TMP/assertion-cleanup/assertion-cleanup.json" <<'JSON'
   ]
 }
 JSON
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/assertion-cleanup" ./aos ops run fixture/assertion-cleanup --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/assertion-cleanup" ./aos recipe run fixture/assertion-cleanup --json 2>&1 >/dev/null)"; then
     fail "assertion cleanup fixture should fail"
 elif ERR="$ERR" python3 - <<'PY'
 import json
@@ -453,7 +478,7 @@ cat >"$TMP/cleanup-failed/cleanup-failed.json" <<'JSON'
   ]
 }
 JSON
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/cleanup-failed" ./aos ops run fixture/cleanup-failed --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/cleanup-failed" ./aos recipe run fixture/cleanup-failed --json 2>&1 >/dev/null)"; then
     fail "cleanup-failed fixture should fail"
 elif ERR="$ERR" python3 - <<'PY'
 import json
@@ -519,7 +544,7 @@ cat >"$TMP/timeout-cleanup/timeout-cleanup.json" <<'JSON'
   ]
 }
 JSON
-if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/timeout-cleanup" ./aos ops run fixture/timeout-cleanup --json 2>&1 >/dev/null)"; then
+if ERR="$(AOS_OPS_RECIPE_ROOTS="$TMP/timeout-cleanup" ./aos recipe run fixture/timeout-cleanup --json 2>&1 >/dev/null)"; then
     fail "timeout cleanup fixture should fail"
 elif ERR="$ERR" python3 - <<'PY'
 import json

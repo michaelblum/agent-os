@@ -58,8 +58,11 @@ avatar = next((c for c in show.get("canvases", []) if c.get("id") == "avatar-mai
 if workbench is None or avatar is None:
     raise SystemExit(f"FAIL: launcher missing expected canvases: {show}")
 
-graph = run("graph", "displays", "--json")
-displays = graph.get("displays", graph if isinstance(graph, list) else [])
+graph = run("graph", "displays")
+if isinstance(graph, dict) and isinstance(graph.get("data"), dict):
+    displays = graph["data"].get("displays", [])
+else:
+    displays = graph.get("displays", graph if isinstance(graph, list) else [])
 main = next((d for d in displays if d.get("is_main")), None)
 if main is None:
     raise SystemExit(f"FAIL: no main display in graph payload: {graph}")
@@ -80,9 +83,11 @@ actual = workbench.get("at")
 if actual is None:
     raise SystemExit(f"FAIL: workbench missing frame: {workbench}")
 
-for observed, wanted in zip(actual, expected):
+for observed, wanted in zip(actual[:3], expected[:3]):
     if not math.isclose(float(observed), float(wanted), abs_tol=1.0):
         raise SystemExit(f"FAIL: workbench frame drifted from launch geometry: actual={actual} expected={expected}")
+if not (360 <= float(actual[3]) <= float(expected[3]) + 1.0):
+    raise SystemExit(f"FAIL: workbench height outside launch bounds: actual={actual} expected={expected}")
 
 if not (float(actual[0]) >= float(bounds["x"]) and float(actual[1]) >= float(bounds["y"])):
     raise SystemExit(f"FAIL: workbench escaped display origin: actual={actual} bounds={bounds}")

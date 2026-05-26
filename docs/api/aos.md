@@ -96,7 +96,8 @@ The current top-level commands are:
 | --- | --- |
 | `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
 | `aos status` | read-only runtime/session status snapshot |
-| `aos ops` | source-backed operator recipes: list, explain, dry-run, run |
+| `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
+| `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, or callers require the old noun |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -534,11 +535,13 @@ number or numbers backing a canvas. Perception commands use this to keep
 canvas-scoped captures and `--xray` AX traversal attached to the intended AOS
 surface instead of falling back to the frontmost app.
 
-## `aos ops`
+## `aos recipe`
 
-`ops` is the source-backed operator recipe surface. It sits above primitive
-verbs such as `status`, `show`, and `see`, but it keeps those primitive command
-references visible so agents can inspect what will run.
+`recipe` is the source-backed executable recipe surface. It sits above
+primitive verbs such as `status`, `show`, and `see`, and it can also run
+repo-owned helper scripts through typed `shell` blocks. It keeps primitive
+command and script references visible so agents can inspect what will run.
+`aos ops` remains a compatibility alias while old callers are retired.
 
 | Subcommand | Purpose |
 | --- | --- |
@@ -550,24 +553,27 @@ references visible so agents can inspect what will run.
 V1 examples:
 
 ```bash
-aos ops list --json
-aos ops explain runtime/status-snapshot --json
-aos ops dry-run runtime/status-snapshot --json
-aos ops run runtime/status-snapshot --json
-aos ops dry-run canvas/window-level-smoke --json
+aos recipe list --json
+aos recipe explain runtime/status-snapshot --json
+aos recipe dry-run runtime/status-snapshot --json
+aos recipe run runtime/status-snapshot --json
+aos recipe dry-run sigil/start --json
 ```
 
-`ops dry-run` is static in v1: it does not start daemons, create canvases,
+`recipe dry-run` is static in v1: it does not start daemons, create canvases,
 mutate resources, or run read-only observation probes. It validates the recipe,
 resolves declared resources, verifies external help-manifest command
-references, and returns the planned steps. Without `--json`, it emits a concise
-text plan.
+references and static repo shell script paths, and returns the planned blocks,
+resource ownership, parameters, and cleanup plan. Without `--json`, it emits a
+concise text plan.
 
-`ops run` supports read-only recipes and the first mutating canvas smoke,
-`canvas/window-level-smoke`. Mutating recipes must declare `owned_resources`
-and `finally` cleanup steps; cleanup steps can only target resources declared
-as owned by the current run. Without `--json`, successful runs emit a concise
-text summary.
+`recipe run` supports read-only recipes, mutating canvas recipes with explicit
+owned cleanup, and bounded repo-owned shell helpers for runtime/Sigil startup.
+Owned resources that require cleanup, such as canvases, must be cleaned by
+`finally` steps that only target resources declared by the current run. Runtime,
+configuration, process, and surface ownership is reported as local live state
+without pretending that every mutation has a cleanup action. Without `--json`,
+successful runs emit a concise text summary.
 
 `--json` follows the global process contract: success and dry-run success emit
 JSON on stdout with exit code `0`; failure or partial cleanup emits JSON on

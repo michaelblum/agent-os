@@ -165,7 +165,7 @@ PY
 }
 
 compute_frame() {
-  AOS_DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"displays":[]}')" python3 - <<'PY'
+  AOS_DISPLAY_JSON="$("$AOS" graph displays 2>/dev/null || echo '{"displays":[]}')" python3 - <<'PY'
 import json, os
 raw = json.loads(os.environ.get("AOS_DISPLAY_JSON") or '{"displays":[]}')
 if isinstance(raw, dict) and isinstance(raw.get("data"), dict):

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/ops-result.schema.json",
-  "title": "AOS Ops Result",
-  "description": "Machine-readable result for aos ops dry-run and run.",
+  "title": "AOS Recipe Result",
+  "description": "Machine-readable result for aos recipe dry-run and run.",
   "type": "object",
   "required": [
     "status",
@@ -69,6 +69,14 @@
         }
       }
     },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
     "steps": {
       "type": "array",
       "items": { "$ref": "#/$defs/StepResult" }
@@ -78,7 +86,7 @@
       "required": ["status", "steps"],
       "additionalProperties": true,
       "properties": {
-        "status": { "enum": ["not_needed", "success", "failed"] },
+        "status": { "enum": ["not_needed", "planned", "success", "failed"] },
         "steps": {
           "type": "array",
           "items": { "$ref": "#/$defs/StepResult" }
@@ -91,7 +99,7 @@
       "type": "object",
       "required": [
         "id",
-        "command",
+        "kind",
         "argv",
         "timeout_ms",
         "mutates",
@@ -104,6 +112,9 @@
       "additionalProperties": true,
       "properties": {
         "id": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["aos_command", "shell", "recipe_call", "assert", "cleanup", "signal", "gate", "condition", "loop"]
+        },
         "command": {
           "type": "object",
           "required": ["path", "form_id"],
@@ -114,6 +125,15 @@
               "items": { "type": "string" }
             },
             "form_id": { "type": "string" }
+          }
+        },
+        "shell": {
+          "type": "object",
+          "required": ["script", "cwd"],
+          "additionalProperties": false,
+          "properties": {
+            "script": { "type": "string" },
+            "cwd": { "type": "string" }
           }
         },
         "argv": {
@@ -136,7 +156,11 @@
           "type": "object",
           "additionalProperties": true
         }
-      }
+      },
+      "oneOf": [
+        { "required": ["command"] },
+        { "required": ["shell"] }
+      ]
     }
   }
 }

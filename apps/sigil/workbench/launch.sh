@@ -34,7 +34,10 @@ import json, os, sys
 
 margin_x, margin_y = int(sys.argv[1]), int(sys.argv[2])
 raw = json.loads(os.environ["AOS_DISPLAY_JSON"])
-displays = raw.get("displays", raw) if isinstance(raw, dict) else raw
+if isinstance(raw, dict) and isinstance(raw.get("data"), dict):
+    displays = raw["data"].get("displays", [])
+else:
+    displays = raw.get("displays", raw) if isinstance(raw, dict) else raw
 main = next((d for d in displays if d.get("is_main")), None)
 
 if not main:
@@ -103,7 +106,7 @@ main() {
   "$AOS" show remove --id "$AVATAR_ID" >/dev/null 2>&1 || true
 
   local display_json geometry frame avatar_home
-  display_json="$("$AOS" graph displays --json 2>/dev/null || echo '{"displays":[]}')"
+  display_json="$("$AOS" graph displays 2>/dev/null || echo '{"displays":[]}')"
   geometry="$(compute_geometry "$display_json")"
   frame="$(echo "$geometry" | head -1)"
   avatar_home="$(echo "$geometry" | tail -1)"

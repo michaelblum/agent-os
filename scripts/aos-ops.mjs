@@ -26,6 +26,11 @@ function invocationName() {
   return configured && !configured.startsWith('$') ? configured : 'aos';
 }
 
+function publicSurface() {
+  const configured = process.env.AOS_RECIPE_SURFACE;
+  return configured && !configured.startsWith('$') ? configured : 'recipe';
+}
+
 function envValue(name) {
   const value = process.env[name];
   return value && !value.startsWith('$') ? value : undefined;
@@ -200,33 +205,86 @@ function validateAssertions(assertions, stepID) {
   }
 }
 
+function blockKind(step) {
+  return step.kind || (step.command ? 'aos_command' : null);
+}
+
+function repoRoot() {
+  return process.cwd();
+}
+
+function resolveRepoPath(relPath, fieldName) {
+  if (typeof relPath !== 'string' || !relPath) throw new OpsFailure(`${fieldName} must be a repo-relative path`, 'INVALID_RECIPE');
+  if (path.isAbsolute(relPath)) throw new OpsFailure(`${fieldName} must not be absolute: ${relPath}`, 'INVALID_RECIPE');
+  const root = path.resolve(repoRoot());
+  const resolved = path.resolve(root, relPath);
+  if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
+    throw new OpsFailure(`${fieldName} must stay under the repo: ${relPath}`, 'INVALID_RECIPE');
+  }
+  return resolved;
+}
+
 function planRecipe(recipe) {
   const steps = recipe.manifest.steps;
   if (!Array.isArray(steps) || steps.length === 0) throw new OpsFailure(`Recipe ${recipe.id} must declare at least one step`, 'INVALID_RECIPE');
   const planned = steps.map((step) => {
     if (!step.id) throw new OpsFailure(`Recipe ${recipe.id} contains a step without id`, 'INVALID_RECIPE');
-    const commandPath = step.command?.path;
-    const formID = step.command?.form_id;
-    if (!Array.isArray(commandPath) || !formID) throw new OpsFailure(`Step ${step.id} must use command.path and command.form_id`, 'INVALID_RECIPE');
-    const form = findCommandForm(commandPath, formID);
-    if (!form) throw new OpsFailure(`Step ${step.id} references unknown command form ${commandPath.join(' ')}/${formID}`, 'UNKNOWN_COMMAND_FORM');
     const timeoutMs = Number(step.timeout_ms || 5000);
     if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new OpsFailure(`Step ${step.id} timeout_ms must be positive`, 'INVALID_RECIPE');
     const assertions = Array.isArray(step.assertions) ? step.assertions : [];
     validateAssertions(assertions, step.id);
-    const mutates = Boolean(step.mutates ?? form.execution?.mutates_state) || Boolean(form.execution?.mutates_state);
-    return {
+    const kind = blockKind(step);
+    const base = {
       id: step.id,
-      commandPath,
-      formID,
-      argv: Array.isArray(step.argv) ? step.argv : [],
+      kind,
       timeoutMs,
-      mutates,
       finally: Boolean(step.finally),
-      supportsDelegateDryRun: Boolean(form.execution?.supports_dry_run),
       cleanupResources: Array.isArray(step.cleanup_resources) ? step.cleanup_resources : [],
       assertions,
     };
+    if (kind === 'aos_command') {
+      const commandPath = step.command?.path;
+      const formID = step.command?.form_id;
+      if (!Array.isArray(commandPath) || !formID) throw new OpsFailure(`Step ${step.id} must use command.path and command.form_id`, 'INVALID_RECIPE');
+      const form = findCommandForm(commandPath, formID);
+      if (!form) throw new OpsFailure(`Step ${step.id} references unknown command form ${commandPath.join(' ')}/${formID}`, 'UNKNOWN_COMMAND_FORM');
+      const mutates = Boolean(step.mutates ?? form.execution?.mutates_state) || Boolean(form.execution?.mutates_state);
+      return {
+        ...base,
+        commandPath,
+        formID,
+        argv: Array.isArray(step.argv) ? step.argv : [],
+        mutates,
+        supportsDelegateDryRun: Boolean(form.execution?.supports_dry_run),
+      };
+    }
+    if (kind === 'shell') {
+      const shell = step.shell || {};
+      const script = shell.script;
+      const scriptPath = resolveRepoPath(script, `Step ${step.id} shell.script`);
+      if (!fs.existsSync(scriptPath) || !fs.statSync(scriptPath).isFile()) {
+        throw new OpsFailure(`Step ${step.id} shell.script does not exist: ${script}`, 'INVALID_RECIPE');
+      }
+      let cwd = shell.cwd || '.';
+      const cwdPath = resolveRepoPath(cwd, `Step ${step.id} shell.cwd`);
+      if (!fs.existsSync(cwdPath) || !fs.statSync(cwdPath).isDirectory()) {
+        throw new OpsFailure(`Step ${step.id} shell.cwd does not exist: ${cwd}`, 'INVALID_RECIPE');
+      }
+      return {
+        ...base,
+        script,
+        scriptPath,
+        cwd,
+        cwdPath,
+        argv: Array.isArray(step.argv) ? step.argv : [],
+        mutates: Boolean(step.mutates),
+        supportsDelegateDryRun: false,
+      };
+    }
+    if (['recipe_call', 'assert', 'cleanup', 'signal', 'gate', 'condition', 'loop'].includes(kind)) {
+      throw new OpsFailure(`Step ${step.id} uses reserved recipe block kind '${kind}' without execution support in this engine version`, 'INVALID_RECIPE');
+    }
+    throw new OpsFailure(`Step ${step.id} uses unknown recipe block kind '${kind}'`, 'INVALID_RECIPE');
   });
   validateOwnedResourcePlan(recipe, planned);
   return planned;
@@ -239,6 +297,10 @@ function ownedResourceTemplates(recipe) {
     if (!item.name || !item.type || !item.id) throw new OpsFailure(`Recipe ${recipe.id} has invalid owned_resources entry`, 'INVALID_RECIPE');
     return { name: item.name, type: item.type, id: item.id, ttlSeconds: item.ttl_seconds };
   });
+}
+
+function resourceNeedsCleanup(resource) {
+  return resource.type === 'canvas';
 }
 
 function validateOwnedResourcePlan(recipe, plan) {
@@ -258,9 +320,9 @@ function validateOwnedResourcePlan(recipe, plan) {
     }
   }
   if (!mutates) return;
-  if (!owned.length) throw new OpsFailure(`Mutating recipe ${recipe.id} must declare owned_resources`, 'INVALID_RECIPE');
-  if (!plan.some((step) => step.finally && step.cleanupResources.length)) {
-    throw new OpsFailure(`Mutating recipe ${recipe.id} must declare at least one cleanup finally step`, 'INVALID_RECIPE');
+  const cleanupRequired = owned.some(resourceNeedsCleanup);
+  if (cleanupRequired && !plan.some((step) => step.finally && step.cleanupResources.length)) {
+    throw new OpsFailure(`Mutating recipe ${recipe.id} must declare cleanup finally steps for owned cleanup resources`, 'INVALID_RECIPE');
   }
 }
 
@@ -299,9 +361,9 @@ function ownedResourcesJSON(resources, runID, cleanupStatus = undefined) {
 }
 
 function stepPlanJSON(step) {
-  return {
+  const out = {
     id: step.id,
-    command: { path: step.commandPath, form_id: step.formID },
+    kind: step.kind,
     argv: step.argv,
     timeout_ms: step.timeoutMs,
     mutates: step.mutates,
@@ -311,6 +373,9 @@ function stepPlanJSON(step) {
     would_run: true,
     assertions: step.assertions.length,
   };
+  if (step.kind === 'aos_command') out.command = { path: step.commandPath, form_id: step.formID };
+  if (step.kind === 'shell') out.shell = { script: step.script, cwd: step.cwd };
+  return out;
 }
 
 function stepResult(step, status, durationMs, observed, resolvedArgv = undefined) {
@@ -405,12 +470,13 @@ function parseJSON(text) {
   try { return JSON.parse(trimmed); } catch { return null; }
 }
 
-function runProcess(executable, args, timeoutMs) {
+function runProcess(executable, args, timeoutMs, cwd = undefined) {
   const result = spawnSync(executable, args, {
     encoding: 'utf8',
     timeout: timeoutMs,
     maxBuffer: 100 * 1024 * 1024,
     env: process.env,
+    cwd,
   });
   const timedOut = result.error?.code === 'ETIMEDOUT';
   return {
@@ -466,14 +532,24 @@ function recoverMutatingTransient(step, argv, output) {
 function executeStep(step, runID, resources) {
   const argv = step.argv.map((item) => resolveTemplate(item, runID, resources));
   const started = Date.now();
-  let output = runStepProcess([...step.commandPath, ...argv], step.timeoutMs, !step.mutates);
-  output = recoverMutatingTransient(step, argv, output);
+  let output;
+  if (step.kind === 'aos_command') {
+    output = runStepProcess([...step.commandPath, ...argv], step.timeoutMs, !step.mutates);
+    output = recoverMutatingTransient(step, argv, output);
+  } else if (step.kind === 'shell') {
+    output = runProcess(step.scriptPath, argv, step.timeoutMs, step.cwdPath);
+    output.attempts = 1;
+  } else {
+    throw new OpsFailure(`Unsupported execution block '${step.kind}'`, 'INVALID_RECIPE');
+  }
   const durationMs = Date.now() - started;
   const observed = { exit_code: output.exitCode };
   if (output.attempts > 1) observed.attempts = output.attempts;
   if (output.recovered) observed.recovered = output.recovered;
   const stderr = output.stderr.trim();
   if (stderr) observed.stderr = stderr;
+  const stdout = output.stdout.trim();
+  if (stdout) observed.stdout = stdout;
   if (output.timedOut) {
     return {
       result: stepResult(step, 'timeout', durationMs, observed, argv),
@@ -520,7 +596,7 @@ function validateCleanupSafety(cleanupPlan, ownedResources, runID, resources) {
     for (const name of step.cleanupResources) {
       const resource = ownedByName.get(name);
       if (!resource) throw new OpsFailure(`Cleanup step ${step.id} references unknown owned resource ${name}`, 'INVALID_RECIPE');
-      if (!argv.includes(resource.id)) throw new OpsFailure(`Cleanup step ${step.id} does not target owned resource ${name}`, 'INVALID_RECIPE');
+      if (resourceNeedsCleanup(resource) && !argv.includes(resource.id)) throw new OpsFailure(`Cleanup step ${step.id} does not target owned resource ${name}`, 'INVALID_RECIPE');
     }
     if (JSON.stringify(step.commandPath) === JSON.stringify(['show']) && step.formID === 'show-remove') {
       const ids = argv.flatMap((value, index) => (value === '--id' && index + 1 < argv.length ? [argv[index + 1]] : []));
@@ -595,12 +671,15 @@ function emitList(recipes, asJSON) {
 
 function emitExplain(recipe, plan, asJSON) {
   if (asJSON) {
-    emitJSON({ status: 'success', recipe: recipeSummary(recipe), mutates: recipe.manifest.mutates ?? plan.some((step) => step.mutates), steps: plan.map(stepPlanJSON) }, false);
+    emitJSON({ status: 'success', surface: publicSurface(), recipe: recipeSummary(recipe), parameters: recipe.manifest.parameters || {}, resources: recipe.manifest.resources || {}, mutates: recipe.manifest.mutates ?? plan.some((step) => step.mutates), steps: plan.map(stepPlanJSON) }, false);
     return;
   }
   process.stdout.write(`${recipe.id} v${recipe.version}\n`);
   if (recipe.summary) process.stdout.write(`${recipe.summary}\n`);
-  for (const step of plan) process.stdout.write(`- ${step.id}: ${step.commandPath.join(' ')} ${step.argv.join(' ')} [${step.mutates ? 'mutates' : 'read-only'}]\n`);
+  for (const step of plan) {
+    const label = step.kind === 'shell' ? step.script : `${step.commandPath.join(' ')} ${step.argv.join(' ')}`;
+    process.stdout.write(`- ${step.id}: ${step.kind} ${label} [${step.mutates ? 'mutates' : 'read-only'}]\n`);
+  }
 }
 
 function emitDryRunText(recipe, plan, ownedResources, runID, resources) {
@@ -609,7 +688,10 @@ function emitDryRunText(recipe, plan, ownedResources, runID, resources) {
   for (const resource of ownedResources) process.stdout.write(`- owns ${resource.type} ${resource.id} as ${resource.name}\n`);
   for (const step of plan) {
     const argv = step.argv.map((item) => resolveTemplate(item, runID, resources));
-    process.stdout.write(`- ${step.id}: ${[invocationName(), ...step.commandPath, ...argv].join(' ')} [${step.mutates ? 'mutates' : 'read-only'}, planned]\n`);
+    const command = step.kind === 'shell'
+      ? [step.script, ...argv].join(' ')
+      : [invocationName(), ...step.commandPath, ...argv].join(' ');
+    process.stdout.write(`- ${step.id}: ${step.kind} ${command} [${step.mutates ? 'mutates' : 'read-only'}, planned]\n`);
   }
 }
 
@@ -636,29 +718,35 @@ function main() {
   try {
     const { subcommand, json, positional } = parseArgs(process.argv.slice(2));
     if (!subcommand) {
-      process.stdout.write('Usage: aos ops <list|explain|dry-run|run> ...\n');
+      process.stdout.write(`Usage: aos ${publicSurface()} <list|explain|dry-run|run> ...\n`);
       return;
     }
     if (subcommand === 'list') {
       if (positional.length) throw new OpsFailure(`Unknown argument: ${positional[0]}`, 'UNKNOWN_ARG');
       emitList(loadRecipes(), json);
     } else if (subcommand === 'explain') {
-      const recipe = findRecipe(singleRecipeID(positional, 'ops explain <id> [--json]'));
+      const recipe = findRecipe(singleRecipeID(positional, `${publicSurface()} explain <id> [--json]`));
       emitExplain(recipe, planRecipe(recipe), json);
     } else if (subcommand === 'dry-run') {
-      const recipe = findRecipe(singleRecipeID(positional, 'ops dry-run <id> [--json]'));
+      const recipe = findRecipe(singleRecipeID(positional, `${publicSurface()} dry-run <id> [--json]`));
       const plan = planRecipe(recipe);
       const runID = 'dry-run';
       const resources = resolvedResources(recipe, runID);
       const owned = resolvedOwnedResources(recipe, runID, resources);
       if (json) {
-        emitJSON(opsResult('dry_run', 'OK', null, recipe, true, plan.map((step) => stepResult(step, 'planned', null, null, step.argv.map((item) => resolveTemplate(item, runID, resources)))), ownedResourcesJSON(owned, runID, 'planned'), { status: 'not_needed', steps: [] }), false);
+        const steps = plan.map((step) => stepResult(step, 'planned', null, null, step.argv.map((item) => resolveTemplate(item, runID, resources))));
+        const cleanupPlan = plan.filter((step) => step.finally);
+        const cleanup = cleanupPlan.length ? { status: 'planned', steps: cleanupPlan.map((step) => stepResult(step, 'planned', null, null, step.argv.map((item) => resolveTemplate(item, runID, resources)))) } : { status: 'not_needed', steps: [] };
+        const result = opsResult('dry_run', 'OK', null, recipe, true, steps, ownedResourcesJSON(owned, runID, 'planned'), cleanup);
+        result.parameters = recipe.manifest.parameters || {};
+        result.resources = resources;
+        emitJSON(result, false);
       } else emitDryRunText(recipe, plan, owned, runID, resources);
     } else if (subcommand === 'run') {
-      const recipe = findRecipe(singleRecipeID(positional, 'ops run <id> [--json]'));
+      const recipe = findRecipe(singleRecipeID(positional, `${publicSurface()} run <id> [--json]`));
       runRecipe(recipe, planRecipe(recipe), json);
     } else {
-      throw new OpsFailure(`Unknown ops subcommand: ${subcommand}`, 'UNKNOWN_SUBCOMMAND');
+      throw new OpsFailure(`Unknown ${publicSurface()} subcommand: ${subcommand}`, 'UNKNOWN_SUBCOMMAND');
     }
   } catch (err) {
     if (err instanceof OpsFailure) exitFailure(err.message, err.code);

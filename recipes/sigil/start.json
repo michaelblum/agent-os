@@ -1,0 +1,66 @@
+{
+  "id": "sigil/start",
+  "version": 1,
+  "summary": "Configure branch-scoped Sigil content roots and launch the avatar plus workbench surfaces.",
+  "scope": "source",
+  "mutates": true,
+  "requires": ["content", "service", "show"],
+  "docs": "apps/sigil/AGENTS.md",
+  "owned_resources": [
+    {
+      "name": "avatar",
+      "type": "surface",
+      "id": "avatar-main"
+    },
+    {
+      "name": "workbench",
+      "type": "surface",
+      "id": "sigil-workbench"
+    }
+  ],
+  "steps": [
+    {
+      "id": "configure-status-item",
+      "kind": "shell",
+      "shell": {
+        "script": "scripts/recipes-sigil-configure-status-item.sh",
+        "cwd": "."
+      },
+      "timeout_ms": 20000,
+      "mutates": true,
+      "assertions": [
+        {
+          "path": ["status"],
+          "equals": "success"
+        }
+      ]
+    },
+    {
+      "id": "launch-workbench",
+      "kind": "shell",
+      "shell": {
+        "script": "apps/sigil/workbench/launch.sh",
+        "cwd": "."
+      },
+      "timeout_ms": 45000,
+      "mutates": true
+    },
+    {
+      "id": "verify-surfaces",
+      "kind": "shell",
+      "shell": {
+        "script": "scripts/recipes-sigil-verify-surfaces.sh",
+        "cwd": "."
+      },
+      "argv": ["avatar-main", "sigil-workbench"],
+      "timeout_ms": 15000,
+      "mutates": false,
+      "assertions": [
+        {
+          "path": ["status"],
+          "equals": "success"
+        }
+      ]
+    }
+  ]
+}
