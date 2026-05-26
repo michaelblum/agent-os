@@ -12,20 +12,14 @@ struct AOS {
             if runExternalCommandIfMatched(args: ["help"]) {
                 exit(0)
             }
-            commandRegistry = buildCommandRegistry()
-            helpCommand(args: [])
-            exit(0)
+            exitError("External help route is unavailable.", code: "COMMAND_ROUTE_UNAVAILABLE")
         }
 
-        // Initialize command registry
-        commandRegistry = buildCommandRegistry()
-
-        if command != "__help", let helpArgs = externalHelpArgs(args) {
+        if let helpArgs = externalHelpArgs(args) {
             if runExternalCommandIfMatched(args: helpArgs) {
                 exit(0)
             }
-            helpCommand(args: Array(helpArgs.dropFirst()))
-            exit(0)
+            exitError("External help route is unavailable.", code: "COMMAND_ROUTE_UNAVAILABLE")
         }
 
         if runExternalCommandIfMatched(args: args) {
@@ -51,10 +45,6 @@ struct AOS {
             sayCommand(args: Array(args.dropFirst()))
         case "__do":
             handleDoPrimitive(args: Array(args.dropFirst()))
-        case "__help":
-            helpCommand(args: Array(args.dropFirst()))
-        case "--help", "-h":
-            helpCommand(args: Array(args.dropFirst()))
         default:
             exitError("Unknown command: \(command). Run '\(aosInvocationDisplayName()) --help' for usage.", code: "UNKNOWN_COMMAND")
         }

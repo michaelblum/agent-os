@@ -333,6 +333,22 @@ else
     fail "help renderer delegated back into Swift"
 fi
 
+# --- 23. main entry point has no active Swift help fallback ---
+if python3 - <<'PY'
+from pathlib import Path
+
+source = Path("src/main.swift").read_text(encoding="utf-8")
+assert 'case "__help"' not in source
+assert "helpCommand(args:" not in source
+assert "commandRegistry = buildCommandRegistry()" not in source
+assert "COMMAND_ROUTE_UNAVAILABLE" in source
+PY
+then
+    pass "main entry point has no active Swift help fallback"
+else
+    fail "main entry point still has active Swift help fallback"
+fi
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "help-contract: all checks passed"
