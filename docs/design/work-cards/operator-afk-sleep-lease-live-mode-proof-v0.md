@@ -131,7 +131,7 @@ If repo-mode TCC or input-tap readiness blocks, run:
 .docks/operator/scripts/human-needed-tcc-reset
 ```
 
-Then stop with `human_needed`. After the human returns with `ready`, run:
+Then stop with `human_needed`. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission

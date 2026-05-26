@@ -91,7 +91,7 @@ use the repo-standard recovery path:
 .docks/gdi/scripts/human-needed-tcc-reset
 ```
 
-After the human returns with `ready`, run:
+After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission

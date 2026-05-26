@@ -116,7 +116,7 @@ Input Monitoring, or inactive input-tap blocker, run:
 ```
 
 Then stop with `human_needed` and include the script output. After the human
-returns with "ready", run:
+returns with "finished", run:
 
 ```bash
 ./aos ready --post-permission

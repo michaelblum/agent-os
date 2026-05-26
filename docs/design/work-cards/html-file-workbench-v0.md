@@ -69,7 +69,7 @@ Monitoring, or inactive input-tap blockers, run:
 ```
 
 Then stop with `human_needed` and report the script output. After the human
-returns with "ready", run:
+returns with "finished", run:
 
 ```bash
 ./aos ready --post-permission

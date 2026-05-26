@@ -69,7 +69,7 @@ If live readiness reaches a repo-mode TCC/input-tap blocker, run:
 .docks/gdi/scripts/human-needed-tcc-reset
 ```
 
-Then stop. After the human returns with `ready`, run:
+Then stop. After the human returns with `finished`, run:
 
 ```bash
 ./aos ready --post-permission

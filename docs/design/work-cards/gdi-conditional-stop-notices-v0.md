@@ -108,7 +108,7 @@ At minimum, the accepted implementation must provide:
    - run `./aos permissions setup --once`;
    - grant the requested macOS Accessibility/Input Monitoring permission if
      prompted;
-   - return to the GDI session and say `ready`;
+   - return to the GDI session and say `finished`;
    - after that, GDI runs `./aos ready --post-permission`;
    - if the active goal is paused or Codex indicates it needs to resume, use
      `/goal resume` rather than starting a new goal.

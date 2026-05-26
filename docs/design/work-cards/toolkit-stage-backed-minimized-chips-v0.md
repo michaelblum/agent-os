@@ -227,7 +227,7 @@ permission repair loop. Report the safe reset blocker:
 2. wait for `running=false`;
 3. human removes/re-adds `/Users/Michael/Code/agent-os/aos` in Accessibility and
    Input Monitoring;
-4. after human returns with `ready`, run `./aos ready --post-permission`.
+4. after human returns with `finished`, run `./aos ready --post-permission`.
 
 ## Completion Report
 
