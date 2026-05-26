@@ -19,7 +19,7 @@ belong outside the Swift binary:
 - `scripts/aos-*.mjs`, Python helpers, shell wrappers, and package CLIs contain
   command implementation logic;
 - `docs/dev/workflow-rules.json` tells agents which checks to run after command
-  metadata, external-route manifest, schema, or test changes.
+  metadata, external-route manifest, implementation, schema, or test changes.
 
 ## Dispatcher Contract
 

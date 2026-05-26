@@ -175,6 +175,44 @@
       "verification": []
     },
     {
+      "id": "command-surface-implementations",
+      "summary": "Hot-swappable external command implementation changed.",
+      "patterns": [
+        "scripts/aos-*.mjs",
+        "scripts/aos-*",
+        "scripts/afk-*.mjs",
+        "scripts/afk-*.py"
+      ],
+      "classes": [
+        "command_contract",
+        "command_implementation"
+      ],
+      "actions": [
+        "focused_test",
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "external-command-dispatch",
+          "command": "bash tests/external-command-dispatch.sh",
+          "reason": "External command implementation changes must keep manifest dispatch and wrapper integration intact."
+        },
+        {
+          "id": "external-parser-flags",
+          "command": "bash tests/external-parser-flags.sh",
+          "reason": "External command wrappers should reject malformed flags and arguments before falling through to Swift primitives."
+        },
+        {
+          "id": "help-contract",
+          "command": "bash tests/help-contract.sh",
+          "reason": "Command implementation changes must stay aligned with discoverable help and parser contracts."
+        }
+      ],
+      "verification": []
+    },
+    {
       "id": "dev-workflow-manifest",
       "summary": "Developer workflow router manifest or tests changed.",
       "patterns": [

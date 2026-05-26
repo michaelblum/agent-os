@@ -96,6 +96,18 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
   );
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
   assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
+  assert.deepEqual(
+    rules.get('command-surface-implementations')?.commands?.map((step) => step.command),
+    [
+      'bash tests/external-command-dispatch.sh',
+      'bash tests/external-parser-flags.sh',
+      'bash tests/help-contract.sh',
+    ],
+  );
+  assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*.mjs'));
+  assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*'));
+  assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
+  assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');
   assert.deepEqual(
