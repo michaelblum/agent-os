@@ -118,4 +118,34 @@ grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-render
   exit 1
 }
 
+if ./aos show render --html --base64 2>"$STATE_ROOT/show-render-html-missing.err"; then
+  echo "FAIL: show render accepted missing --html value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-render-html-missing.err" || {
+  echo "FAIL: show render missing --html value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-render-html-missing.err" >&2
+  exit 1
+}
+
+if ./aos show render --file --base64 2>"$STATE_ROOT/show-render-file-missing.err"; then
+  echo "FAIL: show render accepted missing --file value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-render-file-missing.err" || {
+  echo "FAIL: show render missing --file value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-render-file-missing.err" >&2
+  exit 1
+}
+
+if ./aos show render --html '<p>parser</p>' --out --base64 2>"$STATE_ROOT/show-render-out-missing.err"; then
+  echo "FAIL: show render accepted missing --out value" >&2
+  exit 1
+fi
+grep -Eq '"code"[[:space:]]*:[[:space:]]*"MISSING_ARG"' "$STATE_ROOT/show-render-out-missing.err" || {
+  echo "FAIL: show render missing --out value did not use MISSING_ARG" >&2
+  cat "$STATE_ROOT/show-render-out-missing.err" >&2
+  exit 1
+}
+
 echo "show-external-parser: all checks passed"

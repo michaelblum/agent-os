@@ -54,17 +54,17 @@ function parseArgs(args) {
       }
       case '--html':
         i += 1;
-        if (i >= args.length) error('--html requires a value', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--html requires a value', 'MISSING_ARG');
         parsed.html = args[i];
         break;
       case '--file':
         i += 1;
-        if (i >= args.length) error('--file requires a path', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--file requires a path', 'MISSING_ARG');
         parsed.file = args[i];
         break;
       case '--out':
         i += 1;
-        if (i >= args.length) error('--out requires a path', 'MISSING_ARG');
+        if (i >= args.length || args[i].startsWith('--')) error('--out requires a path', 'MISSING_ARG');
         parsed.out = args[i];
         break;
       case '--base64':
