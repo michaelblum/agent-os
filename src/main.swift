@@ -53,10 +53,10 @@ struct AOS {
     }
 }
 
-// Browser targets (`browser:<session>[/<ref>]`) route through @playwright/cli
-// and do not touch macOS Accessibility or Screen Recording APIs. Skip the
-// interactive preflight for see/do verbs when the first positional arg is a
-// browser target — the adapter does its own version/availability gating.
+// Browser capture targets (`browser:<session>[/<ref>]`) route through
+// @playwright/cli and do not touch macOS Accessibility or Screen Recording APIs.
+// Skip the interactive preflight when the first positional arg is a browser
+// target; the adapter does its own version/availability gating.
 private func hasBrowserTarget(_ args: [String]) -> Bool {
     return args.first(where: { !$0.hasPrefix("--") })?.hasPrefix("browser:") == true
 }
