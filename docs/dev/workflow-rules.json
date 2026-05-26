@@ -181,7 +181,8 @@
         "scripts/aos-*.mjs",
         "scripts/aos-*",
         "scripts/afk-*.mjs",
-        "scripts/afk-*.py"
+        "scripts/afk-*.py",
+        "packages/cli/**"
       ],
       "classes": [
         "command_contract",

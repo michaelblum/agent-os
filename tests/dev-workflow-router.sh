@@ -86,6 +86,30 @@ else
     fail "dev recommend external command wrapper routing drifted"
 fi
 
+if OUT="$(./aos dev recommend --json --files packages/cli/verbs/gate-ask.js 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "command-surface-implementations" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["hot_swappable"] is True, data
+assert summary["requires_swift_build"] is False, data
+assert summary["tcc_identity_sensitive"] is False, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "bash tests/external-command-dispatch.sh",
+    "bash tests/external-parser-flags.sh",
+    "bash tests/help-contract.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes package CLI commands to command-surface checks"
+else
+    fail "dev recommend package CLI command routing drifted"
+fi
+
 if OUT="$(./aos dev classify --json --files apps/example/feature.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
