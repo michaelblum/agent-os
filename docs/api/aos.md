@@ -559,8 +559,9 @@ aos ops dry-run canvas/window-level-smoke --json
 
 `ops dry-run` is static in v1: it does not start daemons, create canvases,
 mutate resources, or run read-only observation probes. It validates the recipe,
-resolves declared resources, verifies command-registry references, and returns
-the planned steps. Without `--json`, it emits a concise text plan.
+resolves declared resources, verifies external help-manifest command
+references, and returns the planned steps. Without `--json`, it emits a concise
+text plan.
 
 `ops run` supports read-only recipes and the first mutating canvas smoke,
 `canvas/window-level-smoke`. Mutating recipes must declare `owned_resources`

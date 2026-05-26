@@ -136,7 +136,7 @@
     },
     {
       "id": "command-surface-manifests",
-      "summary": "Command registry or external command manifest changed.",
+      "summary": "Command metadata or external command manifest changed.",
       "patterns": [
         "manifests/commands/*.json",
         "shared/schemas/aos-external-command-manifest-v0.schema.json",
@@ -159,7 +159,7 @@
         {
           "id": "external-command-manifest-schema",
           "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
-          "reason": "External command manifest changes must preserve launcher schema, script targets, and registry route coverage."
+          "reason": "External command manifest changes must preserve launcher schema, script targets, and help-manifest route coverage."
         },
         {
           "id": "external-command-dispatch",
@@ -169,7 +169,7 @@
         {
           "id": "help-contract",
           "command": "bash tests/help-contract.sh",
-          "reason": "Registry and manifest changes must stay aligned with discoverable help and parser contracts."
+          "reason": "Command metadata and manifests must stay aligned with discoverable help and parser contracts."
         }
       ],
       "verification": []

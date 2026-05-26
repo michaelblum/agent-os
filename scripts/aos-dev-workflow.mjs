@@ -527,7 +527,7 @@ function claim(id, claimText, passed, expected, observed, evidence, next) {
 
 function auditFormFlagClaim(id, form, expectedFlags, defaultManifestRequired) {
   if (!form) {
-    return claim(id, `The help registry exposes required flags for ${id}.`, false, expectedFlags.join(','), 'missing form', ['manifests/commands/aos-commands.json'], 'Restore the missing help form.');
+    return claim(id, `The external help manifest exposes required flags for ${id}.`, false, expectedFlags.join(','), 'missing form', ['manifests/commands/aos-commands.json'], 'Restore the missing help form.');
   }
   const tokens = new Set((form.args || []).map((arg) => arg.token).filter(Boolean));
   const manifestArg = (form.args || []).find((arg) => arg.token === '--manifest');
@@ -537,7 +537,7 @@ function auditFormFlagClaim(id, form, expectedFlags, defaultManifestRequired) {
   const observed = `${[...tokens].sort().join(',')}; manifest_default=${manifestDefault ?? 'nil'}`;
   return claim(
     id,
-    `The help registry exposes required flags and defaults for ${form.id}.`,
+    `The external help manifest exposes required flags and defaults for ${form.id}.`,
     hasFlags && hasManifestDefault,
     `${expectedFlags.slice().sort().join(',')}${defaultManifestRequired ? `; manifest_default=${workflowDefaultManifest}` : ''}`,
     observed,
@@ -551,13 +551,13 @@ function auditRegistryClaims(repoRoot) {
   const registry = readJSON(registryPath, 'MISSING_COMMAND_REGISTRY', 'INVALID_COMMAND_REGISTRY', 'command registry');
   const dev = (registry.commands || []).find((command) => command.path?.join(' ') === 'dev');
   if (!dev) {
-    return [claim('dev-help-registry-present', 'The command registry exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
+    return [claim('dev-help-registry-present', 'The external help manifest exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
   }
   const forms = new Map((dev.forms || []).map((form) => [form.id, form]));
   const expectedForms = ['dev-classify', 'dev-recommend', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-gh'];
   const observedForms = (dev.forms || []).map((form) => form.id).sort();
   return [
-    claim('dev-help-forms', 'Help registry exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
+    claim('dev-help-forms', 'External help manifest exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
     auditFormFlagClaim('dev-classify-help-flags', forms.get('dev-classify'), ['--paths', '--files', '--manifest', '--base', '--repo', '--json'], true),
     auditFormFlagClaim('dev-recommend-help-flags', forms.get('dev-recommend'), ['--paths', '--files', '--manifest', '--base', '--repo', '--json'], true),
     auditFormFlagClaim('dev-afk-dry-run-help-flags', forms.get('dev-afk-dry-run'), ['--packet', '--provider', '--dock', '--repo', '--timestamp', '--out', '--json'], false),

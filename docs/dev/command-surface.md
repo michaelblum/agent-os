@@ -12,14 +12,14 @@ behavior. Its command entry point should stay limited to stable infrastructure:
 Public command behavior, help metadata, argument shapes, and workflow policy
 belong outside the Swift binary:
 
-- `manifests/commands/aos-commands.json` is the discoverable help/registry
-  source of truth;
+- `manifests/commands/aos-commands.json` is the discoverable external help
+  manifest and command metadata source of truth;
 - `manifests/commands/aos-external-commands.json` maps public command paths to
   external implementations;
 - `scripts/aos-*.mjs`, Python helpers, shell wrappers, and package CLIs contain
   command implementation logic;
 - `docs/dev/workflow-rules.json` tells agents which checks to run after command
-  registry, manifest, schema, or test changes.
+  metadata, external-route manifest, schema, or test changes.
 
 ## Dispatcher Contract
 
