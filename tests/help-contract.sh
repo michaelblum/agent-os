@@ -25,6 +25,24 @@ else
     fail "aos help --json did not emit JSON registry"
 fi
 
+if ./aos >/tmp/aos-root-help.out 2>/tmp/aos-root-help.err \
+    && ./aos --help >/tmp/aos-root-help-flag.out 2>/tmp/aos-root-help-flag.err \
+    && ./aos do --help --json >/tmp/aos-do-help-flag.json 2>/tmp/aos-do-help-flag.err \
+    && grep -q 'Usage: ./aos <command> \[options\]' /tmp/aos-root-help.out \
+    && grep -q 'Usage: ./aos <command> \[options\]' /tmp/aos-root-help-flag.out \
+    && python3 - <<'PY'
+import json
+data = json.load(open('/tmp/aos-do-help-flag.json'))
+assert data['path'] == ['do']
+assert any(form['id'] == 'do-click' for form in data['forms'])
+PY
+then
+    pass "root and family help flags route through external help"
+else
+    fail "external help flag routing drifted"
+fi
+rm -f /tmp/aos-root-help.out /tmp/aos-root-help.err /tmp/aos-root-help-flag.out /tmp/aos-root-help-flag.err /tmp/aos-do-help-flag.json /tmp/aos-do-help-flag.err
+
 # --- 2. aos help show --json → JSON per-command ---
 OUT=$(./aos help show --json 2>/dev/null)
 if echo "$OUT" | grep -q '"path"'; then

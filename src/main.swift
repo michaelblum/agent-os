@@ -9,16 +9,22 @@ struct AOS {
         let args = Array(CommandLine.arguments.dropFirst())
 
         guard let command = args.first else {
+            if runExternalCommandIfMatched(args: ["help"]) {
+                exit(0)
+            }
             commandRegistry = buildCommandRegistry()
-            printFullRegistryText()
+            helpCommand(args: [])
             exit(0)
         }
 
         // Initialize command registry
         commandRegistry = buildCommandRegistry()
 
-        if args.contains("--help") || args.contains("-h") {
-            helpCommand(args: args)
+        if command != "__help", let helpArgs = externalHelpArgs(args) {
+            if runExternalCommandIfMatched(args: helpArgs) {
+                exit(0)
+            }
+            helpCommand(args: Array(helpArgs.dropFirst()))
             exit(0)
         }
 
@@ -53,6 +59,13 @@ struct AOS {
             exitError("Unknown command: \(command). Run '\(aosInvocationDisplayName()) --help' for usage.", code: "UNKNOWN_COMMAND")
         }
     }
+}
+
+private func externalHelpArgs(_ args: [String]) -> [String]? {
+    guard args.contains("--help") || args.contains("-h") else {
+        return nil
+    }
+    return ["help"] + args.filter { $0 != "--help" && $0 != "-h" }
 }
 
 // Browser capture targets (`browser:<session>[/<ref>]`) route through
