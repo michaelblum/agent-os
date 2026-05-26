@@ -15,6 +15,10 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function run(executable, args) {
   const result = spawnSync(executable, args, { encoding: 'utf8' });
   return {
@@ -114,7 +118,7 @@ function parseOptions(args, extra = new Set()) {
         i += 2;
         break;
       default:
-        error(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
+        unknownArg(arg);
     }
   }
   return options;
@@ -297,7 +301,7 @@ function parseVerifyOptions(args) {
         i += 2;
         break;
       default:
-        error(`Unknown flag: ${args[i]}`, 'UNKNOWN_FLAG');
+        unknownArg(args[i]);
     }
   }
   return options;

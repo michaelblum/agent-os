@@ -62,6 +62,9 @@ check_unknown_flag graph-windows ./aos graph windows --bogus
 check_unknown_arg graph-windows-extra ./aos graph windows unexpected
 check_unknown_flag graph-deepen ./aos graph deepen --id parser-node --bogus
 check_unknown_flag graph-collapse-subtree ./aos graph collapse --id parser-node --subtree-role button
+check_unknown_arg service-status-extra ./aos service status unexpected
+check_unknown_arg service-verify-extra ./aos service _verify-readiness unexpected
+check_unknown_arg reset-extra ./aos reset unexpected
 
 err="$STATE_ROOT/see-observe-depth-missing.err"
 if ./aos see observe --depth 2>"$err"; then
