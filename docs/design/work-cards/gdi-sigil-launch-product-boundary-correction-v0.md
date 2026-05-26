@@ -29,6 +29,11 @@
   with vanilla menu items for avatar terminal, graph wiki, inspectors, and other
   core tools. An active experience such as Sigil may change status-item menu
   config and decide which surfaces appear.
+- White-label clarification from Michael: Sigil may be the user-facing branded
+  experience over AOS. When Sigil is the active layer, normal users may see
+  "Sigil" instead of "agent-os" in forward-facing UI. Internally, AOS remains
+  the platform namespace, command/control plane, schema family, and developer
+  contract unless a deliberate external packaging decision is made later.
 - Branch/output expectation: continue from
   `origin/gdi/recipe-app-launch-correction-v0`, commit and push the corrected
   GDI branch. Do not open or merge a PR; Foreman will review.
@@ -114,6 +119,10 @@ Make these statements true, preferring the experience model over the app model:
 - When Sigil is active, default activation should primarily make the AOS/Sigil
   status item available. The avatar is then docked/undocked through that status
   item and becomes the entry point for all Sigil actions.
+- When Sigil is active, it may replace user-facing product labels, status-item
+  labels/icons, menu copy, surface titles, and theme tokens with Sigil branding.
+  Do not rename internal AOS command paths, schemas, config keys, daemon
+  concepts, or source namespaces as part of this correction.
 - Historical workbench launch, if retained, is explicitly legacy/dev-only and
   invoked by an explicit entry such as `legacy-workbench` or `dev-workbench`.
 - Sigil Studio remains sequestered/decommissioned and is not reintroduced.
@@ -148,6 +157,9 @@ The experience manifest should cover at least:
 - whether it may be active concurrently with another experience, which should be
   false for Sigil;
 - status-item/menu configuration when active;
+- optional white-label/user-facing branding fields such as display name, status
+  item label, status item icon, menu labels, surface title prefix, theme ref, and
+  about copy;
 - content roots/theme roots needed by the experience;
 - default activation behavior;
 - optional hooks for experience-specific behavior;
@@ -258,6 +270,8 @@ Add a short durable note in the most relevant existing doc or a small
   with access to core tools;
 - active experiences may configure status-item menu contents and tool launch
   behavior;
+- active experiences may white-label forward-facing UI; Sigil can be what normal
+  users see while AOS remains the internal/developer control plane;
 - current Studio is decommissioned/sequestered;
 - current workbench is legacy/dev-only;
 - current context menu, if present, is sequestered source material and should
@@ -383,6 +397,10 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
 - Do not delete the context menu source material if it exists.
 - Do not require `aos launch sigil` as canonical if the cleaner command is an
   experience activation path.
+- Do not rename internal AOS commands, schemas, config keys, daemon ownership,
+  or source namespaces to Sigil in this round.
+- Do not create a second `sigil` command surface or duplicate CLI unless it is a
+  tiny explicit wrapper and the removal/packaging boundary is documented.
 - Do not build a full experience marketplace/plugin system; model the boundary
   narrowly enough to prevent the current Sigil-as-normal-app mistake.
 - Do not resurrect Studio.
@@ -401,6 +419,8 @@ Report:
 - exact canonical command chosen for Sigil activation;
 - exact default-entry behavior for the canonical dry-run JSON;
 - whether `aos launch sigil` remains, delegates, or was removed;
+- how Sigil user-facing branding/white-label fields are represented, or why
+  that is recorded as a follow-up instead of implemented now;
 - where any historical workbench surface now lives and how it is invoked;
 - where any old context menu source material now lives, if touched;
 - how Sigil-specific generic-launch code was removed or replaced;
