@@ -3667,7 +3667,7 @@
               "required" : true,
               "summary" : "Register session presence",
               "token" : "--register",
-              "value_type" : "string"
+              "value_type" : "bool"
             },
             {
               "id" : "session-id",
@@ -3749,7 +3749,7 @@
               "required" : true,
               "summary" : "Remove session presence",
               "token" : "--unregister",
-              "value_type" : "string"
+              "value_type" : "bool"
             },
             {
               "id" : "session-id",

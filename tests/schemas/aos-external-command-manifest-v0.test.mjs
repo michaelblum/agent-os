@@ -439,6 +439,23 @@ test('registry example flags are declared as form arguments', async () => {
   }
 });
 
+test('tell session mode flags are boolean selectors', async () => {
+  const registry = await loadJson(registryPath);
+  const tell = registry.commands.find((command) => command.path.join(' ') === 'tell');
+  assert.ok(tell, 'tell command must exist in registry');
+
+  for (const [formID, token] of [
+    ['tell-register', '--register'],
+    ['tell-unregister', '--unregister'],
+  ]) {
+    const form = tell.forms.find((candidate) => candidate.id === formID);
+    assert.ok(form, `${formID} registry form must exist`);
+    const arg = form.args.find((candidate) => candidate.kind === 'flag' && candidate.token === token);
+    assert.ok(arg, `${formID} must expose ${token}`);
+    assert.equal(arg.value_type, 'bool', `${formID} ${token} is a mode selector, not a value-taking flag`);
+  }
+});
+
 test('help registry forms expose their json flag metadata', async () => {
   const registry = await loadJson(registryPath);
   const help = registry.commands.find((command) => command.path.join(' ') === 'help');
