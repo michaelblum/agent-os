@@ -230,12 +230,17 @@ function lookupConfigValue(key, config) {
 
 function printValue(value, jsonMode) {
   if (jsonMode || typeof value === 'object') {
-    console.log(JSON.stringify(value, null, typeof value === 'object' && value !== null ? 2 : 0));
+    console.log(formatJSON(value, typeof value === 'object' && value !== null));
   } else if (value === null || value === undefined) {
     console.log('null');
   } else {
     console.log(String(value));
   }
+}
+
+function formatJSON(value, pretty = true) {
+  const spacing = pretty ? 2 : 0;
+  return JSON.stringify(value, null, spacing).replace(/": /g, '" : ');
 }
 
 function positiveInt(value, message) {
@@ -345,7 +350,7 @@ async function main(argv) {
   const command = argv[0];
   if (command === 'dump') {
     if (argv.length !== 1) usage('Usage: aos config');
-    console.log(JSON.stringify(await loadConfig(), null, 2));
+    console.log(formatJSON(await loadConfig()));
     return;
   }
   if (command === 'get') {
@@ -364,23 +369,23 @@ async function main(argv) {
     const config = await loadConfig();
     setConfigValue(config, args[0], args[1]);
     await saveConfig(config);
-    console.log(JSON.stringify(config, null, 2));
+    console.log(formatJSON(config));
     return;
   }
   if (command === 'set-shorthand') {
     const args = argv.slice(1);
     if (args.length === 0) {
-      console.log(JSON.stringify(await loadConfig(), null, 2));
+      console.log(formatJSON(await loadConfig()));
       return;
     }
     if (args.length < 2) {
-      console.log(JSON.stringify(await loadConfig(), null, 2));
+      console.log(formatJSON(await loadConfig()));
       return;
     }
     const config = await loadConfig();
     setConfigValue(config, args[0], args[1]);
     await saveConfig(config);
-    console.log(JSON.stringify(config, null, 2));
+    console.log(formatJSON(config));
     return;
   }
   usage('Unknown config subcommand');
