@@ -83,3 +83,23 @@ grep -q '"error" : "Unknown argument: extra"' "$ROOT/content-wait-extra.err" || 
   echo "FAIL: content wait extra positional message did not say Unknown argument"
   exit 1
 }
+
+if ./aos content wait --root --json 2>"$ROOT/content-wait-root-missing.err"; then
+  echo "FAIL: content wait accepted missing --root value"
+  exit 1
+fi
+grep -q '"code" : "MISSING_ARG"' "$ROOT/content-wait-root-missing.err" || {
+  cat "$ROOT/content-wait-root-missing.err"
+  echo "FAIL: content wait missing --root value did not use MISSING_ARG"
+  exit 1
+}
+
+if ./aos content wait --timeout --json 2>"$ROOT/content-wait-timeout-missing.err"; then
+  echo "FAIL: content wait accepted missing --timeout value"
+  exit 1
+fi
+grep -q '"code" : "MISSING_ARG"' "$ROOT/content-wait-timeout-missing.err" || {
+  cat "$ROOT/content-wait-timeout-missing.err"
+  echo "FAIL: content wait missing --timeout value did not use MISSING_ARG"
+  exit 1
+}

@@ -184,11 +184,11 @@ function parseWaitArgs(args) {
     const arg = args[i];
     if (arg === '--root') {
       i += 1;
-      if (i >= args.length) prettyError('--root requires a value', 'MISSING_ARG');
+      if (i >= args.length || args[i].startsWith('--')) prettyError('--root requires a value', 'MISSING_ARG');
       options.roots.push(args[i]);
     } else if (arg === '--timeout') {
       i += 1;
-      if (i >= args.length) prettyError('--timeout requires a duration', 'MISSING_ARG');
+      if (i >= args.length || args[i].startsWith('--')) prettyError('--timeout requires a duration', 'MISSING_ARG');
       const seconds = parseDuration(args[i]);
       if (!Number.isFinite(seconds) || seconds <= 0) prettyError('--timeout must be a positive finite duration', 'INVALID_ARG');
       options.timeoutMs = Math.floor(seconds * 1000);
