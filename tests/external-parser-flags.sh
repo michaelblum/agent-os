@@ -99,6 +99,46 @@ check_unknown_arg do-native-drag-extra ./aos do drag 10,10 20,20 unexpected --dr
 check_unknown_arg do-native-scroll-extra ./aos do scroll 10,10 unexpected --dx 0 --dy 1 --dry-run
 check_unknown_arg do-native-type-extra ./aos do type hello unexpected --dry-run
 check_unknown_arg do-native-key-extra ./aos do key Enter unexpected --dry-run
+err="$STATE_ROOT/do-native-click-dwell-invalid.err"
+if ./aos do click 10,10 --dwell nope --dry-run 2>"$err"; then
+  echo "FAIL: do native click accepted invalid --dwell value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native click invalid --dwell value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/do-native-drag-speed-invalid.err"
+if ./aos do drag 10,10 20,20 --speed fast --dry-run 2>"$err"; then
+  echo "FAIL: do native drag accepted invalid --speed value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native drag invalid --speed value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/do-native-scroll-dy-invalid.err"
+if ./aos do scroll 10,10 --dy nope --dry-run 2>"$err"; then
+  echo "FAIL: do native scroll accepted invalid --dy value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native scroll invalid --dy value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+err="$STATE_ROOT/do-native-type-delay-invalid.err"
+if ./aos do type hello --delay slow --dry-run 2>"$err"; then
+  echo "FAIL: do native type accepted invalid --delay value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native type invalid --delay value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_missing_arg do-native-press-pid-missing ./aos do press --dry-run
 check_missing_arg do-native-press-pid-invalid ./aos do press --pid nope --dry-run
 check_missing_arg do-native-set-value-pid-missing ./aos do set-value --role AXTextField --value hello --dry-run
@@ -109,8 +149,28 @@ check_missing_arg do-native-focus-role-missing ./aos do focus --pid 123 --dry-ru
 check_missing_arg do-native-focus-pid-invalid ./aos do focus --pid nope --role AXTextField --dry-run
 check_missing_arg do-native-raise-pid-missing ./aos do raise --dry-run
 check_missing_arg do-native-raise-pid-invalid ./aos do raise --pid nope --dry-run
+err="$STATE_ROOT/do-native-raise-window-invalid.err"
+if ./aos do raise --pid 123 --window nope --dry-run 2>"$err"; then
+  echo "FAIL: do native raise accepted invalid --window value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native raise invalid --window value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_missing_arg do-native-move-to-missing ./aos do move --pid 123 --dry-run
 check_missing_arg do-native-move-pid-invalid ./aos do move --pid nope --to 1,2 --dry-run
+err="$STATE_ROOT/do-native-move-to-invalid.err"
+if ./aos do move --pid 123 --to 1x2 --dry-run 2>"$err"; then
+  echo "FAIL: do native move accepted invalid --to value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: do native move invalid --to value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 check_missing_arg do-native-resize-to-missing ./aos do resize --pid 123 --dry-run
 check_missing_arg do-native-resize-pid-invalid ./aos do resize --pid nope --to 300,200 --dry-run
 check_missing_arg do-native-tell-script-missing ./aos do tell Finder --dry-run

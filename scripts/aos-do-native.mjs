@@ -22,7 +22,11 @@ const valueFlags = new Set([
   '--delay', '--variance', '--dwell', '--steps', '--speed',
   '--state-id',
 ]);
-const booleanFlags = new Set(['--dry-run']);
+const booleanFlags = new Set(['--dry-run', '--right', '--double']);
+
+const intFlags = new Set(['--index', '--depth', '--timeout', '--window', '--dwell', '--steps']);
+const numberFlags = new Set(['--dx', '--dy', '--delay', '--variance', '--speed']);
+const coordFlags = new Set(['--near', '--to']);
 
 function positionalArgs(args) {
   const positional = [];
@@ -61,8 +65,25 @@ function isInt(value) {
   return /^-?[0-9]+$/.test(String(value));
 }
 
+function isNumber(value) {
+  return /^-?(?:\d+|\d*\.\d+)$/.test(String(value));
+}
+
+function validateFlagTypes(args) {
+  for (let i = 0; i < args.length; i += 1) {
+    const flag = args[i];
+    if (!flag.startsWith('--') || !valueFlags.has(flag)) continue;
+    const value = args[i + 1];
+    if (value === undefined || String(value).startsWith('--')) continue;
+    if (intFlags.has(flag) && !isInt(value)) error(`${flag} requires an integer`, 'INVALID_ARG');
+    if (numberFlags.has(flag) && !isNumber(value)) error(`${flag} requires a number`, 'INVALID_ARG');
+    if (coordFlags.has(flag) && !isCoord(value)) error(`${flag} requires x,y`, 'INVALID_ARG');
+  }
+}
+
 function validate(verb, args) {
   const pos = positionalArgs(args);
+  validateFlagTypes(args);
   switch (verb) {
     case 'click':
       if (pos[0]?.startsWith('browser:')) error('native do click does not accept browser targets', 'INVALID_TARGET');
