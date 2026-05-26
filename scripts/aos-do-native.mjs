@@ -7,17 +7,33 @@ function error(message, code) {
   process.exit(1);
 }
 
+function unknownArg(arg) {
+  error(`Unknown ${String(arg).startsWith('--') ? 'flag' : 'argument'}: ${arg}`, String(arg).startsWith('--') ? 'UNKNOWN_FLAG' : 'UNKNOWN_ARG');
+}
+
 function aosPath() {
   return process.env.AOS_PATH || './aos';
 }
+
+const valueFlags = new Set([
+  '--pid', '--role', '--title', '--label', '--identifier',
+  '--index', '--near', '--match', '--depth', '--timeout',
+  '--profile', '--value', '--to', '--dy', '--dx', '--window',
+  '--delay', '--variance', '--dwell', '--steps', '--speed',
+  '--state-id',
+]);
+const booleanFlags = new Set(['--dry-run']);
 
 function positionalArgs(args) {
   const positional = [];
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg.startsWith('--')) {
-      if (['--state-id', '--dwell', '--speed', '--dx', '--dy', '--delay', '--variance', '--pid', '--role', '--title', '--description', '--value', '--window', '--to', '--profile'].includes(arg)) {
+      if (valueFlags.has(arg)) {
         i += 1;
+        if (i >= args.length) error(`${arg} requires a value`, 'MISSING_ARG');
+      } else if (!booleanFlags.has(arg)) {
+        unknownArg(arg);
       }
       continue;
     }
@@ -36,27 +52,33 @@ function validate(verb, args) {
     case 'click':
       if (pos[0]?.startsWith('browser:')) error('native do click does not accept browser targets', 'INVALID_TARGET');
       if (!(pos[0] && (isCoord(pos[0]) || pos[0].startsWith('canvas:')))) error('click requires coordinates (x,y) or canvas:<canvas-id>/<ref>', 'MISSING_ARG');
+      if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'hover':
       if (pos[0]?.startsWith('browser:')) error('native do hover does not accept browser targets', 'INVALID_TARGET');
       if (!(pos[0] && isCoord(pos[0]))) error('hover requires coordinates (x,y)', 'MISSING_ARG');
+      if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'drag':
       if (pos.some((arg) => arg.startsWith('browser:'))) error('native do drag does not accept browser targets', 'INVALID_TARGET');
       if (!(pos.length >= 2 && isCoord(pos[0]) && isCoord(pos[1]))) error('drag requires two coordinate pairs (x1,y1 x2,y2)', 'MISSING_ARG');
+      if (pos.length > 2) unknownArg(pos[2]);
       break;
     case 'scroll':
       if (pos[0]?.startsWith('browser:')) error('native do scroll does not accept browser targets', 'INVALID_TARGET');
       if (!(pos[0] && isCoord(pos[0]))) error('scroll requires coordinates (x,y)', 'MISSING_ARG');
       if (!args.includes('--dx') && !args.includes('--dy')) error('scroll requires at least one of --dx or --dy', 'MISSING_ARG');
+      if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'type':
       if (pos[0]?.startsWith('browser:')) error('native do type does not accept browser targets', 'INVALID_TARGET');
       if (!pos[0]) error('type requires a text argument', 'MISSING_ARG');
+      if (pos.length > 1) unknownArg(pos[1]);
       break;
     case 'key':
       if (pos[0]?.startsWith('browser:')) error('native do key does not accept browser targets', 'INVALID_TARGET');
       if (!pos[0]) error('key requires a key combo argument (e.g. cmd+s)', 'MISSING_ARG');
+      if (pos.length > 1) unknownArg(pos[1]);
       break;
     default:
       break;
