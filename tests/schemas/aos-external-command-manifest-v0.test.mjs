@@ -65,6 +65,11 @@ function concreteUsagePath(form) {
   return concrete;
 }
 
+function usageFlags(form) {
+  const matches = form.usage?.matchAll(/--[a-zA-Z0-9][a-zA-Z0-9_-]*/g) ?? [];
+  return [...new Set([...matches].map((match) => match[0]))];
+}
+
 function externalRouteMatches(command, args) {
   if (args.length < command.path.length) return false;
   if (!command.path.every((part, index) => args[index] === part)) return false;
@@ -379,6 +384,27 @@ test('registry form ids are unique and usage paths stay under their command', as
 
   for (const [id, owners] of formIds) {
     assert.equal(owners.length, 1, `${id} registry form id is duplicated under: ${owners.join(', ')}`);
+  }
+});
+
+test('registry usage flags are declared as form arguments', async () => {
+  const registry = await loadJson(registryPath);
+
+  for (const command of registry.commands) {
+    for (const form of command.forms) {
+      const declaredFlags = new Set(
+        form.args
+          .filter((arg) => arg.kind === 'flag')
+          .map((arg) => arg.token),
+      );
+
+      for (const flag of usageFlags(form)) {
+        assert.ok(
+          declaredFlags.has(flag),
+          `${form.id} usage mentions ${flag} but does not declare it as a flag argument`,
+        );
+      }
+    }
   }
 });
 

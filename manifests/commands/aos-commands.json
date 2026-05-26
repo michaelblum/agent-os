@@ -5229,7 +5229,14 @@
         },
         {
           "args" : [
-
+            {
+              "id" : "native",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Print native desktop compatibility coordinates",
+              "token" : "--native",
+              "value_type" : "bool"
+            }
           ],
           "examples" : [
             "aos runtime display-union",
