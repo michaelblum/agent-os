@@ -32,7 +32,10 @@ function parseArgs(args) {
     switch (arg) {
       case '--width': {
         i += 1;
-        if (i >= args.length || !/^[1-9][0-9]*$/.test(args[i])) {
+        if (i >= args.length || args[i].startsWith('--')) {
+          error('--width requires a value', 'MISSING_ARG');
+        }
+        if (!/^[1-9][0-9]*$/.test(args[i])) {
           error('--width requires a positive integer', 'INVALID_ARG');
         }
         parsed.width = args[i];
@@ -40,7 +43,10 @@ function parseArgs(args) {
       }
       case '--height': {
         i += 1;
-        if (i >= args.length || !/^[1-9][0-9]*$/.test(args[i])) {
+        if (i >= args.length || args[i].startsWith('--')) {
+          error('--height requires a value', 'MISSING_ARG');
+        }
+        if (!/^[1-9][0-9]*$/.test(args[i])) {
           error('--height requires a positive integer', 'INVALID_ARG');
         }
         parsed.height = args[i];
