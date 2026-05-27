@@ -343,6 +343,43 @@ function removeCanvas(mode, id) {
   return run(aosPath(), ['show', 'remove', '--id', id], { env }).status === 0;
 }
 
+function cleanStaleCanvasesForMode(mode, actions, notes) {
+  let remaining = parentFirstCanvases(staleCanvasesForMode(mode));
+  let pass = 0;
+  const maxPasses = 4;
+  const attempted = new Set();
+
+  while (remaining.length > 0 && pass < maxPasses) {
+    pass += 1;
+    const beforeIds = new Set(remaining.map((canvas) => canvas.id));
+    for (const canvas of canvasRemovalRoots(remaining)) {
+      const attemptKey = `${mode}:${canvas.id}`;
+      if (attempted.has(attemptKey)) continue;
+      attempted.add(attemptKey);
+      if (removeCanvas(mode, canvas.id)) {
+        actions.push(`removed canvas id=${canvas.id} mode=${mode}`);
+      } else {
+        notes.push(`failed to remove canvas id=${canvas.id} mode=${mode}`);
+      }
+    }
+
+    remaining = parentFirstCanvases(waitForCanvasRemoval(mode, 750));
+    const afterIds = new Set(remaining.map((canvas) => canvas.id));
+    let changed = beforeIds.size !== afterIds.size;
+    if (!changed) {
+      for (const id of beforeIds) {
+        if (!afterIds.has(id)) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+
+  return remaining;
+}
+
 function pidExists(pid) {
   try {
     process.kill(pid, 0);
@@ -443,27 +480,13 @@ function runClean(dryRun) {
 
   if (!dryRun && canvases.length > 0) {
     if (currentCanvases.length > 0) {
-      for (const canvas of canvasRemovalRoots(currentCanvases)) {
-        if (removeCanvas(mode, canvas.id)) {
-          actions.push(`removed canvas id=${canvas.id} mode=${mode}`);
-        } else {
-          notes.push(`failed to remove canvas id=${canvas.id} mode=${mode}`);
-        }
-      }
-      currentCanvases = parentFirstCanvases(waitForCanvasRemoval(mode));
+      currentCanvases = cleanStaleCanvasesForMode(mode, actions, notes);
       for (const canvas of currentCanvases) {
         notes.push(`failed to remove canvas id=${canvas.id} mode=${mode}`);
       }
     }
     if (otherCanvases.length > 0) {
-      for (const canvas of canvasRemovalRoots(otherCanvases)) {
-        if (removeCanvas(alternateMode, canvas.id)) {
-          actions.push(`removed canvas id=${canvas.id} mode=${alternateMode}`);
-        } else {
-          notes.push(`failed to remove canvas id=${canvas.id} mode=${alternateMode}`);
-        }
-      }
-      otherCanvases = parentFirstCanvases(waitForCanvasRemoval(alternateMode));
+      otherCanvases = cleanStaleCanvasesForMode(alternateMode, actions, notes);
       for (const canvas of otherCanvases) {
         notes.push(`failed to remove canvas id=${canvas.id} mode=${alternateMode}`);
       }

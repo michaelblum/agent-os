@@ -60,12 +60,14 @@ aos_ensure_content_roots_live() {
     return 2
   fi
 
-  (
-    while [ "$#" -gt 0 ]; do
-      "$aos_bin" set "content.roots.$1" "$2" >/dev/null || exit $?
-      shift 2
-    done
-  ) || return $?
+  if ! aos_content_roots_live "$aos_bin" "$@"; then
+    (
+      while [ "$#" -gt 0 ]; do
+        "$aos_bin" set "content.roots.$1" "$2" >/dev/null || exit $?
+        shift 2
+      done
+    ) || return $?
+  fi
 
   if ! aos_content_roots_live "$aos_bin" "$@"; then
     if [[ -n "${AOS_STATE_ROOT:-}" ]]; then

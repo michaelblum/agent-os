@@ -202,9 +202,18 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function oneShot(action, data, { autoStart = false, emptyListOnNoDaemon = false, timeoutMs = 3000 } = {}) {
+function ipcFailureMessage(action, data) {
+  return `IPC failure while waiting for show.${action} response: ${JSON.stringify(data ?? {})}`;
+}
+
+async function oneShot(action, data, {
+  autoStart = false,
+  emptyListOnNoDaemon = false,
+  timeoutMs = 3000,
+  retryNoResponse = 0,
+} = {}) {
   const connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
-  const socket = connection?.socket ?? null;
+  let socket = connection?.socket ?? null;
   if (!socket) {
     if (emptyListOnNoDaemon) {
       process.stdout.write('{"status":"success","canvases":[]}\n');
@@ -212,9 +221,18 @@ async function oneShot(action, data, { autoStart = false, emptyListOnNoDaemon = 
     }
     error(action === 'remove' || action === 'remove_all' ? 'Daemon not running. Nothing to remove.' : 'Daemon not running.', 'NO_DAEMON');
   }
-  const response = await sendEnvelope(socket, action, data, timeoutMs);
-  socket.end();
-  if (!response) error('IPC failure', 'INTERNAL');
+  let response = await sendEnvelope(socket, action, data, timeoutMs);
+  let attemptsRemaining = retryNoResponse;
+  while (!response && attemptsRemaining > 0) {
+    socket.end();
+    await sleep(100);
+    socket = await connectOnce(Math.min(1000, timeoutMs));
+    if (!socket) break;
+    response = await sendEnvelope(socket, action, data, timeoutMs);
+    attemptsRemaining -= 1;
+  }
+  socket?.end();
+  if (!response) error(ipcFailureMessage(action, data), 'INTERNAL');
   if (response.error) {
     process.stderr.write(`${JSON.stringify(response)}\n`);
     process.exit(1);
@@ -697,7 +715,7 @@ switch (command) {
     break;
   case 'list':
     if (args.some((arg) => arg !== '--json')) unknownArg(args.find((arg) => arg !== '--json'));
-    await oneShot('list', {}, { emptyListOnNoDaemon: true });
+    await oneShot('list', {}, { emptyListOnNoDaemon: true, retryNoResponse: 2 });
     break;
   case 'ping':
     if (args.length > 0) unknownArg(args[0]);

@@ -380,10 +380,72 @@ aos_visual_launch_sigil_avatar() {
   sigil_key="$(aos_visual_content_root_key sigil)"
   toolkit_key="$(aos_visual_content_root_key toolkit)"
 
-  "$aos_bin" show create \
-    --id "$avatar_id" \
-    --url "aos://$sigil_key/renderer/index.html?toolkit-root=$toolkit_key" \
-    --track union >/dev/null
+  python3 - "$aos_bin" "$avatar_id" "aos://$sigil_key/renderer/index.html?toolkit-root=$toolkit_key" <<'PY'
+import json
+import subprocess
+import sys
+import time
+
+aos, avatar_id, url = sys.argv[1:4]
+last_payload = None
+last_create = None
+
+def run(args):
+    return subprocess.run(
+        [aos, *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+for attempt in range(1, 4):
+    last_create = run([
+        "show", "create",
+        "--id", avatar_id,
+        "--url", url,
+        "--track", "union",
+        "--scope", "global",
+    ])
+    if last_create.returncode != 0:
+        if "NO_DAEMON" in (last_create.stdout or "") and attempt < 3:
+            run(["ready", "--json"])
+            time.sleep(0.5 * attempt)
+            continue
+        raise SystemExit("FAIL: Sigil avatar create failed: " + json.dumps({
+            "attempt": attempt,
+            "command": [aos, "show", "create", "--id", avatar_id, "--url", url, "--track", "union", "--scope", "global"],
+            "exit": last_create.returncode,
+            "output": last_create.stdout.strip(),
+        }, sort_keys=True))
+    completed = run(["show", "list", "--json"])
+    if completed.returncode != 0:
+        raise SystemExit("FAIL: unable to verify Sigil avatar create: " + json.dumps({
+            "attempt": attempt,
+            "command": [aos, "show", "list", "--json"],
+            "exit": completed.returncode,
+            "output": completed.stdout.strip(),
+        }, sort_keys=True))
+    try:
+        last_payload = json.loads(completed.stdout or "{}")
+    except Exception as error:
+        raise SystemExit("FAIL: invalid Sigil avatar create verification JSON: " + json.dumps({
+            "attempt": attempt,
+            "error": str(error),
+            "output": completed.stdout,
+        }, sort_keys=True))
+    ids = sorted(canvas.get("id") for canvas in last_payload.get("canvases") or [] if canvas.get("id"))
+    if avatar_id in ids:
+        raise SystemExit(0)
+    run(["ready", "--json"])
+    time.sleep(0.5 * attempt)
+
+raise SystemExit("FAIL: Sigil avatar create returned but canvas is absent: " + json.dumps({
+    "avatarId": avatar_id,
+    "canvasIds": sorted(canvas.get("id") for canvas in (last_payload or {}).get("canvases") or [] if canvas.get("id")),
+    "createOutput": (last_create.stdout if last_create else "").strip(),
+    "payload": last_payload,
+}, sort_keys=True))
+PY
 }
 
 aos_visual_wait_sigil_avatar_ready() {

@@ -44,7 +44,16 @@ aos_real_input_surface_canvas_exists() {
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
-  "$aos_bin" show get --id "$canvas_id" >/dev/null 2>&1
+  "$aos_bin" show get --id "$canvas_id" 2>/dev/null \
+    | python3 -c 'import json, sys
+canvas_id = sys.argv[1]
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+canvas = payload.get("canvas") or {}
+raise SystemExit(0 if canvas.get("id") == canvas_id else 1)
+' "$canvas_id" >/dev/null 2>&1
 }
 
 aos_real_input_surface_cleanup_subject_family() {
@@ -58,7 +67,32 @@ import subprocess
 import sys
 
 aos, root_id = sys.argv[1:3]
-before = json.loads(subprocess.check_output([aos, "show", "list", "--json"], text=True)).get("canvases", [])
+
+def run_json(*args):
+    try:
+        completed = subprocess.run(
+            [aos, *args],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise SystemExit("FAIL: cleanup command failed: " + json.dumps({
+            "command": [aos, *args],
+            "exit": error.returncode,
+            "output": (error.stdout or "").strip(),
+        }, sort_keys=True)) from error
+    try:
+        return json.loads(completed.stdout or "{}")
+    except Exception as error:
+        raise SystemExit("FAIL: cleanup command returned invalid JSON: " + json.dumps({
+            "command": [aos, *args],
+            "error": str(error),
+            "output": completed.stdout,
+        }, sort_keys=True)) from error
+
+before = run_json("show", "list", "--json").get("canvases", [])
 by_id = {canvas.get("id"): canvas for canvas in before if canvas.get("id")}
 children = {}
 for canvas in before:
@@ -92,7 +126,7 @@ if root_present:
     except subprocess.CalledProcessError as error:
         remove_error = error.output.strip()
 
-after = json.loads(subprocess.check_output([aos, "show", "list", "--json"], text=True)).get("canvases", [])
+after = run_json("show", "list", "--json").get("canvases", [])
 after_by_id = {canvas.get("id"): canvas for canvas in after if canvas.get("id")}
 
 removed = [canvas_id for canvas_id in removed_candidates if canvas_id not in after_by_id]

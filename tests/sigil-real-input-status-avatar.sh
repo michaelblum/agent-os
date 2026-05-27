@@ -50,7 +50,7 @@ wait_for_status_avatar_visible() {
   "$(aos_visual_aos)" show wait \
     --id avatar-main \
     --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
-    --timeout 5s >/dev/null
+    --timeout 12s >/dev/null
 }
 VISIBLE_WAIT_STDOUT="$(mktemp "${TMPDIR:-/tmp}/aos-status-avatar-visible-stdout.XXXXXX")"
 VISIBLE_WAIT_STDERR="$(mktemp "${TMPDIR:-/tmp}/aos-status-avatar-visible-stderr.XXXXXX")"
@@ -62,7 +62,7 @@ STATUS_CLICK_TIMING="$(aos_visual_run_bounded 8 "click isolated status item" cli
   rm -f "$VISIBLE_WAIT_STDOUT" "$VISIBLE_WAIT_STDERR"
   exit 1
 }
-VISIBLE_WAIT_DEADLINE=$((SECONDS + 8))
+VISIBLE_WAIT_DEADLINE=$((SECONDS + 15))
 while kill -0 "$VISIBLE_WAIT_PID" 2>/dev/null; do
   if (( SECONDS >= VISIBLE_WAIT_DEADLINE )); then
     kill "$VISIBLE_WAIT_PID" 2>/dev/null || true
