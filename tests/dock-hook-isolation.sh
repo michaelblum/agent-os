@@ -583,6 +583,46 @@ if payloads != expected:
 PY
 : >"$tmux_log"
 
+noop_build_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Up to date: ./aos (dev, 31M)\n"}}'
+: >"$post_tool_log"
+: >"$tmux_log"
+: >"$open_log"
+noop_post_out="$(printf '%s' "$noop_build_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+python3 - "$noop_post_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: no-op dev build should not trigger TCC pause, got {payload}")
+PY
+if [[ -s "$post_tool_log" || -s "$tmux_log" || -s "$open_log" ]]; then
+  echo "FAIL: no-op dev build should not reset permissions, open settings, or inject PTY input" >&2
+  cat "$post_tool_log" "$tmux_log" "$open_log" >&2
+  exit 1
+fi
+if AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" peek "$PWD" gdi >/dev/null; then
+  echo "FAIL: no-op dev build should not write a completed-build checkpoint" >&2
+  exit 1
+fi
+
+noop_json_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build --json"},"tool_response":{"exit_code":0,"output":"{\"status\":\"success\",\"binary_rebuilt\":false,\"stdout\":\"Up to date: ./aos (dev, 31M)\\n\"}"}}'
+: >"$post_tool_log"
+: >"$tmux_log"
+: >"$open_log"
+noop_json_post_out="$(printf '%s' "$noop_json_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
+python3 - "$noop_json_post_out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: JSON no-op dev build should not trigger TCC pause, got {payload}")
+PY
+if [[ -s "$post_tool_log" || -s "$tmux_log" || -s "$open_log" ]]; then
+  echo "FAIL: JSON no-op dev build should not reset permissions, open settings, or inject PTY input" >&2
+  cat "$post_tool_log" "$tmux_log" "$open_log" >&2
+  exit 1
+fi
+
 post_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Build succeeded"}}'
 tcc_post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" TMUX_PANE="%42" AOS_FAKE_TMUX_LOG="$tmux_log" AOS_DOCK_GOAL_PAUSE_INTERRUPT_DELAY_SECONDS=0 AOS_DOCK_GOAL_RESUME_STAGE_DELAY_SECONDS=0 AOS_DOCK_AOS_BIN="$post_tool_aos" AOS_FAKE_LOG="$post_tool_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/post-tool-use.sh")"
 python3 - "$tcc_post_out" <<'PY'

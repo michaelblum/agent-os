@@ -156,12 +156,14 @@ function buildCommand(args) {
   const exitCode = result.status ?? 1;
   const stdout = result.stdout ?? '';
   const stderr = result.stderr ?? (result.error ? `${result.error.message}\n` : '');
+  const binaryRebuilt = exitCode === 0 && !/^Up to date: \.\/aos\b/m.test(stdout);
   if (asJSON) {
     printJSON({
       status: exitCode === 0 ? 'success' : 'error',
       command: ['bash', 'build.sh', ...buildArgs].join(' '),
       build_wrapper: 'build.sh',
       build_source: 'repo-root/build.sh',
+      binary_rebuilt: binaryRebuilt,
       post_build_checkpoint: checkpointContract(),
       exit_code: exitCode,
       stdout,

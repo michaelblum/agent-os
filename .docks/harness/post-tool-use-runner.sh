@@ -43,6 +43,16 @@ def strings(value):
         if isinstance(item, str):
             yield item
 
+def json_strings(value):
+    for candidate in strings(value):
+        text = candidate.strip()
+        if not text or text[0] not in "{[":
+            continue
+        try:
+            yield json.loads(text)
+        except json.JSONDecodeError:
+            continue
+
 def command_candidates(value):
     for item in walk(value):
         if not isinstance(item, dict):
@@ -68,6 +78,19 @@ def normalizes_to_post_permission_ready(command):
     except ValueError:
         parts = command.split()
     return len(parts) >= 2 and pathlib.Path(parts[0]).name == "aos" and parts[1] == "ready" and "--post-permission" in parts
+
+def dev_build_was_noop(value):
+    for item in walk(value):
+        if isinstance(item, dict) and item.get("binary_rebuilt") is False:
+            return True
+    for nested in json_strings(value):
+        for item in walk(nested):
+            if isinstance(item, dict) and item.get("binary_rebuilt") is False:
+                return True
+    for item in strings(value):
+        if "Up to date: ./aos" in item:
+            return True
+    return False
 
 def tool_failed(value):
     failure_tokens = {
@@ -96,7 +119,9 @@ def tool_failed(value):
 found_build = any(normalizes_to_dev_build(candidate) for candidate in command_candidates(payload))
 found_post_permission_ready = any(normalizes_to_post_permission_ready(candidate) for candidate in command_candidates(payload))
 
-if found_build and not tool_failed(payload):
+if found_build and not tool_failed(payload) and dev_build_was_noop(payload):
+    print("dev_build_noop")
+elif found_build and not tool_failed(payload):
     print("dev_build_success")
 elif found_post_permission_ready and not tool_failed(payload):
     print("post_permission_ready_success")
