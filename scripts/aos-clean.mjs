@@ -196,6 +196,44 @@ function contentRootKeysFromStatusItemURL(rawURL) {
   }
 }
 
+function contentURLIdentity(rawURL) {
+  if (typeof rawURL !== 'string' || rawURL.length === 0) return null;
+  try {
+    const parsed = new URL(rawURL);
+    if (parsed.protocol === 'aos:') {
+      return {
+        root: parsed.hostname,
+        path: parsed.pathname || '/',
+        query: parsed.search,
+      };
+    }
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      const host = parsed.hostname.toLowerCase();
+      if (!['127.0.0.1', 'localhost', '::1'].includes(host)) return null;
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      if (parts.length === 0) return null;
+      return {
+        root: parts[0],
+        path: `/${parts.slice(1).join('/')}`,
+        query: parsed.search,
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function equivalentContentURLs(left, right) {
+  if (left === right) return true;
+  const leftIdentity = contentURLIdentity(left);
+  const rightIdentity = contentURLIdentity(right);
+  if (!leftIdentity || !rightIdentity) return false;
+  return leftIdentity.root === rightIdentity.root
+    && leftIdentity.path === rightIdentity.path
+    && leftIdentity.query === rightIdentity.query;
+}
+
 function activeSigilStatusItemDrift(mode, canvases) {
   if (activeExperience(mode) !== 'sigil') return null;
   const config = readJSONFile(path.join(stateDir(mode), 'config.json')) || {};
@@ -207,7 +245,9 @@ function activeSigilStatusItemDrift(mode, canvases) {
   const missingRoots = contentRootKeysFromStatusItemURL(toggleURL).filter((key) => roots[key] == null);
   const avatar = canvases.find((canvas) => canvas.id === statusItem.toggle_id);
   const avatarURL = typeof avatar?.url === 'string' ? avatar.url : null;
-  const avatarDrift = avatarURL != null && avatarURL !== toggleURL && avatarURL !== expectedURL;
+  const avatarDrift = avatarURL != null
+    && !equivalentContentURLs(avatarURL, toggleURL)
+    && !equivalentContentURLs(avatarURL, expectedURL);
   const targetDrift = toggleURL !== expectedURL;
   if (!targetDrift && missingRoots.length === 0 && !avatarDrift) return null;
   const notes = [];
