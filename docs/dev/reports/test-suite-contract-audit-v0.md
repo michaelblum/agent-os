@@ -65,8 +65,10 @@ Removed:
 
 - Global status-item inventory remains because duplicate AOS menu-bar icons can
   contaminate real-input evidence across repo and isolated daemons.
-- The global scan is bounded by existing timeouts in `aos_visual_run_bounded`
-  and by the helper retry loops; it is not the normal click primitive.
+- The global scan is bounded inside
+  `aos_global_status_item_diagnostic_matches_json`, and visual failure
+  snapshots consume that bounded diagnostic helper. It is not the normal click
+  primitive.
 - Normal isolated status-item smokes use PID-scoped owner helpers:
   `aos_status_item_matches_for_pids_json`,
   `aos_status_item_pid_from_matches_json`, and

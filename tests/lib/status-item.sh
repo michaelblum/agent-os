@@ -176,6 +176,43 @@ PY
 }
 
 aos_global_status_item_diagnostic_matches_json() {
+  local status_item_lib="${BASH_SOURCE[0]}"
+
+  python3 - "$status_item_lib" <<'PY'
+import json
+import os
+import signal
+import subprocess
+import sys
+
+status_item_lib = sys.argv[1]
+process = subprocess.Popen(
+    ["bash", "-c", 'source "$1"; aos_global_status_item_diagnostic_matches_unbounded_json', "bash", status_item_lib],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    start_new_session=True,
+)
+try:
+    stdout, stderr = process.communicate(timeout=3)
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.communicate(timeout=0.3)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+    print(json.dumps({"matches": [], "error": "global status item diagnostic inventory timed out"}, sort_keys=True))
+    raise SystemExit(0)
+
+if process.returncode == 0:
+    print(stdout.rstrip() or '{"matches":[]}')
+else:
+    print(json.dumps({"matches": [], "error": "global status item diagnostic inventory failed"}, sort_keys=True))
+PY
+}
+
+aos_global_status_item_diagnostic_matches_unbounded_json() {
   local expected_label="${AOS_STATUS_ITEM_LABEL:-AOS status item}"
 
   swift - "$expected_label" <<'SWIFT'

@@ -17,39 +17,7 @@ aos_visual_aos() {
 }
 
 aos_visual_global_status_item_diagnostic_inventory() {
-  python3 - "$VISUAL_HARNESS_DIR/status-item.sh" <<'PY'
-import json
-import os
-import signal
-import subprocess
-import sys
-
-status_item_lib = sys.argv[1]
-command = f"source {status_item_lib!r}; aos_global_status_item_diagnostic_matches_json"
-process = subprocess.Popen(
-    ["bash", "-c", command],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    text=True,
-    start_new_session=True,
-)
-try:
-    stdout, stderr = process.communicate(timeout=3)
-except subprocess.TimeoutExpired:
-    os.killpg(process.pid, signal.SIGTERM)
-    try:
-        process.communicate(timeout=0.3)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
-    print(json.dumps({"matches": [], "error": "status item inventory timed out"}, sort_keys=True))
-    raise SystemExit(0)
-
-if process.returncode == 0:
-    print(stdout.rstrip() or '{"matches":[]}')
-else:
-    print(json.dumps({"matches": [], "error": "status item inventory failed"}, sort_keys=True))
-PY
+  aos_global_status_item_diagnostic_matches_json
 }
 
 aos_visual_phase_snapshot() {
@@ -452,7 +420,7 @@ aos_visual_show_sigil_avatar() {
 aos_visual_show_sigil_avatar_via_real_status_click() {
   local state_root="$1"
   local avatar_id="${2:-avatar-main}"
-  local aos_bin pid status_owner_pids
+  local aos_bin pid status_owner_pids matches_json
   aos_bin="$(aos_visual_aos)"
   pid="$(aos_test_wait_for_lock_pid "$state_root")"
   [[ -n "$pid" ]] || {
@@ -461,7 +429,9 @@ aos_visual_show_sigil_avatar_via_real_status_click() {
   }
   status_owner_pids="$(aos_test_pids_for_root "$state_root" | paste -sd, -)"
   [[ -n "$status_owner_pids" ]] || status_owner_pids="$pid"
-  pid="$(aos_global_status_item_diagnostic_unambiguous_pid "$status_owner_pids")"
+  matches_json="$(aos_status_item_matches_for_pids_json "$status_owner_pids")" || return 1
+  pid="$(aos_status_item_pid_from_matches_json "$status_owner_pids" "$matches_json")" || return 1
+  aos_assert_status_item_overlap_from_matches_json "$pid" "$matches_json" >/dev/null
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
