@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createSeedHistory } from '../../apps/sigil/studio/js/seed-history.js';
+import { createSeedHistory } from '../../apps/sigil/_sequestered/studio/js/seed-history.js';
 
 test('push adds entries in temporal order (newest first)', () => {
   const h = createSeedHistory({ capacity: 4 });

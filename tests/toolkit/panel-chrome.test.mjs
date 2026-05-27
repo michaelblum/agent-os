@@ -14,6 +14,7 @@ import {
   normalizeResizeEdge,
   resizeFrame,
   stageLayerFrameFromNativeFrame,
+  suspendOnClose,
   syncMaximizeButton,
   wireDrag,
   wireResize,
@@ -35,6 +36,42 @@ test('stock panel defaults make hosted documents fill the WebView viewport', asy
   assert.match(documentRule, /min-height:\s*0/);
   assert.match(documentRule, /margin:\s*0/);
   assert.match(documentRule, /overflow:\s*hidden/);
+});
+
+test('wiki subject browser opts ordinary close into retained suspend lifecycle', async () => {
+  const html = await readFile(new URL('../../packages/toolkit/components/wiki-subject-browser/index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /closeMode:\s*['"]suspend['"]/);
+});
+
+test('suspendOnClose requests canvas suspend without removing the panel', async (t) => {
+  const previousWindow = globalThis.window;
+  const posted = [];
+  globalThis.window = {
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            posted.push(message);
+          },
+        },
+      },
+    },
+  };
+  t.after(() => {
+    globalThis.window = previousWindow;
+  });
+
+  suspendOnClose();
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'canvas.response',
+    request_id: posted[0]?.payload?.request_id,
+    status: 'ok',
+  })).toString('base64'));
+
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].type, 'canvas.suspend');
+  assert.notEqual(posted[0].type, 'canvas.remove');
 });
 
 class FakeNode {}
@@ -419,6 +456,60 @@ test('createPanelWindowController prewarms the shared stage before minimize clic
   resolveEnsure({ ok: true, status: 'created', id: 'aos-desktop-world-stage', created: true });
   const result = await minimized;
 
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'stage');
+  assert.deepEqual(calls.map((entry) => entry[0]), [
+    'ensureStage',
+    'stage',
+    'registerRegion',
+    'registerRegion',
+    'registerRegion',
+    'suspend',
+  ]);
+});
+
+test('render performance panel opts out of automatic stage prewarm', async () => {
+  const html = await readFile(new URL('../../packages/toolkit/components/render-performance/index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /minimize:\s*\{\s*prewarmStage:\s*false\s*\}/s);
+});
+
+test('createPanelWindowController honors minimize prewarm opt out', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: { messageHandlers: { headsup: { postMessage() {} } } },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const calls = [];
+  const controller = createPanelWindowController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    drag: false,
+    minimize: {
+      prewarmStage: false,
+      ensureStage(opts) {
+        calls.push(['ensureStage', opts.id]);
+        return { ok: true, status: 'created', id: opts.id, created: true };
+      },
+      sendStageMessage(message) { calls.push(['stage', message.type]); },
+      async registerRegion(region) { calls.push(['registerRegion', region.id]); },
+      async suspend(id) { calls.push(['suspend', id]); },
+      now: () => 1000,
+    },
+  });
+
+  await Promise.resolve();
+  assert.deepEqual(calls, []);
+
+  const result = await controller.minimize({ title: 'Panel' });
   assert.equal(result.status, 'success');
   assert.equal(result.mode, 'stage');
   assert.deepEqual(calls.map((entry) => entry[0]), [

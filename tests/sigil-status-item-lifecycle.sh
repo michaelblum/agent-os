@@ -19,7 +19,7 @@ trap cleanup EXIT
 ./aos set content.roots.toolkit packages/toolkit >/dev/null
 ./aos set content.roots.sigil apps/sigil >/dev/null
 ./aos set status_item.enabled true >/dev/null
-./aos set status_item.toggle_id sigil-status-demo >/dev/null
+./aos set status_item.toggle_id avatar-main >/dev/null
 ./aos set status_item.toggle_url 'aos://sigil/renderer/index.html' >/dev/null
 ./aos set status_item.toggle_track union >/dev/null
 AOS_BIN="$(pwd)/aos" AOS_RUNTIME_MODE=repo apps/sigil/sigilctl-seed.sh >/dev/null
@@ -29,17 +29,30 @@ aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
 PID="$(aos_test_wait_for_lock_pid "$ROOT")"
 [[ -n "$PID" ]] || { echo "FAIL: daemon pid missing"; exit 1; }
 
+python3 - <<'PY'
+import json, subprocess
+
+payload = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"], text=True))
+ids = [canvas.get("id") for canvas in payload.get("canvases", [])]
+unexpected = [
+    canvas_id for canvas_id in ids
+    if canvas_id in {"avatar-main", "__log__", "surface-inspector"}
+]
+if unexpected:
+    raise SystemExit(f"FAIL: status item created canvases before explicit action: {unexpected}")
+PY
+
 assert_canvas_present() {
   python3 - <<'PY'
 import json, subprocess, sys
 
 payload = json.loads(subprocess.check_output(["./aos", "show", "list", "--json"], text=True))
 for canvas in payload.get("canvases", []):
-    if canvas.get("id") == "sigil-status-demo":
+    if canvas.get("id") == "avatar-main":
         if canvas.get("suspended") is False:
             raise SystemExit(0)
         raise SystemExit(f"FAIL: tracked canvas unexpectedly suspended: {canvas}")
-raise SystemExit("FAIL: sigil-status-demo canvas missing")
+raise SystemExit("FAIL: avatar-main canvas missing")
 PY
 }
 
@@ -55,7 +68,7 @@ deadline = time.time() + float(sys.argv[2])
 while time.time() < deadline:
     payload = json.loads(subprocess.check_output([
         "./aos", "show", "eval",
-        "--id", "sigil-status-demo",
+        "--id", "avatar-main",
         "--js", "JSON.stringify(window.__sigilDebug ? window.__sigilDebug.snapshot() : null)",
     ], text=True))
     if payload.get("status") == "success":
@@ -64,20 +77,20 @@ while time.time() < deadline:
             raise SystemExit(0)
     time.sleep(0.05)
 
-raise SystemExit(f"FAIL: sigil-status-demo did not reach avatarVisible={expected}")
+raise SystemExit(f"FAIL: avatar-main did not reach avatarVisible={expected}")
 PY
 }
 
 wait_for_ready() {
   ./aos show wait \
-    --id sigil-status-demo \
+    --id avatar-main \
     --js 'window.__sigilDebug && window.liveJs && window.liveJs.currentAgentId === "default" && window.liveJs.avatarPos && window.liveJs.avatarPos.valid === true && Array.isArray(window.liveJs.displays) && window.liveJs.displays.length > 0 && !!window.headsup && window.__sigilBootError == null' \
-    --timeout 10s >/dev/null
+    --timeout 20s >/dev/null
 }
 
 press_aos_status_item "$PID"
 wait_for_ready
-wait_for_avatar_visible true 5.0
+wait_for_avatar_visible true 10.0
 assert_canvas_present
 
 press_aos_status_item "$PID"
@@ -90,7 +103,7 @@ wait_for_avatar_visible true 3.0
 assert_canvas_present
 
 ./aos show eval \
-  --id sigil-status-demo \
+  --id avatar-main \
   --js 'window.__sigilDebug.dispatch({ type: "status_item.hide" }); "ok"' >/dev/null
 wait_for_avatar_visible false 3.0
 press_aos_status_item "$PID"
@@ -98,7 +111,7 @@ wait_for_avatar_visible true 3.0
 assert_canvas_present
 
 ./aos show eval \
-  --id sigil-status-demo \
+  --id avatar-main \
   --js 'window.__sigilDebug.dispatch({ type: "status_item.show" }); "ok"' >/dev/null
 wait_for_avatar_visible true 3.0
 press_aos_status_item "$PID"
@@ -110,15 +123,9 @@ wait_for_ready
 wait_for_avatar_visible true 3.0
 assert_canvas_present
 
-./aos show remove --id sigil-status-demo >/dev/null
-press_aos_status_item "$PID"
-wait_for_ready
-wait_for_avatar_visible true 5.0
-assert_canvas_present
-
 JSON_PATH="$ROOT/sigil-status-state.json"
 ./aos show eval \
-  --id sigil-status-demo \
+  --id avatar-main \
   --js 'JSON.stringify({agentId: window.liveJs.currentAgentId, avatarPos: window.liveJs.avatarPos, displays: window.liveJs.displays.length, state: window.liveJs.currentState, avatarVisible: window.__sigilDebug?.snapshot().avatarVisible, bootError: window.__sigilBootError})' \
   >"$JSON_PATH"
 

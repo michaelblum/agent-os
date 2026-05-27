@@ -151,10 +151,11 @@ set -e
 if [[ "$READY_TEXT" == *"Preferred permission reset sequence:"* ]] &&
    [[ "$READY_TEXT" == *"Runtime mode: repo"* ]] &&
    [[ "$READY_TEXT" == *"Target binary: $ROOT/aos"* ]] &&
-   [[ "$READY_TEXT" == *"1. Run: ./aos permissions reset-runtime --mode repo"* ]] &&
-   [[ "$READY_TEXT" == *"2. Run: ./aos permissions setup --once"* ]] &&
-   [[ "$READY_TEXT" == *"3. Return here and run: ./aos ready --post-permission"* ]] &&
-   [[ "$READY_TEXT" == *"Manual Settings removal is only the fallback if reset-runtime reports that targeted reset is unavailable or failed."* ]]; then
+   [[ "$READY_TEXT" == *"1. Agent: run ./aos permissions reset-runtime --mode repo"* ]] &&
+   [[ "$READY_TEXT" == *"2. Agent: run ./aos permissions setup --once"* ]] &&
+   [[ "$READY_TEXT" == *"4. Human: return to the waiting session and say: finished"* ]] &&
+   [[ "$READY_TEXT" == *"5. Session: run ./aos ready --post-permission"* ]] &&
+   [[ "$READY_TEXT" == *"Manual Settings removal is required when reset-runtime reports targeted reset unavailable or the grant remains stale."* ]]; then
   echo "PASS: ready text safe permission reset handoff"
 else
   echo "FAIL: ready text missing safe permission reset handoff:"
@@ -205,5 +206,13 @@ assert any("Emergency dry run" in note for note in d.get("notes", [])), d
 assert all(s.get("status") == "planned" for s in d.get("service_resets", [])), d
 PY
 echo "PASS: permissions reset-runtime emergency dry-run"
+
+if rg -n 'After the human returns with `ready`|After the human returns with "ready"|Then stop with `human_needed`\. After the human returns with `ready`|return to the GDI session and say `ready`|returns with `ready`, run `\./aos ready --post-permission`|says `ready`, run `\./aos ready --post-permission`|says `ready`' docs/design/work-cards >/tmp/aos-stale-ready-workcards.txt; then
+  echo "FAIL: work-card TCC recovery guidance still uses ready instead of finished"
+  cat /tmp/aos-stale-ready-workcards.txt
+  exit 1
+fi
+rm -f /tmp/aos-stale-ready-workcards.txt
+echo "PASS: work-card TCC recovery guidance uses finished relay"
 
 echo "PASS"

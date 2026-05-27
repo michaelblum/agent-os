@@ -46,27 +46,3 @@ enum WikiMigrate {
         return true
     }
 }
-
-// MARK: - CLI entry point
-
-func wikiMigrateNamespacesCommand(args: [String]) {
-    let wikiRootPath: String
-    if let idx = args.firstIndex(of: "--wiki-root"), idx + 1 < args.count {
-        wikiRootPath = args[idx + 1]
-    } else {
-        wikiRootPath = aosWikiDir()
-    }
-
-    let wikiRoot = URL(fileURLWithPath: (wikiRootPath as NSString).expandingTildeInPath)
-
-    do {
-        let migrated = try WikiMigrate.migrateIfNeeded(wikiRoot: wikiRoot)
-        if migrated {
-            print("Migrated wiki at \(wikiRoot.path) → \(wikiRoot.path)/aos/")
-        } else {
-            print("Already migrated (aos/ namespace present or no legacy dirs found). No-op.")
-        }
-    } catch {
-        exitError("Migration failed: \(error)", code: "WIKI_MIGRATE_FAILED")
-    }
-}

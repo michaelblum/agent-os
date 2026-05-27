@@ -8,10 +8,23 @@ export FAKE_PWCLI_MODE="new"
 tmproot="/tmp/aos-focus-$$"
 export AOS_STATE_ROOT="$tmproot"
 export AOS_RUNTIME_MODE="repo"
+mkdir -p "$tmproot"
 trap 'rm -rf "$tmproot"' EXIT
 
 grep -q '"Comet"' src/browser/window-resolver.swift \
     || { echo "FAIL Chromium owner allowlist must include measured Comet bundle name" >&2; exit 1; }
+
+if ./aos focus create --id --target browser://attach 2>"$tmproot/focus-create-id-missing.err"; then
+    echo "FAIL create missing id: expected error" >&2; exit 1
+fi
+grep -q '"code":[[:space:]]*"MISSING_ARG"' "$tmproot/focus-create-id-missing.err" \
+    || { echo "FAIL create missing id code: $(cat "$tmproot/focus-create-id-missing.err")" >&2; exit 1; }
+
+if ./aos graph windows --display --json 2>"$tmproot/graph-windows-display-missing.err"; then
+    echo "FAIL graph display missing: expected error" >&2; exit 1
+fi
+grep -q '"code":[[:space:]]*"MISSING_ARG"' "$tmproot/graph-windows-display-missing.err" \
+    || { echo "FAIL graph display missing code: $(cat "$tmproot/graph-windows-display-missing.err")" >&2; exit 1; }
 
 # Case 1: create attach extension
 out=$(./aos focus create --id test-attach --target browser://attach --extension 2>&1)

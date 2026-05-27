@@ -69,9 +69,11 @@ must be reset, use `./aos permissions reset-runtime --mode repo` first. It stops
 the managed daemon, verifies `running=false`, and either runs a real targeted
 TCC reset for a targetable runtime identity or reports targeted reset
 unavailable for the bare repo binary. Then run
-`./aos permissions setup --once` to request fresh macOS prompts and
-`./aos ready --post-permission` to verify. Manual Settings removal is fallback
-only if reset-runtime reports targeted reset is unavailable or failed.
+`./aos permissions setup --once` to request fresh macOS prompts. If the grant
+remains stale or macOS does not prompt, the human physically removes and re-adds
+the repo-mode `aos` runtime in System Settings, then says `finished` in the
+waiting session. The session then runs `./aos ready --post-permission` to
+verify.
 Service-wide TCC reset affects other apps and is a break-glass capability only;
 do not use `--allow-service-reset --emergency-ack-other-apps` unless Michael
 explicitly asks for emergency recovery.

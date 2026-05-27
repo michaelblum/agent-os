@@ -172,6 +172,57 @@ if sed -n '/private func handleTapEvent/,/private func inputSafetyHotkeyEvent/p'
   exit 1
 fi
 
+python3 - "$ROOT/src/perceive/daemon.swift" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text()
+handle = re.search(r'private func handleTapEvent\(.*?private func inputSafetyHotkeyEvent', source, re.S)
+if not handle:
+    raise SystemExit("FAIL: could not find handleTapEvent section")
+handle_text = handle.group(0)
+for required in ("inputTapPermissionsAvailable()", "failOpenAfterInputTapPermissionLoss()", "return false"):
+    if required not in handle_text:
+        raise SystemExit("FAIL: event tap path must fail open when TCC/input permissions disappear")
+if handle_text.index("inputTapPermissionsAvailable()") > handle_text.index("onInputEvent?"):
+    raise SystemExit("FAIL: permission-loss guard must run before downstream input consumers")
+
+start = re.search(r'private func startEventTap\(.*?private func teardownEventTap', source, re.S)
+if not start:
+    raise SystemExit("FAIL: could not find startEventTap section")
+start_text = start.group(0)
+permission_guard = re.search(r'guard inputTapPermissionsAvailable\(\) else \{(?P<body>.*?)\n        \}', start_text, re.S)
+if not permission_guard:
+    raise SystemExit("FAIL: could not find input-tap permission guard")
+if "scheduleEventTapRetry()" in permission_guard.group("body"):
+    raise SystemExit("FAIL: unavailable input permissions must not start a background event-tap retry loop")
+
+teardown = re.search(r'private func teardownEventTap\(.*?private func scheduleEventTapRetry', source, re.S)
+if not teardown:
+    raise SystemExit("FAIL: could not find teardownEventTap section")
+teardown_text = teardown.group(0)
+for required in ("CGEvent.tapEnable(tap: tap, enable: false)", "CFMachPortInvalidate(tap)", "eventTap = nil"):
+    if required not in teardown_text:
+        raise SystemExit("FAIL: input permission loss must disable only the event tap without stopping the daemon")
+
+fail_open = re.search(r'private func failOpenAfterInputTapPermissionLoss\(.*?private func handleTapEvent', source, re.S)
+if not fail_open:
+    raise SystemExit("FAIL: could not find failOpenAfterInputTapPermissionLoss section")
+fail_open_text = fail_open.group(0)
+for required in ("cancelEventTapRetry()", "teardownEventTap()"):
+    if required not in fail_open_text:
+        raise SystemExit("FAIL: input permission loss must clear retries and tear down the event tap")
+if "scheduleEventTapRetry()" in fail_open_text:
+    raise SystemExit("FAIL: input permission loss must not schedule an event-tap retry loop")
+
+log_failure = re.search(r'private func logEventTapFailure\(.*?private func inputTapPermissionsAvailable', source, re.S)
+if not log_failure:
+    raise SystemExit("FAIL: could not find logEventTapFailure section")
+if "leaving tap unavailable until daemon restart" not in log_failure.group(0):
+    raise SystemExit("FAIL: permission-loss logging must not claim a retry loop is running")
+PY
+
 if ! sed -n '/private func activateInputSafetyPassthrough/,/private func handleInputEvent/p' "$ROOT/src/daemon/unified.swift" |
   rg -q 'canvasManager\.setInputPassthrough\(true\)'; then
   echo "FAIL: input safety trigger must enable native canvas input passthrough" >&2

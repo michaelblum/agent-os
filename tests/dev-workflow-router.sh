@@ -62,6 +62,140 @@ else
     fail "dev classify fallback routing drifted"
 fi
 
+if OUT="$(./aos dev recommend --json --files scripts/aos-do-native.mjs 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "command-surface-implementations" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["hot_swappable"] is True, data
+assert summary["requires_swift_build"] is False, data
+assert summary["tcc_identity_sensitive"] is False, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "bash tests/external-command-dispatch.sh",
+    "bash tests/external-parser-flags.sh",
+    "bash tests/help-contract.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes external command wrappers to hot-swappable command-surface checks"
+else
+    fail "dev recommend external command wrapper routing drifted"
+fi
+
+if OUT="$(./aos dev recommend --json --files packages/cli/verbs/gate-ask.js 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "command-surface-implementations" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["hot_swappable"] is True, data
+assert summary["requires_swift_build"] is False, data
+assert summary["tcc_identity_sensitive"] is False, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "bash tests/external-command-dispatch.sh",
+    "bash tests/external-parser-flags.sh",
+    "bash tests/help-contract.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes package CLI commands to command-surface checks"
+else
+    fail "dev recommend package CLI command routing drifted"
+fi
+
+if OUT="$(./aos dev recommend --json --files scripts/sign-aos-runtime 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "command-surface-implementations" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["hot_swappable"] is True, data
+assert summary["requires_swift_build"] is False, data
+assert summary["tcc_identity_sensitive"] is False, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "bash tests/external-command-dispatch.sh",
+    "bash tests/external-parser-flags.sh",
+    "bash tests/help-contract.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes runtime signing script to command-surface checks"
+else
+    fail "dev recommend runtime signing command routing drifted"
+fi
+
+if OUT="$(./aos dev recommend --json --files packages/gateway/dist/doctor-cli.js 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "package-gateway" in summary["rule_ids"], data
+assert "command-surface-implementations" in summary["rule_ids"], data
+assert "unclassified" not in summary["rule_ids"], data
+assert summary["hot_swappable"] is True, data
+assert summary["requires_swift_build"] is False, data
+assert summary["tcc_identity_sensitive"] is False, data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "cd packages/gateway && npm test",
+    "bash tests/external-command-dispatch.sh",
+    "bash tests/external-parser-flags.sh",
+    "bash tests/help-contract.sh",
+} <= commands, data
+PY
+then
+    pass "dev recommend routes gateway doctor CLI to package and command-surface checks"
+else
+    fail "dev recommend gateway doctor CLI routing drifted"
+fi
+
+if OUT="$(node - <<'NODE'
+const { spawnSync } = require('node:child_process');
+const manifest = require('./manifests/commands/aos-external-commands.json');
+const targets = [...new Set(
+  manifest.commands
+    .flatMap((command) => command.argv_prefix || [])
+    .filter((arg) => /^(scripts|packages)\//.test(arg))
+)].sort();
+const result = spawnSync('./aos', ['dev', 'classify', '--json', '--files', ...targets], { encoding: 'utf8' });
+if (result.stderr) process.stderr.write(result.stderr);
+if (result.stdout) process.stdout.write(result.stdout);
+process.exit(result.status ?? 1);
+NODE
+)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["files"], data
+for item in data["files"]:
+    rules = set(item["rules"])
+    assert "command-surface-implementations" in rules, item
+    assert "unclassified" not in rules, item
+    assert item["hot_swappable"] is True, item
+    assert item["tcc_identity_sensitive"] is False, item
+summary = data["summary"]
+assert summary["requires_swift_build"] is False, summary
+assert summary["tcc_identity_sensitive"] is False, summary
+PY
+then
+    pass "dev classify routes every external manifest implementation target to command-surface checks"
+else
+    fail "dev classify external manifest implementation target routing drifted"
+fi
+
 if OUT="$(./aos dev classify --json --files apps/example/feature.js 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -99,6 +233,22 @@ elif echo "$ERR" | grep -q '"code" : "INVALID_BASE_REF"'; then
     pass "dev recommend rejects invalid --base refs"
 else
     fail "dev recommend invalid --base error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev recommend --base --json 2>&1 >/dev/null)"; then
+    fail "dev recommend should reject missing --base values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev recommend treats flag-after---base as missing value"
+else
+    fail "dev recommend missing --base error mismatch: $ERR"
+fi
+
+if ERR="$(node scripts/aos-dev-workflow.mjs audit --repo --json 2>&1 >/dev/null)"; then
+    fail "dev audit should reject missing --repo values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev audit treats flag-after---repo as missing value"
+else
+    fail "dev audit missing --repo error mismatch: $ERR"
 fi
 
 if OUT="$(./aos help dev --json 2>/dev/null)" python3 - <<'PY'
@@ -181,6 +331,68 @@ else
     fail "dev afk-launch-attempt help drifted"
 fi
 
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-dry-run.XXXXXX.json")"
+cat > "$PACKET" <<JSON
+{
+  "packet_id": "dev-wrapper-afk-dry-run",
+  "source_artifact": "docs/design/work-cards/afk-dev-dry-run-command-v0.md",
+  "requested_recipient": "gdi",
+  "cwd": "$PWD",
+  "worktree": "$PWD",
+  "required_start_ref": "HEAD",
+  "provider_hint": "codex",
+  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
+  "external_publication_policy": "local-only",
+  "goal": "verify external dev afk-dry-run wrapper"
+}
+JSON
+if OUT="$(./aos dev afk-dry-run --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["final_status"] == "completed", data
+assert data["transfer"]["packet_id_or_ref"] == "dev-wrapper-afk-dry-run", data
+assert data["dispatch"]["selected_provider"] == "codex", data
+PY
+then
+    pass "dev afk-dry-run runs through external command manifest"
+else
+    fail "dev afk-dry-run external wrapper drifted: $OUT"
+fi
+rm -f "$PACKET"
+
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-launch-attempt.XXXXXX.json")"
+cat > "$PACKET" <<JSON
+{
+  "packet_id": "dev-wrapper-afk-launch-attempt",
+  "source_artifact": "docs/design/work-cards/afk-dev-launch-attempt-command-v0.md",
+  "requested_recipient": "gdi",
+  "cwd": "$PWD",
+  "worktree": "$PWD",
+  "required_start_ref": "HEAD",
+  "provider_hint": "codex",
+  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
+  "external_publication_policy": "local-only",
+  "goal": "verify external dev afk-launch-attempt wrapper"
+}
+JSON
+if OUT="$(./aos dev afk-launch-attempt --packet "$PACKET" --provider codex --dock gdi --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["record_type"] == "aos.afk_launch_attempt", data
+assert data["transfer"]["packet_id_or_ref"] == "dev-wrapper-afk-launch-attempt", data
+assert data["selection"]["selected_provider"] == "codex", data
+PY
+then
+    pass "dev afk-launch-attempt runs through external command manifest"
+else
+    fail "dev afk-launch-attempt external wrapper drifted: $OUT"
+fi
+rm -f "$PACKET"
+
 if OUT="$(./aos help dev afk-session-trigger --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -204,6 +416,38 @@ else
     fail "dev afk-session-trigger help drifted"
 fi
 
+PACKET="$(mktemp "${TMPDIR:-/tmp}/aos-afk-session-trigger.XXXXXX.json")"
+cat > "$PACKET" <<JSON
+{
+  "packet_id": "dev-wrapper-afk-session-trigger",
+  "source_artifact": "docs/design/work-cards/afk-dev-session-trigger-dry-run-command-v0.md",
+  "requested_recipient": "gdi",
+  "cwd": "$PWD",
+  "worktree": "$PWD",
+  "required_start_ref": "HEAD",
+  "provider_hint": "codex",
+  "result_route": [{"kind": "local_artifact_path", "ref": "stdout"}],
+  "external_publication_policy": "local-only",
+  "goal": "verify external dev afk-session-trigger wrapper"
+}
+JSON
+if OUT="$(./aos dev afk-session-trigger --packet "$PACKET" --provider codex --dock gdi --dry-run --json --timestamp 2026-05-22T20:00:00.000Z 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["record_type"] == "aos.afk_session_trigger_dry_run", data
+assert data["status"] == "dry_run_ready", data
+assert data["packet"]["packet_id"] == "dev-wrapper-afk-session-trigger", data
+assert data["dispatch"]["selected_provider"] == "codex", data
+PY
+then
+    pass "dev afk-session-trigger runs through external command manifest"
+else
+    fail "dev afk-session-trigger external wrapper drifted: $OUT"
+fi
+rm -f "$PACKET"
+
 if OUT="$(./aos dev capabilities list --role foreman --entry-path aos_developer --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -221,6 +465,14 @@ then
     pass "dev capabilities list discovers canonical manifest"
 else
     fail "dev capabilities list did not expose expected manifest entries"
+fi
+
+if ERR="$(./aos dev capabilities list --role --json 2>&1 >/dev/null)"; then
+    fail "dev capabilities list should reject missing --role values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev capabilities list treats flag-after---role as missing value"
+else
+    fail "dev capabilities list missing --role error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev capabilities explain dev.github.issue_comment --json 2>/dev/null)" python3 - <<'PY'
@@ -247,6 +499,15 @@ elif echo "$ERR" | grep -q '"code" : "UNKNOWN_CAPABILITY"'; then
     pass "dev capabilities explain rejects unknown capability ids"
 else
     fail "dev capabilities explain unknown id error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev capabilities explain dev.github.issue_comment extra --json 2>&1 >/dev/null)"; then
+    fail "dev capabilities explain should reject extra positional args"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
+    && echo "$ERR" | grep -q 'Unknown dev capabilities argument: extra'; then
+    pass "dev capabilities explain rejects extra positional args"
+else
+    fail "dev capabilities explain extra positional error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev docks list --json 2>/dev/null)" python3 - <<'PY'
@@ -281,6 +542,24 @@ then
     pass "dev docks capabilities resolves foreman envelope"
 else
     fail "dev docks capabilities did not resolve foreman envelope"
+fi
+
+if ERR="$(./aos dev docks explain foreman extra --json 2>&1 >/dev/null)"; then
+    fail "dev docks explain should reject extra positional args"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
+    && echo "$ERR" | grep -q 'Unknown dev docks argument: extra'; then
+    pass "dev docks explain rejects extra positional args"
+else
+    fail "dev docks explain extra positional error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev docks capabilities foreman extra --json 2>&1 >/dev/null)"; then
+    fail "dev docks capabilities should reject extra positional args"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"' \
+    && echo "$ERR" | grep -q 'Unknown dev docks argument: extra'; then
+    pass "dev docks capabilities rejects extra positional args"
+else
+    fail "dev docks capabilities extra positional error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev docks capabilities gdi --json 2>/dev/null)" python3 - <<'PY'
@@ -329,6 +608,14 @@ then
     pass "dev docks capabilities allows operator assigned read-only dev path"
 else
     fail "dev docks capabilities operator assigned path drifted"
+fi
+
+if ERR="$(./aos dev docks capabilities operator --entry-path --json 2>&1 >/dev/null)"; then
+    fail "dev docks capabilities should reject missing --entry-path values before a flag"
+elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
+    pass "dev docks capabilities treats flag-after---entry-path as missing value"
+else
+    fail "dev docks capabilities missing --entry-path error mismatch: $ERR"
 fi
 
 TMPDIR="$(mktemp -d)"
@@ -393,6 +680,22 @@ else
     fail "dev gh context did not report expected local gh state"
 fi
 
+if ERR="$(node scripts/aos-dev-gh.mjs context --repo --json 2>&1 >/dev/null)"; then
+    fail "dev gh context should reject missing --repo values before a flag"
+elif echo "$ERR" | grep -q -- '--repo requires a GitHub repository'; then
+    pass "dev gh context treats flag-after---repo as missing value"
+else
+    fail "dev gh context missing --repo error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue view 298 extra --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue view should reject extra positional args"
+elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
+    pass "dev gh issue view rejects extra positional args"
+else
+    fail "dev gh issue view extra positional error mismatch: $ERR"
+fi
+
 BODY="$TMPDIR/comment.md"
 printf 'accepted state\n' > "$BODY"
 : > "$GH_ARGS_LOG"
@@ -402,6 +705,30 @@ if OUT="$(./aos dev gh issue comment 298 --body-file "$BODY" 2>/dev/null)" &&
     pass "dev gh issue comment shells out to gh with body-file"
 else
     fail "dev gh issue comment did not shell out through expected gh invocation"
+fi
+
+if ERR="$(./aos dev gh issue comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
+    fail "dev gh issue comment should reject extra positional args"
+elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
+    pass "dev gh issue comment rejects extra positional args"
+else
+    fail "dev gh issue comment extra positional error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue comment 298 --body-file --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue comment should reject missing --body-file values before a flag"
+elif echo "$ERR" | grep -q -- '--body-file requires a path'; then
+    pass "dev gh issue comment treats flag-after---body-file as missing value"
+else
+    fail "dev gh issue comment missing --body-file error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
+    fail "dev gh pr comment should reject extra positional args"
+elif echo "$ERR" | grep -q 'Unknown dev gh pr argument: extra'; then
+    pass "dev gh pr comment rejects extra positional args"
+else
+    fail "dev gh pr comment extra positional error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev gh ci inspect --json 2>/dev/null)"; then
@@ -421,6 +748,14 @@ then
     pass "dev gh ci inspect --json preserves JSON errors while inferring PR"
 else
     fail "dev gh ci inspect --json did not emit parseable JSON error"
+fi
+
+if ERR="$(./aos dev gh ci inspect --pr --json 2>&1 >/dev/null)"; then
+    fail "dev gh ci inspect should reject missing --pr values before a flag"
+elif echo "$ERR" | grep -q -- '--pr requires a PR number'; then
+    pass "dev gh ci inspect treats flag-after---pr as missing value"
+else
+    fail "dev gh ci inspect missing --pr error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev gh ci inspect --pr 298 --json 2>/dev/null)" python3 - <<'PY'

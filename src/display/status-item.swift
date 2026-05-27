@@ -10,7 +10,7 @@ import Foundation
 class StatusItemManager {
     private static let accessibilityLabel = "AOS status item"
     private let lifecycleTimeout: TimeInterval = 1.0
-    private let visibilityTimeout: TimeInterval = 1.2
+    private let visibilityTimeout: TimeInterval = 8.0
     private let canvasInspectorId = "surface-inspector"
     private let logConsoleId = "__log__"
     private let canvasInspectorUrl = "aos://toolkit/components/surface-inspector/index.html"
@@ -31,7 +31,6 @@ class StatusItemManager {
     private var isAnimating = false
     private var persistentVisible = false
     private var hasPersistentStateSource = false
-    private var utilityWarmStarted = false
     private var canvasInspectorAnnotationModeActive = false
     private var filledIcon: NSImage?
     private var unfilledIcon: NSImage?
@@ -63,8 +62,6 @@ class StatusItemManager {
         statusItem?.button?.toolTip = Self.accessibilityLabel
         statusItem?.button?.setAccessibilityLabel(Self.accessibilityLabel)
         restoreUtilityPanels()
-        warmPersistentCanvasIfNeeded()
-        warmUtilityCanvases()
     }
 
     func teardown() {
@@ -91,7 +88,6 @@ class StatusItemManager {
             persistentVisible = canvasManager.hasCanvas(toggleId) && !isCanvasSuspended()
         } else if !canvasManager.hasCanvas(toggleId) {
             persistentVisible = false
-            warmPersistentCanvasIfNeeded()
         }
         updateIcon()
     }
@@ -183,15 +179,15 @@ class StatusItemManager {
             return
         }
         if !persistentVisible && !hasPersistentStateSource {
-            log("persistent target=\(toggleId) has no state source; waiting for renderer readiness before visible intent")
+            log("persistent target=\(toggleId) has no state source; waiting for renderer readiness before posting visible intent")
             isAnimating = true
             updateIcon()
             waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
                 guard let self = self else { return }
                 if !ready {
-                    self.log("persistent target=\(self.toggleId) readiness timed out; posting visible intent anyway")
+                    self.log("persistent target=\(self.toggleId) readiness timed out; posting visible intent fallback")
                 } else {
-                    self.log("persistent target=\(self.toggleId) ready; posting visible intent")
+                    self.log("persistent target=\(self.toggleId) ready without state source; posting visible intent")
                 }
                 self.isAnimating = false
                 self.showPersistentCanvas(origin: origin, modifiers: modifiers)
@@ -404,30 +400,6 @@ class StatusItemManager {
         canvasManager.canvas(forID: id)?.suspended == true
     }
 
-    private func warmUtilityCanvases() {
-        guard !utilityWarmStarted else { return }
-        utilityWarmStarted = true
-        let state = loadUtilityPanelState()
-        if state[logConsoleId] != true && !canvasManager.hasCanvas(logConsoleId) {
-            createUtilityCanvas(
-                id: logConsoleId,
-                url: logConsoleUrl,
-                frame: logConsoleFrame(),
-                suspended: true,
-                focus: false
-            )
-        }
-        if state[canvasInspectorId] != true && !canvasManager.hasCanvas(canvasInspectorId) {
-            createUtilityCanvas(
-                id: canvasInspectorId,
-                url: canvasInspectorUrl,
-                frame: canvasInspectorFrame(),
-                suspended: true,
-                focus: false
-            )
-        }
-    }
-
     private func createUtilityCanvas(id: String, url: String, frame: [CGFloat], suspended: Bool, focus: Bool) {
         var req = CanvasRequest(action: "create")
         req.id = id
@@ -539,7 +511,20 @@ class StatusItemManager {
                 completion(false)
                 return
             }
-            canvas.evaluateJavaScript("Boolean(window.__sigilDebug && window.liveJs?.avatarPos?.valid && window.__sigilBootError == null)") { result, _ in
+            canvas.evaluateJavaScript("""
+                (() => {
+                  const bridgeReady = Boolean(
+                    window.headsup &&
+                    typeof window.headsup.receive === "function" &&
+                    (document.readyState === "interactive" || document.readyState === "complete")
+                  );
+                  if (!bridgeReady) return false;
+                  if (Object.prototype.hasOwnProperty.call(window.headsup, "statusItemReady")) {
+                    return window.headsup.statusItemReady === true;
+                  }
+                  return true;
+                })()
+                """) { result, _ in
                 if (result as? Bool) == true {
                     completion(true)
                     return
@@ -628,11 +613,6 @@ class StatusItemManager {
             _ = canvasManager.handle(req)
             updateIcon()
         }
-    }
-
-    private func warmPersistentCanvasIfNeeded() {
-        guard usesPersistentCanvas, !toggleUrl.isEmpty, !canvasManager.hasCanvas(toggleId) else { return }
-        summonCanvas()
     }
 
     // MARK: - Persistent Intent Flow

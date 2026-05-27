@@ -86,6 +86,28 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     rules.get('command-contract-docs')?.commands?.[0]?.command,
     'bash tests/help-contract.sh',
   );
+  assert.deepEqual(
+    rules.get('command-surface-manifests')?.commands?.map((step) => step.command),
+    [
+      'node --test tests/schemas/aos-external-command-manifest-v0.test.mjs',
+      'bash tests/external-command-dispatch.sh',
+      'bash tests/help-contract.sh',
+    ],
+  );
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('manifests/commands/*.json'));
+  assert.ok(rules.get('command-surface-manifests')?.patterns?.includes('shared/schemas/aos-external-command-manifest-v0.schema.json'));
+  assert.deepEqual(
+    rules.get('command-surface-implementations')?.commands?.map((step) => step.command),
+    [
+      'bash tests/external-command-dispatch.sh',
+      'bash tests/external-parser-flags.sh',
+      'bash tests/help-contract.sh',
+    ],
+  );
+  assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*.mjs'));
+  assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*'));
+  assert.equal(rules.get('command-surface-implementations')?.hot_swappable, true);
+  assert.equal(rules.get('command-surface-implementations')?.tcc_identity_sensitive, false);
   assert.equal(rules.get('toolkit-components')?.hot_swappable, true);
   assert.equal(rules.get('schemas')?.commands?.[0]?.command, 'node --test tests/schemas/*.test.mjs');
   assert.deepEqual(
@@ -98,8 +120,8 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
       'bash tests/dev-audit.sh',
     ],
   );
-  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/commands/dev.swift'));
-  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('src/shared/command-registry-data.swift'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('scripts/aos-dev-workflow.mjs'));
+  assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('manifests/commands/aos-commands.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/workflow-profiles.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('docs/dev/active-profile.json'));
   assert.ok(rules.get('dev-workflow-manifest')?.patterns?.includes('tests/schemas/dev-active-profile.test.mjs'));

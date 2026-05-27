@@ -60,9 +60,15 @@ For user-input regressions, spot-check with actual AOS events:
 
 ```bash
 AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh
+AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh
 bash tests/sigil-real-input-status-avatar.sh
 bash tests/sigil-context-menu-real-input.sh
 ```
+
+Use these named entrypoints instead of ad hoc `./aos do` sequences. Shared
+helpers under `tests/lib/` own readiness, wait/retry, AOS command execution,
+canvas target resolution, real click/scroll/key wrappers, cleanup, and compact
+failure evidence.
 
 `tests/scenarios/sigil/radial-menu/real-input.sh` is the default radial-menu
 entry path. It uses the live repo status item, opens the radial menu with real
@@ -80,8 +86,9 @@ that as contaminated evidence and rerun after the cursor is idle.
 
 Duplicate AOS status items are a red flag. Isolated status-item tests can create
 a second AOS status item while the live repo daemon has its own item. The real
-status-item smoke records the visible matching status items before it clicks so
-an agent can tell whether the run had global status-item ambiguity.
+status-item smoke targets its isolated daemon PID and fails if another matching
+status item overlaps that target, so global menu-bar ambiguity is bounded and
+reported instead of silently contaminating the click.
 
 `tests/sigil-context-menu-real-input.sh` starts from an already-visible avatar
 and exercises deeper menu behavior: Effects, real wheel scrolling, Line Trail

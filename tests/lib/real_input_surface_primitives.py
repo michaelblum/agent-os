@@ -176,6 +176,9 @@ def ease(t):
 
 
 class RealPointer:
+    # Boundary adapter for DesktopWorld/native drag-path coverage that cannot
+    # yet be expressed as one `aos do` gesture with intermediate path holds.
+    # Consumer scenarios should prefer SigilContextHarness/AOS do wrappers.
     def __init__(self, aos, displays=None):
         self.aos = aos
         self.displays = displays
@@ -257,3 +260,93 @@ class RealPointer:
                     self.hold_drag_world(current, hold)
         finally:
             self.up_world(current)
+
+
+class NativeClick:
+    # Low-level real-input boundary for tests that need to separate native
+    # event posting time from app-visible response time. Normal CLI scenarios
+    # should keep using `aos do click` for safety preflight and public contract
+    # coverage.
+    def __init__(self):
+        import Quartz  # pylint: disable=import-error
+        self.quartz = Quartz
+        self.source = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStatePrivate)
+
+    def post(self, kind, native_point, button):
+        event = self.quartz.CGEventCreateMouseEvent(
+            self.source,
+            kind,
+            (float(native_point["x"]), float(native_point["y"])),
+            button,
+        )
+        if event is None:
+            raise RuntimeError(f"failed to create CGEvent {kind}")
+        self.quartz.CGEventSetIntegerValueField(event, self.quartz.kCGMouseEventButtonNumber, int(button))
+        self.quartz.CGEventSetIntegerValueField(event, self.quartz.kCGMouseEventClickState, 1)
+        self.quartz.CGEventPost(self.quartz.kCGHIDEventTap, event)
+
+    def click_native(self, native_point, button="left", count=1, dwell=0.04):
+        button_name = "right" if button == "right" else "left"
+        cg_button = self.quartz.kCGMouseButtonRight if button_name == "right" else self.quartz.kCGMouseButtonLeft
+        down_type = self.quartz.kCGEventRightMouseDown if button_name == "right" else self.quartz.kCGEventLeftMouseDown
+        up_type = self.quartz.kCGEventRightMouseUp if button_name == "right" else self.quartz.kCGEventLeftMouseUp
+
+        started_ns = time.time_ns()
+        self.post(self.quartz.kCGEventMouseMoved, native_point, self.quartz.kCGMouseButtonLeft)
+        for index in range(max(1, int(count))):
+            down = self.quartz.CGEventCreateMouseEvent(
+                self.source,
+                down_type,
+                (float(native_point["x"]), float(native_point["y"])),
+                cg_button,
+            )
+            if down is None:
+                raise RuntimeError("failed to create click-down CGEvent")
+            self.quartz.CGEventSetIntegerValueField(down, self.quartz.kCGMouseEventButtonNumber, int(cg_button))
+            self.quartz.CGEventSetIntegerValueField(down, self.quartz.kCGMouseEventClickState, index + 1)
+            self.quartz.CGEventPost(self.quartz.kCGHIDEventTap, down)
+            time.sleep(max(0.0, float(dwell)))
+            up = self.quartz.CGEventCreateMouseEvent(
+                self.source,
+                up_type,
+                (float(native_point["x"]), float(native_point["y"])),
+                cg_button,
+            )
+            if up is None:
+                raise RuntimeError("failed to create click-up CGEvent")
+            self.quartz.CGEventSetIntegerValueField(up, self.quartz.kCGMouseEventButtonNumber, int(cg_button))
+            self.quartz.CGEventSetIntegerValueField(up, self.quartz.kCGMouseEventClickState, index + 1)
+            self.quartz.CGEventPost(self.quartz.kCGHIDEventTap, up)
+            if index + 1 < max(1, int(count)):
+                time.sleep(max(0.0, float(dwell)))
+        event_posted_ns = time.time_ns()
+        return {
+            "button": button_name,
+            "count": max(1, int(count)),
+            "point": {"x": float(native_point["x"]), "y": float(native_point["y"])},
+            "startedAtMs": started_ns / 1_000_000,
+            "eventPostedAtMs": event_posted_ns / 1_000_000,
+            "injectionDurationMs": (event_posted_ns - started_ns) / 1_000_000,
+        }
+
+
+def _main():
+    if len(sys.argv) < 2:
+        raise SystemExit("usage: real_input_surface_primitives.py <action>")
+    action = sys.argv[1]
+    payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
+    if action == "click-native-json":
+        point = payload.get("point") or {}
+        result = NativeClick().click_native(
+            {"x": point.get("x"), "y": point.get("y")},
+            button=payload.get("button", "left"),
+            count=payload.get("count", 1),
+            dwell=payload.get("dwell", 0.04),
+        )
+        print(json.dumps(result, sort_keys=True))
+        return
+    raise SystemExit(f"unknown real-input primitive action: {action}")
+
+
+if __name__ == "__main__":
+    _main()

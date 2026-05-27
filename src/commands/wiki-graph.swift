@@ -138,12 +138,6 @@ func openWikiIndex(wikiRoot: String) -> WikiIndex {
     return index
 }
 
-func wikiGraphCommand(args: [String]) {
-    let includeRaw = hasFlag(args, "--raw")
-    let snapshot = buildWikiGraphSnapshot(wikiRoot: aosWikiDir(), includeRaw: includeRaw)
-    print(jsonString(snapshot))
-}
-
 func buildWikiGraphSnapshot(wikiRoot: String, includeRaw: Bool) -> WikiGraphSnapshot {
     let index = openWikiIndex(wikiRoot: wikiRoot)
     let pages = index.listPages()

@@ -131,6 +131,41 @@ EOF
 HASH2="$(grep '^source_hash:' "$ROOT/repo/wiki/aos/concepts/repo-doc-test-projection.md")"
 [[ "$HASH1" != "$HASH2" ]] || { echo "FAIL: changed source did not update source_hash"; exit 1; }
 
+if "$AOS" wiki project-docs --bogus 2>"$ROOT/wiki-project-docs-bogus.err"; then
+  echo "FAIL: wiki project-docs accepted unknown flag"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_FLAG"' "$ROOT/wiki-project-docs-bogus.err" || {
+  echo "FAIL: wiki project-docs unknown flag did not use external script error contract"
+  cat "$ROOT/wiki-project-docs-bogus.err"
+  exit 1
+}
+
+if "$AOS" wiki project-docs --manifest --json 2>"$ROOT/wiki-project-docs-manifest-missing.err"; then
+  echo "FAIL: wiki project-docs accepted missing --manifest value"
+  exit 1
+fi
+grep -q '"code": "MISSING_ARG"' "$ROOT/wiki-project-docs-manifest-missing.err" || {
+  echo "FAIL: wiki project-docs missing --manifest value did not use MISSING_ARG"
+  cat "$ROOT/wiki-project-docs-manifest-missing.err"
+  exit 1
+}
+
+if "$AOS" wiki project-docs extra 2>"$ROOT/wiki-project-docs-extra.err"; then
+  echo "FAIL: wiki project-docs accepted extra positional"
+  exit 1
+fi
+grep -q '"code": "UNKNOWN_ARG"' "$ROOT/wiki-project-docs-extra.err" || {
+  echo "FAIL: wiki project-docs extra positional did not use UNKNOWN_ARG"
+  cat "$ROOT/wiki-project-docs-extra.err"
+  exit 1
+}
+grep -q '"error": "Unknown argument: extra"' "$ROOT/wiki-project-docs-extra.err" || {
+  echo "FAIL: wiki project-docs extra positional message did not say Unknown argument"
+  cat "$ROOT/wiki-project-docs-extra.err"
+  exit 1
+}
+
 cat > "$MANIFEST" <<EOF
 {
   "projection": "repo_docs_v0",

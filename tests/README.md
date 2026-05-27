@@ -12,6 +12,81 @@ Do not rebuild `./aos` by default before every verification step.
 For the repo-wide entry-path model behind these choices, see
 `docs/recipes/agent-entry-paths-and-verification.md`.
 
+For runtime, canvas, input, status-item, lifecycle, or cross-layer work, choose
+the cheapest canonical-path representative harness that preserves the variable
+at risk. Use `docs/recipes/test-harness-ladder-and-prep.md` when the harness is
+not obvious or when a new test primitive, fixture, helper, or scenario may be
+needed.
+
+## Foundational Harness Ladder
+
+Use this ladder before reaching for app-specific examples. Escalate only when
+the lower level fakes away the defect variable, cannot observe the relevant
+contract, or would need private test plumbing that already exists one level up.
+
+- Model/unit tests: use for pure reducers, parsers, schemas, renderer state,
+  toolkit helpers, and package logic. They do not cover daemon lifecycle,
+  content serving, real canvas frames, host permissions, or native input. Reuse
+  `tests/renderer/*.test.mjs`, `tests/toolkit/*.test.mjs`,
+  `tests/daemon/*.test.mjs`, `tests/schemas/*.test.mjs`, and package-local
+  test loops. Escalate when the behavior depends on `./aos`, persisted runtime
+  state, a served URL, display topology, or native event delivery.
+- Toolkit/component contract tests: use for reusable browser-surface policy,
+  runtime primitives, subject descriptors, workbench shell behavior, and
+  component contracts that can be proven without a live daemon. They do not
+  cover content-root registration, canvas lifecycle, native window placement, or
+  end-to-end app activation. Reuse `tests/toolkit/runtime-*.test.mjs`,
+  `tests/toolkit/*subject*.test.mjs`, and adjacent schema tests. Escalate when
+  the contract crosses into daemon-backed canvases or host-owned input.
+- Isolated daemon tests: use when the behavior needs `./aos`, daemon IPC,
+  content roots, canvas lifecycle, wiki/content state, voice/session state, or
+  a browser canvas without sharing the repo daemon. They do not prove
+  singleton repo-daemon behavior, live status-item ownership, or real user
+  input. Reuse `tests/lib/isolated-daemon.sh` and tests that allocate
+  `AOS_STATE_ROOT`. Escalate when the defect depends on the shared repo daemon,
+  live canvas namespace, or an existing user-facing runtime surface.
+- Shared repo-daemon live canvas tests: use when the canonical path is the live
+  repo daemon or when the shared canvas namespace, content roots, xray, capture,
+  ref-click, or cleanup behavior is the variable under test. They do not
+  tolerate parallel canvas mutation and do not prove native pointer behavior by
+  themselves. Reuse `tests/lib/live-canvas-serial.sh`,
+  `tests/aos-semantic-targets-xray.sh`,
+  `tests/aos-semantic-targets-xray-retry.sh`, and
+  `tests/aos-canvas-ref-click.sh`. Escalate when visual placement, status-item
+  ownership, or real input is the defect variable.
+- Visual harness tests: use when canvas placement, Surface Inspector visibility,
+  app launch composition, stale content roots, or visual diagnostics need a
+  repeatable workspace. They do not replace assertions for product semantics or
+  real input. Reuse `tests/lib/visual-harness.sh`,
+  `tests/visual-harness-content-preflight.sh`, and named visual launch helpers
+  such as `aos_visual_launch_canvas_inspector` and
+  `aos_visual_launch_sigil_with_inspector`. Escalate when a human must judge a
+  visual result or when the bug appears only through host pointer/keyboard use.
+- Status-item owner/click harnesses: use when menu-bar ownership, status-item
+  PID scoping, duplicate-item diagnostics, or status-item click delivery is the
+  contract. They do not prove arbitrary app behavior after launch unless the
+  scenario asserts that behavior through the canonical surface. Reuse
+  `tests/lib/status-item.sh`, `tests/sigil-status-item-lifecycle.sh`,
+  `tests/sigil-real-input-status-avatar.sh`, and
+  `tests/sigil-context-menu-real-input.sh`. Escalate when renderer state or
+  `show eval` activation would skip the status-item/user-input path under test.
+- Real-input scenarios: use when real mouse or keyboard delivery, input taps,
+  coordinate conversion, DesktopWorld/native boundaries, semantic targets, or
+  action latency is the variable under test. They do not belong in broad
+  default loops and should skip or stop cleanly when permissions or human idle
+  state are missing. Reuse `tests/lib/real-input-surface-harness.sh`,
+  `tests/lib/real-input-surface-primitives.mjs`,
+  `tests/lib/real_input_surface_primitives.py`, and named scenarios gated by
+  `AOS_REAL_INPUT_OK=1`. Escalate to supervised/HITL only when automated
+  evidence cannot answer the visual or human-observation question.
+- Supervised/HITL harnesses: use when the contract requires explicit human
+  observation, approval, or live-provider acceptance around an otherwise bounded
+  run. They do not replace deterministic checks and should not become the
+  default for routine harness selection. Reuse `tests/lib/supervised-run*.sh`,
+  `tests/lib/supervised-run-artifact.py`, `tests/run-puck-hitl-plan.sh`, and
+  manual tests under `tests/manual/`. Escalate to this level only with a clear
+  human-needed question and artifact path.
+
 ## Rebuild `./aos` First
 
 Rebuild with `./aos dev build` when both of these are true:
@@ -50,11 +125,140 @@ Stay in the local package or Node loop when the work does not depend on a fresh
 
 Examples:
 
-- `node --test tests/studio/*.test.mjs`
+- `node --test tests/studio/*.test.mjs` for sequestered Studio pure helpers only.
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/toolkit/*.test.mjs`
 - `cd packages/gateway && npm test`
 - `cd packages/host && npm test`
+
+## Sigil Radial / Wiki / Toolkit Surface Family
+
+Use this focused family when a change touches Sigil radial menu activation, the
+Wiki Graph radial item, the graph-first wiki browser/workshop surface, or the
+toolkit runtime primitives that route pointer input and target surfaces.
+
+Deterministic radial, renderer, and runtime contract:
+
+```bash
+node --test \
+  tests/renderer/radial-menu-activation.test.mjs \
+  tests/renderer/radial-gesture-menu.test.mjs \
+  tests/renderer/radial-gesture-visuals.test.mjs \
+  tests/renderer/radial-menu-target-surface.test.mjs \
+  tests/renderer/radial-activation-transition.test.mjs \
+  tests/renderer/sigil-content-roots.test.mjs \
+  tests/toolkit/runtime-radial-gesture.test.mjs \
+  tests/toolkit/runtime-radial-menu-config.test.mjs \
+  tests/toolkit/runtime-radial-item-transition.test.mjs \
+  tests/toolkit/runtime-menu-activation.test.mjs \
+  tests/toolkit/runtime-input-events.test.mjs \
+  tests/toolkit/runtime-input-region.test.mjs \
+  tests/toolkit/runtime-interaction-region.test.mjs \
+  tests/toolkit/runtime-desktop-world-hit-region.test.mjs
+```
+
+Deterministic wiki browser/workshop and workbench contract:
+
+```bash
+node --test \
+  tests/toolkit/wiki-kb.test.mjs \
+  tests/toolkit/wiki-kb-semantics.test.mjs \
+  tests/toolkit/wiki-kb-layout-modes.test.mjs \
+  tests/toolkit/wiki-subject-browser.test.mjs \
+  tests/toolkit/wiki-subject-opening.test.mjs \
+  tests/toolkit/wiki-subject.test.mjs \
+  tests/toolkit/workbench-subject.test.mjs \
+  tests/toolkit/radial-menu-subject.test.mjs \
+  tests/schemas/aos-workbench-subject.test.mjs
+```
+
+Launcher and shell checks:
+
+```bash
+bash tests/wiki-kb-smoke.sh
+bash tests/sigil-workbench-kb.sh
+bash tests/sigil-status-item-lifecycle.sh
+bash tests/help-contract.sh
+bash tests/external-parser-flags.sh
+git diff --check
+```
+
+Inventory for this family:
+
+| Test or scenario | Class | Contract |
+| --- | --- | --- |
+| `tests/renderer/radial-menu-activation.test.mjs` | renderer/model | Radial committed item requests, target-surface descriptors, and Wiki Graph routing to the current graph-first browser surface. |
+| `tests/renderer/radial-gesture-menu.test.mjs` | renderer/model | Sigil radial gesture state, configured item order, commit/cancel behavior, and fast-travel handoff boundaries. |
+| `tests/renderer/radial-gesture-visuals.test.mjs` | renderer/model | 3D radial item visual config, Wiki Brain effect hooks, and default geometry projection. |
+| `tests/renderer/radial-menu-target-surface.test.mjs` | renderer/model | Externally observable radial child hit surface geometry, labels, and semantic target payloads. |
+| `tests/renderer/radial-activation-transition.test.mjs` | renderer/model | Transition lifecycle for committed radial items and surface fade timing. |
+| `tests/renderer/sigil-content-roots.test.mjs` | renderer/model | Worktree-scoped content roots for Sigil child surfaces and the radial Wiki Graph browser URL. |
+| `tests/toolkit/runtime-*.test.mjs` in the command above | toolkit model | Shared radial, menu activation, input event, input region, and DesktopWorld hit-region primitives. |
+| `tests/toolkit/wiki-kb*.test.mjs` | toolkit component model | Wiki KB graph/radial graph state, semantics, and layout-mode behavior. |
+| `tests/toolkit/wiki-subject-browser.test.mjs` | toolkit component model | Graph-first Subject Browser shell, Catalog/Index/Details/Trail semantics, Markdown opening, and root clear behavior. |
+| `tests/toolkit/wiki-subject-opening.test.mjs` and `tests/toolkit/wiki-subject.test.mjs` | toolkit workbench model | Wiki subject descriptors and Markdown open request mapping. |
+| `tests/toolkit/workbench-subject.test.mjs`, `tests/toolkit/radial-menu-subject.test.mjs`, `tests/schemas/aos-workbench-subject.test.mjs` | toolkit/schema model | Reusable workbench subject descriptors and schema compatibility for radial/wiki surfaces. |
+| `tests/wiki-kb-smoke.sh` | isolated-daemon launcher | Wiki KB launcher, content-root setup, sample graph load, radial graph switch, and optional capture. |
+| `tests/sigil-workbench-kb.sh` | isolated-daemon launcher | Legacy Sigil workbench KB tab smoke retained as a compatibility boundary, not the radial Wiki Graph product path. |
+| `tests/sigil-status-item-lifecycle.sh` | live repo-daemon shell | Status item activation lifecycle and active Sigil canvas ownership. |
+| `tests/sigil-real-input-status-avatar.sh` | isolated-daemon real-input | Test-daemon status item click, avatar visibility, shallow context-menu smoke, bounded duplicate status-item overlap evidence, and split click/app-response timing. Uses the native low-latency helper for the status-item click and `aos do` for subsequent surface interactions. |
+| `tests/sigil-context-menu-real-input.sh` | isolated-daemon real-input | Owned visible avatar plus deeper context-menu controls through shared `aos do` action helpers. Moves the pointer through `aos do`. |
+| `tests/scenarios/sigil/radial-menu/real-input.sh` | live real-input | User-facing status item, avatar, radial target surface semantics, and native pointer selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
+| `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh` | live real-input | Topology-neutral DesktopWorld fast-travel plus radial selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
+
+Use these named scenarios instead of ad hoc `./aos do` sequences in new
+real-input verification. The shared helpers under `tests/lib/` own readiness,
+wait/retry, AOS command execution, canvas/DOM-to-native target resolution, and
+real click/scroll/key wrappers.
+
+Duplicate AOS status items are a red flag. Isolated status-item tests can create
+a second AOS status item while the live repo daemon has its own item. The real
+status-item smoke targets its isolated daemon PID and fails if another matching
+status item overlaps that target, so global menu-bar ambiguity is bounded and
+reported instead of silently contaminating the click.
+
+Do not use direct DOM or `show eval` activation as the acceptance proof for
+radial menu user behavior. Eval remains useful for observation after native or
+realistic input has opened the relevant surface. If `./aos ready` reports a
+repo-mode TCC/input-tap blocker, follow the dock stall contract instead of
+retrying live real-input scenarios.
+
+## Harness Composability Contracts
+
+Some harnesses use or mutate shared live resources and must acquire a guard
+before they start. Source `tests/lib/harness-contracts.sh` when a shell harness
+needs to declare one of these classes:
+
+| Class | Meaning | Current examples |
+| --- | --- | --- |
+| `repo-daemon-live` | Requires the live repo daemon and status item to remain stable for the run. | `tests/scenarios/sigil/radial-menu/real-input.sh`, `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh` |
+| `repo-service-mutator` | Stops, starts, or otherwise changes the repo-mode service/status-item owner. | `tests/sigil-real-input-status-avatar.sh` |
+| `status-item-owner` | Owns an AOS status item for PID-scoped click evidence. | Status-item real-input smokes and live radial real-input scenarios |
+| `real-input-pointer` | Posts real pointer/keyboard events and requires human idle input. | Real-input scenarios gated by `AOS_REAL_INPUT_OK=1` |
+
+The guard records owner metadata (`pid`, script, cwd, start time, contract, and
+exclusive groups) and fails fast with a `harness-contract conflict` diagnostic
+instead of letting incompatible runs invalidate each other mid-run. It does not
+kill other harnesses. Release guards from an `EXIT` trap.
+
+Use `aos_harness_repo_service_stop_for_isolated_test` and
+`aos_harness_repo_service_restore_if_needed` when a test intentionally stops the
+repo service. That helper records whether the repo service was running, stops it
+through `./aos service stop --mode repo --json`, and restores it only when the
+test changed a running service.
+
+Focused proof:
+
+```bash
+bash tests/harness-composability-contracts.sh
+```
+
+## Sequestered Studio Helper Tests
+
+Studio is defunct as a current Sigil product and launch surface. The
+`tests/studio/*.test.mjs` files remain only as pure-helper coverage for
+`apps/sigil/_sequestered/studio/...`; they are not Sigil MVP activation tests,
+status-item tests, radial-menu tests, or current product launch proof.
 
 ## Mixed Work
 
@@ -210,6 +414,13 @@ single scenario needs a one-off assertion, keep it local, but do not let local
 code own platform knowledge such as display DPI, native display origins, content
 root setup, daemon readiness, or generic semantic-target extraction.
 
+For runtime, canvas, input, status-item, lifecycle, visual, supervised, or
+cross-layer slices, report harness choices and reusable artifact candidates when
+they matter. Use `harness_selection`, `fixture_blind_spots`,
+`new_test_artifact_candidates`, or `why_no_harness_prep_needed` as lightweight
+completion-report fields instead of making every small test or docs change
+verbose.
+
 Test primitives that perform input should prefer shorthand over public AOS
 actions. If a scenario needs a gesture that `aos do` cannot express cleanly,
 record the missing action primitive instead of letting a private test gesture
@@ -290,7 +501,6 @@ Examples:
 - `bash tests/config-surface.sh`
 - `bash tests/cli-error-log.sh`
 - `bash tests/sigil-avatar-interactions.sh`
-- `bash tests/sigil-workbench-studio-restage.sh`
 - `bash tests/sigil-workbench-launch.sh`
 
 ## Recovery

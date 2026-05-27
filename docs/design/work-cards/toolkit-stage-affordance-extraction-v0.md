@@ -74,7 +74,7 @@ gh issue view 304 --json number,title,state,url,body,labels
 
 If `./aos ready` reports the known TCC blocker, do not run live pointer smoke.
 Use deterministic tests and report the blocker. If the human has completed the
-safe permission reset and says `ready`, run `./aos ready --post-permission`.
+safe permission reset and says `finished`, run `./aos ready --post-permission`.
 
 ## Existing Code To Inspect
 

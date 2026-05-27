@@ -18,12 +18,12 @@ test('Sigil content roots infer branch-scoped toolkit root from current Sigil ro
   assert.equal(currentContentRoot({ loc }), 'sigil_codex_wiki_workbench_layout_polish')
   assert.equal(currentToolkitRoot({ loc }), 'toolkit_codex_wiki_workbench_layout_polish')
   assert.equal(
-    toolkitUrl('components/markdown-workbench/index.html', { loc }),
-    'aos://toolkit_codex_wiki_workbench_layout_polish/components/markdown-workbench/index.html',
+    toolkitUrl('components/wiki-subject-browser/index.html', { loc }),
+    'aos://toolkit_codex_wiki_workbench_layout_polish/components/wiki-subject-browser/index.html',
   )
   assert.equal(
-    documentContentUrl(currentToolkitRoot({ loc }), 'components/markdown-workbench/index.html', { loc }),
-    '/toolkit_codex_wiki_workbench_layout_polish/components/markdown-workbench/index.html',
+    documentContentUrl(currentToolkitRoot({ loc }), 'components/wiki-subject-browser/index.html', { loc }),
+    '/toolkit_codex_wiki_workbench_layout_polish/components/wiki-subject-browser/index.html',
   )
   assert.equal(
     sigilUrl('renderer/hit-area.html', { loc }),
@@ -66,8 +66,9 @@ test('Sigil toolkit specifier keeps local Node tests on filesystem imports', () 
 test('Sigil renderer routes wiki workbench through scoped toolkit resolver', async () => {
   const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8')
 
-  assert.match(source, /toolkitUrl\('components\/markdown-workbench\/index\.html'\)/)
-  assert.doesNotMatch(source, /WIKI_WORKBENCH_URL\s*=\s*['"]aos:\/\/toolkit\/components\/markdown-workbench\/index\.html/)
+  assert.match(source, /toolkitUrl\('components\/wiki-subject-browser\/index\.html'\)/)
+  assert.doesNotMatch(source, /WIKI_WORKBENCH_URL\s*=\s*['"]aos:\/\/toolkit\/components\/wiki-subject-browser\/index\.html/)
+  assert.doesNotMatch(source, /toolkitUrl\('components\/markdown-workbench\/index\.html'\)/)
   assert.match(source, /sigilUrl\('renderer\/hit-area\.html'\)/)
-  assert.match(source, /openWikiWorkbench\(path \|\| WIKI_WORKBENCH_DEFAULT_PATH\)/)
+  assert.match(source, /sendCanvasMessage\(WIKI_WORKBENCH_CANVAS_ID, message\)/)
 })

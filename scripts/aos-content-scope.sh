@@ -60,16 +60,22 @@ aos_ensure_content_roots_live() {
     return 2
   fi
 
-  (
-    while [ "$#" -gt 0 ]; do
-      "$aos_bin" set "content.roots.$1" "$2" >/dev/null || exit $?
-      shift 2
-    done
-  ) || return $?
+  if ! aos_content_roots_live "$aos_bin" "$@"; then
+    (
+      while [ "$#" -gt 0 ]; do
+        "$aos_bin" set "content.roots.$1" "$2" >/dev/null || exit $?
+        shift 2
+      done
+    ) || return $?
+  fi
 
   if ! aos_content_roots_live "$aos_bin" "$@"; then
-    echo "Refreshing repo daemon so scoped content roots are live." >&2
-    "$aos_bin" service restart --mode repo >/dev/null
+    if [[ -n "${AOS_STATE_ROOT:-}" ]]; then
+      echo "Waiting for isolated daemon scoped content roots to become live." >&2
+    else
+      echo "Refreshing repo daemon so scoped content roots are live." >&2
+      "$aos_bin" service restart --mode repo >/dev/null
+    fi
   fi
 
   (

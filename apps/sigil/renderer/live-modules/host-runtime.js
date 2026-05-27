@@ -35,6 +35,7 @@ export function createHostRuntime() {
         if (installed) return;
         installed = true;
         window.headsup = window.headsup || {};
+        window.headsup.statusItemReady = false;
         window.headsup.receive = function receive(b64) {
             let msg;
             try {

@@ -44,6 +44,19 @@ the next concrete action. If the next action is ready for another session after
 a simple affirmative, use `scripts/dock-handoff-clipboard --target-dock <dock>`
 to place a concise paste-ready transfer payload on the clipboard.
 
+## AOS-First Runtime Control
+
+For live runtime work, use `./aos` before lower-level tools. Readiness, status,
+canvas lifecycle, Agent Terminal surfaces, dock communication, and input routing
+should go through the documented AOS command surface unless the assigned goal
+explicitly says to test a lower-level adapter.
+
+Do not use raw `curl` against daemon or bridge endpoints, direct `tmux`/PTY
+driving, launchd probes, or state-file spelunking as the first move. Those are
+last-resort diagnostics for missing/broken `./aos` surfaces, AOS control-plane
+repair, or adapter-specific tests. If you use one, report why `./aos` was not
+the right surface for that step.
+
 ## Git Boundary
 
 The active workflow profile governs what git operations GDI may perform. Read
@@ -156,7 +169,7 @@ goal. Run the bounded stall helper once:
 ```
 
 Then stop and report `human_needed` with the script output. After the human
-returns with "ready", run:
+returns with "finished", run:
 
 ```bash
 ./aos ready --post-permission
@@ -172,22 +185,21 @@ helper's human-action block without relying on memory:
 human_needed: repo-mode AOS permission repair
 
 Human action:
-1. Run: ./aos permissions setup --once
-2. Grant the requested macOS Accessibility/Input Monitoring permission for the
-   repo-mode aos runtime if macOS prompts.
-3. Return to the GDI session and say: ready
-4. If the active goal is paused or Codex indicates it needs to resume, use:
-   /goal resume
-   Do not start a new goal for the same work.
+1. Complete the macOS System Settings permission step for the repo-mode aos
+   runtime.
+2. If macOS does not prompt or the grant remains stale, physically remove and
+   re-add the repo-mode aos runtime in Accessibility/Input Monitoring, then
+   enable it.
+3. Return to the GDI session, or the next turn for that same session, and say:
+   finished.
+4. Do not start a new goal for the same work.
 
-After the human returns, GDI runs:
+After the human says finished, GDI runs:
   ./aos ready --post-permission
 ```
 
-The helper writes a short-lived GDI stop-condition marker for the Stop hook.
-The Stop hook consumes that marker and speaks `GDI needs TCC reset.` instead of
-the normal `GDI finished.` notice. Do not add a second direct `./aos say` call
-in the helper.
+The helper and dock hooks own the stop-condition marker and spoken notice for
+this stall. Do not add a second direct `./aos say` call in the helper.
 
 When retiring or reusing a GDI CLI session after a completed active goal, clear
 completed goal state with `/goal clear` before starting unrelated work.

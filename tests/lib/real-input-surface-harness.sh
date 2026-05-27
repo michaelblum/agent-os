@@ -44,7 +44,16 @@ aos_real_input_surface_canvas_exists() {
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
-  "$aos_bin" show get --id "$canvas_id" >/dev/null 2>&1
+  "$aos_bin" show get --id "$canvas_id" 2>/dev/null \
+    | python3 -c 'import json, sys
+canvas_id = sys.argv[1]
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(1)
+canvas = payload.get("canvas") or {}
+raise SystemExit(0 if canvas.get("id") == canvas_id else 1)
+' "$canvas_id" >/dev/null 2>&1
 }
 
 aos_real_input_surface_cleanup_subject_family() {
@@ -58,7 +67,32 @@ import subprocess
 import sys
 
 aos, root_id = sys.argv[1:3]
-before = json.loads(subprocess.check_output([aos, "show", "list", "--json"], text=True)).get("canvases", [])
+
+def run_json(*args):
+    try:
+        completed = subprocess.run(
+            [aos, *args],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=True,
+        )
+    except subprocess.CalledProcessError as error:
+        raise SystemExit("FAIL: cleanup command failed: " + json.dumps({
+            "command": [aos, *args],
+            "exit": error.returncode,
+            "output": (error.stdout or "").strip(),
+        }, sort_keys=True)) from error
+    try:
+        return json.loads(completed.stdout or "{}")
+    except Exception as error:
+        raise SystemExit("FAIL: cleanup command returned invalid JSON: " + json.dumps({
+            "command": [aos, *args],
+            "error": str(error),
+            "output": completed.stdout,
+        }, sort_keys=True)) from error
+
+before = run_json("show", "list", "--json").get("canvases", [])
 by_id = {canvas.get("id"): canvas for canvas in before if canvas.get("id")}
 children = {}
 for canvas in before:
@@ -92,7 +126,7 @@ if root_present:
     except subprocess.CalledProcessError as error:
         remove_error = error.output.strip()
 
-after = json.loads(subprocess.check_output([aos, "show", "list", "--json"], text=True)).get("canvases", [])
+after = run_json("show", "list", "--json").get("canvases", [])
 after_by_id = {canvas.get("id"): canvas for canvas in after if canvas.get("id")}
 
 removed = [canvas_id for canvas_id in removed_candidates if canvas_id not in after_by_id]
@@ -158,6 +192,27 @@ print(json.dumps({
 PY
 }
 
+aos_real_input_surface_launch_inspector_with_retry() {
+  local inspector_id="${1:-$AOS_REAL_INPUT_SURFACE_INSPECTOR_ID}"
+  local attempt status
+
+  for attempt in 1 2; do
+    if aos_visual_launch_canvas_inspector "$inspector_id"; then
+      return 0
+    else
+      status="$?"
+    fi
+    if (( attempt < 2 )); then
+      echo "INFO: surface-inspector launch retry: id=$inspector_id attempt=$attempt status=$status" >&2
+      aos_visual_remove_canvas "$inspector_id" 5
+      sleep 0.5
+    fi
+  done
+
+  echo "FAIL: surface-inspector launch failed after bounded retry: id=$inspector_id status=$status" >&2
+  return "$status"
+}
+
 aos_real_input_surface_start() {
   local inspector_id="${1:-$AOS_REAL_INPUT_SURFACE_INSPECTOR_ID}"
   local aos_bin
@@ -165,19 +220,27 @@ aos_real_input_surface_start() {
 
   aos_real_input_surface_require_enabled || return $?
   if ! "$aos_bin" status --json 2>/dev/null | python3 -c 'import json,sys; data=json.load(sys.stdin); runtime=data.get("runtime") or {}; raise SystemExit(0 if (runtime.get("socket_reachable") is True and runtime.get("input_tap_status") == "active") else 1)' >/dev/null 2>&1; then
-    "$aos_bin" ready >/dev/null
+    "$aos_bin" ready >/dev/null || return $?
   fi
 
   if ! aos_real_input_surface_canvas_exists "$inspector_id"; then
-    aos_visual_launch_canvas_inspector "$inspector_id"
+    aos_real_input_surface_launch_inspector_with_retry "$inspector_id" || return $?
   fi
   if ! aos_real_input_surface_assert_inspector_visible "$inspector_id" >/dev/null 2>&1; then
     local lifecycle_state
     lifecycle_state="$("$aos_bin" show get --id "$inspector_id" 2>/dev/null | python3 -c 'import json,sys; print((json.load(sys.stdin).get("canvas") or {}).get("lifecycleState", ""))' 2>/dev/null || true)"
+    echo "INFO: surface-inspector readiness retry: id=$inspector_id lifecycle=${lifecycle_state:-unknown}" >&2
     if [[ "$lifecycle_state" == "warm_suspended" || "$lifecycle_state" == "" ]]; then
       aos_visual_remove_canvas "$inspector_id" 5
-      aos_visual_launch_canvas_inspector "$inspector_id"
+      aos_real_input_surface_launch_inspector_with_retry "$inspector_id" || return $?
     fi
-    aos_real_input_surface_assert_inspector_visible "$inspector_id" >/dev/null
+    if aos_real_input_surface_assert_inspector_visible "$inspector_id" >/dev/null; then
+      :
+    else
+      local status="$?"
+      echo "FAIL: surface-inspector readiness failed after retry: id=$inspector_id lifecycle=${lifecycle_state:-unknown}" >&2
+      aos_visual_phase_snapshot "surface-inspector-final-readiness" >&2 || true
+      return "$status"
+    fi
   fi
 }

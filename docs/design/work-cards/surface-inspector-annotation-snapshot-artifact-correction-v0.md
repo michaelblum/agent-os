@@ -11,7 +11,7 @@
 GDI starts from a fresh context window. Work in `/Users/Michael/Code/agent-os`.
 Do not assume daemon readiness; the repo daemon was stopped for the stale TCC
 handoff after the prior rebuild. Do not run readiness or repair loops unless
-the human has completed the macOS permission reset and says `ready`.
+the human has completed the macOS permission reset and says `finished`.
 
 ## Goal
 

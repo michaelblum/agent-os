@@ -13,6 +13,12 @@ trap 'rm -rf "$tmproot"' EXIT
 # Seed a registry entry marked as headless (browser_window_id=null)
 ./aos browser _registry add --id=headless-sess --mode=launched --headless=true >/dev/null
 
+# Case 0: extra args are rejected before registry lookup.
+if out=$(./aos browser _resolve-anchor "browser:headless-sess/e1" extra 2>&1); then
+    echo "FAIL extra-arg: expected error, got: $out" >&2; exit 1
+fi
+echo "$out" | grep -q "UNKNOWN_ARG" || { echo "FAIL extra-arg code: $out" >&2; exit 1; }
+
 # Case 1: headless session returns BROWSER_HEADLESS
 if out=$(./aos browser _resolve-anchor "browser:headless-sess/e1" 2>&1); then
     echo "FAIL headless: expected error, got: $out" >&2; exit 1

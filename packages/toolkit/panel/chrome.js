@@ -79,7 +79,7 @@ export function mountChrome(container, {
     drag: draggable ? { clampOnEnd: true, transfer: true, ...dragOptions } : false,
     resize: resizable ? resize : false,
     maximize: Boolean(maximize),
-    minimize: Boolean(minimize),
+    minimize: minimize ? minimize : false,
     close: false,
     onDragStateChange(state) {
       const transferActive = Boolean(state.transferActive)
@@ -787,6 +787,12 @@ function currentCanvasId() {
 function defaultClose() {
   removeSelf({ orphan_children: true }).catch((error) => {
     console.warn('[aos-panel] close failed', error)
+  })
+}
+
+export function suspendOnClose() {
+  suspendCanvas().catch((error) => {
+    console.warn('[aos-panel] suspend-on-close failed', error)
   })
 }
 

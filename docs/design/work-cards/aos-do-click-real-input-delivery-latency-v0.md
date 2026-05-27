@@ -1,5 +1,31 @@
 # AOS Do Click Real-Input Delivery Latency V0
 
+## Transfer Classification
+
+- Recipient: GDI
+- Transfer kind: GDI implementation/validation round.
+- Single next goal: make real-input click delivery timing useful for agents by
+  either reducing safe `./aos do click` overhead or moving the focused
+  status-item harness to a lower-latency, reusable real-input injection helper
+  while reporting command/injection and app-response timings separately.
+- Source artifact: follow-up from
+  `docs/design/work-cards/sigil-status-item-summon-latency-v0.md` and current
+  PR #378 status/radial live-proof work.
+- Branch/output expectation: start from
+  `origin/feat/command-surface-extraction`, create or update
+  `gdi/aos-do-click-real-input-delivery-latency-v0`, and push it.
+- Stop conditions: complete, failed, human_needed, or blocker. Stop with
+  `human_needed` instead of looping if repo-mode AOS permissions/TCC block live
+  verification.
+
+## Branch / Base
+
+- branch_from: `origin/feat/command-surface-extraction`
+- required_start_ref: `origin/feat/command-surface-extraction`
+- expected output branch: `gdi/aos-do-click-real-input-delivery-latency-v0`
+- current PR stack checkpoint when routed: `1d6d747c`
+  (`Merge status item stale root recovery`)
+
 ## Tracker
 
 - Follow-up from `docs/design/work-cards/sigil-status-item-summon-latency-v0.md`.
@@ -37,6 +63,7 @@ instead.
 - `AGENTS.md`
 - `src/AGENTS.md`
 - `tests/README.md`
+- `docs/recipes/test-harness-ladder-and-prep.md`
 - `src/main.swift`
 - `src/act/act-cli.swift`
 - `src/act/actions.swift`
@@ -60,6 +87,19 @@ rg -n "ensureInteractivePreflight|cliClick|handleClick|click_aos_status_item_rea
 
 If Swift files change, use the repo build surface recommended by the router.
 Do not call `bash build.sh` directly.
+
+If `./aos ready` reports a repo-mode TCC/input-tap blocker, do not loop on
+permission repair. Run:
+
+```bash
+.docks/gdi/scripts/human-needed-tcc-reset
+```
+
+Stop with `human_needed`. After the human returns with `finished`, run exactly:
+
+```bash
+./aos ready --post-permission
+```
 
 ## Current Evidence
 
@@ -104,6 +144,9 @@ resource-consumption fix remains the idle/background render path work from
 - Native coordinate/CGEvent helpers are acceptable only at the final real-input
   injection boundary, with the same safety posture used by existing real-input
   harnesses.
+- Any lower-latency helper must stay reusable and foundational. Do not create a
+  Sigil-private click trick when the same primitive should support status items,
+  radial targets, panels, and future Operator/GDI live checks.
 
 ## Scope
 
@@ -166,6 +209,9 @@ Focused live check if `./aos ready` passes:
 ```bash
 bash tests/sigil-real-input-status-avatar.sh
 ```
+
+If changing reusable real-input helpers, also run the smallest adjacent harness
+tests recommended by `tests/README.md` and the harness ladder recipe.
 
 The completion report must include the split timing before and after the
 change. If total click-to-visible remains over `2000ms` only because command

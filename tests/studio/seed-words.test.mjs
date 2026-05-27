@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { seedToWords, wordsToSeed, ADJECTIVES, NOUNS } from '../../apps/sigil/studio/js/seed-words.js';
+import { seedToWords, wordsToSeed, ADJECTIVES, NOUNS } from '../../apps/sigil/_sequestered/studio/js/seed-words.js';
 
 test('roundtrip: same seed → same words → same seed', () => {
   for (const seed of [0, 1, 42, 1000, 999999]) {

@@ -163,7 +163,11 @@ if [[ "$dock" == "gdi" ]]; then
   condition="$("$REPO_ROOT/.docks/harness/stop-condition.sh" consume "$REPO_ROOT" "$dock" tcc_permission_reset 2>/dev/null || true)"
   if [[ "$condition" == "tcc_permission_reset" ]]; then
     stop_notice="GDI needs TCC reset."
-    system_message=$'GDI stopped for repo-mode AOS permission repair.\n\nHuman action:\n1. Run: ./aos permissions setup --once\n2. Grant the requested macOS Accessibility/Input Monitoring permission if macOS prompts.\n3. Return to the GDI session and say: ready\n\nAfter that, GDI runs: ./aos ready --post-permission\n\nIf the active goal is paused or Codex indicates it needs to resume, use /goal resume rather than starting a new goal.'
+    if "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" peek "$REPO_ROOT" "$dock" >/dev/null 2>&1; then
+      system_message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" stop_system_message_after_build)"
+    else
+      system_message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" stop_system_message)"
+    fi
   fi
 fi
 

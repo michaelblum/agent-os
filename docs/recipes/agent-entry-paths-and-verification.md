@@ -66,6 +66,12 @@ local Node/package tests for pure JavaScript and package logic. Use `./aos`
 backed tests when the behavior depends on the daemon, canvases, display
 topology, input taps, or real host routing.
 
+For runtime, canvas, input, status-item, lifecycle, visual, supervised, or
+cross-layer work, use the foundational ladder in `tests/README.md` and the
+prep routine in `docs/recipes/test-harness-ladder-and-prep.md` when the right
+harness is not obvious. Keep fixtures canonical-path representative, and avoid
+fixtures that remove the defect variable under test.
+
 Synthetic events are appropriate for deterministic state-machine coverage. When
 a defect manifests through real mouse or keyboard use, add a real-input spot
 check with `./aos do` or capture trace evidence before declaring the issue
@@ -103,7 +109,10 @@ belongs in primitives, toolkit routing, or the app.
 Record durable guidance at the smallest boundary that will keep it alive without
 over-scoping it:
 
-- Repo-wide operating rules belong in `AGENTS.md`.
+- Repo-wide signage, hard invariants, and authority routing belong in root
+  `AGENTS.md`.
+- Dock roles, hook-owned behavior, inbound contracts, and cross-session
+  transfer policy belong under `.docks/`.
 - App-local contracts belong in the nearest subtree `AGENTS.md`.
 - Verification mechanics belong in `tests/README.md`.
 - Reusable SOPs and practices belong in `docs/recipes/`.
@@ -132,7 +141,8 @@ possible step or replace ordinary software engineering judgment.
 
 Use a mix of sources deliberately:
 
-- root and subtree `AGENTS.md` files for compact operating contracts
+- root `AGENTS.md` for compact signage and hard invariants
+- dock and subtree `AGENTS.md` files for compact operating contracts
 - `ARCHITECTURE.md`, `docs/api/`, and schemas for platform contracts
 - the AOS wiki for runtime knowledge and product memory
 - AOS control surfaces and `help` output for discoverable operation

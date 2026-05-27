@@ -11,6 +11,7 @@ const toolkitProviderSessionRoutes = readFileSync(new URL('provider-session-rout
 const toolkitObservationRoutes = readFileSync(new URL('bridge-observation-routes.mjs', toolkitComponentDir), 'utf8')
 const toolkitInspectorServer = readFileSync(new URL('session-inspector-server.mjs', toolkitComponentDir), 'utf8')
 const sigilAgentLauncher = readFileSync(new URL('../../apps/sigil/agent-terminal/launch.sh', import.meta.url), 'utf8')
+const sigilAgentBridgeHook = readFileSync(new URL('../../apps/sigil/agent-terminal/bridge-launch.sh', import.meta.url), 'utf8')
 const sigilCompatLauncher = readFileSync(new URL('../../apps/sigil/codex-terminal/launch.sh', import.meta.url), 'utf8')
 const sigilAgentEntrypoint = readFileSync(new URL('../../apps/sigil/agent-terminal/index.html', import.meta.url), 'utf8')
 const sigilCompatEntrypoint = readFileSync(new URL('../../apps/sigil/codex-terminal/index.html', import.meta.url), 'utf8')
@@ -163,7 +164,7 @@ test('toolkit and Sigil launchers pass canonical bridge environment names', () =
   const legacySigilAgentEnv = new RegExp('SIGIL' + '_AGENT_')
   const legacySigilCodexEnv = new RegExp('SIGIL' + '_CODEX_')
   const legacyCodexCommand = new RegExp('CODEX' + '_COMMAND')
-  for (const launcher of [toolkitLauncher, sigilAgentLauncher]) {
+  for (const launcher of [toolkitLauncher, sigilAgentBridgeHook]) {
     assert.match(launcher, /"AGENT_TERMINAL_PORT=" \+ shlex\.quote\(port\)/)
     assert.match(launcher, /"AGENT_TERMINAL_TMUX_SESSION=" \+ shlex\.quote\(session\)/)
     assert.match(launcher, /"AGENT_TERMINAL_CWD=" \+ shlex\.quote\(cwd\)/)
@@ -181,7 +182,7 @@ test('toolkit and Sigil launchers pass canonical bridge environment names', () =
 })
 
 test('toolkit and Sigil launchers require health to match requested bridge identity', () => {
-  for (const launcher of [toolkitLauncher, sigilAgentLauncher]) {
+  for (const launcher of [toolkitLauncher, sigilAgentBridgeHook]) {
     const startBridgeBody = functionBody(launcher, 'start_bridge')
     assert.match(launcher, /bridge_health_matches\(\)/)
     assert.match(launcher, /AGENT_TERMINAL_HEALTH_JSON="\$health" python3 - "\$SESSION" "\$CWD_TARGET"/)
@@ -258,19 +259,17 @@ test('bridge server delegates health and dock observation response shapes', () =
   assert.doesNotMatch(toolkitBridgeServer, /createAgentTerminalObservation\(/)
 })
 
-test('canonical Sigil Agent Terminal launcher owns Sigil wrapper launch', () => {
-  assert.match(sigilAgentLauncher, /Sigil Agent terminal launched\./)
-  assert.match(sigilAgentLauncher, /AVATAR_ID="\$\{AVATAR_ID:-avatar-main\}"/)
-  assert.match(sigilAgentLauncher, /show create --id "\$AVATAR_ID"/)
-  assert.match(sigilAgentLauncher, /renderer\/index\.html\?toolkit-root=\$TOOLKIT_CONTENT_ROOT/)
-  assert.match(sigilAgentLauncher, /agent-terminal\/index\.html\?port=\$\{PORT\}&session=\$\{SESSION\}&cwd=\$\{encoded_cwd\}&toolkit-root=\$TOOLKIT_CONTENT_ROOT/)
-  assert.match(sigilAgentLauncher, /BRIDGE_DIR="\$REPO_ROOT\/packages\/toolkit\/components\/agent-terminal"/)
-  assert.match(sigilAgentLauncher, /"\$BRIDGE_DIR\/bridge-server\.mjs"/)
+test('canonical Sigil Agent Terminal launcher delegates to generic app launch', () => {
+  assert.match(sigilAgentLauncher, /aos" launch sigil agent-terminal/)
+  assert.match(sigilAgentBridgeHook, /BRIDGE_DIR="\$REPO_ROOT\/packages\/toolkit\/components\/agent-terminal"/)
+  assert.match(sigilAgentBridgeHook, /"\$BRIDGE_DIR\/bridge-server\.mjs"/)
   assert.match(sigilAgentLauncher, /--new-codex/)
   assert.match(sigilAgentLauncher, /--new-claude/)
   assert.match(sigilAgentLauncher, /--pick/)
   assert.match(sigilAgentLauncher, /--last/)
   assert.match(sigilAgentLauncher, /--restart/)
+  assert.doesNotMatch(sigilAgentLauncher, /show create --id "\$AVATAR_ID"/)
+  assert.doesNotMatch(sigilAgentLauncher, /content\.roots\.sigil/)
   assert.doesNotMatch(sigilAgentLauncher, /\.\.\/codex-terminal\/launch\.sh/)
   assert.doesNotMatch(sigilAgentLauncher, /exec "\$SCRIPT_DIR\/\.\.\/codex-terminal\/launch\.sh"/)
 })

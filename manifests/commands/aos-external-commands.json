@@ -1,0 +1,2003 @@
+{
+  "schema_version": 1,
+  "commands": [
+    {
+      "path": ["help"],
+      "summary": "Print command help through the external help proxy.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-help-proxy.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["serve"],
+      "summary": "Run the AOS daemon through the native serve primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__serve"],
+      "cwd": "repo",
+      "stdio": "inherit"
+    },
+    {
+      "path": ["status"],
+      "summary": "Inspect runtime status through the native status primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__status"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["ready"],
+      "summary": "Run readiness checks through the native ready primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__ready"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["doctor"],
+      "summary": "Run diagnostics through the native doctor primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__doctor"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["permissions"],
+      "summary": "Run permission workflows through the native permissions primitive.",
+      "executable": "$AOS_PATH",
+      "argv_prefix": ["__permissions"],
+      "cwd": "repo",
+      "stdio": "inherit"
+    },
+    {
+      "path": ["do"],
+      "summary": "Print do command help when no subcommand is provided.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-help-proxy.mjs", "do"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "child_arg_missing": true
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do"],
+      "summary": "Validate unknown do subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "do", "UNKNOWN_SUBCOMMAND", "do subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": ["click", "hover", "drag", "fill", "scroll", "type", "key", "navigate", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session", "profiles"]
+      }
+    },
+    {
+      "path": ["do", "click"],
+      "summary": "Click browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "click"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "click"],
+      "summary": "Click a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "click"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "hover"],
+      "summary": "Hover browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "hover"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "hover"],
+      "summary": "Hover a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "hover"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "drag"],
+      "summary": "Drag browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "drag"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "drag"],
+      "summary": "Drag a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "drag"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "scroll"],
+      "summary": "Scroll browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "scroll"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "scroll"],
+      "summary": "Scroll a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "scroll"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "type"],
+      "summary": "Type into browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "type"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "type"],
+      "summary": "Type into a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "type"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "key"],
+      "summary": "Press keys in browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "key"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "prefix": "browser:"
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "key"],
+      "summary": "Press native keys through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "key"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_prefixes": ["browser:"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "fill"],
+      "summary": "Fill browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "fill"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "navigate"],
+      "summary": "Navigate browser targets through the external do browser command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-browser.mjs", "navigate"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "profiles"],
+      "summary": "Inspect action behavior profiles through the external do profiles command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-profiles.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "press"],
+      "summary": "Press a native input target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "press"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "set-value"],
+      "summary": "Set a native field value through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "set-value"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "focus"],
+      "summary": "Focus a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "focus"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "raise"],
+      "summary": "Raise a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "raise"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "move"],
+      "summary": "Move a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "move"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "resize"],
+      "summary": "Resize a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "resize"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "tell"],
+      "summary": "Tell a native target through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "tell"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["do", "session"],
+      "summary": "Run a native action session through the external do native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-do-native.mjs", "session"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["inspect"],
+      "summary": "Run the live AX inspector overlay through the external inspect command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-inspect.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev"],
+      "summary": "Validate unknown dev subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "dev", "UNKNOWN_SUBCOMMAND", "dev subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": ["dev", "afk-dry-run"],
+      "summary": "Run the AFK dry-run command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/afk-dry-run-prototype.mjs"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["dev", "afk-launch-attempt"],
+      "summary": "Run the AFK launch-attempt command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/afk-launch-attempt-prototype.mjs"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["dev", "afk-session-trigger"],
+      "summary": "Run the AFK session-trigger command from the external Node prototype.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/afk-session-trigger-prototype.mjs"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["dev", "gh"],
+      "summary": "Run GitHub workflow helpers through the external dev gh command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-gh.mjs"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "build"],
+      "summary": "Run the AOS build wrapper from the external dev build command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-build.mjs", "build"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "build-checkpoint"],
+      "summary": "Print the external dev build checkpoint contract.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-build.mjs", "build-checkpoint"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "classify"],
+      "summary": "Classify changed files through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "classify"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "recommend"],
+      "summary": "Recommend workflow commands through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "recommend"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "audit"],
+      "summary": "Audit dev workflow grammar through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "audit"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "capabilities"],
+      "summary": "Inspect dev capability envelopes through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "capabilities"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "docks"],
+      "summary": "Inspect dock profiles through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "docks"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["runtime"],
+      "summary": "Validate runtime subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "runtime",
+        "MISSING_SUBCOMMAND",
+        "runtime requires a subcommand. Usage: aos runtime <status|path|sign|install|display-union [--native]> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "runtime subcommand"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "install"],
+      "summary": "Package and install the stable AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-install"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "status"],
+      "summary": "Inspect the installed AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-status"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "path"],
+      "summary": "Print the installed AOS.app runtime path from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-path"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "sign"],
+      "summary": "Sign the packaged AOS.app runtime from an external script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/sign-aos-runtime"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["runtime", "display-union"],
+      "summary": "Print the active display union from an external runtime script.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-runtime-display-union"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["see"],
+      "summary": "Print see command help when no subcommand is provided.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-help-proxy.mjs", "see"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "child_arg_missing": true
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see"],
+      "summary": "Route legacy see capture shorthand through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "capture"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": ["capture", "observe", "cursor", "list", "selection", "zone"]
+      },
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "capture"],
+      "summary": "Capture screen or browser targets through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "capture"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "observe"],
+      "summary": "Subscribe to perception events through the external observe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-observe.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "cursor"],
+      "summary": "Read cursor metadata through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "cursor"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "list"],
+      "summary": "Read spatial topology through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "selection"],
+      "summary": "Read selected text through the external see native command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-native.mjs", "selection"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "zone"],
+      "summary": "Validate see zone subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "see zone",
+        "MISSING_SUBCOMMAND",
+        "see zone requires a subcommand. Usage: aos see zone <save|define|list|delete> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "see zone subcommand"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": ["see", "zone", "list"],
+      "summary": "List named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "zone", "save"],
+      "summary": "Save named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "save"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "zone", "define"],
+      "summary": "Define named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "define"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["see", "zone", "delete"],
+      "summary": "Delete named capture zones through the external zone command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-see-zone.mjs", "delete"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["service"],
+      "summary": "Validate service subcommand routing through the external subcommand router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": [
+        "node",
+        "scripts/aos-subcommand-router.mjs",
+        "service",
+        "MISSING_SUBCOMMAND",
+        "service requires a subcommand. Usage: aos service <install|start|stop|restart|status|logs> ...",
+        "UNKNOWN_SUBCOMMAND",
+        "service subcommand"
+      ],
+      "cwd": "repo"
+    },
+    {
+      "path": ["service", "install"],
+      "summary": "Install and kickstart the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "install"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "start"],
+      "summary": "Start the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "start"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "stop"],
+      "summary": "Stop the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "stop"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "restart"],
+      "summary": "Restart the launchd service through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "restart"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "_verify-readiness"],
+      "summary": "Verify daemon readiness through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "_verify-readiness"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "status"],
+      "summary": "Inspect launchd service state through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "status"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["service", "logs"],
+      "summary": "Print launchd service logs through the external service command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-service.mjs", "logs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["reset"],
+      "summary": "Run deterministic runtime cleanup through the external reset command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-reset.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["tell"],
+      "summary": "Send daemon-routed coordination messages through the external tell command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-tell-listen.mjs", "tell"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["listen"],
+      "summary": "Read daemon-routed coordination messages through the external listen command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-tell-listen.mjs", "listen"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki"],
+      "summary": "Validate wiki subcommand routing through the external wiki router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-router.mjs"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["wiki", "migrate-namespaces"],
+      "summary": "Run the wiki namespace migration through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-migrate-namespaces.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "seed"],
+      "summary": "Seed wiki content through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-seed.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "create-plugin"],
+      "summary": "Create wiki plugin scaffolds through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "create-plugin"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "add"],
+      "summary": "Add wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "add"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "rm"],
+      "summary": "Remove wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "rm"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "link"],
+      "summary": "Link wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-mutate.mjs", "link"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "show"],
+      "summary": "Show wiki pages through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-read.mjs", "show"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "invoke"],
+      "summary": "Bundle wiki plugins through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-read.mjs", "invoke"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "reindex"],
+      "summary": "Rebuild the wiki index through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-reindex.py"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "lint"],
+      "summary": "Lint wiki index consistency through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-lint.py"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "project-docs"],
+      "summary": "Project repo docs into the runtime wiki through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-wiki-project-docs.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "graph"],
+      "summary": "Emit the wiki graph payload through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-graph.py"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "list"],
+      "summary": "List wiki index entries through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-query.py", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["wiki", "search"],
+      "summary": "Search wiki index entries through the external wiki command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["python3", "scripts/aos-wiki-query.py", "search"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice"],
+      "summary": "Validate voice command routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "voice", "UNKNOWN_COMMAND", "voice command"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": ["voice", "_internal-id-roundtrip"],
+      "summary": "Round-trip voice IDs through the external voice test helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice-internal.mjs", "_internal-id-roundtrip"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["voice", "_internal-canonicalize"],
+      "summary": "Canonicalize voice IDs through the external voice test helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice-internal.mjs", "_internal-canonicalize"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["voice", "_internal-registry-snapshot"],
+      "summary": "Emit the voice registry snapshot through the external voice test helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice-internal.mjs", "_internal-registry-snapshot"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["say"],
+      "summary": "Speak text through the external say command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-say.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "list"],
+      "summary": "List voice registry entries through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "assignments"],
+      "summary": "List voice assignments through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "assignments"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "refresh"],
+      "summary": "Refresh voice providers through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "refresh"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "providers"],
+      "summary": "List voice providers through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "providers"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "bind"],
+      "summary": "Bind session voices through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "bind"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "next"],
+      "summary": "Cycle a session voice through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "next"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["voice", "final-response"],
+      "summary": "Relay final-response voice events through the external voice command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-voice.mjs", "final-response"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show"],
+      "summary": "Validate unknown show subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "show", "UNKNOWN_SUBCOMMAND", "show subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0,
+        "excluded_values": ["render", "create", "update", "remove", "remove-all", "list", "eval", "listen", "ping", "wait", "exists", "get", "to-front", "post"]
+      }
+    },
+    {
+      "path": ["show", "listen"],
+      "summary": "Listen for canvas events through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "listen"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "render"],
+      "summary": "Render HTML to PNG through the external show render command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-render.mjs"],
+      "cwd": "repo",
+      "stdio": "inherit",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "exists"],
+      "summary": "Look up canvas existence through the external show lookup command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-lookup.mjs", "exists"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "get"],
+      "summary": "Read canvas metadata through the external show lookup command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-lookup.mjs", "get"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "create"],
+      "summary": "Create canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "create"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_SESSION_KEY": "$AOS_SESSION_KEY",
+        "AOS_SESSION_HARNESS": "$AOS_SESSION_HARNESS"
+      }
+    },
+    {
+      "path": ["show", "update"],
+      "summary": "Update canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "update"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "list"],
+      "summary": "List canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "ping"],
+      "summary": "Ping the canvas daemon through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "ping"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "remove"],
+      "summary": "Remove a canvas through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "remove"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "remove-all"],
+      "summary": "Remove all canvases through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "remove-all"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "eval"],
+      "summary": "Evaluate JavaScript in a canvas through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "eval"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "post"],
+      "summary": "Post messages through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "post"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "to-front"],
+      "summary": "Raise a canvas through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "to-front"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "wait"],
+      "summary": "Wait for canvas readiness through the external show client.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "wait"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["log"],
+      "summary": "Run the log console through the external log command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-log.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["log", "push"],
+      "summary": "Push log entries through the external log command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-log.mjs", "push"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["log", "clear"],
+      "summary": "Clear log entries through the external log command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-log.mjs", "clear"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser"],
+      "summary": "Validate hidden browser command routing through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_parse-target"],
+      "summary": "Parse browser targets through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_parse-target"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry"],
+      "summary": "Manage browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "list"],
+      "summary": "List browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "add"],
+      "summary": "Add browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "add"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "remove"],
+      "summary": "Remove browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "remove"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_registry", "find"],
+      "summary": "Find browser session registry records through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_registry", "find"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["browser", "_run"],
+      "summary": "Run Playwright CLI through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_run"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["browser", "_check-version"],
+      "summary": "Check Playwright CLI version through the external browser helper.",
+      "executable": "/bin/bash",
+      "argv_prefix": ["scripts/aos-browser-check-version"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["browser", "_parse-snapshot"],
+      "summary": "Parse Playwright snapshot markdown through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_parse-snapshot"],
+      "cwd": "repo"
+    },
+    {
+      "path": ["browser", "_resolve-anchor"],
+      "summary": "Resolve browser anchors through the external browser helper.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-browser-internal.mjs", "_resolve-anchor"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["launch"],
+      "summary": "Launch source-owned apps through the generic app launcher.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-launch.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["experience"],
+      "summary": "Activate and inspect source-owned AOS experience layers.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-experience.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["experience", "status"],
+      "summary": "Inspect active source-owned AOS experience state.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-experience.mjs", "status"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["experience", "activate"],
+      "summary": "Activate a source-owned AOS experience layer.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-experience.mjs", "activate"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["experience", "deactivate"],
+      "summary": "Deactivate the active AOS experience layer.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-experience.mjs", "deactivate"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["ops"],
+      "summary": "Compatibility route for source-backed executable recipes.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "ops"
+      }
+    },
+    {
+      "path": ["recipe"],
+      "summary": "Run source-backed executable recipes through the external recipe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "recipe"
+      }
+    },
+    {
+      "path": ["ops", "list"],
+      "summary": "Compatibility route for listing source-backed executable recipes.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "ops"
+      }
+    },
+    {
+      "path": ["recipe", "list"],
+      "summary": "List source-backed executable recipes through the external recipe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "recipe"
+      }
+    },
+    {
+      "path": ["ops", "explain"],
+      "summary": "Compatibility route for explaining source-backed executable recipes.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "explain"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "ops"
+      }
+    },
+    {
+      "path": ["recipe", "explain"],
+      "summary": "Explain source-backed executable recipes through the external recipe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "explain"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "recipe"
+      }
+    },
+    {
+      "path": ["ops", "dry-run"],
+      "summary": "Compatibility route for dry-running source-backed executable recipes.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "dry-run"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "ops"
+      }
+    },
+    {
+      "path": ["recipe", "dry-run"],
+      "summary": "Dry-run source-backed executable recipes through the external recipe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "dry-run"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "recipe"
+      }
+    },
+    {
+      "path": ["ops", "run"],
+      "summary": "Compatibility route for running source-backed executable recipes.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "run"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "ops"
+      }
+    },
+    {
+      "path": ["recipe", "run"],
+      "summary": "Run source-backed executable recipes through the external recipe command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ops.mjs", "run"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RECIPE_SURFACE": "recipe"
+      }
+    },
+    {
+      "path": ["focus"],
+      "summary": "Manage focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["focus", "create"],
+      "summary": "Create focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "create"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["focus", "update"],
+      "summary": "Update focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "update"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["focus", "list"],
+      "summary": "List focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["focus", "remove"],
+      "summary": "Remove focus channels through the external focus command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "focus", "remove"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph"],
+      "summary": "Read spatial graph data through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "displays"],
+      "summary": "Read display graph data through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "displays"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "windows"],
+      "summary": "Read window graph data through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "windows"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "deepen"],
+      "summary": "Deepen graph focus through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "deepen"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["graph", "collapse"],
+      "summary": "Collapse graph focus through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "graph", "collapse"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["daemon-snapshot"],
+      "summary": "Read daemon snapshots through the external graph command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-focus-graph.mjs", "daemon-snapshot"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["gate"],
+      "summary": "Validate gate subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "gate", "UNKNOWN_SUBCOMMAND", "gate subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": ["gate", "ask"],
+      "summary": "Run the gate ask verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "packages/cli/verbs/gate-ask.js"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["gate", "defer"],
+      "summary": "Run the gate defer verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "packages/cli/verbs/gate-defer.js"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["gate", "submit"],
+      "summary": "Run the gate submit verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "packages/cli/verbs/gate-submit.js"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["gate", "continuations"],
+      "summary": "Run the gate continuations verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "packages/cli/verbs/gate-continuations.js"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["gate", "records"],
+      "summary": "Run the gate records verb from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "packages/cli/verbs/gate-records.js"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["doctor", "gateway"],
+      "summary": "Run the gateway doctor reporter from the external Node implementation.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "packages/gateway/dist/doctor-cli.js", "--mode", "$AOS_RUNTIME_MODE", "--state-root", "$AOS_STATE_ROOT"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["config", "get"],
+      "summary": "Read an AOS config value from the external config command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-config-command.mjs", "get"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["config"],
+      "summary": "Dump AOS config from the external config command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-config-command.mjs", "dump"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["config", "set"],
+      "summary": "Write an AOS config value from the external config command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-config-command.mjs", "set"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["introspect"],
+      "summary": "Validate introspect subcommand routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "introspect", "UNKNOWN_SUBCOMMAND", "introspect subcommand"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": ["introspect", "review"],
+      "summary": "Review recent AOS usage from the external introspection command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-introspect-review.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_SESSION_ID": "$AOS_SESSION_KEY",
+        "AOS_SESSION_HARNESS": "$AOS_SESSION_HARNESS",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME"
+      }
+    },
+    {
+      "path": ["set"],
+      "summary": "Read or write AOS config through the external config shorthand command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-config-command.mjs", "set-shorthand"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["clean"],
+      "summary": "Clean stale AOS daemons and canvases from an external command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-clean.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["content"],
+      "summary": "Validate content command routing through the external family router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-family-router.mjs", "content", "UNKNOWN_COMMAND", "content command"],
+      "cwd": "repo",
+      "when": {
+        "child_arg_index": 0
+      }
+    },
+    {
+      "path": ["content", "status"],
+      "summary": "Read content-server status from the external content command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-content.mjs", "status"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    },
+    {
+      "path": ["content", "wait"],
+      "summary": "Wait for content-server readiness from the external content command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-content.mjs", "wait"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT",
+        "AOS_PATH": "$AOS_PATH"
+      }
+    }
+  ]
+}

@@ -35,6 +35,7 @@ class PerceptionEngine {
     private var appLookup: [pid_t: (name: String, bundleID: String?)] = [:]
     private var _appRefreshTimer: DispatchSourceTimer?
     private var eventTap: CFMachPort?
+    private var eventTapSource: CFRunLoopSource?
     private var eventTapRetryTimer: DispatchSourceTimer?
     private var eventTapStartAttempts: Int = 0
     private var lastEventTapErrorAt: Date?
@@ -94,6 +95,11 @@ class PerceptionEngine {
         if eventTap != nil { return }
         eventTapStartAttempts += 1
 
+        guard inputTapPermissionsAvailable() else {
+            logEventTapFailure()
+            return
+        }
+
         let eventTypes: [CGEventType] = [
             .mouseMoved,
             .leftMouseDown,
@@ -142,10 +148,23 @@ class PerceptionEngine {
         eventTap = tap
         let runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        eventTapSource = runLoopSource
         CGEvent.tapEnable(tap: tap, enable: true)
         if eventTapStartAttempts > 1 {
             fputs("PerceptionEngine: global input tap recovered on retry #\(eventTapStartAttempts - 1)\n", stderr)
         }
+    }
+
+    private func teardownEventTap() {
+        if let tap = eventTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+        }
+        if let source = eventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        eventTapSource = nil
+        eventTap = nil
     }
 
     private func scheduleEventTapRetry() {
@@ -174,20 +193,46 @@ class PerceptionEngine {
         if #available(macOS 10.15, *) {
             let listen = CGPreflightListenEventAccess()
             let post = CGPreflightPostEventAccess()
+            let next = ax && listen && post
+                ? "retrying on main run loop"
+                : "leaving tap unavailable until daemon restart"
             fputs(
-                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax) listen=\(listen) post=\(post)); retrying on main run loop\n",
+                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax) listen=\(listen) post=\(post)); \(next)\n",
                 stderr
             )
         } else {
             fputs(
-                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax)); retrying on main run loop\n",
+                "Warning: CGEventTap failed — input tap unavailable (AX=\(ax)); \(ax ? "retrying on main run loop" : "leaving tap unavailable until daemon restart")\n",
                 stderr
             )
         }
     }
 
+    private func inputTapPermissionsAvailable() -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+        if #available(macOS 10.15, *) {
+            return CGPreflightListenEventAccess() && CGPreflightPostEventAccess()
+        }
+        return true
+    }
+
+    private func failOpenAfterInputTapPermissionLoss() {
+        lastEventTapErrorAt = Date()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.cancelEventTapRetry()
+            self.teardownEventTap()
+        }
+    }
+
     private func handleTapEvent(_ event: CGEvent) -> Bool {
         let type = event.type
+
+        guard inputTapPermissionsAvailable() else {
+            failOpenAfterInputTapPermissionLoss()
+            return false
+        }
+
         let safetyDecision = inputSafetyHotkeyState.classify(inputSafetyHotkeyEvent(for: type, event: event))
         if safetyDecision.passThrough {
             if safetyDecision.triggered, let deadline = safetyDecision.deadline {
@@ -199,7 +244,11 @@ class PerceptionEngine {
         }
 
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+            if inputTapPermissionsAvailable() {
+                if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+            } else {
+                failOpenAfterInputTapPermissionLoss()
+            }
             return false
         }
 

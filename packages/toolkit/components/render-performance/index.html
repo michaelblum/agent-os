@@ -11,7 +11,11 @@
 import { mountPanel, Single } from '../../panel/index.js'
 import RenderPerformance from './index.js'
 
-mountPanel({ title: 'Render Performance', layout: Single(RenderPerformance) })
+mountPanel({
+  title: 'Render Performance',
+  layout: Single(RenderPerformance),
+  minimize: { prewarmStage: false },
+})
 </script>
 </body>
 </html>

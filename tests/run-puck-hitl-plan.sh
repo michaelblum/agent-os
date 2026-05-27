@@ -128,7 +128,7 @@ response_id() {
 }
 
 puck_geometry() {
-  AOS_RUN_PUCK_DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')" python3 - <<'PY'
+  AOS_RUN_PUCK_DISPLAY_JSON="$("$AOS" graph displays 2>/dev/null || echo '{"data":{"displays":[]}}')" python3 - <<'PY'
 import json
 import os
 

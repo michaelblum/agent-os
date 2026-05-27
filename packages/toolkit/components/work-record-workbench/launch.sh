@@ -67,7 +67,7 @@ fi
 
 "$AOS" content wait --root "$TOOLKIT_CONTENT_ROOT" --auto-start --timeout 15s >/dev/null
 
-DISPLAY_JSON="$("$AOS" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
+DISPLAY_JSON="$("$AOS" graph displays 2>/dev/null || echo '{"data":{"displays":[]}}')"
 GEOMETRY="$(
   echo "$DISPLAY_JSON" | PANEL_W="$PANEL_W" PANEL_H="$PANEL_H" python3 -c '
 import json, os, sys

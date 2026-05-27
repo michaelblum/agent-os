@@ -109,7 +109,7 @@ gh issue view 303 --json number,title,state,url,body,labels
 If `./aos ready` reports the known
 `daemon_tcc_grant_stale_or_missing` blocker, do not run live pointer smoke.
 Report the blocker and use deterministic tests. If the human has completed the
-safe permission reset and says `ready`, run `./aos ready --post-permission`.
+safe permission reset and says `finished`, run `./aos ready --post-permission`.
 
 ## Existing Code To Inspect
 
@@ -227,7 +227,7 @@ permission repair loop. Report the safe reset blocker:
 2. wait for `running=false`;
 3. human removes/re-adds `/Users/Michael/Code/agent-os/aos` in Accessibility and
    Input Monitoring;
-4. after human returns with `ready`, run `./aos ready --post-permission`.
+4. after human returns with `finished`, run `./aos ready --post-permission`.
 
 ## Completion Report
 

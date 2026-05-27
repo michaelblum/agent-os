@@ -50,3 +50,23 @@ test('gate records readback lists and filters isolated JSONL without a live rece
   assert.equal(payload.records[0].status, 'timeout');
   assert.match(await readFile(path, 'utf8'), /gate-1/);
 });
+
+test('gate records rejects status values outside the manifest enum', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateRecords(['--status', 'pending', '--json'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--status must be one of: answered, dismissed, timeout, error/);
+});
+
+test('gate records rejects flag-shaped values for value flags', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateRecords(['--id', '--json'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--id requires a value/);
+});

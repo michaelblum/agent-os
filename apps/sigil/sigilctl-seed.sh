@@ -27,8 +27,23 @@ fi
 
 INSTALLED_AOS_APP="$HOME/Applications/AOS.app"
 INSTALLED_AOS_BIN="$INSTALLED_AOS_APP/Contents/MacOS/aos"
+resolve_aos_bin() {
+  local candidate="$1"
+  if [[ "$candidate" = /* ]]; then
+    printf '%s\n' "$candidate"
+  elif [[ -x "$REPO_ROOT/$candidate" ]]; then
+    printf '%s\n' "$REPO_ROOT/$candidate"
+  else
+    printf '%s\n' "$candidate"
+  fi
+}
+
 if [[ -n "${AOS_BIN:-}" ]]; then
-  :
+  AOS_BIN="$(resolve_aos_bin "$AOS_BIN")"
+elif [[ -n "${AOS_PATH:-}" && "$AOS_PATH" != \$* ]]; then
+  AOS_BIN="$(resolve_aos_bin "$AOS_PATH")"
+elif [[ -n "${AOS:-}" && "$AOS" != \$* ]]; then
+  AOS_BIN="$(resolve_aos_bin "$AOS")"
 elif [[ "$MODE" == "installed" ]]; then
   AOS_BIN="$INSTALLED_AOS_BIN"
 else
@@ -46,6 +61,8 @@ if [[ ! -d "$SEED_ROOT" ]]; then
   exit 1
 fi
 
+AOS_REPO_ROOT="$REPO_ROOT" AOS_RUNTIME_MODE="$MODE" "$AOS_BIN" wiki seed >/dev/null
+
 # Collect every .md under seed/wiki/sigil/ and build --file <rel>:<absolute>
 # pairs for a single `aos wiki seed --namespace sigil ...` invocation.
 FILE_ARGS=()
@@ -60,3 +77,4 @@ if (( ${#FILE_ARGS[@]} == 0 )); then
 fi
 
 AOS_RUNTIME_MODE="$MODE" "$AOS_BIN" wiki seed --namespace sigil "${FILE_ARGS[@]}"
+AOS_RUNTIME_MODE="$MODE" "$AOS_BIN" wiki reindex >/dev/null

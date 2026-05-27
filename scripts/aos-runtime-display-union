@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+native=0
+
+unknown_arg() {
+  local arg="$1"
+  if [[ "$arg" == --* ]]; then
+    echo "{\"code\":\"UNKNOWN_FLAG\",\"error\":\"Unknown flag: $arg. Usage: aos runtime display-union [--native]\"}" >&2
+  else
+    echo "{\"code\":\"UNKNOWN_ARG\",\"error\":\"Unknown argument: $arg. Usage: aos runtime display-union [--native]\"}" >&2
+  fi
+  exit 1
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --native)
+      native=1
+      ;;
+    --help|-h)
+      cat <<'EOF'
+Usage: aos runtime display-union [--native]
+
+Print the bounding box of all connected displays as x,y,w,h.
+
+Flags:
+  --native   Print native desktop compatibility coordinates.
+EOF
+      exit 0
+      ;;
+    *)
+      unknown_arg "$arg"
+      ;;
+  esac
+done
+
+/usr/bin/swift - "$native" <<'SWIFT'
+import CoreGraphics
+import Foundation
+
+let native = CommandLine.arguments.dropFirst().first == "1"
+let maxDisplays: UInt32 = 32
+let displays = UnsafeMutablePointer<CGDirectDisplayID>.allocate(capacity: Int(maxDisplays))
+defer { displays.deallocate() }
+var count: UInt32 = 0
+
+let err = CGGetActiveDisplayList(maxDisplays, displays, &count)
+guard err == .success, count > 0 else {
+    print("0,0,0,0")
+    exit(0)
+}
+
+var minX = Double.infinity
+var minY = Double.infinity
+var maxX = -Double.infinity
+var maxY = -Double.infinity
+
+for i in 0..<Int(count) {
+    let rect = CGDisplayBounds(displays[i])
+    minX = min(minX, rect.origin.x)
+    minY = min(minY, rect.origin.y)
+    maxX = max(maxX, rect.origin.x + rect.size.width)
+    maxY = max(maxY, rect.origin.y + rect.size.height)
+}
+
+let width = max(0, Int(maxX - minX))
+let height = max(0, Int(maxY - minY))
+if native {
+    print("\(Int(minX)),\(Int(minY)),\(width),\(height)")
+} else {
+    print("0,0,\(width),\(height)")
+}
+SWIFT

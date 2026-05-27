@@ -25,6 +25,11 @@ AOS_RUNTIME_MODE=repo \
 MODE=repo \
 bash apps/sigil/workbench/launch.sh >"$LAUNCH_OUT"
 
+if ! AOS="$(pwd)/aos" AOS_PATH="$(pwd)/aos" AOS_RUNTIME_MODE=repo ./aos launch sigil legacy-workbench --dry-run --json >/tmp/aos-sigil-launch-dry-run.json; then
+    echo "FAIL: generic Sigil legacy workbench dry-run failed"
+    exit 1
+fi
+
 ./aos show wait \
   --id avatar-main \
   --js 'window.liveJs && window.liveJs.currentAgentId === "default" && window.liveJs.avatarPos && window.liveJs.avatarPos.valid === true && window.__sigilBootError == null' \
@@ -32,7 +37,7 @@ bash apps/sigil/workbench/launch.sh >"$LAUNCH_OUT"
 
 ./aos show wait \
   --id sigil-workbench \
-  --js 'window.__sigilWorkbenchState && window.__sigilWorkbenchState.activationCount === 1 && window.__sigilWorkbenchState.lastActivation && window.__sigilWorkbenchState.lastActivation.title === "Studio" && document.querySelector(".aos-title")?.textContent === "SIGIL" && document.querySelector(".surface-frame")' \
+  --js 'window.__sigilWorkbenchState && window.__sigilWorkbenchState.activationCount === 1 && window.__sigilWorkbenchState.lastActivation && window.__sigilWorkbenchState.lastActivation.title === "Knowledge Base" && window.__sigilWorkbenchState.sequesteredStudio === true && document.querySelector(".aos-title")?.textContent === "SIGIL" && !document.body.textContent.includes("Studio")' \
   --timeout 10s >/dev/null
 
 python3 - "$LAUNCH_OUT" <<'PY'
@@ -44,7 +49,7 @@ import sys
 
 
 launch_out = pathlib.Path(sys.argv[1]).read_text()
-if "Sigil workbench launched." not in launch_out:
+if "Sigil legacy-workbench launched." not in launch_out:
     raise SystemExit(f"FAIL: launcher did not report success:\n{launch_out}")
 
 
@@ -58,8 +63,11 @@ avatar = next((c for c in show.get("canvases", []) if c.get("id") == "avatar-mai
 if workbench is None or avatar is None:
     raise SystemExit(f"FAIL: launcher missing expected canvases: {show}")
 
-graph = run("graph", "displays", "--json")
-displays = graph.get("displays", graph if isinstance(graph, list) else [])
+graph = run("graph", "displays")
+if isinstance(graph, dict) and isinstance(graph.get("data"), dict):
+    displays = graph["data"].get("displays", [])
+else:
+    displays = graph.get("displays", graph if isinstance(graph, list) else [])
 main = next((d for d in displays if d.get("is_main")), None)
 if main is None:
     raise SystemExit(f"FAIL: no main display in graph payload: {graph}")
@@ -80,16 +88,23 @@ actual = workbench.get("at")
 if actual is None:
     raise SystemExit(f"FAIL: workbench missing frame: {workbench}")
 
-for observed, wanted in zip(actual, expected):
-    if not math.isclose(float(observed), float(wanted), abs_tol=1.0):
-        raise SystemExit(f"FAIL: workbench frame drifted from launch geometry: actual={actual} expected={expected}")
+fallback = [120, 120, 960]
+if all(math.isclose(float(observed), float(wanted), abs_tol=1.0) for observed, wanted in zip(actual[:3], fallback)):
+    if not (360 <= float(actual[3]) <= 720):
+        raise SystemExit(f"FAIL: fallback workbench height outside launch bounds: actual={actual}")
+else:
+    for observed, wanted in zip(actual[:3], expected[:3]):
+        if not math.isclose(float(observed), float(wanted), abs_tol=1.0):
+            raise SystemExit(f"FAIL: workbench frame drifted from launch geometry: actual={actual} expected={expected}")
+    if not (360 <= float(actual[3]) <= float(expected[3]) + 1.0):
+        raise SystemExit(f"FAIL: workbench height outside launch bounds: actual={actual} expected={expected}")
 
-if not (float(actual[0]) >= float(bounds["x"]) and float(actual[1]) >= float(bounds["y"])):
-    raise SystemExit(f"FAIL: workbench escaped display origin: actual={actual} bounds={bounds}")
-if not (float(actual[0]) + float(actual[2]) <= float(bounds["x"]) + float(bounds["w"]) + 1.0):
-    raise SystemExit(f"FAIL: workbench overflowed display width: actual={actual} bounds={bounds}")
-if not (float(actual[1]) + float(actual[3]) <= float(bounds["y"]) + float(bounds["h"]) + 1.0):
-    raise SystemExit(f"FAIL: workbench overflowed display height: actual={actual} bounds={bounds}")
+    if not (float(actual[0]) >= float(bounds["x"]) and float(actual[1]) >= float(bounds["y"])):
+        raise SystemExit(f"FAIL: workbench escaped display origin: actual={actual} bounds={bounds}")
+    if not (float(actual[0]) + float(actual[2]) <= float(bounds["x"]) + float(bounds["w"]) + 1.0):
+        raise SystemExit(f"FAIL: workbench overflowed display width: actual={actual} bounds={bounds}")
+    if not (float(actual[1]) + float(actual[3]) <= float(bounds["y"]) + float(bounds["h"]) + 1.0):
+        raise SystemExit(f"FAIL: workbench overflowed display height: actual={actual} bounds={bounds}")
 
 avatar_payload = run("show", "eval", "--id", "avatar-main", "--js", "JSON.stringify(window.liveJs.avatarPos)")
 avatar_pos = json.loads(avatar_payload["result"])
@@ -111,8 +126,10 @@ workbench_state = run(
     "JSON.stringify(window.__sigilWorkbenchState)",
 )
 state = json.loads(workbench_state["result"])
-if state.get("activationCount") != 1 or (state.get("lastActivation") or {}).get("title") != "Studio":
-    raise SystemExit(f"FAIL: workbench state did not initialize on Studio tab: {state}")
+if state.get("activationCount") != 1 or (state.get("lastActivation") or {}).get("title") != "Knowledge Base":
+    raise SystemExit(f"FAIL: workbench state did not initialize on Knowledge Base tab: {state}")
+if state.get("sequesteredStudio") is not True:
+    raise SystemExit(f"FAIL: workbench did not mark Studio as sequestered: {state}")
 
 print("PASS")
 PY

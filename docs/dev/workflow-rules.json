@@ -135,6 +135,87 @@
       "verification": []
     },
     {
+      "id": "command-surface-manifests",
+      "summary": "Command metadata or external command manifest changed.",
+      "patterns": [
+        "manifests/commands/*.json",
+        "shared/schemas/aos-external-command-manifest-v0.schema.json",
+        "tests/schemas/aos-external-command-manifest-v0.test.mjs",
+        "tests/external-command-dispatch.sh",
+        "tests/help-contract.sh"
+      ],
+      "classes": [
+        "command_contract",
+        "schema"
+      ],
+      "actions": [
+        "schema_test",
+        "help_contract",
+        "focused_test"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "external-command-manifest-schema",
+          "command": "node --test tests/schemas/aos-external-command-manifest-v0.test.mjs",
+          "reason": "External command manifest changes must preserve launcher schema, script targets, and help-manifest route coverage."
+        },
+        {
+          "id": "external-command-dispatch",
+          "command": "bash tests/external-command-dispatch.sh",
+          "reason": "Manifest-backed command routes must still dispatch through external modules."
+        },
+        {
+          "id": "help-contract",
+          "command": "bash tests/help-contract.sh",
+          "reason": "Command metadata and manifests must stay aligned with discoverable help and parser contracts."
+        }
+      ],
+      "verification": []
+    },
+    {
+      "id": "command-surface-implementations",
+      "summary": "Hot-swappable external command implementation changed.",
+      "patterns": [
+        "scripts/aos-*.mjs",
+        "scripts/aos-*",
+        "scripts/afk-*.mjs",
+        "scripts/afk-*.py",
+        "scripts/sign-aos-runtime",
+        "packages/cli/**",
+        "packages/gateway/dist/doctor-cli.js"
+      ],
+      "classes": [
+        "command_contract",
+        "command_implementation"
+      ],
+      "actions": [
+        "focused_test",
+        "help_contract"
+      ],
+      "hot_swappable": true,
+      "tcc_identity_sensitive": false,
+      "commands": [
+        {
+          "id": "external-command-dispatch",
+          "command": "bash tests/external-command-dispatch.sh",
+          "reason": "External command implementation changes must keep manifest dispatch and wrapper integration intact."
+        },
+        {
+          "id": "external-parser-flags",
+          "command": "bash tests/external-parser-flags.sh",
+          "reason": "External command wrappers should reject malformed flags and arguments before falling through to Swift primitives."
+        },
+        {
+          "id": "help-contract",
+          "command": "bash tests/help-contract.sh",
+          "reason": "Command implementation changes must stay aligned with discoverable help and parser contracts."
+        }
+      ],
+      "verification": []
+    },
+    {
       "id": "dev-workflow-manifest",
       "summary": "Developer workflow router manifest or tests changed.",
       "patterns": [
@@ -142,8 +223,8 @@
         "docs/dev/active-profile.json",
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
-        "src/commands/dev.swift",
-        "src/shared/command-registry-data.swift",
+        "scripts/aos-dev-workflow.mjs",
+        "manifests/commands/aos-commands.json",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
         "shared/schemas/dev-active-profile.schema.json",
@@ -184,7 +265,7 @@
         {
           "id": "dev-workflow-router-test",
           "command": "bash tests/dev-workflow-router.sh",
-          "reason": "Verify the router parser, help registry, and manifest-backed recommendations agree."
+          "reason": "Verify the router parser, external help manifest, and manifest-backed recommendations agree."
         },
         {
           "id": "dev-audit-test",
@@ -356,7 +437,8 @@
       "commands": [],
       "verification": [],
       "notes": [
-        "Docs-only changes do not require runtime verification unless they change command contracts or executable examples."
+        "Docs-only changes do not require runtime verification unless they change command contracts or executable examples.",
+        "For docs that route runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer testing decisions, link to the foundational harness ladder in tests/README.md and docs/recipes/test-harness-ladder-and-prep.md."
       ]
     },
     {
@@ -380,6 +462,9 @@
           "command": "bash <changed-test>",
           "reason": "Run the changed shell scenario or the smallest adjacent test set."
         }
+      ],
+      "notes": [
+        "Use the foundational harness ladder in tests/README.md and docs/recipes/test-harness-ladder-and-prep.md before adding runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer test helpers."
       ]
     }
   ],

@@ -30,6 +30,13 @@ a read-only runtime snapshot after that. Use `doctor`, `daemon-snapshot`, and
 `clean` when you need deeper diagnostics or explicit cleanup, not as the default
 first move.
 
+For live repo work, `./aos` is also the first control plane for canvases, Agent
+Terminal surfaces, dock communication, input routing, and runtime inspection.
+Avoid raw daemon HTTP calls, direct PTY/tmux control, launchd probes, or
+state-file inspection unless the AOS surface is missing or broken, the task is
+testing that lower-level adapter, or the AOS control surface itself is under
+repair. Treat those bypasses as scoped diagnostics and say why they were needed.
+
 Use `./aos dev classify --json` and `./aos dev recommend --json` to route repo
 changes through the manifest-backed developer workflow before choosing a build,
 test, canvas reload, or readiness loop. Use `./aos dev build`
@@ -89,7 +96,8 @@ The current top-level commands are:
 | --- | --- |
 | `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
 | `aos status` | read-only runtime/session status snapshot |
-| `aos ops` | source-backed operator recipes: list, explain, dry-run, run |
+| `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
+| `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, or callers require the old noun |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -107,6 +115,7 @@ The current top-level commands are:
 | `aos content` | Content-server status |
 | `aos serve` | Unified daemon |
 | `aos service` | launchd lifecycle for the daemon |
+| `aos experience` | active AOS experience-layer status, activation, and deactivation |
 | `aos runtime` | packaged runtime utilities |
 | `aos dev` | repo development workflow classification, recommendations, and build wrapper |
 | `aos permissions` | preflight and onboarding |
@@ -246,6 +255,7 @@ for full-screen capture.
 ./aos dev docks list --json
 ./aos dev docks capabilities foreman --json
 ./aos dev build
+./aos dev build-checkpoint --json
 ./aos dev gh context --json
 ./aos dev gh issue comment 298 --body-file /tmp/comment.md
 ./aos dev gh ci inspect --pr 298 --json
@@ -256,6 +266,20 @@ for full-screen capture.
 the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
 and verification steps. The rules live in `docs/dev/workflow-rules.json` and
 are validated by `shared/schemas/dev-workflow-rules.schema.json`.
+
+`build` wraps the repo `build.sh` and emits a `post_build_checkpoint` object in
+JSON mode. `build-checkpoint --json` exposes that same
+`aos.dev_build.post_build_checkpoint.v1` contract without rebuilding. Dock
+hooks consume this contract for post-rebuild pause/resume commands, human TCC
+instructions, and post-permission readiness guidance instead of duplicating
+permission ritual text in hook scripts.
+
+For dock sessions, hooks own the visible lifecycle around this checkpoint:
+successful GDI `aos dev build` shows the non-interactive human-needed surface
+and writes the completed-build marker; successful `aos ready --post-permission`
+removes that surface and clears the marker. Plain `aos ready` does not clear
+the marker, so incidental readiness probes cannot dismiss an active human-needed
+handoff.
 
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed agent
@@ -512,11 +536,13 @@ number or numbers backing a canvas. Perception commands use this to keep
 canvas-scoped captures and `--xray` AX traversal attached to the intended AOS
 surface instead of falling back to the frontmost app.
 
-## `aos ops`
+## `aos recipe`
 
-`ops` is the source-backed operator recipe surface. It sits above primitive
-verbs such as `status`, `show`, and `see`, but it keeps those primitive command
-references visible so agents can inspect what will run.
+`recipe` is the source-backed executable recipe surface. It sits above
+primitive verbs such as `status`, `show`, and `see`, and it can also run
+repo-owned helper scripts through typed `shell` blocks. It keeps primitive
+command and script references visible so agents can inspect what will run.
+`aos ops` remains a compatibility alias while old callers are retired.
 
 | Subcommand | Purpose |
 | --- | --- |
@@ -528,23 +554,27 @@ references visible so agents can inspect what will run.
 V1 examples:
 
 ```bash
-aos ops list --json
-aos ops explain runtime/status-snapshot --json
-aos ops dry-run runtime/status-snapshot --json
-aos ops run runtime/status-snapshot --json
-aos ops dry-run canvas/window-level-smoke --json
+aos recipe list --json
+aos recipe explain runtime/status-snapshot --json
+aos recipe dry-run runtime/status-snapshot --json
+aos recipe run runtime/status-snapshot --json
+aos recipe dry-run sigil/start --json
 ```
 
-`ops dry-run` is static in v1: it does not start daemons, create canvases,
+`recipe dry-run` is static in v1: it does not start daemons, create canvases,
 mutate resources, or run read-only observation probes. It validates the recipe,
-resolves declared resources, verifies command-registry references, and returns
-the planned steps. Without `--json`, it emits a concise text plan.
+resolves declared resources, verifies external help-manifest command
+references and static repo shell script paths, and returns the planned blocks,
+resource ownership, parameters, and cleanup plan. Without `--json`, it emits a
+concise text plan.
 
-`ops run` supports read-only recipes and the first mutating canvas smoke,
-`canvas/window-level-smoke`. Mutating recipes must declare `owned_resources`
-and `finally` cleanup steps; cleanup steps can only target resources declared
-as owned by the current run. Without `--json`, successful runs emit a concise
-text summary.
+`recipe run` supports read-only recipes, mutating canvas recipes with explicit
+owned cleanup, and bounded repo-owned shell helpers for runtime/Sigil startup.
+Owned resources that require cleanup, such as canvases, must be cleaned by
+`finally` steps that only target resources declared by the current run. Runtime,
+configuration, process, and surface ownership is reported as local live state
+without pretending that every mutation has a cleanup action. Without `--json`,
+successful runs emit a concise text summary.
 
 `--json` follows the global process contract: success and dry-run success emit
 JSON on stdout with exit code `0`; failure or partial cleanup emits JSON on
@@ -632,7 +662,7 @@ Primary public verbs:
 Example:
 
 ```bash
-aos graph displays --json
+aos graph displays
 ```
 
 `displays[].visible_bounds` uses the same top-left-origin logical coordinate
@@ -942,9 +972,13 @@ when judging whether the daemon can actually observe and inject input.
 ```
 
 Consumers:
-- `aos ready [--json] [--repair] [--post-permission]` starts/checks the managed daemon, evaluates
-  the existing readiness contract, exits `0` only when ready, and returns
-  structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
+- `aos ready [--json] [--repair] [--post-permission]` first performs a cheap
+  daemon health preflight. When the managed daemon is already reachable, owned
+  by the expected runtime, and reports an active input tap, `ready` exits without
+  kickstarting or restarting the service and records `ready_preflight` in
+  `action_trace`. If the preflight is not ready, `ready` may start the managed
+  daemon, evaluates the existing readiness contract, exits `0` only when ready,
+  and returns structured `phase`, `diagnosis`, `blockers`, `next_actions`, and
   `action_trace` fields for agents. Plain `ready` performs one short automatic
   daemon restart/recheck when it detects a daemon ownership mismatch or inactive
   input tap, because those states commonly appear after a human refreshes macOS
@@ -973,6 +1007,11 @@ Consumers:
   break-glass capability only: `--allow-service-reset` requires
   `--emergency-ack-other-apps` and should be used only when Michael explicitly
   asks for emergency recovery.
+- When the daemon detects missing Accessibility/Input Monitoring permissions,
+  its event tap must fail open and remain unavailable until daemon restart
+  rather than running a background retry loop. This keeps reset/regrant recovery
+  from re-enabling input capture while the human is changing macOS privacy
+  grants. Non-permission tap creation failures may still report `retrying`.
 - `aos permissions check --json` exposes `daemon_view`, `cli_view`,
   `ready_source`, and `disagreement` fields. `ready_for_testing` is computed
   from the daemon view when reachable and from the CLI view as fallback.

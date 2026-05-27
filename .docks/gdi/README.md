@@ -18,7 +18,5 @@ Foreman remains the default owner for workstream coordination, git/GitHub
 hygiene, PRs, and issue state unless a goal explicitly assigns that work.
 
 If GDI reaches a repo-mode Accessibility, Input Monitoring, or inactive
-input-tap blocker, it runs `.docks/gdi/scripts/human-needed-tcc-reset` once,
-reports the script output, and stops. The helper records a short-lived
-`tcc_permission_reset` stop condition so the Stop hook speaks `GDI needs TCC
-reset.` for that stall instead of the normal `GDI finished.` notice.
+input-tap blocker, follow the Human-Needed TCC Stall section in `AGENTS.md`.
+The helper and dock hooks own the stop-condition mechanics.

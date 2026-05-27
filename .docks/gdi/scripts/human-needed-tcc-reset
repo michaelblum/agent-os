@@ -17,19 +17,13 @@ echo
 echo "Running targeted repo-mode runtime reset:"
 "$aos_bin" permissions reset-runtime --mode repo || true
 echo
+echo "Requesting repo-mode permission setup:"
+"$aos_bin" permissions setup --once || true
+echo
+"$repo_root/.docks/harness/dev-build-checkpoint-contract.sh" "$repo_root" stop_system_message
 cat <<'EOF'
-Human action:
-1. Run: ./aos permissions setup --once
-2. Grant the requested macOS Accessibility/Input Monitoring permission for the
-   repo-mode aos runtime if macOS prompts.
-3. Return to the session and say: ready
-4. If the active goal is paused or Codex indicates it needs to resume, use:
-   /goal resume
-   Do not start a new goal for the same work.
 
-After the human returns, run:
-  ./aos ready --post-permission
-
-Continue only if it reports ready=true. If targeted reset reported unavailable
-or failed, report that exact blocker to Foreman instead of trying ad-hoc loops.
+Continue only if post-permission readiness reports ready=true. If targeted reset
+reported unavailable or failed, report that exact blocker to Foreman instead of
+trying ad-hoc loops.
 EOF

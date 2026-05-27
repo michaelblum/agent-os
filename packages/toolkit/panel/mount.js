@@ -2,7 +2,7 @@
 //
 // Consumers call mountPanel({ title, layout: Single(Content) }) once at boot.
 
-import { mountChrome } from './chrome.js'
+import { mountChrome, suspendOnClose } from './chrome.js'
 import { wireBridge, emit } from '../runtime/bridge.js'
 import { subscribe } from '../runtime/subscribe.js'
 import { evalCanvas, spawnChild } from '../runtime/canvas.js'
@@ -19,6 +19,7 @@ export function mountPanel({
   maximize = false,
   resizable = false,
   resize = {},
+  closeMode = 'remove',
   onClose,
   onMinimize,
   onMaximize,
@@ -26,6 +27,7 @@ export function mountPanel({
 } = {}) {
   if (!layout) throw new Error('mountPanel: layout is required')
 
+  const resolvedOnClose = onClose || (closeMode === 'suspend' ? suspendOnClose : undefined)
   const chrome = mountChrome(container, {
     title,
     draggable,
@@ -35,7 +37,7 @@ export function mountPanel({
     maximize,
     resizable,
     resize,
-    onClose,
+    onClose: resolvedOnClose,
     onMinimize,
     onMaximize,
   })

@@ -148,6 +148,18 @@ def distance(a, b):
     return (dx * dx + dy * dy) ** 0.5
 
 
+def point_inside_frame(point, frame, pad=0.0):
+    if not isinstance(point, dict) or not isinstance(frame, list) or len(frame) < 4:
+        return False
+    x = float(point.get("x", 0))
+    y = float(point.get("y", 0))
+    left = float(frame[0]) - pad
+    top = float(frame[1]) - pad
+    right = float(frame[0]) + float(frame[2]) + pad
+    bottom = float(frame[1]) + float(frame[3]) + pad
+    return left <= x <= right and top <= y <= bottom
+
+
 def cursor_point():
     payload = run_json("see", "cursor")
     cursor = payload.get("cursor") or {}
@@ -185,15 +197,34 @@ def inspector_probe():
     return {"id": inspector_id, "canvas": canvas, "ui": parsed_ui or ui}
 
 
+display_cache = {"payload": None}
+
+
 def displays_payload():
-    try:
-        displays = eval_json("JSON.stringify(window.liveJs?.displays || [])")
-        if isinstance(displays, list) and displays:
-            return displays
-    except Exception:
-        pass
-    payload = run_json("graph", "displays", "--json")
-    return payload.get("data", {}).get("displays", payload.get("displays", []))
+    if display_cache["payload"]:
+        return display_cache["payload"]
+    for _ in range(3):
+        try:
+            displays = eval_json("JSON.stringify(window.liveJs?.displays || [])")
+            if isinstance(displays, list) and displays:
+                display_cache["payload"] = displays
+                return displays
+        except Exception:
+            pass
+        result = run_json_capture("graph", "displays", "--json")
+        if result.get("ok"):
+            payload = result.get("payload") or {}
+            displays = payload.get("data", {}).get("displays", payload.get("displays", []))
+            if isinstance(displays, list) and displays:
+                display_cache["payload"] = displays
+                return displays
+        time.sleep(0.12)
+    raise RuntimeError("unable to resolve display payloads for real-input coordinate conversion")
+
+
+def prime_pointer_displays():
+    pointer.displays = displays_payload()
+    return pointer.displays
 
 
 def canvas_frame(canvas):
@@ -464,6 +495,7 @@ else:
     start = {"x": float(avatar_pos["x"]), "y": float(avatar_pos["y"])}
     travel_targets = [opposite_side_destination(start)]
 
+prime_pointer_displays()
 pointer.move_world(start)
 time.sleep(0.08)
 
@@ -502,9 +534,24 @@ try:
         current_start = {"x": float(travel_pos["x"]), "y": float(travel_pos["y"])}
         time.sleep(0.12)
 
-    travel_pos = travel.get("avatarPos") or {}
-    reopen_start = {"x": float(travel_pos["x"]), "y": float(travel_pos["y"])}
     reopen_probe = hit_target_probe()
+    reopen_pos = (reopen_probe.get("avatarPos") or {}) if isinstance(reopen_probe, dict) else {}
+    if reopen_pos.get("valid"):
+        reopen_start = {"x": float(reopen_pos["x"]), "y": float(reopen_pos["y"])}
+    else:
+        reopen_start = current_start
+    reopen_native = pointer.native(reopen_start)
+    if not point_inside_frame(reopen_native, reopen_probe.get("hitTargetFrame"), pad=2.0):
+        fail_with_artifact("reopen point is outside daemon hit target", {
+            "reopenStart": reopen_start,
+            "reopenNative": reopen_native,
+            "reopenProbe": reopen_probe,
+            "pathPlan": path_plan,
+            "travelTargets": travel_targets,
+            "travelSteps": travel_steps,
+            "inspector": safe_diagnostic("inspector", inspector_probe),
+            "showList": safe_diagnostic("showList", show_list),
+        })
 
     pointer.down_world(reopen_start)
     radial_probe = None

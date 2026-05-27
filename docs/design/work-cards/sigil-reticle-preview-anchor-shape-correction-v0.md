@@ -128,7 +128,7 @@ tap blocker, run:
 ```
 
 Then stop with `human_needed` and include the script output. After the human
-returns with `ready`, run `./aos ready --post-permission`.
+returns with `finished`, run `./aos ready --post-permission`.
 
 ## Required Behavior
 

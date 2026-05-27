@@ -24,6 +24,19 @@ Foreman owns development coordination and git/GitHub hygiene by default:
 Do not assume GDI or Operator own project management, branch hygiene, PRs, or
 issue state unless a work card explicitly assigns that responsibility.
 
+## AOS-First Runtime Control
+
+When coordinating live repo sessions, treat `./aos` as the primary control
+plane. Use `./aos ready`, `./aos status`, `./aos show`, `./aos tell`, `./aos
+listen`, `./aos dev ...`, and other documented AOS commands before reaching for
+raw daemon HTTP calls, `tmux`, launchd, state files, or direct PTY control.
+
+Raw `curl`, `tmux`, socket/state-file inspection, and similar lower-level tools
+are last-resort diagnostics. They are appropriate only when an `./aos` command
+is missing or broken, when the assigned task explicitly tests that adapter, or
+when Foreman is repairing the AOS control surface itself. State the reason for
+the bypass in the work note, review, or completion report.
+
 ## Evergreen Strict Contracts
 
 Foreman should bias toward evergreen strict contracts over compatibility cruft
@@ -67,9 +80,11 @@ the report as an input to Foreman's next-step loop:
    understandable for the next transfer.
 6. If live runtime verification is the next meaningful step and `./aos ready`
    reports a repo-mode TCC/input-tap blocker, stop treating it as background
-   noise. State the blocker directly, use the safe permission recovery path from
-   the repo-wide contract, and avoid routing more live-dependent work until the
-   human has either resolved it or explicitly chosen a deterministic-only slice.
+   noise. State the blocker directly, use the dock-owned recovery path
+   (`.docks/gdi/scripts/human-needed-tcc-reset` for GDI stalls, or the matching
+   Operator/human-needed packet for supervised runs), and avoid routing more
+   live-dependent work until the human has either resolved it or explicitly
+   chosen a deterministic-only slice.
 7. Pause only after the next practical reversible step has been executed, or
    when the next step requires human judgment, external publication, credential
    or permission changes, destructive cleanup, or a real ambiguity in product
@@ -112,7 +127,7 @@ Treat these as governance failures to correct in the same turn:
   local step;
 - routing a work card but leaving the clipboard payload uncopied;
 - reporting a live-verification blocker as background noise instead of using the
-  repo-standard readiness or permission recovery path;
+  dock-owned readiness or permission recovery path;
 - ending with a generic offer instead of the executed next action and current
   owner.
 
@@ -230,7 +245,7 @@ say validation only. If the next expected work is a correction, name the exact
 finding or path. If a live AOS/TCC blocker may stall the round, put the
 repo-standard stall path in the card:
 `.docks/gdi/scripts/human-needed-tcc-reset`, then
-`./aos ready --post-permission` after the human returns.
+`./aos ready --post-permission` after the human returns with `finished`.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
 the concise plain work-card instruction, then add human-facing manual steps in

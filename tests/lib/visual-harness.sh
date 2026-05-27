@@ -5,6 +5,14 @@ VISUAL_HARNESS_ROOT="$(cd "$VISUAL_HARNESS_DIR/../.." && pwd)"
 
 source "$VISUAL_HARNESS_DIR/isolated-daemon.sh"
 source "$VISUAL_HARNESS_DIR/status-item.sh"
+source "$VISUAL_HARNESS_ROOT/apps/sigil/scripts/launch-common.sh"
+source "$VISUAL_HARNESS_ROOT/scripts/aos-content-scope.sh"
+
+# Generic visual/canvas primitives.
+#
+# Keep reusable AOS visual workspace, content-root, diagnostics, and bounded
+# command helpers in this section. App-specific compositions should stay below
+# the mixed compatibility section or move into tests/lib/sigil/ when they grow.
 
 aos_visual_root() {
   printf '%s\n' "$VISUAL_HARNESS_ROOT"
@@ -12,6 +20,124 @@ aos_visual_root() {
 
 aos_visual_aos() {
   printf '%s\n' "${AOS:-$VISUAL_HARNESS_ROOT/aos}"
+}
+
+aos_visual_global_status_item_diagnostic_inventory() {
+  aos_global_status_item_diagnostic_matches_json
+}
+
+aos_visual_phase_snapshot() {
+  local label="$1"
+  local aos_bin
+  aos_bin="$(aos_visual_aos)"
+
+  python3 - "$label" "$aos_bin" "$(aos_visual_global_status_item_diagnostic_inventory)" <<'PY'
+import json
+import subprocess
+import sys
+
+label, aos, status_items = sys.argv[1:4]
+
+def run_json(*args):
+    try:
+        completed = subprocess.run(
+            [aos, *args],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=3,
+        )
+    except subprocess.TimeoutExpired:
+        return {"error": f"{' '.join(args)} timed out"}
+    if completed.returncode != 0:
+        return {"error": completed.stdout.strip() or f"{' '.join(args)} exited {completed.returncode}"}
+    try:
+        return json.loads(completed.stdout or "{}")
+    except Exception as error:
+        return {"error": f"invalid JSON from {' '.join(args)}: {error}", "output": completed.stdout[:1000]}
+
+try:
+    status_payload = json.loads(status_items or '{"matches":[]}')
+except Exception as error:
+    status_payload = {"error": f"invalid status item inventory: {error}", "raw": status_items}
+
+snapshot = {
+    "label": label,
+    "statusItems": status_payload.get("matches", []),
+    "showList": run_json("show", "list", "--json").get("canvases", []),
+    "runtime": run_json("status", "--json"),
+    "cleanDryRun": run_json("clean", "--dry-run", "--json"),
+}
+print(json.dumps(snapshot, sort_keys=True))
+PY
+}
+
+aos_visual_run_bounded() {
+  local timeout="$1"
+  local label="$2"
+  shift 2
+
+  local stdout_file stderr_file pid elapsed status
+  stdout_file="$(mktemp "${TMPDIR:-/tmp}/aos-visual-phase-stdout.XXXXXX")"
+  stderr_file="$(mktemp "${TMPDIR:-/tmp}/aos-visual-phase-stderr.XXXXXX")"
+
+  "$@" >"$stdout_file" 2>"$stderr_file" &
+  pid="$!"
+  elapsed=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if (( elapsed >= timeout )); then
+      kill "$pid" 2>/dev/null || true
+      sleep 0.2
+      kill -9 "$pid" 2>/dev/null || true
+      echo "FAIL: timed out after ${timeout}s during ${label}" >&2
+      echo "stdout:" >&2
+      sed -n '1,80p' "$stdout_file" >&2 || true
+      echo "stderr:" >&2
+      sed -n '1,80p' "$stderr_file" >&2 || true
+      echo "snapshot:" >&2
+      aos_visual_phase_snapshot "$label" >&2 || true
+      rm -f "$stdout_file" "$stderr_file"
+      return 124
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  wait "$pid"
+  status="$?"
+  if (( status != 0 )); then
+    echo "FAIL: ${label} exited ${status}" >&2
+    echo "stdout:" >&2
+    sed -n '1,80p' "$stdout_file" >&2 || true
+    echo "stderr:" >&2
+    sed -n '1,80p' "$stderr_file" >&2 || true
+    echo "snapshot:" >&2
+    aos_visual_phase_snapshot "$label" >&2 || true
+    rm -f "$stdout_file" "$stderr_file"
+    return "$status"
+  fi
+
+  cat "$stdout_file"
+  rm -f "$stdout_file" "$stderr_file"
+}
+
+aos_visual_content_root_key() {
+  local prefix="$1"
+  local env_name value
+  case "$prefix" in
+    toolkit) env_name="AOS_TOOLKIT_CONTENT_ROOT" ;;
+    sigil) env_name="AOS_SIGIL_CONTENT_ROOT" ;;
+    repo) env_name="AOS_REPO_CONTENT_ROOT" ;;
+    *) env_name="" ;;
+  esac
+  if [[ -n "$env_name" ]]; then
+    value="${!env_name:-}"
+    if [[ -n "$value" ]]; then
+      printf '%s\n' "$value"
+      return
+    fi
+  fi
+  aos_content_root_key_for "$prefix" "$VISUAL_HARNESS_ROOT"
 }
 
 aos_visual_assert_live_content_root() {
@@ -87,6 +213,12 @@ PY
   esac
 }
 
+# Mixed compatibility section.
+#
+# This lower section still contains generic inspector/daemon wrappers alongside
+# Sigil launch and avatar compositions. Sigil-specific helpers are named with
+# `sigil`; new reusable Sigil-only flows should prefer tests/lib/sigil/.
+
 aos_visual_seed_sigil() {
   local mode="${1:-repo}"
   local aos_bin
@@ -102,14 +234,16 @@ aos_visual_start_isolated_daemon() {
 }
 
 aos_visual_prepare_live_roots() {
-  local aos_bin
+  local aos_bin toolkit_key sigil_key
   aos_bin="$(aos_visual_aos)"
+  toolkit_key="$(aos_visual_content_root_key toolkit)"
+  sigil_key="$(aos_visual_content_root_key sigil)"
 
-  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
-  "$aos_bin" set content.roots.sigil "$VISUAL_HARNESS_ROOT/apps/sigil" >/dev/null
-  "$aos_bin" content wait --root toolkit --root sigil --auto-start --timeout 15s >/dev/null
-  aos_visual_assert_live_content_root toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit"
-  aos_visual_assert_live_content_root sigil "$VISUAL_HARNESS_ROOT/apps/sigil"
+  aos_ensure_content_roots_live "$aos_bin" \
+    "$toolkit_key" "$VISUAL_HARNESS_ROOT/packages/toolkit" \
+    "$sigil_key" "$VISUAL_HARNESS_ROOT/apps/sigil"
+  aos_visual_assert_live_content_root "$toolkit_key" "$VISUAL_HARNESS_ROOT/packages/toolkit"
+  aos_visual_assert_live_content_root "$sigil_key" "$VISUAL_HARNESS_ROOT/apps/sigil"
 }
 
 aos_visual_configure_sigil_status_item() {
@@ -117,12 +251,7 @@ aos_visual_configure_sigil_status_item() {
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
-  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
-  "$aos_bin" set content.roots.sigil "$VISUAL_HARNESS_ROOT/apps/sigil" >/dev/null
-  "$aos_bin" set status_item.enabled true >/dev/null
-  "$aos_bin" set status_item.toggle_id "$avatar_id" >/dev/null
-  "$aos_bin" set status_item.toggle_url 'aos://sigil/renderer/index.html' >/dev/null
-  "$aos_bin" set status_item.toggle_track union >/dev/null
+  sigil_configure_status_item "$aos_bin" "$VISUAL_HARNESS_ROOT/apps/sigil" "$VISUAL_HARNESS_ROOT/packages/toolkit" "$avatar_id"
 }
 
 aos_visual_remove_canvas() {
@@ -213,16 +342,17 @@ PY
 
 aos_visual_launch_canvas_inspector() {
   local inspector_id="${1:-surface-inspector}"
-  local aos_bin panel_w panel_h display_json x y
+  local aos_bin panel_w panel_h display_json x y toolkit_key
   aos_bin="$(aos_visual_aos)"
+  toolkit_key="$(aos_visual_content_root_key toolkit)"
   panel_w="${AOS_SURFACE_INSPECTOR_W:-${AOS_CANVAS_INSPECTOR_W:-360}}"
   panel_h="${AOS_SURFACE_INSPECTOR_H:-${AOS_CANVAS_INSPECTOR_H:-520}}"
 
   aos_visual_remove_canvas "$inspector_id" 5
-  "$aos_bin" set content.roots.toolkit "$VISUAL_HARNESS_ROOT/packages/toolkit" >/dev/null
-  "$aos_bin" content wait --root toolkit --auto-start --timeout 15s >/dev/null
+  aos_ensure_content_roots_live "$aos_bin" \
+    "$toolkit_key" "$VISUAL_HARNESS_ROOT/packages/toolkit"
 
-  display_json="$("$aos_bin" graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')"
+  display_json="$("$aos_bin" graph displays 2>/dev/null || echo '{"data":{"displays":[]}}')"
   read -r x y <<EOF
 $(PANEL_W="$panel_w" PANEL_H="$panel_h" python3 -c "
 import json, os, sys
@@ -241,29 +371,114 @@ print(max(x, x + w - panel_w), max(y, y + h - panel_h))
 " <<<"$display_json" 2>/dev/null || echo "1600 500")
 EOF
 
-  "$aos_bin" show create --id "$inspector_id" \
+  if "$aos_bin" show create --id "$inspector_id" \
     --at "$x,$y,$panel_w,$panel_h" \
     --interactive \
     --scope global \
-    --url 'aos://toolkit/components/surface-inspector/index.html' >/dev/null
+    --url "aos://$toolkit_key/components/surface-inspector/index.html" >/dev/null; then
+    :
+  else
+    local status="$?"
+    echo "FAIL: surface-inspector create failed: id=$inspector_id at=$x,$y,$panel_w,$panel_h" >&2
+    aos_visual_phase_snapshot "surface-inspector-create" >&2 || true
+    return "$status"
+  fi
 
-  "$aos_bin" show wait --id "$inspector_id" --manifest surface-inspector --timeout 5s >/dev/null
-  "$aos_bin" show wait \
+  if "$aos_bin" show wait --id "$inspector_id" --manifest surface-inspector --timeout 15s >/dev/null; then
+    :
+  else
+    local status="$?"
+    echo "FAIL: surface-inspector manifest wait failed: id=$inspector_id timeout=15s" >&2
+    aos_visual_phase_snapshot "surface-inspector-manifest-wait" >&2 || true
+    return "$status"
+  fi
+  if "$aos_bin" show wait \
     --id "$inspector_id" \
     --manifest surface-inspector \
     --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
-    --timeout 10s >/dev/null
+    --timeout 10s >/dev/null; then
+    :
+  else
+    local status="$?"
+    echo "FAIL: surface-inspector UI wait failed: id=$inspector_id timeout=10s" >&2
+    aos_visual_phase_snapshot "surface-inspector-ui-wait" >&2 || true
+    return "$status"
+  fi
 }
 
 aos_visual_launch_sigil_avatar() {
   local avatar_id="${1:-avatar-main}"
-  local aos_bin
+  local aos_bin sigil_key toolkit_key
   aos_bin="$(aos_visual_aos)"
+  sigil_key="$(aos_visual_content_root_key sigil)"
+  toolkit_key="$(aos_visual_content_root_key toolkit)"
 
-  "$aos_bin" show create \
-    --id "$avatar_id" \
-    --url 'aos://sigil/renderer/index.html' \
-    --track union >/dev/null
+  python3 - "$aos_bin" "$avatar_id" "aos://$sigil_key/renderer/index.html?toolkit-root=$toolkit_key" <<'PY'
+import json
+import subprocess
+import sys
+import time
+
+aos, avatar_id, url = sys.argv[1:4]
+last_payload = None
+last_create = None
+
+def run(args):
+    return subprocess.run(
+        [aos, *args],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+for attempt in range(1, 4):
+    last_create = run([
+        "show", "create",
+        "--id", avatar_id,
+        "--url", url,
+        "--track", "union",
+        "--scope", "global",
+    ])
+    if last_create.returncode != 0:
+        if "NO_DAEMON" in (last_create.stdout or "") and attempt < 3:
+            run(["ready", "--json"])
+            time.sleep(0.5 * attempt)
+            continue
+        raise SystemExit("FAIL: Sigil avatar create failed: " + json.dumps({
+            "attempt": attempt,
+            "command": [aos, "show", "create", "--id", avatar_id, "--url", url, "--track", "union", "--scope", "global"],
+            "exit": last_create.returncode,
+            "output": last_create.stdout.strip(),
+        }, sort_keys=True))
+    completed = run(["show", "list", "--json"])
+    if completed.returncode != 0:
+        raise SystemExit("FAIL: unable to verify Sigil avatar create: " + json.dumps({
+            "attempt": attempt,
+            "command": [aos, "show", "list", "--json"],
+            "exit": completed.returncode,
+            "output": completed.stdout.strip(),
+        }, sort_keys=True))
+    try:
+        last_payload = json.loads(completed.stdout or "{}")
+    except Exception as error:
+        raise SystemExit("FAIL: invalid Sigil avatar create verification JSON: " + json.dumps({
+            "attempt": attempt,
+            "error": str(error),
+            "output": completed.stdout,
+        }, sort_keys=True))
+    ids = sorted(canvas.get("id") for canvas in last_payload.get("canvases") or [] if canvas.get("id"))
+    if avatar_id in ids:
+        raise SystemExit(0)
+    run(["ready", "--json"])
+    time.sleep(0.5 * attempt)
+
+raise SystemExit("FAIL: Sigil avatar create returned but canvas is absent: " + json.dumps({
+    "avatarId": avatar_id,
+    "canvasIds": sorted(canvas.get("id") for canvas in (last_payload or {}).get("canvases") or [] if canvas.get("id")),
+    "createOutput": (last_create.stdout if last_create else "").strip(),
+    "payload": last_payload,
+}, sort_keys=True))
+PY
 }
 
 aos_visual_wait_sigil_avatar_ready() {
@@ -300,13 +515,18 @@ aos_visual_show_sigil_avatar() {
 aos_visual_show_sigil_avatar_via_real_status_click() {
   local state_root="$1"
   local avatar_id="${2:-avatar-main}"
-  local aos_bin pid
+  local aos_bin pid status_owner_pids matches_json
   aos_bin="$(aos_visual_aos)"
   pid="$(aos_test_wait_for_lock_pid "$state_root")"
   [[ -n "$pid" ]] || {
     echo "FAIL: daemon pid missing for real status-item click" >&2
     return 1
   }
+  status_owner_pids="$(aos_test_pids_for_root "$state_root" | paste -sd, -)"
+  [[ -n "$status_owner_pids" ]] || status_owner_pids="$pid"
+  matches_json="$(aos_status_item_matches_for_pids_json "$status_owner_pids")" || return 1
+  pid="$(aos_status_item_pid_from_matches_json "$status_owner_pids" "$matches_json")" || return 1
+  aos_assert_status_item_overlap_from_matches_json "$pid" "$matches_json" >/dev/null
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
@@ -316,9 +536,9 @@ aos_visual_show_sigil_avatar_via_real_status_click() {
     --timeout 5s >/dev/null
 }
 
-aos_visual_single_status_item_pid() {
+aos_visual_global_diagnostic_single_status_item_pid() {
   local matches_json
-  matches_json="$(aos_status_item_matches_json)" || return 1
+  matches_json="$(aos_global_status_item_diagnostic_matches_json)" || return 1
 
   python3 - "$matches_json" <<'PY'
 import json
@@ -347,7 +567,7 @@ aos_visual_show_sigil_avatar_via_live_status_click() {
   local avatar_id="${1:-avatar-main}"
   local aos_bin pid
   aos_bin="$(aos_visual_aos)"
-  pid="$(aos_visual_single_status_item_pid)"
+  pid="$(aos_visual_global_diagnostic_single_status_item_pid)"
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"

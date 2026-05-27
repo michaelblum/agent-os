@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-external-command-manifest-v0.schema.json",
+  "title": "AOS External Command Manifest",
+  "description": "Manifest-backed external command launcher contract for the stable AOS Swift dispatcher.",
+  "type": "object",
+  "required": ["schema_version", "commands"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": 1 },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/command" }
+    }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "required": ["path", "summary", "executable", "argv_prefix"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          }
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "executable": {
+          "enum": ["$AOS_PATH", "/usr/bin/env", "/bin/bash"]
+        },
+        "argv_prefix": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "cwd": {
+          "enum": ["repo"]
+        },
+        "env": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Z_][A-Z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "stdio": {
+          "enum": ["capture", "inherit"]
+        },
+        "when": { "$ref": "#/$defs/condition" }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "child_arg_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "child_arg_missing": {
+          "type": "boolean"
+        },
+        "prefix": {
+          "type": "string",
+          "minLength": 1
+        },
+        "excluded_prefixes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "excluded_values": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      },
+      "anyOf": [
+        { "required": ["child_arg_index"] },
+        { "required": ["child_arg_index", "prefix"] },
+        { "required": ["child_arg_index", "excluded_prefixes"] },
+        { "required": ["child_arg_index", "excluded_values"] },
+        { "required": ["child_arg_index", "child_arg_missing"] }
+      ]
+    }
+  }
+}

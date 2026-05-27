@@ -28,7 +28,7 @@ export function sigilRadialTargetSurfaceForItem(item = {}, {
     }
     if (action === 'wikiGraph') {
         return {
-            kind: 'markdown-workbench',
+            kind: 'wiki-subject-browser',
             canvas_id: wikiWorkbenchCanvasId,
             subject: {
                 id: `wiki:${wikiPath}`,

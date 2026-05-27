@@ -19,6 +19,15 @@ profiles resolve against that manifest through `./aos dev docks`, so dock
 identity and capability envelopes stay declarative instead of being repeated in
 role instructions.
 
+`command-surface.md` describes the external command manifest contract: what
+remains in Swift, what lives in hot-swappable manifests/scripts, and which tests
+guard route and help behavior.
+
+For test harness selection, start with the foundational ladder in
+`tests/README.md`. For runtime, canvas, input, status-item, lifecycle, visual,
+supervised, or cross-layer slices where the harness is not obvious, use
+`docs/recipes/test-harness-ladder-and-prep.md` before adding new test helpers.
+
 Validate routing changes with:
 
 ```bash

@@ -22,7 +22,7 @@ aos_ensure_content_roots_live "$AOS" \
 
 # Position flush bottom-right of the main display's visible bounds for operator
 # convenience. This panel placement does not define DesktopWorld.
-DISPLAY_JSON=$($AOS graph displays --json 2>/dev/null || echo '{"data":{"displays":[]}}')
+DISPLAY_JSON=$($AOS graph displays 2>/dev/null || echo '{"data":{"displays":[]}}')
 read -r X Y <<EOF
 $(echo "$DISPLAY_JSON" | PANEL_W="$PANEL_W" PANEL_H="$PANEL_H" python3 -c "
 import json, os, sys

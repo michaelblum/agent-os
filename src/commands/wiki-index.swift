@@ -20,6 +20,7 @@ class WikiIndex {
         guard sqlite3_open(dbPath, &db) == SQLITE_OK else {
             exitError("Failed to open wiki database at \(dbPath): \(dbError())", code: "WIKI_DB_ERROR")
         }
+        sqlite3_busy_timeout(db, 5000)
         exec("PRAGMA journal_mode=WAL")
         exec("PRAGMA foreign_keys=ON")
     }

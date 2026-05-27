@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { GateReceptor } from '../../packages/daemon/gate/GateReceptor.js';
 import { createGateService, normalizeGateRequest } from '../../packages/daemon/gate/index.js';
 import { GateRecordStore } from '../../packages/daemon/gate/records.js';
+import { runGateAsk } from '../../packages/cli/verbs/gate-ask.js';
 
 function request(id, overrides = {}) {
   return {
@@ -52,6 +53,18 @@ function timeoutHarness() {
   };
 }
 
+function writable() {
+  let text = '';
+  return {
+    write(chunk) {
+      text += chunk;
+    },
+    text() {
+      return text;
+    },
+  };
+}
+
 test('normalizeGateRequest assigns id, source, fields, and clamps timeout', () => {
   const normalized = normalizeGateRequest({
     prompt: { title: 'Continue?' },
@@ -65,6 +78,26 @@ test('normalizeGateRequest assigns id, source, fields, and clamps timeout', () =
   assert.equal(normalized.source.surface, 'aos-cli');
   assert.equal(normalized.fields.length, 2);
   assert.equal('fields' in normalized.ui, false);
+});
+
+test('gate ask rejects preset values outside the manifest enum', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateAsk(['--preset', 'maybe_later', '--title', 'Continue?'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--preset must be one of: yes_no_with_escape, approve_deny, single_choice, multi_choice, freetext/);
+});
+
+test('gate ask rejects flag-shaped values for value flags', async () => {
+  const stdout = writable();
+  const stderr = writable();
+  const code = await runGateAsk(['--request', '--store-response'], { stdout, stderr });
+
+  assert.equal(code, 1);
+  assert.equal(stdout.text(), '');
+  assert.match(stderr.text(), /--request requires a value/);
 });
 
 test('ask resolves with user values and cleans up pending gate', async () => {

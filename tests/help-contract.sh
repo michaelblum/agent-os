@@ -25,6 +25,24 @@ else
     fail "aos help --json did not emit JSON registry"
 fi
 
+if ./aos >/tmp/aos-root-help.out 2>/tmp/aos-root-help.err \
+    && ./aos --help >/tmp/aos-root-help-flag.out 2>/tmp/aos-root-help-flag.err \
+    && ./aos do --help --json >/tmp/aos-do-help-flag.json 2>/tmp/aos-do-help-flag.err \
+    && grep -q 'Usage: ./aos <command> \[options\]' /tmp/aos-root-help.out \
+    && grep -q 'Usage: ./aos <command> \[options\]' /tmp/aos-root-help-flag.out \
+    && python3 - <<'PY'
+import json
+data = json.load(open('/tmp/aos-do-help-flag.json'))
+assert data['path'] == ['do']
+assert any(form['id'] == 'do-click' for form in data['forms'])
+PY
+then
+    pass "root and family help flags route through external help"
+else
+    fail "external help flag routing drifted"
+fi
+rm -f /tmp/aos-root-help.out /tmp/aos-root-help.err /tmp/aos-root-help-flag.out /tmp/aos-root-help-flag.err /tmp/aos-do-help-flag.json /tmp/aos-do-help-flag.err
+
 # --- 2. aos help show --json → JSON per-command ---
 OUT=$(./aos help show --json 2>/dev/null)
 if echo "$OUT" | grep -q '"path"'; then
@@ -61,6 +79,14 @@ elif echo "$ERR" | grep -q '"code" : "UNKNOWN_FLAG"'; then
     pass "aos clean --badflag returns UNKNOWN_FLAG"
 else
     fail "aos clean --badflag did not return UNKNOWN_FLAG: $ERR"
+fi
+
+if ERR=$(./aos clean unexpected 2>&1 >/dev/null); then
+    fail "aos clean unexpected should exit non-zero"
+elif echo "$ERR" | grep -q '"code" : "UNKNOWN_ARG"'; then
+    pass "aos clean extra positional returns UNKNOWN_ARG"
+else
+    fail "aos clean extra positional did not return UNKNOWN_ARG: $ERR"
 fi
 
 # --- 6. aos tell (no args) → MISSING_ARG on stderr ---
@@ -213,25 +239,73 @@ else
     fail "do click help is missing ref target forms: $OUT"
 fi
 
-# --- 18. dev build warning documents the preferred permission-reset sequence ---
+# --- 18. see zone define help matches the external deterministic parser ---
+OUT=$(./aos help see zone define --json 2>/dev/null)
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+form = next(item for item in data["forms"] if item["id"] == "zone-define")
+tokens = {arg.get("token") for arg in form["args"]}
+arg_ids = [arg["id"] for arg in form["args"]]
+assert form["usage"] == "aos see zone define <name> [--target <display>] <x,y,w,h>", form
+assert arg_ids == ["name", "target", "bounds"], arg_ids
+assert "--target" in tokens, tokens
+assert form["execution"]["mutates_state"] is True, form
+assert form["execution"]["interactive"] is False, form
+assert form["execution"]["requires_permissions"] is False, form
+PY
+then
+    pass "see zone define help matches external parser"
+else
+    fail "see zone define help drifted from parser: $OUT"
+fi
+
+# --- 19. dev build only wraps the build step and disables daemon restart ---
 if python3 - <<'PY'
 from pathlib import Path
 
-source = Path("src/commands/dev.swift").read_text(encoding="utf-8")
-assert "Preferred reset sequence if readiness reports stale TCC/input tap:" in source
-assert "1. ./aos permissions reset-runtime --mode repo" in source
-assert "2. ./aos permissions setup --once" in source
-assert "3. ./aos ready --post-permission" in source
-assert "Service-wide TCC reset is emergency-only" in source
-assert "--allow-service-reset --emergency-ack-other-apps" in source
+source = Path("scripts/aos-dev-build.mjs").read_text(encoding="utf-8")
+assert "buildArgs.push('--no-restart')" in source
+assert "build_wrapper: 'build.sh'" in source
+assert "build_source: 'repo-root/build.sh'" in source
+assert "next: null" in source
+assert "permission_note" not in source
+assert "Next: ./aos ready" not in source
 PY
 then
-    pass "dev build warning includes preferred permission reset sequence"
+    pass "dev build reports its wrapper source and avoids readiness ritual"
 else
-    fail "dev build warning is missing the preferred permission reset sequence"
+    fail "dev build wrapper telemetry or readiness boundary regressed"
 fi
 
-# --- 19. dev afk-session-trigger help exposes guarded trigger flags ---
+# --- 20. dev build-checkpoint owns post-build pause/recovery contract ---
+OUT=$(./aos dev build-checkpoint --json 2>/dev/null)
+if OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["schema"] == "aos.dev_build.post_build_checkpoint.v1", data
+assert data["pause_command"] == "/goal pause", data
+assert data["resume_command"] == "/goal resume", data
+assert data["return_signal"] == "finished", data
+commands = data["commands"]
+assert commands["reset_runtime"] == "./aos permissions reset-runtime --mode repo", commands
+assert commands["setup_once"] == "./aos permissions setup --once", commands
+assert commands["post_permission_ready"] == "./aos ready --post-permission", commands
+assert "goal_pause_required: repo-mode AOS permission repair" in data["post_tool_system_message"], data
+assert "dev_build_checkpoint_already_completed" in data["repeated_build_system_message"], data
+assert data["canvas"]["title"] == "AOS permission reset needed", data
+PY
+then
+    pass "dev build-checkpoint owns post-build pause/recovery contract"
+else
+    fail "dev build-checkpoint contract regressed: $OUT"
+fi
+
+# --- 21. dev afk-session-trigger help exposes guarded trigger flags ---
 OUT=$(./aos help dev afk-session-trigger --json 2>/dev/null)
 if OUT="$OUT" python3 - <<'PY'
 import json
@@ -254,6 +328,59 @@ then
     pass "dev afk-session-trigger help exposes guarded trigger flags"
 else
     fail "dev afk-session-trigger help is missing guarded trigger flags: $OUT"
+fi
+
+# --- 22. command registry metadata is externally hot-swappable ---
+TMP_REGISTRY="$(mktemp "${TMPDIR:-/tmp}/aos-command-registry.XXXXXX.json")"
+python3 - "$TMP_REGISTRY" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest = json.loads(Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8"))
+dev = next(command for command in manifest["commands"] if command["path"] == ["dev"])
+dev["summary"] = "HOT SWAP TEST SUMMARY"
+Path(sys.argv[1]).write_text(json.dumps(manifest), encoding="utf-8")
+PY
+OUT=$(AOS_COMMAND_REGISTRY="$TMP_REGISTRY" ./aos help dev --json 2>/dev/null)
+rm -f "$TMP_REGISTRY"
+if echo "$OUT" | grep -q 'HOT SWAP TEST SUMMARY'; then
+    pass "command registry manifest can change help without Swift changes"
+else
+    fail "external command registry manifest did not override help: $OUT"
+fi
+
+# --- 23. help renderer stays external and does not delegate back into Swift ---
+if python3 - <<'PY'
+from pathlib import Path
+
+source = Path("scripts/aos-help-proxy.mjs").read_text(encoding="utf-8")
+assert "__help" not in source
+assert "manifests/commands/aos-commands.json" in source
+assert "spawnSync(aosPath()" not in source
+PY
+then
+    pass "help renderer is external and does not delegate to Swift __help"
+else
+    fail "help renderer delegated back into Swift"
+fi
+
+# --- 24. main entry point has no active Swift help fallback ---
+if python3 - <<'PY'
+from pathlib import Path
+
+source = Path("src/main.swift").read_text(encoding="utf-8")
+assert 'case "__help"' not in source
+assert "helpCommand(args:" not in source
+assert "commandRegistry = buildCommandRegistry()" not in source
+assert "COMMAND_ROUTE_UNAVAILABLE" in source
+assert not Path("src/shared/command-help.swift").exists()
+assert not Path("src/shared/command-registry.swift").exists()
+PY
+then
+    pass "main entry point has no active Swift help fallback"
+else
+    fail "main entry point still has active Swift help fallback"
 fi
 
 echo

@@ -24,11 +24,17 @@ function parseArgs(argv) {
     storeResponse: false,
     help: false,
   };
+  const nextValue = (index, flag) => {
+    if (index + 1 >= argv.length || argv[index + 1].startsWith('--')) {
+      throw new Error(`${flag} requires a value`);
+    }
+    return [argv[index + 1], index + 1];
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--help' || arg === '-h') parsed.help = true;
-    else if (arg === '--continuation-id') parsed.continuationId = argv[++index];
-    else if (arg === '--request') parsed.requestFile = argv[++index];
+    else if (arg === '--continuation-id') [parsed.continuationId, index] = nextValue(index, arg);
+    else if (arg === '--request') [parsed.requestFile, index] = nextValue(index, arg);
     else if (arg === '--json') {
       const next = argv[index + 1];
       if (next && !next.startsWith('--')) parsed.requestJson = argv[++index];

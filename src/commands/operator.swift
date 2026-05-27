@@ -247,20 +247,28 @@ private struct RuntimeTCCResetTarget {
     let unavailableReason: String?
 }
 
-private struct CanvasLookupResponse: Encodable {
-    let status: String
-    let exists: Bool
-    let daemon_running: Bool
-    let socket_reachable: Bool
-    let canvas: CanvasInfo?
-    let notes: [String]
-}
-
 private struct GitStatusState: Encodable {
     let branch: String
     let ahead_of_origin_main: Int?
     let dirty_files: Int
     let worktrees: Int
+}
+
+private struct StatusCleanDaemon: Decodable {
+    let pid: Int
+    let args: String
+}
+
+private struct StatusCleanCanvas: Decodable {
+    let id: String
+    let mode: String
+}
+
+private struct StatusCleanReport: Decodable {
+    let status: String
+    let stale_daemons: [StatusCleanDaemon]
+    let canvases: [StatusCleanCanvas]
+    let notes: [String]
 }
 
 private struct StatusStaleResources: Encodable {
@@ -367,6 +375,11 @@ private struct ReadyResponse: Encodable {
     let notes: [String]
 }
 
+private struct ReadyStartupDecision {
+    let startup: ReadyStartupBlock
+    let actionTrace: [ReadyActionStep]
+}
+
 private struct DaemonHealthState {
     let servingPID: Int?
     let uptime: Double?
@@ -381,10 +394,6 @@ private struct DaemonHealthState {
 // MARK: - Public Commands
 
 func readyCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["ready"], json: args.contains("--json"))
-        exit(0)
-    }
     guard args.allSatisfy({ $0 == "--json" || $0 == "--repair" || $0 == "--post-permission" }) else {
         let unknown = args.first(where: { $0 != "--json" && $0 != "--repair" && $0 != "--post-permission" }) ?? ""
         exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) ready [--json] [--repair] [--post-permission]", code: "UNKNOWN_FLAG")
@@ -399,45 +408,16 @@ func readyCommand(args: [String]) {
     // mock sockets and must not rewrite or kickstart the developer LaunchAgent.
     let skipServiceStart = ProcessInfo.processInfo.environment["AOS_TEST_SKIP_READY_SERVICE_START"] == "1"
     let serviceArgs = ["service", "start", "--mode", mode.rawValue, "--json"]
-    let startupResult: ProcessOutput?
-    let startup: ReadyStartupBlock
-    if skipServiceStart {
-        startupResult = nil
-        startup = ReadyStartupBlock(
-            attempted: false,
-            command: "\(prefix) \(serviceArgs.joined(separator: " "))",
-            exit_code: 0,
-            status: "skipped"
-        )
-    } else {
-        let result = runProcess(aosExecutablePath(), arguments: serviceArgs)
-        startupResult = result
-        startup = ReadyStartupBlock(
-            attempted: true,
-            command: "\(prefix) \(serviceArgs.joined(separator: " "))",
-            exit_code: result.exitCode,
-            status: result.exitCode == 0 ? "ok" : "degraded"
-        )
-    }
-
-    var actionTrace: [ReadyActionStep] = []
+    let decision = decideReadyStartup(
+        serviceArgs: serviceArgs,
+        skipServiceStart: skipServiceStart,
+        repair: repair,
+        mode: mode,
+        prefix: prefix
+    )
+    let startup = decision.startup
+    var actionTrace = decision.actionTrace
     var response = buildReadyResponse(startup: startup, actionTrace: actionTrace, mode: mode, prefix: prefix)
-
-    if skipServiceStart {
-        actionTrace.append(ReadyActionStep(
-            step: "service_start",
-            result: "skipped",
-            detail: "AOS_TEST_SKIP_READY_SERVICE_START=1"
-        ))
-    } else if let startupResult, startupResult.exitCode != 0 {
-        actionTrace.append(ReadyActionStep(
-            step: "service_start",
-            result: "degraded",
-            detail: compactProcessDetail(startupResult)
-        ))
-    } else {
-        actionTrace.append(ReadyActionStep(step: "service_start", result: startup.status, detail: nil))
-    }
 
     if !repair && !skipServiceStart,
        let autoRepairReason = readyAutoRepairReason(response, postPermission: postPermission) {
@@ -453,6 +433,16 @@ func readyCommand(args: [String]) {
     }
 
     if repair && !response.ready {
+        if response.blockers.contains(where: { $0.id == "stale_daemons" }) {
+            response = runReadyCleanRepair(
+                startup: startup,
+                actionTrace: actionTrace,
+                mode: mode,
+                prefix: prefix
+            )
+            actionTrace = response.action_trace
+        }
+
         if response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) }) {
             response = runReadyRuntimeRepair(
                 startup: startup,
@@ -545,10 +535,6 @@ private func printReadyHumanHandoff(response: ReadyResponse, mode: AOSRuntimeMod
 }
 
 func statusCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["status"], json: args.contains("--json"))
-        exit(0)
-    }
     guard args.allSatisfy({ $0 == "--json" }) else {
         let unknown = args.first(where: { $0 != "--json" }) ?? ""
         exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) status [--json]", code: "UNKNOWN_FLAG")
@@ -560,7 +546,7 @@ func statusCommand(args: [String]) {
     let runtime = currentRuntimeState()
     let identity = aosCurrentRuntimeIdentity(program: "aos")
     let snapshotResult = currentSpatialSnapshot()
-    let cleanReport = runClean(dryRun: true)
+    let cleanReport = currentCleanReport()
     let git = currentGitStatus()
 
     var notes: [String] = []
@@ -601,6 +587,7 @@ func statusCommand(args: [String]) {
         if !cleanReport.stale_daemons.isEmpty {
             notes.append("Stale daemon cleanup recommended: \(cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")).")
         }
+        notes.append(contentsOf: cleanReport.notes)
     }
     notes.append(contentsOf: snapshotResult.notes)
 
@@ -666,16 +653,24 @@ func statusCommand(args: [String]) {
     print("Next: \(prefix) help <command> | \(prefix) introspect review")
 }
 
+private func currentCleanReport() -> StatusCleanReport {
+    let script = aosRepoPath("scripts/aos-clean.mjs")
+    guard FileManager.default.fileExists(atPath: script) else {
+        return StatusCleanReport(status: "unknown", stale_daemons: [], canvases: [], notes: ["Clean command script is missing: \(script)"])
+    }
+    let result = runProcess("/usr/bin/env", arguments: ["node", script, "--dry-run", "--json"])
+    guard result.exitCode == 0,
+          let data = result.stdout.data(using: .utf8),
+          let report = try? JSONDecoder().decode(StatusCleanReport.self, from: data) else {
+        let detail = [result.stderr, result.stdout]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first(where: { !$0.isEmpty }) ?? "clean dry-run failed"
+        return StatusCleanReport(status: "unknown", stale_daemons: [], canvases: [], notes: [detail])
+    }
+    return report
+}
+
 func doctorCommand(args: [String]) {
-    // Route `aos doctor gateway ...` to the gateway subcommand handler.
-    if args.first == "gateway" {
-        doctorGatewayCommand(args: Array(args.dropFirst()))
-        return
-    }
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["doctor"], json: args.contains("--json"))
-        exit(0)
-    }
     guard args.allSatisfy({ $0 == "--json" }) else {
         let unknown = args.first(where: { $0 != "--json" }) ?? ""
         exitError("Unknown flag: \(unknown). Usage: \(aosInvocationDisplayName()) doctor [--json]", code: "UNKNOWN_FLAG")
@@ -782,10 +777,6 @@ func doctorCommand(args: [String]) {
 }
 
 func permissionsCommand(args: [String]) {
-    if args.contains("--help") || args.contains("-h") {
-        printCommandHelp(["permissions"], json: args.contains("--json"))
-        exit(0)
-    }
     guard let sub = args.first else {
         exitError("permissions requires a subcommand. Usage: aos permissions <check|preflight|setup|reset-runtime> ...",
                   code: "MISSING_SUBCOMMAND")
@@ -802,6 +793,70 @@ func permissionsCommand(args: [String]) {
     default:
         exitError("Unknown permissions subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
     }
+}
+
+private func decideReadyStartup(
+    serviceArgs: [String],
+    skipServiceStart: Bool,
+    repair: Bool,
+    mode: AOSRuntimeMode,
+    prefix: String
+) -> ReadyStartupDecision {
+    let command = "\(prefix) \(serviceArgs.joined(separator: " "))"
+    let skippedStartup = ReadyStartupBlock(
+        attempted: false,
+        command: command,
+        exit_code: 0,
+        status: "skipped"
+    )
+
+    if skipServiceStart {
+        return ReadyStartupDecision(
+            startup: skippedStartup,
+            actionTrace: [
+                ReadyActionStep(
+                    step: "service_start",
+                    result: "skipped",
+                    detail: "AOS_TEST_SKIP_READY_SERVICE_START=1"
+                )
+            ]
+        )
+    }
+
+    if !repair {
+        let preflight = buildReadyResponse(
+            startup: skippedStartup,
+            actionTrace: [],
+            mode: mode,
+            prefix: prefix
+        )
+        if preflight.ready {
+            return ReadyStartupDecision(
+                startup: skippedStartup,
+                actionTrace: [
+                    ReadyActionStep(
+                        step: "ready_preflight",
+                        result: "ready",
+                        detail: "managed daemon is already reachable, owned by the expected runtime, and input tap is active"
+                    )
+                ]
+            )
+        }
+    }
+
+    let result = runProcess(aosExecutablePath(), arguments: serviceArgs)
+    let startup = ReadyStartupBlock(
+        attempted: true,
+        command: command,
+        exit_code: result.exitCode,
+        status: result.exitCode == 0 ? "ok" : "degraded"
+    )
+    let trace = ReadyActionStep(
+        step: "service_start",
+        result: result.exitCode == 0 ? startup.status : "degraded",
+        detail: result.exitCode == 0 ? nil : compactProcessDetail(result)
+    )
+    return ReadyStartupDecision(startup: startup, actionTrace: [trace])
 }
 
 func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false) {
@@ -857,87 +912,11 @@ func ensureInteractivePreflight(command: String, requiresInputTap: Bool = false)
     }
 }
 
-func showExistsCommand(args: [String]) {
-    let options = parseCanvasLookupArgs(args)
-    let snapshot = fetchCanvasSnapshot()
-    let canvas = snapshot.canvases.first(where: { $0.id == options.id })
-
-    var notes = snapshot.notes
-    if !snapshot.socketReachable {
-        notes.append("Daemon socket is not reachable.")
-    }
-
-    let response = CanvasLookupResponse(
-        status: snapshot.socketReachable ? "ok" : "degraded",
-        exists: canvas != nil,
-        daemon_running: snapshot.daemonRunning,
-        socket_reachable: snapshot.socketReachable,
-        canvas: nil,
-        notes: notes
-    )
-    print(jsonString(response))
-}
-
-func showGetCommand(args: [String]) {
-    let options = parseCanvasLookupArgs(args)
-    let snapshot = fetchCanvasSnapshot()
-    let canvas = snapshot.canvases.first(where: { $0.id == options.id })
-
-    var notes = snapshot.notes
-    if !snapshot.socketReachable {
-        notes.append("Daemon socket is not reachable.")
-    } else if canvas == nil {
-        notes.append("Canvas '\(options.id)' was not found.")
-    }
-
-    let response = CanvasLookupResponse(
-        status: snapshot.socketReachable ? "ok" : "degraded",
-        exists: canvas != nil,
-        daemon_running: snapshot.daemonRunning,
-        socket_reachable: snapshot.socketReachable,
-        canvas: canvas,
-        notes: notes
-    )
-    print(jsonString(response))
-}
-
 // MARK: - Shared Introspection Helpers
-
-private struct CanvasLookupOptions {
-    let id: String
-}
-
-private struct CanvasSnapshot {
-    let daemonRunning: Bool
-    let socketReachable: Bool
-    let canvases: [CanvasInfo]
-    let notes: [String]
-}
 
 private struct SpatialSnapshotResult {
     let snapshot: SpatialSnapshotData?
     let notes: [String]
-}
-
-private func parseCanvasLookupArgs(_ args: [String]) -> CanvasLookupOptions {
-    var id: String? = nil
-    var i = 0
-    while i < args.count {
-        switch args[i] {
-        case "--id":
-            i += 1
-            guard i < args.count else { exitError("--id requires a value", code: "MISSING_ARG") }
-            id = args[i]
-        case "--json":
-            break
-        default:
-            exitError("Unknown argument: \(args[i])", code: "UNKNOWN_ARG")
-        }
-        i += 1
-    }
-
-    guard let canvasID = id else { exitError("Missing required argument: --id <name>", code: "MISSING_ARG") }
-    return CanvasLookupOptions(id: canvasID)
 }
 
 private func currentGitStatus() -> GitStatusState? {
@@ -1276,10 +1255,12 @@ private func permissionResetSafeSequenceLines(blockers: [ReadyBlocker], mode: AO
     var lines = [
         "Runtime mode: \(mode.rawValue)",
         "Target binary: \(targetPath)",
-        "1. Run: \(prefix) permissions reset-runtime --mode \(mode.rawValue)",
-        "2. Run: \(prefix) permissions setup --once",
-        "3. Return here and run: \(prefix) ready --post-permission",
-        "Manual Settings removal is fallback only if reset-runtime reports that targeted reset is unavailable or failed.",
+        "1. Agent: run \(prefix) permissions reset-runtime --mode \(mode.rawValue)",
+        "2. Agent: run \(prefix) permissions setup --once",
+        "3. Human: grant the macOS permission prompt, or physically remove/re-add the repo-mode aos runtime in System Settings if the grant remains stale.",
+        "4. Human: return to the waiting session and say: finished",
+        "5. Session: run \(prefix) ready --post-permission",
+        "Manual Settings removal is required when reset-runtime reports targeted reset unavailable or the grant remains stale.",
     ]
     if blockers.contains(where: { $0.id == "screen_recording" }) {
         lines.insert("Screen Recording can be re-requested by permissions setup after reset.", at: 4)
@@ -1297,6 +1278,7 @@ private func buildReadyResponse(
     let setup = currentPermissionsSetupState(permissions: permissions)
     let daemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
     let runtime = currentRuntimeState(preFetchedHealth: daemonHealth)
+    let cleanReport = currentCleanReport()
     let evaluation = evaluateReadyForTesting(
         daemon: daemonHealth?.asView,
         cliAccessibility: permissions.accessibility,
@@ -1308,6 +1290,7 @@ private func buildReadyResponse(
         daemon: daemonHealth?.asView,
         permissions: permissions,
         setup: setup,
+        cleanReport: cleanReport,
         mode: mode
     )
     let ready = runtime.socket_reachable && evaluation.readyForTesting && blockers.isEmpty
@@ -1340,6 +1323,7 @@ private func buildReadyResponse(
             daemon: daemonHealth?.asView,
             permissions: permissions,
             setup: setup,
+            cleanReport: cleanReport,
             mode: mode
         )
     )
@@ -1371,6 +1355,9 @@ private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bo
     guard !response.ready else { return nil }
     let blockerIDs = Set(response.blockers.map(\.id))
     let hasRepairableRuntimeBlocker = response.blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) })
+    if blockerIDs.contains("stale_daemons") {
+        return nil
+    }
     if postPermission && hasRepairableRuntimeBlocker {
         return "post-permission bounded daemon restart/recheck"
     }
@@ -1381,6 +1368,22 @@ private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bo
         return "automatic after input tap inactive"
     }
     return nil
+}
+
+private func runReadyCleanRepair(
+    startup: ReadyStartupBlock,
+    actionTrace: [ReadyActionStep],
+    mode: AOSRuntimeMode,
+    prefix: String
+) -> ReadyResponse {
+    let clean = runProcess(aosExecutablePath(), arguments: ["clean", "--json"])
+    var trace = actionTrace
+    trace.append(ReadyActionStep(
+        step: "clean",
+        result: clean.exitCode == 0 ? "ok" : "failed",
+        detail: compactProcessDetail(clean)
+    ))
+    return buildReadyResponse(startup: startup, actionTrace: trace, mode: mode, prefix: prefix)
 }
 
 private func runReadyRuntimeRepair(
@@ -1460,6 +1463,7 @@ private func readyPhase(ready: Bool, blockers: [ReadyBlocker]) -> String {
     if ready { return "ready" }
     if blockers.contains(where: { $0.id == "daemon_unreachable" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) { return "runtime_blocked" }
+    if blockers.contains(where: { $0.id == "stale_daemons" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "permission" }) { return "human_required" }
     if blockers.contains(where: { $0.id == "input_tap_not_active" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "setup" }) { return "setup_required" }
@@ -1475,6 +1479,9 @@ private func readyDiagnosis(
     if ready { return "ready" }
     if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) {
         return "daemon_ownership_mismatch"
+    }
+    if blockers.contains(where: { $0.id == "stale_daemons" }) {
+        return "stale_daemons"
     }
     if blockers.contains(where: { $0.id == "daemon_unreachable" }) {
         return "daemon_socket_unreachable"
@@ -1498,6 +1505,7 @@ private func readyBlockers(
     daemon: DaemonHealthView?,
     permissions: PermissionsState,
     setup: PermissionsSetupState,
+    cleanReport: StatusCleanReport,
     mode: AOSRuntimeMode
 ) -> [ReadyBlocker] {
     var blockers: [ReadyBlocker] = []
@@ -1527,6 +1535,19 @@ private func readyBlockers(
             id: "daemon_ownership_mismatch",
             scope: "daemon",
             message: "Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).",
+            target_path: daemonPath,
+            settings_url: nil,
+            blocks: ["see", "do", "show", "tell", "listen"]
+        ))
+    }
+
+    if !cleanReport.stale_daemons.isEmpty {
+        let pids = cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")
+        blockers.append(ReadyBlocker(
+            kind: "runtime",
+            id: "stale_daemons",
+            scope: "daemon",
+            message: "Stale AOS daemon process(es) detected: \(pids). Run cleanup before treating this runtime as ready.",
             target_path: daemonPath,
             settings_url: nil,
             blocks: ["see", "do", "show", "tell", "listen"]
@@ -1623,6 +1644,7 @@ private func readyBlockers(
 private func isRepairableRuntimeBlockerID(_ id: String) -> Bool {
     return id == "daemon_unreachable" ||
         id == "daemon_ownership_mismatch" ||
+        id == "stale_daemons" ||
         id == "input_tap_not_active"
 }
 
@@ -1663,6 +1685,13 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
     }
 
     if hasRepairableRuntimeBlocker && !hasPermissionBlocker {
+        if blockers.contains(where: { $0.id == "stale_daemons" }) {
+            append(ReadyNextAction(
+                type: "command",
+                label: "clean stale daemon processes and stale runtime resources",
+                command: "\(prefix) clean"
+            ))
+        }
         append(ReadyNextAction(
             type: "command",
             label: "run automated repair: restart/recheck, then print human instructions if needed",
@@ -1736,6 +1765,7 @@ private func readyNotes(
     daemon: DaemonHealthView?,
     permissions: PermissionsState,
     setup: PermissionsSetupState,
+    cleanReport: StatusCleanReport,
     mode: AOSRuntimeMode
 ) -> [String] {
     var notes: [String] = []
@@ -1770,6 +1800,10 @@ private func readyNotes(
     }
     if !setup.setup_completed, let command = setup.recommended_command {
         notes.append("Run '\(command)' before interactive testing.")
+    }
+    if !cleanReport.stale_daemons.isEmpty {
+        let pids = cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")
+        notes.append("Stale daemon cleanup required before readiness: \(pids). Run '\(aosInvocationDisplayName()) clean'.")
     }
     return notes
 }
@@ -1835,39 +1869,6 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
         legacy_state_dir: aosLegacyStateDir(),
         legacy_state_items: legacyStateItems(),
         repo_artifacts: repoArtifactList()
-    )
-}
-
-private func fetchCanvasSnapshot() -> CanvasSnapshot {
-    let runtime = currentRuntimeState()
-    guard runtime.socket_reachable else {
-        return CanvasSnapshot(
-            daemonRunning: runtime.daemon_running,
-            socketReachable: false,
-            canvases: [],
-            notes: runtime.daemon_running
-                ? ["Daemon appears to be running, but canvas state is unavailable because the socket is not reachable."]
-                : ["Daemon is not running."]
-        )
-    }
-
-    let request = CanvasRequest(action: "list")
-    let client = DaemonClient()
-    let response = client.send(request)
-    if let canvases = response.canvases {
-        return CanvasSnapshot(
-            daemonRunning: runtime.daemon_running,
-            socketReachable: true,
-            canvases: canvases,
-            notes: []
-        )
-    }
-
-    return CanvasSnapshot(
-        daemonRunning: runtime.daemon_running,
-        socketReachable: true,
-        canvases: [],
-        notes: response.error.map { [$0] } ?? ["Failed to decode canvas list."]
     )
 }
 
@@ -1968,11 +1969,26 @@ private func currentOwnershipState(
     lockOwnerPID: Int?,
     servicePID: Int?
 ) -> String {
-    let pids = [servingPID, lockOwnerPID, servicePID].compactMap { $0 }
+    if let servingPID, let lockOwnerPID, servingPID != lockOwnerPID {
+        return "mismatch"
+    }
+
+    let ownerPID = servingPID ?? lockOwnerPID
+    if let ownerPID, let servicePID, ownerPID != servicePID {
+        return parentProcessID(of: ownerPID) == servicePID ? "consistent" : "mismatch"
+    }
+
+    let pids = [ownerPID, servicePID].compactMap { $0 }
     if pids.isEmpty {
         return socketReachable ? "unknown" : "absent"
     }
     return Set(pids).count <= 1 ? "consistent" : "mismatch"
+}
+
+private func parentProcessID(of pid: Int) -> Int? {
+    let output = runProcess("/bin/ps", arguments: ["-o", "ppid=", "-p", String(pid)])
+    guard output.exitCode == 0 else { return nil }
+    return Int(output.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
 }
 
 private func runtimeHealthNotes(_ runtime: RuntimeState) -> [String] {
@@ -2475,7 +2491,7 @@ private func permissionResetFallbackLines(mode: AOSRuntimeMode, targetPath: Stri
         "Confirm the managed daemon is stopped: \(aosInvocationDisplayName()) service status --mode \(mode.rawValue)",
         "Normal fallback only if running=false: remove/re-add \(targetPath) in Accessibility and/or Input Monitoring.",
         "Service-wide TCC reset is break-glass only; do not run it unless Michael explicitly asks for emergency recovery.",
-        "Return and run: \(aosInvocationDisplayName()) ready --post-permission"
+        "Return to the waiting session and say: finished; the session then runs \(aosInvocationDisplayName()) ready --post-permission."
     ]
 }
 
