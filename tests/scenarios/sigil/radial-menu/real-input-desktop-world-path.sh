@@ -2,6 +2,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/../../../lib/sigil/radial-menu.sh"
+source "$(dirname "$0")/../../../lib/harness-contracts.sh"
 
 AVATAR_ID="${AOS_SIGIL_AVATAR_ID:-avatar-main}"
 INSPECTOR_ID="${AOS_SIGIL_INSPECTOR_ID:-surface-inspector}"
@@ -10,7 +11,7 @@ HIT_ID="sigil-hit-$AVATAR_ID"
 AGENT_TERMINAL_ID="sigil-agent-terminal"
 WIKI_WORKBENCH_ID="sigil-wiki-workbench"
 
-cleanup() {
+cleanup_canvases() {
   aos_real_input_surface_cleanup_subject_family "$AVATAR_ID" >/dev/null || true
   aos_visual_remove_canvas "$WIKI_WORKBENCH_ID" 5
   if [[ "$INSPECTOR_ID" != "surface-inspector" ]]; then
@@ -18,13 +19,26 @@ cleanup() {
   fi
   return 0
 }
-trap cleanup EXIT
+
+final_cleanup() {
+  local status="$?"
+  cleanup_canvases || true
+  aos_harness_contract_release_all
+  exit "$status"
+}
+trap final_cleanup EXIT
+
+aos_harness_contract_acquire "tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh" \
+  --group repo-daemon-live \
+  --group status-item-owner \
+  --group real-input-pointer \
+  --blocks repo-service-mutator
 
 echo "INFO: this scenario uses real mouse input across a centered DesktopWorld figure-eight path. Keep the keyboard and mouse idle."
 aos_visual_prepare_live_roots
 aos_real_input_surface_start "$INSPECTOR_ID"
 aos_visual_seed_sigil repo
-cleanup
+cleanup_canvases
 aos_visual_wait_canvas_absent "$AVATAR_ID" 10
 aos_visual_wait_canvas_absent "$RADIAL_ID" 5
 aos_visual_wait_canvas_absent "$HIT_ID" 5

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/../../../lib/sigil/radial-menu.sh"
+source "$(dirname "$0")/../../../lib/harness-contracts.sh"
 
 AVATAR_ID="${AOS_SIGIL_AVATAR_ID:-avatar-main}"
 INSPECTOR_ID="${AOS_SIGIL_INSPECTOR_ID:-surface-inspector}"
@@ -27,14 +28,27 @@ ready_quiet() {
   "$(aos_visual_aos)" ready --json >/dev/null
 }
 
-cleanup() {
+cleanup_canvases() {
   aos_real_input_surface_cleanup_subject_family "$AVATAR_ID" >/dev/null || true
   aos_visual_remove_canvas "$WIKI_WORKBENCH_ID" 5
   aos_visual_remove_canvas "$INSPECTOR_ID" 5
   aos_visual_remove_canvas "$DESKTOP_WORLD_STAGE_ID" 5
   return 0
 }
-trap cleanup EXIT
+
+final_cleanup() {
+  local status="$?"
+  cleanup_canvases || true
+  aos_harness_contract_release_all
+  exit "$status"
+}
+trap final_cleanup EXIT
+
+aos_harness_contract_acquire "tests/scenarios/sigil/radial-menu/real-input.sh" \
+  --group repo-daemon-live \
+  --group status-item-owner \
+  --group real-input-pointer \
+  --blocks repo-service-mutator
 
 echo "INFO: this scenario uses real mouse input through the active repo daemon. Keep the keyboard and mouse idle."
 phase prepare-live-roots aos_visual_prepare_live_roots
@@ -42,7 +56,7 @@ phase ready-after-live-roots ready_quiet
 phase start-real-input-surface aos_real_input_surface_start "$INSPECTOR_ID"
 phase seed-sigil aos_visual_seed_sigil repo
 phase ready-after-seed ready_quiet
-cleanup
+cleanup_canvases
 phase ready-after-initial-cleanup ready_quiet
 phase restart-real-input-surface aos_real_input_surface_start "$INSPECTOR_ID"
 phase wait-avatar-absent aos_visual_wait_canvas_absent "$AVATAR_ID" 10

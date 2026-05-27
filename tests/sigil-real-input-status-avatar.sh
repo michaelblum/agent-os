@@ -2,29 +2,35 @@
 set -euo pipefail
 
 source "$(dirname "$0")/lib/visual-harness.sh"
+source "$(dirname "$0")/lib/harness-contracts.sh"
 
 PREFIX="aos-sigil-real-input-status-avatar"
 aos_test_cleanup_prefix "$PREFIX"
 
-REPO_SERVICE_WAS_RUNNING="$(
-  env -u AOS_STATE_ROOT ./aos service status --mode repo --json 2>/dev/null \
-    | python3 -c 'import json,sys; print("1" if json.load(sys.stdin).get("running") else "0")' 2>/dev/null \
-    || printf '0'
-)"
-aos_visual_run_bounded 10 "stop repo service status item before isolated status-item test" \
-  bash -c 'env -u AOS_STATE_ROOT ./aos service stop --mode repo --json >/dev/null'
+ROOT=""
+
+cleanup() {
+  local status="$?"
+  if [[ -n "${ROOT:-}" ]]; then
+    aos_test_kill_root "$ROOT" 2>/dev/null || true
+    rm -rf "$ROOT"
+  fi
+  aos_harness_repo_service_restore_if_needed || status=1
+  aos_harness_contract_release_all
+  exit "$status"
+}
+trap cleanup EXIT
+
+aos_harness_contract_acquire "tests/sigil-real-input-status-avatar.sh" \
+  --group repo-service-mutator \
+  --group status-item-owner \
+  --group real-input-pointer \
+  --blocks repo-daemon-live
+
+aos_harness_repo_service_stop_for_isolated_test
 
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$ROOT"
-
-cleanup() {
-  aos_test_kill_root "$ROOT" 2>/dev/null || true
-  rm -rf "$ROOT"
-  if [[ "$REPO_SERVICE_WAS_RUNNING" == "1" ]]; then
-    env -u AOS_STATE_ROOT ./aos service start --mode repo --json >/dev/null 2>&1 || true
-  fi
-}
-trap cleanup EXIT
 
 aos_visual_run_bounded 15 "seed Sigil fixture" aos_visual_seed_sigil repo
 

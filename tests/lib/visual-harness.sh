@@ -8,6 +8,12 @@ source "$VISUAL_HARNESS_DIR/status-item.sh"
 source "$VISUAL_HARNESS_ROOT/apps/sigil/scripts/launch-common.sh"
 source "$VISUAL_HARNESS_ROOT/scripts/aos-content-scope.sh"
 
+# Generic visual/canvas primitives.
+#
+# Keep reusable AOS visual workspace, content-root, diagnostics, and bounded
+# command helpers in this section. App-specific compositions should stay below
+# the mixed compatibility section or move into tests/lib/sigil/ when they grow.
+
 aos_visual_root() {
   printf '%s\n' "$VISUAL_HARNESS_ROOT"
 }
@@ -206,6 +212,12 @@ PY
       ;;
   esac
 }
+
+# Mixed compatibility section.
+#
+# This lower section still contains generic inspector/daemon wrappers alongside
+# Sigil launch and avatar compositions. Sigil-specific helpers are named with
+# `sigil`; new reusable Sigil-only flows should prefer tests/lib/sigil/.
 
 aos_visual_seed_sigil() {
   local mode="${1:-repo}"

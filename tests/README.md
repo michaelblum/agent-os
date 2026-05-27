@@ -223,6 +223,43 @@ realistic input has opened the relevant surface. If `./aos ready` reports a
 repo-mode TCC/input-tap blocker, follow the dock stall contract instead of
 retrying live real-input scenarios.
 
+## Harness Composability Contracts
+
+Some harnesses use or mutate shared live resources and must acquire a guard
+before they start. Source `tests/lib/harness-contracts.sh` when a shell harness
+needs to declare one of these classes:
+
+| Class | Meaning | Current examples |
+| --- | --- | --- |
+| `repo-daemon-live` | Requires the live repo daemon and status item to remain stable for the run. | `tests/scenarios/sigil/radial-menu/real-input.sh`, `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh` |
+| `repo-service-mutator` | Stops, starts, or otherwise changes the repo-mode service/status-item owner. | `tests/sigil-real-input-status-avatar.sh` |
+| `status-item-owner` | Owns an AOS status item for PID-scoped click evidence. | Status-item real-input smokes and live radial real-input scenarios |
+| `real-input-pointer` | Posts real pointer/keyboard events and requires human idle input. | Real-input scenarios gated by `AOS_REAL_INPUT_OK=1` |
+
+The guard records owner metadata (`pid`, script, cwd, start time, contract, and
+exclusive groups) and fails fast with a `harness-contract conflict` diagnostic
+instead of letting incompatible runs invalidate each other mid-run. It does not
+kill other harnesses. Release guards from an `EXIT` trap.
+
+Use `aos_harness_repo_service_stop_for_isolated_test` and
+`aos_harness_repo_service_restore_if_needed` when a test intentionally stops the
+repo service. That helper records whether the repo service was running, stops it
+through `./aos service stop --mode repo --json`, and restores it only when the
+test changed a running service.
+
+Focused proof:
+
+```bash
+bash tests/harness-composability-contracts.sh
+```
+
+## Sequestered Studio Helper Tests
+
+Studio is defunct as a current Sigil product and launch surface. The
+`tests/studio/*.test.mjs` files remain only as pure-helper coverage for
+`apps/sigil/_sequestered/studio/...`; they are not Sigil MVP activation tests,
+status-item tests, radial-menu tests, or current product launch proof.
+
 ## Mixed Work
 
 If a change spans both Swift and JS/package surfaces:
