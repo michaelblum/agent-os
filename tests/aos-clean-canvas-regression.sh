@@ -19,7 +19,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-aos_test_start_daemon "$STATE_ROOT" repo "$ROOT_DIR" \
+aos_test_start_daemon "$STATE_ROOT" repo "$ROOT_DIR" toolkit "$ROOT_DIR/packages/toolkit" sigil "$ROOT_DIR/apps/sigil" \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
 ./aos show create \
@@ -64,6 +64,28 @@ cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
 }
 JSON
 
+./aos config set status_item.enabled true >/dev/null
+./aos config set status_item.toggle_id avatar-main >/dev/null
+./aos config set status_item.toggle_url 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' >/dev/null
+./aos config set status_item.toggle_track union >/dev/null
+
+DRIFT_DRY_RUN="$(./aos clean --dry-run --json)"
+DRIFT_DRY_RUN="$DRIFT_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["DRIFT_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+notes = "\n".join(payload.get("notes", []))
+assert "Active Sigil status item target drift" in notes, payload
+assert "missing content root" in notes, payload
+assert "./aos experience activate sigil" in notes, payload
+PY
+
+BRANCH_SUFFIX="$(git branch --show-current | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')"
+SIGIL_ROOT="sigil_${BRANCH_SUFFIX:-worktree}"
+TOOLKIT_ROOT="toolkit_${BRANCH_SUFFIX:-worktree}"
+./aos config set status_item.toggle_url "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" >/dev/null
+
 create_canvas() {
   local id="$1"
   ./aos show create \
@@ -73,8 +95,13 @@ create_canvas() {
     >/dev/null
 }
 
+./aos show create \
+  --id avatar-main \
+  --at 80,80,240,120 \
+  --url "http://127.0.0.1:49152/$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" \
+  >/dev/null
+
 for id in \
-  avatar-main \
   sigil-hit-avatar-main \
   sigil-radial-menu-avatar-main \
   sigil-agent-terminal \
@@ -125,6 +152,11 @@ OWNED_DRY_RUN="$OWNED_DRY_RUN" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTI
 import json, os
 
 payload = json.loads(os.environ["OWNED_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+assert not any("Active Sigil canvas avatar-main is loaded at" in note for note in payload.get("notes", [])), payload
+canvases = {canvas.get("id"): canvas for canvas in payload.get("canvases", [])}
+avatar = canvases.get("avatar-main")
+assert avatar is None, payload
 stale_ids = {canvas.get("id") for canvas in payload.get("canvases", [])}
 for canvas_id in os.environ["OWNED_IDS"].split():
     assert canvas_id not in stale_ids, (canvas_id, payload)
@@ -133,6 +165,44 @@ for canvas_id in os.environ["DIAGNOSTIC_IDS"].split():
 for canvas_id in os.environ["UNOWNED_IDS"].split():
     assert canvas_id in stale_ids, (canvas_id, payload)
 PY
+
+./aos config set status_item.toggle_url 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' >/dev/null
+./aos show remove --id avatar-main >/dev/null
+./aos show create \
+  --id avatar-main \
+  --at 80,80,240,120 \
+  --url 'http://127.0.0.1:49152/sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' \
+  >/dev/null
+STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
+STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+notes = "\n".join(payload.get("notes", []))
+assert "Active Sigil status item target drift" in notes, payload
+assert "missing content root" in notes, payload
+assert "Active Sigil canvas avatar-main is loaded at" not in notes, payload
+PY
+./aos config set status_item.toggle_url "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" >/dev/null
+STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
+STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+notes = "\n".join(payload.get("notes", []))
+assert "Active Sigil status item target drift" not in notes, payload
+assert "missing content root" not in notes, payload
+assert "Active Sigil canvas avatar-main is loaded at" in notes, payload
+assert any(canvas.get("id") == "avatar-main" for canvas in payload.get("canvases", [])), payload
+PY
+./aos show remove --id avatar-main >/dev/null
+./aos show create \
+  --id avatar-main \
+  --at 80,80,240,120 \
+  --url "http://127.0.0.1:49152/$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" \
+  >/dev/null
 
 OWNED_STATUS="$(./aos status --json)"
 OWNED_STATUS="$OWNED_STATUS" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'

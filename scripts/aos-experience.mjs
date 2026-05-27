@@ -159,6 +159,12 @@ function configGet(key) {
   }
 }
 
+function nestedGet(object, keyPath) {
+  return keyPath.split('.').reduce((value, key) => (
+    value && typeof value === 'object' ? value[key] : undefined
+  ), object);
+}
+
 function stateDir() {
   const root = process.env.AOS_STATE_ROOT && !process.env.AOS_STATE_ROOT.startsWith('$')
     ? path.resolve(process.env.AOS_STATE_ROOT)
@@ -343,13 +349,27 @@ function reconcileExperienceContentRoots(roots) {
 function configureStatusItem(manifest, roots, steps) {
   const rootsByID = rootMap(roots);
   const surface = manifest.status_item.toggle_surface;
+  const previousConfig = readRuntimeConfig();
+  const previousToggleID = nestedGet(previousConfig, 'status_item.toggle_id');
+  const previousToggleURL = nestedGet(previousConfig, 'status_item.toggle_url');
+  const nextToggleURL = template(surface.url, rootsByID);
   const values = [
     ['status_item.enabled', String(Boolean(manifest.status_item.enabled))],
     ['status_item.toggle_id', surface.id],
-    ['status_item.toggle_url', template(surface.url, rootsByID)],
+    ['status_item.toggle_url', nextToggleURL],
     ['status_item.toggle_track', surface.track],
   ];
   for (const [key, value] of values) requireSuccess(runAos(['config', 'set', key, value]), `set ${key}`);
+  if (previousToggleID === surface.id && previousToggleURL && previousToggleURL !== nextToggleURL) {
+    const remove = runAos(['show', 'remove', '--id', surface.id], { timeout: 10000 });
+    steps.push({
+      id: `status-item:stale-target:${surface.id}`,
+      status: remove.status === 0 ? 'success' : 'skipped',
+      previous_url: previousToggleURL,
+      current_url: nextToggleURL,
+      action: remove.status === 0 ? 'removed-canvas' : 'canvas-not-present-or-daemon-unavailable',
+    });
+  }
   steps.push({ id: 'status-item', status: 'success', mode: 'experience', label: manifest.status_item.label });
 }
 

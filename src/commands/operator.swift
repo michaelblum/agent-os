@@ -587,6 +587,7 @@ func statusCommand(args: [String]) {
         if !cleanReport.stale_daemons.isEmpty {
             notes.append("Stale daemon cleanup recommended: \(cleanReport.stale_daemons.map { String($0.pid) }.joined(separator: ", ")).")
         }
+        notes.append(contentsOf: cleanReport.notes)
     }
     notes.append(contentsOf: snapshotResult.notes)
 

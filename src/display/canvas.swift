@@ -306,6 +306,7 @@ class Canvas {
     var cascadeFromParent: Bool = true
     var parent: String?
     var owner: CanvasOwnerInfo?
+    private(set) var sourceURL: String?
     private var inputPassthrough = false
 
     /// Direct create/update into a mixed-DPI straddling rect can still land at
@@ -445,10 +446,12 @@ class Canvas {
     }
 
     func loadHTML(_ html: String) {
+        sourceURL = nil
         webView.loadHTMLString(html, baseURL: nil)
     }
 
     func loadURL(_ urlString: String) {
+        sourceURL = urlString
         guard let url = URL(string: urlString) else { return }
         webView.load(URLRequest(url: url))
     }
@@ -513,6 +516,7 @@ class Canvas {
         let f = cgFrame
         return CanvasInfo(
             id: id,
+            url: sourceURL,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
             anchorWindow: anchorWindowID.map { Int($0) },
             anchorChannel: anchorChannelID,
