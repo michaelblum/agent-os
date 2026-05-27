@@ -194,6 +194,14 @@ async function sendEnvelope(socket, action, data = {}, timeoutMs = 3000) {
   return readOneJSON(socket, timeoutMs);
 }
 
+function remainingMs(deadline) {
+  return Math.max(0, deadline - Date.now());
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function oneShot(action, data, { autoStart = false, emptyListOnNoDaemon = false, timeoutMs = 3000 } = {}) {
   const connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
   const socket = connection?.socket ?? null;
@@ -549,20 +557,36 @@ async function waitCommand(args) {
   const evalJS = `(${condition}) ? 'ready' : 'wait'`;
 
   const deadline = Date.now() + timeoutMs;
-  let connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+  let daemonStarted = false;
+  const connectForWait = async () => {
+    const budget = remainingMs(deadline);
+    if (budget <= 0) return { socket: null };
+    if (autoStart && !daemonStarted) {
+      const socket = await connectOnce(Math.min(1000, budget));
+      if (socket) return { socket };
+      if (autoStartDisabled()) {
+        process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
+        return { socket: null };
+      }
+      startDaemon();
+      daemonStarted = true;
+    }
+    return { socket: await connectOnce(Math.min(1000, budget)) };
+  };
+  let connection = await connectForWait();
   let socket = connection?.socket ?? null;
   while (Date.now() < deadline) {
     if (!socket) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+      await sleep(Math.min(100, remainingMs(deadline)));
+      connection = await connectForWait();
       socket = connection?.socket ?? null;
       continue;
     }
-    const response = await sendEnvelope(socket, 'eval', { id, js: evalJS }, 1500);
+    const response = await sendEnvelope(socket, 'eval', { id, js: evalJS }, Math.min(1500, remainingMs(deadline)));
     if (!response) {
       socket.end();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+      await sleep(Math.min(100, remainingMs(deadline)));
+      connection = await connectForWait();
       socket = connection?.socket ?? null;
       continue;
     }
@@ -573,7 +597,7 @@ async function waitCommand(args) {
       else process.stdout.write('ready\n');
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await sleep(Math.min(100, remainingMs(deadline)));
   }
   socket?.end();
   error(`Canvas ${id} did not become ready before timeout`, 'CANVAS_WAIT_TIMEOUT');
