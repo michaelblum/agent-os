@@ -201,7 +201,7 @@ Inventory for this family:
 | `tests/wiki-kb-smoke.sh` | isolated-daemon launcher | Wiki KB launcher, content-root setup, sample graph load, radial graph switch, and optional capture. |
 | `tests/sigil-workbench-kb.sh` | isolated-daemon launcher | Legacy Sigil workbench KB tab smoke retained as a compatibility boundary, not the radial Wiki Graph product path. |
 | `tests/sigil-status-item-lifecycle.sh` | live repo-daemon shell | Status item activation lifecycle and active Sigil canvas ownership. |
-| `tests/sigil-real-input-status-avatar.sh` | isolated-daemon real-input | Test-daemon status item click, avatar visibility, shallow context-menu smoke, and bounded duplicate status-item overlap evidence. Moves the pointer through `aos do`. |
+| `tests/sigil-real-input-status-avatar.sh` | isolated-daemon real-input | Test-daemon status item click, avatar visibility, shallow context-menu smoke, bounded duplicate status-item overlap evidence, and split click/app-response timing. Uses the native low-latency helper for the status-item click and `aos do` for subsequent surface interactions. |
 | `tests/sigil-context-menu-real-input.sh` | isolated-daemon real-input | Owned visible avatar plus deeper context-menu controls through shared `aos do` action helpers. Moves the pointer through `aos do`. |
 | `tests/scenarios/sigil/radial-menu/real-input.sh` | live real-input | User-facing status item, avatar, radial target surface semantics, and native pointer selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
 | `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh` | live real-input | Topology-neutral DesktopWorld fast-travel plus radial selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
