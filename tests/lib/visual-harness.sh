@@ -371,18 +371,39 @@ print(max(x, x + w - panel_w), max(y, y + h - panel_h))
 " <<<"$display_json" 2>/dev/null || echo "1600 500")
 EOF
 
-  "$aos_bin" show create --id "$inspector_id" \
+  if "$aos_bin" show create --id "$inspector_id" \
     --at "$x,$y,$panel_w,$panel_h" \
     --interactive \
     --scope global \
-    --url "aos://$toolkit_key/components/surface-inspector/index.html" >/dev/null
+    --url "aos://$toolkit_key/components/surface-inspector/index.html" >/dev/null; then
+    :
+  else
+    local status="$?"
+    echo "FAIL: surface-inspector create failed: id=$inspector_id at=$x,$y,$panel_w,$panel_h" >&2
+    aos_visual_phase_snapshot "surface-inspector-create" >&2 || true
+    return "$status"
+  fi
 
-  "$aos_bin" show wait --id "$inspector_id" --manifest surface-inspector --timeout 15s >/dev/null
-  "$aos_bin" show wait \
+  if "$aos_bin" show wait --id "$inspector_id" --manifest surface-inspector --timeout 15s >/dev/null; then
+    :
+  else
+    local status="$?"
+    echo "FAIL: surface-inspector manifest wait failed: id=$inspector_id timeout=15s" >&2
+    aos_visual_phase_snapshot "surface-inspector-manifest-wait" >&2 || true
+    return "$status"
+  fi
+  if "$aos_bin" show wait \
     --id "$inspector_id" \
     --manifest surface-inspector \
     --js '!!document.querySelector(".tree-row.canvas.self .canvas-dims") && !!document.querySelector(".minimap-display")' \
-    --timeout 10s >/dev/null
+    --timeout 10s >/dev/null; then
+    :
+  else
+    local status="$?"
+    echo "FAIL: surface-inspector UI wait failed: id=$inspector_id timeout=10s" >&2
+    aos_visual_phase_snapshot "surface-inspector-ui-wait" >&2 || true
+    return "$status"
+  fi
 }
 
 aos_visual_launch_sigil_avatar() {

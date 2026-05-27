@@ -192,6 +192,27 @@ print(json.dumps({
 PY
 }
 
+aos_real_input_surface_launch_inspector_with_retry() {
+  local inspector_id="${1:-$AOS_REAL_INPUT_SURFACE_INSPECTOR_ID}"
+  local attempt status
+
+  for attempt in 1 2; do
+    if aos_visual_launch_canvas_inspector "$inspector_id"; then
+      return 0
+    else
+      status="$?"
+    fi
+    if (( attempt < 2 )); then
+      echo "INFO: surface-inspector launch retry: id=$inspector_id attempt=$attempt status=$status" >&2
+      aos_visual_remove_canvas "$inspector_id" 5
+      sleep 0.5
+    fi
+  done
+
+  echo "FAIL: surface-inspector launch failed after bounded retry: id=$inspector_id status=$status" >&2
+  return "$status"
+}
+
 aos_real_input_surface_start() {
   local inspector_id="${1:-$AOS_REAL_INPUT_SURFACE_INSPECTOR_ID}"
   local aos_bin
@@ -199,19 +220,27 @@ aos_real_input_surface_start() {
 
   aos_real_input_surface_require_enabled || return $?
   if ! "$aos_bin" status --json 2>/dev/null | python3 -c 'import json,sys; data=json.load(sys.stdin); runtime=data.get("runtime") or {}; raise SystemExit(0 if (runtime.get("socket_reachable") is True and runtime.get("input_tap_status") == "active") else 1)' >/dev/null 2>&1; then
-    "$aos_bin" ready >/dev/null
+    "$aos_bin" ready >/dev/null || return $?
   fi
 
   if ! aos_real_input_surface_canvas_exists "$inspector_id"; then
-    aos_visual_launch_canvas_inspector "$inspector_id"
+    aos_real_input_surface_launch_inspector_with_retry "$inspector_id" || return $?
   fi
   if ! aos_real_input_surface_assert_inspector_visible "$inspector_id" >/dev/null 2>&1; then
     local lifecycle_state
     lifecycle_state="$("$aos_bin" show get --id "$inspector_id" 2>/dev/null | python3 -c 'import json,sys; print((json.load(sys.stdin).get("canvas") or {}).get("lifecycleState", ""))' 2>/dev/null || true)"
+    echo "INFO: surface-inspector readiness retry: id=$inspector_id lifecycle=${lifecycle_state:-unknown}" >&2
     if [[ "$lifecycle_state" == "warm_suspended" || "$lifecycle_state" == "" ]]; then
       aos_visual_remove_canvas "$inspector_id" 5
-      aos_visual_launch_canvas_inspector "$inspector_id"
+      aos_real_input_surface_launch_inspector_with_retry "$inspector_id" || return $?
     fi
-    aos_real_input_surface_assert_inspector_visible "$inspector_id" >/dev/null
+    if aos_real_input_surface_assert_inspector_visible "$inspector_id" >/dev/null; then
+      :
+    else
+      local status="$?"
+      echo "FAIL: surface-inspector readiness failed after retry: id=$inspector_id lifecycle=${lifecycle_state:-unknown}" >&2
+      aos_visual_phase_snapshot "surface-inspector-final-readiness" >&2 || true
+      return "$status"
+    fi
   fi
 }
