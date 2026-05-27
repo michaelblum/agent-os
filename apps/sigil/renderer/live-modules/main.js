@@ -142,6 +142,7 @@ const liveJs = {
     avatarVisible: false,
     contextMenu: { open: false, bounds: null, stack: null },
     utilityCanvases: new Map(),
+    utilityCanvasOpenPromises: new Map(),
     defaultAvatarSave: { dirty: false, saving: false, lastSavedAt: null, lastError: null },
     sessionVitality: null,
     lastRadialActivation: null,
@@ -1153,39 +1154,55 @@ async function toggleUtilityCanvas(kind) {
 
 async function ensureUtilityCanvasVisible(kind, { focus = true } = {}) {
     const config = utilityConfig(kind);
-    const current = liveJs.utilityCanvases.get(config.id);
-    const frame = Array.isArray(current?.at) ? current.at : config.frame;
-    try {
-        if (current) {
-            host.canvasUpdate({ id: config.id, frame });
-            if (current.suspended === true) await host.canvasResume(config.id);
-            liveJs.utilityCanvases.set(config.id, { ...current, suspended: false, at: frame });
-            return { id: config.id, frame, created: false };
-        }
-        await host.canvasCreate({
-            id: config.id,
-            url: config.url,
-            frame,
-            interactive: true,
-            focus,
-        });
-        liveJs.utilityCanvases.set(config.id, {
-            id: config.id,
-            suspended: false,
-            at: frame,
-        });
-        return { id: config.id, frame, created: true };
-    } catch (error) {
-        if (!current) {
-            await host.canvasResume(config.id);
+    const existingPromise = liveJs.utilityCanvasOpenPromises.get(config.id);
+    if (existingPromise) return existingPromise;
+
+    const promise = (async () => {
+        const current = liveJs.utilityCanvases.get(config.id);
+        const frame = Array.isArray(current?.at) ? current.at : config.frame;
+        try {
+            if (current) {
+                host.canvasUpdate({ id: config.id, frame });
+                if (current.suspended === true) await host.canvasResume(config.id);
+                liveJs.utilityCanvases.set(config.id, { ...current, suspended: false, at: frame });
+                return { id: config.id, frame, created: false };
+            }
+            await host.canvasCreate({
+                id: config.id,
+                url: config.url,
+                frame,
+                interactive: true,
+                focus,
+            });
             liveJs.utilityCanvases.set(config.id, {
                 id: config.id,
                 suspended: false,
                 at: frame,
             });
-            return { id: config.id, frame, created: false, recovered: true };
+            return { id: config.id, frame, created: true };
+        } catch (error) {
+            const message = String(error?.message || error);
+            if (!current && /ID_COLLISION|DUPLICATE|already exists/i.test(message)) {
+                host.canvasUpdate({ id: config.id, frame });
+                await host.canvasResume(config.id);
+                liveJs.utilityCanvases.set(config.id, {
+                    id: config.id,
+                    suspended: false,
+                    at: frame,
+                });
+                return { id: config.id, frame, created: false, recovered: true };
+            }
+            throw error;
         }
-        throw error;
+    })();
+
+    liveJs.utilityCanvasOpenPromises.set(config.id, promise);
+    try {
+        return await promise;
+    } finally {
+        if (liveJs.utilityCanvasOpenPromises.get(config.id) === promise) {
+            liveJs.utilityCanvasOpenPromises.delete(config.id);
+        }
     }
 }
 

@@ -170,11 +170,28 @@ function statePath() {
   return path.join(stateDir(), 'experience-state.json');
 }
 
+function configPath() {
+  return path.join(stateDir(), 'config.json');
+}
+
 function legacyStatePath() {
   const root = process.env.AOS_STATE_ROOT && !process.env.AOS_STATE_ROOT.startsWith('$')
     ? path.resolve(process.env.AOS_STATE_ROOT)
     : path.join(os.homedir(), '.config', 'aos');
   return path.join(root, 'experience-state.json');
+}
+
+function readRuntimeConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(configPath(), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function writeRuntimeConfig(config) {
+  fs.mkdirSync(stateDir(), { recursive: true });
+  fs.writeFileSync(configPath(), prettyJSON(config), 'utf8');
 }
 
 function readActiveExperience() {
@@ -273,6 +290,10 @@ function plan(manifest, roots, dryRun) {
 }
 
 function ensureContentRoots(roots, steps) {
+  const removedRoots = reconcileExperienceContentRoots(roots);
+  if (removedRoots.length > 0) {
+    steps.push({ id: 'content-root:reconcile', status: 'success', removed: removedRoots });
+  }
   for (const root of roots) {
     requireSuccess(runAos(['config', 'set', `content.roots.${root.key}`, root.path]), `set content root ${root.key}`);
     steps.push({ id: `content-root:${root.key}`, status: 'success', path: root.path });
@@ -286,6 +307,37 @@ function ensureContentRoots(roots, steps) {
   args.push('--auto-start', '--timeout', '15s');
   requireSuccess(runAos(args), 'wait for content roots');
   steps.push({ id: 'content:wait', status: 'success', roots: roots.map((root) => root.key) });
+}
+
+function reconcileExperienceContentRoots(roots) {
+  const config = readRuntimeConfig();
+  const currentRoots = config.content?.roots;
+  if (!currentRoots || typeof currentRoots !== 'object') return [];
+
+  const keepKeys = new Set(roots.map((root) => root.key));
+  const owned = roots
+    .filter((root) => root.branch_scoped)
+    .map((root) => ({
+      id: root.id,
+      prefix: `${root.id}_`,
+      path: norm(root.path),
+    }));
+  const removed = [];
+
+  for (const [key, value] of Object.entries(currentRoots)) {
+    if (keepKeys.has(key)) continue;
+    const root = owned.find((candidate) => (
+      key.startsWith(candidate.prefix)
+      && typeof value === 'string'
+      && norm(value) === candidate.path
+    ));
+    if (!root) continue;
+    delete currentRoots[key];
+    removed.push(key);
+  }
+
+  if (removed.length > 0) writeRuntimeConfig(config);
+  return removed.sort();
 }
 
 function configureStatusItem(manifest, roots, steps) {

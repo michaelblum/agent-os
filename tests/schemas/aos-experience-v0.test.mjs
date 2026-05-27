@@ -89,14 +89,35 @@ process.exit(0);
     FAKE_AOS_LOG: logPath,
   };
   await fs.writeFile(path.join(tmp, 'experience-state.json'), JSON.stringify({ active_experience: 'legacy-sigil', exclusive: true }));
+  await fs.mkdir(path.join(tmp, 'repo'), { recursive: true });
+  await fs.writeFile(path.join(tmp, 'repo', 'config.json'), JSON.stringify({
+    content: {
+      roots: {
+        toolkit: path.join(repoRoot, 'packages/toolkit'),
+        toolkit_old_branch: path.join(repoRoot, 'packages/toolkit'),
+        sigil_old_branch: path.join(repoRoot, 'apps/sigil'),
+        custom_sigil_docs: path.join(repoRoot, 'docs'),
+      },
+    },
+  }));
   const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
     cwd: repoRoot,
     env,
     encoding: 'utf8',
   });
   assert.equal(activate.status, 0, `${activate.stdout}${activate.stderr}`);
+  const activatePayload = JSON.parse(activate.stdout);
   const activeState = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'experience-state.json'), 'utf8'));
   assert.equal(activeState.active_experience, 'sigil');
+  const activeConfig = JSON.parse(await fs.readFile(path.join(tmp, 'repo', 'config.json'), 'utf8'));
+  assert.equal(activeConfig.content.roots.toolkit, path.join(repoRoot, 'packages/toolkit'));
+  assert.equal(activeConfig.content.roots.custom_sigil_docs, path.join(repoRoot, 'docs'));
+  assert.equal(activeConfig.content.roots.toolkit_old_branch, undefined);
+  assert.equal(activeConfig.content.roots.sigil_old_branch, undefined);
+  assert.deepEqual(activatePayload.steps.find((step) => step.id === 'content-root:reconcile')?.removed, [
+    'sigil_old_branch',
+    'toolkit_old_branch',
+  ]);
   await assert.rejects(fs.stat(path.join(tmp, 'experience-state.json')));
 
   const deactivate = spawnSync('node', ['scripts/aos-experience.mjs', 'deactivate', '--json'], {

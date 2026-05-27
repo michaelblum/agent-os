@@ -790,6 +790,12 @@ function defaultClose() {
   })
 }
 
+export function suspendOnClose() {
+  suspendCanvas().catch((error) => {
+    console.warn('[aos-panel] suspend-on-close failed', error)
+  })
+}
+
 function chipFrame() {
   return chipFrameFromWindow(window)
 }

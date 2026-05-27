@@ -42,6 +42,7 @@ export {
   mountChrome,
   normalizeResizeEdge,
   resizeFrame,
+  suspendOnClose,
   syncMaximizeButton,
   wireDrag,
   wireResize,

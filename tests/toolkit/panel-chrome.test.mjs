@@ -14,6 +14,7 @@ import {
   normalizeResizeEdge,
   resizeFrame,
   stageLayerFrameFromNativeFrame,
+  suspendOnClose,
   syncMaximizeButton,
   wireDrag,
   wireResize,
@@ -35,6 +36,42 @@ test('stock panel defaults make hosted documents fill the WebView viewport', asy
   assert.match(documentRule, /min-height:\s*0/);
   assert.match(documentRule, /margin:\s*0/);
   assert.match(documentRule, /overflow:\s*hidden/);
+});
+
+test('wiki subject browser opts ordinary close into retained suspend lifecycle', async () => {
+  const html = await readFile(new URL('../../packages/toolkit/components/wiki-subject-browser/index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /closeMode:\s*['"]suspend['"]/);
+});
+
+test('suspendOnClose requests canvas suspend without removing the panel', async (t) => {
+  const previousWindow = globalThis.window;
+  const posted = [];
+  globalThis.window = {
+    webkit: {
+      messageHandlers: {
+        headsup: {
+          postMessage(message) {
+            posted.push(message);
+          },
+        },
+      },
+    },
+  };
+  t.after(() => {
+    globalThis.window = previousWindow;
+  });
+
+  suspendOnClose();
+  window.headsup.receive(Buffer.from(JSON.stringify({
+    type: 'canvas.response',
+    request_id: posted[0]?.payload?.request_id,
+    status: 'ok',
+  })).toString('base64'));
+
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].type, 'canvas.suspend');
+  assert.notEqual(posted[0].type, 'canvas.remove');
 });
 
 class FakeNode {}
