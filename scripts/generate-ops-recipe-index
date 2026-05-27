@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the packaged source-backed ops recipe index."""
+"""Generate the packaged source-backed executable recipe index."""
 
 import json
 import pathlib

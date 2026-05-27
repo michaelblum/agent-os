@@ -1843,7 +1843,7 @@
       "path" : [
         "ops"
       ],
-      "summary" : "Operator recipes — discover, explain, dry-run, and run source-backed ops recipes"
+      "summary" : "Compatibility alias for aos recipe - discover, explain, dry-run, and run source-backed executable recipes"
     },
     {
       "forms" : [

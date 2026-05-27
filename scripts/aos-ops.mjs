@@ -154,7 +154,7 @@ function loadRecipes() {
   else if (mode() === 'installed') {
     const indexPath = bundledRecipeIndexPath();
     if (!fs.existsSync(indexPath)) {
-      throw new OpsFailure('Installed-mode ops recipe index not found in packaged resources', 'RECIPE_DISCOVERY_FAILED');
+      throw new OpsFailure('Installed-mode executable recipe index not found in packaged resources', 'RECIPE_DISCOVERY_FAILED');
     }
     recipes = loadRecipeIndex(indexPath);
   } else recipes = discoverSourceRecipes();
@@ -162,7 +162,7 @@ function loadRecipes() {
   const seen = new Map();
   for (const recipe of recipes) {
     if (seen.has(recipe.id)) {
-      throw new OpsFailure(`Duplicate ops recipe id '${recipe.id}' in ${seen.get(recipe.id).path} and ${recipe.path}`, 'DUPLICATE_RECIPE_ID');
+      throw new OpsFailure(`Duplicate executable recipe id '${recipe.id}' in ${seen.get(recipe.id).path} and ${recipe.path}`, 'DUPLICATE_RECIPE_ID');
     }
     seen.set(recipe.id, recipe);
   }

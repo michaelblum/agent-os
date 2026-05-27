@@ -5,7 +5,7 @@
   "scope": "source",
   "mutates": true,
   "requires": ["show"],
-  "docs": "docs/api/aos.md#aos-ops",
+  "docs": "docs/api/aos.md#aos-recipe",
   "resources": {
     "canvas_id": "ops-${run_id}-window-level-smoke"
   },
@@ -31,7 +31,7 @@
         "--at",
         "-10000,-10000,96,64",
         "--html",
-        "<!doctype html><html><body style=\"margin:0;background:#1d4ed8;color:white;font:12px system-ui\">ops</body></html>",
+        "<!doctype html><html><body style=\"margin:0;background:#1d4ed8;color:white;font:12px system-ui\">recipe</body></html>",
         "--ttl",
         "30s",
         "--scope",

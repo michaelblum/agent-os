@@ -153,10 +153,14 @@ language.
 
 ## Codebase Poke: Existing Record, Replay, Script, And Trace Surfaces
 
+Update 2026-05-27: ADR-0013 now defines AOS Execution Model V0. Read `aos recipe`
+as the canonical source-backed executable recipe surface; `aos ops` is only a
+compatibility alias with a removal gate.
+
 No general AOS workflow recorder/replayer appears to exist yet. The closest
 concrete pieces are adjacent, not unified:
 
-- `aos ops` recipes are source-backed operator scripts. They execute declared
+- `aos recipe` recipes are source-backed operator scripts. They execute declared
   command-registry forms with assertions and cleanup rules. They are authored
   recipes, not recordings.
 - Gateway `run_os_script`, `save_script`, and `list_scripts` persist

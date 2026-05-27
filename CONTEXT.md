@@ -36,17 +36,82 @@ The canonical layered artifact for one run of work. Carries an **intent spine** 
 Current v0 schema sketch: `shared/schemas/aos-work-record-v0.md`.
 _Avoid_: log, audit entry, transcript, trace (those are Evidence-Layer terms; a Work Record is the larger composite).
 
+**AOS Execution Model**:
+The canonical execution taxonomy for AOS: Primitive -> Block -> Recipe ->
+Workflow -> Run -> Work Record + Evidence, with Gates, Signals, Checkpoints,
+Guides, and Playbooks as control/guidance concepts around that stack. Defined
+by ADR-0013.
+_Avoid_: recipe ladder (allowed only as shorthand), execution ladder as the
+formal contract name.
+
+**Primitive**:
+One raw AOS capability or action, such as `ready`, `status`, `see`, `do`,
+`show`, `tell`, `listen`, or `gate`.
+_Avoid_: molecule, micro-workflow.
+
+**Block**:
+One typed executable procedure step inside a Recipe or future Workflow
+executor. Current source-backed Recipe block kinds include `aos_command`,
+repo-owned `shell`, `assert`, and `cleanup`; `gate`, `signal`, `condition`,
+`loop`, and `recipe_call` are reserved until orchestration needs them.
+_Avoid_: molecule, opaque script fragment.
+
 **Recipe**:
-A reusable, bounded procedure: how a piece of work might happen again. Two flavors coexist in the repo: **documentation-only Recipes** under `docs/recipes/` (Markdown SOPs read by humans/agents to shape judgment) and **source-backed Recipes** runnable through AOS surfaces such as `aos ops` (re-executable knowledge with explicit inputs/outputs). Scope: one bounded procedure. A Recipe may compile into Playbook-like executable steps but is not itself constrained to the `see/do/see/verify` shape.
-_Avoid_: SOP (only one flavor), tutorial, doc.
+A bounded, reusable, dry-runnable executable procedure made of Blocks and
+discovered through `aos recipe`. Scope: one bounded procedure with explicit
+inputs, outputs, resources, and cleanup behavior where relevant. The historical
+`aos ops` command is only a compatibility alias. Markdown procedures under
+`docs/recipes/` are transitional Guides/SOPs until a directory migration
+renames or rehomes them.
+_Avoid_: documentation-only recipe, SOP (unless describing transitional
+Markdown guidance), tutorial, molecule.
 
 **Playbook**:
-Reusable execution knowledge over the `see → resolve → do → see → verify` shape: a named, replayable plan composed of steps, where each step has preconditions, target-resolution strategy, the action, postconditions, and optional repair hints. A Playbook is the *agent-operable* variant of a Recipe — verifier-oriented, target-aware. A Playbook is itself a Subject. Running a Playbook *emits* a Work Record; the Playbook is not the run.
-_Avoid_: macro, script, runbook.
+Method guidance that shapes human or agent judgment but does not itself execute
+as the primary substrate. The current `aos.playbook_step` V0 schema is a
+transitional gated step-descriptor sketch; it does not make Playbook the general
+workflow engine or evidence log.
+_Avoid_: macro, script, executable recipe, workflow engine.
 
 **Workflow**:
-An orchestration graph or chain of Recipes, Playbooks, agent tasks, approvals, external operations, inputs, outputs, and artifacts. A Workflow is a Subject. Scope: multi-step process, often crossing systems or human gates. A Workflow run typically emits one or more Work Records (one per meaningful execution unit or child run).
+An orchestration graph or chain across Recipes, agents, gates, retries,
+branches, human decisions, external operations, inputs, outputs, artifacts, and
+evidence. A Workflow is a Subject. Scope: multi-step process, often crossing
+systems or human gates. A Workflow run typically emits one or more Work Records
+(one per meaningful execution unit or child run).
 _Avoid_: pipeline, process (too generic), automation.
+
+**Run**:
+One execution instance of ad-hoc work, a Recipe, a Workflow, or a gated harness.
+A Run is the event boundary that emits Evidence and, when durable proof is
+needed, a Work Record.
+_Avoid_: workflow (unless orchestration is actually involved), transcript.
+
+**Evidence**:
+Proof material emitted by a Run and referenced by Work Records: command output,
+before/action/after captures, artifacts, screenshots, local diagnostic traces,
+or human responses. Evidence is immutable once attached to a Work Record.
+_Avoid_: Work Record (larger composite), trace (reserved for specific proof
+streams or future trace schema).
+
+**Trace**:
+A proof stream or ordered diagnostic record that may become Evidence. A general
+AOS trace schema is planned/reserved, not active contract, unless a local
+schema or runtime feature explicitly says it emits traces.
+_Avoid_: using trace as a synonym for every Work Record or evidence bundle.
+
+**Gate / Signal / Checkpoint**:
+Explicit control points for uncertainty, human approval, retry, branching,
+lifecycle state, or handoff. Gates usually require a human or policy decision;
+Signals communicate state or intent; Checkpoints preserve progress and
+resumability.
+_Avoid_: hidden retry, implicit approval, bare status.
+
+**Guide**:
+Reusable method guidance for humans or agents. Current Markdown procedures under
+`docs/recipes/` are Guides/SOPs in transition, even though the directory name is
+historical.
+_Avoid_: Recipe when the artifact is not executable through `aos recipe`.
 
 **Dock**:
 A repo-local Codex session profile rooted under `.docks/`, used to isolate persona or work-role instructions, hooks, and config from the normal session entry point.
@@ -157,8 +222,16 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - A **Subject Entry Handle** resolves to one Subject and one entry Facet on that Subject.
 - A **Navigation Trail** is a sequence of Subject Entry Handles where each handle's Subject is typically a child or related Subject of the previous handle's Subject.
 - `subject_type` (a schema field on `aos.workbench.subject`) names *what kind of Subject* the descriptor represents (e.g. `wiki.concept`, `sigil.radial_menu.item_3d`); facet keys are a separate namespace and do not collide with `subject_type` values.
-- A **Playbook** execution emits exactly one **Work Record**. Ad-hoc work also emits a Work Record (without a Playbook origin). A Verifier consumes Work Records, never Playbooks directly — trust attaches to what actually happened, not to the reusable plan.
-- **Workflows** may invoke **Recipes** or **Playbooks**; **Recipes** may compile into Playbook-like executable steps; **Playbooks** should not invoke Workflows (that would invert the abstraction — anything orchestrating multi-system gates and child runs *is* a Workflow). All three can be the **origin** of a Work Record (`origin.kind: ad_hoc | recipe | playbook | workflow`); documentation-only Recipes that *guided* a run without executing should be cited via `references[]` (`relationship: "guided_by"`), not as `origin`.
+- A **Run** emits Evidence and may emit exactly one **Work Record** for the
+  bounded unit being proven. A Verifier consumes Work Records, never Guides or
+  Playbooks directly, because trust attaches to what actually happened.
+- **Workflows** may invoke **Recipes**, gated harnesses, agent tasks, or
+  human decisions. A Recipe may be one executable child of a Workflow, but a
+  Recipe does not orchestrate multi-system gates and child runs. Work Record
+  origins use executable origins (`origin.kind: ad_hoc | recipe | playbook |
+  workflow` in the current v0 schema); transitional Markdown Guides that
+  shaped a run without executing should be cited via `references[]`
+  (`relationship: "guided_by"`), not as `origin`.
 - A **Dock** is adopted by launching Codex from that dock's directory, or with `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but the Dock is not the Workflow and does not create a parallel Workflow type.
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
@@ -192,7 +265,18 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - Cutover note — wiki helper output now keeps wiki documents as wiki-oriented Subjects. App-specialized domain Subjects such as `sigil.agent` are emitted by domain helpers and relate back to wiki narrative documents through top-level `subject_references[]`.
 - `capabilities[]` now contains only high-level registry names such as `inspectable`, `editable`, `verifier-target`, `replayable`, and `exportable` in live writer output. Dotted operation/event strings like `markdown_document.text.patch`, `wiki.invoke`, `work_record.execution_map.edit`, and `canvas_object.effects.patch` are live `contracts[]` values. Reader fallback for archived descriptors stays isolated in compatibility helpers and should not drive new Subject Browser behavior.
 - "subject chain" — resolved: this is a **Navigation Trail** of Subject Entry Handles, not a chain of Subjects. Toolkit now defines the canonical `<facet-key>:<subject-id>` handle helper; only a future shared JSON schema for handles, if desired, remains pending.
-- Work Record `origin` field shape — **resolved (ADR-0009)**: `origin: { kind, ref }` where `kind ∈ ad_hoc | recipe | playbook | workflow`. Documentation-only Recipes are *not* origins; they are cited via a separate `references[]` array with `relationship: "guided_by"`. Schema sketch: `shared/schemas/aos-work-record-v0.md`; representative Work Record helpers now preserve v0 origin/reference data in descriptor projections.
+- Work Record `origin` field shape — **resolved (ADR-0009, refined by
+  ADR-0013)**: `origin: { kind, ref }` where `kind ∈ ad_hoc | recipe |
+  playbook | workflow` in the current v0 schema. Transitional Markdown
+  Guides/SOPs are *not* origins; they are cited via a separate `references[]`
+  array with `relationship: "guided_by"`. Schema sketch:
+  `shared/schemas/aos-work-record-v0.md`; representative Work Record helpers
+  now preserve v0 origin/reference data in descriptor projections.
+- AOS Execution Model: **resolved (ADR-0013)**: the formal taxonomy is
+  Primitive -> Block -> Recipe -> Workflow -> Run -> Work Record + Evidence,
+  with Gates, Signals, Checkpoints, Guides, and Playbooks around that stack.
+  `Recipe` means executable source-backed procedure; `docs/recipes/` is a
+  short-lived transitional home for Markdown Guides/SOPs.
 - Phase 6 of `aos-grand-unification-plan.md` lists "save a work record" and "run verifier report" as Playbook steps — they are *harness obligations* around running a Playbook, not steps inside it. Playbook step sequences end at the final action + postcondition. Pending: plan revision.
 - Verifier Report shape — the plan lists `claims`, `verified`, `failed`, `unverified` as four parallel fields. Resolved direction (ADR-0003): use `claim_results[]` as the source of truth; if the four parallel fields persist, they are *derived indexes of Claim IDs*, not independent storage. When a Verifier Report is embedded in a Work Record it should not echo the full `claims` list (single source of truth); when reports travel standalone, they include a `claims_digest` for auditability. The v0 sketch keeps `claim_results[]` top-level and makes report indexes derived.
 - A Playbook needs explicit syntax to *promote* a step Postcondition into a Work Record Claim (Playbooks should be able to declare run-wide outcomes, not only step-local gates). The v0 Work Record examples show promoted run Claims referencing execution-map Postconditions; Playbook step grammar design remains pending.

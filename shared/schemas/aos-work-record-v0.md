@@ -15,7 +15,8 @@ Subject, but this sketch defines the persisted run payload rather than the
 The v0 shape follows `CONTEXT.md` and ADR-0001 through ADR-0010:
 
 - `origin` bridges a run back to the reusable artifact that emitted it, if any.
-- `references[]` cites related Subjects, documentation-only Recipes, artifacts,
+- `references[]` cites related Subjects, transitional Markdown Guides/SOPs,
+  artifacts,
   or external resources without making them the run origin.
 - `claims[]` live on the durable intent spine.
 - `execution_map.postconditions[]` live in the repairable execution map.
@@ -84,8 +85,9 @@ Allowed origin kinds are `ad_hoc`, `recipe`, `playbook`, and `workflow`.
 }
 ```
 
-Documentation-only Recipes that guided a run are not origins. Cite them in
-`references[]` with `relationship: "guided_by"` instead.
+Transitional Markdown Guides/SOPs under `docs/recipes/` that guided a run are
+not origins. Cite them in `references[]` with `relationship: "guided_by"`
+instead.
 
 ## References
 
@@ -98,7 +100,7 @@ not replace internal ids such as `claim_id` or `postcondition_id`.
   "id": "guided-by-entry-path-recipe",
   "relationship": "guided_by",
   "ref": "repo:docs/recipes/agent-entry-paths-and-verification.md",
-  "subject_type": "docs.recipe",
+  "subject_type": "docs.guide",
   "layer": "narrative",
   "role": "operator_guidance"
 }
