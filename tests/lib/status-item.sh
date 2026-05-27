@@ -304,10 +304,16 @@ PY
 
 aos_unambiguous_status_item_pid() {
   local expected_pid="${1:-}"
-  local matches_json
-  matches_json="$(aos_status_item_matches_json)" || return 1
+  local matches_json out last_error
 
-  python3 - "$expected_pid" "$matches_json" <<'PY'
+  for _ in $(seq 1 30); do
+    matches_json="$(aos_status_item_matches_json)" || {
+      last_error="FAIL: unable to read AOS status items"
+      sleep 0.1
+      continue
+    }
+
+    if out="$(python3 - "$expected_pid" "$matches_json" 2>&1 <<'PY'
 import json
 import sys
 
@@ -327,6 +333,8 @@ def overlaps(a, b):
     )
 
 target = next((entry for entry in matches if expected_pid is not None and entry.get("pid") == expected_pid), None)
+if target is None and expected_pid is not None:
+    raise SystemExit(f"FAIL: expected daemon status item pid {expected_pid} not found: {json.dumps(matches, sort_keys=True)}")
 if target is None and len(matches) == 1:
     target = matches[0]
 
@@ -347,4 +355,14 @@ if overlaps_target:
 
 print(target.get("pid"))
 PY
+    )"; then
+      printf '%s\n' "$out"
+      return 0
+    fi
+    last_error="$out"
+    sleep 0.1
+  done
+
+  printf '%s\n' "${last_error:-FAIL: unable to choose unambiguous AOS status item}" >&2
+  return 1
 }
