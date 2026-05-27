@@ -68,8 +68,12 @@ aos_ensure_content_roots_live() {
   ) || return $?
 
   if ! aos_content_roots_live "$aos_bin" "$@"; then
-    echo "Refreshing repo daemon so scoped content roots are live." >&2
-    "$aos_bin" service restart --mode repo >/dev/null
+    if [[ -n "${AOS_STATE_ROOT:-}" ]]; then
+      echo "Waiting for isolated daemon scoped content roots to become live." >&2
+    else
+      echo "Refreshing repo daemon so scoped content roots are live." >&2
+      "$aos_bin" service restart --mode repo >/dev/null
+    fi
   fi
 
   (

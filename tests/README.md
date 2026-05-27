@@ -126,8 +126,21 @@ Inventory for this family:
 | `tests/wiki-kb-smoke.sh` | isolated-daemon launcher | Wiki KB launcher, content-root setup, sample graph load, radial graph switch, and optional capture. |
 | `tests/sigil-workbench-kb.sh` | isolated-daemon launcher | Legacy Sigil workbench KB tab smoke retained as a compatibility boundary, not the radial Wiki Graph product path. |
 | `tests/sigil-status-item-lifecycle.sh` | live repo-daemon shell | Status item activation lifecycle and active Sigil canvas ownership. |
+| `tests/sigil-real-input-status-avatar.sh` | isolated-daemon real-input | Test-daemon status item click, avatar visibility, shallow context-menu smoke, and bounded duplicate status-item overlap evidence. Moves the pointer through `aos do`. |
+| `tests/sigil-context-menu-real-input.sh` | isolated-daemon real-input | Owned visible avatar plus deeper context-menu controls through shared `aos do` action helpers. Moves the pointer through `aos do`. |
 | `tests/scenarios/sigil/radial-menu/real-input.sh` | live real-input | User-facing status item, avatar, radial target surface semantics, and native pointer selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
 | `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh` | live real-input | Topology-neutral DesktopWorld fast-travel plus radial selection path. Requires `AOS_REAL_INPUT_OK=1` and `./aos ready`. |
+
+Use these named scenarios instead of ad hoc `./aos do` sequences in new
+real-input verification. The shared helpers under `tests/lib/` own readiness,
+wait/retry, AOS command execution, canvas/DOM-to-native target resolution, and
+real click/scroll/key wrappers.
+
+Duplicate AOS status items are a red flag. Isolated status-item tests can create
+a second AOS status item while the live repo daemon has its own item. The real
+status-item smoke targets its isolated daemon PID and fails if another matching
+status item overlaps that target, so global menu-bar ambiguity is bounded and
+reported instead of silently contaminating the click.
 
 Do not use direct DOM or `show eval` activation as the acceptance proof for
 radial menu user behavior. Eval remains useful for observation after native or

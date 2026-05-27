@@ -251,3 +251,100 @@ FileHandle.standardOutput.write(data)
 FileHandle.standardOutput.write("\n".data(using: .utf8)!)
 SWIFT
 }
+
+aos_assert_status_item_overlap_bounded_json() {
+  local expected_pid="${1:-}"
+  local matches_json
+  matches_json="$(aos_status_item_matches_json)" || return 1
+
+  python3 - "$expected_pid" "$matches_json" <<'PY'
+import json
+import sys
+
+expected_pid = int(sys.argv[1]) if sys.argv[1] else None
+payload = json.loads(sys.argv[2])
+matches = payload.get("matches") or []
+target = next((entry for entry in matches if expected_pid is not None and entry.get("pid") == expected_pid), None)
+if expected_pid is not None and target is None:
+    raise SystemExit(f"FAIL: expected daemon status item pid {expected_pid} not found: {json.dumps(matches, sort_keys=True)}")
+
+def has_rect(entry):
+    return all(isinstance(entry.get(key), (int, float)) for key in ("x", "y", "w", "h"))
+
+def overlaps(a, b):
+    return (
+        a["x"] < b["x"] + b["w"]
+        and a["x"] + a["w"] > b["x"]
+        and a["y"] < b["y"] + b["h"]
+        and a["y"] + a["h"] > b["y"]
+    )
+
+overlaps_target = []
+if target and has_rect(target):
+    overlaps_target = [
+        entry for entry in matches
+        if entry.get("pid") != target.get("pid") and has_rect(entry) and overlaps(target, entry)
+    ]
+
+if overlaps_target:
+    raise SystemExit(
+        "FAIL: AOS status item overlap makes real-click target ambiguous: "
+        + json.dumps({"target": target, "overlaps": overlaps_target, "matches": matches}, sort_keys=True)
+    )
+
+result = {
+    "matches": matches,
+    "targetPid": expected_pid,
+    "targetFound": target is not None if expected_pid is not None else None,
+    "overlapCount": len(overlaps_target),
+}
+print(json.dumps(result, sort_keys=True))
+PY
+}
+
+aos_unambiguous_status_item_pid() {
+  local expected_pid="${1:-}"
+  local matches_json
+  matches_json="$(aos_status_item_matches_json)" || return 1
+
+  python3 - "$expected_pid" "$matches_json" <<'PY'
+import json
+import sys
+
+expected_pid = int(sys.argv[1]) if sys.argv[1] else None
+payload = json.loads(sys.argv[2])
+matches = payload.get("matches") or []
+
+def has_rect(entry):
+    return all(isinstance(entry.get(key), (int, float)) for key in ("x", "y", "w", "h"))
+
+def overlaps(a, b):
+    return (
+        a["x"] < b["x"] + b["w"]
+        and a["x"] + a["w"] > b["x"]
+        and a["y"] < b["y"] + b["h"]
+        and a["y"] + a["h"] > b["y"]
+    )
+
+target = next((entry for entry in matches if expected_pid is not None and entry.get("pid") == expected_pid), None)
+if target is None and len(matches) == 1:
+    target = matches[0]
+
+if target is None:
+    raise SystemExit(f"FAIL: unable to choose unambiguous AOS status item: {json.dumps(matches, sort_keys=True)}")
+if not has_rect(target):
+    raise SystemExit(f"FAIL: chosen AOS status item is missing bounds: {json.dumps(target, sort_keys=True)}")
+
+overlaps_target = [
+    entry for entry in matches
+    if entry.get("pid") != target.get("pid") and has_rect(entry) and overlaps(target, entry)
+]
+if overlaps_target:
+    raise SystemExit(
+        "FAIL: AOS status item overlap makes real-click target ambiguous: "
+        + json.dumps({"target": target, "overlaps": overlaps_target, "matches": matches}, sort_keys=True)
+    )
+
+print(target.get("pid"))
+PY
+}

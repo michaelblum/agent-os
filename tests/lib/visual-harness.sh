@@ -328,6 +328,7 @@ aos_visual_show_sigil_avatar_via_real_status_click() {
     echo "FAIL: daemon pid missing for real status-item click" >&2
     return 1
   }
+  pid="$(aos_unambiguous_status_item_pid "$pid")"
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"

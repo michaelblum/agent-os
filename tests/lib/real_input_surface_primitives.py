@@ -176,6 +176,9 @@ def ease(t):
 
 
 class RealPointer:
+    # Boundary adapter for DesktopWorld/native drag-path coverage that cannot
+    # yet be expressed as one `aos do` gesture with intermediate path holds.
+    # Consumer scenarios should prefer SigilContextHarness/AOS do wrappers.
     def __init__(self, aos, displays=None):
         self.aos = aos
         self.displays = displays
