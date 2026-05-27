@@ -46,9 +46,12 @@ they must not leave pointer-affecting stage state around, must not be preserved
 as normal Sigil warm user surfaces, and must be easy to clean up deterministically
 without harming the real warm Sigil surfaces.
 
-This is not a request to retry the human-only status icon proof. GDI should fix
-the deterministic lifecycle/cleanup contract first. The real status-icon and
-radial-menu proof remains an Operator/human-driven step after this correction.
+This is not a request to retry the live real-input status icon proof. GDI should
+fix the deterministic lifecycle/cleanup contract first. The real status-icon and
+radial-menu proof remains a supervised AOS real-input step after this correction:
+it may be driven by `aos see`/`aos do` through the same input channel a human
+uses, but only once input jank has been removed and the run has explicit
+permission to move the pointer/click the menu bar.
 
 ## Read First
 
@@ -154,14 +157,18 @@ The distinction should be:
 - stage canvases parented to a retained core surface remain governed by that
   core surface's policy.
 
-### No Human-Only Completion Claim
+### No Unsupported Live Completion Claim
 
-Do not claim the status-icon/radial-menu proof is complete unless the human
+Do not claim the status-icon/radial-menu proof is complete unless the run
 actually performed the status icon click and radial menu sequence in the same
-live run. For this GDI correction, deterministic proof is enough.
+live session. That interaction can be performed by a human or by AOS real-input
+commands such as `aos see ...` plus `aos do click ...`; either way, the evidence
+must show the real input path, not a direct `show post`, `show eval`, or
+state-file shortcut. For this GDI correction, deterministic proof is enough.
 
 If live proof is still the next step, return an Operator-ready note in the
-completion report. Do not keep looping on GDI waiting for human-only clicks.
+completion report. Do not keep looping on GDI waiting for an unsupervised live
+input sequence while the machine is showing mouse/input jank.
 
 ## Verification
 
@@ -198,5 +205,5 @@ Include:
 - tests run and pass/fail;
 - final `./aos status --json`, `./aos ready --json`, `./aos show list --json`,
   and `./aos clean --dry-run --json` summaries;
-- whether any live human status-icon proof was attempted;
+- whether any live AOS real-input or human status-icon proof was attempted;
 - the next Operator/human proof needed, if any.
