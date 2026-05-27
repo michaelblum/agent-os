@@ -22,16 +22,32 @@ if [[ -f "$LOG_FILE" ]]; then
 fi
 
 "$AOS" ready --json >/dev/null
+sleep 0.2
+"$AOS" ready --json >/dev/null
 "$AOS" config set content.roots.toolkit "$ROOT/packages/toolkit" >/dev/null
 "$AOS" content wait --root toolkit --auto-start --timeout 15s >/dev/null
 
-"$AOS" show create \
-  --id "$WIKI_ID" \
-  --url "aos://toolkit/components/wiki-subject-browser/index.html?wiki=aos/concepts/employer-brand-workflow-map.md" \
-  --at 80,80,900,620 \
-  --interactive \
-  --focus >/dev/null
-"$AOS" show wait --id "$WIKI_ID" --manifest wiki-subject-browser-v0 --timeout 15s --json >/dev/null
+create_wiki_workbench() {
+  "$AOS" show create \
+    --id "$WIKI_ID" \
+    --url "aos://toolkit/components/wiki-subject-browser/index.html?wiki=aos/concepts/employer-brand-workflow-map.md" \
+    --at 80,80,900,620 \
+    --interactive \
+    --focus >/dev/null
+  "$AOS" show wait --id "$WIKI_ID" --manifest wiki-subject-browser-v0 --timeout 30s --json
+}
+
+create_err="$ROOT/.sigil-warm-create.err"
+if ! create_wiki_workbench >/dev/null 2>"$create_err"; then
+  if "$AOS" ready --json >/dev/null && "$AOS" show get --id "$WIKI_ID" | python3 -c 'import json,sys; raise SystemExit(0 if not json.load(sys.stdin).get("exists") else 1)'; then
+    create_wiki_workbench >/dev/null
+  else
+    cat "$create_err" >&2
+    echo "wiki workbench create failed without absent-canvas daemon handoff recovery state" >&2
+    exit 1
+  fi
+fi
+rm -f "$create_err"
 
 first_window_numbers="$("$AOS" show get --id "$WIKI_ID" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(",".join(map(str, (data.get("canvas") or {}).get("windowNumbers") or [])))')"
 

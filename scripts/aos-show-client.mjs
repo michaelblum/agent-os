@@ -157,25 +157,35 @@ async function connectWithAutoStart(options = {}) {
 function readOneJSON(socket, timeoutMs = 3000) {
   return new Promise((resolve) => {
     let buffer = '';
+    let settled = false;
+    const cleanup = () => {
+      clearTimeout(timer);
+      socket.off('data', onData);
+      socket.off('error', onError);
+    };
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
     const timer = setTimeout(() => {
       socket.destroy();
-      resolve(null);
+      finish(null);
     }, timeoutMs);
-    socket.on('data', (chunk) => {
+    const onData = (chunk) => {
       buffer += chunk.toString('utf8');
       const newline = buffer.indexOf('\n');
       if (newline < 0) return;
-      clearTimeout(timer);
       try {
-        resolve(JSON.parse(buffer.slice(0, newline)));
+        finish(JSON.parse(buffer.slice(0, newline)));
       } catch {
-        resolve(null);
+        finish(null);
       }
-    });
-    socket.once('error', () => {
-      clearTimeout(timer);
-      resolve(null);
-    });
+    };
+    const onError = () => finish(null);
+    socket.on('data', onData);
+    socket.once('error', onError);
   });
 }
 
@@ -184,7 +194,7 @@ async function sendEnvelope(socket, action, data = {}, timeoutMs = 3000) {
   return readOneJSON(socket, timeoutMs);
 }
 
-async function oneShot(action, data, { autoStart = false, emptyListOnNoDaemon = false } = {}) {
+async function oneShot(action, data, { autoStart = false, emptyListOnNoDaemon = false, timeoutMs = 3000 } = {}) {
   const connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
   const socket = connection?.socket ?? null;
   if (!socket) {
@@ -194,7 +204,7 @@ async function oneShot(action, data, { autoStart = false, emptyListOnNoDaemon = 
     }
     error(action === 'remove' || action === 'remove_all' ? 'Daemon not running. Nothing to remove.' : 'Daemon not running.', 'NO_DAEMON');
   }
-  const response = await sendEnvelope(socket, action, data);
+  const response = await sendEnvelope(socket, action, data, timeoutMs);
   socket.end();
   if (!response) error('IPC failure', 'INTERNAL');
   if (response.error) {
@@ -490,7 +500,10 @@ async function mutationCommand(args, kind) {
     if (options.focus !== undefined) request.focus = options.focus;
   }
   applyCanvasMutationOptions(options, request, kind);
-  await oneShot(kind, request, { autoStart: kind === 'create' });
+  await oneShot(kind, request, {
+    autoStart: kind === 'create',
+    timeoutMs: kind === 'create' ? 10000 : 3000,
+  });
 }
 
 async function waitCommand(args) {
@@ -530,18 +543,29 @@ async function waitCommand(args) {
   }
 
   if (!id) error('wait requires --id <name>', 'MISSING_ARG');
-  const connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
-  const socket = connection?.socket ?? null;
-  if (!socket) error('Cannot connect to daemon', autoStart ? 'CONNECT_ERROR' : 'NO_DAEMON');
-
   let condition = "window.headsup && typeof window.headsup.receive === 'function'";
   if (manifest) condition += ` && window.headsup.manifest && window.headsup.manifest.name === ${JSON.stringify(manifest)}`;
   if (js) condition += ` && (${js})`;
   const evalJS = `(${condition}) ? 'ready' : 'wait'`;
 
   const deadline = Date.now() + timeoutMs;
+  let connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+  let socket = connection?.socket ?? null;
   while (Date.now() < deadline) {
+    if (!socket) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+      socket = connection?.socket ?? null;
+      continue;
+    }
     const response = await sendEnvelope(socket, 'eval', { id, js: evalJS }, 1500);
+    if (!response) {
+      socket.end();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      connection = autoStart ? await connectWithAutoStart() : { socket: await connectOnce() };
+      socket = connection?.socket ?? null;
+      continue;
+    }
     const body = response?.data && typeof response.data === 'object' ? response.data : response;
     if (body?.result === 'ready') {
       socket.end();
@@ -551,7 +575,7 @@ async function waitCommand(args) {
     }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  socket.end();
+  socket?.end();
   error(`Canvas ${id} did not become ready before timeout`, 'CANVAS_WAIT_TIMEOUT');
 }
 
@@ -565,7 +589,7 @@ async function evalCommand(args) {
   }
   if (!id) error('eval requires --id <name>', 'MISSING_ARG');
   if (!js) error('eval requires --js <code>', 'MISSING_ARG');
-  await oneShot('eval', { id, js });
+  await oneShot('eval', { id, js }, { timeoutMs: 10000 });
 }
 
 async function postCommand(args) {

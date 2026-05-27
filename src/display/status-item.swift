@@ -179,18 +179,28 @@ class StatusItemManager {
             return
         }
         if !persistentVisible && !hasPersistentStateSource {
-            log("persistent target=\(toggleId) has no state source; waiting for renderer readiness before visible intent")
+            log("persistent target=\(toggleId) has no state source; waiting for renderer readiness before resolving toggle intent")
             isAnimating = true
             updateIcon()
             waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
                 guard let self = self else { return }
                 if !ready {
-                    self.log("persistent target=\(self.toggleId) readiness timed out; posting visible intent anyway")
-                } else {
-                    self.log("persistent target=\(self.toggleId) ready; posting visible intent")
+                    self.log("persistent target=\(self.toggleId) readiness timed out; posting visible intent fallback")
+                    self.isAnimating = false
+                    self.showPersistentCanvas(origin: origin, modifiers: modifiers)
+                    return
                 }
-                self.isAnimating = false
-                self.showPersistentCanvas(origin: origin, modifiers: modifiers)
+                self.resolvePersistentCanvasVisibility { [weak self] visible in
+                    guard let self = self else { return }
+                    self.isAnimating = false
+                    if visible == true {
+                        self.log("persistent target=\(self.toggleId) visible without state source; posting hidden intent")
+                        self.hidePersistentCanvas(origin: origin, modifiers: modifiers)
+                    } else {
+                        self.log("persistent target=\(self.toggleId) hidden without state source; posting visible intent")
+                        self.showPersistentCanvas(origin: origin, modifiers: modifiers)
+                    }
+                }
             }
             return
         }
@@ -527,6 +537,16 @@ class StatusItemManager {
         }
 
         pollOnce()
+    }
+
+    private func resolvePersistentCanvasVisibility(completion: @escaping (Bool?) -> Void) {
+        guard let canvas = canvasManager.canvas(forID: toggleId) else {
+            completion(nil)
+            return
+        }
+        canvas.evaluateJavaScript("window.__sigilDebug?.snapshot?.().avatarVisible === true") { result, _ in
+            completion(result as? Bool)
+        }
     }
 
     // MARK: - Summon
