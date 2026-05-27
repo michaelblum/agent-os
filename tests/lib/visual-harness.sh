@@ -17,7 +17,39 @@ aos_visual_aos() {
 }
 
 aos_visual_status_item_inventory() {
-  aos_status_item_matches_json 2>/dev/null || printf '{"matches":[]}\n'
+  python3 - "$VISUAL_HARNESS_DIR/status-item.sh" <<'PY'
+import json
+import os
+import signal
+import subprocess
+import sys
+
+status_item_lib = sys.argv[1]
+command = f"source {status_item_lib!r}; aos_status_item_matches_json"
+process = subprocess.Popen(
+    ["bash", "-c", command],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    start_new_session=True,
+)
+try:
+    stdout, stderr = process.communicate(timeout=3)
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.communicate(timeout=0.3)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+    print(json.dumps({"matches": [], "error": "status item inventory timed out"}, sort_keys=True))
+    raise SystemExit(0)
+
+if process.returncode == 0:
+    print(stdout.rstrip() or '{"matches":[]}')
+else:
+    print(json.dumps({"matches": [], "error": "status item inventory failed"}, sort_keys=True))
+PY
 }
 
 aos_visual_phase_snapshot() {
