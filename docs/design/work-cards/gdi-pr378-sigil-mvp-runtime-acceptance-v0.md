@@ -9,7 +9,7 @@
   defects required for that path and reporting any broader product/performance
   risk with evidence.
 - Source artifact: PR #378 command-surface/Sigil experience stack after
-  `0c933013` (`fix(sigil): stabilize radial live cleanup`).
+  `512c31f3` (`test(harness): add composability contracts`).
 - Branch/output expectation: start from
   `origin/feat/command-surface-extraction`, create or update
   `gdi/pr378-sigil-mvp-runtime-acceptance-v0`, and push it.
@@ -22,8 +22,8 @@
 - branch_from: `origin/feat/command-surface-extraction`
 - required_start_ref: `origin/feat/command-surface-extraction`
 - expected output branch: `gdi/pr378-sigil-mvp-runtime-acceptance-v0`
-- routed from PR stack checkpoint: `0c933013`
-  (`fix(sigil): stabilize radial live cleanup`)
+- routed from PR stack checkpoint: `512c31f3`
+  (`test(harness): add composability contracts`)
 
 ## Fresh Context Contract
 
@@ -62,6 +62,7 @@ the next focused card.
 - `docs/design/work-cards/gdi-sigil-status-item-stale-root-recovery-v0.md`
 - `docs/design/work-cards/gdi-sigil-warm-surface-lifecycle-performance-v0.md`
 - `docs/design/work-cards/gdi-radial-live-ipc-cleanup-correction-v0.md`
+- `docs/design/work-cards/gdi-test-harness-composability-contracts-v0.md`
 - `docs/api/aos.md`
 - `experiences/sigil/aos-experience.json`
 - `apps/sigil/aos-app.json`
