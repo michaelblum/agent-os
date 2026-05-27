@@ -150,6 +150,85 @@ function parseJSON(text) {
   }
 }
 
+function readJSONFile(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function branchName() {
+  const result = run('/usr/bin/git', ['-C', process.cwd(), 'branch', '--show-current']);
+  return result.status === 0 ? result.stdout.trim() : '';
+}
+
+function scopedRootName(prefix) {
+  const branch = branchName();
+  if (!branch || branch === 'main') return prefix;
+  const suffix = branch.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'worktree';
+  return `${prefix}_${suffix}`;
+}
+
+function sigilExpectedStatusItemURL() {
+  return `aos://${scopedRootName('sigil')}/renderer/index.html?toolkit-root=${scopedRootName('toolkit')}`;
+}
+
+function liveContentRoots(mode) {
+  const env = { ...process.env, AOS_RUNTIME_MODE: mode };
+  const result = run(aosPath(), ['content', 'status', '--json'], { env });
+  if (result.status !== 0) return null;
+  const payload = parseJSON(result.stdout);
+  return payload && typeof payload.roots === 'object' ? payload.roots : null;
+}
+
+function contentRootKeysFromStatusItemURL(rawURL) {
+  if (typeof rawURL !== 'string' || !rawURL.startsWith('aos://')) return [];
+  try {
+    const parsed = new URL(rawURL);
+    const keys = [];
+    if (parsed.hostname) keys.push(parsed.hostname);
+    const toolkitRoot = parsed.searchParams.get('toolkit-root');
+    if (toolkitRoot) keys.push(toolkitRoot);
+    return keys;
+  } catch {
+    return [];
+  }
+}
+
+function activeSigilStatusItemDrift(mode, canvases) {
+  if (activeExperience(mode) !== 'sigil') return null;
+  const config = readJSONFile(path.join(stateDir(mode), 'config.json')) || {};
+  const statusItem = config.status_item || {};
+  if (statusItem.enabled !== true) return null;
+  const roots = liveContentRoots(mode) || config.content?.roots || {};
+  const toggleURL = statusItem.toggle_url || '';
+  const expectedURL = sigilExpectedStatusItemURL();
+  const missingRoots = contentRootKeysFromStatusItemURL(toggleURL).filter((key) => roots[key] == null);
+  const avatar = canvases.find((canvas) => canvas.id === statusItem.toggle_id);
+  const avatarURL = typeof avatar?.url === 'string' ? avatar.url : null;
+  const avatarDrift = avatarURL != null && avatarURL !== toggleURL && avatarURL !== expectedURL;
+  const targetDrift = toggleURL !== expectedURL;
+  if (!targetDrift && missingRoots.length === 0 && !avatarDrift) return null;
+  const notes = [];
+  if (targetDrift) {
+    notes.push(`Active Sigil status item target drift: status_item.toggle_url=${toggleURL || '<empty>'}; expected ${expectedURL}. Run './aos experience activate sigil'.`);
+  }
+  if (missingRoots.length > 0) {
+    notes.push(`Active Sigil status item references missing content root(s): ${missingRoots.join(', ')}. Run './aos experience activate sigil'.`);
+  }
+  if (avatarDrift) {
+    notes.push(`Active Sigil canvas ${avatar.id} is loaded at ${avatarURL}, which differs from status_item.toggle_url. Run './aos show remove --id ${avatar.id}' or './aos experience activate sigil'.`);
+  }
+  return {
+    expectedURL,
+    toggleURL,
+    missingRoots,
+    canvases: avatarDrift ? [avatar] : [],
+    notes,
+  };
+}
+
 function aosPath() {
   return process.env.AOS_PATH || path.join(process.cwd(), 'aos');
 }
@@ -307,11 +386,19 @@ function runClean(dryRun) {
     }
   }
 
+  const listedCurrentCanvases = listCanvases(mode);
+  const sigilDrift = activeSigilStatusItemDrift(mode, listedCurrentCanvases);
   let currentCanvases = parentFirstCanvases(staleCanvasesForMode(mode));
+  if (sigilDrift?.canvases?.length) {
+    const byID = new Map(currentCanvases.map((canvas) => [canvas.id, canvas]));
+    for (const canvas of sigilDrift.canvases) byID.set(canvas.id, canvas);
+    currentCanvases = parentFirstCanvases(Array.from(byID.values()));
+  }
   let otherCanvases = parentFirstCanvases(staleCanvasesForMode(alternateMode));
   if (otherCanvases.length > 0) {
     notes.push(`${otherCanvases.length} canvas(es) on ${alternateMode}-mode daemon`);
   }
+  if (sigilDrift) notes.push(...sigilDrift.notes);
   const canvases = [...currentCanvases, ...otherCanvases];
 
   if (!dryRun && canvases.length > 0) {
@@ -344,7 +431,7 @@ function runClean(dryRun) {
   }
 
   const remainingCanvases = dryRun ? canvases : [...currentCanvases, ...otherCanvases];
-  const foundResources = staleDaemons.length > 0 || canvases.length > 0 || orphanedClients.length > 0;
+  const foundResources = staleDaemons.length > 0 || canvases.length > 0 || orphanedClients.length > 0 || sigilDrift != null;
   let status = 'clean';
   if (dryRun && foundResources) {
     status = 'dirty';

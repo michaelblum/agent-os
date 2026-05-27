@@ -64,6 +64,30 @@ cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
 }
 JSON
 
+./aos config set status_item.enabled true >/dev/null
+./aos config set status_item.toggle_id avatar-main >/dev/null
+./aos config set status_item.toggle_url 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' >/dev/null
+./aos config set status_item.toggle_track union >/dev/null
+
+DRIFT_DRY_RUN="$(./aos clean --dry-run --json)"
+DRIFT_DRY_RUN="$DRIFT_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["DRIFT_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+notes = "\n".join(payload.get("notes", []))
+assert "Active Sigil status item target drift" in notes, payload
+assert "missing content root" in notes, payload
+assert "./aos experience activate sigil" in notes, payload
+PY
+
+BRANCH_SUFFIX="$(git branch --show-current | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')"
+SIGIL_ROOT="sigil_${BRANCH_SUFFIX:-worktree}"
+TOOLKIT_ROOT="toolkit_${BRANCH_SUFFIX:-worktree}"
+./aos config set "content.roots.$SIGIL_ROOT" "$ROOT_DIR/apps/sigil" >/dev/null
+./aos config set "content.roots.$TOOLKIT_ROOT" "$ROOT_DIR/packages/toolkit" >/dev/null
+./aos config set status_item.toggle_url "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" >/dev/null
+
 create_canvas() {
   local id="$1"
   ./aos show create \

@@ -99,6 +99,14 @@ process.exit(0);
         custom_sigil_docs: path.join(repoRoot, 'docs'),
       },
     },
+    status_item: {
+      enabled: true,
+      toggle_id: 'avatar-main',
+      toggle_url: 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch',
+      toggle_at: [200, 200, 300, 300],
+      toggle_track: 'union',
+      icon: 'sigil',
+    },
   }));
   const activate = spawnSync('node', ['scripts/aos-experience.mjs', 'activate', 'sigil', '--json'], {
     cwd: repoRoot,
@@ -158,4 +166,5 @@ process.exit(0);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'avatar'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_url', ''].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_track', 'none'].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === ['show', 'remove', '--id', 'avatar-main'].join('\0')), calls);
 });

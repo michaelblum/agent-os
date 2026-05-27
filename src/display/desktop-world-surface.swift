@@ -19,6 +19,7 @@ protocol CanvasLike: AnyObject {
     var cascadeFromParent: Bool { get set }
     var parent: String? { get set }
     var owner: CanvasOwnerInfo? { get set }
+    var sourceURL: String? { get }
     var onMessage: ((Any) -> Void)? { get set }
     var onTTLExpired: (() -> Void)? { get set }
     var remainingTTL: Double? { get }
@@ -171,6 +172,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
     private let aosSchemeHandler: WKURLSchemeHandler?
     private var htmlContent: String?
     private var urlString: String?
+    var sourceURL: String? { urlString }
     private var hasShown = false
     private var inputPassthrough = false
     private(set) var segments: [Segment] = []
@@ -294,6 +296,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
         let f = cgFrame
         return CanvasInfo(
             id: id,
+            url: sourceURL,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
             anchorWindow: nil,
             anchorChannel: nil,
