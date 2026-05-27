@@ -31,6 +31,11 @@ slice. Preserve the current product direction: AOS is the platform, Sigil is the
 active experience layer, activation is status-item-first, and the avatar is the
 entry point.
 
+Do not interpret this as permission to give `sigil-wiki-workbench` private
+lifecycle behavior. The concrete Sigil symptoms are the repro path. The fix
+should make the shared AOS/toolkit surface lifecycle coherent, with Sigil
+declaring which surfaces it wants retained/warmed.
+
 ## Goal
 
 Make Sigil's status-item/avatar/radial/wiki path use warm retained surfaces
@@ -164,6 +169,30 @@ Stop with `human_needed`. After the human returns with `finished`, run:
 
 ## Required Behavior
 
+### Shared Lifecycle, Owner Policy
+
+All AOS canvases should speak the same lifecycle vocabulary:
+
+- `cold`;
+- `warming`;
+- `warm_suspended`;
+- `active`;
+- `suspended`;
+- `removed`.
+
+Do not create a separate Sigil lifecycle or wiki-specific close path. The
+difference between surfaces should be policy, not primitive behavior:
+
+- daemon owns lifecycle primitives and truthful state;
+- toolkit owns reusable panel/window close, suspend, resume, warm, focus, stage,
+  and shell behavior;
+- an app/experience such as Sigil may declare that certain surfaces are retained,
+  warm-on-activation, suspend-on-close, hard-remove-on-deactivate, or never warm.
+
+If the current toolkit panel shell cannot express "close means suspend for this
+retained surface", add the smallest generic opt-in there and use it from Sigil.
+Avoid one-off checks such as "if canvas id is sigil-wiki-workbench, suspend".
+
 ### Warm Surface Ownership
 
 Active Sigil should have an explicit bounded warm-surface policy. At minimum,
@@ -180,6 +209,11 @@ cover:
 Do not make the daemon hard-code Sigil. Daemon/toolkit should provide lifecycle
 primitives; the Sigil experience, launcher, or renderer should declare and use
 the policy.
+
+The policy shape should be reusable by future experiences and ordinary AOS
+surfaces. Acceptable V0 shapes include a manifest field, a small toolkit
+lifecycle controller, or a documented runtime helper if that is the local
+pattern. Avoid burying policy in unrelated command scripts.
 
 ### Status Item / Avatar
 
@@ -212,6 +246,32 @@ hooks if they exist; add the smallest generic opt-in if they do not.
 
 Keep an explicit hard-remove path for cleanup/deactivation/test teardown. Do not
 turn every toolkit panel into a permanent warm surface by default.
+
+### Base Renderer Duplication
+
+Investigate whether the current surface architecture is paying repeated startup
+cost for identical base renderer/shell logic across panels.
+
+Do not try to solve WebKit's separate JavaScript heaps in this slice, but do
+report the actual duplication boundary:
+
+- shared static assets and ES modules can be cached by the content host/WebKit;
+- each WKWebView still evaluates its own JS runtime and owns its own DOM state;
+- toolkit components should import shared runtime/panel modules rather than copy
+  base logic;
+- several panels that are really one user workflow may belong inside one
+  toolkit workbench/shell surface with tabs or panes instead of six independent
+  native canvases;
+- free-floating panels may still need separate canvases, but their boot path
+  should be a thin toolkit shell plus component-specific content.
+
+If an obvious local duplicate base renderer exists, collapse it in this slice
+only when it directly reduces the reported Sigil latency/crash path. Otherwise
+capture the follow-up with file paths and measured cost.
+
+Do not implement a broad renderer process manager or hidden global WebView pool
+without Foreman review. V0 should prefer explicit warm retained canvases and
+shared toolkit shell/module reuse.
 
 ### Wiki DB / Crash Path
 
