@@ -179,28 +179,18 @@ class StatusItemManager {
             return
         }
         if !persistentVisible && !hasPersistentStateSource {
-            log("persistent target=\(toggleId) has no state source; waiting for renderer readiness before resolving toggle intent")
+            log("persistent target=\(toggleId) has no state source; waiting for renderer readiness before posting visible intent")
             isAnimating = true
             updateIcon()
             waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
                 guard let self = self else { return }
                 if !ready {
                     self.log("persistent target=\(self.toggleId) readiness timed out; posting visible intent fallback")
-                    self.isAnimating = false
-                    self.showPersistentCanvas(origin: origin, modifiers: modifiers)
-                    return
+                } else {
+                    self.log("persistent target=\(self.toggleId) ready without state source; posting visible intent")
                 }
-                self.resolvePersistentCanvasVisibility { [weak self] visible in
-                    guard let self = self else { return }
-                    self.isAnimating = false
-                    if visible == true {
-                        self.log("persistent target=\(self.toggleId) visible without state source; posting hidden intent")
-                        self.hidePersistentCanvas(origin: origin, modifiers: modifiers)
-                    } else {
-                        self.log("persistent target=\(self.toggleId) hidden without state source; posting visible intent")
-                        self.showPersistentCanvas(origin: origin, modifiers: modifiers)
-                    }
-                }
+                self.isAnimating = false
+                self.showPersistentCanvas(origin: origin, modifiers: modifiers)
             }
             return
         }
@@ -521,7 +511,20 @@ class StatusItemManager {
                 completion(false)
                 return
             }
-            canvas.evaluateJavaScript("Boolean(window.__sigilDebug && window.liveJs?.avatarPos?.valid && window.__sigilBootError == null)") { result, _ in
+            canvas.evaluateJavaScript("""
+                (() => {
+                  const bridgeReady = Boolean(
+                    window.headsup &&
+                    typeof window.headsup.receive === "function" &&
+                    (document.readyState === "interactive" || document.readyState === "complete")
+                  );
+                  if (!bridgeReady) return false;
+                  if (Object.prototype.hasOwnProperty.call(window.headsup, "statusItemReady")) {
+                    return window.headsup.statusItemReady === true;
+                  }
+                  return true;
+                })()
+                """) { result, _ in
                 if (result as? Bool) == true {
                     completion(true)
                     return
@@ -537,16 +540,6 @@ class StatusItemManager {
         }
 
         pollOnce()
-    }
-
-    private func resolvePersistentCanvasVisibility(completion: @escaping (Bool?) -> Void) {
-        guard let canvas = canvasManager.canvas(forID: toggleId) else {
-            completion(nil)
-            return
-        }
-        canvas.evaluateJavaScript("window.__sigilDebug?.snapshot?.().avatarVisible === true") { result, _ in
-            completion(result as? Bool)
-        }
     }
 
     // MARK: - Summon

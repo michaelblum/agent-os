@@ -3921,5 +3921,6 @@ export async function boot() {
         y: Math.round(liveJs.avatarPos.y),
         boot_elapsed_ms: bootElapsedMs(),
     });
+    window.headsup.statusItemReady = true;
     emitStatusItemState();
 }
