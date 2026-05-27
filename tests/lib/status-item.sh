@@ -175,7 +175,7 @@ PY
   "$aos_bin" do click "$center" >/dev/null
 }
 
-aos_status_item_matches_json() {
+aos_global_status_item_diagnostic_matches_json() {
   local expected_label="${AOS_STATUS_ITEM_LABEL:-AOS status item}"
 
   swift - "$expected_label" <<'SWIFT'
@@ -331,10 +331,10 @@ FileHandle.standardOutput.write("\n".data(using: .utf8)!)
 SWIFT
 }
 
-aos_assert_status_item_overlap_bounded_json() {
+aos_global_status_item_diagnostic_overlap_json() {
   local expected_pid="${1:-}"
   local matches_json
-  matches_json="$(aos_status_item_matches_json)" || return 1
+  matches_json="$(aos_global_status_item_diagnostic_matches_json)" || return 1
 
   aos_assert_status_item_overlap_from_matches_json "$expected_pid" "$matches_json"
 }
@@ -424,12 +424,12 @@ print(pid)
 PY
 }
 
-aos_unambiguous_status_item_pid() {
+aos_global_status_item_diagnostic_unambiguous_pid() {
   local expected_pid="${1:-}"
   local matches_json out last_error
 
   for _ in $(seq 1 30); do
-    matches_json="$(aos_status_item_matches_json)" || {
+    matches_json="$(aos_global_status_item_diagnostic_matches_json)" || {
       last_error="FAIL: unable to read AOS status items"
       sleep 0.1
       continue

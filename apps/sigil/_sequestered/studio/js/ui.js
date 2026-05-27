@@ -1334,7 +1334,7 @@ export function setupUI() {
     proxyInput('ctx-zdepth', 'zDepthSlider');
 
     // Preset select removed from the stageless shell — presets are reachable
-    // via the reroll flyout's "style" scope (apps/sigil/studio/js/reroll.js).
+    // via the reroll flyout's "style" scope (apps/sigil/_sequestered/studio/js/reroll.js).
 
     // Shape param settings: map shape code -> settings container ID
     const shapeSettingsMap = { 90: 'tetartoidSettings', 92: 'torusSettings', 93: 'cylinderSettings', 6: 'boxSettings' };

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createUndoBuffer } from '../../apps/sigil/studio/js/undo-buffer.js';
+import { createUndoBuffer } from '../../apps/sigil/_sequestered/studio/js/undo-buffer.js';
 
 test('record then undo returns the snapshot', () => {
   const u = createUndoBuffer({ capacity: 20 });

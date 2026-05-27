@@ -16,7 +16,7 @@ aos_visual_aos() {
   printf '%s\n' "${AOS:-$VISUAL_HARNESS_ROOT/aos}"
 }
 
-aos_visual_status_item_inventory() {
+aos_visual_global_status_item_diagnostic_inventory() {
   python3 - "$VISUAL_HARNESS_DIR/status-item.sh" <<'PY'
 import json
 import os
@@ -25,7 +25,7 @@ import subprocess
 import sys
 
 status_item_lib = sys.argv[1]
-command = f"source {status_item_lib!r}; aos_status_item_matches_json"
+command = f"source {status_item_lib!r}; aos_global_status_item_diagnostic_matches_json"
 process = subprocess.Popen(
     ["bash", "-c", command],
     stdout=subprocess.PIPE,
@@ -57,7 +57,7 @@ aos_visual_phase_snapshot() {
   local aos_bin
   aos_bin="$(aos_visual_aos)"
 
-  python3 - "$label" "$aos_bin" "$(aos_visual_status_item_inventory)" <<'PY'
+  python3 - "$label" "$aos_bin" "$(aos_visual_global_status_item_diagnostic_inventory)" <<'PY'
 import json
 import subprocess
 import sys
@@ -461,7 +461,7 @@ aos_visual_show_sigil_avatar_via_real_status_click() {
   }
   status_owner_pids="$(aos_test_pids_for_root "$state_root" | paste -sd, -)"
   [[ -n "$status_owner_pids" ]] || status_owner_pids="$pid"
-  pid="$(aos_unambiguous_status_item_pid "$status_owner_pids")"
+  pid="$(aos_global_status_item_diagnostic_unambiguous_pid "$status_owner_pids")"
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
@@ -471,9 +471,9 @@ aos_visual_show_sigil_avatar_via_real_status_click() {
     --timeout 5s >/dev/null
 }
 
-aos_visual_single_status_item_pid() {
+aos_visual_global_diagnostic_single_status_item_pid() {
   local matches_json
-  matches_json="$(aos_status_item_matches_json)" || return 1
+  matches_json="$(aos_global_status_item_diagnostic_matches_json)" || return 1
 
   python3 - "$matches_json" <<'PY'
 import json
@@ -502,7 +502,7 @@ aos_visual_show_sigil_avatar_via_live_status_click() {
   local avatar_id="${1:-avatar-main}"
   local aos_bin pid
   aos_bin="$(aos_visual_aos)"
-  pid="$(aos_visual_single_status_item_pid)"
+  pid="$(aos_visual_global_diagnostic_single_status_item_pid)"
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"

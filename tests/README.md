@@ -50,7 +50,7 @@ Stay in the local package or Node loop when the work does not depend on a fresh
 
 Examples:
 
-- `node --test tests/studio/*.test.mjs`
+- `node --test tests/studio/*.test.mjs` for sequestered Studio pure helpers only.
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/toolkit/*.test.mjs`
 - `cd packages/gateway && npm test`
@@ -382,7 +382,6 @@ Examples:
 - `bash tests/config-surface.sh`
 - `bash tests/cli-error-log.sh`
 - `bash tests/sigil-avatar-interactions.sh`
-- `bash tests/sigil-workbench-studio-restage.sh`
 - `bash tests/sigil-workbench-launch.sh`
 
 ## Recovery

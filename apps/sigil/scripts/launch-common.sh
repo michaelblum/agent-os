@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compatibility helpers retained for older test harnesses.
+# Shared Sigil launch helpers used by AOS app/experience flows and tests.
 
 sigil_launch_repo_root() {
   local source_path="${BASH_SOURCE[0]}"
