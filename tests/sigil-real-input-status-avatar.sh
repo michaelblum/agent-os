@@ -46,15 +46,55 @@ STATUS_ITEM_HYGIENE="$(aos_visual_run_bounded 8 "assert isolated status item own
 aos_visual_run_bounded 8 "remove stale Sigil avatar canvas" aos_visual_remove_canvas avatar-main
 aos_visual_run_bounded 8 "remove stale surface inspector canvas" aos_visual_remove_canvas surface-inspector
 aos_visual_run_bounded 15 "launch surface inspector" aos_visual_launch_canvas_inspector surface-inspector
-aos_visual_run_bounded 8 "click isolated status item" click_aos_status_item_real "$STATUS_ITEM_PID" "$(aos_visual_aos)"
-aos_visual_run_bounded 10 "wait for Sigil avatar ready" aos_visual_wait_sigil_avatar_ready avatar-main
 wait_for_status_avatar_visible() {
   "$(aos_visual_aos)" show wait \
     --id avatar-main \
     --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
     --timeout 5s >/dev/null
 }
-aos_visual_run_bounded 8 "wait for Sigil avatar visible from status click" wait_for_status_avatar_visible
+VISIBLE_WAIT_STDOUT="$(mktemp "${TMPDIR:-/tmp}/aos-status-avatar-visible-stdout.XXXXXX")"
+VISIBLE_WAIT_STDERR="$(mktemp "${TMPDIR:-/tmp}/aos-status-avatar-visible-stderr.XXXXXX")"
+wait_for_status_avatar_visible >"$VISIBLE_WAIT_STDOUT" 2>"$VISIBLE_WAIT_STDERR" &
+VISIBLE_WAIT_PID="$!"
+export STATUS_CLICK_TIMING
+STATUS_CLICK_TIMING="$(aos_visual_run_bounded 8 "click isolated status item" click_aos_status_item_real_low_latency_json "$STATUS_ITEM_PID")" || {
+  kill "$VISIBLE_WAIT_PID" 2>/dev/null || true
+  rm -f "$VISIBLE_WAIT_STDOUT" "$VISIBLE_WAIT_STDERR"
+  exit 1
+}
+VISIBLE_WAIT_DEADLINE=$((SECONDS + 8))
+while kill -0 "$VISIBLE_WAIT_PID" 2>/dev/null; do
+  if (( SECONDS >= VISIBLE_WAIT_DEADLINE )); then
+    kill "$VISIBLE_WAIT_PID" 2>/dev/null || true
+    sleep 0.2
+    kill -9 "$VISIBLE_WAIT_PID" 2>/dev/null || true
+    echo "FAIL: timed out after 8s waiting for Sigil avatar visible from status click" >&2
+    echo "stdout:" >&2
+    sed -n '1,80p' "$VISIBLE_WAIT_STDOUT" >&2 || true
+    echo "stderr:" >&2
+    sed -n '1,80p' "$VISIBLE_WAIT_STDERR" >&2 || true
+    rm -f "$VISIBLE_WAIT_STDOUT" "$VISIBLE_WAIT_STDERR"
+    exit 124
+  fi
+  sleep 0.05
+done
+if ! wait "$VISIBLE_WAIT_PID"; then
+  echo "FAIL: wait for Sigil avatar visible from status click failed" >&2
+  echo "stdout:" >&2
+  sed -n '1,80p' "$VISIBLE_WAIT_STDOUT" >&2 || true
+  echo "stderr:" >&2
+  sed -n '1,80p' "$VISIBLE_WAIT_STDERR" >&2 || true
+  rm -f "$VISIBLE_WAIT_STDOUT" "$VISIBLE_WAIT_STDERR"
+  exit 1
+fi
+rm -f "$VISIBLE_WAIT_STDOUT" "$VISIBLE_WAIT_STDERR"
+export STATUS_AVATAR_VISIBLE_AT_MS
+STATUS_AVATAR_VISIBLE_AT_MS="$(python3 - <<'PY'
+import time
+print(time.time_ns() / 1_000_000)
+PY
+)"
+aos_visual_run_bounded 10 "wait for Sigil avatar ready" aos_visual_wait_sigil_avatar_ready avatar-main
 aos_visual_run_bounded 8 "place Sigil avatar for manual-visible test" aos_visual_place_sigil_avatar_for_manual_test avatar-main
 aos_visual_run_bounded 8 "avoid Sigil avatar/inspector overlap" aos_visual_avoid_sigil_avatar_overlap avatar-main surface-inspector
 
@@ -73,6 +113,10 @@ harness = SigilContextHarness()
 initial = harness.arm_trace("real-input-status-avatar")
 status_items = json.loads(os.environ.get("STATUS_ITEMS_BEFORE_CLICK", '{"matches": []}'))
 status_item_hygiene = json.loads(os.environ.get("STATUS_ITEM_HYGIENE", "{}"))
+status_click_timing = json.loads(os.environ.get("STATUS_CLICK_TIMING", "{}"))
+avatar_visible_at = float(os.environ.get("STATUS_AVATAR_VISIBLE_AT_MS", "0") or "0")
+if status_click_timing.get("eventPostedAtMs") and avatar_visible_at:
+    status_click_timing["appVisibleAfterEventPostedMs"] = avatar_visible_at - status_click_timing["eventPostedAtMs"]
 if not initial["avatarVisible"] or not initial["hitTargetInteractive"]:
     raise SystemExit(f"FAIL: avatar not visible/interactive after real status click: {initial}")
 
@@ -143,6 +187,7 @@ line_state = harness.wait_until(
 print("PASS", json.dumps({
     "statusItemsBeforeClick": status_items,
     "statusItemHygiene": status_item_hygiene,
+    "statusClickTiming": status_click_timing,
     "initial": initial,
     "before_scroll": before_scroll,
     "after_scroll": after_scroll,
