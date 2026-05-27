@@ -12,6 +12,81 @@ Do not rebuild `./aos` by default before every verification step.
 For the repo-wide entry-path model behind these choices, see
 `docs/recipes/agent-entry-paths-and-verification.md`.
 
+For runtime, canvas, input, status-item, lifecycle, or cross-layer work, choose
+the cheapest canonical-path representative harness that preserves the variable
+at risk. Use `docs/recipes/test-harness-ladder-and-prep.md` when the harness is
+not obvious or when a new test primitive, fixture, helper, or scenario may be
+needed.
+
+## Foundational Harness Ladder
+
+Use this ladder before reaching for app-specific examples. Escalate only when
+the lower level fakes away the defect variable, cannot observe the relevant
+contract, or would need private test plumbing that already exists one level up.
+
+- Model/unit tests: use for pure reducers, parsers, schemas, renderer state,
+  toolkit helpers, and package logic. They do not cover daemon lifecycle,
+  content serving, real canvas frames, host permissions, or native input. Reuse
+  `tests/renderer/*.test.mjs`, `tests/toolkit/*.test.mjs`,
+  `tests/daemon/*.test.mjs`, `tests/schemas/*.test.mjs`, and package-local
+  test loops. Escalate when the behavior depends on `./aos`, persisted runtime
+  state, a served URL, display topology, or native event delivery.
+- Toolkit/component contract tests: use for reusable browser-surface policy,
+  runtime primitives, subject descriptors, workbench shell behavior, and
+  component contracts that can be proven without a live daemon. They do not
+  cover content-root registration, canvas lifecycle, native window placement, or
+  end-to-end app activation. Reuse `tests/toolkit/runtime-*.test.mjs`,
+  `tests/toolkit/*subject*.test.mjs`, and adjacent schema tests. Escalate when
+  the contract crosses into daemon-backed canvases or host-owned input.
+- Isolated daemon tests: use when the behavior needs `./aos`, daemon IPC,
+  content roots, canvas lifecycle, wiki/content state, voice/session state, or
+  a browser canvas without sharing the repo daemon. They do not prove
+  singleton repo-daemon behavior, live status-item ownership, or real user
+  input. Reuse `tests/lib/isolated-daemon.sh` and tests that allocate
+  `AOS_STATE_ROOT`. Escalate when the defect depends on the shared repo daemon,
+  live canvas namespace, or an existing user-facing runtime surface.
+- Shared repo-daemon live canvas tests: use when the canonical path is the live
+  repo daemon or when the shared canvas namespace, content roots, xray, capture,
+  ref-click, or cleanup behavior is the variable under test. They do not
+  tolerate parallel canvas mutation and do not prove native pointer behavior by
+  themselves. Reuse `tests/lib/live-canvas-serial.sh`,
+  `tests/aos-semantic-targets-xray.sh`,
+  `tests/aos-semantic-targets-xray-retry.sh`, and
+  `tests/aos-canvas-ref-click.sh`. Escalate when visual placement, status-item
+  ownership, or real input is the defect variable.
+- Visual harness tests: use when canvas placement, Surface Inspector visibility,
+  app launch composition, stale content roots, or visual diagnostics need a
+  repeatable workspace. They do not replace assertions for product semantics or
+  real input. Reuse `tests/lib/visual-harness.sh`,
+  `tests/visual-harness-content-preflight.sh`, and named visual launch helpers
+  such as `aos_visual_launch_canvas_inspector` and
+  `aos_visual_launch_sigil_with_inspector`. Escalate when a human must judge a
+  visual result or when the bug appears only through host pointer/keyboard use.
+- Status-item owner/click harnesses: use when menu-bar ownership, status-item
+  PID scoping, duplicate-item diagnostics, or status-item click delivery is the
+  contract. They do not prove arbitrary app behavior after launch unless the
+  scenario asserts that behavior through the canonical surface. Reuse
+  `tests/lib/status-item.sh`, `tests/sigil-status-item-lifecycle.sh`,
+  `tests/sigil-real-input-status-avatar.sh`, and
+  `tests/sigil-context-menu-real-input.sh`. Escalate when renderer state or
+  `show eval` activation would skip the status-item/user-input path under test.
+- Real-input scenarios: use when real mouse or keyboard delivery, input taps,
+  coordinate conversion, DesktopWorld/native boundaries, semantic targets, or
+  action latency is the variable under test. They do not belong in broad
+  default loops and should skip or stop cleanly when permissions or human idle
+  state are missing. Reuse `tests/lib/real-input-surface-harness.sh`,
+  `tests/lib/real-input-surface-primitives.mjs`,
+  `tests/lib/real_input_surface_primitives.py`, and named scenarios gated by
+  `AOS_REAL_INPUT_OK=1`. Escalate to supervised/HITL only when automated
+  evidence cannot answer the visual or human-observation question.
+- Supervised/HITL harnesses: use when the contract requires explicit human
+  observation, approval, or live-provider acceptance around an otherwise bounded
+  run. They do not replace deterministic checks and should not become the
+  default for routine harness selection. Reuse `tests/lib/supervised-run*.sh`,
+  `tests/lib/supervised-run-artifact.py`, `tests/run-puck-hitl-plan.sh`, and
+  manual tests under `tests/manual/`. Escalate to this level only with a clear
+  human-needed question and artifact path.
+
 ## Rebuild `./aos` First
 
 Rebuild with `./aos dev build` when both of these are true:
@@ -301,6 +376,13 @@ caller, or a boundary that should not be reimplemented by future scenarios. If a
 single scenario needs a one-off assertion, keep it local, but do not let local
 code own platform knowledge such as display DPI, native display origins, content
 root setup, daemon readiness, or generic semantic-target extraction.
+
+For runtime, canvas, input, status-item, lifecycle, visual, supervised, or
+cross-layer slices, report harness choices and reusable artifact candidates when
+they matter. Use `harness_selection`, `fixture_blind_spots`,
+`new_test_artifact_candidates`, or `why_no_harness_prep_needed` as lightweight
+completion-report fields instead of making every small test or docs change
+verbose.
 
 Test primitives that perform input should prefer shorthand over public AOS
 actions. If a scenario needs a gesture that `aos do` cannot express cleanly,

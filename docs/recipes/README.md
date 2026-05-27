@@ -41,6 +41,10 @@ Examples include context-doc maintenance, AOS surface interaction decisions,
 workstream checkpoint continuation, accessibility surface expectations,
 layered subject expressions, and controlled smoke procedures.
 
+For test harness selection and lightweight prep before runtime, canvas, input,
+status-item, lifecycle, visual, supervised, or cross-layer work, use
+`docs/recipes/test-harness-ladder-and-prep.md`.
+
 ## Poor Recipe Fit
 
 Do not add or keep a Markdown recipe here when it is:

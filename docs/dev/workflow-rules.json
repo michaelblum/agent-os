@@ -437,7 +437,8 @@
       "commands": [],
       "verification": [],
       "notes": [
-        "Docs-only changes do not require runtime verification unless they change command contracts or executable examples."
+        "Docs-only changes do not require runtime verification unless they change command contracts or executable examples.",
+        "For docs that route runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer testing decisions, link to the foundational harness ladder in tests/README.md and docs/recipes/test-harness-ladder-and-prep.md."
       ]
     },
     {
@@ -461,6 +462,9 @@
           "command": "bash <changed-test>",
           "reason": "Run the changed shell scenario or the smallest adjacent test set."
         }
+      ],
+      "notes": [
+        "Use the foundational harness ladder in tests/README.md and docs/recipes/test-harness-ladder-and-prep.md before adding runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer test helpers."
       ]
     }
   ],
