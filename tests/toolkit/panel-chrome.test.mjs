@@ -468,6 +468,60 @@ test('createPanelWindowController prewarms the shared stage before minimize clic
   ]);
 });
 
+test('render performance panel opts out of automatic stage prewarm', async () => {
+  const html = await readFile(new URL('../../packages/toolkit/components/render-performance/index.html', import.meta.url), 'utf8');
+
+  assert.match(html, /minimize:\s*\{\s*prewarmStage:\s*false\s*\}/s);
+});
+
+test('createPanelWindowController honors minimize prewarm opt out', async (t) => {
+  const previousWindow = globalThis.window;
+  const previousAtob = globalThis.atob;
+  globalThis.window = {
+    headsup: {},
+    webkit: { messageHandlers: { headsup: { postMessage() {} } } },
+  };
+  globalThis.atob = (value) => Buffer.from(value, 'base64').toString('utf8');
+  t.after(() => {
+    globalThis.window = previousWindow;
+    globalThis.atob = previousAtob;
+  });
+
+  const calls = [];
+  const controller = createPanelWindowController({
+    getCanvasId: () => 'panel-a',
+    getFrame: () => [40, 70, 500, 360],
+    getChipFrame: () => [10, 43, 220, 38],
+    drag: false,
+    minimize: {
+      prewarmStage: false,
+      ensureStage(opts) {
+        calls.push(['ensureStage', opts.id]);
+        return { ok: true, status: 'created', id: opts.id, created: true };
+      },
+      sendStageMessage(message) { calls.push(['stage', message.type]); },
+      async registerRegion(region) { calls.push(['registerRegion', region.id]); },
+      async suspend(id) { calls.push(['suspend', id]); },
+      now: () => 1000,
+    },
+  });
+
+  await Promise.resolve();
+  assert.deepEqual(calls, []);
+
+  const result = await controller.minimize({ title: 'Panel' });
+  assert.equal(result.status, 'success');
+  assert.equal(result.mode, 'stage');
+  assert.deepEqual(calls.map((entry) => entry[0]), [
+    'ensureStage',
+    'stage',
+    'registerRegion',
+    'registerRegion',
+    'registerRegion',
+    'suspend',
+  ]);
+});
+
 test('createMinimizeController prewarm reuses promises and retries only when requested', async () => {
   const calls = [];
   const controller = createMinimizeController({

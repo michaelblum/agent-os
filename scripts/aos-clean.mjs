@@ -186,8 +186,6 @@ const SIGIL_OWNED_CANVAS_IDS = new Set([
   'sigil-radial-menu-avatar-main',
   'sigil-agent-terminal',
   'sigil-wiki-workbench',
-  'sigil-render-performance',
-  'sigil-interaction-trace',
 ]);
 
 function sigilOwnedCanvas(canvas) {
@@ -203,6 +201,22 @@ function staleCanvasesForMode(mode) {
     if (active === 'sigil' && sigilOwnedCanvas(canvas)) return false;
     return true;
   });
+}
+
+function parentFirstCanvases(canvases) {
+  const byId = new Map(canvases.map((canvas) => [canvas.id, canvas]));
+  const depthFor = (canvas, seen = new Set()) => {
+    const parent = canvas?.parent;
+    if (!parent || seen.has(parent) || !byId.has(parent)) return 0;
+    seen.add(parent);
+    return 1 + depthFor(byId.get(parent), seen);
+  };
+  return [...canvases].sort((a, b) => depthFor(a) - depthFor(b));
+}
+
+function canvasRemovalRoots(canvases) {
+  const staleIds = new Set(canvases.map((canvas) => canvas.id));
+  return parentFirstCanvases(canvases).filter((canvas) => !canvas.parent || !staleIds.has(canvas.parent));
 }
 
 function removeCanvas(mode, id) {
@@ -293,8 +307,8 @@ function runClean(dryRun) {
     }
   }
 
-  let currentCanvases = staleCanvasesForMode(mode);
-  let otherCanvases = staleCanvasesForMode(alternateMode);
+  let currentCanvases = parentFirstCanvases(staleCanvasesForMode(mode));
+  let otherCanvases = parentFirstCanvases(staleCanvasesForMode(alternateMode));
   if (otherCanvases.length > 0) {
     notes.push(`${otherCanvases.length} canvas(es) on ${alternateMode}-mode daemon`);
   }
@@ -302,27 +316,27 @@ function runClean(dryRun) {
 
   if (!dryRun && canvases.length > 0) {
     if (currentCanvases.length > 0) {
-      for (const canvas of currentCanvases) {
+      for (const canvas of canvasRemovalRoots(currentCanvases)) {
         if (removeCanvas(mode, canvas.id)) {
           actions.push(`removed canvas id=${canvas.id} mode=${mode}`);
         } else {
           notes.push(`failed to remove canvas id=${canvas.id} mode=${mode}`);
         }
       }
-      currentCanvases = waitForCanvasRemoval(mode);
+      currentCanvases = parentFirstCanvases(waitForCanvasRemoval(mode));
       for (const canvas of currentCanvases) {
         notes.push(`failed to remove canvas id=${canvas.id} mode=${mode}`);
       }
     }
     if (otherCanvases.length > 0) {
-      for (const canvas of otherCanvases) {
+      for (const canvas of canvasRemovalRoots(otherCanvases)) {
         if (removeCanvas(alternateMode, canvas.id)) {
           actions.push(`removed canvas id=${canvas.id} mode=${alternateMode}`);
         } else {
           notes.push(`failed to remove canvas id=${canvas.id} mode=${alternateMode}`);
         }
       }
-      otherCanvases = waitForCanvasRemoval(alternateMode);
+      otherCanvases = parentFirstCanvases(waitForCanvasRemoval(alternateMode));
       for (const canvas of otherCanvases) {
         notes.push(`failed to remove canvas id=${canvas.id} mode=${alternateMode}`);
       }
