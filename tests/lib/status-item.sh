@@ -252,21 +252,112 @@ FileHandle.standardOutput.write("\n".data(using: .utf8)!)
 SWIFT
 }
 
+aos_status_item_matches_for_pids_json() {
+  local pids="$1"
+  local expected_label="${AOS_STATUS_ITEM_LABEL:-AOS status item}"
+
+  swift - "$expected_label" "$pids" <<'SWIFT'
+import AppKit
+import ApplicationServices
+import Foundation
+
+func getAttr(_ el: AXUIElement, _ name: String) -> AnyObject? {
+    var value: CFTypeRef?
+    let result = AXUIElementCopyAttributeValue(el, name as CFString, &value)
+    guard result == .success else { return nil }
+    return value
+}
+
+func pointAttr(_ el: AXUIElement, _ name: String) -> CGPoint? {
+    guard let value = getAttr(el, name) else { return nil }
+    var point = CGPoint.zero
+    guard AXValueGetType(value as! AXValue) == .cgPoint,
+          AXValueGetValue(value as! AXValue, .cgPoint, &point) else {
+        return nil
+    }
+    return point
+}
+
+func sizeAttr(_ el: AXUIElement, _ name: String) -> CGSize? {
+    guard let value = getAttr(el, name) else { return nil }
+    var size = CGSize.zero
+    guard AXValueGetType(value as! AXValue) == .cgSize,
+          AXValueGetValue(value as! AXValue, .cgSize, &size) else {
+        return nil
+    }
+    return size
+}
+
+let expectedLabel = CommandLine.arguments.count >= 2 ? CommandLine.arguments[1] : "AOS status item"
+let pidValues = CommandLine.arguments.count >= 3
+    ? CommandLine.arguments[2].split(separator: ",").compactMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    : []
+var matches: [[String: Any]] = []
+
+for pid in pidValues where pid > 0 {
+    let app = AXUIElementCreateApplication(pid)
+    guard let extrasValue = getAttr(app, kAXExtrasMenuBarAttribute as String) else { continue }
+    let extras = extrasValue as! AXUIElement
+    var childrenRef: CFTypeRef?
+    let childrenResult = AXUIElementCopyAttributeValue(extras, kAXChildrenAttribute as CFString, &childrenRef)
+    guard childrenResult == .success,
+          let childrenValue = childrenRef,
+          let children = childrenValue as? [AXUIElement] else {
+        continue
+    }
+
+    for child in children {
+        let title = getAttr(child, kAXTitleAttribute as String) as? String
+        let desc = getAttr(child, kAXDescriptionAttribute as String) as? String
+        let help = getAttr(child, kAXHelpAttribute as String) as? String
+        if ![title, desc, help].contains(expectedLabel) { continue }
+        let position = pointAttr(child, kAXPositionAttribute as String)
+        let size = sizeAttr(child, kAXSizeAttribute as String)
+        matches.append([
+            "pid": Int(pid),
+            "bundle_id": "",
+            "app_name": "aos",
+            "x": position.map { $0.x } ?? NSNull(),
+            "y": position.map { $0.y } ?? NSNull(),
+            "w": size.map { $0.width } ?? NSNull(),
+            "h": size.map { $0.height } ?? NSNull(),
+        ])
+    }
+}
+
+let data = try JSONSerialization.data(withJSONObject: ["matches": matches], options: [.sortedKeys])
+FileHandle.standardOutput.write(data)
+FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+SWIFT
+}
+
 aos_assert_status_item_overlap_bounded_json() {
   local expected_pid="${1:-}"
   local matches_json
   matches_json="$(aos_status_item_matches_json)" || return 1
 
+  aos_assert_status_item_overlap_from_matches_json "$expected_pid" "$matches_json"
+}
+
+aos_assert_status_item_overlap_from_matches_json() {
+  local expected_pid="${1:-}"
+  local matches_json="$2"
+
   python3 - "$expected_pid" "$matches_json" <<'PY'
 import json
 import sys
 
-expected_pid = int(sys.argv[1]) if sys.argv[1] else None
+expected_pids = {
+    int(value)
+    for value in sys.argv[1].replace(",", " ").split()
+    if value
+}
 payload = json.loads(sys.argv[2])
 matches = payload.get("matches") or []
-target = next((entry for entry in matches if expected_pid is not None and entry.get("pid") == expected_pid), None)
-if expected_pid is not None and target is None:
-    raise SystemExit(f"FAIL: expected daemon status item pid {expected_pid} not found: {json.dumps(matches, sort_keys=True)}")
+target = next((entry for entry in matches if expected_pids and entry.get("pid") in expected_pids), None)
+if expected_pids and target is None:
+    expected = sorted(expected_pids)
+    raise SystemExit(f"FAIL: expected daemon status item pid(s) {expected} not found: {json.dumps(matches, sort_keys=True)}")
 
 def has_rect(entry):
     return all(isinstance(entry.get(key), (int, float)) for key in ("x", "y", "w", "h"))
@@ -294,11 +385,42 @@ if overlaps_target:
 
 result = {
     "matches": matches,
-    "targetPid": expected_pid,
-    "targetFound": target is not None if expected_pid is not None else None,
+    "targetPid": target.get("pid") if target else None,
+    "targetPids": sorted(expected_pids),
+    "targetFound": target is not None if expected_pids else None,
     "overlapCount": len(overlaps_target),
 }
 print(json.dumps(result, sort_keys=True))
+PY
+}
+
+aos_status_item_pid_from_matches_json() {
+  local expected_pid="${1:-}"
+  local matches_json="$2"
+
+  python3 - "$expected_pid" "$matches_json" <<'PY'
+import json
+import sys
+
+expected_pids = {
+    int(value)
+    for value in sys.argv[1].replace(",", " ").split()
+    if value
+}
+payload = json.loads(sys.argv[2])
+matches = payload.get("matches") or []
+target = next((entry for entry in matches if expected_pids and entry.get("pid") in expected_pids), None)
+if target is None and expected_pids:
+    expected = sorted(expected_pids)
+    raise SystemExit(f"FAIL: expected daemon status item pid(s) {expected} not found: {json.dumps(matches, sort_keys=True)}")
+if target is None and len(matches) == 1:
+    target = matches[0]
+if target is None:
+    raise SystemExit(f"FAIL: unable to choose unambiguous AOS status item: {json.dumps(matches, sort_keys=True)}")
+pid = target.get("pid")
+if not pid:
+    raise SystemExit(f"FAIL: chosen AOS status item is missing pid: {json.dumps(target, sort_keys=True)}")
+print(pid)
 PY
 }
 
@@ -317,7 +439,11 @@ aos_unambiguous_status_item_pid() {
 import json
 import sys
 
-expected_pid = int(sys.argv[1]) if sys.argv[1] else None
+expected_pids = {
+    int(value)
+    for value in sys.argv[1].replace(",", " ").split()
+    if value
+}
 payload = json.loads(sys.argv[2])
 matches = payload.get("matches") or []
 
@@ -332,9 +458,10 @@ def overlaps(a, b):
         and a["y"] + a["h"] > b["y"]
     )
 
-target = next((entry for entry in matches if expected_pid is not None and entry.get("pid") == expected_pid), None)
-if target is None and expected_pid is not None:
-    raise SystemExit(f"FAIL: expected daemon status item pid {expected_pid} not found: {json.dumps(matches, sort_keys=True)}")
+target = next((entry for entry in matches if expected_pids and entry.get("pid") in expected_pids), None)
+if target is None and expected_pids:
+    expected = sorted(expected_pids)
+    raise SystemExit(f"FAIL: expected daemon status item pid(s) {expected} not found: {json.dumps(matches, sort_keys=True)}")
 if target is None and len(matches) == 1:
     target = matches[0]
 

@@ -6,29 +6,59 @@ source "$(dirname "$0")/lib/visual-harness.sh"
 PREFIX="aos-sigil-real-input-status-avatar"
 aos_test_cleanup_prefix "$PREFIX"
 
+REPO_SERVICE_WAS_RUNNING="$(
+  env -u AOS_STATE_ROOT ./aos service status --mode repo --json 2>/dev/null \
+    | python3 -c 'import json,sys; print("1" if json.load(sys.stdin).get("running") else "0")' 2>/dev/null \
+    || printf '0'
+)"
+aos_visual_run_bounded 10 "stop repo service status item before isolated status-item test" \
+  bash -c 'env -u AOS_STATE_ROOT ./aos service stop --mode repo --json >/dev/null'
+
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$ROOT"
 
 cleanup() {
-  aos_test_kill_root "$ROOT"
+  aos_test_kill_root "$ROOT" 2>/dev/null || true
   rm -rf "$ROOT"
+  if [[ "$REPO_SERVICE_WAS_RUNNING" == "1" ]]; then
+    env -u AOS_STATE_ROOT ./aos service start --mode repo --json >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
-aos_visual_seed_sigil repo
+aos_visual_run_bounded 15 "seed Sigil fixture" aos_visual_seed_sigil repo
 
-aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
+aos_visual_run_bounded 20 "start isolated daemon" \
+  aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
-export STATUS_ITEMS_BEFORE_CLICK
-STATUS_ITEMS_BEFORE_CLICK="$(aos_status_item_matches_json || printf '{"matches":[]}')"
+aos_visual_run_bounded 10 "configure isolated Sigil status item" \
+  aos_visual_configure_sigil_status_item avatar-main
+
 export STATUS_ITEM_HYGIENE
-DAEMON_PID="$(aos_test_wait_for_lock_pid "$ROOT")"
-STATUS_ITEM_PID="$(aos_unambiguous_status_item_pid "$DAEMON_PID")"
-STATUS_ITEM_HYGIENE="$(aos_assert_status_item_overlap_bounded_json "$STATUS_ITEM_PID")"
+DAEMON_PID="$(aos_visual_run_bounded 8 "wait for isolated daemon lock pid" aos_test_wait_for_lock_pid "$ROOT")"
+EXPECTED_STATUS_ITEM_PIDS="$(aos_visual_run_bounded 8 "list isolated daemon process owners" aos_test_pids_for_root "$ROOT" | paste -sd, -)"
+export STATUS_ITEMS_BEFORE_CLICK
+STATUS_ITEMS_BEFORE_CLICK="$(aos_visual_run_bounded 20 "read isolated status item inventory" aos_status_item_matches_for_pids_json "$EXPECTED_STATUS_ITEM_PIDS")"
+STATUS_ITEM_PID="$(aos_visual_run_bounded 8 "select isolated status item owner ${EXPECTED_STATUS_ITEM_PIDS}" aos_status_item_pid_from_matches_json "$EXPECTED_STATUS_ITEM_PIDS" "$STATUS_ITEMS_BEFORE_CLICK")"
+STATUS_ITEM_HYGIENE="$(aos_visual_run_bounded 8 "assert isolated status item ownership ${STATUS_ITEM_PID}" aos_assert_status_item_overlap_from_matches_json "$STATUS_ITEM_PID" "$STATUS_ITEMS_BEFORE_CLICK")"
 
-aos_visual_launch_sigil_with_inspector_via_status_item "$ROOT" avatar-main surface-inspector manual-visible
+aos_visual_run_bounded 8 "remove stale Sigil avatar canvas" aos_visual_remove_canvas avatar-main
+aos_visual_run_bounded 8 "remove stale surface inspector canvas" aos_visual_remove_canvas surface-inspector
+aos_visual_run_bounded 15 "launch surface inspector" aos_visual_launch_canvas_inspector surface-inspector
+aos_visual_run_bounded 8 "click isolated status item" click_aos_status_item_real "$STATUS_ITEM_PID" "$(aos_visual_aos)"
+aos_visual_run_bounded 10 "wait for Sigil avatar ready" aos_visual_wait_sigil_avatar_ready avatar-main
+wait_for_status_avatar_visible() {
+  "$(aos_visual_aos)" show wait \
+    --id avatar-main \
+    --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
+    --timeout 5s >/dev/null
+}
+aos_visual_run_bounded 8 "wait for Sigil avatar visible from status click" wait_for_status_avatar_visible
+aos_visual_run_bounded 8 "place Sigil avatar for manual-visible test" aos_visual_place_sigil_avatar_for_manual_test avatar-main
+aos_visual_run_bounded 8 "avoid Sigil avatar/inspector overlap" aos_visual_avoid_sigil_avatar_overlap avatar-main surface-inspector
 
+run_status_avatar_assertions() {
 python3 - <<'PY'
 import json
 import os
@@ -119,3 +149,6 @@ print("PASS", json.dumps({
     "line": line_state,
 }))
 PY
+}
+
+aos_visual_run_bounded 30 "status avatar real-input assertions" run_status_avatar_assertions

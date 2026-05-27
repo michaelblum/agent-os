@@ -16,6 +16,105 @@ aos_visual_aos() {
   printf '%s\n' "${AOS:-$VISUAL_HARNESS_ROOT/aos}"
 }
 
+aos_visual_status_item_inventory() {
+  aos_status_item_matches_json 2>/dev/null || printf '{"matches":[]}\n'
+}
+
+aos_visual_phase_snapshot() {
+  local label="$1"
+  local aos_bin
+  aos_bin="$(aos_visual_aos)"
+
+  python3 - "$label" "$aos_bin" "$(aos_visual_status_item_inventory)" <<'PY'
+import json
+import subprocess
+import sys
+
+label, aos, status_items = sys.argv[1:4]
+
+def run_json(*args):
+    try:
+        completed = subprocess.run(
+            [aos, *args],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=3,
+        )
+    except subprocess.TimeoutExpired:
+        return {"error": f"{' '.join(args)} timed out"}
+    if completed.returncode != 0:
+        return {"error": completed.stdout.strip() or f"{' '.join(args)} exited {completed.returncode}"}
+    try:
+        return json.loads(completed.stdout or "{}")
+    except Exception as error:
+        return {"error": f"invalid JSON from {' '.join(args)}: {error}", "output": completed.stdout[:1000]}
+
+try:
+    status_payload = json.loads(status_items or '{"matches":[]}')
+except Exception as error:
+    status_payload = {"error": f"invalid status item inventory: {error}", "raw": status_items}
+
+snapshot = {
+    "label": label,
+    "statusItems": status_payload.get("matches", []),
+    "showList": run_json("show", "list", "--json").get("canvases", []),
+    "runtime": run_json("status", "--json"),
+    "cleanDryRun": run_json("clean", "--dry-run", "--json"),
+}
+print(json.dumps(snapshot, sort_keys=True))
+PY
+}
+
+aos_visual_run_bounded() {
+  local timeout="$1"
+  local label="$2"
+  shift 2
+
+  local stdout_file stderr_file pid elapsed status
+  stdout_file="$(mktemp "${TMPDIR:-/tmp}/aos-visual-phase-stdout.XXXXXX")"
+  stderr_file="$(mktemp "${TMPDIR:-/tmp}/aos-visual-phase-stderr.XXXXXX")"
+
+  "$@" >"$stdout_file" 2>"$stderr_file" &
+  pid="$!"
+  elapsed=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if (( elapsed >= timeout )); then
+      kill "$pid" 2>/dev/null || true
+      sleep 0.2
+      kill -9 "$pid" 2>/dev/null || true
+      echo "FAIL: timed out after ${timeout}s during ${label}" >&2
+      echo "stdout:" >&2
+      sed -n '1,80p' "$stdout_file" >&2 || true
+      echo "stderr:" >&2
+      sed -n '1,80p' "$stderr_file" >&2 || true
+      echo "snapshot:" >&2
+      aos_visual_phase_snapshot "$label" >&2 || true
+      rm -f "$stdout_file" "$stderr_file"
+      return 124
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+
+  wait "$pid"
+  status="$?"
+  if (( status != 0 )); then
+    echo "FAIL: ${label} exited ${status}" >&2
+    echo "stdout:" >&2
+    sed -n '1,80p' "$stdout_file" >&2 || true
+    echo "stderr:" >&2
+    sed -n '1,80p' "$stderr_file" >&2 || true
+    echo "snapshot:" >&2
+    aos_visual_phase_snapshot "$label" >&2 || true
+    rm -f "$stdout_file" "$stderr_file"
+    return "$status"
+  fi
+
+  cat "$stdout_file"
+  rm -f "$stdout_file" "$stderr_file"
+}
+
 aos_visual_content_root_key() {
   local prefix="$1"
   local env_name value
@@ -321,14 +420,16 @@ aos_visual_show_sigil_avatar() {
 aos_visual_show_sigil_avatar_via_real_status_click() {
   local state_root="$1"
   local avatar_id="${2:-avatar-main}"
-  local aos_bin pid
+  local aos_bin pid status_owner_pids
   aos_bin="$(aos_visual_aos)"
   pid="$(aos_test_wait_for_lock_pid "$state_root")"
   [[ -n "$pid" ]] || {
     echo "FAIL: daemon pid missing for real status-item click" >&2
     return 1
   }
-  pid="$(aos_unambiguous_status_item_pid "$pid")"
+  status_owner_pids="$(aos_test_pids_for_root "$state_root" | paste -sd, -)"
+  [[ -n "$status_owner_pids" ]] || status_owner_pids="$pid"
+  pid="$(aos_unambiguous_status_item_pid "$status_owner_pids")"
 
   click_aos_status_item_real "$pid" "$aos_bin"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
