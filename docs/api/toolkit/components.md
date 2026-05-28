@@ -1025,6 +1025,14 @@ path is now `aos_context_session`, `aos_context_keyframe`, and
 bundle consumers have migrated to the context files/fields and a later removal
 gate explicitly retires the old artifact.
 
+Sigil's radial camera shutter prefers the renderer-local active context provider
+when it has one. That provider can be populated by reticle commits, live
+Selection Mode commits, or debug compatibility adapters, so the export shutter
+does not need to know which mode produced the canonical context. The current V0
+provider is renderer-local; a daemon-visible provider/event channel remains the
+removal gate before other apps can consume active context without a Sigil
+renderer instance.
+
 Supported include toggles today:
 
 - `capture_image`

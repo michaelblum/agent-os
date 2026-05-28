@@ -197,10 +197,26 @@ as `leaf_node_id`, the intended target as `selected_node_id`, and the full
 ancestry as context path nodes. `selectionModeContextArtifact(input)` returns
 the artifact alone for callers that already own the surrounding session.
 
-Sigil exposes a debug-only construction path through
-`window.__sigilDebug.createSelectionModeContext(input)`, which stores the result
-at `window.__sigilDebug.snapshot().selectionMode.context_session`. It does not
-install pointer watchers or a full-screen capture layer.
+Sigil now uses the helper as a live product path. Double-clicking the avatar
+enters Selection Mode, registers an active-only daemon input-region claim,
+captures only Selection Mode clicks, and stores runtime state at
+`window.__sigilDebug.snapshot().selectionMode`. The state includes `active`,
+`entered_at`, `cursor`, `leaf_candidate`, `path_candidates`,
+`selected_node_id`, `context_session`, `events`, and `blocker`. After a
+selection click, Sigil exposes the root-to-leaf path, lets the selected target
+move from the leaf to an ancestor with keyboard cycling or debug calls, and
+commits the current `aos_context_session` into the renderer-local active
+context provider. `Escape`, a second avatar double-click, cancel, or successful
+commit exits the mode.
+
+The debug API remains available for deterministic tests and comment entry:
+`window.__sigilDebug.createSelectionModeContext(input)` constructs a session,
+`setSelectionModeNodeComment(nodeId, text)` attaches comments to path nodes, and
+`appendActiveContextKeyframe()` / `exportContextRecording()` assemble compact
+`aos_context_recording` payloads from ordered context keyframes and optional
+events. Sigil does not install an always-on pointer watcher or a new capture
+canvas; the visual cursor decoration and ancestor badges draw on the existing
+interaction overlay.
 
 ### Annotation Overlay Renderer V0
 

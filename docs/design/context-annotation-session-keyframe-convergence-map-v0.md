@@ -6,9 +6,11 @@ This note maps the current annotation, snapshot, and recording concepts onto
 one canonical model family. It started as a contract-first plan. The current
 implementation now includes the context session/keyframe foundation, the
 `aos_context_recording` contract, Surface Inspector and Sigil reticle adapters,
-canonical radial camera and see-bundle context exports, and a deterministic
-Selection Mode helper. It still does not rename schemas, remove compatibility
-artifacts, add a full recorder UI, or add always-on pointer capture.
+canonical radial camera and see-bundle context exports, a deterministic
+Selection Mode helper, a live Sigil Selection Mode runtime path, and a
+renderer-local active context provider. It still does not rename schemas, remove
+compatibility artifacts, add a full recorder UI, or add always-on pointer
+capture.
 
 ## Evidence Basis
 
@@ -474,17 +476,29 @@ root-to-leaf candidates, selected target id/address, ambiguity/rejection/skipped
 ancestor reports, adapter blockers, and comments. It returns an
 `aos_context_session` with one artifact whose `acquisition.mode` is
 `selection_mode`, preserving both `leaf_node_id` and `selected_node_id`.
-Sigil exposes only a debug construction entry point,
-`window.__sigilDebug.createSelectionModeContext(input)`, with the active result
-visible at `selectionMode.context_session`.
+Sigil now has a live runtime path: double-clicking the avatar enters Selection
+Mode, an active-only daemon input-region claim captures Selection Mode clicks,
+and the existing interaction overlay draws cursor decoration, target highlights,
+and ancestor badges. A selection click populates `selectionMode.leaf_candidate`,
+`path_candidates`, `selected_node_id`, `context_session`, `events`, and
+`blocker`; keyboard/debug selection can move the active target from the clicked
+leaf to an ancestor before commit. `Escape`, cancel, successful commit, or a
+second avatar double-click exits without adding an always-on capture canvas or
+pointer stream watcher.
+
+The debug construction entry point remains:
+`window.__sigilDebug.createSelectionModeContext(input)`. Additional debug hooks
+attach comments to path nodes and append/export ordered context recordings from
+the active context keyframe.
 
 Likely files:
 
-- a new Selection Mode module under the app/toolkit owner chosen by the slice;
 - `packages/toolkit/workbench/annotation-candidates.js`
 - `packages/toolkit/workbench/surface-hit-test-inspect.js`
-- relevant Sigil/avatar entry integration if double-click starts the mode;
-- new Selection Mode tests.
+- `apps/sigil/renderer/live-modules/main.js`
+- `apps/sigil/renderer/live-modules/input-regions.js`
+- `apps/sigil/renderer/live-modules/interaction-overlay.js`
+- Selection Mode and Sigil renderer tests.
 
 Tests:
 
@@ -538,9 +552,10 @@ Gates:
 - Reticle commit tests proving canonical artifacts: projectable semantic/native
   candidates, display fallback, nested scope commits, camera availability, and
   preserved acquisition evidence.
-- Selection Mode tests to add later: clicked leaf ancestry, selected ancestor,
-  ambiguous candidates, adapter blockers, and artifact output parity with
-  reticle mode.
+- Selection Mode tests: clicked leaf ancestry, selected ancestor, ambiguous
+  candidates, adapter blockers, artifact output parity with reticle mode, live
+  state wiring, active-mode click capture, escape/cancel paths, overlay output,
+  and comment preservation.
 - Snapshot/export tests for radial camera and `ctrl+opt+c`: bundle path mode,
   clipboard payload mode, canonical keyframe inclusion, compatibility
   annotation snapshot inclusion, source canvas evidence, and disabled toggles.
@@ -563,9 +578,11 @@ Gates:
   schema, or should V0 retain single `comment_text` and reserve
   `comments[]`? Recommendation: model `comments[]` now, adapt single
   `comment_text` into one comment.
-- Which surface owns the active context-session provider: daemon state, toolkit
-  shared module, or app-published session events? Recommendation: toolkit shape
-  plus daemon-visible provider/event channel; apps own product expression.
+- Which surface owns the active context-session provider beyond Sigil V0:
+  daemon state, toolkit shared module, or app-published session events?
+  Recommendation: keep the current Sigil renderer-local provider for V0, then
+  add a daemon-visible provider/event channel when another app or `ctrl+opt+c`
+  needs cross-renderer active context.
 - How much of a keyframe should be embedded versus asset-referenced?
   Recommendation: embed compact canonical context data; reference heavyweight
   images, xray, and compatibility bundle artifacts.

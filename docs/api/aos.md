@@ -829,7 +829,17 @@ inline `context_session` and `context_keyframe` fields or explicit skipped
 evidence. These canonical context fields are the machine-readable convergence
 path for future recordings. `annotation-snapshot.json` and
 `surface_inspector_annotation_snapshot` remain compatibility data until a later
-removal gate confirms downstream consumers have migrated. `aos set <key>
+removal gate confirms downstream consumers have migrated.
+
+Sigil radial camera exports now prefer Sigil's renderer-local active context
+provider when present. Reticle commits, live Selection Mode commits, and debug
+compatibility adapters can all publish the latest `aos_context_session` plus an
+active keyframe candidate to that provider, while `ctrl+opt+c` continues to
+derive canonical Surface Inspector context inside the daemon bundle path. The
+provider is not yet daemon-visible; that event/state channel is the explicit
+next removal gate for making active context available to all AOS apps.
+
+`aos set <key>
 <value>` remains supported as the shorthand write form.
 
 Failed CLI invocations now append local JSONL records to
