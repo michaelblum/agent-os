@@ -867,6 +867,7 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const selectionRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/selection-mode-runtime.js'), 'utf8')
   const contextRecordingRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/context-recording-runtime.js'), 'utf8')
+  const commandRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/ux-tree-command-registry.js'), 'utf8')
   const debugStart = source.indexOf('window.__sigilDebug = {')
   const debugBlock = source.slice(debugStart)
 
@@ -881,7 +882,8 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   assert.match(source, /function acquireSelectionModeCandidates\(point = null\)/)
   assert.match(source, /function handleSelectionModeInput\(msg = \{\}\)/)
   assert.match(source, /if \(handleSelectionModeInput\(msg\)\) return/)
-  assert.match(source, /consumeAvatarDoubleClick\(x, y\)[\s\S]*enterSelectionMode\(\{ x, y, valid: true \}, 'avatar-double-click'\)/)
+  assert.match(source, /consumeAvatarDoubleClick\(x, y\)[\s\S]*sigilUxCommandRuntime\.executeSelectionModeEnter/)
+  assert.match(commandRuntimeSource, /enterSelectionMode\(pointer, 'avatar-double-click'\)/)
   assert.match(source, /selectionModeIsActive: \(\) => liveJs\.selectionMode\?\.active === true/)
   assert.match(source, /selectionModeOverlay: liveJs\.selectionModeOverlay \|\| buildProjectedSelectionModeOverlay/)
   assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)

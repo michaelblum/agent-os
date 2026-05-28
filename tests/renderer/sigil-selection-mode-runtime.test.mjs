@@ -47,7 +47,8 @@ function createRuntime(options = {}) {
   let clearedGesture = 0
   let syncedRegions = 0
   let nowIndex = 0
-  const runtime = createSigilSelectionModeRuntime({
+  let runtime
+  runtime = createSigilSelectionModeRuntime({
     liveState,
     rendererState,
     nowIso: () => `2026-05-28T12:00:0${nowIndex++}.000Z`,
@@ -68,9 +69,13 @@ function createRuntime(options = {}) {
       activeContexts.push(payload)
       return { context_keyframe: { id: 'keyframe:selection' } }
     },
-    executeCommand(command, msg, commandOptions = {}) {
+    executeCommand(command, msg) {
       commands.push({ command, msg })
-      commandOptions.fallback?.()
+      if (command === 'acquire') return runtime.acquire({ x: msg.x, y: msg.y, valid: true })
+      if (command === 'commit') return runtime.commit('enter')
+      if (command === 'tabPreviousTarget' || command === 'arrowUpPreviousTarget') return runtime.cycleTarget(-1)
+      if (command === 'arrowDownNextTarget') return runtime.cycleTarget(1)
+      return null
     },
   })
   return {

@@ -27,7 +27,6 @@ export function resolveContextMenuRightClickRoute(msg = {}, {
             command: 'toggle',
             input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.toggle,
             pointer,
-            fallback: 'toggle',
         };
     }
 
@@ -36,7 +35,6 @@ export function resolveContextMenuRightClickRoute(msg = {}, {
             handled: true,
             direct: 'right_click_away',
             pointer: null,
-            fallback: 'right_click_away',
             reason: 'missing_pointer',
         };
     }
@@ -46,7 +44,6 @@ export function resolveContextMenuRightClickRoute(msg = {}, {
         command: 'open',
         input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
         pointer,
-        fallback: 'open',
     };
 }
 

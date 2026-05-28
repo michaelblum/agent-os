@@ -8,6 +8,8 @@ import {
   SIGIL_SELECTION_MODE_COMMAND_INPUTS,
   SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
   createSigilUxTreeCommandRegistry,
+  createSigilUxTreeCommandRouteCatalog,
+  createSigilUxTreeCommandRunner,
   executeSigilUxTreeCommand,
 } from '../../apps/sigil/renderer/live-modules/ux-tree-command-registry.js'
 
@@ -490,4 +492,35 @@ test('Sigil UX command adapter routes radial item actions through their command 
   }
 
   assert.deepEqual(calls.map(([kind]) => kind), ['context', 'agent', 'reticle', 'camera', 'wiki'])
+})
+
+test('Sigil UX command runner records fail-closed command declines without fallback execution', () => {
+  const records = []
+  const runner = createSigilUxTreeCommandRunner({
+    getTree: () => createSigilUxTree(),
+    registry: createSigilUxTreeCommandRegistry(),
+    recordRuntime(result, options) {
+      records.push({ result, options })
+    },
+  })
+
+  const result = runner.execute(SIGIL_SELECTION_MODE_COMMAND_INPUTS.commit, {
+    source: 'test',
+  })
+
+  assert.equal(result.executed, false)
+  assert.equal(result.reason, 'handler_not_registered')
+  assert.deepEqual(records.map((entry) => entry.options), [{ fallback: false }])
+})
+
+test('Sigil UX command route catalog is derived from adapter-resolved command inputs', () => {
+  const tree = createSigilUxTree()
+  const catalog = createSigilUxTreeCommandRouteCatalog(tree)
+  const routeIds = new Set(catalog.map((route) => route.binding_id))
+
+  assert.equal(catalog.length, tree.bindings.length)
+  assert.ok(routeIds.has('sigil.avatar.context_menu.right_click'))
+  assert.ok(routeIds.has('sigil.avatar.selection_mode.double_click'))
+  assert.ok(routeIds.has('sigil.selection_mode.left_click_acquire'))
+  assert.ok([...routeIds].some((id) => id.startsWith('sigil.radial.item.release.')))
 })

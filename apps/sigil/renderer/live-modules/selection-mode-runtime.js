@@ -359,26 +359,6 @@ export function createSigilSelectionModeRuntime({
         return contextSession;
     }
 
-    function fallbackForRoute(route = {}) {
-        return () => {
-            if (route.command === 'commit') {
-                commit('enter');
-                return;
-            }
-            if (route.command === 'tabPreviousTarget' || route.command === 'arrowUpPreviousTarget') {
-                cycleTarget(-1);
-                return;
-            }
-            if (route.command === 'arrowDownNextTarget') {
-                cycleTarget(1);
-                return;
-            }
-            if (route.command === 'acquire') {
-                acquire(route.pointer);
-            }
-        };
-    }
-
     function handleInput(msg = {}) {
         if (!liveState.selectionMode?.active) return false;
         if (typeof msg.x === 'number' && typeof msg.y === 'number') {
@@ -403,7 +383,6 @@ export function createSigilSelectionModeRuntime({
 
         executeCommand(route.command, msg, {
             pointer: route.pointer || null,
-            fallback: fallbackForRoute(route),
         });
         return true;
     }

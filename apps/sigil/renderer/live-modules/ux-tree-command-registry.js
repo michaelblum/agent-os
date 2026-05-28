@@ -82,6 +82,21 @@ export const SIGIL_RADIAL_COMMAND_INPUTS = Object.freeze({
     },
 });
 
+export const SIGIL_UX_TREE_STATIC_COMMAND_INPUTS = Object.freeze([
+    SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
+    SIGIL_CONTEXT_MENU_COMMAND_INPUTS.toggle,
+    SIGIL_AVATAR_COMMAND_INPUTS.pressBegin,
+    SIGIL_AVATAR_COMMAND_INPUTS.gotoBegin,
+    SIGIL_AVATAR_COMMAND_INPUTS.radialBegin,
+    SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.escape,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.commit,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.tabPreviousTarget,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowUpPreviousTarget,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowDownNextTarget,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.acquire,
+]);
+
 const ALLOWLISTED_EXECUTION = 'allowlisted';
 const HAS_OWN = Object.prototype.hasOwnProperty;
 
@@ -92,6 +107,11 @@ function text(value, fallback = '') {
 
 function list(value) {
     return Array.isArray(value) ? value.filter((entry) => entry !== undefined && entry !== null) : [];
+}
+
+function radialItemReleaseBinding(binding = {}) {
+    return text(binding.id).startsWith('sigil.radial.item.release.')
+        && text(binding.parameters?.item_id);
 }
 
 function ownValue(object, key) {
@@ -157,6 +177,43 @@ function registryHandler(registry = {}, command = {}) {
         }
     }
     return { handler: null, key: keys[0] || null };
+}
+
+export function selectionModeInputForRoute(command = '') {
+    return command === 'escape'
+        ? SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT
+        : SIGIL_SELECTION_MODE_COMMAND_INPUTS[command] || null;
+}
+
+export function createSigilUxTreeCommandRouteCatalog(tree = {}) {
+    const routes = [];
+    const seen = new Set();
+    function push(input = {}, source = 'static') {
+        const resolution = resolveSigilUxTreeBinding(tree, input);
+        const binding = resolution.binding || null;
+        if (!binding?.id || seen.has(binding.id)) return;
+        seen.add(binding.id);
+        routes.push({
+            binding_id: binding.id,
+            command_id: binding.command_id || resolution.command?.id || null,
+            node_id: binding.node_id || input.nodeId || input.node_id || '',
+            mode: binding.mode || input.mode || 'global',
+            gesture: binding.gesture || input.gesture || '',
+            input: resultFor(input).input,
+            source,
+        });
+    }
+
+    for (const input of SIGIL_UX_TREE_STATIC_COMMAND_INPUTS) {
+        push(input, 'static_command_input');
+    }
+    for (const binding of list(tree.bindings)) {
+        const itemId = radialItemReleaseBinding(binding);
+        if (itemId) {
+            push(SIGIL_RADIAL_COMMAND_INPUTS.itemRelease(itemId), 'radial_item_binding');
+        }
+    }
+    return Object.freeze(routes);
 }
 
 export function createSigilUxTreeCommandRegistry({
@@ -232,6 +289,162 @@ export function createSigilUxTreeCommandRegistry({
         registry['sigil.agent_terminal.open'] = (payload = {}) => agentTerminalOpen(payload.context?.kind || 'agent-terminal', payload);
     }
     return Object.freeze(registry);
+}
+
+export function createSigilUxTreeCommandRunner({
+    getTree = () => null,
+    registry = {},
+    recordRuntime = () => {},
+} = {}) {
+    function execute(input = {}, context = {}) {
+        const result = executeSigilUxTreeCommand(getTree(), {
+            input,
+            registry,
+            context,
+        });
+        recordRuntime(result, { fallback: false });
+        return result;
+    }
+
+    return Object.freeze({
+        execute,
+        executeSelectionModeRoute(command = '', msg = {}, { pointer = null, source = 'handleSelectionModeInput' } = {}) {
+            const input = selectionModeInputForRoute(command);
+            if (!input) return null;
+            return execute(input, { source, msg, pointer });
+        },
+        routeCatalog() {
+            return createSigilUxTreeCommandRouteCatalog(getTree());
+        },
+    });
+}
+
+export function createSigilUxTreeCommandRuntime({
+    liveState = {},
+    getTree = () => null,
+    recordRuntime = () => {},
+    radialItemActionDispatcher = null,
+    getRadialGestureMenu = () => null,
+    fastTravel = null,
+    clearGestureState = () => {},
+    consumeAvatarDoubleClick = () => false,
+    resetAvatarDoubleClick = () => {},
+    markSelectionModeEntryReleasePending = () => {},
+    setInteractionState = () => {},
+    applyRadialGestureMove = () => false,
+    enterSelectionMode = () => null,
+    exitSelectionMode = () => null,
+    acquireSelectionModeCandidates = () => null,
+    cycleSelectionModeTarget = () => null,
+    commitSelectionMode = () => null,
+    contextMenu = null,
+    cancelInteraction = () => {},
+    wikiPath = '',
+} = {}) {
+    const registry = createSigilUxTreeCommandRegistry({
+        avatarPressBegin(pointer) {
+            if (!pointer) return false;
+            liveState.mousedownPos = { x: pointer.x, y: pointer.y };
+            liveState.mousedownAvatarPos = { x: liveState.avatarPos.x, y: liveState.avatarPos.y };
+            setInteractionState('PRESS', 'mousedown-on-avatar');
+            return { state: liveState.currentState, pointer };
+        },
+        avatarGotoBegin(pointer) {
+            if (!pointer) return false;
+            clearGestureState();
+            fastTravel?.clearGesture?.('press-click');
+            consumeAvatarDoubleClick(pointer.x, pointer.y);
+            setInteractionState('GOTO', 'press-click');
+            return { state: liveState.currentState, pointer };
+        },
+        radialBegin(pointer) {
+            if (!pointer) return false;
+            const radialGestureMenu = getRadialGestureMenu();
+            liveState.radialGestureMenu = radialGestureMenu.start(
+                { ...liveState.avatarPos, valid: true },
+                { x: pointer.x, y: pointer.y, valid: true }
+            );
+            if (applyRadialGestureMove(radialGestureMenu.move({ x: pointer.x, y: pointer.y, valid: true }), pointer.x, pointer.y)) {
+                return { state: liveState.currentState, snapshot: liveState.radialGestureMenu };
+            }
+            setInteractionState('RADIAL', 'press-threshold-radial');
+            return { state: liveState.currentState, snapshot: liveState.radialGestureMenu };
+        },
+        radialReleaseItem: radialItemActionDispatcher?.commandHandlers?.radialReleaseItem,
+        selectionModeEnter(pointer) {
+            enterSelectionMode(pointer, 'avatar-double-click');
+            resetAvatarDoubleClick();
+            markSelectionModeEntryReleasePending();
+            setInteractionState('IDLE', 'selection-mode-enter');
+            return liveState.selectionMode;
+        },
+        selectionModeCancel: () => exitSelectionMode('escape'),
+        selectionModeCommit: (reason) => commitSelectionMode(reason),
+        selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
+        selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
+        contextMenuOpen: radialItemActionDispatcher?.commandHandlers?.contextMenuOpen,
+        contextMenuToggle: () => {
+            contextMenu?.close?.('right-click-toggle');
+            cancelInteraction('right-click-toggle');
+            return true;
+        },
+        annotationReticleEnter: radialItemActionDispatcher?.commandHandlers?.annotationReticleEnter,
+        annotationCameraCaptureBundle: radialItemActionDispatcher?.commandHandlers?.annotationCameraCaptureBundle,
+        wikiGraphOpen: radialItemActionDispatcher?.commandHandlers?.wikiGraphOpen,
+        agentTerminalOpen: radialItemActionDispatcher?.commandHandlers?.agentTerminalOpen,
+    });
+    const runner = createSigilUxTreeCommandRunner({ getTree, registry, recordRuntime });
+
+    function executeWithContext(input, msg = {}, context = {}) {
+        return runner.execute(input, {
+            source: context.source || 'handleInputEvent',
+            msg,
+            pointer: context.pointer || null,
+            item: context.item || null,
+            snapshot: context.snapshot || null,
+            input: context.input || null,
+            reason: context.reason || '',
+            path: context.path || wikiPath,
+        });
+    }
+
+    return Object.freeze({
+        registry,
+        execute: executeWithContext,
+        executeAvatarPressBegin(msg = {}, context = {}) {
+            return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.pressBegin, msg, context);
+        },
+        executeAvatarGotoBegin(msg = {}, context = {}) {
+            return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.gotoBegin, msg, context);
+        },
+        executeAvatarRadialBegin(msg = {}, context = {}) {
+            return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.radialBegin, msg, context);
+        },
+        executeSelectionModeEnter(msg = {}, context = {}) {
+            return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter, msg, context);
+        },
+        executeContextMenuRightClick(route = {}, msg = {}) {
+            return executeWithContext(route.input || {}, msg, {
+                source: 'handleInputEvent',
+                pointer: route.pointer || null,
+            });
+        },
+        executeRadialItem(item = {}, snapshot = null, context = {}) {
+            return executeWithContext(SIGIL_RADIAL_COMMAND_INPUTS.itemRelease(item?.id), context.input || {}, {
+                source: context.source || 'sigil.radial_menu',
+                item,
+                snapshot,
+                pointer: context.pointer || snapshot?.pointer || liveState.pointerPos,
+                input: radialItemActionDispatcher?.inputFromContext?.(context) || context.input || null,
+                reason: context.reason || 'radial-camera',
+                path: wikiPath,
+            });
+        },
+        executeSelectionModeRoute(command = '', msg = {}, options = {}) {
+            return runner.executeSelectionModeRoute(command, msg, options);
+        },
+        routeCatalog: runner.routeCatalog,
+    });
 }
 
 export function executeSigilUxTreeCommand(tree, { input = {}, registry = {}, context = {} } = {}) {

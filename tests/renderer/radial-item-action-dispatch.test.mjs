@@ -56,7 +56,7 @@ function createDispatcherHarness() {
   return { calls, dispatcher }
 }
 
-test('radial item dispatcher shares context-menu item behavior between fallback and command handlers', () => {
+test('radial item dispatcher shares context-menu item behavior between direct dispatch and command handlers', () => {
   const item = { id: 'context-menu', action: 'contextMenu' }
   const snapshot = { pointer: { x: 44, y: 55, valid: true } }
   const { calls, dispatcher } = createDispatcherHarness()

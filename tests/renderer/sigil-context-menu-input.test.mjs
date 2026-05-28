@@ -53,7 +53,7 @@ test('context menu right-click routing chooses open only with numeric coordinate
   assert.equal(missingCoordinates.command, undefined)
 })
 
-test('context menu right-click routing treats rejected open commands as right-click-away fallback', () => {
+test('context menu right-click routing exposes rejected open commands as not opened', () => {
   assert.equal(contextMenuOpenCommandOpened({
     executed: true,
     handler_result: true,

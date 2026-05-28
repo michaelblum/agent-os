@@ -1,4 +1,5 @@
 import { toolkitSpecifier } from './content-roots.js';
+import { createSigilUxTreeCommandRouteCatalog } from './ux-tree-command-registry.js';
 
 const {
     resolveUxTree,
@@ -8,21 +9,6 @@ const {
 }));
 
 const HAS_OWN = Object.prototype.hasOwnProperty;
-
-const DEFAULT_ROUTED_BINDING_IDS = Object.freeze(new Set([
-    'sigil.avatar.context_menu.right_click',
-    'sigil.avatar.context_menu.right_click_toggle',
-    'sigil.avatar.press.left_press',
-    'sigil.avatar.goto.left_release',
-    'sigil.avatar.radial.drag_threshold',
-    'sigil.avatar.selection_mode.double_click',
-    'sigil.selection_mode.escape',
-    'sigil.selection_mode.enter',
-    'sigil.selection_mode.tab',
-    'sigil.selection_mode.arrow_up',
-    'sigil.selection_mode.arrow_down',
-    'sigil.selection_mode.left_click_acquire',
-]));
 
 const DEFAULT_RUNTIME_MECHANICS = Object.freeze([
     {
@@ -47,8 +33,8 @@ const DEFAULT_RUNTIME_MECHANICS = Object.freeze([
     },
     {
         id: 'sigil.context_menu.right_click_away',
-        category: 'fallback',
-        reason: 'Missing pointer coordinates close or cancel the context menu instead of executing a command.',
+        category: 'guard',
+        reason: 'Missing pointer coordinates close or cancel the context menu without executing a command.',
     },
     {
         id: 'sigil.radial.pointer_tracking',
@@ -56,9 +42,9 @@ const DEFAULT_RUNTIME_MECHANICS = Object.freeze([
         reason: 'Radial hover, fast-travel handoff, reentry, and target-surface drag tracking remain runtime mechanics.',
     },
     {
-        id: 'sigil.radial.release_fallbacks',
-        category: 'fallback',
-        reason: 'Release fallback preserves fast-travel and cancellation behavior when no radial command commits.',
+        id: 'sigil.radial.release_non_item_completion',
+        category: 'gesture_completion',
+        reason: 'Release handling completes fast-travel and cancellation behavior when no radial item command commits.',
     },
     {
         id: 'sigil.annotation_reticle.preview_commit',
@@ -114,11 +100,6 @@ function registryHandler(registry = {}, command = {}) {
     return { key: keys[0] || null, registered: false };
 }
 
-function radialItemReleaseBinding(binding = {}) {
-    return text(binding.id).startsWith('sigil.radial.item.release.')
-        && text(binding.parameters?.item_id);
-}
-
 function classifyCommand(command = {}, {
     registry = {},
     commandStatuses = {},
@@ -150,13 +131,14 @@ function classifyCommand(command = {}, {
 }
 
 function classifyBinding(binding = {}, {
-    routedBindingIds = DEFAULT_ROUTED_BINDING_IDS,
+    routedCommandRoutesByBindingId = new Map(),
     deferredBindings = {},
     runtimeMechanicBindings = {},
     tree = {},
     registry = {},
 } = {}) {
-    if (routedBindingIds.has(binding.id) || radialItemReleaseBinding(binding)) {
+    const route = routedCommandRoutesByBindingId.get(binding.id) || null;
+    if (route) {
         const command = uxTreeCommandById(tree, binding.command_id);
         if (!command) {
             return {
@@ -186,6 +168,7 @@ function classifyBinding(binding = {}, {
             node_id: binding.node_id,
             gesture: binding.gesture,
             status: 'routed_through_ux_command_adapter',
+            route_source: route.source || 'command_route_catalog',
         };
     }
     const deferred = deferredBindings[binding.id] || null;
@@ -275,10 +258,19 @@ function validationFailures(tree = {}, resolvedTree = tree) {
 export function createSigilUxTreeReadinessAudit(tree = {}, options = {}) {
     const resolvedTree = resolveUxTree(tree, { strict: false });
     const validationFailureList = validationFailures(tree, resolvedTree);
+    const routedCommandRoutes = Array.isArray(options.routedCommandRoutes)
+        ? options.routedCommandRoutes
+        : createSigilUxTreeCommandRouteCatalog(resolvedTree);
+    const routedCommandRoutesByBindingId = new Map(
+        routedCommandRoutes
+            .filter((route) => route?.binding_id)
+            .map((route) => [route.binding_id, route])
+    );
     const commandCoverage = list(resolvedTree.commands).map((command) => classifyCommand(command, options));
     const bindingOptions = {
         ...options,
         tree: resolvedTree,
+        routedCommandRoutesByBindingId,
     };
     const bindingCoverage = list(resolvedTree.bindings).map((binding) => classifyBinding(binding, bindingOptions));
     const unclassifiedCommands = commandCoverage.filter((entry) => entry.status === 'unclassified_missing_handler');

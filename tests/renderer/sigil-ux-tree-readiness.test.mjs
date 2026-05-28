@@ -1,7 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createSigilUxTree } from '../../apps/sigil/renderer/live-modules/ux-tree.js'
-import { createSigilUxTreeCommandRegistry } from '../../apps/sigil/renderer/live-modules/ux-tree-command-registry.js'
+import {
+  createSigilUxTreeCommandRegistry,
+  createSigilUxTreeCommandRouteCatalog,
+} from '../../apps/sigil/renderer/live-modules/ux-tree-command-registry.js'
 import { createSigilUxTreeReadinessAudit } from '../../apps/sigil/renderer/live-modules/ux-tree-readiness.js'
 
 function cloneJson(value) {
@@ -116,6 +119,25 @@ test('Sigil UX tree readiness audit fails closed for invalid relation topology',
   assert.ok(audit.failures.some((failure) => (
     failure.kind === 'validation'
       && failure.code === 'relation.to_node_ref'
+  )))
+})
+
+test('Sigil UX tree readiness audit does not certify bindings outside the adapter route catalog', () => {
+  const tree = createSigilUxTree()
+  const routedCommandRoutes = createSigilUxTreeCommandRouteCatalog(tree)
+    .filter((route) => route.binding_id !== 'sigil.avatar.context_menu.right_click')
+
+  const audit = createSigilUxTreeReadinessAudit(tree, {
+    registry: completeRegistry(),
+    routedCommandRoutes,
+  })
+
+  assert.equal(audit.ok, false)
+  assert.equal(audit.summary.bindings_unclassified, 1)
+  assert.ok(audit.failures.some((failure) => (
+    failure.kind === 'binding'
+      && failure.id === 'sigil.avatar.context_menu.right_click'
+      && /neither routed/.test(failure.reason)
   )))
 })
 
