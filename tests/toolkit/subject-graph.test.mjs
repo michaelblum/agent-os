@@ -32,7 +32,7 @@ function graphFixtureInputs() {
       tags: ['aos', 'runtime'],
     },
   });
-  const workRecordEntry = createWorkRecordSubjectCatalogEntry(fixture('playbook-browser-click-status.json'));
+  const workRecordEntry = createWorkRecordSubjectCatalogEntry(fixture('workflow-browser-click-status.json'));
   return { wikiSubject, workRecordEntry };
 }
 
@@ -101,9 +101,9 @@ test('subject graph index derives deterministic subject nodes facets hosts and t
       && edge.relationship === 'origin_subject'
   ));
   assert.equal(originEdge.source, workRecordNode.id);
-  assert.equal(originEdge.target_handle, 'playbook:browser-live-action-status');
-  assert.equal(originEdge.target_subject_id, 'playbook:browser-live-action-status');
-  assert.equal(originEdge.target_subject_type, 'aos.playbook');
+  assert.equal(originEdge.target_handle, 'workflow:browser-live-action-status');
+  assert.equal(originEdge.target_subject_id, 'workflow:browser-live-action-status');
+  assert.equal(originEdge.target_subject_type, 'aos.workflow');
   assert.equal(originEdge.target_layer, 'execution_map');
 
   assert.deepEqual(summarizeSubjectGraphIndex(index), {

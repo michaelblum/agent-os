@@ -10,11 +10,11 @@ router when the right loop is not obvious:
 Do not rebuild `./aos` by default before every verification step.
 
 For the repo-wide entry-path model behind these choices, see
-`docs/recipes/agent-entry-paths-and-verification.md`.
+`docs/guides/agent-entry-paths-and-verification.md`.
 
 For runtime, canvas, input, status-item, lifecycle, or cross-layer work, choose
 the cheapest canonical-path representative harness that preserves the variable
-at risk. Use `docs/recipes/test-harness-ladder-and-prep.md` when the harness is
+at risk. Use `docs/guides/test-harness-ladder-and-prep.md` when the harness is
 not obvious or when a new test primitive, fixture, helper, or scenario may be
 needed.
 

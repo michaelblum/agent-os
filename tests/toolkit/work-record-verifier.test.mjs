@@ -51,7 +51,7 @@ function markPostconditionFailed(record, postconditionId, reason) {
 }
 
 test('report-only verifier checker derives indexes and does not mutate valid v0 records', () => {
-  const record = fixture('playbook-origin.json');
+  const record = fixture('workflow-origin.json');
   const before = JSON.stringify(record);
   const result = checkWorkRecordReportOnly(record);
 
@@ -94,7 +94,7 @@ test('named report-only verifier profile runs the deterministic checker', () => 
 });
 
 test('report-only verifier checker reports internal reference and gate drift', () => {
-  const record = fixture('playbook-origin.json');
+  const record = fixture('workflow-origin.json');
   record.intent.claim_refs.push('claim:missing');
   record.claims[0].postcondition_refs.push('postcondition:missing');
   record.execution_map.postconditions[0].evidence_refs.push('evidence:missing');
@@ -184,7 +184,7 @@ test('report-only verifier reports adapter-backed evidence failure classes witho
 });
 
 test('report-only verifier classifies target/ref drift without mutating the Work Record', () => {
-  const record = fixture('playbook-browser-click-status.json');
+  const record = fixture('workflow-browser-click-status.json');
   const before = JSON.stringify(record);
   record.execution_map.steps[0].action.target = 'browser:work-record-live-action/e99';
 
@@ -220,7 +220,7 @@ test('report-only verifier classifies precondition, action, and postcondition fa
   ];
 
   for (const item of cases) {
-    const record = fixture('playbook-browser-click-status.json');
+    const record = fixture('workflow-browser-click-status.json');
     markPostconditionFailed(record, item.postconditionId, `${item.failureClass} fixture`);
     const before = JSON.stringify(record);
     const result = checkWorkRecordReportOnly(record);
@@ -235,7 +235,7 @@ test('report-only verifier classifies precondition, action, and postcondition fa
 });
 
 test('report-only verifier classifies State ID inconsistency without mutating the Work Record', () => {
-  const record = fixture('playbook-browser-click-status.json');
+  const record = fixture('workflow-browser-click-status.json');
   record.execution_map.postconditions[0].state_id = 'see_browserlive999';
   const before = JSON.stringify(record);
 

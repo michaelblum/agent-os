@@ -81,7 +81,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/workbench.md'], /HTML Workbench Expression V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Workbench Human Checkpoint V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Artifact Bundle Subject V0/);
-  assert.match(docs['docs/api/toolkit/workbench.md'], /Playbook Workbench V0/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /Step Descriptor Workbench V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Wiki Subject Browser V0/);
 
   assert.match(docs['docs/api/toolkit/components.md'], /Surface Inspector/);
@@ -100,7 +100,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
 });
 
 test('surface interaction decision tree remains discoverable from toolkit API docs', async () => {
-  const requiredPath = 'docs/recipes/aos-surface-interaction-decision-tree.md';
+  const requiredPath = 'docs/guides/aos-surface-interaction-decision-tree.md';
   const docs = await Promise.all([
     text('docs/api/toolkit.md'),
     text('docs/api/toolkit/runtime.md'),
@@ -117,7 +117,7 @@ test('generated artifact lifecycle policy is discoverable from workbench docs', 
   const [workbench, audit, recipe, policy] = await Promise.all([
     text('docs/api/toolkit/workbench.md'),
     text('docs/design/html-workbench-expression-adoption-audit-2026-05-13.md'),
-    text('docs/recipes/layered-subject-expressions.md'),
+    text('docs/guides/layered-subject-expressions.md'),
     text(policyPath),
   ]);
 

@@ -1,8 +1,8 @@
 import { applySemanticTargetAttributes } from '../../runtime/semantic-targets.js';
 
-export const PLAYBOOK_WORKBENCH_SURFACE = 'playbook-workbench-v0';
-export const PLAYBOOK_WORKBENCH_MANIFEST = 'playbook-workbench';
-export const PLAYBOOK_WORKBENCH_URL = 'aos://toolkit/components/playbook-workbench/index.html';
+export const STEP_DESCRIPTOR_WORKBENCH_SURFACE = 'step-descriptor-workbench-v0';
+export const STEP_DESCRIPTOR_WORKBENCH_MANIFEST = 'step-descriptor-workbench';
+export const STEP_DESCRIPTOR_WORKBENCH_URL = 'aos://toolkit/components/step-descriptor-workbench/index.html';
 
 const REF_IDS = Object.freeze({
   root: 'root',
@@ -23,22 +23,22 @@ function refPart(part) {
   return String(part || 'unknown').replace(/\s+/g, '-');
 }
 
-export function playbookWorkbenchAosRef(...parts) {
-  return [PLAYBOOK_WORKBENCH_SURFACE, ...parts].map(refPart).join(':');
+export function stepDescriptorWorkbenchAosRef(...parts) {
+  return [STEP_DESCRIPTOR_WORKBENCH_SURFACE, ...parts].map(refPart).join(':');
 }
 
-export function playbookWorkbenchSemanticRefs() {
+export function stepDescriptorWorkbenchSemanticRefs() {
   return Object.fromEntries(
-    Object.entries(REF_IDS).map(([key, value]) => [key, playbookWorkbenchAosRef(value)]),
+    Object.entries(REF_IDS).map(([key, value]) => [key, stepDescriptorWorkbenchAosRef(value)]),
   );
 }
 
-export function applyPlaybookWorkbenchSemanticTarget(element, target = {}) {
+export function applyStepDescriptorWorkbenchSemanticTarget(element, target = {}) {
   if (!element) return null;
   return applySemanticTargetAttributes(element, {
     role: 'AXGroup',
-    surface: PLAYBOOK_WORKBENCH_SURFACE,
-    aosRef: target.aosRef || playbookWorkbenchAosRef(target.id),
+    surface: STEP_DESCRIPTOR_WORKBENCH_SURFACE,
+    aosRef: target.aosRef || stepDescriptorWorkbenchAosRef(target.id),
     ...target,
   }, {
     idPrefix: null,

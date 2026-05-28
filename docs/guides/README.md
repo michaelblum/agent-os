@@ -1,10 +1,10 @@
-# Transitional Guides And SOPs
+# Guides And SOPs
 
-`docs/recipes/` is the historical directory for durable, role-neutral Markdown
-operating procedures for agent-os. Under the AOS Execution Model V0
-([ADR-0013](../adr/0013-aos-execution-model-v0.md)), these Markdown files are
-transitional **Guides/SOPs**: they shape human and agent judgment, but they are
-not executable Recipes.
+`docs/guides/` is the canonical directory for durable, role-neutral Markdown
+operating guidance for agent-os. Under the AOS Execution Model V0
+([ADR-0013](../adr/0013-aos-execution-model-v0.md)), these files are
+**Guides/SOPs**: they shape human and agent judgment, but they are not
+executable Recipes.
 
 Guides/SOPs are not one-off handoffs, successor-session memory, role
 instructions, executable recipe manifests, or provider skill registries. Put
@@ -19,9 +19,9 @@ those elsewhere:
 
 ## Execution Model Boundary
 
-Agent-os currently has two surfaces with historical recipe naming:
+Agent-os has two separate surfaces that must not be collapsed:
 
-- Markdown Guides/SOPs under `docs/recipes/`. These are documentation-only
+- Markdown Guides/SOPs under `docs/guides/`. These are documentation-only
   procedures that guide classification, implementation, review, or verification.
 - Source-backed executable Recipes under top-level `recipes/*.json`. These are
   `aos recipe` manifests with explicit inputs, outputs, blocks, resources, and
@@ -30,15 +30,6 @@ Agent-os currently has two surfaces with historical recipe naming:
 `Recipe` now means the executable source-backed procedure. The old `aos ops`
 noun is only a compatibility alias for `aos recipe`; do not add new current
 guidance that makes `aos ops` canonical.
-
-## Transition TODO
-
-Owner: Foreman routes; GDI implements only from an exact follow-up card.
-
-Scope: rename or rehome `docs/recipes/` to a Guide/SOP location, update current
-links and tests, and leave compatibility pointers for any entry paths that still
-refer to the historical directory. Do not perform that directory migration in
-incidental docs edits.
 
 ## Good Guide/SOP Fit
 
@@ -55,7 +46,7 @@ layered subject expressions, and controlled smoke procedures.
 
 For test harness selection and lightweight prep before runtime, canvas, input,
 status-item, lifecycle, visual, supervised, or cross-layer work, use
-`docs/recipes/test-harness-ladder-and-prep.md`.
+`docs/guides/test-harness-ladder-and-prep.md`.
 
 ## Poor Guide/SOP Fit
 

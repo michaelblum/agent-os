@@ -12,7 +12,7 @@ import {
 
 export const WORK_RECORD_COMMAND_CAPTURE_BUILDER_VERSION = '2026-05-command-evidence-v0';
 export const WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION = '2026-05-aos-action-evidence-v0';
-export const WORK_RECORD_PLAYBOOK_STEP_CAPTURE_BUILDER_VERSION = '2026-05-playbook-step-evidence-v0';
+export const WORK_RECORD_STEP_DESCRIPTOR_CAPTURE_BUILDER_VERSION = '2026-05-step-descriptor-evidence-v0';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -200,8 +200,8 @@ function findById(values = [], id = '') {
   return arrayValue(values).find((value) => text(objectValue(value).id) === id);
 }
 
-function playbookRunId(playbookStep, evidenceSource) {
-  const runSlug = slug(text(playbookStep.id || evidenceSource.id).replace(/^playbook-step:/, ''));
+function stepDescriptorRunId(stepDescriptor, evidenceSource) {
+  const runSlug = slug(text(stepDescriptor.id || evidenceSource.id).replace(/^step-descriptor:/, ''));
   const timestamp = requireText(
     evidenceSource.completed_at || evidenceSource.created_at,
     'evidence completed_at',
@@ -209,12 +209,12 @@ function playbookRunId(playbookStep, evidenceSource) {
   return `run:${runSlug}:${timestamp}`;
 }
 
-function playbookPostconditionSource(playbookStep, evidenceSource) {
+function stepDescriptorPostconditionSource(stepDescriptor, evidenceSource) {
   const sourcePostcondition = objectValue(evidenceSource.postcondition);
-  const promotion = objectValue(arrayValue(playbookStep.claim_promotions)[0]);
+  const promotion = objectValue(arrayValue(stepDescriptor.claim_promotions)[0]);
   const templatePostcondition = objectValue(
-    findById(playbookStep.postconditions, text(promotion.postcondition_ref))
-      || findById(playbookStep.postconditions, text(sourcePostcondition.id)),
+    findById(stepDescriptor.postconditions, text(promotion.postcondition_ref))
+      || findById(stepDescriptor.postconditions, text(sourcePostcondition.id)),
   );
   const templateCheck = objectValue(templatePostcondition.check);
   const sourceCheck = objectValue(sourcePostcondition.check);
@@ -237,10 +237,10 @@ function playbookPostconditionSource(playbookStep, evidenceSource) {
   };
 }
 
-function playbookEvidenceSource(playbookStep, evidenceSource) {
-  const stepIntent = objectValue(playbookStep.intent);
+function stepDescriptorEvidenceSource(stepDescriptor, evidenceSource) {
+  const stepIntent = objectValue(stepDescriptor.intent);
   const sourceIntent = objectValue(evidenceSource.intent);
-  const promotion = objectValue(arrayValue(playbookStep.claim_promotions)[0]);
+  const promotion = objectValue(arrayValue(stepDescriptor.claim_promotions)[0]);
 
   return {
     ...cloneJson(evidenceSource),
@@ -253,8 +253,8 @@ function playbookEvidenceSource(playbookStep, evidenceSource) {
         ...arrayValue(sourceIntent.constraints),
       ]),
     },
-    references: mergeReferences(arrayValue(playbookStep.references), arrayValue(evidenceSource.references)),
-    postcondition: playbookPostconditionSource(playbookStep, evidenceSource),
+    references: mergeReferences(arrayValue(stepDescriptor.references), arrayValue(evidenceSource.references)),
+    postcondition: stepDescriptorPostconditionSource(stepDescriptor, evidenceSource),
     claim_text: text(promotion.claim_text, text(evidenceSource.claim_text)),
     acceptance: text(promotion.acceptance, text(evidenceSource.acceptance)),
   };
@@ -923,20 +923,20 @@ export function buildWorkRecordV0FromAosActionEvidence(source = {}, {
   };
 }
 
-export function buildWorkRecordV0FromPlaybookStepEvidence(playbookStep = {}, source = {}, {
+export function buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor = {}, source = {}, {
   verifierProfile = WORK_RECORD_REPORT_ONLY_PROFILE,
 } = {}) {
-  const step = objectValue(playbookStep);
+  const step = objectValue(stepDescriptor);
   const evidenceSource = objectValue(source);
-  const stepId = requireText(step.id, 'playbook_step.id');
-  const playbookRef = requireText(step.playbook_ref, 'playbook_step.playbook_ref');
+  const stepId = requireText(step.id, 'step_descriptor.id');
+  const workflowRef = requireText(step.workflow_ref, 'step_descriptor.workflow_ref');
   const gates = objectValue(step.workflow_gates);
   const gateRefs = uniqueStrings(arrayValue(gates.gate_refs));
   const promotions = arrayValue(step.claim_promotions).map((promotion) => objectValue(promotion));
   const promotionRefs = promotions.map((promotion) => text(promotion.id)).filter(Boolean);
 
   const record = buildWorkRecordV0FromAosActionEvidence(
-    playbookEvidenceSource(step, evidenceSource),
+    stepDescriptorEvidenceSource(step, evidenceSource),
     { verifierProfile },
   );
   const beforePostcondition = arrayValue(record.execution_map.postconditions)
@@ -944,32 +944,32 @@ export function buildWorkRecordV0FromPlaybookStepEvidence(playbookStep = {}, sou
   const runStep = objectValue(arrayValue(record.execution_map.steps)[0]);
 
   record.origin = {
-    kind: 'playbook',
-    ref: playbookRef,
-    run_id: text(evidenceSource.run_id, playbookRunId(step, evidenceSource)),
+    kind: 'workflow',
+    ref: workflowRef,
+    run_id: text(evidenceSource.run_id, stepDescriptorRunId(step, evidenceSource)),
     version: text(step.version, 'v0'),
-    subject_type: 'aos.playbook',
+    subject_type: 'aos.workflow',
     description: text(
       objectValue(step.intent).summary,
-      'Generated from a reusable Playbook step and saved AOS action evidence.',
+      'Generated from a reusable Step descriptor and saved AOS action evidence.',
     ),
   };
 
   record.references = mergeReferences(
     [
       {
-        id: 'origin-playbook-subject',
+        id: 'origin-workflow-subject',
         relationship: 'origin_subject',
-        ref: playbookRef,
-        subject_type: 'aos.playbook',
+        ref: workflowRef,
+        subject_type: 'aos.workflow',
         layer: 'execution_map',
         role: 'emitter',
       },
       {
-        id: 'origin-playbook-step',
+        id: 'origin-step-descriptor',
         relationship: 'origin_step',
         ref: stepId,
-        subject_type: 'aos.playbook_step',
+        subject_type: 'aos.step_descriptor',
         layer: 'execution_map',
         role: 'step_template',
       },
@@ -983,8 +983,8 @@ export function buildWorkRecordV0FromPlaybookStepEvidence(playbookStep = {}, sou
   }
   runStep.action.args = {
     ...objectValue(runStep.action.args),
-    playbook_ref: playbookRef,
-    playbook_step_id: stepId,
+    workflow_ref: workflowRef,
+    step_descriptor_id: stepId,
     target_resolution: cloneJson(objectValue(step.target_resolution)),
     claim_promotion_refs: promotionRefs,
   };
@@ -1000,7 +1000,7 @@ export function buildWorkRecordV0FromPlaybookStepEvidence(playbookStep = {}, sou
     gate_refs: gateRefs,
     notes: text(
       gates.notes,
-      'This Playbook-origin Work Record is report-only and does not authorize autonomous replay or repair.',
+      'This Workflow-origin Work Record is report-only and does not authorize autonomous replay or repair.',
     ),
   };
 
@@ -1015,8 +1015,8 @@ export function buildWorkRecordV0FromPlaybookStepEvidence(playbookStep = {}, sou
     promotedClaim.metadata = {
       ...objectValue(promotedClaim.metadata),
       promoted_from: {
-        playbook_ref: playbookRef,
-        playbook_step_id: stepId,
+        workflow_ref: workflowRef,
+        step_descriptor_id: stepId,
         claim_promotion_id: text(promotion.id),
         postcondition_ref: postconditionRef,
       },
@@ -1028,12 +1028,12 @@ export function buildWorkRecordV0FromPlaybookStepEvidence(playbookStep = {}, sou
   record.health.replay_gate_refs = gateRefs;
   record.metadata = {
     ...objectValue(record.metadata),
-    generated_by: WORK_RECORD_PLAYBOOK_STEP_CAPTURE_BUILDER_VERSION,
+    generated_by: WORK_RECORD_STEP_DESCRIPTOR_CAPTURE_BUILDER_VERSION,
     action_evidence_builder: WORK_RECORD_AOS_ACTION_CAPTURE_BUILDER_VERSION,
-    playbook_ref: playbookRef,
-    playbook_step_id: stepId,
-    playbook_step_schema_version: text(step.schema_version),
-    playbook_step_version: text(step.version),
+    workflow_ref: workflowRef,
+    step_descriptor_id: stepId,
+    step_descriptor_schema_version: text(step.schema_version),
+    step_descriptor_version: text(step.version),
     claim_promotion_refs: promotionRefs,
     workflow_gate_refs: gateRefs,
   };

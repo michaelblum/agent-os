@@ -6,10 +6,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   BROWSER_CLICK_STATUS_PROTOTYPE_ID,
-  BROWSER_PLAYBOOK_PROTOTYPE_VERSION,
-  createBrowserPlaybookPrototype,
-  createBrowserPlaybookPrototypeWorkRecordOpenMessage,
-  runBrowserPlaybookPrototype,
+  BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION,
+  createBrowserStepDescriptorPrototype,
+  createBrowserStepDescriptorPrototypeWorkRecordOpenMessage,
+  runBrowserStepDescriptorPrototype,
   subjectContracts,
   subjectFacets,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
@@ -26,15 +26,15 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const workRecordFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0');
-const playbookStepFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-playbook-step-v0');
+const stepDescriptorFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-step-descriptor-v0');
 const subjectSchemaPath = path.join(repoRoot, 'shared/schemas/aos-workbench-subject.schema.json');
 
 function fixture(root, relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'));
 }
 
-function playbookStep() {
-  return fixture(playbookStepFixtureRoot, 'valid/browser-click-status.json');
+function stepDescriptor() {
+  return fixture(stepDescriptorFixtureRoot, 'valid/browser-click-status.json');
 }
 
 function evidenceSource() {
@@ -42,19 +42,19 @@ function evidenceSource() {
 }
 
 function expectedWorkRecord() {
-  return fixture(workRecordFixtureRoot, 'valid/playbook-browser-click-status.json');
+  return fixture(workRecordFixtureRoot, 'valid/workflow-browser-click-status.json');
 }
 
 function workflowGate() {
   return {
-    ref: 'workflow-gate:playbook-browser-click-status-replay',
+    ref: 'workflow-gate:step-descriptor-browser-click-status-replay',
     token: 'workflow-gate-token:browser-prototype-test',
   };
 }
 
 function prototype() {
-  return createBrowserPlaybookPrototype({
-    playbookStep: playbookStep(),
+  return createBrowserStepDescriptorPrototype({
+    stepDescriptor: stepDescriptor(),
     evidenceSource: evidenceSource(),
     workflowGateRef: workflowGate().ref,
   });
@@ -103,36 +103,36 @@ function assertNoReplayOrRepairControls(subject) {
   assert.equal(subject.state.broad_cli_surface_added, false);
 }
 
-test('browser Playbook prototype exposes a browser-compatible one-step subject descriptor', () => {
+test('browser Step Descriptor prototype exposes a browser-compatible one-step subject descriptor', () => {
   const candidate = prototype();
   const validation = validateSubject(candidate.subject);
 
-  assert.equal(candidate.type, 'aos.browser_playbook_prototype');
-  assert.equal(candidate.schema_version, BROWSER_PLAYBOOK_PROTOTYPE_VERSION);
+  assert.equal(candidate.type, 'aos.browser_step_descriptor_prototype');
+  assert.equal(candidate.schema_version, BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION);
   assert.equal(candidate.id, BROWSER_CLICK_STATUS_PROTOTYPE_ID);
   assert.equal(candidate.run_policy.mode, 'simulate');
   assert.equal(candidate.run_policy.one_step_only, true);
   assert.equal(candidate.run_policy.explicit_workflow_gate_required, true);
   assert.equal(candidate.run_policy.autonomous_replay_allowed, false);
   assert.equal(candidate.run_policy.autonomous_repair_allowed, false);
-  assert.equal(candidate.subject.subject_type, 'aos.playbook_prototype');
+  assert.equal(candidate.subject.subject_type, 'aos.step_descriptor_prototype');
   assert.deepEqual(candidate.subject.capabilities, ['inspectable', 'verifier-target', 'exportable']);
-  assert.ok(subjectContracts(candidate.subject).includes('playbook_step.simulate.once'));
+  assert.ok(subjectContracts(candidate.subject).includes('step_descriptor.simulate.once'));
   assert.ok(subjectContracts(candidate.subject).includes('work_record.open.read_only'));
-  assert.ok(subjectFacets(candidate.subject).some((facet) => facet.key === 'playbook-simulate-controls'));
+  assert.ok(subjectFacets(candidate.subject).some((facet) => facet.key === 'step-descriptor-simulate-controls'));
   assert.equal('views' in candidate.subject, false);
   assert.equal('controls' in candidate.subject, false);
   assert.equal(candidate.subject.state.target_dialect, 'browser');
   assert.equal(candidate.subject.state.target_with_ref, 'browser:work-record-live-action/e2');
   assert.equal(candidate.subject.metadata.is_wiki_subject_browser, false);
-  assert.equal(candidate.subject.metadata.is_general_playbook_ui, false);
+  assert.equal(candidate.subject.metadata.is_general_step_descriptor_ui, false);
   assert.equal(candidate.subject.metadata.adds_public_cli_surface, false);
   assertNoReplayOrRepairControls(candidate.subject);
   assert.equal(validation.status, 0, `${validation.stdout}${validation.stderr}`);
 });
 
-test('browser Playbook prototype rejects ungated simulation without emitting a Work Record', () => {
-  const result = runBrowserPlaybookPrototype(prototype());
+test('browser Step Descriptor prototype rejects ungated simulation without emitting a Work Record', () => {
+  const result = runBrowserStepDescriptorPrototype(prototype());
 
   assert.equal(result.status, 'rejected');
   assert.equal(result.reason, 'workflow_gate_required');
@@ -144,20 +144,20 @@ test('browser Playbook prototype rejects ungated simulation without emitting a W
   assertNoReplayOrRepairControls(result.subject);
 });
 
-test('browser Playbook prototype simulates one gated step through the harness', () => {
-  const result = runBrowserPlaybookPrototype(prototype(), {
+test('browser Step Descriptor prototype simulates one gated step through the harness', () => {
+  const result = runBrowserStepDescriptorPrototype(prototype(), {
     workflowGate: workflowGate(),
   });
 
   assert.equal(result.status, 'passed');
   assert.equal(result.reason, 'record_verified');
   assert.equal(result.mode, 'simulate');
-  assert.equal(result.harness.type, 'aos.playbook_step_harness.result');
+  assert.equal(result.harness.type, 'aos.step_descriptor_harness.result');
   assert.equal(result.harness.mode, 'simulate');
   assert.equal(result.harness.workflow_gate_ref, workflowGate().ref);
-  assert.equal(result.harness.playbook_step_id, 'playbook-step:browser-click-status');
+  assert.equal(result.harness.step_descriptor_id, 'step-descriptor:browser-click-status');
   assert.deepEqual(result.record, expectedWorkRecord());
-  assert.equal(result.record.origin.kind, 'playbook');
+  assert.equal(result.record.origin.kind, 'workflow');
   assert.equal(result.record.verifier_report.verifier.id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
   assert.equal(result.verifier.status, 'passed');
   assert.equal(result.verifier.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
@@ -170,17 +170,17 @@ test('browser Playbook prototype simulates one gated step through the harness', 
   assertNoReplayOrRepairControls(result.subject);
 });
 
-test('browser Playbook prototype enforces the one-step harness boundary', () => {
-  const step = playbookStep();
-  const candidate = createBrowserPlaybookPrototype({
-    playbookStep: {
+test('browser Step Descriptor prototype enforces the one-step harness boundary', () => {
+  const step = stepDescriptor();
+  const candidate = createBrowserStepDescriptorPrototype({
+    stepDescriptor: {
       ...step,
       steps: [step],
     },
     evidenceSource: evidenceSource(),
     workflowGateRef: workflowGate().ref,
   });
-  const result = runBrowserPlaybookPrototype(candidate, {
+  const result = runBrowserStepDescriptorPrototype(candidate, {
     workflowGate: workflowGate(),
   });
 
@@ -191,11 +191,11 @@ test('browser Playbook prototype enforces the one-step harness boundary', () => 
   assert.equal(result.diagnostics[0].code, 'one_step_only');
 });
 
-test('emitted browser Playbook Work Record opens read-only through the existing workbench model', () => {
-  const result = runBrowserPlaybookPrototype(prototype(), {
+test('emitted browser Step Descriptor Work Record opens read-only through the existing workbench model', () => {
+  const result = runBrowserStepDescriptorPrototype(prototype(), {
     workflowGate: workflowGate(),
   });
-  const message = createBrowserPlaybookPrototypeWorkRecordOpenMessage(result.record, {
+  const message = createBrowserStepDescriptorPrototypeWorkRecordOpenMessage(result.record, {
     prototype: prototype(),
   });
   const state = createWorkRecordWorkbenchState();
@@ -203,13 +203,13 @@ test('emitted browser Playbook Work Record opens read-only through the existing 
   const snapshot = workRecordWorkbenchSnapshot(state);
 
   assert.equal(message.type, 'work_record.open');
-  assert.equal(message.source.kind, 'browser_playbook_prototype');
+  assert.equal(message.source.kind, 'browser_step_descriptor_prototype');
   assert.equal(message.source.read_only, true);
   assert.equal(opened.status, 'opened');
   assert.equal(workRecordIsReadOnly(state.record), true);
-  assert.equal(snapshot.source.kind, 'browser_playbook_prototype');
+  assert.equal(snapshot.source.kind, 'browser_step_descriptor_prototype');
   assert.equal(snapshot.subject.subject_type, 'aos.work_record');
-  assert.equal(snapshot.subject.source.origin.kind, 'playbook');
+  assert.equal(snapshot.subject.source.origin.kind, 'workflow');
   assert.equal(snapshot.subject.persistence, null);
   assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
   assert.equal('views' in snapshot.subject, false);

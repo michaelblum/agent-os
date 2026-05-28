@@ -12,7 +12,7 @@ Retrofit four workbench surfaces to use the production-ready `createSplitPane` /
 
 - `markdown-workbench`
 - `surface-zoom-inspector`
-- `playbook-workbench`
+- `step-descriptor-workbench`
 - `work-record-workbench`
 
 ## Scope
@@ -33,7 +33,7 @@ Retrofit four workbench surfaces to use the production-ready `createSplitPane` /
 - `packages/toolkit/panel/layouts/split-pane.js` — `createSplitPane`, `createFixedSidebarPane`, `SplitPane`
 - `packages/sigil/surfaces/markdown-workbench/`
 - `packages/sigil/surfaces/surface-zoom-inspector/`
-- `packages/sigil/surfaces/playbook-workbench/`
+- `packages/toolkit/components/step-descriptor-workbench/`
 - `packages/sigil/surfaces/work-record-workbench/`
 
 ## Verification

@@ -77,7 +77,7 @@ is local to a package, app, daemon area, or test harness. Keep historical
 `CLAUDE.md` files as compatibility pointers unless the active task explicitly
 assigns their content.
 
-Add or update a file under `docs/recipes/` when the knowledge is a reusable,
+Add or update a file under `docs/guides/` when the knowledge is a reusable,
 bounded procedure that agents or humans may repeat. Recipes should carry
 judgment rules and checklists, not one-off session memory.
 
@@ -103,7 +103,7 @@ When architecture ownership changes between daemon, toolkit, and apps, check
 only if the change affects a repo-wide invariant or routing pointer.
 
 When a reusable workflow gets repeated in handoffs or work cards, promote it to
-`docs/recipes/` and replace broad inline instructions with short pointers.
+`docs/guides/` and replace broad inline instructions with short pointers.
 
 ## Stale-Phrase Checklist
 

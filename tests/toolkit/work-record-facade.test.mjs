@@ -16,7 +16,7 @@ test('Work Record facade re-exports current build, verify, evidence, adapter, an
 
   assert.equal(facade.buildWorkRecordV0FromCommandEvidence, capture.buildWorkRecordV0FromCommandEvidence);
   assert.equal(facade.buildWorkRecordV0FromAosActionEvidence, capture.buildWorkRecordV0FromAosActionEvidence);
-  assert.equal(facade.buildWorkRecordV0FromPlaybookStepEvidence, capture.buildWorkRecordV0FromPlaybookStepEvidence);
+  assert.equal(facade.buildWorkRecordV0FromStepDescriptorEvidence, capture.buildWorkRecordV0FromStepDescriptorEvidence);
 
   assert.equal(facade.checkWorkRecordEvidenceAdapters, evidenceAdapters.checkWorkRecordEvidenceAdapters);
   assert.equal(facade.workRecordEvidenceAdapters, evidenceAdapters.workRecordEvidenceAdapters);
@@ -32,7 +32,7 @@ test('Work Record facade re-exports current build, verify, evidence, adapter, an
 
 test('Workbench aggregate exposes the Work Record facade contract', () => {
   assert.equal(workbench.buildWorkRecordV0FromCommandEvidence, facade.buildWorkRecordV0FromCommandEvidence);
-  assert.equal(workbench.buildWorkRecordV0FromPlaybookStepEvidence, facade.buildWorkRecordV0FromPlaybookStepEvidence);
+  assert.equal(workbench.buildWorkRecordV0FromStepDescriptorEvidence, facade.buildWorkRecordV0FromStepDescriptorEvidence);
   assert.equal(workbench.createWorkRecordSubject, facade.createWorkRecordSubject);
   assert.equal(workbench.normalizeWorkRecord, facade.normalizeWorkRecord);
   assert.equal(workbench.runWorkRecordVerifierProfile, facade.runWorkRecordVerifierProfile);

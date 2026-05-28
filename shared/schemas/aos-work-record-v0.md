@@ -61,23 +61,21 @@ map instead of on the durable Claim text.
 
 ## Origin
 
-`origin` names the executable artifact that emitted the Work Record, or a v0
-compatibility origin preserved for transitional bridges.
+`origin` names the executable artifact that emitted the Work Record.
 
 ```json
 {
   "origin": {
-    "kind": "playbook",
-    "ref": "playbook:browser-hosted-wiki-open-sigil",
+    "kind": "workflow",
+    "ref": "workflow:browser-hosted-wiki-open-sigil",
     "run_id": "run:2026-05-05T16-20-00Z"
   }
 }
 ```
 
-Allowed origin kinds are `ad_hoc`, `recipe`, `playbook`, and `workflow`.
-`playbook` remains only for v0 compatibility with historical records and the
-current transitional `aos.playbook_step` bridge; new taxonomy direction should
-prefer `recipe` or `workflow` for executable origins.
+Allowed origin kinds are `ad_hoc`, `recipe`, and `workflow`. Playbooks and
+Guides/SOPs that shape a run without executing are cited through
+`references[]`.
 `ad_hoc` records use `ref: null` because no reusable origin emitted the run:
 
 ```json
@@ -90,9 +88,8 @@ prefer `recipe` or `workflow` for executable origins.
 }
 ```
 
-Transitional Markdown Guides/SOPs under `docs/recipes/` that guided a run are
-not origins. Cite them in `references[]` with `relationship: "guided_by"`
-instead.
+Markdown Guides/SOPs under `docs/guides/` that guided a run are not origins.
+Cite them in `references[]` with `relationship: "guided_by"` instead.
 
 ## References
 
@@ -104,7 +101,7 @@ not replace internal ids such as `claim_id` or `postcondition_id`.
 {
   "id": "guided-by-entry-path-recipe",
   "relationship": "guided_by",
-  "ref": "repo:docs/recipes/agent-entry-paths-and-verification.md",
+  "ref": "repo:docs/guides/agent-entry-paths-and-verification.md",
   "subject_type": "docs.guide",
   "layer": "narrative",
   "role": "operator_guidance"
@@ -272,7 +269,7 @@ workflow-gated, and reports diagnostics without mutating the record.
 This command-evidence path is deliberately above the daemon. It is the smallest
 proof that Work Records can be generated from bounded evidence instead of only
 hand-authored fixtures. Future browser/canvas evidence producers or
-transitional Playbook-step bridges should reuse the same shape by swapping the
+transitional Step Descriptor bridges should reuse the same shape by swapping the
 evidence source from repo-command output to `see/do/see` captures, browser
 traces, screenshots, or artifact bundles. They should still emit Claims,
 Postconditions, Claim Results, Verifier Report, and Health through a named
@@ -288,30 +285,30 @@ immutable artifact refs. The builder stores the selected action target in
 `evidence[]`, and ties the post-action Postcondition to the after-perception
 evidence.
 
-This is the compatibility bridge for the transitional Playbook-step contract:
+This is the bridge for the Step Descriptor contract:
 a gated harness can emit the same saved evidence envelope after it runs `see`,
 resolves a target, executes `do`, and captures `see` again. The
-`aos.playbook_step` descriptor owns compatibility target-resolution metadata and
+`aos.step_descriptor` descriptor owns target-resolution metadata and
 repair hints; the Work Record owns what actually happened. This slice does not
 replay the action, repair refs, or add a broad recorder/verifier command.
 Replay and repair remain gated by `execution_map.replay_policy`.
 
-The Playbook bridge keeps that split explicit:
-`buildWorkRecordV0FromPlaybookStepEvidence()` combines one
-`aos.playbook_step` descriptor with one saved AOS action evidence source. The
-step descriptor contributes the v0 compatibility `origin.kind: "playbook"`,
-`origin.ref`, target-resolution metadata, step repair hints, workflow gate refs,
-and claim-promotion metadata. The action evidence still contributes the
+The Step Descriptor bridge keeps that split explicit:
+`buildWorkRecordV0FromStepDescriptorEvidence()` combines one
+`aos.step_descriptor` descriptor with one saved AOS action evidence source. The
+gated harness or containing Workflow contributes `origin.kind: "workflow"` and
+`origin.ref`; the step descriptor contributes target-resolution metadata, step
+repair hints, workflow gate refs, and claim-promotion metadata. The action evidence still contributes the
 immutable before/action/after receipts, State IDs, selected Target-with-Ref,
 Claim Results, Verifier Report, and Health. This bridge does not make Playbook
 the executable substrate and does not execute or replay the descriptor.
 
 The first harness layer above that bridge is
-`runOneStepPlaybookHarness()` in
-`packages/toolkit/workbench/playbook-step-harness.js`. It is intentionally a
+`runOneStepStepDescriptorHarness()` in
+`packages/toolkit/workbench/step-descriptor-harness.js`. It is intentionally a
 module API above the daemon instead of a broad public CLI. Its boundary is:
 
-- **Transitional step descriptor:** compatibility target-resolution,
+- **Step descriptor:** target-resolution,
   preconditions, action shape, postconditions, repair hints, and Claim
   promotions for the gated bridge.
 - **Harness run:** one explicit Workflow-gated attempt to simulate from saved
@@ -371,8 +368,8 @@ The canonical examples for this sketch are JSON fixtures:
 
 - [`valid/ad-hoc.json`](fixtures/aos-work-record-v0/valid/ad-hoc.json) shows an
   ad-hoc Work Record with `origin.kind: "ad_hoc"` and no reusable origin.
-- [`valid/playbook-origin.json`](fixtures/aos-work-record-v0/valid/playbook-origin.json)
-  shows the v0 compatibility `origin.kind: "playbook"` shape with Claims linked
+- [`valid/workflow-origin.json`](fixtures/aos-work-record-v0/valid/workflow-origin.json)
+  shows an `origin.kind: "workflow"` shape with Claims linked
   to Postconditions, Claim Results linked back to Claims, and a Verifier Report
   that derives indexes from `claim_results[]`.
 - [`valid/repo-command-adapter-test.json`](fixtures/aos-work-record-v0/valid/repo-command-adapter-test.json)
@@ -394,13 +391,13 @@ The canonical examples for this sketch are JSON fixtures:
   remains schema-valid but intentionally fails adapter-backed report-only
   diagnostics for target/ref drift, missing semantic targets, value mismatch,
   role/name mismatch, and artifact metadata mismatch.
-- [`valid/playbook-browser-click-status.json`](fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json)
+- [`valid/workflow-browser-click-status.json`](fixtures/aos-work-record-v0/valid/workflow-browser-click-status.json)
   is generated from the same AOS action evidence plus
-  [`../aos-playbook-step-v0/valid/browser-click-status.json`](fixtures/aos-playbook-step-v0/valid/browser-click-status.json)
-  by the transitional Playbook-step bridge. It preserves the v0 compatibility
-  `origin.kind: "playbook"`, `origin.ref`, the promoted Claim metadata,
-  evidence refs, postcondition refs, Claim Results, Verifier Report, Health, and
-  workflow-gated replay/repair policy.
+  [`../aos-step-descriptor-v0/valid/browser-click-status.json`](fixtures/aos-step-descriptor-v0/valid/browser-click-status.json)
+  by the Step Descriptor bridge. It preserves `origin.kind: "workflow"`,
+  `origin.ref`, the promoted Claim metadata, evidence refs, postcondition refs,
+  Claim Results, Verifier Report, Health, and workflow-gated replay/repair
+  policy.
 
 The fixture validation test also checks internal reference integrity that JSON
 Schema cannot express alone: every Claim Result must reference an existing
@@ -416,7 +413,7 @@ The toolkit now has a compatibility reader for v0 records in
 the stock Work Record workbench. Older helper-shaped records keep their existing
 manual edit and patch-request path. The current capture boundary has two
 source-specific producers plus one bridge: bounded repo command evidence,
-bounded AOS action evidence, and Playbook-step-plus-action-evidence. Future
-browser/canvas producers or transitional Playbook-step bridges should continue
+bounded AOS action evidence, and Step Descriptor-plus-action-evidence. Future
+browser/canvas producers or transitional Step Descriptor bridges should continue
 to emit this v0 shape from bounded `see/do/see` evidence while preserving the
 same report-only verifier gate.

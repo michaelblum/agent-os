@@ -584,9 +584,9 @@ function auditWorkflowManifestClaims(manifest) {
 }
 
 function auditExplicitRecommendationClaims(manifest, repoRoot) {
-  const summary = aggregateWorkflow(classifyFiles(['docs/recipes/example.md'], manifest, repoRoot));
+  const summary = aggregateWorkflow(classifyFiles(['docs/guides/example.md'], manifest, repoRoot));
   const passed = JSON.stringify(summary.rule_ids) === JSON.stringify(['docs-only']) && summary.commands.length === 0 && summary.verification.length === 0;
-  return [claim('dev-recommend-explicit-files', 'The router can classify explicit docs-only file input without runtime work.', passed, 'rule_ids=docs-only; commands=0; verification=0', `rule_ids=${summary.rule_ids.join(',')}; commands=${summary.commands.length}; verification=${summary.verification.length}`, ['./aos dev recommend --json --files docs/recipes/example.md'], 'Fix dev workflow matching so explicit file input does not trigger unrelated runtime loops.')];
+  return [claim('dev-recommend-explicit-files', 'The router can classify explicit docs-only file input without runtime work.', passed, 'rule_ids=docs-only; commands=0; verification=0', `rule_ids=${summary.rule_ids.join(',')}; commands=${summary.commands.length}; verification=${summary.verification.length}`, ['./aos dev recommend --json --files docs/guides/example.md'], 'Fix dev workflow matching so explicit file input does not trigger unrelated runtime loops.')];
 }
 
 function auditCommand(args) {

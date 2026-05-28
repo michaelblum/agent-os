@@ -244,7 +244,7 @@ Current broker workflows:
 - `status` — summarize `./aos status --json`
 - `features` — summarize recent local git history
 - `workflows` — show the live merged workflow registry
-- `coming soon` — show live-registry workflow plugins not yet wired to a
+- `coming soon` — show live-registry wiki capability plugins not yet wired to a
   structured Slack launch surface
 - `jobs` — list recent broker executions
 - `Feature Request` — queue product or workflow feedback from Slack for later
@@ -262,9 +262,9 @@ creating a parallel command set.
 The workflow list is now live-registry backed. The broker merges:
 
 - built-in launch-ready workflows with structured Slack forms
-- workflow plugins discovered from `./aos wiki list --json`
+- wiki capability plugins discovered from `./aos wiki list --json`
 
-New wiki workflow plugins can therefore appear in the broker snapshot and Slack
+New wiki capability plugins can therefore appear in the broker snapshot and Slack
 surfaces without rebuilding the gateway. Until they get a structured launch
 handler, they appear as `coming soon`.
 

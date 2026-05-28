@@ -114,7 +114,7 @@ toolkit `source_sequence`, stable `gesture_id` / `capture_id` for a pointer
 sequence, `desktop_world` plus `x`/`y`, and camelCase aliases for router code.
 
 Use the [surface interaction decision tree](../../recipes/aos-surface-interaction-decision-tree.md)
-(`docs/recipes/aos-surface-interaction-decision-tree.md`) before adding a
+(`docs/guides/aos-surface-interaction-decision-tree.md`) before adding a
 region: passive DesktopWorld visuals with small hit areas usually belong behind
 `createStageAffordance`, while ordinary DOM controls should stay inside the
 existing interactive canvas.

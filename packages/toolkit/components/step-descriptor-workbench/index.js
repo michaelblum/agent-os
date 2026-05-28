@@ -2,22 +2,22 @@ import { esc } from '../../runtime/bridge.js';
 import { renderButtonHtml } from '../../controls/button.js';
 import { renderTextFieldHtml } from '../../controls/text-field.js';
 import {
-  PLAYBOOK_WORKBENCH_MESSAGE_TYPES,
-  PLAYBOOK_WORKBENCH_MANIFEST,
-  PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
-  PLAYBOOK_WORKBENCH_SURFACE,
-  PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID,
-  createPlaybookWorkbenchState,
-  loadPlaybookWorkbenchFixture,
-  openPlaybookWorkbenchWorkRecord,
-  playbookWorkbenchSnapshot,
-  setPlaybookWorkbenchWorkflowGate,
-  simulatePlaybookWorkbench,
+  STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES,
+  STEP_DESCRIPTOR_WORKBENCH_MANIFEST,
+  STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
+  STEP_DESCRIPTOR_WORKBENCH_SURFACE,
+  STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID,
+  createStepDescriptorWorkbenchState,
+  loadStepDescriptorWorkbenchFixture,
+  openStepDescriptorWorkbenchWorkRecord,
+  stepDescriptorWorkbenchSnapshot,
+  setStepDescriptorWorkbenchWorkflowGate,
+  simulateStepDescriptorWorkbench,
 } from './model.js';
 import {
-  applyPlaybookWorkbenchSemanticTarget,
-  playbookWorkbenchAosRef,
-  playbookWorkbenchSemanticRefs,
+  applyStepDescriptorWorkbenchSemanticTarget,
+  stepDescriptorWorkbenchAosRef,
+  stepDescriptorWorkbenchSemanticRefs,
 } from './semantics.js';
 import { createSplitPane } from '../../panel/layouts/split-pane.js';
 import {
@@ -51,7 +51,7 @@ function messageType(message = {}) {
 }
 
 function matchesType(type, fullType) {
-  return type === fullType || type === fullType.replace(/^playbook_workbench\./, '');
+  return type === fullType || type === fullType.replace(/^step_descriptor_workbench\./, '');
 }
 
 function stableJson(value) {
@@ -59,14 +59,14 @@ function stableJson(value) {
 }
 
 function summaryRows(rows = []) {
-  return renderWorkbenchSummaryRows({ rowClassName: 'playbook-workbench-row', rows });
+  return renderWorkbenchSummaryRows({ rowClassName: 'step-descriptor-workbench-row', rows });
 }
 
 function compactList(items = [], empty = 'None') {
   const values = items.map((item) => text(item)).filter(Boolean);
-  if (values.length === 0) return `<p class="playbook-workbench-muted">${esc(empty)}</p>`;
+  if (values.length === 0) return `<p class="step-descriptor-workbench-muted">${esc(empty)}</p>`;
   return (
-    '<ol class="playbook-workbench-list">'
+    '<ol class="step-descriptor-workbench-list">'
       + values.map((item) => `<li>${esc(item)}</li>`).join('')
     + '</ol>'
   );
@@ -74,10 +74,10 @@ function compactList(items = [], empty = 'None') {
 
 function renderDiagnostics(diagnostics = []) {
   if (diagnostics.length === 0) {
-    return '<p class="playbook-workbench-muted">No diagnostics</p>';
+    return '<p class="step-descriptor-workbench-muted">No diagnostics</p>';
   }
   return (
-    '<ol class="playbook-workbench-list">'
+    '<ol class="step-descriptor-workbench-list">'
       + diagnostics.map((diagnostic) => {
         const value = objectValue(diagnostic);
         return (
@@ -93,14 +93,14 @@ function renderDiagnostics(diagnostics = []) {
 
 function applyRef(element, { id, name, role = 'AXGroup', action = '', enabled = true, value = null } = {}) {
   const existingText = element?.tagName?.toLowerCase?.() === 'button' ? element.textContent : '';
-  const normalized = applyPlaybookWorkbenchSemanticTarget(element, {
+  const normalized = applyStepDescriptorWorkbenchSemanticTarget(element, {
     id,
     name,
     role,
     action,
     enabled,
     value,
-    aosRef: playbookWorkbenchAosRef(id),
+    aosRef: stepDescriptorWorkbenchAosRef(id),
   });
   if (existingText) element.textContent = existingText;
   return normalized;
@@ -136,11 +136,11 @@ async function postWorkRecordOpenToChild(host, childId, openMessage) {
   return false;
 }
 
-export default function PlaybookWorkbench(options = {}) {
+export default function StepDescriptorWorkbench(options = {}) {
   let host = null;
   let rootEl = null;
-  const refs = playbookWorkbenchSemanticRefs();
-  const state = createPlaybookWorkbenchState(options);
+  const refs = stepDescriptorWorkbenchSemanticRefs();
+  const state = createStepDescriptorWorkbenchState(options);
   const dom = {};
 
   function emit(type, payload) {
@@ -149,15 +149,15 @@ export default function PlaybookWorkbench(options = {}) {
 
   function syncTitle() {
     const step = state.step_summary || {};
-    host?.setTitle?.(`Playbook Workbench V0 - ${text(step.id, 'waiting for fixture')}`);
+    host?.setTitle?.(`Step Descriptor Workbench V0 - ${text(step.id, 'waiting for fixture')}`);
   }
 
   function syncDebugState() {
-    window.__playbookWorkbenchState = playbookWorkbenchSnapshot(state);
+    window.__stepDescriptorWorkbenchState = stepDescriptorWorkbenchSnapshot(state);
   }
 
   function sync() {
-    const snapshot = playbookWorkbenchSnapshot(state);
+    const snapshot = stepDescriptorWorkbenchSnapshot(state);
     const step = snapshot.step_summary || {};
     const gate = snapshot.gate_status || {};
     const verifier = snapshot.verifier_summary || {};
@@ -173,14 +173,14 @@ export default function PlaybookWorkbench(options = {}) {
       ? summaryRows([
         ['Step', step.id],
         ['Label', step.label],
-        ['Playbook', step.playbook_ref],
+        ['Workflow', step.workflow_ref],
         ['Action', `${step.action?.verb || 'none'} ${step.action?.target || ''}`.trim()],
         ['Preconditions', String(step.precondition_count || 0)],
         ['Postconditions', String(step.postcondition_count || 0)],
         ['Claim promotions', String(step.claim_promotion_count || 0)],
       ])
-      : '<p class="playbook-workbench-muted">Waiting for fixture</p>';
-    dom.stepJson.textContent = fixtureReady ? stableJson(state.prototype.playbook_step) : '{}';
+      : '<p class="step-descriptor-workbench-muted">Waiting for fixture</p>';
+    dom.stepJson.textContent = fixtureReady ? stableJson(state.prototype.step_descriptor) : '{}';
     dom.targetSummary.innerHTML = summaryRows([
       ['Dialect', step.target_dialect || 'none'],
       ['Target', step.target || 'none'],
@@ -223,11 +223,11 @@ export default function PlaybookWorkbench(options = {}) {
         ['Verifier report', record.verifier_report_id || 'none'],
         ['Replay policy', record.replay_policy?.mode || 'none'],
       ])
-      : '<p class="playbook-workbench-muted">No Work Record emitted</p>';
+      : '<p class="step-descriptor-workbench-muted">No Work Record emitted</p>';
     dom.workRecordJson.textContent = recordReady ? stableJson(state.record) : '{}';
     dom.handoff.innerHTML = summaryRows([
       ['Workbench', snapshot.work_record_open?.work_record_surface || 'work-record-workbench'],
-      ['Canvas', snapshot.work_record_canvas_id || PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID],
+      ['Canvas', snapshot.work_record_canvas_id || STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID],
       ['Read-only open', snapshot.work_record_open?.read_only === true ? 'confirmed' : 'pending'],
       ['Open status', snapshot.work_record_open?.status || 'not requested'],
     ]);
@@ -237,33 +237,33 @@ export default function PlaybookWorkbench(options = {}) {
   }
 
   function applyGateFromInputs() {
-    const result = setPlaybookWorkbenchWorkflowGate(state, {
+    const result = setStepDescriptorWorkbenchWorkflowGate(state, {
       ref: dom.gateRef.value,
       token: dom.gateToken.value,
     });
-    emit(PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workflowGateSet, result);
+    emit(STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet, result);
     sync();
     return result;
   }
 
   function simulateFromCurrentGate() {
     applyGateFromInputs();
-    const result = simulatePlaybookWorkbench(state);
-    emit(PLAYBOOK_WORKBENCH_MESSAGE_TYPES.simulateResult, result);
+    const result = simulateStepDescriptorWorkbench(state);
+    emit(STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateResult, result);
     sync();
     return result;
   }
 
   async function openCurrentWorkRecord({ spawnChild = true } = {}) {
-    const result = openPlaybookWorkbenchWorkRecord(state);
+    const result = openStepDescriptorWorkbenchWorkRecord(state);
     sync();
-    emit(PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult, result);
+    emit(STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult, result);
 
     if (!spawnChild || !host?.spawnChild || !state.work_record_open?.open_message) {
       return result;
     }
 
-    const childId = text(state.work_record_canvas_id, PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID);
+    const childId = text(state.work_record_canvas_id, STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID);
     try {
       await host.spawnChild({
         id: childId,
@@ -284,69 +284,69 @@ export default function PlaybookWorkbench(options = {}) {
       child_posted: posted,
     };
     sync();
-    emit(PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult, state.last_result);
+    emit(STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult, state.last_result);
     return state.last_result;
   }
 
   function render() {
     rootEl = document.createElement('div');
-    rootEl.className = 'playbook-workbench-root';
+    rootEl.className = 'step-descriptor-workbench-root';
     applyRef(rootEl, {
       id: 'root',
-      name: 'Playbook Workbench V0',
+      name: 'Step Descriptor Workbench V0',
       value: 'fixture-backed report-only one-step shell',
     });
     rootEl.innerHTML = `
       ${renderWorkbenchToolbar({
         tag: 'header',
-        className: 'playbook-workbench-toolbar',
+        className: 'step-descriptor-workbench-toolbar',
         content: `
-        <div class="playbook-workbench-title">
-          <strong>Playbook Workbench V0</strong>
-          <span data-role="surface">${esc(PLAYBOOK_WORKBENCH_SURFACE)}</span>
+        <div class="step-descriptor-workbench-title">
+          <strong>Step Descriptor Workbench V0</strong>
+          <span data-role="surface">${esc(STEP_DESCRIPTOR_WORKBENCH_SURFACE)}</span>
         </div>
-        <label class="playbook-workbench-gate-field">
+        <label class="step-descriptor-workbench-gate-field">
           <span>Gate ref</span>
           ${renderTextFieldHtml({ spellcheck: false, dataset: { role: 'gate-ref' }, attributes: { autocomplete: 'off' } })}
         </label>
-        <label class="playbook-workbench-gate-field">
+        <label class="step-descriptor-workbench-gate-field">
           <span>Gate token</span>
           ${renderTextFieldHtml({ spellcheck: false, dataset: { role: 'gate-token' }, attributes: { autocomplete: 'off' } })}
         </label>
-        <div class="playbook-workbench-action-group aos-segmented" role="group" aria-label="Playbook actions">
+        <div class="step-descriptor-workbench-action-group aos-segmented" role="group" aria-label="Step Descriptor actions">
           ${renderButtonHtml({ includeBaseClass: false, label: 'Apply Gate', dataset: { action: 'gate-apply' } })}
           ${renderButtonHtml({ includeBaseClass: false, label: 'Simulate', dataset: { action: 'simulate' } })}
           ${renderButtonHtml({ includeBaseClass: false, label: 'Open Work Record', dataset: { action: 'open-work-record' } })}
         </div>
         `,
       })}
-      <main class="playbook-workbench-main">
-        <section class="playbook-workbench-pane playbook-workbench-step-pane" aria-label="Playbook step descriptor">
-          ${renderWorkbenchSectionTitle({ title: 'Step Descriptor', baseClassName: 'playbook-workbench-pane-title' })}
-          <div data-role="step-descriptor" class="playbook-workbench-summary"></div>
-          ${renderWorkbenchSectionTitle({ title: 'Target / Ref', baseClassName: 'playbook-workbench-pane-title' })}
-          <div data-role="target-summary" class="playbook-workbench-summary"></div>
-          ${renderWorkbenchSectionTitle({ title: 'Descriptor JSON', baseClassName: 'playbook-workbench-pane-title' })}
-          <pre data-role="step-json" class="playbook-workbench-code"></pre>
+      <main class="step-descriptor-workbench-main">
+        <section class="step-descriptor-workbench-pane step-descriptor-workbench-step-pane" aria-label="Step Descriptor">
+          ${renderWorkbenchSectionTitle({ title: 'Step Descriptor', baseClassName: 'step-descriptor-workbench-pane-title' })}
+          <div data-role="step-descriptor" class="step-descriptor-workbench-summary"></div>
+          ${renderWorkbenchSectionTitle({ title: 'Target / Ref', baseClassName: 'step-descriptor-workbench-pane-title' })}
+          <div data-role="target-summary" class="step-descriptor-workbench-summary"></div>
+          ${renderWorkbenchSectionTitle({ title: 'Descriptor JSON', baseClassName: 'step-descriptor-workbench-pane-title' })}
+          <pre data-role="step-json" class="step-descriptor-workbench-code"></pre>
         </section>
-        <div class="playbook-workbench-run-stack">
-          <section class="playbook-workbench-pane playbook-workbench-run-pane" aria-label="Gate and verifier status">
-            ${renderWorkbenchSectionTitle({ title: 'Declared Gates', baseClassName: 'playbook-workbench-pane-title' })}
+        <div class="step-descriptor-workbench-run-stack">
+          <section class="step-descriptor-workbench-pane step-descriptor-workbench-run-pane" aria-label="Gate and verifier status">
+            ${renderWorkbenchSectionTitle({ title: 'Declared Gates', baseClassName: 'step-descriptor-workbench-pane-title' })}
             <div data-role="gate-refs"></div>
-            ${renderWorkbenchSectionTitle({ title: 'Gate Status', baseClassName: 'playbook-workbench-pane-title' })}
-            <div data-role="gate-status" class="playbook-workbench-summary"></div>
-            ${renderWorkbenchSectionTitle({ title: 'Verifier Status', baseClassName: 'playbook-workbench-pane-title' })}
-            <div data-role="verifier-status" class="playbook-workbench-summary"></div>
-            ${renderWorkbenchSectionTitle({ title: 'Diagnostics', baseClassName: 'playbook-workbench-pane-title' })}
+            ${renderWorkbenchSectionTitle({ title: 'Gate Status', baseClassName: 'step-descriptor-workbench-pane-title' })}
+            <div data-role="gate-status" class="step-descriptor-workbench-summary"></div>
+            ${renderWorkbenchSectionTitle({ title: 'Verifier Status', baseClassName: 'step-descriptor-workbench-pane-title' })}
+            <div data-role="verifier-status" class="step-descriptor-workbench-summary"></div>
+            ${renderWorkbenchSectionTitle({ title: 'Diagnostics', baseClassName: 'step-descriptor-workbench-pane-title' })}
             <div data-role="diagnostics"></div>
           </section>
-          <section class="playbook-workbench-pane playbook-workbench-record-pane" aria-label="Emitted Work Record summary">
-            ${renderWorkbenchSectionTitle({ title: 'Work Record Summary', baseClassName: 'playbook-workbench-pane-title' })}
-            <div data-role="work-record-summary" class="playbook-workbench-summary"></div>
-            ${renderWorkbenchSectionTitle({ title: 'Read-only Handoff', baseClassName: 'playbook-workbench-pane-title' })}
-            <div data-role="handoff" class="playbook-workbench-summary"></div>
-            ${renderWorkbenchSectionTitle({ title: 'Emitted Record JSON', baseClassName: 'playbook-workbench-pane-title' })}
-            <pre data-role="work-record-json" class="playbook-workbench-code"></pre>
+          <section class="step-descriptor-workbench-pane step-descriptor-workbench-record-pane" aria-label="Emitted Work Record summary">
+            ${renderWorkbenchSectionTitle({ title: 'Work Record Summary', baseClassName: 'step-descriptor-workbench-pane-title' })}
+            <div data-role="work-record-summary" class="step-descriptor-workbench-summary"></div>
+            ${renderWorkbenchSectionTitle({ title: 'Read-only Handoff', baseClassName: 'step-descriptor-workbench-pane-title' })}
+            <div data-role="handoff" class="step-descriptor-workbench-summary"></div>
+            ${renderWorkbenchSectionTitle({ title: 'Emitted Record JSON', baseClassName: 'step-descriptor-workbench-pane-title' })}
+            <pre data-role="work-record-json" class="step-descriptor-workbench-code"></pre>
           </section>
         </div>
       </main>
@@ -371,20 +371,20 @@ export default function PlaybookWorkbench(options = {}) {
     const narrowLayout = typeof window !== 'undefined'
       && window.matchMedia?.('(max-width: 1040px)')?.matches;
     createSplitPane({
-      root: rootEl.querySelector('.playbook-workbench-main'),
-      startPane: rootEl.querySelector('.playbook-workbench-step-pane'),
-      endPane: rootEl.querySelector('.playbook-workbench-run-stack'),
+      root: rootEl.querySelector('.step-descriptor-workbench-main'),
+      startPane: rootEl.querySelector('.step-descriptor-workbench-step-pane'),
+      endPane: rootEl.querySelector('.step-descriptor-workbench-run-stack'),
       orientation: narrowLayout ? 'vertical' : 'horizontal',
       initialRatio: 0.34,
       minStart: narrowLayout ? 360 : 330,
       minEnd: narrowLayout ? 680 : 660,
       dividerSize: 0,
-      ariaLabel: 'Resize playbook descriptor and report panes',
+      ariaLabel: 'Resize step descriptor and report panes',
     });
     createSplitPane({
-      root: rootEl.querySelector('.playbook-workbench-run-stack'),
-      startPane: rootEl.querySelector('.playbook-workbench-run-pane'),
-      endPane: rootEl.querySelector('.playbook-workbench-record-pane'),
+      root: rootEl.querySelector('.step-descriptor-workbench-run-stack'),
+      startPane: rootEl.querySelector('.step-descriptor-workbench-run-pane'),
+      endPane: rootEl.querySelector('.step-descriptor-workbench-record-pane'),
       orientation: narrowLayout ? 'vertical' : 'horizontal',
       initialRatio: 0.43,
       minStart: narrowLayout ? 320 : 300,
@@ -393,15 +393,15 @@ export default function PlaybookWorkbench(options = {}) {
       ariaLabel: 'Resize verifier and work record panes',
     });
 
-    applyRef(dom.stepDescriptor, { id: 'step-descriptor', name: 'Playbook step descriptor' });
-    applyRef(dom.targetSummary, { id: 'target-summary', name: 'Playbook target and ref summary' });
+    applyRef(dom.stepDescriptor, { id: 'step-descriptor', name: 'Step Descriptor' });
+    applyRef(dom.targetSummary, { id: 'target-summary', name: 'Step Descriptor target and ref summary' });
     applyRef(dom.gateRef, { id: 'gate-ref', name: 'Workflow gate ref', role: 'AXTextField', action: 'set_gate_ref' });
     applyRef(dom.gateToken, { id: 'gate-token', name: 'Workflow gate token', role: 'AXTextField', action: 'set_gate_token' });
     applyRef(dom.gateApply, { id: 'gate-apply', name: 'Apply workflow gate', role: 'AXButton', action: 'apply_gate' });
     applyRef(dom.gateStatus, { id: 'gate-status', name: 'Workflow gate status' });
     applyRef(dom.simulate, { id: 'simulate', name: 'Simulate saved step', role: 'AXButton', action: 'simulate_once' });
     applyRef(dom.verifierStatus, { id: 'verifier-status', name: 'Report-only verifier status' });
-    applyRef(dom.diagnostics, { id: 'diagnostics', name: 'Playbook workbench diagnostics' });
+    applyRef(dom.diagnostics, { id: 'diagnostics', name: 'Step Descriptor workbench diagnostics' });
     applyRef(dom.workRecordSummary, { id: 'work-record-summary', name: 'Emitted Work Record summary' });
     applyRef(dom.openWorkRecord, { id: 'open-work-record', name: 'Open emitted Work Record read-only', role: 'AXButton', action: 'open_work_record' });
 
@@ -410,8 +410,8 @@ export default function PlaybookWorkbench(options = {}) {
     dom.openWorkRecord.addEventListener('click', () => {
       openCurrentWorkRecord().catch((error) => {
         state.last_result = {
-          type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
-          schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+          type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
+          schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
           status: 'rejected',
           reason: String(error?.message || error),
         };
@@ -425,24 +425,24 @@ export default function PlaybookWorkbench(options = {}) {
 
   return {
     manifest: {
-      name: PLAYBOOK_WORKBENCH_MANIFEST,
-      title: 'Playbook Workbench V0',
+      name: STEP_DESCRIPTOR_WORKBENCH_MANIFEST,
+      title: 'Step Descriptor Workbench V0',
       accepts: [
-        PLAYBOOK_WORKBENCH_MESSAGE_TYPES.load,
-        PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
-        PLAYBOOK_WORKBENCH_MESSAGE_TYPES.simulateRequested,
-        PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenRequested,
+        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.load,
+        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
+        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateRequested,
+        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenRequested,
         'load',
         'workflow_gate.set',
         'simulate.requested',
         'work_record.open.requested',
       ],
       emits: [
-        PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
-        PLAYBOOK_WORKBENCH_MESSAGE_TYPES.simulateResult,
-        PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
+        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
+        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateResult,
+        STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
       ],
-      channelPrefix: PLAYBOOK_WORKBENCH_SURFACE,
+      channelPrefix: STEP_DESCRIPTOR_WORKBENCH_SURFACE,
       defaultSize: { w: 1240, h: 760 },
     },
 
@@ -455,21 +455,21 @@ export default function PlaybookWorkbench(options = {}) {
     onMessage(message = {}) {
       const type = messageType(message);
       const payload = messagePayload(message);
-      if (matchesType(type, PLAYBOOK_WORKBENCH_MESSAGE_TYPES.load)) {
-        loadPlaybookWorkbenchFixture(state, payload);
+      if (matchesType(type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.load)) {
+        loadStepDescriptorWorkbenchFixture(state, payload);
         sync();
-      } else if (matchesType(type, PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workflowGateSet)) {
-        setPlaybookWorkbenchWorkflowGate(state, payload);
+      } else if (matchesType(type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet)) {
+        setStepDescriptorWorkbenchWorkflowGate(state, payload);
         sync();
-      } else if (matchesType(type, PLAYBOOK_WORKBENCH_MESSAGE_TYPES.simulateRequested)) {
-        simulatePlaybookWorkbench(state, payload);
-        emit(PLAYBOOK_WORKBENCH_MESSAGE_TYPES.simulateResult, state.last_result);
+      } else if (matchesType(type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateRequested)) {
+        simulateStepDescriptorWorkbench(state, payload);
+        emit(STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateResult, state.last_result);
         sync();
-      } else if (matchesType(type, PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenRequested)) {
+      } else if (matchesType(type, STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenRequested)) {
         openCurrentWorkRecord({ spawnChild: payload.spawn_child !== false }).catch((error) => {
           state.last_result = {
-            type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
-            schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+            type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
+            schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
             status: 'rejected',
             reason: String(error?.message || error),
           };
@@ -479,7 +479,7 @@ export default function PlaybookWorkbench(options = {}) {
     },
 
     serialize() {
-      return playbookWorkbenchSnapshot(state);
+      return stepDescriptorWorkbenchSnapshot(state);
     },
 
     refs,

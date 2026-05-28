@@ -27,7 +27,7 @@ temporary affordances. Pair visual layers with explicit interaction surfaces or
 input regions; do not make the full visual stage interactive by default.
 
 Before adding WebViews, stage layers, hit regions, or daemon work for a surface,
-use `docs/recipes/aos-surface-interaction-decision-tree.md`. Keep local guidance
+use `docs/guides/aos-surface-interaction-decision-tree.md`. Keep local guidance
 as a pointer to that canonical tree instead of copying the full policy here.
 
 Consumer-facing toolkit contracts are indexed at `docs/api/toolkit.md`. Prefer

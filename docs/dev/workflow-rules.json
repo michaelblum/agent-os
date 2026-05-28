@@ -438,7 +438,7 @@
       "verification": [],
       "notes": [
         "Docs-only changes do not require runtime verification unless they change command contracts or executable examples.",
-        "For docs that route runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer testing decisions, link to the foundational harness ladder in tests/README.md and docs/recipes/test-harness-ladder-and-prep.md."
+        "For docs that route runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer testing decisions, link to the foundational harness ladder in tests/README.md and docs/guides/test-harness-ladder-and-prep.md."
       ]
     },
     {
@@ -464,7 +464,7 @@
         }
       ],
       "notes": [
-        "Use the foundational harness ladder in tests/README.md and docs/recipes/test-harness-ladder-and-prep.md before adding runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer test helpers."
+        "Use the foundational harness ladder in tests/README.md and docs/guides/test-harness-ladder-and-prep.md before adding runtime, canvas, input, status-item, lifecycle, visual, supervised, or cross-layer test helpers."
       ]
     }
   ],

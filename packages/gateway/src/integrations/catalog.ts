@@ -168,8 +168,8 @@ function summarizeComingSoon(workflows: IntegrationWorkflowDefinition[]): Workfl
 
   return {
     summary: pending.length > 0
-      ? `${pending.length} workflow plugins are visible in the live registry and can be wired into Slack next.`
-      : 'No extra workflow plugins are waiting in the live registry right now.',
+      ? `${pending.length} wiki capability plugins are visible in the live registry and can be wired into Slack next.`
+      : 'No extra wiki capability plugins are waiting in the live registry right now.',
     lines: pending.map((workflow) => `${workflow.title} - ${workflow.description}`),
     json: pending.map(({ run: _run, formatCommandText: _formatCommandText, ...workflow }) => workflow),
   };
@@ -404,7 +404,7 @@ function buildReadyWorkflowCatalog(wikiIndex: WikiIndexEntry[]): IntegrationWork
     {
       id: 'coming-soon',
       title: 'Coming Soon',
-      description: 'List workflow plugins visible in the live wiki registry that are not yet wired to structured Slack launches.',
+      description: 'List wiki capability plugins visible in the live wiki registry that are not yet wired to structured Slack launches.',
       surface: 'workflows',
       availability: 'ready',
       group: 'discovery',
@@ -808,7 +808,7 @@ function buildComingSoonWorkflowCatalog(wikiWorkflows: WikiIndexEntry[]): Integr
       id: entry.plugin ?? entry.name,
       title: humanizeWorkflowName(entry.plugin ?? entry.name),
       description: entry.description
-        ?? `Workflow plugin discovered at ${entry.path ?? 'unknown path'}.`,
+        ?? `Wiki capability plugin discovered at ${entry.path ?? 'unknown path'}.`,
       surface: 'workflows' as const,
       availability: 'coming-soon' as const,
       group: 'discovery' as const,

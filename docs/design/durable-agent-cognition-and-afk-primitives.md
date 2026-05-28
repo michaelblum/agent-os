@@ -38,8 +38,8 @@ The repo already has most of the artifact vocabulary:
 - GDI work cards are bounded execution contracts for worker rounds
   (`docs/design/work-cards/`).
 - Recipes are role-neutral repeated procedures, with Markdown SOPs under
-  `docs/recipes/` and source-backed executable manifests under `recipes/*.json`
-  (`docs/recipes/README.md`).
+  `docs/guides/` and source-backed executable manifests under `recipes/*.json`
+  (`docs/guides/README.md`).
 - ADR 0009 keeps Recipe, Playbook, and Workflow distinct:
   Recipe is a bounded procedure, Playbook is agent-operable
   `see -> resolve -> do -> see -> verify`, and Workflow is orchestration across
@@ -173,7 +173,7 @@ Existing hidden examples:
 - Live versus deterministic verification: evidence need plus TCC/readiness
   state in, GDI/Operator/human-needed route out.
 - Recipe recommendation: changed files and task kind in, relevant SOPs out.
-- `docs/recipes/context-doc-maintenance.md`: proposed context change in,
+- `docs/guides/context-doc-maintenance.md`: proposed context change in,
   adopt/adapt/reject/defer out.
 
 The inventory, shape sketch, transfer routing mapping, and verification routing
@@ -459,7 +459,7 @@ The next slices should stay reversible:
 8. Use the dev dry-run command to decide whether the next implementation path
    is receipt contract correction or a first supervised provider/session
    launch. Apply
-   `docs/recipes/workstream-checkpoint-continuation.md` so this is a Foreman
+   `docs/guides/workstream-checkpoint-continuation.md` so this is a Foreman
    routing decision, not a human-managed preference choice.
    A supervised Operator smoke now has a manual receipt at
    `docs/design/notes/manual-afk-receipts/2026-05-22-afk-provider-session-smoke-gdi-completed.md`;

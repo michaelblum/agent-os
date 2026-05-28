@@ -38,14 +38,14 @@ test('adapter preserves legacy work-record read behavior', () => {
 });
 
 test('adapter reads v0 records without rewriting evidence or claim arrays', () => {
-  const record = fixture(v0FixtureRoot, 'playbook-origin.json');
+  const record = fixture(v0FixtureRoot, 'workflow-origin.json');
   const normalized = normalizeWorkRecord(record);
 
   assert.equal(isWorkRecordV0(record), true);
   assert.equal(normalized.format, 'v0');
   assert.equal(normalized.readOnly, true);
   assert.equal(workRecordIsReadOnly(record), true);
-  assert.equal(normalized.id, 'work-record:playbook-open-wiki-sigil-2026-05-05');
+  assert.equal(normalized.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
   assert.equal(workRecordSubjectId(normalized.id), normalized.id);
   assert.equal(normalized.intent.nl, record.intent.summary);
   assert.equal(normalized.evidence.length, record.evidence.length);
@@ -53,7 +53,7 @@ test('adapter reads v0 records without rewriting evidence or claim arrays', () =
   assert.equal(normalized.claimResults.length, record.claim_results.length);
   assert.equal(normalized.health.state, 'valid');
   assert.deepEqual(normalized.raw.evidence, record.evidence);
-  assert.equal(workRecordEvidenceArtifacts(record)[0].path, 'artifact:artifacts/work-records/playbook-open-wiki-sigil/before-see.json');
+  assert.equal(workRecordEvidenceArtifacts(record)[0].path, 'artifact:artifacts/work-records/workflow-open-wiki-sigil/before-see.json');
 });
 
 test('adapter formats Work Record subject ids through Subject Entry Handles', () => {

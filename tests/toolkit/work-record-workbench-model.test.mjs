@@ -98,12 +98,12 @@ test('work record patch requests preserve file source metadata', () => {
 
 test('work record workbench opens a v0 fixture read-only without lossy rewriting', () => {
   const state = createWorkRecordWorkbenchState();
-  const record = fixture('playbook-origin.json', v0FixtureRoot);
+  const record = fixture('workflow-origin.json', v0FixtureRoot);
   const result = openWorkRecord(state, {
     type: 'work_record.open',
     source: {
       kind: 'file',
-      path: '/tmp/playbook-origin.json',
+      path: '/tmp/workflow-origin.json',
     },
     record,
   });
@@ -113,7 +113,7 @@ test('work record workbench opens a v0 fixture read-only without lossy rewriting
   assert.equal(state.dirty, false);
   assert.equal(workRecordIsReadOnly(state.record), true);
   assert.deepEqual(state.record.evidence, record.evidence);
-  assert.equal(snapshot.subject.id, 'work-record:playbook-open-wiki-sigil-2026-05-05');
+  assert.equal(snapshot.subject.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
   assert.equal(snapshot.subject.subject_type, 'aos.work_record');
   assert.equal(snapshot.subject.persistence, null);
   assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
@@ -209,14 +209,14 @@ test('work record workbench opens generated AOS action v0 records read-only', ()
   assert.throws(() => buildWorkRecordPatchRequest(state), /read-only/);
 });
 
-test('work record workbench opens generated Playbook-origin v0 records read-only', () => {
+test('work record workbench opens generated Workflow-origin v0 records read-only', () => {
   const state = createWorkRecordWorkbenchState();
-  const record = fixture('playbook-browser-click-status.json', v0FixtureRoot);
+  const record = fixture('workflow-browser-click-status.json', v0FixtureRoot);
   const result = openWorkRecord(state, {
     type: 'work_record.open',
     source: {
       kind: 'file',
-      path: '/tmp/playbook-browser-click-status.json',
+      path: '/tmp/workflow-browser-click-status.json',
     },
     record,
   });
@@ -225,18 +225,18 @@ test('work record workbench opens generated Playbook-origin v0 records read-only
   assert.equal(result.status, 'opened');
   assert.equal(workRecordIsReadOnly(state.record), true);
   assert.equal(snapshot.subject.id, 'work-record:aos-browser-click-status-2026-05-06');
-  assert.equal(snapshot.subject.source.origin.kind, 'playbook');
-  assert.equal(snapshot.subject.source.origin.ref, 'playbook:browser-live-action-status');
+  assert.equal(snapshot.subject.source.origin.kind, 'workflow');
+  assert.equal(snapshot.subject.source.origin.ref, 'workflow:browser-live-action-status');
   assert.equal(snapshot.subject.persistence, null);
   assert.ok(subjectFacets(snapshot.subject).some((facet) => facet.key === 'work_record.verifier_report'));
   assert.equal('views' in snapshot.subject, false);
   assert.equal('controls' in snapshot.subject, false);
   assert.equal(snapshot.diagnostics.verifier_status, 'passed');
   assert.equal(snapshot.diagnostics.postcondition_count, 3);
-  assert.ok(executionMapJson(state.record).includes('playbook-step:browser-click-status'));
+  assert.ok(executionMapJson(state.record).includes('step-descriptor:browser-click-status'));
   assert.equal(workRecordVerifierCheck(state.record).status, 'passed');
 
-  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate playbook record' });
+  const rejectedIntent = updateWorkRecordIntent(state, { summary: 'mutate workflow record' });
   assert.equal(rejectedIntent.status, 'rejected');
   assert.equal(rejectedIntent.reason, 'read_only');
   assert.equal(state.dirty, false);

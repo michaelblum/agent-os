@@ -31,11 +31,11 @@ function artifactBundleFixture() {
 }
 
 test('subject catalog creates an openable non-wiki Work Record entry from canonical descriptor fields', () => {
-  const record = fixture('playbook-browser-click-status.json');
+  const record = fixture('workflow-browser-click-status.json');
   const entry = createWorkRecordSubjectCatalogEntry(record, {
     source: {
       kind: 'fixture',
-      path: '/tmp/playbook-browser-click-status.json',
+      path: '/tmp/workflow-browser-click-status.json',
       read_only: true,
     },
   });
@@ -49,8 +49,8 @@ test('subject catalog creates an openable non-wiki Work Record entry from canoni
     host.entry.value === WORK_RECORD_WORKBENCH_URL
   ))));
   assert.ok(entry.subject_references.some((reference) => (
-    reference.id === 'origin-playbook-subject'
-      && reference.handle === 'playbook:browser-live-action-status'
+    reference.id === 'origin-workflow-subject'
+      && reference.handle === 'workflow:browser-live-action-status'
   )));
   assert.equal(entry.affordances.openable, true);
   assert.equal(entry.affordances.openers[0].id, 'work-record-workbench');
@@ -89,7 +89,7 @@ test('subject catalog creates an openable non-wiki Work Record entry from canoni
 });
 
 test('subject catalog open request carries stable payload for existing Work Record Workbench', () => {
-  const record = fixture('playbook-browser-click-status.json');
+  const record = fixture('workflow-browser-click-status.json');
   const entry = createWorkRecordSubjectCatalogEntry(record);
   const request = createSubjectOpenRequestFromCatalogEntry(entry, {
     requestId: 'subject-open-test',

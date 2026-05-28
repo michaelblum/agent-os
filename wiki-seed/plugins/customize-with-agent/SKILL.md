@@ -2,9 +2,9 @@
 name: customize-with-agent
 description: >
   Create new wiki plugins or edit existing ones through guided conversation.
-  Use when the user asks to create a plugin, build a workflow, make a new
+  Use when the user asks to create a plugin, package a capability, make a new
   skill, automate a task, or says "customize with agent". Also use when
-  the user wants to turn a conversation or process into a reusable workflow.
+  the user wants to turn a conversation or process into a reusable capability.
 version: "1.0.0"
 author: agent-os
 tags: [meta, authoring, plugin-creation]
@@ -18,13 +18,15 @@ Create new wiki plugins or improve existing ones through collaborative dialogue.
 
 ## Overview
 
-A plugin is a reusable workflow stored in the wiki. It consists of:
-- `SKILL.md` — instructions the agent follows when the plugin is invoked
+A plugin is a wiki capability extension. It packages activation metadata and
+assets; it is not itself an AOS Workflow or Recipe. It consists of:
+- `SKILL.md` — agent-loadable instructions used when the plugin is invoked
 - `references/` — supporting knowledge documents loaded on demand
 - `scripts/` — optional executable code for deterministic tasks
 - `assets/` — optional templates, icons, or other files
 
-Your job is to help the user define what the plugin should do, then create it using wiki tools.
+Your job is to help the user define what the plugin should enable, then create
+it using wiki tools.
 
 ## Process
 
@@ -95,7 +97,9 @@ Based on testing or user feedback:
 
 After the user approves:
 - Verify with `aos wiki lint` — fix any issues
-- Confirm the plugin appears in `aos wiki list --type workflow`
+- Confirm the plugin appears in `aos wiki list --type workflow` while treating
+  that type name as wiki registry compatibility metadata, not AOS Execution
+  Model taxonomy
 - Tell the user how to invoke it: from chat compose menu or by asking the agent
 
 ## Editing Existing Plugins

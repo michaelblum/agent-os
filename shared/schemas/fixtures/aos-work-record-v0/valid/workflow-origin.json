@@ -1,23 +1,23 @@
 {
   "type": "aos.work_record",
   "schema_version": "2026-05-work-record-v0",
-  "id": "work-record:playbook-open-wiki-sigil-2026-05-05",
+  "id": "work-record:workflow-open-wiki-sigil-2026-05-05",
   "label": "Open Sigil in the Browser-Hosted Wiki Subject Browser",
   "created_at": "2026-05-05T16:20:00Z",
   "origin": {
-    "kind": "playbook",
-    "ref": "playbook:browser-hosted-wiki-open-sigil",
+    "kind": "workflow",
+    "ref": "workflow:browser-hosted-wiki-open-sigil",
     "run_id": "run:browser-hosted-wiki-open-sigil:2026-05-05T16-20-00Z",
     "version": "v0",
-    "subject_type": "aos.playbook",
-    "description": "Reusable browser playbook for opening the Sigil Subject through the wiki Subject Browser."
+    "subject_type": "aos.workflow",
+    "description": "Workflow-gated browser for opening the Sigil Subject through the wiki Subject Browser."
   },
   "references": [
     {
-      "id": "origin-playbook-subject",
+      "id": "origin-workflow-subject",
       "relationship": "origin_subject",
-      "ref": "playbook:browser-hosted-wiki-open-sigil",
-      "subject_type": "aos.playbook",
+      "ref": "workflow:browser-hosted-wiki-open-sigil",
+      "subject_type": "aos.workflow",
       "layer": "execution_map",
       "role": "emitter"
     },
@@ -41,7 +41,7 @@
   ],
   "intent": {
     "summary": "Open the Sigil wiki Subject through the Browser-Hosted Wiki Subject Browser and verify the resulting page state.",
-    "purpose": "browser_playbook_verification",
+    "purpose": "browser_workflow_verification",
     "acceptance": "The after-capture shows the Sigil Subject heading and the Work Record contains before, action, and after evidence.",
     "constraints": [
       "Use AOS browser target refs instead of raw Playwright-only selectors.",
@@ -184,13 +184,13 @@
       {
         "id": "artifact-route:before-see",
         "kind": "see_capture",
-        "destination": "artifacts/work-records/playbook-open-wiki-sigil/before-see.json",
+        "destination": "artifacts/work-records/workflow-open-wiki-sigil/before-see.json",
         "evidence_ref": "evidence:before-see"
       },
       {
         "id": "artifact-route:after-see",
         "kind": "see_capture",
-        "destination": "artifacts/work-records/playbook-open-wiki-sigil/after-see.json",
+        "destination": "artifacts/work-records/workflow-open-wiki-sigil/after-see.json",
         "evidence_ref": "evidence:after-see"
       }
     ],
@@ -199,7 +199,7 @@
       "replay_requires_workflow_gate": true,
       "repair_requires_workflow_gate": true,
       "gate_refs": [
-        "workflow-gate:browser-playbook-replay-approval"
+        "workflow-gate:browser-step-descriptor-replay-approval"
       ],
       "notes": "The origin is reusable, but this record does not authorize autonomous replay."
     },
@@ -210,7 +210,7 @@
       "id": "evidence:before-see",
       "kind": "see_capture",
       "created_at": "2026-05-05T16:20:05Z",
-      "uri": "artifact:artifacts/work-records/playbook-open-wiki-sigil/before-see.json",
+      "uri": "artifact:artifacts/work-records/workflow-open-wiki-sigil/before-see.json",
       "state_id": "see_browser000010",
       "target": "browser:wiki-browser",
       "immutable": true,
@@ -220,7 +220,7 @@
       "id": "evidence:click-sigil",
       "kind": "do_envelope",
       "created_at": "2026-05-05T16:20:10Z",
-      "uri": "artifact:artifacts/work-records/playbook-open-wiki-sigil/do-click.json",
+      "uri": "artifact:artifacts/work-records/workflow-open-wiki-sigil/do-click.json",
       "state_id": "see_browser000010",
       "target": "browser:wiki-browser/subject-link.sigil",
       "immutable": true,
@@ -230,7 +230,7 @@
       "id": "evidence:after-see",
       "kind": "see_capture",
       "created_at": "2026-05-05T16:20:15Z",
-      "uri": "artifact:artifacts/work-records/playbook-open-wiki-sigil/after-see.json",
+      "uri": "artifact:artifacts/work-records/workflow-open-wiki-sigil/after-see.json",
       "state_id": "see_browser000011",
       "target": "browser:wiki-browser",
       "immutable": true,
@@ -249,7 +249,7 @@
     },
     {
       "id": "claim:before-action-after-evidence-captured",
-      "text": "The Work Record captured before, action, and after evidence for the playbook run.",
+      "text": "The Work Record captured before, action, and after evidence for the workflow run.",
       "scope": "run",
       "acceptance": "Evidence includes a before see capture, do envelope, and after see capture.",
       "postcondition_refs": [
@@ -311,7 +311,7 @@
     }
   ],
   "verifier_report": {
-    "id": "verifier-report:playbook-open-wiki-sigil",
+    "id": "verifier-report:workflow-open-wiki-sigil",
     "generated_at": "2026-05-05T16:22:00Z",
     "verifier": {
       "id": "aos.verifier.work-record.v0",
@@ -338,16 +338,16 @@
     "verdict": "valid",
     "reason": "All run Claims verified against immutable evidence.",
     "evaluated_at": "2026-05-05T16:22:00Z",
-    "verifier_report_id": "verifier-report:playbook-open-wiki-sigil",
+    "verifier_report_id": "verifier-report:workflow-open-wiki-sigil",
     "confidence": 0.95,
     "repair_gate_refs": [
-      "workflow-gate:browser-playbook-replay-approval"
+      "workflow-gate:browser-step-descriptor-replay-approval"
     ],
     "replay_gate_refs": [
-      "workflow-gate:browser-playbook-replay-approval"
+      "workflow-gate:browser-step-descriptor-replay-approval"
     ]
   },
   "metadata": {
-    "example_kind": "playbook_origin"
+    "example_kind": "workflow_origin"
   }
 }

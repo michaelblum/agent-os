@@ -46,7 +46,7 @@ The active instruction ladder for docked sessions is:
 
 Keep common docked-session behavior in `.docks/AGENTS.md`. Keep role files
 focused on that role's authority. Keep procedures that are repeatable across
-roles in `docs/recipes/`.
+roles in `docs/guides/`.
 
 Docks do not select the active development workflow profile. Resolve git,
 branch, PR, review, and merge posture from `docs/dev/active-profile.json` and

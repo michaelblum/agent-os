@@ -29,7 +29,7 @@ blanket cutover.
   contract.
 - The recent Subject work has already introduced the pieces needed for a cleaner
   model: high-level capabilities, operation contracts, Facets, Hosts, Subject
-  References, Wiki Subject Browser, Playbook Workbench, and Work Record
+  References, Wiki Subject Browser, Step Descriptor Workbench, and Work Record
   handoffs.
 - The knowledge-graph research signal supports a typed, atomic, linked model
   with provenance and health instead of loose folder-style or legacy descriptor
@@ -46,10 +46,10 @@ blanket cutover.
 The interrupted dirty files appear to be a narrow #281 slice:
 
 - `packages/toolkit/components/markdown-workbench/model.js`
-- `packages/toolkit/components/playbook-workbench/model.js`
+- `packages/toolkit/components/step-descriptor-workbench/model.js`
 - `packages/toolkit/components/work-record-workbench/model.js`
-- `packages/toolkit/workbench/browser-playbook-prototype.js`
-- `tests/toolkit/browser-playbook-prototype.test.mjs`
+- `packages/toolkit/workbench/browser-step-descriptor-prototype.js`
+- `tests/toolkit/browser-step-descriptor-prototype.test.mjs`
 - `tests/toolkit/work-record-workbench-model.test.mjs`
 
 Foreman should not assume these are disposable. It should require GDI to
@@ -96,8 +96,8 @@ Use these as inputs, not as mandatory wording:
 ## Durable Docs For Foreman Study
 
 - `AGENTS.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
-- `docs/recipes/layered-subject-expressions.md`
+- `docs/guides/agent-entry-paths-and-verification.md`
+- `docs/guides/layered-subject-expressions.md`
 - `docs/design/aos-grand-unification-plan.md`
 - `docs/design/aos-grand-unification-next-session-goal.md`
 - `docs/design/aos-subject-model-compatibility-audit.md`

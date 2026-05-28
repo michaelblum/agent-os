@@ -66,13 +66,13 @@ test('createWorkRecordSubject projects recipe retirement as evidence and health'
 });
 
 test('createWorkRecordSubject projects a v0 Work Record read-only', () => {
-  const subject = createWorkRecordSubject(fixture('playbook-origin.json', v0FixtureRoot));
+  const subject = createWorkRecordSubject(fixture('workflow-origin.json', v0FixtureRoot));
 
-  assert.equal(subject.id, 'work-record:playbook-open-wiki-sigil-2026-05-05');
+  assert.equal(subject.id, 'work-record:workflow-open-wiki-sigil-2026-05-05');
   assert.equal(subject.subject_type, 'aos.work_record');
   assert.equal(subject.source.kind, 'work_record');
   assert.equal(subject.source.format, 'v0');
-  assert.equal(subject.source.origin.kind, 'playbook');
+  assert.equal(subject.source.origin.kind, 'workflow');
   assert.equal(subject.state.health.state, 'valid');
   assert.equal(subject.state.read_only, true);
   assert.equal(subject.persistence, null);

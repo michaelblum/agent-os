@@ -68,7 +68,7 @@ topology, input taps, or real host routing.
 
 For runtime, canvas, input, status-item, lifecycle, visual, supervised, or
 cross-layer work, use the foundational ladder in `tests/README.md` and the
-prep routine in `docs/recipes/test-harness-ladder-and-prep.md` when the right
+prep routine in `docs/guides/test-harness-ladder-and-prep.md` when the right
 harness is not obvious. Keep fixtures canonical-path representative, and avoid
 fixtures that remove the defect variable under test.
 
@@ -115,7 +115,7 @@ over-scoping it:
   transfer policy belong under `.docks/`.
 - App-local contracts belong in the nearest subtree `AGENTS.md`.
 - Verification mechanics belong in `tests/README.md`.
-- Reusable SOPs and practices belong in `docs/recipes/`.
+- Reusable SOPs and practices belong in `docs/guides/`.
 - Cross-tool or consumer-facing contracts belong in `shared/schemas/`,
   `docs/api/`, or `ARCHITECTURE.md`.
 - Runtime knowledge, Sigil agent documents, operator concepts, user/project
@@ -176,6 +176,6 @@ starting point.
    read or updated in addition to repo docs or code.
 11. Before building a new browser, workbench, editor, inspector, or artifact
     panel, identify the subject's layered expressions. See
-    `docs/recipes/layered-subject-expressions.md`.
+    `docs/guides/layered-subject-expressions.md`.
 12. If a lesson should survive the session, place it using the placement rules
    above before handing the work back.

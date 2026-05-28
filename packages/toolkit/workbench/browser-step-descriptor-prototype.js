@@ -1,12 +1,12 @@
 import { createWorkbenchSubject } from './subject.js';
-import { runOneStepPlaybookHarness } from './playbook-step-harness.js';
+import { runOneStepStepDescriptorHarness } from './step-descriptor-harness.js';
 import { WORK_RECORD_REPORT_ONLY_PROFILE_ID } from './work-record.js';
 
-export const BROWSER_PLAYBOOK_PROTOTYPE_VERSION = '2026-05-browser-playbook-prototype-v0';
-export const BROWSER_CLICK_STATUS_PROTOTYPE_ID = 'playbook-prototype:browser-click-status';
-export const PLAYBOOK_WORKBENCH_URL = 'aos://toolkit/components/playbook-workbench/index.html';
+export const BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION = '2026-05-browser-step-descriptor-prototype-v0';
+export const BROWSER_CLICK_STATUS_PROTOTYPE_ID = 'step-descriptor-prototype:browser-click-status';
+export const STEP_DESCRIPTOR_WORKBENCH_URL = 'aos://toolkit/components/step-descriptor-workbench/index.html';
 
-const DEFAULT_OWNER = 'aos-playbook-prototype';
+const DEFAULT_OWNER = 'aos-step-descriptor-prototype';
 
 function text(value, fallback = '') {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -46,28 +46,28 @@ function uniqueStrings(values = []) {
   return result;
 }
 
-function prototypeLabel({ label, playbookStep, id }) {
+function prototypeLabel({ label, stepDescriptor, id }) {
   return text(
     label,
-    text(playbookStep.label, `Browser Playbook prototype: ${text(playbookStep.id, id)}`),
+    text(stepDescriptor.label, `Browser Step Descriptor prototype: ${text(stepDescriptor.id, id)}`),
   );
 }
 
-function prototypeGateRefs(playbookStep = {}) {
-  return uniqueStrings(arrayValue(objectValue(playbookStep.workflow_gates).gate_refs));
+function prototypeGateRefs(stepDescriptor = {}) {
+  return uniqueStrings(arrayValue(objectValue(stepDescriptor.workflow_gates).gate_refs));
 }
 
-function prototypeArtifacts({ playbookStep, evidenceSource, record = null }) {
+function prototypeArtifacts({ stepDescriptor, evidenceSource, record = null }) {
   const artifacts = [
     {
-      id: 'artifact:browser-playbook-step-descriptor',
-      kind: 'aos.playbook_step',
-      label: 'Playbook step descriptor',
-      ref: text(playbookStep.id),
+      id: 'artifact:browser-step-descriptor-descriptor',
+      kind: 'aos.step_descriptor',
+      label: 'Step Descriptor',
+      ref: text(stepDescriptor.id),
       immutable: true,
     },
     {
-      id: 'artifact:browser-playbook-saved-action-evidence',
+      id: 'artifact:browser-step-descriptor-saved-action-evidence',
       kind: 'aos.action_evidence',
       label: 'Saved browser see/do/see evidence',
       ref: text(evidenceSource.id),
@@ -77,9 +77,9 @@ function prototypeArtifacts({ playbookStep, evidenceSource, record = null }) {
 
   if (record) {
     artifacts.push({
-      id: 'artifact:browser-playbook-work-record',
+      id: 'artifact:browser-step-descriptor-work-record',
       kind: 'aos.work_record',
-      label: 'Emitted Playbook-origin Work Record v0',
+      label: 'Emitted Workflow-origin Work Record v0',
       ref: text(record.id),
       immutable: true,
       read_only: true,
@@ -89,13 +89,13 @@ function prototypeArtifacts({ playbookStep, evidenceSource, record = null }) {
   return artifacts;
 }
 
-function playbookWorkbenchHost(preferred = false, facet = '') {
+function stepDescriptorWorkbenchHost(preferred = false, facet = '') {
   return {
     kind: 'canvas',
     target_dialect: 'canvas',
     entry: {
       kind: 'aos-url',
-      value: PLAYBOOK_WORKBENCH_URL,
+      value: STEP_DESCRIPTOR_WORKBENCH_URL,
       ...(facet ? { facet } : {}),
     },
     browser_compatible: true,
@@ -106,28 +106,28 @@ function playbookWorkbenchHost(preferred = false, facet = '') {
 function prototypeFacets({ recordId = '' } = {}) {
   return [
     {
-      key: 'playbook-step-descriptor',
+      key: 'step-descriptor-descriptor',
       layer: 'descriptor',
-      label: 'Playbook Step Descriptor',
+      label: 'Step Descriptor',
       capabilities: ['inspectable'],
-      contracts: ['playbook_step.inspect'],
-      hosts: [playbookWorkbenchHost(true, 'descriptor')],
+      contracts: ['step_descriptor.inspect'],
+      hosts: [stepDescriptorWorkbenchHost(true, 'descriptor')],
     },
     {
-      key: 'playbook-simulate-controls',
+      key: 'step-descriptor-simulate-controls',
       layer: 'controls',
       label: 'Simulation Controls',
       capabilities: ['verifier-target'],
-      contracts: ['playbook_step.simulate.once'],
-      hosts: [playbookWorkbenchHost(false, 'simulate')],
+      contracts: ['step_descriptor.simulate.once'],
+      hosts: [stepDescriptorWorkbenchHost(false, 'simulate')],
     },
     {
       key: 'harness-result',
       layer: 'artifacts',
       label: 'Harness Result',
       capabilities: ['inspectable', 'verifier-target'],
-      contracts: ['playbook_step.harness_result.view'],
-      hosts: [playbookWorkbenchHost(false, 'harness-result')],
+      contracts: ['step_descriptor.harness_result.view'],
+      hosts: [stepDescriptorWorkbenchHost(false, 'harness-result')],
     },
     {
       key: 'work-record-summary',
@@ -138,7 +138,7 @@ function prototypeFacets({ recordId = '' } = {}) {
         'work_record.open.read_only',
         ...(recordId ? ['work_record.summary.view'] : []),
       ],
-      hosts: [playbookWorkbenchHost(false, 'work-record-summary')],
+      hosts: [stepDescriptorWorkbenchHost(false, 'work-record-summary')],
     },
     {
       key: 'work-record-verifier-report',
@@ -146,20 +146,20 @@ function prototypeFacets({ recordId = '' } = {}) {
       label: 'Verifier Report',
       capabilities: ['verifier-target'],
       contracts: ['work_record.verifier_report.view'],
-      hosts: [playbookWorkbenchHost(false, 'verifier-report')],
+      hosts: [stepDescriptorWorkbenchHost(false, 'verifier-report')],
     },
   ];
 }
 
-export function createBrowserPlaybookPrototypeSubject({
+export function createBrowserStepDescriptorPrototypeSubject({
   id = BROWSER_CLICK_STATUS_PROTOTYPE_ID,
   label = '',
-  playbookStep = {},
+  stepDescriptor = {},
   evidenceSource = {},
   harnessResult = null,
   workflowGateRef = '',
 } = {}) {
-  const step = objectValue(playbookStep);
+  const step = objectValue(stepDescriptor);
   const evidence = objectValue(evidenceSource);
   const gateRefs = prototypeGateRefs(step);
   const targetResolution = objectValue(step.target_resolution);
@@ -173,16 +173,16 @@ export function createBrowserPlaybookPrototypeSubject({
 
   return createWorkbenchSubject({
     id,
-    type: 'aos.playbook_prototype',
-    label: prototypeLabel({ label, playbookStep: step, id }),
+    type: 'aos.step_descriptor_prototype',
+    label: prototypeLabel({ label, stepDescriptor: step, id }),
     owner: DEFAULT_OWNER,
     source: {
-      kind: 'browser_playbook_prototype',
+      kind: 'browser_step_descriptor_prototype',
       format: 'one-step-report-only-v0',
-      playbook_ref: text(step.playbook_ref),
-      playbook_step_id: text(step.id),
+      workflow_ref: text(step.workflow_ref),
+      step_descriptor_id: text(step.id),
       evidence_source_id: text(evidence.id),
-      harness_api: 'runOneStepPlaybookHarness',
+      harness_api: 'runOneStepStepDescriptorHarness',
     },
     capabilities: [
       'inspectable',
@@ -190,9 +190,9 @@ export function createBrowserPlaybookPrototypeSubject({
       'exportable',
     ],
     contracts: [
-      'playbook_step.inspect',
-      'playbook_step.simulate.once',
-      'playbook_step.harness_result.view',
+      'step_descriptor.inspect',
+      'step_descriptor.simulate.once',
+      'step_descriptor.harness_result.view',
       'work_record.open.read_only',
       ...(recordId ? ['work_record.summary.view'] : []),
       'work_record.verifier_report.view',
@@ -200,7 +200,7 @@ export function createBrowserPlaybookPrototypeSubject({
     facets: prototypeFacets({ recordId }),
     persistence: null,
     artifacts: prototypeArtifacts({
-      playbookStep: step,
+      stepDescriptor: step,
       evidenceSource: evidence,
       record: recordId ? record : null,
     }),
@@ -228,10 +228,10 @@ export function createBrowserPlaybookPrototypeSubject({
       } : null,
     },
     metadata: {
-      schema_version: BROWSER_PLAYBOOK_PROTOTYPE_VERSION,
+      schema_version: BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION,
       prototype_boundary: 'browser-compatible saved-evidence bridge',
       is_wiki_subject_browser: false,
-      is_general_playbook_ui: false,
+      is_general_step_descriptor_ui: false,
       adds_public_cli_surface: false,
       emits_work_record_v0: !!recordId,
       verifier_profile_id: verifierProfileId,
@@ -240,27 +240,27 @@ export function createBrowserPlaybookPrototypeSubject({
   });
 }
 
-export function createBrowserPlaybookPrototype({
+export function createBrowserStepDescriptorPrototype({
   id = BROWSER_CLICK_STATUS_PROTOTYPE_ID,
   label = '',
-  playbookStep,
+  stepDescriptor,
   evidenceSource,
   workflowGateRef = '',
 } = {}) {
-  const step = requireObject(playbookStep, 'playbookStep');
+  const step = requireObject(stepDescriptor, 'stepDescriptor');
   const evidence = requireObject(evidenceSource, 'evidenceSource');
 
   return {
-    type: 'aos.browser_playbook_prototype',
-    schema_version: BROWSER_PLAYBOOK_PROTOTYPE_VERSION,
+    type: 'aos.browser_step_descriptor_prototype',
+    schema_version: BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION,
     id: text(id, BROWSER_CLICK_STATUS_PROTOTYPE_ID),
-    label: prototypeLabel({ label, playbookStep: step, id }),
-    playbook_step: cloneJson(step),
+    label: prototypeLabel({ label, stepDescriptor: step, id }),
+    step_descriptor: cloneJson(step),
     evidence_source: cloneJson(evidence),
-    subject: createBrowserPlaybookPrototypeSubject({
+    subject: createBrowserStepDescriptorPrototypeSubject({
       id,
       label,
-      playbookStep: step,
+      stepDescriptor: step,
       evidenceSource: evidence,
       workflowGateRef,
     }),
@@ -279,7 +279,7 @@ export function createBrowserPlaybookPrototype({
     },
     non_goals: [
       'wiki_subject_browser',
-      'general_playbook_ui',
+      'general_step_descriptor_ui',
       'public_cli_surface',
       'autonomous_replay',
       'autonomous_repair',
@@ -289,53 +289,53 @@ export function createBrowserPlaybookPrototype({
   };
 }
 
-export function createBrowserPlaybookPrototypeWorkRecordOpenMessage(record = {}, {
+export function createBrowserStepDescriptorPrototypeWorkRecordOpenMessage(record = {}, {
   prototype = {},
 } = {}) {
   const value = requireObject(record, 'record');
-  const step = objectValue(prototype.playbook_step);
+  const step = objectValue(prototype.step_descriptor);
 
   return {
     type: 'work_record.open',
     source: {
-      kind: 'browser_playbook_prototype',
+      kind: 'browser_step_descriptor_prototype',
       path: null,
       prototype_id: text(prototype.id),
-      playbook_ref: text(step.playbook_ref || objectValue(value.origin).ref),
-      playbook_step_id: text(step.id || objectValue(value.metadata).playbook_step_id),
+      workflow_ref: text(step.workflow_ref || objectValue(value.origin).ref),
+      step_descriptor_id: text(step.id || objectValue(value.metadata).step_descriptor_id),
       read_only: true,
     },
     record: cloneJson(value),
   };
 }
 
-export function runBrowserPlaybookPrototype(prototype = {}, {
+export function runBrowserStepDescriptorPrototype(prototype = {}, {
   workflowGate = null,
   verifierProfileId = WORK_RECORD_REPORT_ONLY_PROFILE_ID,
 } = {}) {
   const value = requireObject(prototype, 'prototype');
-  const step = requireObject(value.playbook_step, 'prototype.playbook_step');
+  const step = requireObject(value.step_descriptor, 'prototype.step_descriptor');
   const evidence = requireObject(value.evidence_source, 'prototype.evidence_source');
 
-  const harness = runOneStepPlaybookHarness(step, {
+  const harness = runOneStepStepDescriptorHarness(step, {
     workflowGate,
     mode: 'simulate',
     evidenceSource: evidence,
     verifierProfileId,
   });
   const record = harness.record ? cloneJson(harness.record) : null;
-  const subject = createBrowserPlaybookPrototypeSubject({
+  const subject = createBrowserStepDescriptorPrototypeSubject({
     id: text(value.id, BROWSER_CLICK_STATUS_PROTOTYPE_ID),
     label: text(value.label),
-    playbookStep: step,
+    stepDescriptor: step,
     evidenceSource: evidence,
     harnessResult: harness,
     workflowGateRef: text(harness.workflow_gate_ref),
   });
 
   return {
-    type: 'aos.browser_playbook_prototype.result',
-    schema_version: BROWSER_PLAYBOOK_PROTOTYPE_VERSION,
+    type: 'aos.browser_step_descriptor_prototype.result',
+    schema_version: BROWSER_STEP_DESCRIPTOR_PROTOTYPE_VERSION,
     status: text(harness.status, 'rejected'),
     reason: text(harness.reason),
     mode: 'simulate',
@@ -345,7 +345,7 @@ export function runBrowserPlaybookPrototype(prototype = {}, {
     record,
     verifier: harness.verifier ? cloneJson(harness.verifier) : null,
     workbench_open_message: record
-      ? createBrowserPlaybookPrototypeWorkRecordOpenMessage(record, { prototype: value })
+      ? createBrowserStepDescriptorPrototypeWorkRecordOpenMessage(record, { prototype: value })
       : null,
     diagnostics: arrayValue(harness.diagnostics).map((diagnostic) => cloneJson(diagnostic)),
   };

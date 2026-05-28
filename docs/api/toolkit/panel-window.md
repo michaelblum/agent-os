@@ -4,7 +4,7 @@ Consumer-facing reference for the default opt-in AOS panel/windowing layer: pane
 
 For interaction mechanism selection, use the canonical
 [surface interaction decision tree](../../recipes/aos-surface-interaction-decision-tree.md)
-(`docs/recipes/aos-surface-interaction-decision-tree.md`).
+(`docs/guides/aos-surface-interaction-decision-tree.md`).
 
 ## StageAffordance
 

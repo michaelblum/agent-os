@@ -37,7 +37,7 @@ Work card: `docs/dev/work-cards/research-toolkit-surfaces.md`
 | `log-console` | No | No | Yes | Log/event console display surface. |
 | `markdown-workbench` | No | Yes | No | Markdown preview/source workbench; hand-rolls view toggles, outline/annotation buttons, save/revert/close buttons, and a source textarea. |
 | `object-transform-panel` | Yes | Yes | No | Object transform editor; uses `wireNumberFieldControls` from the shared number-field layer but still hand-rolls object selection buttons, visibility/effect checkboxes, number/range inputs, mode buttons, and descriptor textareas. |
-| `playbook-workbench` | No | Yes | No | Playbook diagnostics and gate simulator; hand-rolls gate ref/token inputs plus Apply Gate, Simulate, and Open Work Record buttons. |
+| `step-descriptor-workbench` | No | Yes | No | Step Descriptor diagnostics and gate simulator; hand-rolls gate ref/token inputs plus Apply Gate, Simulate, and Open Work Record buttons. |
 | `render-performance` | No | No | Yes | Render performance metrics, sparkline, source summary, and event log display. |
 | `spatial-telemetry` | No | No | Yes | Spatial telemetry display for displays, canvases, marks, cursor, and events. |
 | `surface-zoom-inspector` | No | Yes | No | Zoomed surface/semantic target inspector; hand-rolls tree/list/mini-map buttons, checkbox, selects, and zoom/draft/reset action buttons. |
@@ -56,7 +56,7 @@ Work card: `docs/dev/work-cards/research-toolkit-surfaces.md`
 - `wiki-kb`: replace graph view `<select>` with `createSelect`, refresh/sidebar/toggle buttons with `createButton` or `createButtonGroup`, and the graph view controls in `views/graph.js` with `createTextField`, `createSelect`, `createToggle`, `createButton`, and `createButtonGroup` as appropriate.
 - `wiki-subject-browser`: replace the search input with `createTextField`, facet selects with `createSelect`, and reset button with `createButton`.
 - `work-record-workbench`: replace Apply JSON/Revert/Save buttons with `createButton`/`createButtonGroup`; multi-line JSON and intent textareas have no direct shared textarea export today.
-- `playbook-workbench`: replace gate ref/token inputs with `createTextField` and Apply Gate/Simulate/Open Work Record buttons with `createButton` or `createButtonGroup`.
+- `step-descriptor-workbench`: replace gate ref/token inputs with `createTextField` and Apply Gate/Simulate/Open Work Record buttons with `createButton` or `createButtonGroup`.
 - `test-console`: replace supervisor action buttons with `createButtonGroup` or `createButton`; the note textarea has no direct shared textarea export today.
 - `artifact-bundle-workbench`: replace the Open Work Record button with `createButton`.
 

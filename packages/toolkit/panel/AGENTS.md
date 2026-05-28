@@ -22,7 +22,7 @@ Avoid one-WebView-per-affordance when a stage layer plus small hit region would
 do. The current minimized-chip HTML surface is a transitional implementation,
 not the architectural ideal for cheap panel state changes.
 
-Use `docs/recipes/aos-surface-interaction-decision-tree.md` before adding new
+Use `docs/guides/aos-surface-interaction-decision-tree.md` before adding new
 panel chrome or surface affordances. Ordinary panel behavior belongs here;
 simple passive DesktopWorld hit targets should prefer StageAffordance, and full
 interactive canvases should be reserved for real DOM interaction needs.

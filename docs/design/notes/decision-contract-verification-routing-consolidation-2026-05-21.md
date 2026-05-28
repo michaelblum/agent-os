@@ -68,12 +68,12 @@ The stable authority surfaces are docs and manifests:
   reporting, and the `human_needed` TCC stall path.
 - `.docks/operator/AGENTS.md` defines supervised runtime/HITL evidence
   collection and stop conditions.
-- `docs/recipes/agent-entry-paths-and-verification.md` is the central
+- `docs/guides/agent-entry-paths-and-verification.md` is the central
   role-neutral recipe for selecting entry path and verification loop.
-- `docs/recipes/aos-surface-interaction-decision-tree.md` routes surface work
+- `docs/guides/aos-surface-interaction-decision-tree.md` routes surface work
   to DOM, toolkit, StageAffordance, passive stage, full WebView, private
   renderer, or daemon primitive.
-- `docs/recipes/surface-inspector-controlled-browser-dom-smoke.md` defines a
+- `docs/guides/surface-inspector-controlled-browser-dom-smoke.md` defines a
   controlled, non-live-website smoke for Browser DOM Element Picker targets.
 - `docs/dev/workflow-rules.json` and `./aos dev recommend --json` provide the
   source-backed changed-file workflow recommendation.

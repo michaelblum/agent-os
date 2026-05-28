@@ -14,7 +14,7 @@ PANEL_W="${AOS_WIKI_SUBJECT_BROWSER_W:-1220}"
 PANEL_H="${AOS_WIKI_SUBJECT_BROWSER_H:-760}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
 REPO_CONTENT_ROOT="${AOS_REPO_CONTENT_ROOT:-$(aos_content_root_key_for repo "$ROOT")}"
-WORK_RECORD_FIXTURE="${WORK_RECORD_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json}"
+WORK_RECORD_FIXTURE="${WORK_RECORD_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-work-record-v0/valid/workflow-browser-click-status.json}"
 ARTIFACT_BUNDLE_FIXTURE="${ARTIFACT_BUNDLE_FIXTURE:-$ROOT/docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json}"
 
 if [[ ! -x "$AOS" ]]; then

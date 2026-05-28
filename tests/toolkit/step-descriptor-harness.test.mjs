@@ -5,24 +5,24 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  checkPlaybookHarnessGate,
-  runOneStepPlaybookHarness,
-  PLAYBOOK_STEP_HARNESS_VERSION,
+  checkStepDescriptorHarnessGate,
+  runOneStepStepDescriptorHarness,
+  STEP_DESCRIPTOR_HARNESS_VERSION,
   WORK_RECORD_REPORT_ONLY_PROFILE_ID,
 } from '../../packages/toolkit/workbench/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const workRecordFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-work-record-v0');
-const playbookStepFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-playbook-step-v0');
+const stepDescriptorFixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-step-descriptor-v0');
 const workRecordSchemaPath = path.join(repoRoot, 'shared/schemas/aos-work-record-v0.schema.json');
 
 function fixture(root, relativePath) {
   return JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf8'));
 }
 
-function playbookStep() {
-  return fixture(playbookStepFixtureRoot, 'valid/browser-click-status.json');
+function stepDescriptor() {
+  return fixture(stepDescriptorFixtureRoot, 'valid/browser-click-status.json');
 }
 
 function evidenceSource() {
@@ -31,7 +31,7 @@ function evidenceSource() {
 
 function workflowGate() {
   return {
-    ref: 'workflow-gate:playbook-browser-click-status-replay',
+    ref: 'workflow-gate:step-descriptor-browser-click-status-replay',
     token: 'workflow-gate-token:test-deterministic-run',
   };
 }
@@ -65,13 +65,13 @@ if errors:
   );
 }
 
-test('one-step Playbook harness rejects ungated simulated execution', () => {
-  const result = runOneStepPlaybookHarness(playbookStep(), {
+test('one-step Step Descriptor harness rejects ungated simulated execution', () => {
+  const result = runOneStepStepDescriptorHarness(stepDescriptor(), {
     mode: 'simulate',
     evidenceSource: evidenceSource(),
   });
 
-  assert.equal(result.schema_version, PLAYBOOK_STEP_HARNESS_VERSION);
+  assert.equal(result.schema_version, STEP_DESCRIPTOR_HARNESS_VERSION);
   assert.equal(result.status, 'rejected');
   assert.equal(result.reason, 'workflow_gate_required');
   assert.equal(result.record, null);
@@ -79,9 +79,9 @@ test('one-step Playbook harness rejects ungated simulated execution', () => {
   assert.equal(result.diagnostics[0].code, 'workflow_gate_required');
 });
 
-test('one-step Playbook harness rejects ungated execution before the action adapter runs', () => {
+test('one-step Step Descriptor harness rejects ungated execution before the action adapter runs', () => {
   let actionPathReached = false;
-  const result = runOneStepPlaybookHarness(playbookStep(), {
+  const result = runOneStepStepDescriptorHarness(stepDescriptor(), {
     mode: 'execute',
     executeStep: () => {
       actionPathReached = true;
@@ -95,8 +95,8 @@ test('one-step Playbook harness rejects ungated execution before the action adap
   assert.equal(result.record, null);
 });
 
-test('one-step Playbook harness rejects undeclared workflow gate refs', () => {
-  const result = runOneStepPlaybookHarness(playbookStep(), {
+test('one-step Step Descriptor harness rejects undeclared workflow gate refs', () => {
+  const result = runOneStepStepDescriptorHarness(stepDescriptor(), {
     workflowGate: {
       ref: 'workflow-gate:other',
       token: 'workflow-gate-token:test',
@@ -106,17 +106,17 @@ test('one-step Playbook harness rejects undeclared workflow gate refs', () => {
 
   assert.equal(result.status, 'rejected');
   assert.equal(result.reason, 'workflow_gate_ref_not_allowed');
-  assert.deepEqual(result.diagnostics[0].allowed_gate_refs, playbookStep().workflow_gates.gate_refs);
+  assert.deepEqual(result.diagnostics[0].allowed_gate_refs, stepDescriptor().workflow_gates.gate_refs);
 });
 
-test('gated deterministic harness run emits a validated Playbook-origin Work Record', () => {
-  const step = playbookStep();
+test('gated deterministic harness run emits a validated Workflow-origin Work Record', () => {
+  const step = stepDescriptor();
   const source = evidenceSource();
   const gate = workflowGate();
   const stepBefore = JSON.stringify(step);
   const sourceBefore = JSON.stringify(source);
 
-  const result = runOneStepPlaybookHarness(step, {
+  const result = runOneStepStepDescriptorHarness(step, {
     workflowGate: gate,
     mode: 'simulate',
     evidenceSource: source,
@@ -127,9 +127,9 @@ test('gated deterministic harness run emits a validated Playbook-origin Work Rec
   assert.equal(result.reason, 'record_verified');
   assert.equal(result.mode, 'simulate');
   assert.equal(result.workflow_gate_ref, gate.ref);
-  assert.equal(result.record.origin.kind, 'playbook');
-  assert.equal(result.record.origin.ref, 'playbook:browser-live-action-status');
-  assert.equal(result.record.metadata.playbook_step_id, 'playbook-step:browser-click-status');
+  assert.equal(result.record.origin.kind, 'workflow');
+  assert.equal(result.record.origin.ref, 'workflow:browser-live-action-status');
+  assert.equal(result.record.metadata.step_descriptor_id, 'step-descriptor:browser-click-status');
   assert.equal(result.record.verifier_report.verifier.id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
   assert.equal(result.verifier.profile_id, WORK_RECORD_REPORT_ONLY_PROFILE_ID);
   assert.equal(result.verifier.status, 'passed');
@@ -142,12 +142,12 @@ test('gated deterministic harness run emits a validated Playbook-origin Work Rec
 test('gated execute-mode harness calls the caller-supplied action adapter once', () => {
   let callCount = 0;
   const gate = workflowGate();
-  const result = runOneStepPlaybookHarness(playbookStep(), {
+  const result = runOneStepStepDescriptorHarness(stepDescriptor(), {
     workflowGate: gate,
     mode: 'execute',
-    executeStep: ({ playbookStep: step, workflowGate: adapterGate }) => {
+    executeStep: ({ stepDescriptor: step, workflowGate: adapterGate }) => {
       callCount += 1;
-      assert.equal(step.id, 'playbook-step:browser-click-status');
+      assert.equal(step.id, 'step-descriptor:browser-click-status');
       assert.equal(adapterGate.ref, gate.ref);
       return evidenceSource();
     },
@@ -156,12 +156,12 @@ test('gated execute-mode harness calls the caller-supplied action adapter once',
   assert.equal(callCount, 1);
   assert.equal(result.status, 'passed');
   assert.equal(result.mode, 'execute');
-  assert.equal(result.record.origin.kind, 'playbook');
+  assert.equal(result.record.origin.kind, 'workflow');
 });
 
-test('Playbook harness gate check requires both gate ref and token', () => {
-  const missingToken = checkPlaybookHarnessGate(playbookStep(), {
-    ref: 'workflow-gate:playbook-browser-click-status-replay',
+test('Step Descriptor harness gate check requires both gate ref and token', () => {
+  const missingToken = checkStepDescriptorHarnessGate(stepDescriptor(), {
+    ref: 'workflow-gate:step-descriptor-browser-click-status-replay',
   });
 
   assert.equal(missingToken.ok, false);

@@ -38,10 +38,9 @@ The V0 model is:
 
 ## Naming Contract
 
-`Recipe` now means source-backed executable procedure. The current
-`docs/recipes/` Markdown files are transitional guide/SOP material that still
-live under the historical directory name until a dedicated migration renames or
-rehomes them. They may guide a run, but they are not Work Record origins.
+`Recipe` now means source-backed executable procedure. Markdown Guides/SOPs
+live under `docs/guides/`; they may guide a run, but they are not executable
+Recipes and are not Work Record origins.
 
 `aos recipe` is the canonical public command surface. `aos ops` remains only as
 a compatibility alias for the current implementation. The removal gate for the
@@ -49,10 +48,32 @@ alias is: no repo docs, scripts, generated indexes, packaged resources, tests,
 or known external callers require the old noun. Internal filenames and schema
 IDs that still contain `ops` are compatibility names, not public taxonomy.
 
-The existing `aos.playbook_step` schema remains a transitional V0 sketch for
-one gated step descriptor. Its name is not precedent for making Playbook the
-primary executable substrate; a future schema rename may align it with Block,
-Step, or Harness vocabulary once producers harden.
+The existing gated descriptor contract is named `aos.step_descriptor`. It is a
+neutral V0 sketch for one Workflow-gated step/evidence bridge; it is not
+precedent for making Playbook the primary executable substrate.
+
+## Packaging And Activation
+
+Packaging and activation concepts sit outside the execution ladder unless a
+contained artifact is itself executable:
+
+- **Capability Package** - a distributable or activatable bundle that may
+  contain Guides/SOPs, Skills, Plugins, commands, schemas, Recipes, Workflows,
+  fixtures, UI, or evidence templates.
+- **Skill** - agent-loadable guidance/capability instructions, usually a
+  `SKILL.md` bundle. A Skill may guide or wrap execution, but it is not itself
+  a Recipe, Workflow, Run, or Work Record.
+- **Plugin** - an installable or wiki/package capability extension. A Plugin
+  may contain Skills and other assets. It is packaging, not an execution rung.
+- **Guide/SOP** - repo-neutral human or agent guidance. It can be embedded in
+  or referenced by a Skill or Plugin without becoming an executable Recipe.
+- **Work Card** - a coordination contract for a work slice. It can route work
+  that creates or runs execution-model artifacts, but it is not itself a
+  Workflow.
+- **Dock / Docked Session** - persona/session isolation and routing context,
+  not Workflow taxonomy.
+- GitHub `area:`, `kind:`, and `lane:` labels are governance/search metadata,
+  not execution-model concepts.
 
 ## Capture And Employer Brand Boundary
 
@@ -66,7 +87,8 @@ target control primitive -> capture/evidence block -> reusable capture recipe ->
 
 This ADR does not implement browser capture workflows, Employer Brand
 collection, replay, repair, export, or schema migration. Those need separate
-Workflow-gated slices.
+Workflow-gated slices. The current browser projection note is
+`docs/design/browser-capture-ladder-projection.md`.
 
 ## Consequences
 
@@ -75,9 +97,9 @@ Workflow-gated slices.
 - Historical reports may retain older `aos ops`, "ops recipe", and "recipe
   ladder" language when they are clearly historical; add supersession pointers
   only when needed to avoid current confusion.
-- Work Records use executable origins (`recipe`, `workflow`, `playbook` only
-  where the existing schema says so) and cite transitional Markdown guides in
-  `references[]` with `relationship: "guided_by"`.
-- Future work should split the docs-directory migration, schema/file renames,
-  capture ladder specialization, and GitHub issue body cleanup into exact
-  follow-up cards instead of broad opportunistic rewrites.
+- Work Records use executable origins (`ad_hoc`, `recipe`, or `workflow`) and
+  cite Markdown Guides/SOPs or Playbooks in `references[]` with `relationship:
+  "guided_by"` when they only shaped judgment.
+- Future work should split schema/file renames, capture ladder specialization,
+  and GitHub issue body cleanup into exact follow-up cards instead of broad
+  opportunistic rewrites.

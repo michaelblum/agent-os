@@ -368,7 +368,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/wiki-kb/index.html` - wiki graph browser with Graph and Radial Graph layout modes
 - `aos://toolkit/components/wiki-subject-browser/index.html` - Wiki Subject Browser V0 shell that composes Wiki KB and Markdown Workbench into a graph-first subject browser
 - `aos://toolkit/components/artifact-bundle-workbench/index.html` - read-only Artifact Bundle Workbench V0 shell for gallery, preview, source, exports, provenance, and validation inspection
-- `aos://toolkit/components/playbook-workbench/index.html` - Playbook Workbench V0 shell that gates one saved-evidence browser Playbook simulation and hands off the emitted Work Record read-only
+- `aos://toolkit/components/step-descriptor-workbench/index.html` - Step Descriptor Workbench V0 shell that gates one saved-evidence browser Step Descriptor simulation and hands off the emitted Work Record read-only
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 - `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
 - `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as transfer outlines

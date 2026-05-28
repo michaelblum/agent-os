@@ -282,7 +282,7 @@ Use when GDI prepares work for Operator:
 Use for architecture, recipe, issue, or instruction work:
 
 - name the source-of-truth boundary: `AGENTS.md`, subtree `AGENTS.md`,
-  `.docks/`, `docs/recipes/`, `docs/design/`, `docs/api/`, or
+  `.docks/`, `docs/guides/`, `docs/design/`, `docs/api/`, or
   `shared/schemas/`;
 - avoid duplicating long policy in multiple files;
 - update provider-specific compatibility files only as pointers when possible;

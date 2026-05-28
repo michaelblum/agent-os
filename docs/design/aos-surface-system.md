@@ -9,7 +9,7 @@ for apps such as Sigil to theme and extend.
 
 For interaction mechanism selection, use the canonical decision tree and first
 conformance audit in
-[`docs/recipes/aos-surface-interaction-decision-tree.md`](../recipes/aos-surface-interaction-decision-tree.md).
+[`docs/guides/aos-surface-interaction-decision-tree.md`](../recipes/aos-surface-interaction-decision-tree.md).
 That recipe is the durable answer for whether a surface should use DOM hit
 testing, toolkit panel/windowing, `createStageAffordance`, visual-only stage
 layers, a full interactive canvas, a private renderer, or a daemon primitive.

@@ -19,7 +19,7 @@ It does **not** try to replace:
 
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) for system design and ecosystem context
 - `docs/design/` for provider-neutral plans, specs, and design notes
-- `docs/recipes/` for reusable operating procedures
+- `docs/guides/` for reusable operating procedures
 - `docs/archive/superpowers/` for historical Superpowers plans and specs
 - source comments for implementation details
 

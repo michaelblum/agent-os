@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launch.sh - Open the fixture-backed Playbook Workbench V0 shell.
+# launch.sh - Open the fixture-backed Step Descriptor Workbench V0 shell.
 
 set -euo pipefail
 
@@ -8,12 +8,12 @@ ROOT="$(git -C "$DIR" rev-parse --show-toplevel 2>/dev/null || pwd)"
 source "$ROOT/scripts/aos-content-scope.sh"
 
 AOS="${AOS:-$ROOT/aos}"
-CANVAS_ID="${CANVAS_ID:-playbook-workbench-v0}"
-WORK_RECORD_CANVAS_ID="${WORK_RECORD_CANVAS_ID:-playbook-workbench-v0-work-record}"
-PANEL_W="${AOS_PLAYBOOK_WORKBENCH_W:-1240}"
-PANEL_H="${AOS_PLAYBOOK_WORKBENCH_H:-760}"
+CANVAS_ID="${CANVAS_ID:-step-descriptor-workbench-v0}"
+WORK_RECORD_CANVAS_ID="${WORK_RECORD_CANVAS_ID:-step-descriptor-workbench-v0-work-record}"
+PANEL_W="${AOS_STEP_DESCRIPTOR_WORKBENCH_W:-1240}"
+PANEL_H="${AOS_STEP_DESCRIPTOR_WORKBENCH_H:-760}"
 TOOLKIT_CONTENT_ROOT="${AOS_TOOLKIT_CONTENT_ROOT:-$(aos_content_root_key_for toolkit "$ROOT")}"
-PLAYBOOK_STEP_FIXTURE="${PLAYBOOK_STEP_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-playbook-step-v0/valid/browser-click-status.json}"
+STEP_DESCRIPTOR_FIXTURE="${STEP_DESCRIPTOR_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-step-descriptor-v0/valid/browser-click-status.json}"
 EVIDENCE_FIXTURE="${EVIDENCE_FIXTURE:-$ROOT/shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json}"
 
 if [[ ! -x "$AOS" ]]; then
@@ -21,8 +21,8 @@ if [[ ! -x "$AOS" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$PLAYBOOK_STEP_FIXTURE" ]]; then
-  echo "Playbook step fixture not found: $PLAYBOOK_STEP_FIXTURE" >&2
+if [[ ! -f "$STEP_DESCRIPTOR_FIXTURE" ]]; then
+  echo "Step descriptor fixture not found: $STEP_DESCRIPTOR_FIXTURE" >&2
   exit 1
 fi
 
@@ -64,25 +64,25 @@ read -r X Y W H <<<"$GEOMETRY"
   --interactive \
   --focus \
   --scope global \
-  --url "aos://$TOOLKIT_CONTENT_ROOT/components/playbook-workbench/index.html" >/dev/null
+  --url "aos://$TOOLKIT_CONTENT_ROOT/components/step-descriptor-workbench/index.html" >/dev/null
 
 "$AOS" show wait \
   --id "$CANVAS_ID" \
-  --manifest playbook-workbench \
-  --js 'typeof window.__playbookWorkbenchState === "object" && document.querySelector("[data-aos-ref=\"playbook-workbench-v0:root\"]")' \
+  --manifest step-descriptor-workbench \
+  --js 'typeof window.__stepDescriptorWorkbenchState === "object" && document.querySelector("[data-aos-ref=\"step-descriptor-workbench-v0:root\"]")' \
   --timeout 5s >/dev/null
 
-CONTENT_JSON="$(PLAYBOOK_STEP_FIXTURE="$PLAYBOOK_STEP_FIXTURE" EVIDENCE_FIXTURE="$EVIDENCE_FIXTURE" TOOLKIT_CONTENT_ROOT="$TOOLKIT_CONTENT_ROOT" WORK_RECORD_CANVAS_ID="$WORK_RECORD_CANVAS_ID" python3 -c '
+CONTENT_JSON="$(STEP_DESCRIPTOR_FIXTURE="$STEP_DESCRIPTOR_FIXTURE" EVIDENCE_FIXTURE="$EVIDENCE_FIXTURE" TOOLKIT_CONTENT_ROOT="$TOOLKIT_CONTENT_ROOT" WORK_RECORD_CANVAS_ID="$WORK_RECORD_CANVAS_ID" python3 -c '
 import json
 import os
 from pathlib import Path
 
-step = json.loads(Path(os.environ["PLAYBOOK_STEP_FIXTURE"]).read_text(encoding="utf-8"))
+step = json.loads(Path(os.environ["STEP_DESCRIPTOR_FIXTURE"]).read_text(encoding="utf-8"))
 evidence = json.loads(Path(os.environ["EVIDENCE_FIXTURE"]).read_text(encoding="utf-8"))
 toolkit_root = os.environ["TOOLKIT_CONTENT_ROOT"]
 print(json.dumps({
-    "type": "playbook_workbench.load",
-    "playbook_step": step,
+    "type": "step_descriptor_workbench.load",
+    "step_descriptor": step,
     "evidence_source": evidence,
     "work_record_workbench_url": f"aos://{toolkit_root}/components/work-record-workbench/index.html",
     "work_record_canvas_id": os.environ["WORK_RECORD_CANVAS_ID"],
@@ -93,12 +93,12 @@ print(json.dumps({
 
 "$AOS" show wait \
   --id "$CANVAS_ID" \
-  --manifest playbook-workbench \
-  --js 'window.__playbookWorkbenchState?.fixture_loaded === true && window.__playbookWorkbenchState?.step_summary?.id === "playbook-step:browser-click-status"' \
+  --manifest step-descriptor-workbench \
+  --js 'window.__stepDescriptorWorkbenchState?.fixture_loaded === true && window.__stepDescriptorWorkbenchState?.step_summary?.id === "step-descriptor:browser-click-status"' \
   --timeout 5s >/dev/null
 
-echo "Playbook Workbench V0 launched at ${X},${Y} (${W}x${H})"
+echo "Step Descriptor Workbench V0 launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"
 echo "Work Record Canvas: $WORK_RECORD_CANVAS_ID"
-echo "URL: aos://$TOOLKIT_CONTENT_ROOT/components/playbook-workbench/index.html"
-echo "Fixture: $PLAYBOOK_STEP_FIXTURE"
+echo "URL: aos://$TOOLKIT_CONTENT_ROOT/components/step-descriptor-workbench/index.html"
+echo "Fixture: $STEP_DESCRIPTOR_FIXTURE"

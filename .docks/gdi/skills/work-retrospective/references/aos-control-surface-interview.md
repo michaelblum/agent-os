@@ -170,7 +170,7 @@ For each recommended follow-up:
 - finding:
 - evidence:
 - why durable:
-- target boundary: AGENTS.md | docs/recipes | docs/api | shared/schemas |
+- target boundary: AGENTS.md | docs/guides | docs/api | shared/schemas |
   GitHub issue | none
 - suggested title:
 

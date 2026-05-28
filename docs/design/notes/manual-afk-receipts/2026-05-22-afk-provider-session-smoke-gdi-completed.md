@@ -14,7 +14,7 @@ source-backed work/evidence record.
 ## Transfer Receipt
 
 - packet_id_or_ref: temporary manual AFK packet, removed after the run
-- source_artifact: `docs/recipes/workstream-checkpoint-continuation.md`
+- source_artifact: `docs/guides/workstream-checkpoint-continuation.md`
 - requested_recipient: `gdi`
 - branch: `gdi/afk-dev-dry-run-command-v0`
 - required_start_ref: `docs/durable-agent-cognition-v0`

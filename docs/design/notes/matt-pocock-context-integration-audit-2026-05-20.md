@@ -69,13 +69,13 @@ Agent-os has:
 - root `AGENTS.md` plus many subtree `AGENTS.md` / `CLAUDE.md` files;
 - `docs/adr/` with ADR-0001 through ADR-0011;
 - `docs/decisions/ADR-001-toolkit-platform-strategy.md`;
-- `docs/api/`, `docs/recipes/`, `docs/design/`, `docs/dev/`, `docs/wiki/`;
+- `docs/api/`, `docs/guides/`, `docs/design/`, `docs/dev/`, `docs/wiki/`;
 - no root `CONTEXT-MAP.md`;
 - no `docs/agents/`;
 - no `## Agent skills` block in root `AGENTS.md` or `CLAUDE.md`.
 
 There are at least 270 Markdown files across `docs/adr`, `docs/api`,
-`docs/decisions`, `docs/design`, `docs/dev`, `docs/recipes`, and `docs/wiki`
+`docs/decisions`, `docs/design`, `docs/dev`, `docs/guides`, and `docs/wiki`
 within two directory levels. Treating this as a simple single-context repo is
 too weak for agent-os.
 
@@ -173,11 +173,11 @@ There is no durable rule for:
 This is exactly how the recent drift happened: `ARCHITECTURE.md` and
 `CONTEXT.md` were updated, but nearby docs still carry old claims.
 
-Validation 2026-05-20: confirmed. `docs/recipes/` contains useful SOPs such as
+Validation 2026-05-20: confirmed. `docs/guides/` contains useful SOPs such as
 agent entry paths, accessibility surfaces, GDI exit interviews, and layered
 subject expressions, but no context maintenance recipe. The root `AGENTS.md`
 "Durable lessons" paragraph names `AGENTS.md`, `tests/README.md`,
-`docs/recipes/`, `docs/design/`, `shared/schemas/`, `docs/api/`, and
+`docs/guides/`, `docs/design/`, `shared/schemas/`, `docs/api/`, and
 `ARCHITECTURE.md`; it still does not name `CONTEXT.md`, `CONTEXT-MAP.md`, or
 `docs/agents/domain.md` as maintained context surfaces.
 
@@ -254,7 +254,7 @@ surface.
 Validation 2026-05-20: confirmed and slightly incomplete. Additional
 high-value misses are visible under the surfaces named in the work card:
 `.docks/AGENTS.md` defines dock role/session boundaries, `docs/api/` owns live
-CLI and toolkit contracts, `docs/recipes/` owns reusable SOPs, and subtree
+CLI and toolkit contracts, `docs/guides/` owns reusable SOPs, and subtree
 `AGENTS.md` files own local policy, but there is no compact root map that says
 which of those files wins when they overlap with `CONTEXT.md` or
 `ARCHITECTURE.md`. This is not just a root-doc issue; it is the missing
@@ -283,7 +283,7 @@ other markdown instead of governing or being governed by them.
 2. **Create `CONTEXT-MAP.md`.** Map root vocabulary plus context-specific docs:
    runtime/CLI, toolkit, workbench/subjects, docks/session operations, Sigil,
    gateway/host.
-3. **Define a context maintenance SOP.** Add a recipe under `docs/recipes/`
+3. **Define a context maintenance SOP.** Add a recipe under `docs/guides/`
    that says when to update `CONTEXT.md`, ADRs, schemas, API docs, AGENTS files,
    and architecture docs together.
 4. **Run a sibling-doc stale sweep.** Start with `AGENTS.md`, `src/CLAUDE.md`,
@@ -317,7 +317,7 @@ validated:
   it for multi-context routing.
 - `3f80a10` swept the known live-doc stale claims in `AGENTS.md`,
   `src/CLAUDE.md`, `docs/api/aos.md`, and ADR-0004/0006.
-- `c233e3f` added `docs/recipes/context-doc-maintenance.md` and connected it
+- `c233e3f` added `docs/guides/context-doc-maintenance.md` and connected it
   from `AGENTS.md`, `CONTEXT-MAP.md`, and `docs/agents/domain.md`.
 - The ADR namespace consolidation later moved
   `docs/decisions/ADR-001-toolkit-platform-strategy.md` to
@@ -336,4 +336,4 @@ If these branch changes are not published or merged, future agents may still
 read a stale mainline state where `CONTEXT.md` looks like a single global source
 of truth. After merge, the main residual risk is maintenance drift: new domains,
 source roots, API contracts, schemas, ADRs, or role contracts must keep using
-`docs/recipes/context-doc-maintenance.md` instead of adding isolated markdown.
+`docs/guides/context-doc-maintenance.md` instead of adding isolated markdown.
