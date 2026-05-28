@@ -53,6 +53,29 @@ one gated step descriptor. Its name is not precedent for making Playbook the
 primary executable substrate; a future schema rename may align it with Block,
 Step, or Harness vocabulary once producers harden.
 
+## Packaging And Activation
+
+Packaging and activation concepts sit outside the execution ladder unless a
+contained artifact is itself executable:
+
+- **Capability Package** - a distributable or activatable bundle that may
+  contain Guides/SOPs, Skills, Plugins, commands, schemas, Recipes, Workflows,
+  fixtures, UI, or evidence templates.
+- **Skill** - agent-loadable guidance/capability instructions, usually a
+  `SKILL.md` bundle. A Skill may guide or wrap execution, but it is not itself
+  a Recipe, Workflow, Run, or Work Record.
+- **Plugin** - an installable or wiki/package capability extension. A Plugin
+  may contain Skills and other assets. It is packaging, not an execution rung.
+- **Guide/SOP** - repo-neutral human or agent guidance. It can be embedded in
+  or referenced by a Skill or Plugin without becoming an executable Recipe.
+- **Work Card** - a coordination contract for a work slice. It can route work
+  that creates or runs execution-model artifacts, but it is not itself a
+  Workflow.
+- **Dock / Docked Session** - persona/session isolation and routing context,
+  not Workflow taxonomy.
+- GitHub `area:`, `kind:`, and `lane:` labels are governance/search metadata,
+  not execution-model concepts.
+
 ## Capture And Employer Brand Boundary
 
 Browser capture and Employer Brand artifacts are reference material and

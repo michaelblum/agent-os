@@ -110,6 +110,32 @@ Reusable method guidance for humans or agents. Current Markdown procedures live
 under `docs/guides/` and can guide work without becoming executable Recipes.
 _Avoid_: Recipe when the artifact is not executable through `aos recipe`.
 
+**Capability Package**:
+A distributable or activatable bundle of capability assets. A Capability
+Package may contain Guides/SOPs, Skills, Plugins, commands, schemas, Recipes,
+Workflows, fixtures, UI, or evidence templates. Packaging and activation do not
+make the bundle an execution-model rung.
+_Avoid_: workflow, recipe, plugin (unless the package is specifically a Plugin).
+
+**Skill**:
+Agent-loadable guidance or capability instructions, usually a `SKILL.md`
+bundle. A Skill may guide, wrap, or activate execution, but it is not itself a
+Recipe, Workflow, Run, or Work Record.
+_Avoid_: recipe, workflow, executable substrate.
+
+**Plugin**:
+An installable or wiki/package capability extension. A Plugin may contain
+Skills, Guides/SOPs, scripts, schemas, assets, Recipes, Workflows, or UI. It is
+packaging and activation vocabulary, not an execution ladder rung.
+_Avoid_: workflow as a synonym for plugin, recipe.
+
+**Work Card**:
+A durable Markdown coordination contract for an assigned work slice, most often
+a GDI implementation, validation, correction, or relay round. A Work Card may
+route work that creates or runs execution-model artifacts, but it is not itself
+a Workflow.
+_Avoid_: workflow, work record, successor handoff.
+
 **Dock**:
 A repo-local Codex session profile rooted under `.docks/`, used to isolate persona or work-role instructions, hooks, and config from the normal session entry point.
 _Avoid_: workflow, workflow template, generated run, source workspace.

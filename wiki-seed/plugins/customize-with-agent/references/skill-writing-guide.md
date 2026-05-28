@@ -36,7 +36,11 @@ Optional fields:
 2. **SKILL.md body** (<500 lines) — loaded when plugin triggers
 3. **References** (unlimited) — loaded on demand when the agent needs deeper context
 
-Keep SKILL.md focused on the workflow. Move domain knowledge, schemas, and frameworks to `references/`.
+Keep SKILL.md focused on the capability instructions. Move domain knowledge,
+schemas, and frameworks to `references/`. A plugin can package instructions for
+running or creating Workflows, Recipes, or evidence templates, but the plugin
+and its Skill are packaging/activation concepts rather than execution-model
+rungs.
 
 ## Writing Style
 
