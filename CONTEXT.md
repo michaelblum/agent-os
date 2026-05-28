@@ -228,10 +228,11 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - **Workflows** may invoke **Recipes**, gated harnesses, agent tasks, or
   human decisions. A Recipe may be one executable child of a Workflow, but a
   Recipe does not orchestrate multi-system gates and child runs. Work Record
-  origins use executable origins (`origin.kind: ad_hoc | recipe | playbook |
-  workflow` in the current v0 schema); transitional Markdown Guides that
-  shaped a run without executing should be cited via `references[]`
-  (`relationship: "guided_by"`), not as `origin`.
+  origins use the current v0 `origin.kind` values (`ad_hoc | recipe | playbook |
+  workflow`); `playbook` is compatibility vocabulary for transitional bridges,
+  not new execution-model direction. Transitional Markdown Guides that shaped a
+  run without executing should be cited via `references[]` (`relationship:
+  "guided_by"`), not as `origin`.
 - A **Dock** is adopted by launching Codex from that dock's directory, or with `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but the Dock is not the Workflow and does not create a parallel Workflow type.
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.

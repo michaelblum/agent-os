@@ -23,7 +23,7 @@ subject shape.
 | `inspectable` | The Subject can be opened read-only by a Subject Browser. It has stable identity, label, `subject_type`, and at least one Facet or legacy view that exposes narrative, descriptor, artifact, or health information. |
 | `editable` | The Subject has at least one controls/editor Facet plus a persistence or patch path. Consumers must inspect `contracts[]`, Facet-local contracts, or `persistence` before attempting a save or patch. |
 | `verifier-target` | The Subject exposes enough health, evidence, claims, postconditions, or verifier metadata for a verifier to evaluate it. For Work Records, verifier output should be expressed as Claim Results plus Verifier Health. |
-| `replayable` | The Subject has execution knowledge that can be re-run under policy: a Playbook, Workflow, source-backed Recipe, or repairable Work Record execution map. Consumers must check origin, preconditions, and allowed tools before replay. |
+| `replayable` | The Subject has execution knowledge that can be re-run under policy: a Workflow, source-backed Recipe, repairable Work Record execution map, or transitional gated step descriptor. Consumers must check origin, preconditions, gates, compatibility vocabulary, and allowed tools before replay. |
 | `exportable` | The Subject exposes serializable artifacts or bundles through an artifacts/evidence Facet or artifact registry. Consumers must use the advertised artifact contract rather than scraping rendered UI. |
 
 `navigable` is intentionally not a v0 Capability. Being an
