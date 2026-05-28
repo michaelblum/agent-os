@@ -28,7 +28,8 @@ Do not broadly replace Sigil input routing in this round.
 ## Branch / Base
 
 - `branch_from`: `gdi/sigil-ux-tree-binding-foundation-v0`
-- `required_start_ref`: `23ae13979ea2e6c73b418ffb62bd8442ab06dbac`
+- `required_start_ref`: `origin/gdi/sigil-ux-tree-binding-foundation-v0`
+- `implementation_base_sha`: `23ae13979ea2e6c73b418ffb62bd8442ab06dbac`
 - Expected output branch: `gdi/sigil-ux-tree-command-adapter-cutover-v0`
 - This is stacked on PR #383, which is stacked on PR #382.
 - Commit the completed slice. Push the output branch for review if branch-push
