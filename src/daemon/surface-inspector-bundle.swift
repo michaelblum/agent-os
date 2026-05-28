@@ -795,6 +795,7 @@ extension UnifiedDaemon {
                 "metadata": [:],
             ]
         }
+        try rejectEmbeddedContextAssetRefs(keyframe, path: "context_keyframe")
         var mergedAssetRefs = keyframe["asset_refs"] as? [String: Any] ?? [:]
         for (key, value) in assetRefs {
             mergedAssetRefs[key] = value

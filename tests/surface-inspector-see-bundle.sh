@@ -177,25 +177,18 @@ window.__requestInvalidContextBundle = () => {
     context_session: {
       schema: "aos_context_session",
       version: "0.1.0",
-      id: "context-session:invalid",
-      keyframes: [{
-        schema: "aos_context_keyframe",
-        version: "0.1.0",
-        id: "keyframe:invalid-blob",
-        captured_at: "2026-05-28T12:00:00.000Z",
-        trigger: "invalid",
-        artifact_ids: [],
-        asset_refs: { capture: "blob:https://example.test/capture" }
-      }]
+      id: "context-session:valid",
+      artifacts: [],
+      keyframes: []
     },
     context_keyframe: {
       schema: "aos_context_keyframe",
       version: "0.1.0",
-      id: "keyframe:invalid-data",
+      id: "keyframe:invalid-colliding-data",
       captured_at: "2026-05-28T12:00:01.000Z",
       trigger: "invalid",
       artifact_ids: [],
-      asset_refs: { transcript: " Data:text/plain;base64,SGk=" }
+      asset_refs: { capture_image: " Data:text/plain;base64,SGk=" }
     }
   })
 }
@@ -279,9 +272,9 @@ while time.time() < deadline:
                 raise SystemExit(f"FAIL: invalid context bundle returned wrong error: {state}")
             if error.get("phase") != "context_payload_validation":
                 raise SystemExit(f"FAIL: invalid context bundle returned wrong phase: {state}")
-            if "context_session" not in (error.get("path") or ""):
-                raise SystemExit(f"FAIL: invalid context bundle did not report context_session path: {state}")
-            if "data:" not in json.dumps(state).lower() and "blob:" not in json.dumps(state).lower():
+            if "context_keyframe.asset_refs.capture_image" not in (error.get("path") or ""):
+                raise SystemExit(f"FAIL: invalid context bundle did not report colliding keyframe asset path: {state}")
+            if "data:" not in json.dumps(state).lower():
                 raise SystemExit(f"FAIL: invalid context bundle error did not mention rejected URI class: {state}")
             raise SystemExit(0)
     time.sleep(0.2)

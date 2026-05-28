@@ -229,25 +229,18 @@ window.__requestInvalidClipboardBundle = () => {
     context_session: {
       schema: "aos_context_session",
       version: "0.1.0",
-      id: "context-session:invalid",
-      keyframes: [{
-        schema: "aos_context_keyframe",
-        version: "0.1.0",
-        id: "keyframe:invalid-data",
-        captured_at: "2026-05-28T12:00:00.000Z",
-        trigger: "invalid",
-        artifact_ids: [],
-        asset_refs: { transcript: " Data:text/plain;base64,SGk=" }
-      }]
+      id: "context-session:valid",
+      artifacts: [],
+      keyframes: []
     },
     context_keyframe: {
       schema: "aos_context_keyframe",
       version: "0.1.0",
-      id: "keyframe:invalid-blob",
+      id: "keyframe:invalid-colliding-blob",
       captured_at: "2026-05-28T12:00:01.000Z",
       trigger: "invalid",
       artifact_ids: [],
-      asset_refs: { capture: { uri: "blob:https://example.test/capture" } }
+      asset_refs: { capture_image: { uri: "blob:https://example.test/capture" } }
     }
   })
 }
@@ -283,9 +276,9 @@ while time.time() < deadline:
                 raise SystemExit(f"FAIL: invalid clipboard context returned wrong error: {state}")
             if error.get("phase") != "context_payload_validation":
                 raise SystemExit(f"FAIL: invalid clipboard context returned wrong phase: {state}")
-            if "context_session" not in (error.get("path") or ""):
-                raise SystemExit(f"FAIL: invalid clipboard context did not report context_session path: {state}")
-            if "data:" not in json.dumps(state).lower() and "blob:" not in json.dumps(state).lower():
+            if "context_keyframe.asset_refs.capture_image.uri" not in (error.get("path") or ""):
+                raise SystemExit(f"FAIL: invalid clipboard context did not report colliding keyframe asset path: {state}")
+            if "blob:" not in json.dumps(state).lower():
                 raise SystemExit(f"FAIL: invalid clipboard context error did not mention rejected URI class: {state}")
             raise SystemExit(0)
     time.sleep(0.2)

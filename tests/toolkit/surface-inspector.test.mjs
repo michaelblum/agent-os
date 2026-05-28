@@ -1482,5 +1482,10 @@ test('Surface Inspector daemon bundle rejects canonical context embedded asset r
   assert.match(daemonBundle, /try canvasInspectorContextSessionForBundle/);
   assert.match(daemonBundle, /try canvasInspectorContextKeyframeForBundle/);
   assert.match(daemonBundle, /CONTEXT_PAYLOAD_INVALID_ASSET_REF/);
+  assert.ok(
+    daemonBundle.indexOf('try rejectEmbeddedContextAssetRefs(keyframe, path: "context_keyframe")')
+      < daemonBundle.indexOf('var mergedAssetRefs = keyframe["asset_refs"] as? [String: Any] ?? [:]'),
+    'supplied context keyframe asset refs must be validated before daemon asset refs are merged',
+  );
   assert.doesNotMatch(daemonBundle, /sanitized_after_embedded_image_data/);
 });
