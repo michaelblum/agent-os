@@ -50,6 +50,10 @@ control.
 `getUxTreeFragment(options = {})` for read-only UX tree fragment discovery from
 the live control object. The fragment is inspection data only; it does not
 execute commands, persist bindings, or expose editable binding state.
+Factory-created toggles honor `disabled` on the underlying checkbox.
+Factory-created button groups honor option-level `disabled` on the live option
+buttons; disabled options are skipped by pointer and arrow-key selection and
+reported as disabled in factory-returned UX tree fragments.
 
 ## Zag Primitives
 

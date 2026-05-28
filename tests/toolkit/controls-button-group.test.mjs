@@ -74,3 +74,36 @@ test('button group UX tree selection matches pressed DOM state for string-equiva
   assert.equal(optionNode.metadata.state.selected, true);
   assert.equal(optionNode.metadata.state.selected, button.getAttribute('aria-pressed') === 'true');
 });
+
+test('button group disabled options match DOM state and are skipped by user selection', () => {
+  const document = createFakeDocument();
+  const group = createButtonGroup({
+    document,
+    id: 'mode',
+    options: [
+      { value: 'edit', label: 'Edit' },
+      { value: 'preview', label: 'Preview', disabled: true },
+      { value: 'diff', label: 'Diff' },
+    ],
+    value: 'edit',
+  });
+  const changes = [];
+  group.on('change', (value) => changes.push(value));
+
+  const buttons = group.el.querySelectorAll('button');
+  buttons[1].dispatchEvent(new FakeEvent('click'));
+  assert.equal(group.getValue(), 'edit');
+  assert.deepEqual(changes, []);
+
+  buttons[0].dispatchEvent(new FakeEvent('keydown', { key: 'ArrowRight' }));
+  assert.equal(group.getValue(), 'diff');
+  assert.deepEqual(changes, ['diff']);
+
+  const fragment = group.getUxTreeFragment();
+  const disabledNode = fragment.nodes.find((node) => node.id === 'mode.preview');
+
+  assert.equal(buttons[1].disabled, true);
+  assert.equal(buttons[1].getAttribute('aria-disabled'), 'true');
+  assert.equal(disabledNode.metadata.state.disabled, buttons[1].disabled);
+  assert.equal(disabledNode.metadata.state.selected, false);
+});

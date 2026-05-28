@@ -35,6 +35,7 @@ export function createToggle(config = {}) {
   el.classList.add('aos-toggle');
   input.type = 'checkbox';
   input.checked = !!config.checked;
+  input.disabled = !!config.disabled;
   input.classList.add('aos-toggle-input');
   switchEl.classList.add('aos-toggle-switch');
   thumb.classList.add('aos-toggle-thumb');

@@ -34,6 +34,17 @@ test('createToggle exposes a UX tree fragment for current checked state', () => 
   assert.equal(fragment.commands[0].handler_ref, 'toolkit.controls.toggle.change');
 });
 
+test('createToggle honors disabled config in DOM and UX tree state', () => {
+  const document = createFakeDocument();
+  const toggle = createToggle({ document, id: 'readonly-toggle', label: 'Read Only', disabled: true });
+  const input = toggle.el.querySelector('input');
+
+  const fragment = toggle.getUxTreeFragment();
+
+  assert.equal(input.disabled, true);
+  assert.equal(fragment.nodes[0].metadata.state.disabled, true);
+});
+
 test('toggle change fires from underlying input', () => {
   const document = createFakeDocument();
   const toggle = createToggle({ document, checked: false });
