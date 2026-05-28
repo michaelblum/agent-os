@@ -258,6 +258,7 @@ boundary, builds snapshot artifacts, and handles settled reprojection:
 
 ```js
 import {
+  surfaceInspectorAnnotationStateToContextSession,
   surfaceInspectorAnnotationStateToSession,
   markSurfaceInspectorAnnotationProjectionsStale,
   refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
@@ -273,6 +274,17 @@ artifact without making the snapshot artifact the source of truth for future
 live annotations. Future entry paths should produce the shared session model
 directly instead of adding more product-specific adapters to the neutral
 session or renderer modules.
+
+`surfaceInspectorAnnotationStateToContextSession(state)` is the additive
+compatibility adapter into `aos_context_session`. It normalizes current Surface
+Inspector pin/comment state, keeps the source `aos_annotation_session` summary
+as `source_annotation_session`, and emits one context artifact per active pin
+path. The active Surface Inspector frame selects `active_artifact_id`; comments
+attach to path nodes while anchor `comment_text` remains available for V0
+compatibility. Projection, stale, absent, unsupported, blocker, scope-stack, and
+Surface Inspector acquisition provenance stay in the context artifact evidence.
+This does not change the public `surface_inspector_annotation_snapshot` schema
+or see-bundle shape.
 
 `markSurfaceInspectorAnnotationProjectionsStale(state, reason)` marks saved frame
 anchors, committed scope entries, preview/hover evidence, and support diagnostics

@@ -23,6 +23,7 @@ import {
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
   setSurfaceInspectorHoverCandidate,
+  surfaceInspectorAnnotationStateToContextSession,
   surfaceInspectorAnnotationStateToSession,
   surfaceInspectorPinToAnnotationAnchor,
   unpinSurfaceInspectorFrame,
@@ -210,6 +211,128 @@ test('Surface Inspector compatibility adapter maps pins comments and hover into 
   assert.equal(commentGroup.comment_chips.length, 1)
   assert.ok(hoverGroup)
   assert.equal(hoverGroup.hover_candidate.layer, 'hover')
+})
+
+test('Surface Inspector context adapter converts annotation state into an aos_context_session', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('canvas-a', ['main', 'canvas-a'], {
+    role: 'region',
+    label: 'Canvas A',
+  }), {
+    id: 'pin-canvas-a',
+    created_at: '2026-05-13T00:00:00.000Z',
+    updated_at: '2026-05-13T00:00:00.000Z',
+  })
+  state = addSurfaceInspectorComment(state, 'pin-canvas-a', 'Keep this frame visible', {
+    id: 'comment-canvas-a',
+    created_at: '2026-05-13T00:00:01.000Z',
+    updated_at: '2026-05-13T00:00:01.000Z',
+  })
+
+  const context = surfaceInspectorAnnotationStateToContextSession(state, {
+    id: 'context-session:surface-inspector:test',
+    updated_at: '2026-05-13T00:00:02.000Z',
+  })
+  const artifact = context.artifacts[0]
+  const target = artifact.path[0]
+
+  assert.equal(context.schema, 'aos_context_session')
+  assert.equal(context.entry_source, 'surface_inspector')
+  assert.equal(context.source_annotation_session.schema, 'aos_annotation_session')
+  assert.equal(context.source_annotation_session.entry_source, 'surface_inspector')
+  assert.deepEqual(context.source_annotation_session.anchor_addresses, [target.address])
+  assert.equal(context.artifacts.length, 1)
+  assert.equal(context.active_artifact_id, artifact.id)
+  assert.equal(artifact.acquisition.mode, 'surface_inspector')
+  assert.equal(artifact.acquisition.source_metadata.source_pin_id, 'pin-canvas-a')
+  assert.equal(artifact.active_target_node_id, target.id)
+  assert.equal(target.comments[0].text, 'Keep this frame visible')
+  assert.equal(artifact.anchors[0].comment_text, 'Keep this frame visible')
+  assert.deepEqual(artifact.anchors[0].comments, ['comment-canvas-a'])
+})
+
+test('Surface Inspector context adapter preserves nested pin paths and active target', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('root', ['main', 'root']), { id: 'pin-root' })
+  state = pinSurfaceInspectorFrame(state, node('child', ['main', 'root', 'child']), {
+    id: 'pin-child',
+    parent_pin_id: 'pin-root',
+  })
+  state = pinSurfaceInspectorFrame(state, node('leaf', ['main', 'root', 'child', 'leaf']), {
+    id: 'pin-leaf',
+    parent_pin_id: 'pin-child',
+  })
+
+  const context = surfaceInspectorAnnotationStateToContextSession(state, {
+    updated_at: '2026-05-13T00:00:03.000Z',
+  })
+  const leafArtifact = context.artifacts.find((artifact) => artifact.metadata.source_pin_id === 'pin-leaf')
+
+  assert.equal(context.artifacts.length, 3)
+  assert.equal(context.active_artifact_id, leafArtifact.id)
+  assert.deepEqual(leafArtifact.path.map((pathNode) => pathNode.subject.subject.id), ['root', 'child', 'leaf'])
+  assert.deepEqual(leafArtifact.acquisition.candidate_report.path_pin_ids, ['pin-root', 'pin-child', 'pin-leaf'])
+  assert.equal(leafArtifact.active_target_node_id, leafArtifact.path.at(-1).id)
+})
+
+test('Surface Inspector context adapter does not drop separate active or commented pins', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('panel-a', ['main', 'panel-a']), { id: 'pin-panel-a' })
+  state = addSurfaceInspectorComment(state, 'pin-panel-a', 'Panel A note', { id: 'comment-panel-a' })
+  state = pinSurfaceInspectorFrame(state, node('panel-b', ['main', 'panel-b']), {
+    id: 'pin-panel-b',
+    parent_pin_id: null,
+  })
+  state = addSurfaceInspectorComment(state, 'pin-panel-b', 'Panel B note', { id: 'comment-panel-b' })
+
+  const context = surfaceInspectorAnnotationStateToContextSession(state, {
+    updated_at: '2026-05-13T00:00:04.000Z',
+  })
+  const byPin = new Map(context.artifacts.map((artifact) => [artifact.metadata.source_pin_id, artifact]))
+
+  assert.deepEqual([...byPin.keys()].sort(), ['pin-panel-a', 'pin-panel-b'])
+  assert.equal(byPin.get('pin-panel-a').path.at(-1).comments[0].text, 'Panel A note')
+  assert.equal(byPin.get('pin-panel-b').path.at(-1).comments[0].text, 'Panel B note')
+})
+
+test('Surface Inspector context adapter preserves stale absent and blocker evidence', () => {
+  let state = setSurfaceInspectorAnnotationMode(createSurfaceInspectorAnnotationState(), true)
+  state = pinSurfaceInspectorFrame(state, node('stale-target', ['main', 'stale-target']), {
+    id: 'pin-stale',
+    projection: {
+      status: 'visible',
+      can_reveal: true,
+      visible_display_rect: { x: 10, y: 20, w: 100, h: 80 },
+      display_space_rect: { x: 10, y: 20, w: 100, h: 80 },
+    },
+  })
+  state = markSurfaceInspectorAnnotationProjectionsStale(state, 'display_geometry_changed', {
+    now: '2026-05-13T00:00:05.000Z',
+  })
+  state = pinSurfaceInspectorFrame(state, node('absent-target', ['main', 'absent-target']), {
+    id: 'pin-absent',
+    parent_pin_id: null,
+    projection: {
+      status: 'absent',
+      can_reveal: false,
+      blocker_reason: 'root_canvas_removed',
+    },
+  })
+
+  const context = surfaceInspectorAnnotationStateToContextSession(state, {
+    updated_at: '2026-05-13T00:00:06.000Z',
+  })
+  const byPin = new Map(context.artifacts.map((artifact) => [artifact.metadata.source_pin_id, artifact]))
+  const staleNode = byPin.get('pin-stale').path.at(-1)
+  const absentNode = byPin.get('pin-absent').path.at(-1)
+
+  assert.equal(staleNode.projection.current_render_status, 'stale')
+  assert.equal(staleNode.projection.display_space_rect, null)
+  assert.equal(staleNode.blocker.reason, 'display_geometry_changed')
+  assert.equal(byPin.get('pin-stale').anchors.at(-1).status, 'stale')
+  assert.equal(absentNode.projection.current_render_status, 'absent')
+  assert.equal(absentNode.blocker.reason, 'root_canvas_removed')
+  assert.equal(byPin.get('pin-absent').anchors.at(-1).status, 'absent')
 })
 
 test('Surface Inspector annotation snapshot artifact keeps empty state explicit and rejects embedded images', () => {

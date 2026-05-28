@@ -1,8 +1,14 @@
 import {
+  ANNOTATION_SESSION_SCHEMA,
+  ANNOTATION_SESSION_VERSION,
   createAnnotationSession,
   normalizeAnnotationAnchor,
   normalizeAnnotationSubjectAddress,
 } from './annotation-session.js'
+import {
+  createContextSession,
+  normalizeContextArtifact,
+} from './context-session.js'
 import {
   isImplicitAnnotationRootCandidate,
   normalizeAnnotationCandidate,
@@ -124,14 +130,19 @@ function activeSurfaceInspectorFramePath(state = {}) {
   return path
 }
 
-export function surfaceInspectorAnnotationStateToSession(state = {}, options = {}) {
-  const pins = activeSurfaceInspectorPins(state)
-  const comments = activeSurfaceInspectorComments(state)
+function commentsBySurfaceInspectorPin(state = {}) {
   const commentsByPin = new Map()
-  for (const comment of comments) {
+  for (const comment of activeSurfaceInspectorComments(state)) {
     if (!commentsByPin.has(comment.pin_id)) commentsByPin.set(comment.pin_id, [])
     commentsByPin.get(comment.pin_id).push(comment)
   }
+  return commentsByPin
+}
+
+export function surfaceInspectorAnnotationStateToSession(state = {}, options = {}) {
+  const pins = activeSurfaceInspectorPins(state)
+  const comments = activeSurfaceInspectorComments(state)
+  const commentsByPin = commentsBySurfaceInspectorPin({ comments })
   const committedPins = activeSurfaceInspectorFramePath(state)
   const committed = committedPins.map((pin) => surfaceInspectorPinToAnnotationAnchor(pin).subject).filter(Boolean)
   const hover = state.last_hover_candidate
@@ -153,6 +164,175 @@ export function surfaceInspectorAnnotationStateToSession(state = {}, options = {
     anchors,
     snapshot_count: Number.isFinite(Number(state.snapshot_count)) ? Number(state.snapshot_count) : 0,
     updated_at: options.updated_at || Date.now(),
+  })
+}
+
+function activeSurfaceInspectorPinPath(state = {}, pin = {}) {
+  const pinsById = new Map(activeSurfaceInspectorPins(state).map((item) => [item.id, item]))
+  const scopePinIds = (Array.isArray(state.annotation_scope_stack) ? state.annotation_scope_stack : [])
+    .map((frame) => text(frame.pin_id || frame.id))
+    .filter((id) => pinsById.has(id))
+  const scopedIndex = scopePinIds.lastIndexOf(pin.id)
+  if (scopedIndex >= 0 && (pin.id === state.active_frame_id || scopePinIds.at(-1) === pin.id)) {
+    return scopePinIds.slice(0, scopedIndex + 1).map((id) => pinsById.get(id)).filter(Boolean)
+  }
+
+  const path = []
+  const visited = new Set()
+  let cursor = pinsById.get(pin.id)
+  while (cursor && !visited.has(cursor.id)) {
+    path.unshift(cursor)
+    visited.add(cursor.id)
+    cursor = cursor.parent_pin_id ? pinsById.get(cursor.parent_pin_id) : null
+  }
+  return path
+}
+
+function contextCommentFromSurfaceInspectorComment(comment = {}, pin = {}) {
+  return {
+    id: comment.id,
+    text: comment.text,
+    actor: comment.actor,
+    created_at: comment.created_at,
+    updated_at: comment.updated_at,
+    source_metadata: {
+      source: SURFACE_INSPECTOR_ANNOTATION_SCHEMA,
+      source_comment_id: comment.id,
+      source_pin_id: pin.id || comment.pin_id,
+      source_subject_id: comment.subject_id,
+    },
+  }
+}
+
+function contextPathNodeFromSurfaceInspectorPin(pin = {}, comments = []) {
+  const metadata = pin.source_tree_node_metadata || pin.source_metadata || {}
+  const anchor = surfaceInspectorPinToAnnotationAnchor(pin, {
+    comment_text: comments.map((comment) => comment.text).filter(Boolean).join('\n\n'),
+  })
+  return {
+    id: `context-node:surface-inspector:${pin.id}`,
+    subject: anchor.subject,
+    kind: pin.subject_kind || metadata.subject_kind || metadata.kind || pin.kind,
+    role: pin.role || metadata.role || metadata.ax_role,
+    label: pin.label || metadata.label || metadata.title || metadata.name || pin.subject_id || pin.id,
+    projection: pin.projection,
+    blocker: pin.projection?.blocker || undefined,
+    comments: comments.map((comment) => contextCommentFromSurfaceInspectorComment(comment, pin)),
+  }
+}
+
+function contextAnchorFromSurfaceInspectorPin(pin = {}, node = {}, comments = []) {
+  const anchor = surfaceInspectorPinToAnnotationAnchor(pin, {
+    comment_text: comments.map((comment) => comment.text).filter(Boolean).join('\n\n'),
+  })
+  return {
+    id: `context-anchor:surface-inspector:${pin.id}`,
+    node_id: node.id,
+    address: node.address || anchor.address,
+    status: anchor.status,
+    projection: anchor.projection,
+    comment_text: anchor.comment_text,
+    comments: comments.map((comment) => comment.id),
+    source_annotation_anchor_id: anchor.id,
+    metadata: {
+      source: SURFACE_INSPECTOR_ANNOTATION_SCHEMA,
+      source_pin_id: pin.id,
+      source_parent_pin_id: pin.parent_pin_id || '',
+    },
+  }
+}
+
+function contextArtifactFromSurfaceInspectorPin(state = {}, pin = {}, options = {}) {
+  const pathPins = activeSurfaceInspectorPinPath(state, pin)
+  const commentsByPin = commentsBySurfaceInspectorPin(state)
+  const path = pathPins.map((pathPin) => (
+    contextPathNodeFromSurfaceInspectorPin(pathPin, commentsByPin.get(pathPin.id) || [])
+  ))
+  const activeTargetNodeId = path.at(-1)?.id || ''
+  const anchors = pathPins.map((pathPin, index) => (
+    contextAnchorFromSurfaceInspectorPin(pathPin, {
+      id: path[index]?.id,
+    }, commentsByPin.get(pathPin.id) || [])
+  ))
+  return normalizeContextArtifact({
+    id: `context-artifact:surface-inspector:${pin.id}`,
+    kind: 'surface_inspector_selection',
+    path,
+    active_target_node_id: activeTargetNodeId,
+    acquisition: {
+      mode: 'surface_inspector',
+      pointer: null,
+      leaf_node_id: activeTargetNodeId,
+      selected_node_id: activeTargetNodeId,
+      candidate_report: {
+        source_pin_id: pin.id,
+        source_parent_pin_id: pin.parent_pin_id || '',
+        source_subject_id: pin.subject_id,
+        source_subject_path: Array.isArray(pin.subject_path) ? [...pin.subject_path] : [],
+        path_pin_ids: pathPins.map((item) => item.id),
+        active_frame_id: state.active_frame_id,
+        active_edge_id: state.active_edge_id,
+        projection_refresh: clone(state.projection_refresh),
+        last_projection_blocker: clone(state.last_projection_blocker),
+      },
+      source_metadata: {
+        source: SURFACE_INSPECTOR_ANNOTATION_SCHEMA,
+        source_version: SURFACE_INSPECTOR_ANNOTATION_VERSION,
+        source_pin_id: pin.id,
+        source_state_snapshot_version: state.snapshot_version,
+        annotation_scope_stack_pin_ids: (Array.isArray(state.annotation_scope_stack) ? state.annotation_scope_stack : [])
+          .map((frame) => text(frame.pin_id || frame.id))
+          .filter(Boolean),
+      },
+    },
+    anchors,
+    source_session_ref: {
+      schema: ANNOTATION_SESSION_SCHEMA,
+      version: ANNOTATION_SESSION_VERSION,
+      source: SURFACE_INSPECTOR_ANNOTATION_SCHEMA,
+    },
+    metadata: {
+      source: SURFACE_INSPECTOR_ANNOTATION_SCHEMA,
+      source_pin_id: pin.id,
+      active: pin.id === state.active_frame_id,
+    },
+  }, options)
+}
+
+export function surfaceInspectorAnnotationStateToContextSession(state = {}, options = {}) {
+  const normalized = createSurfaceInspectorAnnotationState(state)
+  const updatedAt = options.updated_at || Date.now()
+  const sourceSession = surfaceInspectorAnnotationStateToSession(normalized, {
+    entry_source: options.entry_source || 'surface_inspector',
+    updated_at: updatedAt,
+  })
+  const pins = activeSurfaceInspectorPins(normalized)
+  const artifacts = pins.map((pin) => contextArtifactFromSurfaceInspectorPin(normalized, pin, {
+    now: updatedAt,
+  }))
+  const activeArtifact = artifacts.find((artifact) => (
+    artifact.metadata?.source_pin_id === normalized.active_frame_id
+  )) || artifacts[0] || null
+
+  return createContextSession({
+    id: options.id,
+    created_at: options.created_at || updatedAt,
+    updated_at: updatedAt,
+    active: Boolean(normalized.annotation_mode?.active),
+    entry_source: options.entry_source || 'surface_inspector',
+    source_annotation_session: sourceSession,
+    artifacts,
+    active_artifact_id: activeArtifact?.id || '',
+    metadata: {
+      source: SURFACE_INSPECTOR_ANNOTATION_SCHEMA,
+      source_version: SURFACE_INSPECTOR_ANNOTATION_VERSION,
+      source_state_snapshot_version: normalized.snapshot_version,
+      active_frame_id: normalized.active_frame_id,
+      active_edge_id: normalized.active_edge_id,
+      artifact_count: artifacts.length,
+      compatibility_adapter: 'surface_inspector_annotations',
+      ...(options.metadata || {}),
+    },
   })
 }
 
