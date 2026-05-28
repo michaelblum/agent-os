@@ -91,6 +91,9 @@ const {
 const {
     createContextKeyframe,
 } = await import(toolkitSpecifier('workbench/context-session.js'));
+const {
+    createSelectionModeContextSession,
+} = await import(toolkitSpecifier('workbench/selection-mode.js'));
 
 const host = createHostRuntime();
 const interactionTrace = createInteractionTrace({
@@ -150,6 +153,7 @@ const liveJs = {
     sessionVitality: null,
     lastRadialActivation: null,
     annotationReticle: null,
+    selectionMode: { context_session: null },
     annotationReticleTargetEvidence: createAnnotationReticleTargetEvidenceCache(),
     annotationReticleBrowserDomBridge: null,
     annotationReticleEvents: [],
@@ -2415,6 +2419,17 @@ function requestCanvasInspectorAnnotationToggle(reason = 'sigil-radial') {
     });
 }
 
+function createSelectionModeContextFromDebugInput(input = {}) {
+    const contextSession = createSelectionModeContextSession(input, {
+        updated_at: input.updated_at || new Date().toISOString(),
+    });
+    liveJs.selectionMode = {
+        context_session: contextSession,
+    };
+    state.selectionMode = liveJs.selectionMode;
+    return contextSession;
+}
+
 function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
     const item = radial?.items?.find((candidate) => candidate.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID);
     if (!item) return null;
@@ -3849,6 +3864,7 @@ window.__sigilDebug = {
             radialGestureVisuals: radialGestureVisuals?.snapshot?.() ?? null,
             radialActivationTransition: radialActivationTransition.snapshot(),
             annotationReticle: liveJs.annotationReticle,
+            selectionMode: liveJs.selectionMode,
             annotationReticleOverlay: liveJs.annotationReticleOverlay,
             annotationReticleBrowserDomBridge: liveJs.annotationReticleBrowserDomBridge,
             annotationReticleEvents: liveJs.annotationReticleEvents,
@@ -3918,6 +3934,9 @@ window.__sigilDebug = {
     },
     setInteractionTraceEnabled(value) {
         return interactionTrace.setEnabled(value);
+    },
+    createSelectionModeContext(input = {}) {
+        return createSelectionModeContextFromDebugInput(input);
     },
 };
 

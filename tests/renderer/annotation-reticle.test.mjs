@@ -859,6 +859,19 @@ test('Sigil radial camera bundle request carries canonical context session and k
   assert.match(requestBlock, /surface_inspector_annotation_snapshot: 'annotation-snapshot\.json'/)
 })
 
+test('Sigil exposes a debug-only Selection Mode context session entry point', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const debugStart = source.indexOf('window.__sigilDebug = {')
+  const debugBlock = source.slice(debugStart)
+
+  assert.match(source, /createSelectionModeContextSession/)
+  assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)
+  assert.match(source, /liveJs\.selectionMode = \{\s*context_session: contextSession,\s*\}/)
+  assert.match(debugBlock, /selectionMode: liveJs\.selectionMode/)
+  assert.match(debugBlock, /createSelectionModeContext\(input = \{\}\) \{[\s\S]*createSelectionModeContextFromDebugInput\(input\)/)
+  assert.doesNotMatch(source, /addEventListener\('dblclick'[\s\S]*createSelectionModeContext/)
+})
+
 test('annotation reticle overlay model exposes current scope hover and live anchors', () => {
   const controller = createSigilAnnotationReticleController({
     getDisplays: () => [display],
