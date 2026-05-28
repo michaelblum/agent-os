@@ -58,6 +58,7 @@ import {
 } from './annotation-reticle.js';
 import { advanceMenuActivation } from './menu-activation-runtime.js';
 import { createSigilInputRegionAdapter } from './input-regions.js';
+import { createAvatarDoubleClickTracker } from './selection-mode-input.js';
 import {
     currentSigilRoot,
     currentToolkitRoot,
@@ -2735,6 +2736,7 @@ function enterSelectionMode(pointer = null, reason = 'avatar-double-click') {
 
 function exitSelectionMode(reason = 'cancel') {
     if (!liveJs.selectionMode?.active) return liveJs.selectionMode;
+    clearSelectionModeEntryReleasePending();
     selectionModeEvent('exit', { reason });
     liveJs.selectionMode = {
         ...liveJs.selectionMode,
@@ -2898,6 +2900,7 @@ function handleSelectionModeInput(msg = {}) {
     }
     if (msg.type === 'left_mouse_down') return true;
     if (msg.type === 'left_mouse_up') {
+        if (consumeSelectionModeEntryRelease(msg)) return true;
         if (isOnAvatar(msg.x, msg.y)) {
             if (consumeAvatarDoubleClick(msg.x, msg.y)) exitSelectionMode('avatar-double-click');
             return true;
@@ -3126,19 +3129,31 @@ let lastContextMenuOpenPoint = null;
 const recentDaemonPointerEvents = new Map();
 const HIT_ECHO_SUPPRESS_MS = 450;
 const HIT_ECHO_SUPPRESS_DISTANCE = 6;
-let lastAvatarClick = null;
+const avatarDoubleClickTracker = createAvatarDoubleClickTracker({
+    now: () => performance.now(),
+    distance,
+    isOnAvatar,
+    getAvatarHitRadius: () => liveJs.avatarHitRadius,
+});
 
 function consumeAvatarDoubleClick(x, y) {
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !isOnAvatar(x, y)) {
-        lastAvatarClick = null;
-        return false;
-    }
-    const now = performance.now();
-    const prior = lastAvatarClick;
-    lastAvatarClick = { x, y, at: now };
-    if (!prior) return false;
-    return now - prior.at <= 520
-        && distance(x, y, prior.x, prior.y) <= Math.max(10, liveJs.avatarHitRadius);
+    return avatarDoubleClickTracker.consumeAvatarDoubleClick(x, y);
+}
+
+function resetAvatarDoubleClick() {
+    avatarDoubleClickTracker.resetAvatarDoubleClick();
+}
+
+function markSelectionModeEntryReleasePending() {
+    avatarDoubleClickTracker.markSelectionModeEntryReleasePending();
+}
+
+function clearSelectionModeEntryReleasePending() {
+    avatarDoubleClickTracker.clearSelectionModeEntryReleasePending();
+}
+
+function consumeSelectionModeEntryRelease(msg = {}) {
+    return avatarDoubleClickTracker.consumeSelectionModeEntryRelease(msg);
 }
 
 function rememberDaemonPointerEvent(msg = {}) {
@@ -3266,6 +3281,8 @@ function handleLeftMouseDown(x, y) {
             if (isOnAvatar(x, y)) {
                 if (consumeAvatarDoubleClick(x, y)) {
                     enterSelectionMode({ x, y, valid: true }, 'avatar-double-click');
+                    resetAvatarDoubleClick();
+                    markSelectionModeEntryReleasePending();
                     setInteractionState('IDLE', 'selection-mode-enter');
                     return;
                 }
