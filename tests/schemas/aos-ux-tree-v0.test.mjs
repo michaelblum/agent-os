@@ -54,6 +54,32 @@ for (const fixturePath of invalidSchemaFixtures) {
   })
 }
 
+test('runtime resolver rejects invalid executable-command and embedded-resource fixtures', async () => {
+  const cases = [
+    {
+      fixturePath: 'shared/schemas/fixtures/aos-ux-tree-v0/invalid/executable-command.json',
+      code: 'command.handler_ref.type',
+      strictPattern: /handler_ref must be a string/,
+    },
+    {
+      fixturePath: 'shared/schemas/fixtures/aos-ux-tree-v0/invalid/embedded-resource.json',
+      code: 'source.binary',
+      strictPattern: /source refs must not embed data\/blob payloads/,
+    },
+  ]
+
+  for (const { fixturePath, code, strictPattern } of cases) {
+    const fixture = JSON.parse(await readFile(path.join(repoRoot, fixturePath), 'utf8'))
+    const resolved = resolveUxTree(fixture)
+    assert.equal(resolved.validation.ok, false, `${fixturePath} unexpectedly passed runtime validation`)
+    assert.ok(
+      resolved.validation.errors.some((error) => error.code === code),
+      `${fixturePath} did not report ${code}`,
+    )
+    assert.throws(() => resolveUxTree(fixture, { strict: true }), strictPattern)
+  }
+})
+
 test('runtime resolver reports binding references unknown to the schema alone', async () => {
   const fixture = JSON.parse(await readFile(
     path.join(repoRoot, 'shared/schemas/fixtures/aos-ux-tree-v0/invalid/unknown-binding-ref.json'),

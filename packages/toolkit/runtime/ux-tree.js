@@ -2,6 +2,8 @@ export const UX_TREE_SCHEMA = 'aos_ux_tree';
 export const UX_TREE_VERSION = '0.1.0';
 
 const KEYED_ARRAYS = new Set(['nodes', 'commands', 'bindings', 'modes']);
+const HANDLER_REF_PATTERN = /^[A-Za-z0-9_.:-]+$/;
+const ALLOWLISTED_EXECUTION = 'allowlisted';
 
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -33,6 +35,59 @@ function list(value) {
 
 function validationError(code, message, path = '') {
   return { code, message, path };
+}
+
+function sourceRefValue(ref) {
+  if (typeof ref === 'string') return ref;
+  if (!isPlainObject(ref)) return '';
+  return ref.ref ?? ref.url ?? ref.path ?? '';
+}
+
+function isEmbeddedRef(value) {
+  return typeof value === 'string' && /^(?:data|blob):/i.test(value.trim());
+}
+
+function validateEmbeddedRefs(refs, { pathPrefix = '', code = 'resource.binary', label = 'resource refs' } = {}) {
+  const errors = [];
+  for (const [index, ref] of list(refs).entries()) {
+    if (isEmbeddedRef(sourceRefValue(ref))) {
+      errors.push(validationError(code, `${label} must not embed data/blob payloads`, `${pathPrefix}/${index}`));
+    }
+  }
+  return errors;
+}
+
+function validateRawCommandContracts(source = {}) {
+  const errors = [];
+  for (const [index, command] of list(source.commands).entries()) {
+    const handlerRef = command?.handler_ref;
+    if (typeof handlerRef !== 'string') {
+      errors.push(validationError('command.handler_ref.type', `commands[${index}].handler_ref must be a string`, `/commands/${index}/handler_ref`));
+    } else if (handlerRef.length === 0) {
+      errors.push(validationError('command.handler_ref', `commands[${index}].handler_ref is required`, `/commands/${index}/handler_ref`));
+    } else if (!HANDLER_REF_PATTERN.test(handlerRef)) {
+      errors.push(validationError('command.handler_ref.pattern', `commands[${index}].handler_ref must be an allowlisted reference`, `/commands/${index}/handler_ref`));
+    }
+
+    if (command?.safety?.execution !== ALLOWLISTED_EXECUTION) {
+      errors.push(validationError('command.safety.execution', `commands[${index}].safety.execution must be ${ALLOWLISTED_EXECUTION}`, `/commands/${index}/safety/execution`));
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+function mergeValidationResults(...results) {
+  const errors = [];
+  const seen = new Set();
+  for (const result of results) {
+    for (const error of list(result?.errors)) {
+      const key = `${error.code}\0${error.path}\0${error.message}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      errors.push(error);
+    }
+  }
+  return { ok: errors.length === 0, errors };
 }
 
 function keyedMergeArray(baseItems = [], overrideItems = [], mergeEntry = mergeUxTreeValue) {
@@ -163,6 +218,12 @@ function validateUxTree(tree = {}) {
   const commandIds = new Set();
   const modeIds = new Set(['global']);
 
+  errors.push(...validateEmbeddedRefs(tree.source_refs, {
+    pathPrefix: '/source_refs',
+    code: 'source.binary',
+    label: 'source refs',
+  }));
+
   for (const [index, mode] of list(tree.modes).entries()) {
     if (!text(mode.id)) errors.push(validationError('mode.id', `modes[${index}].id is required`, `/modes/${index}/id`));
     else modeIds.add(mode.id);
@@ -171,18 +232,22 @@ function validateUxTree(tree = {}) {
     if (!text(node.id)) errors.push(validationError('node.id', `nodes[${index}].id is required`, `/nodes/${index}/id`));
     if (nodeIds.has(node.id)) errors.push(validationError('node.duplicate', `duplicate node id ${node.id}`, `/nodes/${index}/id`));
     nodeIds.add(node.id);
-    for (const [refIndex, ref] of list(node.resource_refs).entries()) {
-      const value = typeof ref === 'string' ? ref : ref?.ref || ref?.url || ref?.path || '';
-      if (/^data:/i.test(String(value))) {
-        errors.push(validationError('resource.binary', 'resource refs must not embed data/blob payloads', `/nodes/${index}/resource_refs/${refIndex}`));
-      }
-    }
+    errors.push(...validateEmbeddedRefs(node.resource_refs, { pathPrefix: `/nodes/${index}/resource_refs` }));
   }
   for (const [index, command] of list(tree.commands).entries()) {
     if (!text(command.id)) errors.push(validationError('command.id', `commands[${index}].id is required`, `/commands/${index}/id`));
     if (commandIds.has(command.id)) errors.push(validationError('command.duplicate', `duplicate command id ${command.id}`, `/commands/${index}/id`));
     commandIds.add(command.id);
-    if (!text(command.handler_ref)) errors.push(validationError('command.handler_ref', `commands[${index}].handler_ref is required`, `/commands/${index}/handler_ref`));
+    if (typeof command.handler_ref !== 'string') {
+      errors.push(validationError('command.handler_ref.type', `commands[${index}].handler_ref must be a string`, `/commands/${index}/handler_ref`));
+    } else if (!command.handler_ref) {
+      errors.push(validationError('command.handler_ref', `commands[${index}].handler_ref is required`, `/commands/${index}/handler_ref`));
+    } else if (!HANDLER_REF_PATTERN.test(command.handler_ref)) {
+      errors.push(validationError('command.handler_ref.pattern', `commands[${index}].handler_ref must be an allowlisted reference`, `/commands/${index}/handler_ref`));
+    }
+    if (command.safety?.execution !== ALLOWLISTED_EXECUTION) {
+      errors.push(validationError('command.safety.execution', `commands[${index}].safety.execution must be ${ALLOWLISTED_EXECUTION}`, `/commands/${index}/safety/execution`));
+    }
     if (hasExecutableValue(command)) errors.push(validationError('command.executable', 'commands must not contain executable values', `/commands/${index}`));
   }
   for (const [index, binding] of list(tree.bindings).entries()) {
@@ -197,6 +262,7 @@ function validateUxTree(tree = {}) {
 
 export function resolveUxTree(input = {}, options = {}) {
   const source = cloneJson(input);
+  const rawValidation = validateRawCommandContracts(source);
   const tree = {
     schema: UX_TREE_SCHEMA,
     version: text(source.version, UX_TREE_VERSION),
@@ -211,7 +277,7 @@ export function resolveUxTree(input = {}, options = {}) {
     settings: cloneJson(source.settings || {}),
     metadata: cloneJson(source.metadata || {}),
   };
-  const validation = validateUxTree(tree);
+  const validation = mergeValidationResults(rawValidation, validateUxTree(tree));
   tree.validation = validation;
   if (options.strict && !validation.ok) {
     throw new Error(`Invalid UX tree: ${validation.errors.map((error) => error.message).join('; ')}`);

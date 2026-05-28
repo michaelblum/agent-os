@@ -125,3 +125,46 @@ test('resolveUxTree returns validation metadata for invalid references and can t
   assert.ok(resolved.validation.errors.some((error) => error.code === 'binding.command_ref'))
   assert.throws(() => resolveUxTree(invalid, { strict: true }), /Invalid UX tree/)
 })
+
+test('resolveUxTree rejects non-string command handler refs before normalization', () => {
+  const invalid = baseTree()
+  invalid.commands[0] = {
+    ...invalid.commands[0],
+    handler_ref: { javascript: 'alert(1)' },
+  }
+
+  const resolved = resolveUxTree(invalid)
+  assert.equal(resolved.validation.ok, false)
+  assert.ok(resolved.validation.errors.some((error) => error.code === 'command.handler_ref.type'))
+  assert.throws(() => resolveUxTree(invalid, { strict: true }), /handler_ref must be a string/)
+})
+
+test('resolveUxTree rejects unsafe command handler and execution values', () => {
+  const invalid = baseTree()
+  invalid.commands[0] = {
+    ...invalid.commands[0],
+    handler_ref: 'menu.open()',
+    safety: { execution: 'inline' },
+  }
+
+  const resolved = resolveUxTree(invalid)
+  assert.equal(resolved.validation.ok, false)
+  assert.ok(resolved.validation.errors.some((error) => error.code === 'command.handler_ref.pattern'))
+  assert.ok(resolved.validation.errors.some((error) => error.code === 'command.safety.execution'))
+  assert.throws(() => resolveUxTree(invalid, { strict: true }), /allowlisted reference/)
+})
+
+test('resolveUxTree rejects embedded source and node resource refs', () => {
+  const invalid = baseTree()
+  invalid.source_refs = [{ id: 'embedded', kind: 'asset', ref: 'data:text/plain;base64,SGk=' }]
+  invalid.nodes[0] = {
+    ...invalid.nodes[0],
+    resource_refs: [{ id: 'blob', kind: 'asset', ref: 'blob:https://example.test/resource' }],
+  }
+
+  const resolved = resolveUxTree(invalid)
+  assert.equal(resolved.validation.ok, false)
+  assert.ok(resolved.validation.errors.some((error) => error.code === 'source.binary'))
+  assert.ok(resolved.validation.errors.some((error) => error.code === 'resource.binary'))
+  assert.throws(() => resolveUxTree(invalid, { strict: true }), /data\/blob payloads/)
+})
