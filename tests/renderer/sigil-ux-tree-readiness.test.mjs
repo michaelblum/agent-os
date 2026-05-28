@@ -4,6 +4,10 @@ import { createSigilUxTree } from '../../apps/sigil/renderer/live-modules/ux-tre
 import { createSigilUxTreeCommandRegistry } from '../../apps/sigil/renderer/live-modules/ux-tree-command-registry.js'
 import { createSigilUxTreeReadinessAudit } from '../../apps/sigil/renderer/live-modules/ux-tree-readiness.js'
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
 function completeRegistry() {
   return createSigilUxTreeCommandRegistry({
     avatarPressBegin() {},
@@ -53,6 +57,66 @@ test('Sigil UX tree readiness audit proves command handlers, routed bindings, me
   assert.ok(relationIds.has('sigil.avatar.body.triggers_radial_menu'))
   assert.ok(relationIds.has('sigil.avatar.anchors_radial_menu'))
   assert.ok(relationIds.has('sigil.avatar.radial_menu.targets_items'))
+})
+
+test('Sigil UX tree readiness audit fails closed for invalid tree validation', () => {
+  const tree = cloneJson(createSigilUxTree())
+  tree.validation = {
+    ok: false,
+    errors: [{ code: 'tree.invalid', message: 'test invalid tree', path: '/test' }],
+  }
+
+  const audit = createSigilUxTreeReadinessAudit(tree, {
+    registry: completeRegistry(),
+  })
+
+  assert.equal(audit.ok, false)
+  assert.equal(audit.summary.validation_errors, 1)
+  assert.ok(audit.failures.some((failure) => (
+    failure.kind === 'validation'
+      && failure.code === 'tree.invalid'
+      && failure.path === '/test'
+  )))
+})
+
+test('Sigil UX tree readiness audit fails closed for routed bindings with missing commands', () => {
+  const tree = cloneJson(createSigilUxTree())
+  tree.validation = { ok: true, errors: [] }
+  tree.commands = tree.commands.filter((command) => command.id !== 'sigil.context_menu.open')
+
+  const audit = createSigilUxTreeReadinessAudit(tree, {
+    registry: completeRegistry(),
+  })
+
+  assert.equal(audit.ok, false)
+  assert.ok(audit.summary.validation_errors > 0)
+  assert.ok(audit.summary.bindings_routed_missing_command > 0)
+  assert.ok(audit.failures.some((failure) => (
+    failure.kind === 'binding'
+      && failure.id === 'sigil.avatar.context_menu.right_click'
+      && failure.command_id === 'sigil.context_menu.open'
+  )))
+})
+
+test('Sigil UX tree readiness audit fails closed for invalid relation topology', () => {
+  const tree = cloneJson(createSigilUxTree())
+  tree.validation = { ok: true, errors: [] }
+  tree.relations = tree.relations.map((relation) => relation.id === 'sigil.avatar.anchors_radial_menu'
+    ? {
+        ...relation,
+        to_node_id: 'sigil.missing.radial_menu',
+      }
+    : relation)
+
+  const audit = createSigilUxTreeReadinessAudit(tree, {
+    registry: completeRegistry(),
+  })
+
+  assert.equal(audit.ok, false)
+  assert.ok(audit.failures.some((failure) => (
+    failure.kind === 'validation'
+      && failure.code === 'relation.to_node_ref'
+  )))
 })
 
 test('Sigil UX tree readiness audit fails closed for unregistered commands and unclassified bindings', () => {

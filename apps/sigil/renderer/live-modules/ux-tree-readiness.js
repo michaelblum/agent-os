@@ -1,3 +1,12 @@
+import { toolkitSpecifier } from './content-roots.js';
+
+const {
+    resolveUxTree,
+    uxTreeCommandById,
+} = await import(toolkitSpecifier('runtime/ux-tree.js', {
+    local: '../../../../packages/toolkit/runtime/ux-tree.js',
+}));
+
 const HAS_OWN = Object.prototype.hasOwnProperty;
 
 const DEFAULT_ROUTED_BINDING_IDS = Object.freeze(new Set([
@@ -88,8 +97,11 @@ function registryHandler(registry = {}, command = {}) {
         text(command.id),
     ].filter(Boolean);
     for (const key of keys) {
-        if (registry instanceof Map && typeof registry.get(key) === 'function') {
-            return { key, registered: true };
+        if (registry instanceof Map) {
+            if (typeof registry.get(key) === 'function') {
+                return { key, registered: true };
+            }
+            continue;
         }
         if (ownFunction(registry, key)) {
             return { key, registered: true };
@@ -141,8 +153,33 @@ function classifyBinding(binding = {}, {
     routedBindingIds = DEFAULT_ROUTED_BINDING_IDS,
     deferredBindings = {},
     runtimeMechanicBindings = {},
+    tree = {},
+    registry = {},
 } = {}) {
     if (routedBindingIds.has(binding.id) || radialItemReleaseBinding(binding)) {
+        const command = uxTreeCommandById(tree, binding.command_id);
+        if (!command) {
+            return {
+                id: binding.id,
+                command_id: binding.command_id,
+                node_id: binding.node_id,
+                gesture: binding.gesture,
+                status: 'routed_missing_command',
+                reason: `Routed binding references missing command ${binding.command_id || '(empty)'}.`,
+            };
+        }
+        const handler = registryHandler(registry, command);
+        if (!handler.registered) {
+            return {
+                id: binding.id,
+                command_id: binding.command_id,
+                node_id: binding.node_id,
+                gesture: binding.gesture,
+                status: 'routed_missing_handler',
+                handler_ref: command.handler_ref || command.id,
+                reason: `Routed binding command ${command.id} has no registered handler.`,
+            };
+        }
         return {
             id: binding.id,
             command_id: binding.command_id,
@@ -197,11 +234,56 @@ function relationTopology(tree = {}) {
         }));
 }
 
+function validationFailures(tree = {}, resolvedTree = tree) {
+    const failures = [];
+    const seen = new Set();
+    function push(error = {}, source = 'tree.validation') {
+        const code = error.code || source;
+        const path = error.path || '';
+        const message = error.message || `${source} is not ok`;
+        const key = `${source}\0${code}\0${path}\0${message}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        failures.push({
+            kind: 'validation',
+            id: source,
+            code,
+            path,
+            reason: message,
+        });
+    }
+
+    if (tree?.validation?.ok !== true) {
+        const errors = list(tree?.validation?.errors);
+        if (errors.length > 0) {
+            for (const error of errors) push(error, 'tree.validation');
+        } else {
+            push({ code: 'tree.validation', message: 'Resolved UX tree validation must be ok.' }, 'tree.validation');
+        }
+    }
+    if (resolvedTree?.validation?.ok !== true) {
+        const errors = list(resolvedTree?.validation?.errors);
+        if (errors.length > 0) {
+            for (const error of errors) push(error, 'canonical.validation');
+        } else {
+            push({ code: 'canonical.validation', message: 'Canonical UX tree validation must be ok.' }, 'canonical.validation');
+        }
+    }
+    return failures;
+}
+
 export function createSigilUxTreeReadinessAudit(tree = {}, options = {}) {
-    const commandCoverage = list(tree.commands).map((command) => classifyCommand(command, options));
-    const bindingCoverage = list(tree.bindings).map((binding) => classifyBinding(binding, options));
+    const resolvedTree = resolveUxTree(tree, { strict: false });
+    const validationFailureList = validationFailures(tree, resolvedTree);
+    const commandCoverage = list(resolvedTree.commands).map((command) => classifyCommand(command, options));
+    const bindingOptions = {
+        ...options,
+        tree: resolvedTree,
+    };
+    const bindingCoverage = list(resolvedTree.bindings).map((binding) => classifyBinding(binding, bindingOptions));
     const unclassifiedCommands = commandCoverage.filter((entry) => entry.status === 'unclassified_missing_handler');
     const unclassifiedBindings = bindingCoverage.filter((entry) => entry.status === 'unclassified');
+    const routedBindingFailures = bindingCoverage.filter((entry) => entry.status === 'routed_missing_command' || entry.status === 'routed_missing_handler');
     const routedBindings = bindingCoverage.filter((entry) => entry.status === 'routed_through_ux_command_adapter');
     const deferredBindings = bindingCoverage.filter((entry) => entry.status === 'deferred');
     const runtimeMechanicBindings = bindingCoverage.filter((entry) => entry.status === 'runtime_mechanic');
@@ -209,27 +291,40 @@ export function createSigilUxTreeReadinessAudit(tree = {}, options = {}) {
     return {
         schema: 'sigil_ux_tree_readiness_audit',
         version: 1,
-        ok: unclassifiedCommands.length === 0 && unclassifiedBindings.length === 0,
+        ok: validationFailureList.length === 0
+            && unclassifiedCommands.length === 0
+            && unclassifiedBindings.length === 0
+            && routedBindingFailures.length === 0,
         summary: {
             commands_total: commandCoverage.length,
             commands_registered: commandCoverage.filter((entry) => entry.status === 'registered_runtime_handler').length,
             commands_unclassified: unclassifiedCommands.length,
             bindings_total: bindingCoverage.length,
             bindings_routed: routedBindings.length,
+            bindings_routed_missing_command: bindingCoverage.filter((entry) => entry.status === 'routed_missing_command').length,
+            bindings_routed_missing_handler: bindingCoverage.filter((entry) => entry.status === 'routed_missing_handler').length,
             bindings_deferred: deferredBindings.length,
             bindings_runtime_mechanic: runtimeMechanicBindings.length,
             bindings_unclassified: unclassifiedBindings.length,
-            relations_topology: relationTopology(tree).length,
+            validation_errors: validationFailureList.length,
+            relations_topology: relationTopology(resolvedTree).length,
             direct_runtime_mechanics: DEFAULT_RUNTIME_MECHANICS.length,
         },
         commandCoverage,
         bindingCoverage,
         directRuntimeMechanics: cloneJson(DEFAULT_RUNTIME_MECHANICS),
-        relationTopology: relationTopology(tree),
+        relationTopology: relationTopology(resolvedTree),
         failures: [
+            ...validationFailureList,
             ...unclassifiedCommands.map((entry) => ({
                 kind: 'command',
                 id: entry.id,
+                reason: entry.reason,
+            })),
+            ...routedBindingFailures.map((entry) => ({
+                kind: 'binding',
+                id: entry.id,
+                command_id: entry.command_id,
                 reason: entry.reason,
             })),
             ...unclassifiedBindings.map((entry) => ({

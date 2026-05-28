@@ -38,10 +38,10 @@ import {
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
-import { createSigilRadialActivationRequest } from './radial-menu-activation.js';
 import { createRadialActivationTransitionController } from './radial-activation-transition.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
+import { createSigilRadialItemActionDispatcher } from './radial-item-action-dispatch.js';
 import {
     annotationReticleReleaseDisposition,
     buildAnnotationReticleOverlayModel,
@@ -1518,84 +1518,29 @@ function sigilUxTreeReadiness() {
     });
 }
 
-function radialActivationInputFromContext(context = {}) {
-    return context.input && typeof context.input === 'object'
-        ? {
-            ...context.input,
-            pointer: context.input.pointer || context.pointer || null,
-        }
-        : context.input || {
-            kind: 'gesture',
-            source: 'sigil.avatar',
-            pointer: context.pointer || null,
-        };
-}
-
-function createRadialActivationForCommand(item, snapshot, context = {}) {
-    const input = radialActivationInputFromContext(context);
-    return createSigilRadialActivationRequest({
-        item,
-        snapshot,
-        input,
-        source: context.source || 'sigil.avatar',
-        agentTerminalCanvasId: AGENT_TERMINAL_CANVAS_ID,
-        wikiWorkbenchCanvasId: WIKI_WORKBENCH_CANVAS_ID,
-        wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
-    });
-}
-
-function performRadialItemAction(item, snapshot, context = {}) {
-    if (item?.action === 'annotationMode' || item?.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID) {
-        enterAnnotationReticle(context.pointer || snapshot?.pointer || liveJs.pointerPos, 'radial-item');
-        host.post('sigil.annotation_reticle.enter', {
-            item_id: item?.id,
-            entry_source: liveJs.annotationReticle?.entry_source,
-            input: context.input || null,
-            snapshot: liveJs.annotationReticle,
-        });
-        return { action: 'annotation_reticle_entered', item_id: item?.id || null };
-    }
-    if (item?.action === 'annotationSnapshot' || item?.id === SIGIL_ANNOTATION_CAMERA_ITEM_ID) {
-        const requested = context.reason === 'radial-camera-target-surface-recovery'
-            ? requestAnnotationSnapshot('radial-camera-target-surface-recovery')
-            : requestAnnotationSnapshot(context.reason || 'radial-camera');
-        return { action: 'annotation_snapshot_requested', requested };
-    }
-
-    let activation = context.activation || createRadialActivationForCommand(item, snapshot, context);
-    liveJs.lastRadialActivation = activation;
-    host.post('sigil.radial_menu.activation', activation);
-    if (radialActivationTransition.start(activation, snapshot, { startedAt: state.globalTime })) {
-        activation = sendActivationUpdate(activation, 'item_transition', {
-            transition: activation.transition,
-        });
-    }
-    if (item?.action === 'contextMenu') {
-        const opened = openContextMenuAt(liveJs.avatarPos.x, liveJs.avatarPos.y, { force: true });
-        sendActivationUpdate(activation, 'completed', { result: { opened: 'context-menu' } });
-        return { action: 'context_menu_opened', opened };
-    }
-    if (item?.action === 'agentTerminal' || item?.action === 'codexTerminal') {
-        const result = toggleUtilityCanvas('agent-terminal');
-        sendActivationUpdate(activation, 'completed', { result: { canvas_id: AGENT_TERMINAL_CANVAS_ID } });
-        return { action: 'agent_terminal_opened', canvas_id: AGENT_TERMINAL_CANVAS_ID, result };
-    }
-    if (item?.action === 'wikiGraph') {
-        const result = openWikiWorkbench(WIKI_WORKBENCH_DEFAULT_PATH, activation).catch((error) => {
-            console.warn('[sigil] wiki workbench activation failed:', error);
-            sendActivationUpdate(activation, 'failed', {
-                error: String(error?.message || error),
-            });
-            return { error: String(error?.message || error) };
-        });
-        return { action: 'wiki_graph_opened', canvas_id: WIKI_WORKBENCH_CANVAS_ID, result };
-    }
-    host.post('sigil.radial_menu.action', {
-        action: item?.action || item?.id || 'unknown',
-    });
-    sendActivationUpdate(activation, 'completed', { result: { action: item?.action || item?.id || 'unknown' } });
-    return { action: item?.action || item?.id || 'unknown' };
-}
+const radialItemActionDispatcher = createSigilRadialItemActionDispatcher({
+    agentTerminalCanvasId: AGENT_TERMINAL_CANVAS_ID,
+    wikiWorkbenchCanvasId: WIKI_WORKBENCH_CANVAS_ID,
+    wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
+    annotationReticleItemId: SIGIL_ANNOTATION_RETICLE_ITEM_ID,
+    annotationCameraItemId: SIGIL_ANNOTATION_CAMERA_ITEM_ID,
+    getPointer: () => liveJs.pointerPos,
+    getAvatarPos: () => liveJs.avatarPos,
+    setLastRadialActivation: (activation) => {
+        liveJs.lastRadialActivation = activation;
+    },
+    post: (type, payload) => host.post(type, payload),
+    warn: (...args) => console.warn(...args),
+    startActivationTransition: (activation, snapshot) => (
+        radialActivationTransition.start(activation, snapshot, { startedAt: state.globalTime })
+    ),
+    sendActivationUpdate,
+    enterAnnotationReticle,
+    requestAnnotationSnapshot,
+    openContextMenuAt,
+    toggleUtilityCanvas,
+    openWikiWorkbench,
+});
 
 function executeRadialItemCommand(item, snapshot, context = {}) {
     const result = executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
@@ -1606,14 +1551,14 @@ function executeRadialItemCommand(item, snapshot, context = {}) {
             item,
             snapshot,
             pointer: context.pointer || snapshot?.pointer || liveJs.pointerPos,
-            input: radialActivationInputFromContext(context),
+            input: radialItemActionDispatcher.inputFromContext(context),
             reason: context.reason || 'radial-camera',
             path: WIKI_WORKBENCH_DEFAULT_PATH,
         },
     });
     recordUxCommandRuntime(result, { fallback: result.executed !== true });
     if (result.executed !== true) {
-        performRadialItemAction(item, snapshot, context);
+        radialItemActionDispatcher.dispatch(item, snapshot, context);
     }
     return result;
 }
@@ -2864,9 +2809,7 @@ const sigilUxCommandRegistry = createSigilUxTreeCommandRegistry({
         setInteractionState('RADIAL', 'press-threshold-radial');
         return { state: liveJs.currentState, snapshot: liveJs.radialGestureMenu };
     },
-    radialReleaseItem: (item, payload = {}) => (
-        performRadialItemAction(item, payload.context?.snapshot || null, payload.context || {})
-    ),
+    radialReleaseItem: radialItemActionDispatcher.commandHandlers.radialReleaseItem,
     selectionModeEnter: (pointer) => {
         enterSelectionMode(pointer, 'avatar-double-click');
         resetAvatarDoubleClick();
@@ -2878,34 +2821,16 @@ const sigilUxCommandRegistry = createSigilUxTreeCommandRegistry({
     selectionModeCommit: (reason) => commitSelectionMode(reason),
     selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
     selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
-    contextMenuOpen: (pointer, payload = {}) => {
-        if (payload.context?.item) {
-            return performRadialItemAction(payload.context.item, payload.context.snapshot, payload.context);
-        }
-        return pointer && typeof pointer.x === 'number' && typeof pointer.y === 'number'
-            ? openContextMenuAt(pointer.x, pointer.y)
-            : false;
-    },
+    contextMenuOpen: radialItemActionDispatcher.commandHandlers.contextMenuOpen,
     contextMenuToggle: () => {
         contextMenu.close('right-click-toggle');
         cancelInteraction('right-click-toggle');
         return true;
     },
-    annotationReticleEnter: (pointer, payload = {}) => (
-        performRadialItemAction(payload.context?.item || { id: SIGIL_ANNOTATION_RETICLE_ITEM_ID, action: 'annotationMode' }, payload.context?.snapshot || null, {
-            ...(payload.context || {}),
-            pointer,
-        })
-    ),
-    annotationCameraCaptureBundle: (_reason, payload = {}) => (
-        performRadialItemAction(payload.context?.item || { id: SIGIL_ANNOTATION_CAMERA_ITEM_ID, action: 'annotationSnapshot' }, payload.context?.snapshot || null, payload.context || {})
-    ),
-    wikiGraphOpen: (_path, payload = {}) => (
-        performRadialItemAction(payload.context?.item || { id: 'wiki-graph', action: 'wikiGraph' }, payload.context?.snapshot || null, payload.context || {})
-    ),
-    agentTerminalOpen: (_kind, payload = {}) => (
-        performRadialItemAction(payload.context?.item || { id: 'agent-terminal', action: 'agentTerminal' }, payload.context?.snapshot || null, payload.context || {})
-    ),
+    annotationReticleEnter: radialItemActionDispatcher.commandHandlers.annotationReticleEnter,
+    annotationCameraCaptureBundle: radialItemActionDispatcher.commandHandlers.annotationCameraCaptureBundle,
+    wikiGraphOpen: radialItemActionDispatcher.commandHandlers.wikiGraphOpen,
+    agentTerminalOpen: radialItemActionDispatcher.commandHandlers.agentTerminalOpen,
 });
 
 function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
