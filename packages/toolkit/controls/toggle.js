@@ -1,5 +1,6 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
 import { attributeParts, escapeHtml } from './_html.js';
+import { createToggleUxTreeFragment } from './ux-tree.js';
 
 export function renderToggleHtml(config = {}) {
   const wrapperClasses = ['aos-toggle'];
@@ -34,6 +35,7 @@ export function createToggle(config = {}) {
   el.classList.add('aos-toggle');
   input.type = 'checkbox';
   input.checked = !!config.checked;
+  input.disabled = !!config.disabled;
   input.classList.add('aos-toggle-input');
   switchEl.classList.add('aos-toggle-switch');
   thumb.classList.add('aos-toggle-thumb');
@@ -65,6 +67,13 @@ export function createToggle(config = {}) {
       if (input.checked === next) return;
       input.checked = next;
       if (options.emit) emitChange();
+    },
+    getUxTreeFragment(options = {}) {
+      return createToggleUxTreeFragment({
+        ...config,
+        checked: !!input.checked,
+        disabled: !!input.disabled,
+      }, options);
     },
     on(type, callback) {
       return type === 'change' ? hub.on(type, callback) : () => {};

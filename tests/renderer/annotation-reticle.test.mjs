@@ -829,6 +829,7 @@ test('Sigil defers Surface Inspector opening out of the radial drag reticle entr
 
 test('Sigil records and recovers delayed radial camera target-surface clicks', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const dispatchSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/radial-item-action-dispatch.js'), 'utf8')
 
   assert.match(source, /type: event\.type/)
   assert.match(source, /radialTargetSurfaceReceiptEvidence/)
@@ -836,7 +837,9 @@ test('Sigil records and recovers delayed radial camera target-surface clicks', (
   assert.match(source, /payload\.kind === 'radial_item_pointer_move' \|\| payload\.kind === 'radial_surface_pointer_move'/)
   assert.match(source, /handleLeftMouseUp\(receipt\.worldPoint\.x, receipt\.worldPoint\.y\)/)
   assert.match(source, /payload\.itemId === SIGIL_ANNOTATION_CAMERA_ITEM_ID \|\| payload\.itemAction === 'annotationSnapshot'/)
-  assert.match(source, /requestAnnotationSnapshot\('radial-camera-target-surface-recovery'\)/)
+  assert.match(source, /reason: 'radial-camera-target-surface-recovery'/)
+  assert.match(dispatchSource, /requestAnnotationSnapshot\(reason\)/)
+  assert.match(dispatchSource, /context\.reason === 'radial-camera-target-surface-recovery'/)
   assert.match(source, /host\.post\('canvas_inspector\.capture_bundle', \{[\s\S]*trigger: 'sigil_radial_camera'/)
   assert.match(source, /reason: 'camera-click-after-radial-cleanup'/)
   assert.match(source, /radialTargetSurfaceActive: radialTargetSurface\.snapshot\(\)\.interactive/)

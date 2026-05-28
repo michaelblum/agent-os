@@ -35,6 +35,53 @@ export const SIGIL_SELECTION_MODE_COMMAND_INPUTS = Object.freeze({
     }),
 });
 
+export const SIGIL_CONTEXT_MENU_COMMAND_INPUTS = Object.freeze({
+    open: Object.freeze({
+        nodeId: 'sigil.avatar.body',
+        mode: 'idle',
+        gesture: 'pointer.right.click',
+    }),
+    toggle: Object.freeze({
+        nodeId: 'sigil.avatar.context_menu',
+        mode: 'global',
+        gesture: 'pointer.right.click',
+    }),
+});
+
+export const SIGIL_AVATAR_COMMAND_INPUTS = Object.freeze({
+    pressBegin: Object.freeze({
+        nodeId: 'sigil.avatar.body',
+        mode: 'idle',
+        gesture: 'pointer.left.press',
+    }),
+    gotoBegin: Object.freeze({
+        nodeId: 'sigil.avatar.body',
+        mode: 'press',
+        gesture: 'pointer.left.release',
+    }),
+    radialBegin: Object.freeze({
+        nodeId: 'sigil.avatar.body',
+        mode: 'press',
+        gesture: 'pointer.left.drag_threshold',
+    }),
+    selectionModeEnter: Object.freeze({
+        nodeId: 'sigil.avatar.body',
+        mode: 'goto',
+        gesture: 'pointer.left.double_click',
+    }),
+});
+
+export const SIGIL_RADIAL_COMMAND_INPUTS = Object.freeze({
+    itemRelease(itemId) {
+        return {
+            nodeId: `sigil.avatar.radial_menu.item.${text(itemId, 'unknown')}`,
+            mode: 'radial',
+            gesture: 'pointer.left.release',
+            itemId: text(itemId, 'unknown'),
+        };
+    },
+});
+
 const ALLOWLISTED_EXECUTION = 'allowlisted';
 const HAS_OWN = Object.prototype.hasOwnProperty;
 
@@ -113,12 +160,48 @@ function registryHandler(registry = {}, command = {}) {
 }
 
 export function createSigilUxTreeCommandRegistry({
+    avatarPressBegin,
+    avatarGotoBegin,
+    radialBegin,
+    radialReleaseItem,
+    selectionModeEnter,
     selectionModeCancel,
     selectionModeCommit,
     selectionModeCycleTarget,
     selectionModeAcquire,
+    contextMenuOpen,
+    contextMenuToggle,
+    annotationReticleEnter,
+    annotationCameraCaptureBundle,
+    wikiGraphOpen,
+    agentTerminalOpen,
 } = {}) {
     const registry = {};
+    if (typeof contextMenuOpen === 'function') {
+        registry['sigil.context_menu.open'] = (payload = {}) => (
+            contextMenuOpen(payload.context?.pointer || null, payload)
+        );
+    }
+    if (typeof contextMenuToggle === 'function') {
+        registry['sigil.context_menu.toggle'] = (payload = {}) => (
+            contextMenuToggle(payload.context?.pointer || null, payload)
+        );
+    }
+    if (typeof avatarPressBegin === 'function') {
+        registry['sigil.avatar.press.begin'] = (payload = {}) => avatarPressBegin(payload.context?.pointer || null, payload);
+    }
+    if (typeof avatarGotoBegin === 'function') {
+        registry['sigil.avatar.goto.begin'] = (payload = {}) => avatarGotoBegin(payload.context?.pointer || null, payload);
+    }
+    if (typeof radialBegin === 'function') {
+        registry['sigil.radial.begin'] = (payload = {}) => radialBegin(payload.context?.pointer || null, payload);
+    }
+    if (typeof radialReleaseItem === 'function') {
+        registry['sigil.radial.release_item'] = (payload = {}) => radialReleaseItem(payload.context?.item || null, payload);
+    }
+    if (typeof selectionModeEnter === 'function') {
+        registry['sigil.selection_mode.enter'] = (payload = {}) => selectionModeEnter(payload.context?.pointer || null, payload);
+    }
     if (typeof selectionModeCancel === 'function') {
         registry['sigil.selection_mode.cancel'] = selectionModeCancel;
     }
@@ -135,6 +218,18 @@ export function createSigilUxTreeCommandRegistry({
         registry['sigil.selection_mode.acquire'] = ({ context } = {}) => (
             selectionModeAcquire(context?.pointer || null)
         );
+    }
+    if (typeof annotationReticleEnter === 'function') {
+        registry['sigil.annotation_reticle.enter'] = (payload = {}) => annotationReticleEnter(payload.context?.pointer || null, payload);
+    }
+    if (typeof annotationCameraCaptureBundle === 'function') {
+        registry['sigil.annotation_camera.capture_bundle'] = (payload = {}) => annotationCameraCaptureBundle(payload.context?.reason || 'radial-camera', payload);
+    }
+    if (typeof wikiGraphOpen === 'function') {
+        registry['sigil.wiki_graph.open'] = (payload = {}) => wikiGraphOpen(payload.context?.path || null, payload);
+    }
+    if (typeof agentTerminalOpen === 'function') {
+        registry['sigil.agent_terminal.open'] = (payload = {}) => agentTerminalOpen(payload.context?.kind || 'agent-terminal', payload);
     }
     return Object.freeze(registry);
 }

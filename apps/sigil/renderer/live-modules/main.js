@@ -38,10 +38,10 @@ import {
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
-import { createSigilRadialActivationRequest } from './radial-menu-activation.js';
 import { createRadialActivationTransitionController } from './radial-activation-transition.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
+import { createSigilRadialItemActionDispatcher } from './radial-item-action-dispatch.js';
 import {
     annotationReticleReleaseDisposition,
     buildAnnotationReticleOverlayModel,
@@ -63,6 +63,10 @@ import {
     resolveSelectionModeInputRoute,
 } from './selection-mode-input.js';
 import {
+    contextMenuOpenCommandOpened,
+    resolveContextMenuRightClickRoute,
+} from './context-menu-input.js';
+import {
     currentSigilRoot,
     currentToolkitRoot,
     sigilUrl,
@@ -77,11 +81,14 @@ import {
 import { buildAvatarObjectRegistry } from './avatar-object-control.js';
 import { createSigilUxTree, createSigilUxTreeShadowResolver } from './ux-tree.js';
 import {
+    SIGIL_AVATAR_COMMAND_INPUTS,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS,
     SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+    SIGIL_RADIAL_COMMAND_INPUTS,
     createSigilUxTreeCommandRegistry,
     executeSigilUxTreeCommand,
 } from './ux-tree-command-registry.js';
+import { createSigilUxTreeReadinessAudit } from './ux-tree-readiness.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
@@ -1505,72 +1512,61 @@ function sigilUxTreeShadowResolver() {
     return createSigilUxTreeShadowResolver(sigilUxTreeSnapshot());
 }
 
+function sigilUxTreeReadiness() {
+    return createSigilUxTreeReadinessAudit(sigilUxTreeSnapshot(), {
+        registry: sigilUxCommandRegistry,
+    });
+}
+
+const radialItemActionDispatcher = createSigilRadialItemActionDispatcher({
+    agentTerminalCanvasId: AGENT_TERMINAL_CANVAS_ID,
+    wikiWorkbenchCanvasId: WIKI_WORKBENCH_CANVAS_ID,
+    wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
+    annotationReticleItemId: SIGIL_ANNOTATION_RETICLE_ITEM_ID,
+    annotationCameraItemId: SIGIL_ANNOTATION_CAMERA_ITEM_ID,
+    getPointer: () => liveJs.pointerPos,
+    getAvatarPos: () => liveJs.avatarPos,
+    setLastRadialActivation: (activation) => {
+        liveJs.lastRadialActivation = activation;
+    },
+    post: (type, payload) => host.post(type, payload),
+    warn: (...args) => console.warn(...args),
+    startActivationTransition: (activation, snapshot) => (
+        radialActivationTransition.start(activation, snapshot, { startedAt: state.globalTime })
+    ),
+    sendActivationUpdate,
+    enterAnnotationReticle,
+    requestAnnotationSnapshot,
+    openContextMenuAt,
+    toggleUtilityCanvas,
+    openWikiWorkbench,
+});
+
+function executeRadialItemCommand(item, snapshot, context = {}) {
+    const result = executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
+        input: SIGIL_RADIAL_COMMAND_INPUTS.itemRelease(item?.id),
+        registry: sigilUxCommandRegistry,
+        context: {
+            source: context.source || 'sigil.radial_menu',
+            item,
+            snapshot,
+            pointer: context.pointer || snapshot?.pointer || liveJs.pointerPos,
+            input: radialItemActionDispatcher.inputFromContext(context),
+            reason: context.reason || 'radial-camera',
+            path: WIKI_WORKBENCH_DEFAULT_PATH,
+        },
+    });
+    recordUxCommandRuntime(result, { fallback: result.executed !== true });
+    if (result.executed !== true) {
+        radialItemActionDispatcher.dispatch(item, snapshot, context);
+    }
+    return result;
+}
+
 const radialGestureMenu = createSigilRadialGestureMenu({
     state,
     onCommitItem(item, snapshot, context = {}) {
-        if (item?.action === 'annotationMode' || item?.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID) {
-            enterAnnotationReticle(context.pointer || snapshot?.pointer || liveJs.pointerPos, 'radial-item');
-            host.post('sigil.annotation_reticle.enter', {
-                item_id: item?.id,
-                entry_source: liveJs.annotationReticle?.entry_source,
-                input: context.input || null,
-                snapshot: liveJs.annotationReticle,
-            });
-            return;
-        }
-        if (item?.action === 'annotationSnapshot' || item?.id === SIGIL_ANNOTATION_CAMERA_ITEM_ID) {
-            requestAnnotationSnapshot('radial-camera');
-            return;
-        }
-        const input = context.input && typeof context.input === 'object'
-            ? {
-                ...context.input,
-                pointer: context.input.pointer || context.pointer || null,
-            }
-            : context.input || {
-                kind: 'gesture',
-                source: 'sigil.avatar',
-                pointer: context.pointer || null,
-            };
-        let activation = createSigilRadialActivationRequest({
-            item,
-            snapshot,
-            input,
-            source: context.source || 'sigil.avatar',
-            agentTerminalCanvasId: AGENT_TERMINAL_CANVAS_ID,
-            wikiWorkbenchCanvasId: WIKI_WORKBENCH_CANVAS_ID,
-            wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
-        });
-        liveJs.lastRadialActivation = activation;
-        host.post('sigil.radial_menu.activation', activation);
-        if (radialActivationTransition.start(activation, snapshot, { startedAt: state.globalTime })) {
-            activation = sendActivationUpdate(activation, 'item_transition', {
-                transition: activation.transition,
-            });
-        }
-        if (item?.action === 'contextMenu') {
-            openContextMenuAt(liveJs.avatarPos.x, liveJs.avatarPos.y, { force: true });
-            sendActivationUpdate(activation, 'completed', { result: { opened: 'context-menu' } });
-            return;
-        }
-        if (item?.action === 'agentTerminal' || item?.action === 'codexTerminal') {
-            toggleUtilityCanvas('agent-terminal');
-            sendActivationUpdate(activation, 'completed', { result: { canvas_id: AGENT_TERMINAL_CANVAS_ID } });
-            return;
-        }
-        if (item?.action === 'wikiGraph') {
-            void openWikiWorkbench(WIKI_WORKBENCH_DEFAULT_PATH, activation).catch((error) => {
-                console.warn('[sigil] wiki workbench activation failed:', error);
-                sendActivationUpdate(activation, 'failed', {
-                    error: String(error?.message || error),
-                });
-            });
-            return;
-        }
-        host.post('sigil.radial_menu.action', {
-            action: item?.action || item?.id || 'unknown',
-        });
-        sendActivationUpdate(activation, 'completed', { result: { action: item?.action || item?.id || 'unknown' } });
+        executeRadialItemCommand(item, snapshot, context);
     },
 });
 let omegaTrailTravelKey = null;
@@ -2786,10 +2782,55 @@ function exitSelectionMode(reason = 'cancel') {
 }
 
 const sigilUxCommandRegistry = createSigilUxTreeCommandRegistry({
+    avatarPressBegin: (pointer) => {
+        if (!pointer) return false;
+        liveJs.mousedownPos = { x: pointer.x, y: pointer.y };
+        liveJs.mousedownAvatarPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
+        setInteractionState('PRESS', 'mousedown-on-avatar');
+        return { state: liveJs.currentState, pointer };
+    },
+    avatarGotoBegin: (pointer) => {
+        if (!pointer) return false;
+        clearGestureState();
+        fastTravel.clearGesture('press-click');
+        consumeAvatarDoubleClick(pointer.x, pointer.y);
+        setInteractionState('GOTO', 'press-click');
+        return { state: liveJs.currentState, pointer };
+    },
+    radialBegin: (pointer) => {
+        if (!pointer) return false;
+        liveJs.radialGestureMenu = radialGestureMenu.start(
+            { ...liveJs.avatarPos, valid: true },
+            { x: pointer.x, y: pointer.y, valid: true }
+        );
+        if (applyRadialGestureMove(radialGestureMenu.move({ x: pointer.x, y: pointer.y, valid: true }), pointer.x, pointer.y)) {
+            return { state: liveJs.currentState, snapshot: liveJs.radialGestureMenu };
+        }
+        setInteractionState('RADIAL', 'press-threshold-radial');
+        return { state: liveJs.currentState, snapshot: liveJs.radialGestureMenu };
+    },
+    radialReleaseItem: radialItemActionDispatcher.commandHandlers.radialReleaseItem,
+    selectionModeEnter: (pointer) => {
+        enterSelectionMode(pointer, 'avatar-double-click');
+        resetAvatarDoubleClick();
+        markSelectionModeEntryReleasePending();
+        setInteractionState('IDLE', 'selection-mode-enter');
+        return liveJs.selectionMode;
+    },
     selectionModeCancel: () => exitSelectionMode('escape'),
     selectionModeCommit: (reason) => commitSelectionMode(reason),
     selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
     selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
+    contextMenuOpen: radialItemActionDispatcher.commandHandlers.contextMenuOpen,
+    contextMenuToggle: () => {
+        contextMenu.close('right-click-toggle');
+        cancelInteraction('right-click-toggle');
+        return true;
+    },
+    annotationReticleEnter: radialItemActionDispatcher.commandHandlers.annotationReticleEnter,
+    annotationCameraCaptureBundle: radialItemActionDispatcher.commandHandlers.annotationCameraCaptureBundle,
+    wikiGraphOpen: radialItemActionDispatcher.commandHandlers.wikiGraphOpen,
+    agentTerminalOpen: radialItemActionDispatcher.commandHandlers.agentTerminalOpen,
 });
 
 function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
@@ -2840,6 +2881,39 @@ function executeSelectionModeEscapeCommand(msg = {}) {
     return executeSelectionModeCommand(SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT, msg, {
         fallback: () => exitSelectionMode('escape'),
     });
+}
+
+function executeContextMenuRightClickCommand(route = {}, msg = {}) {
+    const result = executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
+        input: route.input || {},
+        registry: sigilUxCommandRegistry,
+        context: {
+            source: 'handleInputEvent',
+            msg,
+            pointer: route.pointer || null,
+        },
+    });
+    recordUxCommandRuntime(result, { fallback: result.executed !== true });
+    return result;
+}
+
+function executeAvatarCommand(input, msg = {}, {
+    pointer = null,
+    fallback = null,
+    source = 'handleInputEvent',
+} = {}) {
+    const result = executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
+        input,
+        registry: sigilUxCommandRegistry,
+        context: {
+            source,
+            msg,
+            pointer,
+        },
+    });
+    recordUxCommandRuntime(result, { fallback: result.executed !== true });
+    if (result.executed !== true && typeof fallback === 'function') fallback();
+    return result;
 }
 
 function acquireSelectionModeCandidates(point = null) {
@@ -3370,17 +3444,27 @@ function handleLeftMouseDown(x, y) {
     switch (liveJs.currentState) {
         case 'IDLE':
             if (!isOnAvatar(x, y)) return;
-            liveJs.mousedownPos = { x, y };
-            liveJs.mousedownAvatarPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
-            setInteractionState('PRESS', 'mousedown-on-avatar');
+            executeAvatarCommand(SIGIL_AVATAR_COMMAND_INPUTS.pressBegin, { type: 'left_mouse_down', x, y }, {
+                pointer: { x, y, valid: true },
+                fallback: () => {
+                    liveJs.mousedownPos = { x, y };
+                    liveJs.mousedownAvatarPos = { x: liveJs.avatarPos.x, y: liveJs.avatarPos.y };
+                    setInteractionState('PRESS', 'mousedown-on-avatar');
+                },
+            });
             return;
         case 'GOTO':
             if (isOnAvatar(x, y)) {
                 if (consumeAvatarDoubleClick(x, y)) {
-                    enterSelectionMode({ x, y, valid: true }, 'avatar-double-click');
-                    resetAvatarDoubleClick();
-                    markSelectionModeEntryReleasePending();
-                    setInteractionState('IDLE', 'selection-mode-enter');
+                    executeAvatarCommand(SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter, { type: 'left_mouse_down', x, y }, {
+                        pointer: { x, y, valid: true },
+                        fallback: () => {
+                            enterSelectionMode({ x, y, valid: true }, 'avatar-double-click');
+                            resetAvatarDoubleClick();
+                            markSelectionModeEntryReleasePending();
+                            setInteractionState('IDLE', 'selection-mode-enter');
+                        },
+                    });
                     return;
                 }
                 clearGestureState();
@@ -3406,10 +3490,15 @@ function handleLeftMouseUp(x, y) {
                 setInteractionState('IDLE', 'press-release-fast-travel');
                 return;
             }
-            clearGestureState();
-            fastTravel.clearGesture('press-click');
-            consumeAvatarDoubleClick(x, y);
-            setInteractionState('GOTO', 'press-click');
+            executeAvatarCommand(SIGIL_AVATAR_COMMAND_INPUTS.gotoBegin, { type: 'left_mouse_up', x, y }, {
+                pointer: { x, y, valid: true },
+                fallback: () => {
+                    clearGestureState();
+                    fastTravel.clearGesture('press-click');
+                    consumeAvatarDoubleClick(x, y);
+                    setInteractionState('GOTO', 'press-click');
+                },
+            });
             return;
         case 'RADIAL': {
             const result = radialGestureMenu.release({ x, y, valid: true }, {
@@ -3485,12 +3574,17 @@ function handleMouseMove(x, y) {
     }
     if (liveJs.currentState !== 'PRESS' || !liveJs.mousedownPos) return;
     if (distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) < liveJs.dragThreshold) return;
-    liveJs.radialGestureMenu = radialGestureMenu.start(
-        { ...liveJs.avatarPos, valid: true },
-        { x, y, valid: true }
-    );
-    if (applyRadialGestureMove(radialGestureMenu.move({ x, y, valid: true }), x, y)) return;
-    setInteractionState('RADIAL', 'press-threshold-radial');
+    executeAvatarCommand(SIGIL_AVATAR_COMMAND_INPUTS.radialBegin, { type: 'left_mouse_dragged', x, y }, {
+        pointer: { x, y, valid: true },
+        fallback: () => {
+            liveJs.radialGestureMenu = radialGestureMenu.start(
+                { ...liveJs.avatarPos, valid: true },
+                { x, y, valid: true }
+            );
+            if (applyRadialGestureMove(radialGestureMenu.move({ x, y, valid: true }), x, y)) return;
+            setInteractionState('RADIAL', 'press-threshold-radial');
+        },
+    });
 }
 
 function handleInputEvent(msg) {
@@ -3574,24 +3668,36 @@ function handleInputEvent(msg) {
             return;
         case 'right_mouse_down':
             recordInteraction('context-menu:right-down', { x: msg.x, y: msg.y, open: contextMenu.isOpen() });
-            if (contextMenu.isOpen()) {
-                if (
-                    typeof msg.x === 'number'
-                    && typeof msg.y === 'number'
-                    && isDuplicateContextMenuOpenClick(msg.x, msg.y)
-                ) {
+            {
+                const route = resolveContextMenuRightClickRoute(msg, {
+                    isOpen: contextMenu.isOpen(),
+                    isDuplicateOpenClick: isDuplicateContextMenuOpenClick,
+                });
+                if (route.direct === 'duplicate_open_echo') {
                     recordInteraction('context-menu:right-down-duplicate-ignored', { x: msg.x, y: msg.y });
                     return;
                 }
-                recordInteraction('context-menu:right-down-close-open-menu', { x: msg.x, y: msg.y });
-                contextMenu.close('right-click-toggle');
-                cancelInteraction('right-click-toggle');
+                if (route.command === 'toggle') {
+                    recordInteraction('context-menu:right-down-close-open-menu', { x: msg.x, y: msg.y });
+                    const result = executeContextMenuRightClickCommand(route, msg);
+                    if (result.executed !== true) {
+                        contextMenu.close('right-click-toggle');
+                        cancelInteraction('right-click-toggle');
+                    }
+                    return;
+                }
+                if (route.command === 'open') {
+                    const result = executeContextMenuRightClickCommand(route, msg);
+                    if (contextMenuOpenCommandOpened(result)) return;
+                    if (result.executed !== true && openContextMenuAt(msg.x, msg.y)) return;
+                    contextMenu.close('right-click-away');
+                    cancelInteraction('right-click');
+                    return;
+                }
+                contextMenu.close('right-click-away');
+                cancelInteraction('right-click');
                 return;
             }
-            if (typeof msg.x === 'number' && typeof msg.y === 'number' && openContextMenuAt(msg.x, msg.y)) return;
-            contextMenu.close('right-click-away');
-            cancelInteraction('right-click');
-            return;
         case 'key_down':
             if (msg.key_code === 53) {
                 contextMenu.close('escape');
@@ -3738,10 +3844,26 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
     if (payload.kind !== 'radial_item_click') return;
     if (liveJs.currentState !== 'RADIAL' || !liveJs.radialGestureMenu) {
         if (payload.itemId === SIGIL_ANNOTATION_CAMERA_ITEM_ID || payload.itemAction === 'annotationSnapshot') {
-            const requested = requestAnnotationSnapshot('radial-camera-target-surface-recovery');
+            const recoveryItem = {
+                id: payload.itemId || SIGIL_ANNOTATION_CAMERA_ITEM_ID,
+                action: payload.itemAction || 'annotationSnapshot',
+            };
+            const commandResult = executeRadialItemCommand(recoveryItem, null, {
+                input: {
+                    kind: 'click',
+                    source: 'sigil.radial-target-surface',
+                    item_id: payload.itemId,
+                    canvas_id: radialTargetSurface.id,
+                },
+                source: 'sigil.radial-target-surface',
+                pointer: receipt.worldPoint || liveJs.pointerPos,
+                reason: 'radial-camera-target-surface-recovery',
+            });
             interactionTrace.record('radial-surface:recovered', {
                 reason: 'camera-click-after-radial-cleanup',
-                requested,
+                requested: commandResult.handler_result?.requested || null,
+                command_id: commandResult.command_id,
+                executed: commandResult.executed,
                 ...receipt,
             });
             clearGestureState();
@@ -4517,6 +4639,7 @@ window.__sigilDebug = {
             inputRegions: sigilInputRegions?.snapshot?.() ?? null,
             radialTargetSurface: radialTargetSurface.snapshot(),
             uxTree: sigilUxTreeSnapshot(),
+            uxTreeReadiness: sigilUxTreeReadiness(),
             transition: visibilityTransition.active?.effect ?? null,
             surface: desktopWorldSurface ? {
                 segment: desktopWorldSurface.segment,
@@ -4535,6 +4658,9 @@ window.__sigilDebug = {
     },
     uxTreeShadow(input) {
         return sigilUxTreeShadowResolver().resolve(input || {});
+    },
+    uxTreeReadiness() {
+        return sigilUxTreeReadiness();
     },
     uxTreeCommand(input, registry = {}) {
         return executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
