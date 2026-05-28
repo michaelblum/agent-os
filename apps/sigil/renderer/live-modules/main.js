@@ -88,6 +88,9 @@ const {
 const {
     writeClipboardText,
 } = await import(toolkitSpecifier('runtime/canvas.js'));
+const {
+    createContextKeyframe,
+} = await import(toolkitSpecifier('workbench/context-session.js'));
 
 const host = createHostRuntime();
 const interactionTrace = createInteractionTrace({
@@ -2346,16 +2349,52 @@ function commitAnnotationReticleRelease(x, y) {
 function requestAnnotationSnapshot(reason = 'radial-camera') {
     const event = annotationReticle.requestSnapshotEvent();
     syncAnnotationReticleSnapshot();
+    const contextSession = event.context_session || liveJs.annotationReticle?.context_session || null;
+    const capturedAt = new Date().toISOString();
+    const contextKeyframe = contextSession?.schema === 'aos_context_session'
+        ? createContextKeyframe({
+            captured_at: capturedAt,
+            trigger: 'sigil_radial_camera',
+            artifact_ids: Array.isArray(contextSession.artifacts)
+                ? contextSession.artifacts.map((artifact) => artifact.id).filter(Boolean)
+                : [],
+            session_summary: {
+                schema: contextSession.schema,
+                version: contextSession.version,
+                id: contextSession.id,
+            },
+            asset_refs: {
+                capture_image: 'capture.png',
+                capture_json: 'capture.json',
+                display_geometry_json: 'display-geometry.json',
+                canvas_list_json: 'canvas-list.json',
+                inspector_state_json: 'inspector-state.json',
+                surface_inspector_annotation_snapshot: 'annotation-snapshot.json',
+            },
+            metadata: {
+                request_reason: reason,
+                anchor_count: event.anchor_count,
+            },
+        })
+        : null;
     recordAnnotationReticleEvent('snapshot_request', {
         type: event.type,
         reason,
         request: event,
+        context_session: contextSession,
+        context_keyframe: contextKeyframe,
     });
     if (!event.available) return false;
     host.post('canvas_inspector.capture_bundle', {
         trigger: 'sigil_radial_camera',
         reason,
         anchor_count: event.anchor_count,
+        context_session: contextSession,
+        context_keyframe: contextKeyframe,
+        context_unavailable: contextSession ? null : {
+            status: 'skipped',
+            reason: 'reticle_context_session_unavailable',
+        },
     });
     return true;
 }

@@ -843,6 +843,22 @@ test('Sigil records and recovers delayed radial camera target-surface clicks', (
   assert.match(source, /pointerInsideRadialTargetSurface: pointInRadialTargetSurface/)
 })
 
+test('Sigil radial camera bundle request carries canonical context session and keyframe', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const requestStart = source.indexOf('function requestAnnotationSnapshot')
+  const requestEnd = source.indexOf('function requestCanvasInspectorAnnotationToggle', requestStart)
+  const requestBlock = source.slice(requestStart, requestEnd)
+
+  assert.match(source, /createContextKeyframe/)
+  assert.match(requestBlock, /const contextSession = event\.context_session \|\| liveJs\.annotationReticle\?\.context_session \|\| null/)
+  assert.match(requestBlock, /const contextKeyframe = contextSession\?\.schema === 'aos_context_session'/)
+  assert.match(requestBlock, /host\.post\('canvas_inspector\.capture_bundle', \{[\s\S]*trigger: 'sigil_radial_camera'/)
+  assert.match(requestBlock, /context_session: contextSession/)
+  assert.match(requestBlock, /context_keyframe: contextKeyframe/)
+  assert.match(requestBlock, /context_unavailable: contextSession \? null : \{[\s\S]*reticle_context_session_unavailable/)
+  assert.match(requestBlock, /surface_inspector_annotation_snapshot: 'annotation-snapshot\.json'/)
+})
+
 test('annotation reticle overlay model exposes current scope hover and live anchors', () => {
   const controller = createSigilAnnotationReticleController({
     getDisplays: () => [display],
