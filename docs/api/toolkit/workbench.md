@@ -134,6 +134,44 @@ import { opacityForDepth } from '../workbench/annotation-session.js'
 only frame, `0.75` for the outer/root frame when ancestry exists, and evenly
 interpolates intermediate frames between those values.
 
+### Context Session V0
+
+`packages/toolkit/workbench/context-session.js` provides the additive context
+artifact/keyframe wrapper for the V0 Annotation Mode core. It keeps
+`aos_annotation_session` as the canonical live in-memory model and projects it
+into `aos_context_session`, `aos_context_artifact`, path node, acquisition
+evidence, and `aos_context_keyframe` records when a workflow needs durable
+multi-artifact context or snapshot/keyframe references.
+
+Canonical schema:
+[`shared/schemas/aos-context-session-v0.schema.json`](../../../shared/schemas/aos-context-session-v0.schema.json)
+
+Use:
+
+```js
+import {
+  createContextArtifactFromAnnotationSession,
+  createContextKeyframe,
+  createContextSession,
+  contextSessionSnapshot,
+  normalizeContextArtifact,
+  normalizeContextPathNode,
+} from '../workbench/context-session.js'
+```
+
+A context artifact carries an ordered root-to-leaf path, an active target node,
+acquisition evidence, anchors, comments, projection evidence, and blocker state.
+The active target may be the clicked or hovered leaf, or an ancestor chosen by a
+Selection Mode-style disambiguation step. Acquisition evidence preserves both
+the leaf node and selected node so future recording and keyframe work can
+explain how the artifact was acquired.
+
+Context keyframes reference artifacts and external assets. They must not embed
+screenshots, image base64, or data URLs; capture files and compatibility
+artifacts such as `surface_inspector_annotation_snapshot` travel as asset
+references. Future recordings should order these keyframes and events rather
+than creating another annotation-session shape.
+
 ### Annotation Overlay Renderer V0
 
 `packages/toolkit/workbench/annotation-overlay-renderer.js` converts an

@@ -1,0 +1,31 @@
+{
+  "schema": "aos_context_session",
+  "version": "0.1.0",
+  "id": "context-session:missing-path",
+  "created_at": "2026-05-28T12:30:00.000Z",
+  "updated_at": "2026-05-28T12:30:00.000Z",
+  "active": true,
+  "entry_source": "selection_mode",
+  "source_annotation_session": null,
+  "artifacts": [
+    {
+      "schema": "aos_context_artifact",
+      "version": "0.1.0",
+      "id": "context-artifact:broken",
+      "kind": "selection",
+      "path": [],
+      "acquisition": {
+        "mode": "selection_mode",
+        "pointer": null,
+        "leaf_node_id": "node:missing",
+        "selected_node_id": "node:missing",
+        "candidate_report": {},
+        "source_metadata": {}
+      },
+      "anchors": []
+    }
+  ],
+  "active_artifact_id": "context-artifact:broken",
+  "keyframes": [],
+  "metadata": {}
+}

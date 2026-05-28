@@ -1,0 +1,164 @@
+{
+  "schema": "aos_context_session",
+  "version": "0.1.0",
+  "id": "context-session:multi-artifact",
+  "created_at": "2026-05-28T12:20:00.000Z",
+  "updated_at": "2026-05-28T12:20:03.000Z",
+  "active": true,
+  "entry_source": "sigil_radial",
+  "source_annotation_session": null,
+  "artifacts": [
+    {
+      "schema": "aos_context_artifact",
+      "version": "0.1.0",
+      "id": "context-artifact:canvas-target",
+      "kind": "selection",
+      "path": [
+        {
+          "id": "node:canvas-target",
+          "address": "subject:aos-toolkit-semantic-target:canvas-a:primary-card",
+          "subject": {
+            "address": "subject:aos-toolkit-semantic-target:canvas-a:primary-card",
+            "adapter_id": "aos-toolkit-semantic-target",
+            "root": { "id": "canvas-a", "kind": "aos_canvas", "label": "Workbench A" },
+            "subject": { "id": "primary-card", "path": ["canvas-a", "primary-card"], "kind": "card" },
+            "source_metadata": { "canvas_id": "canvas-a" },
+            "fallback_evidence": {}
+          },
+          "kind": "card",
+          "role": "region",
+          "label": "Primary Card",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 120, "y": 160, "w": 260, "h": 180 }
+          },
+          "blocker": null,
+          "comments": []
+        }
+      ],
+      "active_target_node_id": "node:canvas-target",
+      "acquisition": {
+        "mode": "sigil_radial",
+        "pointer": { "x": 220, "y": 240, "coordinate_space": "desktop_world", "source_metadata": {} },
+        "leaf_node_id": "node:canvas-target",
+        "selected_node_id": "node:canvas-target",
+        "hovered_node_id": "node:canvas-target",
+        "candidate_report": {},
+        "source_metadata": {}
+      },
+      "anchors": [
+        {
+          "id": "anchor:canvas-target",
+          "node_id": "node:canvas-target",
+          "address": "subject:aos-toolkit-semantic-target:canvas-a:primary-card",
+          "status": "live",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 120, "y": 160, "w": 260, "h": 180 }
+          },
+          "comment_text": "",
+          "comments": [],
+          "source_annotation_anchor_id": "anchor:canvas-target",
+          "metadata": {}
+        }
+      ],
+      "metadata": {},
+      "source_session_ref": null
+    },
+    {
+      "schema": "aos_context_artifact",
+      "version": "0.1.0",
+      "id": "context-artifact:native-window",
+      "kind": "selection",
+      "path": [
+        {
+          "id": "node:native-window",
+          "address": "subject:macos-ax:floating-window",
+          "subject": {
+            "address": "subject:macos-ax:floating-window",
+            "adapter_id": "macos-ax",
+            "root": { "id": "display-2", "kind": "display", "label": "External Display" },
+            "subject": { "id": "floating-window", "path": ["display-2", "floating-window"], "kind": "window" },
+            "source_metadata": { "app_name": "Preview" },
+            "fallback_evidence": { "title": "Reference" }
+          },
+          "kind": "window",
+          "role": "AXWindow",
+          "label": "Reference",
+          "projection": {
+            "current_render_status": "stale",
+            "can_project_display_overlay": false,
+            "visible_display_rect": null,
+            "display_space_rect": null,
+            "blocker_reason": "display_geometry_changed"
+          },
+          "blocker": {
+            "status": "stale",
+            "reason": "display_geometry_changed",
+            "source_metadata": {}
+          },
+          "comments": []
+        }
+      ],
+      "active_target_node_id": "node:native-window",
+      "acquisition": {
+        "mode": "sigil_radial",
+        "pointer": null,
+        "leaf_node_id": "node:native-window",
+        "selected_node_id": "node:native-window",
+        "hovered_node_id": "",
+        "candidate_report": { "fallback_reason": "projection_stale" },
+        "source_metadata": {}
+      },
+      "anchors": [
+        {
+          "id": "anchor:native-window",
+          "node_id": "node:native-window",
+          "address": "subject:macos-ax:floating-window",
+          "status": "stale",
+          "projection": {
+            "current_render_status": "stale",
+            "can_project_display_overlay": false,
+            "visible_display_rect": null,
+            "display_space_rect": null,
+            "blocker_reason": "display_geometry_changed"
+          },
+          "comment_text": "",
+          "comments": [],
+          "source_annotation_anchor_id": "anchor:native-window",
+          "metadata": {}
+        }
+      ],
+      "metadata": {},
+      "source_session_ref": null
+    }
+  ],
+  "active_artifact_id": "context-artifact:canvas-target",
+  "keyframes": [
+    {
+      "schema": "aos_context_keyframe",
+      "version": "0.1.0",
+      "id": "keyframe:001",
+      "captured_at": "2026-05-28T12:20:03.000Z",
+      "trigger": "sigil_radial_camera",
+      "artifact_ids": [
+        "context-artifact:canvas-target",
+        "context-artifact:native-window"
+      ],
+      "artifacts": [],
+      "session_summary": {
+        "schema": "aos_context_session",
+        "version": "0.1.0",
+        "id": "context-session:multi-artifact"
+      },
+      "asset_refs": {
+        "surface_inspector_annotation_snapshot": "annotation-snapshot.json",
+        "capture_image": { "uri": "capture.png", "media_type": "image/png" }
+      },
+      "metadata": {}
+    }
+  ],
+  "metadata": {}
+}

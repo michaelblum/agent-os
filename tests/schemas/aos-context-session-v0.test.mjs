@@ -1,0 +1,68 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(__dirname, '../..')
+const schemaPath = path.join(repoRoot, 'shared/schemas/aos-context-session-v0.schema.json')
+const leafActiveFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/valid/leaf-active.json')
+const ancestorActiveFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/valid/ancestor-active.json')
+const multiArtifactKeyframeFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/valid/multi-artifact-keyframe.json')
+const missingPathFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/missing-ordered-path.json')
+const embeddedImageAssetFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/embedded-image-asset.json')
+
+function validateFixture(fixturePath) {
+  return spawnSync(
+    'python3',
+    [
+      '-c',
+      `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator, FormatChecker
+
+schema = json.loads(Path(sys.argv[1]).read_text())
+instance = json.loads(Path(sys.argv[2]).read_text())
+Draft202012Validator.check_schema(schema)
+validator = Draft202012Validator(schema, format_checker=FormatChecker())
+errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
+if errors:
+    for error in errors[:16]:
+        print('/'.join(str(p) for p in error.path), error.message)
+    sys.exit(1)
+`,
+      schemaPath,
+      fixturePath,
+    ],
+    { encoding: 'utf8' },
+  )
+}
+
+test('AOS context session schema accepts active leaf fixture', () => {
+  const result = validateFixture(leafActiveFixturePath)
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+})
+
+test('AOS context session schema accepts ancestor active target fixture', () => {
+  const result = validateFixture(ancestorActiveFixturePath)
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+})
+
+test('AOS context session schema accepts multi-artifact keyframe fixture', () => {
+  const result = validateFixture(multiArtifactKeyframeFixturePath)
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+})
+
+test('AOS context session schema rejects artifacts without ordered path and active target', () => {
+  const result = validateFixture(missingPathFixturePath)
+  assert.notEqual(result.status, 0, 'invalid fixture unexpectedly passed')
+  assert.match(`${result.stdout}${result.stderr}`, /path|active_target_node_id/)
+})
+
+test('AOS context session schema rejects embedded image data URL assets', () => {
+  const result = validateFixture(embeddedImageAssetFixturePath)
+  assert.notEqual(result.status, 0, 'invalid fixture unexpectedly passed')
+  assert.match(`${result.stdout}${result.stderr}`, /capture_image|not valid/)
+})

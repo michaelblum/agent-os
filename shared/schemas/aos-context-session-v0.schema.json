@@ -1,0 +1,405 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-context-session-v0.schema.json",
+  "title": "AOS Context Session V0",
+  "description": "Canonical wrapper for context artifacts and keyframes over the V0 aos_annotation_session core.",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "id",
+    "created_at",
+    "updated_at",
+    "active",
+    "entry_source",
+    "source_annotation_session",
+    "artifacts",
+    "keyframes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "aos_context_session" },
+    "version": { "const": "0.1.0" },
+    "id": { "type": "string", "minLength": 1 },
+    "created_at": { "$ref": "#/$defs/IsoDate" },
+    "updated_at": { "$ref": "#/$defs/IsoDate" },
+    "active": { "type": "boolean" },
+    "entry_source": { "type": "string", "minLength": 1 },
+    "source_annotation_session": {
+      "anyOf": [
+        { "$ref": "#/$defs/AnnotationSessionSummary" },
+        { "type": "null" }
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ContextArtifact" }
+    },
+    "active_artifact_id": { "type": "string" },
+    "keyframes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ContextKeyframe" }
+    },
+    "metadata": { "$ref": "#/$defs/Metadata" }
+  },
+  "$defs": {
+    "IsoDate": { "type": "string", "format": "date-time" },
+    "Metadata": {
+      "type": "object",
+      "propertyNames": {
+        "not": { "pattern": "([Bb][Aa][Ss][Ee]64|[Bb][Ii][Nn][Aa][Rr][Yy]|[Ii][Mm][Aa][Gg][Ee]_[Dd][Aa][Tt][Aa])" }
+      },
+      "additionalProperties": true
+    },
+    "Rect": {
+      "type": ["object", "null"],
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "w": { "type": "number", "minimum": 0 },
+        "h": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Actor": {
+      "type": "object",
+      "required": ["role", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "Comment": {
+      "type": "object",
+      "required": ["id", "text", "actor", "created_at", "updated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "text": { "type": "string" },
+        "actor": { "$ref": "#/$defs/Actor" },
+        "created_at": { "$ref": "#/$defs/IsoDate" },
+        "updated_at": { "$ref": "#/$defs/IsoDate" },
+        "source_metadata": { "$ref": "#/$defs/Metadata" }
+      }
+    },
+    "SubjectIdentity": {
+      "type": "object",
+      "required": [
+        "address",
+        "adapter_id",
+        "root",
+        "subject",
+        "source_metadata",
+        "fallback_evidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "address": { "type": "string", "minLength": 1 },
+        "adapter_id": { "type": "string", "minLength": 1 },
+        "root": {
+          "type": "object",
+          "required": ["id", "kind", "label"],
+          "additionalProperties": true,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "type": "string", "minLength": 1 },
+            "label": { "type": "string" }
+          }
+        },
+        "subject": {
+          "type": "object",
+          "required": ["id", "path", "kind"],
+          "additionalProperties": true,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "path": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "kind": { "type": "string", "minLength": 1 }
+          }
+        },
+        "source_metadata": { "$ref": "#/$defs/Metadata" },
+        "fallback_evidence": { "$ref": "#/$defs/Metadata" }
+      }
+    },
+    "ProjectionEvidence": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["current_render_status", "can_project_display_overlay"],
+          "additionalProperties": true,
+          "properties": {
+            "current_render_status": { "type": "string", "minLength": 1 },
+            "can_project_display_overlay": { "type": "boolean" },
+            "visible_display_rect": { "$ref": "#/$defs/Rect" },
+            "display_space_rect": { "$ref": "#/$defs/Rect" },
+            "local_space_rect": { "$ref": "#/$defs/Rect" },
+            "blocker_reason": { "type": "string" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "BlockerEvidence": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["status", "reason"],
+          "additionalProperties": true,
+          "properties": {
+            "status": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 },
+            "source_metadata": { "$ref": "#/$defs/Metadata" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "ContextPathNode": {
+      "type": "object",
+      "required": [
+        "id",
+        "address",
+        "subject",
+        "kind",
+        "role",
+        "label",
+        "projection",
+        "blocker",
+        "comments"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "address": { "type": "string", "minLength": 1 },
+        "subject": { "$ref": "#/$defs/SubjectIdentity" },
+        "kind": { "type": "string", "minLength": 1 },
+        "role": { "type": "string" },
+        "label": { "type": "string" },
+        "projection": { "$ref": "#/$defs/ProjectionEvidence" },
+        "blocker": { "$ref": "#/$defs/BlockerEvidence" },
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Comment" }
+        }
+      }
+    },
+    "PointerEvidence": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["x", "y", "coordinate_space"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "coordinate_space": { "type": "string", "minLength": 1 },
+            "source_metadata": { "$ref": "#/$defs/Metadata" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "AcquisitionEvidence": {
+      "type": "object",
+      "required": [
+        "mode",
+        "pointer",
+        "leaf_node_id",
+        "selected_node_id",
+        "candidate_report",
+        "source_metadata"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "minLength": 1 },
+        "pointer": { "$ref": "#/$defs/PointerEvidence" },
+        "leaf_node_id": { "type": "string", "minLength": 1 },
+        "selected_node_id": { "type": "string", "minLength": 1 },
+        "hovered_node_id": { "type": "string" },
+        "candidate_report": { "type": "object", "additionalProperties": true },
+        "source_metadata": { "$ref": "#/$defs/Metadata" }
+      }
+    },
+    "ContextAnchor": {
+      "type": "object",
+      "required": [
+        "id",
+        "node_id",
+        "address",
+        "status",
+        "projection",
+        "comments"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "node_id": { "type": "string", "minLength": 1 },
+        "address": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "minLength": 1 },
+        "projection": { "$ref": "#/$defs/ProjectionEvidence" },
+        "comment_text": { "type": "string" },
+        "comments": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "type": "string", "minLength": 1 },
+              { "$ref": "#/$defs/Comment" }
+            ]
+          }
+        },
+        "source_annotation_anchor_id": { "type": "string" },
+        "metadata": { "$ref": "#/$defs/Metadata" }
+      }
+    },
+    "ContextArtifact": {
+      "type": "object",
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "kind",
+        "path",
+        "active_target_node_id",
+        "acquisition",
+        "anchors"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "const": "aos_context_artifact" },
+        "version": { "const": "0.1.0" },
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/ContextPathNode" }
+        },
+        "active_target_node_id": { "type": "string", "minLength": 1 },
+        "acquisition": { "$ref": "#/$defs/AcquisitionEvidence" },
+        "anchors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ContextAnchor" }
+        },
+        "metadata": { "$ref": "#/$defs/Metadata" },
+        "source_session_ref": {
+          "anyOf": [
+            { "type": "object", "additionalProperties": true },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "AnnotationSessionSummary": {
+      "type": "object",
+      "required": [
+        "schema",
+        "version",
+        "active",
+        "entry_source",
+        "updated_at",
+        "root_address",
+        "committed_scope_addresses",
+        "preview_scope_addresses",
+        "anchor_addresses",
+        "snapshot_count"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "const": "aos_annotation_session" },
+        "version": { "const": "0.1.0" },
+        "active": { "type": "boolean" },
+        "entry_source": { "type": "string", "minLength": 1 },
+        "updated_at": { "$ref": "#/$defs/IsoDate" },
+        "root_address": { "type": "string" },
+        "committed_scope_addresses": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "preview_scope_addresses": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "hover_candidate_address": { "type": "string" },
+        "anchor_addresses": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "snapshot_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "AssetRef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "not": { "pattern": "^[Dd][Aa][Tt][Aa]:" }
+        },
+        {
+          "type": "object",
+          "required": ["uri"],
+          "additionalProperties": false,
+          "properties": {
+            "uri": {
+              "type": "string",
+              "minLength": 1,
+              "not": { "pattern": "^[Dd][Aa][Tt][Aa]:" }
+            },
+            "media_type": { "type": "string" },
+            "sha256": { "type": "string" },
+            "source_metadata": { "$ref": "#/$defs/Metadata" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "AssetRefs": {
+      "type": "object",
+      "propertyNames": {
+        "not": { "pattern": "([Bb][Aa][Ss][Ee]64|[Bb][Ii][Nn][Aa][Rr][Yy]|[Ii][Mm][Aa][Gg][Ee]_[Dd][Aa][Tt][Aa])" }
+      },
+      "additionalProperties": { "$ref": "#/$defs/AssetRef" }
+    },
+    "ContextKeyframe": {
+      "type": "object",
+      "required": [
+        "schema",
+        "version",
+        "id",
+        "captured_at",
+        "trigger",
+        "artifact_ids",
+        "asset_refs"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema": { "const": "aos_context_keyframe" },
+        "version": { "const": "0.1.0" },
+        "id": { "type": "string", "minLength": 1 },
+        "captured_at": { "$ref": "#/$defs/IsoDate" },
+        "trigger": { "type": "string", "minLength": 1 },
+        "artifact_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "artifacts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ContextArtifact" }
+        },
+        "session_summary": {
+          "anyOf": [
+            { "type": "object", "additionalProperties": true },
+            { "type": "null" }
+          ]
+        },
+        "asset_refs": { "$ref": "#/$defs/AssetRefs" },
+        "metadata": { "$ref": "#/$defs/Metadata" }
+      }
+    }
+  }
+}
