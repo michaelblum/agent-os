@@ -37,14 +37,19 @@ control.
 
 | Factory | Purpose | Core methods |
 | --- | --- | --- |
-| `createButton({ label, variant, disabled, onClick })` | single pressable button with `primary`, `secondary`, `danger`, or `ghost` styling | `setLabel`, `setDisabled`, `on('click')`, `destroy` |
-| `createButtonGroup({ options, value, onChange })` | exclusive choice button row using `.aos-segmented` | `getValue`, `setValue`, `on('change')`, `destroy` |
-| `createToggle({ label, checked, onChange })` | boolean switch backed by an accessible hidden checkbox | `getValue`, `setValue`, `on('change')`, `destroy` |
+| `createButton({ label, variant, disabled, onClick })` | single pressable button with `primary`, `secondary`, `danger`, or `ghost` styling | `setLabel`, `setDisabled`, `getUxTreeFragment(options = {})`, `on('click')`, `destroy` |
+| `createButtonGroup({ options, value, onChange })` | exclusive choice button row using `.aos-segmented` | `getValue`, `setValue`, `getUxTreeFragment(options = {})`, `on('change')`, `destroy` |
+| `createToggle({ label, checked, onChange })` | boolean switch backed by an accessible hidden checkbox | `getValue`, `setValue`, `getUxTreeFragment(options = {})`, `on('change')`, `destroy` |
 | `createTextField({ value, placeholder, label, maxLength, validate, onChange, onCommit })` | single-line text input with inline error state | `getValue`, `setValue`, `setError`, `on('change')`, `on('commit')`, `destroy` |
 | `createTextarea({ value, placeholder, rows, maxLength, spellcheck, readOnly, onChange, onCommit })` | native multi-line text area using shared textarea styling | `getValue`, `setValue`, `setReadOnly`, `on('change')`, `on('commit')`, `destroy` |
 | `createCheckboxGroup({ options, value, onChange })` | multi-choice checkbox column with select-all when there are at least three options | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createSelect({ options, value, label, onChange })` | native single-value select | `getValue`, `setValue`, `on('change')`, `destroy` |
 | `createTimerBar({ totalMs, direction, display, flashThresholdMs, flashIntervalMs, onExpire })` | cosmetic count-down/count-up timer with digital or pie display | `start`, `pause`, `resume`, `reset`, `getRemainingMs`, `destroy` |
+
+`createButton()`, `createToggle()`, and `createButtonGroup()` expose
+`getUxTreeFragment(options = {})` for read-only UX tree fragment discovery from
+the live control object. The fragment is inspection data only; it does not
+execute commands, persist bindings, or expose editable binding state.
 
 ## Zag Primitives
 
