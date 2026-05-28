@@ -46,6 +46,7 @@ test('Sigil UX tree represents current command allowlist and plain radial settin
   for (const id of [
     'sigil.context_menu.open',
     'sigil.context_menu.toggle',
+    'sigil.avatar.press.begin',
     'sigil.avatar.goto.begin',
     'sigil.radial.begin',
     'sigil.radial.release_item',
@@ -116,6 +117,16 @@ test('Sigil shadow resolver maps avatar and Selection Mode gestures to current c
     mode: 'global',
     gesture: 'pointer.right.click',
   }), 'sigil.context_menu.toggle')
+  assert.equal(commandFor({
+    nodeId: 'sigil.avatar.body',
+    mode: 'idle',
+    gesture: 'pointer.left.press',
+  }), 'sigil.avatar.press.begin')
+  assert.equal(commandFor({
+    nodeId: 'sigil.avatar.body',
+    mode: 'press',
+    gesture: 'pointer.left.release',
+  }), 'sigil.avatar.goto.begin')
   assert.equal(commandFor({
     nodeId: 'sigil.avatar.body',
     mode: 'goto',
