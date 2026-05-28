@@ -13,7 +13,7 @@ function escaped(pattern) {
 }
 
 test('surface interaction decision tree recipe exposes stable choices and audit anchors', async () => {
-  const recipe = await text('docs/recipes/aos-surface-interaction-decision-tree.md');
+  const recipe = await text('docs/guides/aos-surface-interaction-decision-tree.md');
 
   for (const heading of [
     '# AOS Surface Interaction Decision Tree',
@@ -60,7 +60,7 @@ test('surface interaction decision tree recipe exposes stable choices and audit 
 });
 
 test('surface interaction decision tree is discoverable from toolkit and Sigil guardrails', async () => {
-  const requiredPath = 'docs/recipes/aos-surface-interaction-decision-tree.md';
+  const requiredPath = 'docs/guides/aos-surface-interaction-decision-tree.md';
   const docs = await Promise.all([
     text('docs/api/toolkit.md'),
     text('docs/api/toolkit/runtime.md'),
@@ -80,7 +80,7 @@ test('surface interaction decision tree is discoverable from toolkit and Sigil g
 
 test('surface stack integration ledger records accepted V0 closure evidence', async () => {
   const ledger = await text('docs/design/aos-surface-stack-v0-integration-ledger.md');
-  const recipe = await text('docs/recipes/aos-surface-interaction-decision-tree.md');
+  const recipe = await text('docs/guides/aos-surface-interaction-decision-tree.md');
   const alignment = await text('docs/design/aos-canon-surface-boundary-alignment-plan.md');
 
   assert.match(ledger, escaped('# AOS Surface Stack V0 Integration Ledger'));

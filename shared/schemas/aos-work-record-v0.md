@@ -90,9 +90,8 @@ prefer `recipe` or `workflow` for executable origins.
 }
 ```
 
-Transitional Markdown Guides/SOPs under `docs/recipes/` that guided a run are
-not origins. Cite them in `references[]` with `relationship: "guided_by"`
-instead.
+Markdown Guides/SOPs under `docs/guides/` that guided a run are not origins.
+Cite them in `references[]` with `relationship: "guided_by"` instead.
 
 ## References
 
@@ -104,7 +103,7 @@ not replace internal ids such as `claim_id` or `postcondition_id`.
 {
   "id": "guided-by-entry-path-recipe",
   "relationship": "guided_by",
-  "ref": "repo:docs/recipes/agent-entry-paths-and-verification.md",
+  "ref": "repo:docs/guides/agent-entry-paths-and-verification.md",
   "subject_type": "docs.guide",
   "layer": "narrative",
   "role": "operator_guidance"

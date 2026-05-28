@@ -51,7 +51,7 @@ Read the repo and testing guidance:
 - `AGENTS.md`
 - `.docks/README.md`
 - `.docks/AGENTS.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
+- `docs/guides/agent-entry-paths-and-verification.md`
 - `tests/README.md`
 - `docs/dev/workflow-rules.json`
 - `shared/schemas/dev-workflow-rules.schema.json`

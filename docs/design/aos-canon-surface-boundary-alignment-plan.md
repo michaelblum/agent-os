@@ -128,7 +128,7 @@ This prevents "just use a WebView" and "put it in the daemon" from becoming the
 default answers.
 
 Status: the canonical decision tree and first conformance audit live in
-`docs/recipes/aos-surface-interaction-decision-tree.md`.
+`docs/guides/aos-surface-interaction-decision-tree.md`.
 
 ### Step 6: Normalize Panel And Windowing Under #261
 

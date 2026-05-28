@@ -6,7 +6,7 @@ scratchpads here.
 Use the current docs taxonomy instead:
 
 - `docs/design/` for design notes, specs, and future-facing architecture
-- `docs/recipes/` for reusable operating procedures
+- `docs/guides/` for reusable operating procedures
 - `docs/api/` for consumer-facing contracts
 - `docs/reference/` for external or stable reference material
 - `docs/dev/` for developer workflow support

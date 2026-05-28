@@ -8,7 +8,7 @@ FAILS=0
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1" >&2; FAILS=$((FAILS + 1)); }
 
-if OUT="$(./aos dev classify --json --paths src/main.swift,packages/toolkit/runtime/canvas.js,shared/schemas/input-event-v2.schema.json,docs/recipes/example.md 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos dev classify --json --paths src/main.swift,packages/toolkit/runtime/canvas.js,shared/schemas/input-event-v2.schema.json,docs/guides/example.md 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -32,7 +32,7 @@ else
     fail "dev classify did not report expected aggregate classes"
 fi
 
-if OUT="$(./aos dev recommend --json --files docs/recipes/example.md 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos dev recommend --json --files docs/guides/example.md 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 

@@ -96,8 +96,8 @@ Use these as inputs, not as mandatory wording:
 ## Durable Docs For Foreman Study
 
 - `AGENTS.md`
-- `docs/recipes/agent-entry-paths-and-verification.md`
-- `docs/recipes/layered-subject-expressions.md`
+- `docs/guides/agent-entry-paths-and-verification.md`
+- `docs/guides/layered-subject-expressions.md`
 - `docs/design/aos-grand-unification-plan.md`
 - `docs/design/aos-grand-unification-next-session-goal.md`
 - `docs/design/aos-subject-model-compatibility-audit.md`

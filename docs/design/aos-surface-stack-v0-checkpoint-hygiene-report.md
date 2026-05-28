@@ -60,7 +60,7 @@ These paths are documentation source-of-truth for the checkpoint:
 - `AGENTS.md`, subtree `AGENTS.md` files, and compatibility `CLAUDE.md` files.
 - `ARCHITECTURE.md`, `README.md`, `docs/api/`, `docs/adr/`, and
   `docs/design/aos-*`.
-- `docs/recipes/aos-surface-interaction-decision-tree.md`,
+- `docs/guides/aos-surface-interaction-decision-tree.md`,
   `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`,
   and related workflow references.
 - Surface-stack work cards under `docs/design/work-cards/`.

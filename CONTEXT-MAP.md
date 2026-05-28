@@ -48,8 +48,8 @@ source root. This file is a routing map, not a replacement for those sources.
   `shared/schemas/`.
 - API docs: `docs/api/toolkit/workbench.md`.
 - Transitional Guide/SOP and design context:
-  `docs/recipes/layered-subject-expressions.md`,
-  `docs/recipes/aos-app-accessibility-surfaces.md`, and active plans or notes
+  `docs/guides/layered-subject-expressions.md`,
+  `docs/guides/aos-app-accessibility-surfaces.md`, and active plans or notes
   under `docs/design/`.
 - Use this context for Subjects, Facets, Layers, Subject Browsers, Work Records,
   Playbooks, verifier health, evidence, claims, postconditions, and artifact
@@ -97,9 +97,9 @@ source root. This file is a routing map, not a replacement for those sources.
 ## Durable Decisions And SOPs
 
 - ADRs and durable architecture decisions: `docs/adr/`.
-- Transitional Markdown Guides/SOPs: `docs/recipes/`.
+- Markdown Guides/SOPs: `docs/guides/`.
 - Source-backed executable Recipes: `recipes/` plus `aos recipe`.
-- Context maintenance recipe: `docs/recipes/context-doc-maintenance.md`.
+- Context maintenance guide: `docs/guides/context-doc-maintenance.md`.
 - Design plans, notes, and work cards: `docs/design/`.
 - Use this context when a task touches architectural trade-offs, cross-tool
   contracts, reusable procedures, or workstream plans.

@@ -61,10 +61,8 @@ A bounded, reusable, dry-runnable executable procedure made of Blocks and
 discovered through `aos recipe`. Scope: one bounded procedure with explicit
 inputs, outputs, resources, and cleanup behavior where relevant. The historical
 `aos ops` command is only a compatibility alias. Markdown procedures under
-`docs/recipes/` are transitional Guides/SOPs until a directory migration
-renames or rehomes them.
-_Avoid_: documentation-only recipe, SOP (unless describing transitional
-Markdown guidance), tutorial, molecule.
+`docs/guides/` are Guides/SOPs, not executable Recipes.
+_Avoid_: documentation-only recipe, tutorial, molecule.
 
 **Playbook**:
 Method guidance that shapes human or agent judgment but does not itself execute
@@ -108,9 +106,8 @@ resumability.
 _Avoid_: hidden retry, implicit approval, bare status.
 
 **Guide**:
-Reusable method guidance for humans or agents. Current Markdown procedures under
-`docs/recipes/` are Guides/SOPs in transition, even though the directory name is
-historical.
+Reusable method guidance for humans or agents. Current Markdown procedures live
+under `docs/guides/` and can guide work without becoming executable Recipes.
 _Avoid_: Recipe when the artifact is not executable through `aos recipe`.
 
 **Dock**:
@@ -276,8 +273,8 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - AOS Execution Model: **resolved (ADR-0013)**: the formal taxonomy is
   Primitive -> Block -> Recipe -> Workflow -> Run -> Work Record + Evidence,
   with Gates, Signals, Checkpoints, Guides, and Playbooks around that stack.
-  `Recipe` means executable source-backed procedure; `docs/recipes/` is a
-  short-lived transitional home for Markdown Guides/SOPs.
+  `Recipe` means executable source-backed procedure; `docs/guides/` is the
+  home for Markdown Guides/SOPs.
 - Phase 6 of `aos-grand-unification-plan.md` lists "save a work record" and "run verifier report" as Playbook steps - they are *harness obligations* around a Workflow-gated run, not Playbook-authored execution steps. Transitional `aos.playbook_step` descriptors end at the single action + postcondition and remain compatibility sketches until Block/Step/Harness vocabulary replaces them. Pending: plan revision.
 - Verifier Report shape — the plan lists `claims`, `verified`, `failed`, `unverified` as four parallel fields. Resolved direction (ADR-0003): use `claim_results[]` as the source of truth; if the four parallel fields persist, they are *derived indexes of Claim IDs*, not independent storage. When a Verifier Report is embedded in a Work Record it should not echo the full `claims` list (single source of truth); when reports travel standalone, they include a `claims_digest` for auditability. The v0 sketch keeps `claim_results[]` top-level and makes report indexes derived.
 - Transitional step descriptors need explicit syntax to *promote* a step Postcondition into a Work Record Claim for the gated harness bridge. The v0 Work Record examples show promoted run Claims referencing execution-map Postconditions; a future Block/Step/Harness contract should replace the Playbook-step grammar name.

@@ -39,7 +39,7 @@ When a toolkit behavior is too heavy in WebView space, add or request a cheaper 
 
 ## Surface Interaction Decision Tree
 
-Before adding a WebView, daemon policy, app-private hit testing, or a new DesktopWorld stage layer, use the canonical decision tree in [docs/recipes/aos-surface-interaction-decision-tree.md](../recipes/aos-surface-interaction-decision-tree.md). The short version is:
+Before adding a WebView, daemon policy, app-private hit testing, or a new DesktopWorld stage layer, use the canonical decision tree in [docs/guides/aos-surface-interaction-decision-tree.md](../recipes/aos-surface-interaction-decision-tree.md). The short version is:
 
 1. use DOM controls when the visual and hit area already live in the same interactive canvas;
 2. use toolkit panel/windowing primitives for ordinary chrome, placement, minimize, maximize, restore, close, drag, and resize;

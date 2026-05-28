@@ -22,7 +22,7 @@ At audit time, agent-os had two durable-decision namespaces:
   `ADR-001-toolkit-platform-strategy.md`.
 
 The split is now visible to consumers because `CONTEXT-MAP.md`,
-`docs/agents/domain.md`, and `docs/recipes/context-doc-maintenance.md` all tell
+`docs/agents/domain.md`, and `docs/guides/context-doc-maintenance.md` all tell
 agents to inspect both directories until the ADR namespace is consolidated or
 explicitly superseded. That rule is a useful interim guard, but it is not a
 durable namespace model.
@@ -78,7 +78,7 @@ disposition, and impact on issues `#325` through `#328`.
 
 `CONTEXT-MAP.md` now has a `Durable Decisions And SOPs` section that routes
 ADRs to `docs/adr/`, additional durable decisions to `docs/decisions/`, and
-recipes/SOPs to `docs/recipes/`. It explicitly tells consumers to inspect both
+recipes/SOPs to `docs/guides/`. It explicitly tells consumers to inspect both
 `docs/adr/` and `docs/decisions/` until the ADR namespace is consolidated or
 superseded.
 
@@ -90,7 +90,7 @@ current slice does not resolve the split and consumers should inspect both
 locations when a task touches architecture, toolkit policy,
 subject/work-record contracts, or other durable trade-offs.
 
-`docs/recipes/context-doc-maintenance.md` says to add or update an ADR or
+`docs/guides/context-doc-maintenance.md` says to add or update an ADR or
 `docs/decisions/` entry when a choice is hard to reverse, surprising without
 context, and the result of a real trade-off. It tells maintainers to inspect
 both directories until the split is consolidated or superseded, and names
@@ -258,7 +258,7 @@ Create a later docs-only implementation card with this scope:
    canonical ADR namespace on YYYY-MM-DD."
 4. Search and update live references to the old path in at least
    `CONTEXT-MAP.md`, `docs/agents/domain.md`,
-   `docs/recipes/context-doc-maintenance.md`, and
+   `docs/guides/context-doc-maintenance.md`, and
    `docs/design/notes/matt-pocock-context-integration-audit-2026-05-20.md`
    if they remain live enough to need a supersession note.
 5. Update the consumer guidance to say `docs/adr/` is the canonical ADR and
@@ -273,7 +273,7 @@ Verification for that follow-up card should prove:
 
 - `rg --files docs/adr docs/decisions` shows the toolkit platform strategy
   under `docs/adr/` and no remaining ADR-named file under `docs/decisions/`;
-- `rg -n "docs/decisions|ADR-001-toolkit-platform-strategy|0012-toolkit-platform-strategy|ADR namespace|durable decision" AGENTS.md CONTEXT-MAP.md docs/agents/domain.md docs/recipes/context-doc-maintenance.md docs/design docs/adr docs/decisions`
+- `rg -n "docs/decisions|ADR-001-toolkit-platform-strategy|0012-toolkit-platform-strategy|ADR namespace|durable decision" AGENTS.md CONTEXT-MAP.md docs/agents/domain.md docs/guides/context-doc-maintenance.md docs/design docs/adr docs/decisions`
   shows only intentional references, migration notes, or no hits for the old
   path;
 - `git diff --check` passes;
@@ -282,7 +282,7 @@ Verification for that follow-up card should prove:
 
 If Foreman chooses Option 2 instead, the implementation card should not move
 the file. It should define `docs/decisions/` in `CONTEXT-MAP.md`,
-`docs/agents/domain.md`, and `docs/recipes/context-doc-maintenance.md`, rename
+`docs/agents/domain.md`, and `docs/guides/context-doc-maintenance.md`, rename
 or retitle the existing file away from `ADR-001`, add a local README or index
 for the class, and verify that consumers can distinguish ADRs from other
 durable decisions without inspecting both blindly.

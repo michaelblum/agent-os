@@ -26,7 +26,7 @@ guard route and help behavior.
 For test harness selection, start with the foundational ladder in
 `tests/README.md`. For runtime, canvas, input, status-item, lifecycle, visual,
 supervised, or cross-layer slices where the harness is not obvious, use
-`docs/recipes/test-harness-ladder-and-prep.md` before adding new test helpers.
+`docs/guides/test-harness-ladder-and-prep.md` before adding new test helpers.
 
 Validate routing changes with:
 

@@ -13,7 +13,7 @@
     {
       "id": "guided-by-entry-path-recipe",
       "relationship": "guided_by",
-      "ref": "repo:docs/recipes/agent-entry-paths-and-verification.md",
+      "ref": "repo:docs/guides/agent-entry-paths-and-verification.md",
       "subject_type": "docs.guide",
       "layer": "narrative",
       "role": "operator_guidance"

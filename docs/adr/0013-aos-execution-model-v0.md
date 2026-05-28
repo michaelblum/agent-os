@@ -38,10 +38,9 @@ The V0 model is:
 
 ## Naming Contract
 
-`Recipe` now means source-backed executable procedure. The current
-`docs/recipes/` Markdown files are transitional guide/SOP material that still
-live under the historical directory name until a dedicated migration renames or
-rehomes them. They may guide a run, but they are not Work Record origins.
+`Recipe` now means source-backed executable procedure. Markdown Guides/SOPs
+live under `docs/guides/`; they may guide a run, but they are not executable
+Recipes and are not Work Record origins.
 
 `aos recipe` is the canonical public command surface. `aos ops` remains only as
 a compatibility alias for the current implementation. The removal gate for the
@@ -78,6 +77,6 @@ Workflow-gated slices.
 - Work Records use executable origins (`recipe`, `workflow`, `playbook` only
   where the existing schema says so) and cite transitional Markdown guides in
   `references[]` with `relationship: "guided_by"`.
-- Future work should split the docs-directory migration, schema/file renames,
-  capture ladder specialization, and GitHub issue body cleanup into exact
-  follow-up cards instead of broad opportunistic rewrites.
+- Future work should split schema/file renames, capture ladder specialization,
+  and GitHub issue body cleanup into exact follow-up cards instead of broad
+  opportunistic rewrites.

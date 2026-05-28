@@ -48,7 +48,7 @@ Dock / Docked Session
 GitHub label metadata
 ```
 
-The outcome should remove the live `docs/recipes/` ambiguity, define how Skills
+The outcome should remove the live `docs/guides/` ambiguity, define how Skills
 and Plugins relate to the ladder, harden or rename the transitional Playbook
 Step vocabulary, and model browser capture plus Employer Brand as downstream
 projections rather than taxonomy sources.
@@ -65,7 +65,7 @@ projections rather than taxonomy sources.
 - `docs/adr/0009-recipe-playbook-workflow-as-three-distinct-artifacts.md`
 - `docs/api/aos.md`
 - `docs/api/README.md`
-- `docs/recipes/README.md`
+- `docs/guides/README.md`
 - `.docks/skills/README.md`
 - `.docks/foreman/skills/session-transfer/SKILL.md`
 - `wiki-seed/plugins/customize-with-agent/SKILL.md`
@@ -96,8 +96,8 @@ gh issue view 379 --repo michaelblum/agent-os --json number,title,state,url,body
 Then inventory current vocabulary with focused searches:
 
 ```bash
-find docs/recipes -maxdepth 1 -type f | sort
-rg -n "docs/recipes/|documentation-only Recipe|Markdown Recipe|aos ops|ops recipe|Recipe Ladder|recipe ladder" CONTEXT.md CONTEXT-MAP.md README.md ARCHITECTURE.md docs shared recipes packages tests manifests wiki-seed
+find docs/guides -maxdepth 1 -type f | sort
+rg -n "docs/guides/|documentation-only Recipe|Markdown Recipe|aos ops|ops recipe|Recipe Ladder|recipe ladder" CONTEXT.md CONTEXT-MAP.md README.md ARCHITECTURE.md docs shared recipes packages tests manifests wiki-seed
 rg -n "aos-playbook-step|aos.playbook_step|playbook-step|Playbook Step|Playbook step|playbook_step|origin.kind.*playbook|\"playbook\"" shared tests packages docs recipes manifests wiki-seed
 rg -n "Skill|Plugin|Capability Package|workflow plugin|SKILL.md|\\.codex-plugin|plugin.json" CONTEXT.md CONTEXT-MAP.md docs .docks wiki-seed scripts packages
 rg -n "browser capture|browser-capture|Browser capture|Employer Brand|employer-brand" CONTEXT.md CONTEXT-MAP.md docs shared wiki-seed packages tests
@@ -126,7 +126,7 @@ executable AOS Recipe.
 
 Default target:
 
-- Move the current role-neutral Markdown guidance out of `docs/recipes/`.
+- Move the current role-neutral Markdown guidance out of `docs/guides/`.
 - Prefer `docs/guides/` unless inspection finds an already-established better
   current path.
 - Preserve useful file names when possible.
@@ -138,8 +138,8 @@ Default target:
 
 Compatibility rule:
 
-- Prefer no `docs/recipes/` directory after the migration.
-- If a temporary tombstone is truly needed, keep it to `docs/recipes/README.md`
+- Prefer no `docs/guides/` directory after the migration.
+- If a temporary tombstone is truly needed, keep it to `docs/guides/README.md`
   only, include no reusable guidance content there, and state the exact removal
   gate. Treat that as a temporary compatibility exception, not the desired end
   state.
@@ -257,7 +257,7 @@ Add deterministic guardrails so this taxonomy does not drift back into lore.
 At minimum, add a focused test or script that catches current-doc regressions
 for these cases:
 
-- `docs/recipes/` is not used as the current home for reusable guidance unless
+- `docs/guides/` is not used as the current home for reusable guidance unless
   only an explicit tombstone remains.
 - Markdown guidance is not called an executable Recipe.
 - `aos ops` is not described as the canonical public surface.
@@ -285,7 +285,7 @@ Likely files and areas:
 - `ARCHITECTURE.md`
 - `docs/api/*.md`
 - `docs/guides/`
-- `docs/recipes/` only as a temporary tombstone if needed
+- `docs/guides/` only as a temporary tombstone if needed
 - `shared/schemas/*step*`
 - `shared/schemas/*work-record*`
 - `packages/toolkit/workbench/*playbook*`

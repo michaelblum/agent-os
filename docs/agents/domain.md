@@ -13,13 +13,13 @@ language, then read `CONTEXT-MAP.md` to choose the domain docs, local contracts,
 schemas, and source roots for the subject area you are touching. Use
 `ARCHITECTURE.md` for the system narrative, nearby subtree `AGENTS.md` files for
 local policy, `docs/api/` and `shared/schemas/` for live contracts, `docs/adr/`
-for ADRs and durable architecture decisions, and `docs/recipes/` for reusable
+for ADRs and durable architecture decisions, and `docs/guides/` for reusable
 operating procedures.
 
 Do not infer that the repo is single-context just because root `CONTEXT.md`
 exists. `CONTEXT.md` is the shared vocabulary and contract-term index;
 `CONTEXT-MAP.md` is the routing map for the repo's separate domains.
-Use `docs/recipes/context-doc-maintenance.md` when a change may require these
+Use `docs/guides/context-doc-maintenance.md` when a change may require these
 context surfaces, API docs, schemas, ADRs, AGENTS files, or recipes to be
 updated together.
 

@@ -237,7 +237,7 @@ slices with repo evidence and clear exit criteria.
 ## Source Map
 
 - AOS primitives and repo contract: `AGENTS.md`, `ARCHITECTURE.md`
-- Layered subjects: `docs/recipes/layered-subject-expressions.md`,
+- Layered subjects: `docs/guides/layered-subject-expressions.md`,
   `docs/design/aos-workbench-pattern.md`
 - Work records: `docs/design/aos-work-records-and-self-healing-recipes.md`
 - Browser recording and grammar: `docs/design/see-do-grammar-trace-connections.md`

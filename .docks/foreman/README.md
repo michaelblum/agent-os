@@ -22,7 +22,7 @@ appropriate, route the next obvious GDI/Operator slice, or name the concrete
 human-only decision that blocks further progress.
 
 For the reusable acceptance-to-integration procedure, use
-`docs/recipes/workstream-checkpoint-continuation.md`. It covers completion
+`docs/guides/workstream-checkpoint-continuation.md`. It covers completion
 report review, local fast-forward integration, publication gates, and branch
 hygiene gates.
 

@@ -23,7 +23,7 @@ changed. Prefer the narrower owner:
   vocabulary, and stop behavior.
 - Nearest subtree `AGENTS.md` for package, app, daemon, toolkit, or test-local
   operating contracts.
-- `docs/recipes/` for repeatable procedures and checklists.
+- `docs/guides/` for repeatable procedures and checklists.
 - `docs/agents/` for issue, triage, and domain-doc practices.
 - `docs/dev/` for workflow profiles, branch/review posture, and dev routing
   manifests.
@@ -94,7 +94,7 @@ surface is missing, broken, or the task is explicitly testing that lower-level
 adapter. When you must bypass `./aos`, state why and keep the bypass scoped as a
 last-resort diagnostic.
 
-Use `docs/recipes/agent-entry-paths-and-verification.md` for entry-path,
+Use `docs/guides/agent-entry-paths-and-verification.md` for entry-path,
 verification, host-shell, and readiness guidance. Use `docs/dev/README.md` and
 `docs/dev/workflow-profiles/README.md` for development workflow routing and
 branch/review posture. Use `.docks/` contracts for role authority and harness

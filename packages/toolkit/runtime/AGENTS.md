@@ -23,7 +23,7 @@ If a runtime helper becomes a workaround for missing daemon functionality, name
 the missing primitive in a work card instead of letting the workaround become
 the platform contract.
 
-Use `docs/recipes/aos-surface-interaction-decision-tree.md` before introducing
+Use `docs/guides/aos-surface-interaction-decision-tree.md` before introducing
 new runtime interaction helpers. Runtime should expose generic bridge or daemon
 capability; panel policy, product behavior, and private renderers belong in the
 layers named by that tree.
