@@ -64,7 +64,7 @@
   ],
   "intent": {
     "summary": "Click the browser live action commit button and verify that the status output changes.",
-    "purpose": "Prove a reusable Playbook step can describe the existing AOS browser click/status evidence path without becoming the Work Record run evidence.",
+    "purpose": "Prove a transitional Playbook-step descriptor can describe the existing AOS browser click/status evidence bridge without becoming the Work Record run evidence.",
     "acceptance": "A generated Work Record validates, preserves origin.kind playbook, and verifies the promoted status-change Claim through the report-only verifier.",
     "constraints": [
       "Use AOS browser Target-with-Ref addresses instead of raw Playwright selectors.",
@@ -309,7 +309,7 @@
         "workflow-gate:playbook-browser-click-status-replay",
         "workflow-gate:playbook-browser-click-status-repair"
       ],
-      "notes": "The step is reusable execution knowledge, but this v0 contract only emits report-only Work Records from saved evidence."
+      "notes": "The step descriptor is v0 compatibility metadata; this contract only emits report-only Work Records from saved evidence."
     }
   },
   "evidence": [

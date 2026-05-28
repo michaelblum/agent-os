@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-playbook-step-v0.schema.json",
   "title": "AOS Playbook Step v0",
-  "description": "Design-schema sketch for one reusable AOS Playbook step. A step is reusable execution knowledge; running it emits a Work Record with immutable evidence.",
+  "description": "Transitional v0 design-schema sketch for one Workflow-gated AOS step descriptor. The playbook names are compatibility vocabulary; a gated harness or saved-evidence bridge emits the Work Record.",
   "type": "object",
   "required": [
     "type",
