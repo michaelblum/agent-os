@@ -72,6 +72,7 @@ import {
     applyRadialMenuObjectTransformPatch,
 } from './radial-object-control.js';
 import { buildAvatarObjectRegistry } from './avatar-object-control.js';
+import { createSigilUxTree, createSigilUxTreeShadowResolver } from './ux-tree.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
@@ -1470,6 +1471,25 @@ liveJs.annotationReticleOverlay = null;
 const radialActivationTransition = createRadialActivationTransitionController({
     now: () => state.globalTime,
 });
+function sigilUxTreeSnapshot() {
+    return createSigilUxTree({
+        state: {
+            ...state,
+            selectionModeOverlay: liveJs.selectionModeOverlay,
+            annotationReticleOverlay: liveJs.annotationReticleOverlay,
+        },
+        metadata: {
+            current_state: liveJs.currentState,
+            selection_mode_active: liveJs.selectionMode?.active === true,
+            context_menu_open: contextMenu?.isOpen?.() ?? false,
+        },
+    });
+}
+
+function sigilUxTreeShadowResolver() {
+    return createSigilUxTreeShadowResolver(sigilUxTreeSnapshot());
+}
+
 const radialGestureMenu = createSigilRadialGestureMenu({
     state,
     onCommitItem(item, snapshot, context = {}) {
@@ -4418,6 +4438,7 @@ window.__sigilDebug = {
             hitTargetInteractive: hitTarget.hit.interactive,
             inputRegions: sigilInputRegions?.snapshot?.() ?? null,
             radialTargetSurface: radialTargetSurface.snapshot(),
+            uxTree: sigilUxTreeSnapshot(),
             transition: visibilityTransition.active?.effect ?? null,
             surface: desktopWorldSurface ? {
                 segment: desktopWorldSurface.segment,
@@ -4430,6 +4451,12 @@ window.__sigilDebug = {
     importAvatarDefinitionText,
     utilityConfig(kind) {
         return utilityConfig(kind);
+    },
+    uxTree() {
+        return sigilUxTreeSnapshot();
+    },
+    uxTreeShadow(input) {
+        return sigilUxTreeShadowResolver().resolve(input || {});
     },
     openWikiWorkbench(path) {
         return openWikiWorkbench(path || WIKI_WORKBENCH_DEFAULT_PATH);

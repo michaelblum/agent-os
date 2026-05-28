@@ -1,0 +1,68 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { resolveUxTree } from '../../packages/toolkit/runtime/ux-tree.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const repoRoot = path.resolve(__dirname, '../..')
+const schemaPath = path.join(repoRoot, 'shared/schemas/aos-ux-tree-v0.schema.json')
+const validFixture = 'shared/schemas/fixtures/aos-ux-tree-v0/valid/sigil-avatar.json'
+const invalidSchemaFixtures = [
+  'shared/schemas/fixtures/aos-ux-tree-v0/invalid/executable-command.json',
+  'shared/schemas/fixtures/aos-ux-tree-v0/invalid/embedded-resource.json',
+]
+
+function validateFixture(fixturePath) {
+  return spawnSync(
+    'python3',
+    [
+      '-c',
+      `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+
+schema = json.loads(Path(sys.argv[1]).read_text())
+instance = json.loads(Path(sys.argv[2]).read_text())
+Draft202012Validator.check_schema(schema)
+validator = Draft202012Validator(schema)
+errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
+if errors:
+    for error in errors[:12]:
+        print(error.message)
+    sys.exit(1)
+`,
+      schemaPath,
+      path.join(repoRoot, fixturePath),
+    ],
+    { encoding: 'utf8' },
+  )
+}
+
+test('valid Sigil avatar UX tree fixture matches the canonical schema', () => {
+  const result = validateFixture(validFixture)
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+})
+
+for (const fixturePath of invalidSchemaFixtures) {
+  test(`${fixturePath} is rejected by the canonical schema`, () => {
+    const result = validateFixture(fixturePath)
+    assert.notEqual(result.status, 0, 'fixture unexpectedly passed schema validation')
+  })
+}
+
+test('runtime resolver reports binding references unknown to the schema alone', async () => {
+  const fixture = JSON.parse(await readFile(
+    path.join(repoRoot, 'shared/schemas/fixtures/aos-ux-tree-v0/invalid/unknown-binding-ref.json'),
+    'utf8',
+  ))
+  const schemaResult = validateFixture('shared/schemas/fixtures/aos-ux-tree-v0/invalid/unknown-binding-ref.json')
+  assert.equal(schemaResult.status, 0, `${schemaResult.stdout}${schemaResult.stderr}`)
+
+  const resolved = resolveUxTree(fixture)
+  assert.equal(resolved.validation.ok, false)
+  assert.ok(resolved.validation.errors.some((error) => error.code === 'binding.command_ref'))
+})

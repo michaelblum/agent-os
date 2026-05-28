@@ -8,6 +8,7 @@ export * from './surface-inspector-annotations.js';
 export * from './spatial-subject-tree.js';
 export * from './subject-entry-handle.js';
 export * from './radial-menu-subject.js';
+export * from './ux-tree-subject.js';
 export * from './subject-controls.js';
 export * from './subject-graph.js';
 export * from './artifact-bundle-subject.js';

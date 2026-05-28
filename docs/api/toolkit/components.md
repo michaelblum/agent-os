@@ -128,6 +128,14 @@ Smoke tests can inspect `window.__htmlFileWorkbenchState`, which includes
 `path`, `dirty`, `content`, `content_length`, `content_hash`, `preview_mode`,
 `preview_revision`, `preview_content_length`, and `last_result`.
 
+## UX Tree Readiness
+
+Toolkit components do not include a full UX tree editor yet. V0 producers expose
+UX trees as read-only workbench subjects with facets for overview, bindings,
+commands, settings, and raw JSON. A future editor can use the existing
+workbench shell and control defaults, but persistence and command execution must
+wait for the command registry adapter and binding cutover phases.
+
 ## Decision Gate
 
 `aos://toolkit/components/decision-gate/index.html` is the blocking gate

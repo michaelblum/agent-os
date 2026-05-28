@@ -168,6 +168,34 @@ import {
 } from 'aos://toolkit/runtime/index.js'
 ```
 
+### UX Tree Runtime
+
+`packages/toolkit/runtime/ux-tree.js` provides the dependency-light runtime
+helper for the `aos_ux_tree` contract. A UX tree is the future canonical shape
+for inspectable and editable affordances: nodes, mode-scoped gesture bindings,
+allowlisted command references, and plain JSON settings. V0 is read-only and
+shadow-resolved; it does not execute commands or replace app routers.
+
+```js
+import {
+  createUxTree,
+  mergeUxTreeDefinitions,
+  resolveUxTree,
+  uxTreeBindingsForGesture,
+  uxTreeCommandById,
+} from 'aos://toolkit/runtime/index.js'
+```
+
+The helper follows the radial-menu merge precedent: objects deep-merge, arrays
+replace by default, and `nodes`, `commands`, `bindings`, and `modes` merge by
+stable `id`. `resolveUxTree(input, { strict })` normalizes the tree and returns
+`validation.errors` for invalid node, command, or mode references. Strict mode
+throws after collecting the same validation metadata.
+
+Radial menu config remains the source of truth for radial menu geometry/items.
+When represented in a UX tree it belongs under `settings.radial`, alongside
+future override patches, rather than becoming a competing menu model.
+
 ### Deferred Gate Submission
 
 `packages/toolkit/runtime/gate.js` provides `submitGateContinuation()` for

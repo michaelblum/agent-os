@@ -50,6 +50,18 @@ shape with:
 import { createSigilAgentSubject } from '../workbench/sigil-subject.js'
 ```
 
+Read-only UX tree descriptors can be projected with:
+
+```js
+import { createUxTreeWorkbenchSubject } from '../workbench/ux-tree-subject.js'
+```
+
+The UX tree subject exposes `aos.ux_tree`, `aos.ux_tree.bindings`,
+`aos.ux_tree.commands`, `aos.ux_tree.settings`, and raw JSON facets. Its
+capability is inspect-only in V0. Editors should treat it as a discovery and
+review surface until the execution adapter, binding cutover, radial override
+patches, user persistence, and duplicate-router removal have landed.
+
 Design-stage work records can be projected from schema-shaped work-record
 objects with:
 
@@ -92,6 +104,7 @@ when reading descriptors:
 The first adopters are:
 
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
+- Read-only UX tree subjects: `aos.ux_tree`
 - Markdown workbench subjects: `markdown.document`
 - Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
   `wiki.reference`, and `wiki.page`
