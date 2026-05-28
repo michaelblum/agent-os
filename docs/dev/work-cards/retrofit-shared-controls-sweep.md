@@ -60,7 +60,7 @@ Work through these in order. Each is retrofit-only — no behavioral changes.
 - Send / Refresh / surface action buttons → `createButton`
 - Mutually exclusive provider / workflow controls → `createButtonGroup`
 
-### 6. `playbook-workbench`
+### 6. `step-descriptor-workbench`
 
 - Gate ref / token inputs → `createTextField`
 - Apply Gate / Simulate / Open Work Record buttons → `createButton` /

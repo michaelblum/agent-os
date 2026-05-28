@@ -1127,9 +1127,10 @@ Launch the fixture-backed shell in repo mode with:
 packages/toolkit/components/step-descriptor-workbench/launch.sh
 ```
 
-The shell manifest name is `step-descriptor-workbench-v0`. It is a browser-hosted,
-fixture-backed, report-only shell around the existing browser Step Descriptor
-prototype APIs. It uses `createBrowserStepDescriptorPrototype()`,
+The shell surface id is `step-descriptor-workbench-v0`; the manifest name is
+`step-descriptor-workbench`. It is a browser-hosted, fixture-backed, report-only
+shell around the existing browser Step Descriptor prototype APIs. It uses
+`createBrowserStepDescriptorPrototype()`,
 `runBrowserStepDescriptorPrototype()`, `runOneStepStepDescriptorHarness()`, and the existing
 read-only Work Record workbench open model. It simulates exactly one saved AOS
 browser action evidence source only after an explicit workflow gate ref and

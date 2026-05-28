@@ -29,7 +29,7 @@ blanket cutover.
   contract.
 - The recent Subject work has already introduced the pieces needed for a cleaner
   model: high-level capabilities, operation contracts, Facets, Hosts, Subject
-  References, Wiki Subject Browser, Playbook Workbench, and Work Record
+  References, Wiki Subject Browser, Step Descriptor Workbench, and Work Record
   handoffs.
 - The knowledge-graph research signal supports a typed, atomic, linked model
   with provenance and health instead of loose folder-style or legacy descriptor
@@ -46,7 +46,7 @@ blanket cutover.
 The interrupted dirty files appear to be a narrow #281 slice:
 
 - `packages/toolkit/components/markdown-workbench/model.js`
-- `packages/toolkit/components/playbook-workbench/model.js`
+- `packages/toolkit/components/step-descriptor-workbench/model.js`
 - `packages/toolkit/components/work-record-workbench/model.js`
 - `packages/toolkit/workbench/browser-step-descriptor-prototype.js`
 - `tests/toolkit/browser-step-descriptor-prototype.test.mjs`

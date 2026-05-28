@@ -22,7 +22,7 @@ Now that:
 1. Audit the four retrofitted workbench surfaces for hand-rolled shell chrome HTML strings:
    - `markdown-workbench`
    - `surface-zoom-inspector`
-   - `playbook-workbench`
+   - `step-descriptor-workbench`
    - `work-record-workbench`
 2. Identify recurring shell chrome patterns (e.g. workbench header, toolbar row, section label, status bar).
 3. Add render helpers to `packages/toolkit/controls/` (or a new `packages/toolkit/shell/` module if the patterns are structurally distinct from controls — use judgment).
