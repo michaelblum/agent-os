@@ -1,5 +1,6 @@
 export const SIGIL_AVATAR_INPUT_REGION_ID = 'sigil-avatar-main-input-region';
 export const SIGIL_CONTEXT_MENU_INPUT_REGION_ID = 'sigil-context-menu-input-region';
+export const SIGIL_SELECTION_MODE_INPUT_REGION_ID = 'sigil-selection-mode-input-region';
 
 const CAPTURE_STATES = new Set(['IDLE', 'PRESS', 'RADIAL', 'FAST_TRAVEL']);
 
@@ -41,6 +42,8 @@ export function createSigilInputRegionAdapter({
     avatarRegionEnabled = () => true,
     contextMenuNativeFrame,
     contextMenuIsOpen = () => false,
+    selectionModeNativeFrame,
+    selectionModeIsActive = () => false,
     logger = console,
 } = {}) {
     if (!host) throw new Error('createSigilInputRegionAdapter requires host');
@@ -110,6 +113,7 @@ export function createSigilInputRegionAdapter({
         const removed = [
             remove(SIGIL_AVATAR_INPUT_REGION_ID),
             remove(SIGIL_CONTEXT_MENU_INPUT_REGION_ID),
+            remove(SIGIL_SELECTION_MODE_INPUT_REGION_ID),
         ];
         return removed.some(Boolean);
     }
@@ -146,10 +150,24 @@ export function createSigilInputRegionAdapter({
         }));
     }
 
+    function syncSelectionMode() {
+        if (!isPrimarySegment() || !selectionModeIsActive()) {
+            return remove(SIGIL_SELECTION_MODE_INPUT_REGION_ID);
+        }
+        const frame = selectionModeNativeFrame?.();
+        if (!frame) return remove(SIGIL_SELECTION_MODE_INPUT_REGION_ID);
+        return syncRegion(SIGIL_SELECTION_MODE_INPUT_REGION_ID, payloadFor(SIGIL_SELECTION_MODE_INPUT_REGION_ID, frame, {
+            semanticLabel: 'Sigil Selection Mode input claim',
+            priority: 110,
+            purpose: 'selection-mode-pointer-capture',
+        }));
+    }
+
     function sync() {
         const avatarChanged = syncAvatar();
         const contextMenuChanged = syncContextMenu();
-        return avatarChanged || contextMenuChanged;
+        const selectionModeChanged = syncSelectionMode();
+        return avatarChanged || contextMenuChanged || selectionModeChanged;
     }
 
     function snapshot() {
@@ -164,6 +182,10 @@ export function createSigilInputRegionAdapter({
                     id: SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
                     ...regionSnapshot(regions.get(SIGIL_CONTEXT_MENU_INPUT_REGION_ID)),
                 },
+                selectionMode: {
+                    id: SIGIL_SELECTION_MODE_INPUT_REGION_ID,
+                    ...regionSnapshot(regions.get(SIGIL_SELECTION_MODE_INPUT_REGION_ID)),
+                },
             },
         };
     }
@@ -172,11 +194,13 @@ export function createSigilInputRegionAdapter({
         ids: {
             avatar: SIGIL_AVATAR_INPUT_REGION_ID,
             contextMenu: SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
+            selectionMode: SIGIL_SELECTION_MODE_INPUT_REGION_ID,
         },
         currentOwnerCanvasId,
         sync,
         syncAvatar,
         syncContextMenu,
+        syncSelectionMode,
         remove,
         removeAll,
         snapshot,

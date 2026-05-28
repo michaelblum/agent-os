@@ -18,6 +18,87 @@ function drawFrame(ctx, frame = {}, style = {}) {
     ctx.restore();
 }
 
+function drawSelectionMode(ctx, overlay = {}, snapshot = {}) {
+    if (!overlay?.visible) return;
+    const time = Number(snapshot.time) || 0;
+    const trail = snapshot.selectionTrail || {};
+    const trailScale = Math.max(0.4, Number(trail.scale) || 1);
+    const lag = Math.max(0, Math.min(0.5, Number(trail.lag) || 0.05));
+    const pulse = 0.5 + (0.5 * Math.sin(time * 7));
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    for (const frame of overlay.frames || []) {
+        const active = frame.active === true;
+        const leaf = frame.leaf === true;
+        drawFrame(ctx, frame, {
+            stroke: active ? 'rgba(94, 252, 210, 0.96)' : (leaf ? 'rgba(255, 224, 120, 0.88)' : 'rgba(170, 210, 255, 0.62)'),
+            fill: active ? 'rgba(94, 252, 210, 0.07)' : 'rgba(170, 210, 255, 0.035)',
+            dash: active ? [] : [7, 7],
+            lineWidth: active ? 2.5 : 1.4,
+        });
+        const rect = frame.rect || {};
+        if (Number.isFinite(rect.x) && Number.isFinite(rect.y)) {
+            const label = `${frame.index + 1}`;
+            ctx.save();
+            ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = active ? 'rgba(94, 252, 210, 0.96)' : 'rgba(20, 30, 42, 0.86)';
+            ctx.strokeStyle = active ? 'rgba(8, 18, 24, 0.94)' : 'rgba(170, 210, 255, 0.74)';
+            ctx.lineWidth = 1.5;
+            const bx = rect.x + 12;
+            const by = rect.y - 10;
+            ctx.beginPath();
+            ctx.roundRect(bx - 9, by - 9, 18, 18, 5);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = active ? 'rgba(8, 18, 24, 0.96)' : 'rgba(255, 255, 255, 0.92)';
+            ctx.fillText(label, bx, by + 0.5);
+            ctx.restore();
+        }
+    }
+
+    const cursor = overlay.cursor;
+    if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
+        const tail = 18 * trailScale;
+        const tailX = cursor.x - (tail * (0.65 + lag));
+        const tailY = cursor.y + (tail * 0.34);
+        const gradient = ctx.createLinearGradient(tailX, tailY, cursor.x, cursor.y);
+        gradient.addColorStop(0, 'rgba(94, 252, 210, 0)');
+        gradient.addColorStop(1, 'rgba(94, 252, 210, 0.82)');
+        ctx.lineCap = 'round';
+        ctx.globalAlpha = 0.84;
+        ctx.beginPath();
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 4 + pulse;
+        ctx.moveTo(tailX, tailY);
+        ctx.lineTo(cursor.x, cursor.y);
+        ctx.stroke();
+
+        ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = 'rgba(94, 252, 210, 0.96)';
+        ctx.fillStyle = 'rgba(12, 22, 28, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cursor.x, cursor.y - (14 * trailScale));
+        ctx.lineTo(cursor.x + (10 * trailScale), cursor.y + (10 * trailScale));
+        ctx.lineTo(cursor.x + (1 * trailScale), cursor.y + (7 * trailScale));
+        ctx.lineTo(cursor.x - (7 * trailScale), cursor.y + (15 * trailScale));
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.globalAlpha = 0.34 + (0.18 * pulse);
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
+        ctx.lineWidth = 1.2;
+        ctx.arc(cursor.x, cursor.y, 18 + (pulse * 4), 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
 export function createInteractionOverlay() {
     let canvas = null;
     let resize = null;
@@ -237,6 +318,8 @@ export function createInteractionOverlay() {
             }
             ctx.restore();
         }
+
+        drawSelectionMode(ctx, snapshot.selectionModeOverlay, snapshot);
 
     }
 

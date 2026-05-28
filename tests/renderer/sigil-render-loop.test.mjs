@@ -125,6 +125,7 @@ test('hidden or paused idle avatar does not require continuous rendering', () =>
     radialGestureActive: false,
     contextMenuOpen: false,
     annotationReticleActive: false,
+    selectionModeActive: false,
     sessionVitalityRefreshing: false,
     sessionVitalityFlickerAmount: 0,
   }), false);
@@ -143,6 +144,7 @@ test('visible idle avatar motion keeps render loop continuous with explicit reas
     radialGestureActive: false,
     contextMenuOpen: false,
     annotationReticleActive: false,
+    selectionModeActive: false,
     sessionVitalityRefreshing: false,
     sessionVitalityFlickerAmount: 0,
   }), ['avatar-motion']);
@@ -186,6 +188,11 @@ test('transitions and interaction states keep render loop continuous', () => {
     currentState: 'RADIAL',
     radialGestureActive: true,
   }));
+
+  assert.deepEqual(renderLoopContinuationReasons({
+    currentState: 'IDLE',
+    selectionModeActive: true,
+  }), ['selection-mode']);
 
   assert.ok(shouldContinueRenderLoop({
     currentState: 'IDLE',
