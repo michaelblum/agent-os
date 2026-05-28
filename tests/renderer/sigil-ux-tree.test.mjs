@@ -73,6 +73,11 @@ test('Sigil shadow resolver maps avatar and Selection Mode gestures to current c
     gesture: 'pointer.right.click',
   }), 'sigil.context_menu.open')
   assert.equal(commandFor({
+    nodeId: 'sigil.avatar.context_menu',
+    mode: 'global',
+    gesture: 'pointer.right.click',
+  }), 'sigil.context_menu.toggle')
+  assert.equal(commandFor({
     nodeId: 'sigil.avatar.body',
     mode: 'goto',
     gesture: 'pointer.left.double_click',

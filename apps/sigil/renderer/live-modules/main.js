@@ -63,6 +63,10 @@ import {
     resolveSelectionModeInputRoute,
 } from './selection-mode-input.js';
 import {
+    contextMenuOpenCommandOpened,
+    resolveContextMenuRightClickRoute,
+} from './context-menu-input.js';
+import {
     currentSigilRoot,
     currentToolkitRoot,
     sigilUrl,
@@ -2790,6 +2794,16 @@ const sigilUxCommandRegistry = createSigilUxTreeCommandRegistry({
     selectionModeCommit: (reason) => commitSelectionMode(reason),
     selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
     selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
+    contextMenuOpen: (pointer) => (
+        pointer && typeof pointer.x === 'number' && typeof pointer.y === 'number'
+            ? openContextMenuAt(pointer.x, pointer.y)
+            : false
+    ),
+    contextMenuToggle: () => {
+        contextMenu.close('right-click-toggle');
+        cancelInteraction('right-click-toggle');
+        return true;
+    },
 });
 
 function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
@@ -2840,6 +2854,20 @@ function executeSelectionModeEscapeCommand(msg = {}) {
     return executeSelectionModeCommand(SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT, msg, {
         fallback: () => exitSelectionMode('escape'),
     });
+}
+
+function executeContextMenuRightClickCommand(route = {}, msg = {}) {
+    const result = executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
+        input: route.input || {},
+        registry: sigilUxCommandRegistry,
+        context: {
+            source: 'handleInputEvent',
+            msg,
+            pointer: route.pointer || null,
+        },
+    });
+    recordUxCommandRuntime(result, { fallback: result.executed !== true });
+    return result;
 }
 
 function acquireSelectionModeCandidates(point = null) {
@@ -3574,24 +3602,36 @@ function handleInputEvent(msg) {
             return;
         case 'right_mouse_down':
             recordInteraction('context-menu:right-down', { x: msg.x, y: msg.y, open: contextMenu.isOpen() });
-            if (contextMenu.isOpen()) {
-                if (
-                    typeof msg.x === 'number'
-                    && typeof msg.y === 'number'
-                    && isDuplicateContextMenuOpenClick(msg.x, msg.y)
-                ) {
+            {
+                const route = resolveContextMenuRightClickRoute(msg, {
+                    isOpen: contextMenu.isOpen(),
+                    isDuplicateOpenClick: isDuplicateContextMenuOpenClick,
+                });
+                if (route.direct === 'duplicate_open_echo') {
                     recordInteraction('context-menu:right-down-duplicate-ignored', { x: msg.x, y: msg.y });
                     return;
                 }
-                recordInteraction('context-menu:right-down-close-open-menu', { x: msg.x, y: msg.y });
-                contextMenu.close('right-click-toggle');
-                cancelInteraction('right-click-toggle');
+                if (route.command === 'toggle') {
+                    recordInteraction('context-menu:right-down-close-open-menu', { x: msg.x, y: msg.y });
+                    const result = executeContextMenuRightClickCommand(route, msg);
+                    if (result.executed !== true) {
+                        contextMenu.close('right-click-toggle');
+                        cancelInteraction('right-click-toggle');
+                    }
+                    return;
+                }
+                if (route.command === 'open') {
+                    const result = executeContextMenuRightClickCommand(route, msg);
+                    if (contextMenuOpenCommandOpened(result)) return;
+                    if (result.executed !== true && openContextMenuAt(msg.x, msg.y)) return;
+                    contextMenu.close('right-click-away');
+                    cancelInteraction('right-click');
+                    return;
+                }
+                contextMenu.close('right-click-away');
+                cancelInteraction('right-click');
                 return;
             }
-            if (typeof msg.x === 'number' && typeof msg.y === 'number' && openContextMenuAt(msg.x, msg.y)) return;
-            contextMenu.close('right-click-away');
-            cancelInteraction('right-click');
-            return;
         case 'key_down':
             if (msg.key_code === 53) {
                 contextMenu.close('escape');

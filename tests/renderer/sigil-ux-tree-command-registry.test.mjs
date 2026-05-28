@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createSigilUxTree } from '../../apps/sigil/renderer/live-modules/ux-tree.js'
 import {
+  SIGIL_CONTEXT_MENU_COMMAND_INPUTS,
   SIGIL_SELECTION_MODE_COMMAND_INPUTS,
   SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
   createSigilUxTreeCommandRegistry,
@@ -69,6 +70,65 @@ test('Sigil UX command adapter reports missing handler without executing', () =>
   assert.equal(result.matched, true)
   assert.equal(result.executed, false)
   assert.equal(result.command_id, 'sigil.selection_mode.cancel')
+  assert.equal(result.reason, 'handler_not_registered')
+  assert.equal(result.errors[0].code, 'command.handler.missing')
+})
+
+test('Sigil UX command adapter executes context menu open handler with pointer context', () => {
+  const pointer = { x: 44, y: 55, valid: true }
+  let seenPointer = null
+  const registry = createSigilUxTreeCommandRegistry({
+    contextMenuOpen(nextPointer) {
+      seenPointer = nextPointer
+      return true
+    },
+  })
+
+  const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
+    registry,
+    context: { pointer },
+  })
+
+  assert.equal(seenPointer, pointer)
+  assert.equal(result.command_id, 'sigil.context_menu.open')
+  assert.equal(result.binding_id, 'sigil.avatar.context_menu.right_click')
+  assert.equal(result.executed, true)
+  assert.equal(result.handler_result, true)
+})
+
+test('Sigil UX command adapter executes context menu toggle handler with pointer context', () => {
+  const pointer = { x: 66, y: 77, valid: true }
+  let seenPointer = null
+  const registry = createSigilUxTreeCommandRegistry({
+    contextMenuToggle(nextPointer) {
+      seenPointer = nextPointer
+      return { closed: true }
+    },
+  })
+
+  const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.toggle,
+    registry,
+    context: { pointer },
+  })
+
+  assert.equal(seenPointer, pointer)
+  assert.equal(result.command_id, 'sigil.context_menu.toggle')
+  assert.equal(result.binding_id, 'sigil.avatar.context_menu.right_click_toggle')
+  assert.equal(result.executed, true)
+  assert.deepEqual(result.handler_result, { closed: true })
+})
+
+test('Sigil UX command adapter reports missing context menu handler without executing', () => {
+  const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
+    registry: createSigilUxTreeCommandRegistry(),
+  })
+
+  assert.equal(result.matched, true)
+  assert.equal(result.executed, false)
+  assert.equal(result.command_id, 'sigil.context_menu.open')
   assert.equal(result.reason, 'handler_not_registered')
   assert.equal(result.errors[0].code, 'command.handler.missing')
 })

@@ -35,6 +35,19 @@ export const SIGIL_SELECTION_MODE_COMMAND_INPUTS = Object.freeze({
     }),
 });
 
+export const SIGIL_CONTEXT_MENU_COMMAND_INPUTS = Object.freeze({
+    open: Object.freeze({
+        nodeId: 'sigil.avatar.body',
+        mode: 'idle',
+        gesture: 'pointer.right.click',
+    }),
+    toggle: Object.freeze({
+        nodeId: 'sigil.avatar.context_menu',
+        mode: 'global',
+        gesture: 'pointer.right.click',
+    }),
+});
+
 const ALLOWLISTED_EXECUTION = 'allowlisted';
 const HAS_OWN = Object.prototype.hasOwnProperty;
 
@@ -117,8 +130,20 @@ export function createSigilUxTreeCommandRegistry({
     selectionModeCommit,
     selectionModeCycleTarget,
     selectionModeAcquire,
+    contextMenuOpen,
+    contextMenuToggle,
 } = {}) {
     const registry = {};
+    if (typeof contextMenuOpen === 'function') {
+        registry['sigil.context_menu.open'] = ({ context } = {}) => (
+            contextMenuOpen(context?.pointer || null)
+        );
+    }
+    if (typeof contextMenuToggle === 'function') {
+        registry['sigil.context_menu.toggle'] = ({ context } = {}) => (
+            contextMenuToggle(context?.pointer || null)
+        );
+    }
     if (typeof selectionModeCancel === 'function') {
         registry['sigil.selection_mode.cancel'] = selectionModeCancel;
     }
