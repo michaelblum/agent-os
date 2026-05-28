@@ -9,6 +9,16 @@ feel like AOS app controls instead of raw browser defaults. Controls attach to
 ordinary semantic HTML and dispatch normal DOM events so panels can remain
 domain-specific.
 
+`controls/ux-tree.js` starts toolkit control UX tree adoption with read-only
+shadow fragments for buttons, toggles, and segmented button groups. Use
+`createButtonUxTreeFragment()`, `createToggleUxTreeFragment()`, or
+`createButtonGroupUxTreeFragment()` when a surface needs inspectable data for
+existing control bindings. The helpers return plain JSON `aos_ux_tree` objects
+validated by the toolkit runtime shape: node identity, existing pointer/keyboard
+gestures, allowlisted command handler refs, grouped option ownership relations,
+and current state metadata. They do not execute commands, install a command
+registry, persist overrides, or expose a binding editor.
+
 `number-field.js` provides focused wheel and arrow-key stepping for numeric
 fields marked with `data-aos-control="number-field"`. It uses the field's
 native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
