@@ -54,6 +54,11 @@ function jsonObject(entries) {
   return object;
 }
 
+export function buttonGroupOptionValueMatches(optionValue, currentValue) {
+  const normalizedValue = currentValue === undefined ? null : currentValue;
+  return String(optionValue) === String(normalizedValue);
+}
+
 function handlerRef(value, fallback) {
   const ref = text(value, fallback);
   if (!HANDLER_REF_PATTERN.test(ref)) {
@@ -219,7 +224,7 @@ export function createButtonGroupUxTreeFragment(config = {}, options = {}) {
           runtime_state: CONTROL_UX_TREE_RUNTIME_STATE,
           state: jsonObject({
             value: option.value,
-            selected: option.value === config.value,
+            selected: buttonGroupOptionValueMatches(option.value, config.value),
             danger: !!option.danger,
             disabled: !!option.disabled,
           }),

@@ -1,4 +1,5 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
+import { buttonGroupOptionValueMatches, createButtonGroupUxTreeFragment } from './ux-tree.js';
 
 export function createButtonGroup(config = {}) {
   const doc = ownerDocument(config);
@@ -19,7 +20,7 @@ export function createButtonGroup(config = {}) {
 
   const renderPressed = () => {
     for (const button of buttons) {
-      const selected = button.dataset.value === String(value);
+      const selected = buttonGroupOptionValueMatches(button.dataset.value, value);
       button.setAttribute('aria-pressed', String(selected));
       button.classList.toggle('active', selected);
       button.tabIndex = selected || value === null ? 0 : -1;
@@ -72,6 +73,13 @@ export function createButtonGroup(config = {}) {
       return value;
     },
     setValue,
+    getUxTreeFragment(fragmentOptions = {}) {
+      return createButtonGroupUxTreeFragment({
+        ...config,
+        options,
+        value,
+      }, fragmentOptions);
+    },
     on(type, callback) {
       return type === 'change' ? hub.on(type, callback) : () => {};
     },

@@ -13,7 +13,10 @@ domain-specific.
 shadow fragments for buttons, toggles, and segmented button groups. Use
 `createButtonUxTreeFragment()`, `createToggleUxTreeFragment()`, or
 `createButtonGroupUxTreeFragment()` when a surface needs inspectable data for
-existing control bindings. The helpers return plain JSON `aos_ux_tree` objects
+existing control bindings. Factory-created `createButton()`, `createToggle()`,
+and `createButtonGroup()` controls also expose `getUxTreeFragment(options = {})`
+on their return values so callers can discover the same read-only fragment from
+the live control object. The helpers return plain JSON `aos_ux_tree` objects
 validated by the toolkit runtime shape: node identity, existing pointer/keyboard
 gestures, allowlisted command handler refs, grouped option ownership relations,
 and current state metadata. They do not execute commands, install a command
