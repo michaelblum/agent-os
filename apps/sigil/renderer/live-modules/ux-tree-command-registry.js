@@ -6,6 +6,35 @@ export const SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT = Object.freeze({
     gesture: 'key.escape',
 });
 
+export const SIGIL_SELECTION_MODE_COMMAND_INPUTS = Object.freeze({
+    escape: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+    commit: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'key.enter',
+    }),
+    tabPreviousTarget: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'key.tab',
+    }),
+    arrowUpPreviousTarget: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'key.arrow_up',
+    }),
+    arrowDownNextTarget: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'key.arrow_down',
+    }),
+    acquire: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'pointer.left.click',
+    }),
+});
+
 const ALLOWLISTED_EXECUTION = 'allowlisted';
 const HAS_OWN = Object.prototype.hasOwnProperty;
 
@@ -83,10 +112,31 @@ function registryHandler(registry = {}, command = {}) {
     return { handler: null, key: keys[0] || null };
 }
 
-export function createSigilUxTreeCommandRegistry({ selectionModeCancel } = {}) {
-    return Object.freeze({
-        'sigil.selection_mode.cancel': selectionModeCancel,
-    });
+export function createSigilUxTreeCommandRegistry({
+    selectionModeCancel,
+    selectionModeCommit,
+    selectionModeCycleTarget,
+    selectionModeAcquire,
+} = {}) {
+    const registry = {};
+    if (typeof selectionModeCancel === 'function') {
+        registry['sigil.selection_mode.cancel'] = selectionModeCancel;
+    }
+    if (typeof selectionModeCommit === 'function') {
+        registry['sigil.selection_mode.commit'] = () => selectionModeCommit('enter');
+    }
+    if (typeof selectionModeCycleTarget === 'function') {
+        registry['sigil.selection_mode.cycle_target'] = ({ binding } = {}) => {
+            const delta = Number(binding?.parameters?.delta);
+            return selectionModeCycleTarget(Number.isFinite(delta) ? delta : -1);
+        };
+    }
+    if (typeof selectionModeAcquire === 'function') {
+        registry['sigil.selection_mode.acquire'] = ({ context } = {}) => (
+            selectionModeAcquire(context?.pointer || null)
+        );
+    }
+    return Object.freeze(registry);
 }
 
 export function executeSigilUxTreeCommand(tree, { input = {}, registry = {}, context = {} } = {}) {

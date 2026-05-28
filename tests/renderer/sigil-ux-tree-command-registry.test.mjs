@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createSigilUxTree } from '../../apps/sigil/renderer/live-modules/ux-tree.js'
 import {
+  SIGIL_SELECTION_MODE_COMMAND_INPUTS,
   SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
   createSigilUxTreeCommandRegistry,
   executeSigilUxTreeCommand,
@@ -243,4 +244,90 @@ test('Sigil UX command adapter only invokes registered handlers', () => {
   assert.equal(embeddedCalls, 0)
   assert.equal(result.executed, false)
   assert.equal(result.reason, 'handler_not_registered')
+})
+
+test('Sigil UX command adapter executes Selection Mode commit handler for Enter', () => {
+  const calls = []
+  const registry = createSigilUxTreeCommandRegistry({
+    selectionModeCommit(reason) {
+      calls.push(reason)
+      return { committed: true, reason }
+    },
+  })
+
+  const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_SELECTION_MODE_COMMAND_INPUTS.commit,
+    registry,
+  })
+
+  assert.deepEqual(calls, ['enter'])
+  assert.equal(result.command_id, 'sigil.selection_mode.commit')
+  assert.equal(result.binding_id, 'sigil.selection_mode.enter')
+  assert.equal(result.executed, true)
+  assert.deepEqual(result.handler_result, { committed: true, reason: 'enter' })
+})
+
+test('Sigil UX command adapter executes Selection Mode cycle handler with tree binding deltas', () => {
+  const calls = []
+  const registry = createSigilUxTreeCommandRegistry({
+    selectionModeCycleTarget(delta) {
+      calls.push(delta)
+      return { delta }
+    },
+  })
+
+  const cases = [
+    [SIGIL_SELECTION_MODE_COMMAND_INPUTS.tabPreviousTarget, 'sigil.selection_mode.tab', -1],
+    [SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowUpPreviousTarget, 'sigil.selection_mode.arrow_up', -1],
+    [SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowDownNextTarget, 'sigil.selection_mode.arrow_down', 1],
+  ]
+
+  for (const [input, bindingId, delta] of cases) {
+    const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+      input,
+      registry,
+    })
+    assert.equal(result.command_id, 'sigil.selection_mode.cycle_target')
+    assert.equal(result.binding_id, bindingId)
+    assert.equal(result.executed, true)
+    assert.deepEqual(result.handler_result, { delta })
+  }
+
+  assert.deepEqual(calls, [-1, -1, 1])
+})
+
+test('Sigil UX command adapter executes Selection Mode acquire handler with pointer context', () => {
+  const pointer = { x: 12, y: 34, valid: true }
+  let seenPointer = null
+  const registry = createSigilUxTreeCommandRegistry({
+    selectionModeAcquire(nextPointer) {
+      seenPointer = nextPointer
+      return { acquired: true, pointer: nextPointer }
+    },
+  })
+
+  const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_SELECTION_MODE_COMMAND_INPUTS.acquire,
+    registry,
+    context: { pointer },
+  })
+
+  assert.equal(seenPointer, pointer)
+  assert.equal(result.command_id, 'sigil.selection_mode.acquire')
+  assert.equal(result.binding_id, 'sigil.selection_mode.left_click_acquire')
+  assert.equal(result.executed, true)
+  assert.deepEqual(result.handler_result, { acquired: true, pointer })
+})
+
+test('Sigil UX command adapter reports missing Selection Mode commit handler without executing', () => {
+  const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_SELECTION_MODE_COMMAND_INPUTS.commit,
+    registry: createSigilUxTreeCommandRegistry(),
+  })
+
+  assert.equal(result.matched, true)
+  assert.equal(result.executed, false)
+  assert.equal(result.command_id, 'sigil.selection_mode.commit')
+  assert.equal(result.reason, 'handler_not_registered')
+  assert.equal(result.errors[0].code, 'command.handler.missing')
 })

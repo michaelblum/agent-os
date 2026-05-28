@@ -58,7 +58,10 @@ import {
 } from './annotation-reticle.js';
 import { advanceMenuActivation } from './menu-activation-runtime.js';
 import { createSigilInputRegionAdapter } from './input-regions.js';
-import { createAvatarDoubleClickTracker } from './selection-mode-input.js';
+import {
+    createAvatarDoubleClickTracker,
+    resolveSelectionModeInputRoute,
+} from './selection-mode-input.js';
 import {
     currentSigilRoot,
     currentToolkitRoot,
@@ -74,6 +77,7 @@ import {
 import { buildAvatarObjectRegistry } from './avatar-object-control.js';
 import { createSigilUxTree, createSigilUxTreeShadowResolver } from './ux-tree.js';
 import {
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS,
     SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
     createSigilUxTreeCommandRegistry,
     executeSigilUxTreeCommand,
@@ -2783,6 +2787,9 @@ function exitSelectionMode(reason = 'cancel') {
 
 const sigilUxCommandRegistry = createSigilUxTreeCommandRegistry({
     selectionModeCancel: () => exitSelectionMode('escape'),
+    selectionModeCommit: (reason) => commitSelectionMode(reason),
+    selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
+    selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
 });
 
 function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
@@ -2811,18 +2818,28 @@ function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
     return entry;
 }
 
-function executeSelectionModeEscapeCommand(msg = {}) {
+function executeSelectionModeCommand(input, msg = {}, {
+    pointer = null,
+    fallback = null,
+} = {}) {
     const result = executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
-        input: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+        input,
         registry: sigilUxCommandRegistry,
         context: {
             source: 'handleSelectionModeInput',
             msg,
+            pointer,
         },
     });
     recordUxCommandRuntime(result, { fallback: result.executed !== true });
-    if (result.executed !== true) exitSelectionMode('escape');
+    if (result.executed !== true && typeof fallback === 'function') fallback();
     return result;
+}
+
+function executeSelectionModeEscapeCommand(msg = {}) {
+    return executeSelectionModeCommand(SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT, msg, {
+        fallback: () => exitSelectionMode('escape'),
+    });
 }
 
 function acquireSelectionModeCandidates(point = null) {
@@ -2939,51 +2956,56 @@ function createSelectionModeContextFromDebugInput(input = {}) {
     return contextSession;
 }
 
-function selectionModeKeyName(msg = {}) {
-    return String(msg.key || msg.key_name || msg.code || '').toLowerCase();
-}
-
 function handleSelectionModeInput(msg = {}) {
     if (!liveJs.selectionMode?.active) return false;
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
         liveJs.selectionMode.cursor = { x: msg.x, y: msg.y, valid: true };
         liveJs.selectionModeOverlay = buildProjectedSelectionModeOverlay(liveJs.selectionMode);
     }
-    if (msg.type === 'key_down') {
-        const key = selectionModeKeyName(msg);
-        if (msg.key_code === 53 || key === 'escape') {
-            executeSelectionModeEscapeCommand(msg);
-            return true;
-        }
-        if (msg.key_code === 36 || msg.key_code === 76 || key === 'enter' || key === 'return') {
-            commitSelectionMode('enter');
-            return true;
-        }
-        if (msg.key_code === 48 || msg.key_code === 126 || key === 'tab' || key === 'arrowup') {
-            cycleSelectionModeTarget(-1);
-            return true;
-        }
-        if (msg.key_code === 125 || key === 'arrowdown') {
-            cycleSelectionModeTarget(1);
-            return true;
-        }
-        return true;
-    }
-    if (msg.type === 'mouse_moved' || msg.type === 'left_mouse_dragged') {
+    const route = resolveSelectionModeInputRoute(msg, {
+        consumeSelectionModeEntryRelease,
+        isOnAvatar,
+        consumeAvatarDoubleClick,
+    });
+    if (!route.handled) return false;
+    if (route.direct === 'render_only') {
         scheduleRenderFrame();
         return true;
     }
-    if (msg.type === 'left_mouse_down') return true;
-    if (msg.type === 'left_mouse_up') {
-        if (consumeSelectionModeEntryRelease(msg)) return true;
-        if (isOnAvatar(msg.x, msg.y)) {
-            if (consumeAvatarDoubleClick(msg.x, msg.y)) exitSelectionMode('avatar-double-click');
-            return true;
-        }
-        acquireSelectionModeCandidates({ x: msg.x, y: msg.y, valid: true });
+    if (route.direct === 'avatar_double_click_exit') {
+        exitSelectionMode('avatar-double-click');
         return true;
     }
-    return ['right_mouse_down', 'right_mouse_up', 'scroll_wheel'].includes(msg.type);
+    if (!route.command) return true;
+
+    if (route.command === 'escape') {
+        executeSelectionModeEscapeCommand(msg);
+        return true;
+    }
+
+    const commandInput = SIGIL_SELECTION_MODE_COMMAND_INPUTS[route.command];
+    if (!commandInput) return true;
+    executeSelectionModeCommand(commandInput, msg, {
+        pointer: route.pointer || null,
+        fallback: () => {
+            if (route.command === 'commit') {
+                commitSelectionMode('enter');
+                return;
+            }
+            if (route.command === 'tabPreviousTarget' || route.command === 'arrowUpPreviousTarget') {
+                cycleSelectionModeTarget(-1);
+                return;
+            }
+            if (route.command === 'arrowDownNextTarget') {
+                cycleSelectionModeTarget(1);
+                return;
+            }
+            if (route.command === 'acquire') {
+                acquireSelectionModeCandidates(route.pointer);
+            }
+        }
+    });
+    return true;
 }
 
 function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
