@@ -16,8 +16,10 @@ const SIGIL_UX_SOURCE_REFS = Object.freeze([
     { id: 'sigil-main', kind: 'source', ref: 'apps/sigil/renderer/live-modules/main.js' },
     { id: 'selection-mode-input', kind: 'source', ref: 'apps/sigil/renderer/live-modules/selection-mode-input.js' },
     { id: 'input-regions', kind: 'source', ref: 'apps/sigil/renderer/live-modules/input-regions.js' },
+    { id: 'context-menu-input', kind: 'source', ref: 'apps/sigil/renderer/live-modules/context-menu-input.js' },
     { id: 'radial-gesture-menu', kind: 'source', ref: 'apps/sigil/renderer/live-modules/radial-gesture-menu.js' },
     { id: 'radial-menu-activation', kind: 'source', ref: 'apps/sigil/renderer/live-modules/radial-menu-activation.js' },
+    { id: 'radial-menu-target-surface', kind: 'source', ref: 'apps/sigil/renderer/live-modules/radial-menu-target-surface.js' },
     { id: 'sigil-radial-menu', kind: 'resource', ref: 'apps/sigil/renderer/radial-menu/sigil-radial-menu.json' },
 ]);
 
@@ -74,6 +76,18 @@ function binding(id, nodeId, mode, gesture, commandId, extra = {}) {
         consume_policy: 'consume',
         parameters: {},
         source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js'),
+        ...extra,
+    };
+}
+
+function relation(id, relationType, fromNodeId, toNodeId, extra = {}) {
+    return {
+        id,
+        relation_type: relationType,
+        from_node_id: fromNodeId,
+        to_node_id: toNodeId,
+        source_metadata: {},
+        metadata: {},
         ...extra,
     };
 }
@@ -277,6 +291,89 @@ function bindingList(radialMenu) {
     ];
 }
 
+function relationList() {
+    return [
+        relation('sigil.avatar.body.opens_context_menu', 'opens', 'sigil.avatar.body', 'sigil.avatar.context_menu', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/context-menu-input.js', {
+                binding_id: 'sigil.avatar.context_menu.right_click',
+                command_id: 'sigil.context_menu.open',
+            }),
+            metadata: {
+                gesture: 'pointer.right.click',
+            },
+        }),
+        relation('sigil.avatar.body.triggers_radial_menu', 'triggers', 'sigil.avatar.body', 'sigil.avatar.radial_menu', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/radial-gesture-menu.js', {
+                binding_id: 'sigil.avatar.radial.drag_threshold',
+                command_id: 'sigil.radial.begin',
+            }),
+            metadata: {
+                gesture: 'pointer.left.drag_threshold',
+            },
+        }),
+        relation('sigil.avatar.body.triggers_selection_mode', 'triggers', 'sigil.avatar.body', 'sigil.avatar.selection_mode', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/selection-mode-input.js', {
+                binding_id: 'sigil.avatar.selection_mode.double_click',
+                command_id: 'sigil.selection_mode.enter',
+            }),
+            metadata: {
+                gesture: 'pointer.left.double_click',
+            },
+        }),
+        relation('sigil.avatar.anchors_radial_menu', 'anchors', 'sigil.avatar', 'sigil.avatar.radial_menu', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/radial-gesture-menu.js'),
+            metadata: {
+                anchor: {
+                    kind: 'avatar_position',
+                    state_ref: 'liveJs.avatarPos',
+                },
+            },
+        }),
+        relation('sigil.avatar.body.anchors_context_menu', 'anchors', 'sigil.avatar.body', 'sigil.avatar.context_menu', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/context-menu-input.js'),
+            metadata: {
+                anchor: {
+                    kind: 'pointer_open_point',
+                    state_ref: 'contextMenu.openPoint',
+                },
+            },
+        }),
+        relation('sigil.avatar.radial_menu.targets_items', 'targets', 'sigil.avatar.radial_menu', 'sigil.avatar.radial_menu.item.*', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/radial-menu-target-surface.js'),
+            metadata: {
+                target_surface: {
+                    kind: 'radial_menu_targets',
+                    lifecycle: 'active_radial_phase',
+                    hit_source_ref: 'radialTargetSurface',
+                    collection_ref: 'sigil.avatar.radial_menu.item.*',
+                },
+            },
+        }),
+        relation('sigil.avatar.context_menu.targets_input_region', 'targets', 'sigil.avatar.context_menu', 'sigil.avatar.context_menu', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/context-menu-input.js'),
+            metadata: {
+                target_surface: {
+                    kind: 'input_region',
+                    lifecycle: 'context_menu_open',
+                    hit_source_ref: 'sigil-context-menu-input-region',
+                    consume_policy: 'captured',
+                },
+            },
+        }),
+        relation('sigil.avatar.selection_mode.targets_input_region', 'targets', 'sigil.avatar.selection_mode', 'sigil.avatar.selection_mode', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/selection-mode-input.js'),
+            metadata: {
+                target_surface: {
+                    kind: 'input_region',
+                    lifecycle: 'selection_mode_active',
+                    hit_source_ref: 'sigil-selection-mode-input-region',
+                    consume_policy: 'captured',
+                },
+            },
+        }),
+    ];
+}
+
 function settingsFor(radialMenu, state = {}) {
     const radialItems = {};
     for (const item of Array.isArray(radialMenu.items) ? radialMenu.items : []) {
@@ -333,6 +430,7 @@ export function createSigilUxTree({ state = {}, metadata = {} } = {}) {
         nodes: nodeList(radialMenu),
         commands: commandList(),
         bindings: bindingList(radialMenu),
+        relations: relationList(),
         settings: settingsFor(radialMenu, state),
         metadata: {
             runtime_state: 'read_only_shadow',

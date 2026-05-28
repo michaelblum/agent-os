@@ -42,6 +42,14 @@ test('UX tree workbench subject exposes read-only commands, bindings, settings, 
         consume_policy: 'observe',
       },
     ],
+    relations: [
+      {
+        id: 'sigil.avatar.opens_context_menu',
+        relation_type: 'opens',
+        from_node_id: 'sigil.avatar',
+        to_node_id: 'sigil.avatar',
+      },
+    ],
     settings: { radial: { geometry: { menuRadius: 1.8 } } },
   })
   const subject = createUxTreeWorkbenchSubject({
@@ -55,15 +63,19 @@ test('UX tree workbench subject exposes read-only commands, bindings, settings, 
   assert.equal(subject.id, uxTreeSubjectId(tree))
   assert.deepEqual(subjectCapabilities(subject), ['inspectable'])
   assert.ok(subjectContracts(subject).includes('aos.ux_tree.bindings'))
+  assert.ok(subjectContracts(subject).includes('aos.ux_tree.relations'))
   assert.deepEqual(subjectFacets(subject).map((facet) => facet.key), [
     UX_TREE_RESOURCE_FACETS.overview,
     UX_TREE_RESOURCE_FACETS.bindings,
+    UX_TREE_RESOURCE_FACETS.relations,
     UX_TREE_RESOURCE_FACETS.commands,
     UX_TREE_RESOURCE_FACETS.settings,
     UX_TREE_RESOURCE_FACETS.rawJson,
   ])
   assert.equal(subject.state.binding_count, 1)
+  assert.equal(subject.state.relation_count, 1)
   assert.equal(subject.state.command_count, 1)
+  assert.equal(subject.state.relations[0].id, 'sigil.avatar.opens_context_menu')
   assert.equal(subject.state.raw_tree.id, 'sigil.avatar.ux_tree')
   assert.equal(subject.persistence.kind, 'read_only')
 })

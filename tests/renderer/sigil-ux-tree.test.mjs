@@ -66,6 +66,45 @@ test('Sigil UX tree represents current command allowlist and plain radial settin
   assert.equal(typeof tree.commands[0].handler_ref, 'string')
 })
 
+test('Sigil UX tree exposes generic trigger, open, anchor, and target relations', () => {
+  const tree = createSigilUxTree()
+  const relations = new Map(tree.relations.map((relation) => [relation.id, relation]))
+
+  assert.equal(tree.validation.ok, true)
+  assert.deepEqual(relations.get('sigil.avatar.body.opens_context_menu'), {
+    id: 'sigil.avatar.body.opens_context_menu',
+    relation_type: 'opens',
+    from_node_id: 'sigil.avatar.body',
+    to_node_id: 'sigil.avatar.context_menu',
+    source_metadata: {
+      source: 'apps/sigil/renderer/live-modules/context-menu-input.js',
+      binding_id: 'sigil.avatar.context_menu.right_click',
+      command_id: 'sigil.context_menu.open',
+    },
+    metadata: {
+      gesture: 'pointer.right.click',
+    },
+  })
+  assert.equal(relations.get('sigil.avatar.body.triggers_radial_menu').relation_type, 'triggers')
+  assert.equal(relations.get('sigil.avatar.body.triggers_radial_menu').to_node_id, 'sigil.avatar.radial_menu')
+  assert.equal(relations.get('sigil.avatar.body.triggers_selection_mode').to_node_id, 'sigil.avatar.selection_mode')
+  assert.equal(relations.get('sigil.avatar.anchors_radial_menu').from_node_id, 'sigil.avatar')
+  assert.equal(relations.get('sigil.avatar.body.anchors_context_menu').relation_type, 'anchors')
+  assert.equal(relations.get('sigil.avatar.radial_menu.targets_items').to_node_id, 'sigil.avatar.radial_menu.item.*')
+  assert.equal(
+    relations.get('sigil.avatar.radial_menu.targets_items').metadata.target_surface.hit_source_ref,
+    'radialTargetSurface',
+  )
+  assert.equal(
+    relations.get('sigil.avatar.context_menu.targets_input_region').metadata.target_surface.hit_source_ref,
+    'sigil-context-menu-input-region',
+  )
+  assert.equal(
+    relations.get('sigil.avatar.selection_mode.targets_input_region').metadata.target_surface.hit_source_ref,
+    'sigil-selection-mode-input-region',
+  )
+})
+
 test('Sigil shadow resolver maps avatar and Selection Mode gestures to current command IDs', () => {
   assert.equal(commandFor({
     nodeId: 'sigil.avatar.body',
