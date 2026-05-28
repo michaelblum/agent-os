@@ -7,6 +7,7 @@ export const SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT = Object.freeze({
 });
 
 const ALLOWLISTED_EXECUTION = 'allowlisted';
+const HAS_OWN = Object.prototype.hasOwnProperty;
 
 function text(value, fallback = '') {
     const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -15,6 +16,18 @@ function text(value, fallback = '') {
 
 function list(value) {
     return Array.isArray(value) ? value.filter((entry) => entry !== undefined && entry !== null) : [];
+}
+
+function ownValue(object, key) {
+    if (!object || typeof object !== 'object' || !HAS_OWN.call(object, key)) {
+        return undefined;
+    }
+    return object[key];
+}
+
+function ownFunction(object, key) {
+    const value = ownValue(object, key);
+    return typeof value === 'function' ? value : null;
 }
 
 function resultFor(input = {}, extra = {}) {
@@ -57,11 +70,14 @@ function registryHandler(registry = {}, command = {}) {
         if (registry instanceof Map && typeof registry.get(key) === 'function') {
             return { handler: registry.get(key), key };
         }
-        if (registry && typeof registry === 'object' && typeof registry[key] === 'function') {
-            return { handler: registry[key], key };
+        const directHandler = ownFunction(registry, key);
+        if (directHandler) {
+            return { handler: directHandler, key };
         }
-        if (registry?.handlers && typeof registry.handlers === 'object' && typeof registry.handlers[key] === 'function') {
-            return { handler: registry.handlers[key], key };
+        const nestedHandlers = ownValue(registry, 'handlers');
+        const nestedHandler = ownFunction(nestedHandlers, key);
+        if (nestedHandler) {
+            return { handler: nestedHandler, key };
         }
     }
     return { handler: null, key: keys[0] || null };

@@ -11,6 +11,25 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function treeWithSelectionCancelHandlerRef(handlerRef) {
+  const tree = cloneJson(createSigilUxTree())
+  tree.validation = { ok: true, errors: [] }
+  tree.commands = tree.commands.map((command) => command.id === 'sigil.selection_mode.cancel'
+    ? {
+        ...command,
+        handler_ref: handlerRef,
+      }
+    : command)
+  return tree
+}
+
+const INHERITED_PROTOTYPE_HANDLER_REFS = [
+  'toString',
+  'valueOf',
+  'constructor',
+  '__defineGetter__',
+]
+
 test('Sigil UX command adapter executes allowlisted Selection Mode Escape handler once', () => {
   const tree = createSigilUxTree()
   let calls = 0
@@ -53,16 +72,84 @@ test('Sigil UX command adapter reports missing handler without executing', () =>
   assert.equal(result.errors[0].code, 'command.handler.missing')
 })
 
+test('Sigil UX command adapter does not execute inherited direct registry handlers', () => {
+  for (const handlerRef of INHERITED_PROTOTYPE_HANDLER_REFS) {
+    const result = executeSigilUxTreeCommand(treeWithSelectionCancelHandlerRef(handlerRef), {
+      input: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+      registry: {},
+    })
+
+    assert.equal(result.matched, true, handlerRef)
+    assert.equal(result.executed, false, handlerRef)
+    assert.equal(result.command_id, 'sigil.selection_mode.cancel', handlerRef)
+    assert.equal(result.handler_ref, handlerRef)
+    assert.equal(result.reason, 'handler_not_registered', handlerRef)
+    assert.equal(result.errors[0].code, 'command.handler.missing', handlerRef)
+  }
+})
+
+test('Sigil UX command adapter does not execute inherited nested registry handlers', () => {
+  for (const handlerRef of INHERITED_PROTOTYPE_HANDLER_REFS) {
+    const result = executeSigilUxTreeCommand(treeWithSelectionCancelHandlerRef(handlerRef), {
+      input: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+      registry: {
+        handlers: {},
+      },
+    })
+
+    assert.equal(result.matched, true, handlerRef)
+    assert.equal(result.executed, false, handlerRef)
+    assert.equal(result.command_id, 'sigil.selection_mode.cancel', handlerRef)
+    assert.equal(result.handler_ref, handlerRef)
+    assert.equal(result.reason, 'handler_not_registered', handlerRef)
+    assert.equal(result.errors[0].code, 'command.handler.missing', handlerRef)
+  }
+})
+
+test('Sigil UX command adapter executes explicit own prototype-name handlers', () => {
+  let calls = 0
+  const registry = Object.create(null)
+  Object.defineProperty(registry, 'toString', {
+    value() {
+      calls += 1
+      return { explicit: true }
+    },
+  })
+
+  const result = executeSigilUxTreeCommand(treeWithSelectionCancelHandlerRef('toString'), {
+    input: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+    registry,
+  })
+
+  assert.equal(calls, 1)
+  assert.equal(result.executed, true)
+  assert.equal(result.reason, 'executed')
+  assert.equal(result.handler_key, 'toString')
+  assert.deepEqual(result.handler_result, { explicit: true })
+})
+
+test('Sigil UX command adapter still supports Map registries', () => {
+  let calls = 0
+  const result = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+    registry: new Map([
+      ['sigil.selection_mode.cancel', () => {
+        calls += 1
+        return { active: false }
+      }],
+    ]),
+  })
+
+  assert.equal(calls, 1)
+  assert.equal(result.executed, true)
+  assert.equal(result.reason, 'executed')
+  assert.equal(result.handler_key, 'sigil.selection_mode.cancel')
+  assert.deepEqual(result.handler_result, { active: false })
+})
+
 test('Sigil UX command adapter can fall back from handler_ref to command id', () => {
   let calls = 0
-  const tree = cloneJson(createSigilUxTree())
-  tree.validation = { ok: true, errors: [] }
-  tree.commands = tree.commands.map((command) => command.id === 'sigil.selection_mode.cancel'
-    ? {
-        ...command,
-        handler_ref: 'sigil.selection_mode.cancel.runtime_handler',
-      }
-    : command)
+  const tree = treeWithSelectionCancelHandlerRef('sigil.selection_mode.cancel.runtime_handler')
 
   const result = executeSigilUxTreeCommand(tree, {
     input: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
