@@ -215,7 +215,7 @@ agent-os/
   src/                   ← Unified aos binary
     perceive/            ← `aos see` — screenshots, AX tree, focus channels, graph nav
     display/             ← `aos show` — WKWebView canvases, overlays, render mode
-    commands/ops.swift   ← `aos recipe` engine; `aos ops` compatibility alias
+    commands/, shared/   ← external command dispatch and shared CLI helpers
     act/                 ← `aos do` — AX + CGEvent + AppleScript actuator
     voice/               ← `aos say` — TTS, daemon announcements (STT planned)
     content/             ← HTTP file server for WKWebView canvases
@@ -245,7 +245,7 @@ agent-os/
 |-----------|-------|----------|----------|--------|-----------------|
 | `aos` perception | OS | Swift | `src/perceive/` | Production | Screenshots, `--xray` AX tree, `--label` annotated screenshots, cursor query, selection query, focus channels, graph navigation, grids, overlays, zones, LCS |
 | `aos` display | OS | Swift | `src/display/` + `src/content/` + `src/daemon/` | Production | Persistent WKWebView canvases (`aos show create/update/remove/eval`), render mode (HTML→bitmap), content HTTP server, autonomic projections, cascade cleanup |
-| `aos recipe` | Execution model | Swift + JSON manifests | `src/commands/ops.swift`, `recipes/`, `shared/schemas/ops-*.schema.json` | v1 scaffold | Source-backed executable recipes that agents can list, explain, statically dry-run, and run; includes read-only `runtime/status-snapshot` plus owned-cleanup canvas smoke `canvas/window-level-smoke`. `aos ops` is a compatibility alias with the removal gate in ADR-0013. |
+| `aos recipe` | Execution model | Swift dispatcher + Node recipe engine + JSON manifests | `manifests/commands/aos-external-commands.json`, `scripts/aos-ops.mjs`, `recipes/`, `shared/schemas/ops-*.schema.json` | v1 scaffold | Source-backed executable recipes that agents can list, explain, statically dry-run, and run; includes read-only `runtime/status-snapshot` plus owned-cleanup canvas smoke `canvas/window-level-smoke`. `aos ops` is a compatibility alias with the removal gate in ADR-0013. |
 | `aos` voice | OS | Swift | `src/voice/` | Production (TTS) | `aos say`, config-driven voice/rate, daemon event announcements; STT + persona planned |
 | `aos` act | OS | Swift | `src/act/` | Production | `aos do click/hover/drag/scroll/type/key/press/focus/set-value/raise/session`; multi-backend (AX, CGEvent, AppleScript), behavioral profiles, focus channels |
 | `gateway` | Coordination | Node.js/TS | `packages/gateway/` | Production (v1) | MCP server plus local integration broker: typed script execution, session registration, cross-harness pub/sub, provider-neutral chat workflows/jobs, live workflow registry discovery from `aos wiki`, structured workflow launches, queued job completion notifications, SQLite-backed state |
