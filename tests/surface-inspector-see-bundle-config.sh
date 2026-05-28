@@ -110,12 +110,16 @@ if include.get("annotation_snapshot") is not True:
     raise SystemExit(f"FAIL: expected annotation_snapshot include true by default, got {include}")
 if (bundle / "canvas-list.json").exists():
     raise SystemExit("FAIL: canvas-list.json should be excluded by config")
-for required in ["bundle.json", "capture.json", "capture.png", "annotation-snapshot.json", "display-geometry.json", "inspector-state.json"]:
+for required in ["bundle.json", "capture.json", "capture.png", "annotation-snapshot.json", "context-session.json", "context-keyframe.json", "display-geometry.json", "inspector-state.json"]:
     if not (bundle / required).exists():
         raise SystemExit(f"FAIL: missing required file {required}")
 manifest_files = manifest.get("files") or {}
 if manifest_files.get("annotation_snapshot_json") != "annotation-snapshot.json":
     raise SystemExit(f"FAIL: manifest missing annotation snapshot entry: {manifest_files}")
+if manifest_files.get("context_session_json") != "context-session.json":
+    raise SystemExit(f"FAIL: manifest missing context session entry: {manifest_files}")
+if manifest_files.get("context_keyframe_json") != "context-keyframe.json":
+    raise SystemExit(f"FAIL: manifest missing context keyframe entry: {manifest_files}")
 
 clipboard = subprocess.check_output(["/usr/bin/pbpaste"], text=True).strip()
 if clipboard != str(bundle):
@@ -189,6 +193,12 @@ if annotation is None:
     raise SystemExit("FAIL: clipboard payload missing annotation snapshot")
 if annotation.get("schema") != "surface_inspector_annotation_snapshot" or annotation.get("version") != "0.1.0":
     raise SystemExit(f"FAIL: unexpected annotation snapshot identity: {annotation}")
+context_session = payload.get("context_session")
+if not isinstance(context_session, dict) or context_session.get("schema") != "aos_context_session":
+    raise SystemExit(f"FAIL: clipboard payload missing context session: {context_session}")
+context_keyframe = payload.get("context_keyframe")
+if not isinstance(context_keyframe, dict) or context_keyframe.get("schema") != "aos_context_keyframe":
+    raise SystemExit(f"FAIL: clipboard payload missing context keyframe: {context_keyframe}")
 artifacts = payload.get("artifacts") or {}
 for name in ["capture_image", "capture_metadata", "xray"]:
     if artifacts.get(name, {}).get("status") not in ["skipped", "disabled"]:

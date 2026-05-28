@@ -90,6 +90,8 @@ required = [
     "capture.json",
     "capture.png",
     "annotation-snapshot.json",
+    "context-session.json",
+    "context-keyframe.json",
     "inspector-state.json",
     "display-geometry.json",
     "canvas-list.json",
@@ -107,6 +109,12 @@ if manifest.get("config", {}).get("output", {}).get("mode") != "bundle_path":
     raise SystemExit(f"FAIL: default output mode should be bundle_path: {manifest.get('config')}")
 if manifest.get("files", {}).get("annotation_snapshot_json") != "annotation-snapshot.json":
     raise SystemExit(f"FAIL: bundle manifest missing annotation snapshot entry: {manifest.get('files')}")
+if manifest.get("files", {}).get("context_session_json") != "context-session.json":
+    raise SystemExit(f"FAIL: bundle manifest missing context session entry: {manifest.get('files')}")
+if manifest.get("files", {}).get("context_keyframe_json") != "context-keyframe.json":
+    raise SystemExit(f"FAIL: bundle manifest missing context keyframe entry: {manifest.get('files')}")
+if manifest.get("context", {}).get("status") != "included":
+    raise SystemExit(f"FAIL: bundle manifest should include context evidence: {manifest.get('context')}")
 
 state = json.loads((bundle / "inspector-state.json").read_text())
 if "state" not in state:
@@ -121,6 +129,18 @@ if "pins" not in annotation or "comments" not in annotation or "adapter_capabili
     raise SystemExit(f"FAIL: annotation snapshot missing public state arrays: {annotation}")
 if "data:image/" in json.dumps(annotation):
     raise SystemExit("FAIL: annotation snapshot embedded image data")
+
+context_session = json.loads((bundle / "context-session.json").read_text())
+if context_session.get("schema") != "aos_context_session":
+    raise SystemExit(f"FAIL: unexpected context session identity: {context_session}")
+context_keyframe = json.loads((bundle / "context-keyframe.json").read_text())
+if context_keyframe.get("schema") != "aos_context_keyframe":
+    raise SystemExit(f"FAIL: unexpected context keyframe identity: {context_keyframe}")
+asset_refs = context_keyframe.get("asset_refs") or {}
+if asset_refs.get("surface_inspector_annotation_snapshot") != "annotation-snapshot.json":
+    raise SystemExit(f"FAIL: context keyframe missing annotation snapshot asset ref: {asset_refs}")
+if "data:image/" in json.dumps(context_session) or "data:image/" in json.dumps(context_keyframe):
+    raise SystemExit("FAIL: context JSON embedded image data")
 
 capture = json.loads((bundle / "capture.json").read_text())
 files = capture.get("files") or []

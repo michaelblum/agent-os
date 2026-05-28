@@ -59,10 +59,14 @@ import {
   selectSurfaceInspectorAnnotationFrame,
   setSurfaceInspectorAnnotationMode,
   setSurfaceInspectorHoverCandidate,
+  surfaceInspectorAnnotationStateToContextSession,
   surfaceInspectorAnnotationStateToSession,
   unpinSurfaceInspectorFrame,
   updateSurfaceInspectorComment,
 } from '../../workbench/surface-inspector-annotations.js'
+import {
+  createContextKeyframe,
+} from '../../workbench/context-session.js'
 import {
   applyMouseEffectsInput,
   clearMouseEffectsState,
@@ -1082,6 +1086,41 @@ export default function CanvasInspector() {
       source_canvas_id: SELF_ID,
       surface_inspector_frame: currentFrameFallback(),
       assets: options.assets || {},
+    })
+  }
+
+  function buildContextSession(options = {}) {
+    return surfaceInspectorAnnotationStateToContextSession(annotationState, {
+      id: options.id,
+      created_at: options.created_at,
+      updated_at: options.captured_at || options.updated_at || new Date().toISOString(),
+      entry_source: options.entry_source || 'surface_inspector',
+      metadata: {
+        export_trigger: options.trigger || 'manual',
+        source_canvas_id: options.source_canvas_id || SELF_ID,
+      },
+    })
+  }
+
+  function buildContextKeyframe(options = {}) {
+    const contextSession = options.context_session || buildContextSession(options)
+    return createContextKeyframe({
+      id: options.id,
+      captured_at: options.captured_at || new Date().toISOString(),
+      trigger: options.trigger || 'manual',
+      artifact_ids: Array.isArray(contextSession?.artifacts)
+        ? contextSession.artifacts.map((artifact) => artifact.id).filter(Boolean)
+        : [],
+      session_summary: contextSession ? {
+        schema: contextSession.schema,
+        version: contextSession.version,
+        id: contextSession.id,
+      } : null,
+      asset_refs: options.asset_refs || {},
+      metadata: {
+        source: 'surface_inspector',
+        source_canvas_id: options.source_canvas_id || SELF_ID,
+      },
     })
   }
 
@@ -3074,6 +3113,8 @@ export default function CanvasInspector() {
         setMouseEventsEnabled,
         requestSeeBundle,
         buildAnnotationSnapshotArtifact,
+        buildContextSession,
+        buildContextKeyframe,
         toggleStats,
         toggleCanvasList() {
           splitController?.toggleSidebar?.()

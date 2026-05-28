@@ -125,7 +125,11 @@ extension UnifiedDaemon {
         return true
     }
 
-    func triggerCanvasInspectorSeeBundle(sourceCanvasID: String, trigger: String) {
+    func triggerCanvasInspectorSeeBundle(
+        sourceCanvasID: String,
+        trigger: String,
+        contextPayload: [String: Any]? = nil
+    ) {
         guard canvasExists(sourceCanvasID) else {
             return
         }
@@ -193,7 +197,8 @@ extension UnifiedDaemon {
                 canvasID: bundleOwnerCanvasID,
                 sourceCanvasID: sourceCanvasID,
                 trigger: trigger,
-                runtimeConfig: runtimeConfig
+                runtimeConfig: runtimeConfig,
+                contextPayload: contextPayload
             )
         }
     }
@@ -248,7 +253,8 @@ extension UnifiedDaemon {
         canvasID: String,
         sourceCanvasID: String,
         trigger: String,
-        runtimeConfig: CanvasInspectorBundleRuntimeConfig
+        runtimeConfig: CanvasInspectorBundleRuntimeConfig,
+        contextPayload: [String: Any]? = nil
     ) {
         defer { finishCanvasInspectorBundleCapture() }
 
@@ -259,7 +265,8 @@ extension UnifiedDaemon {
                 sourceCanvasID: sourceCanvasID,
                 trigger: trigger,
                 runtimeConfig: runtimeConfig,
-                createdAt: createdAt
+                createdAt: createdAt,
+                contextPayload: contextPayload
             )
             return
         }
@@ -271,6 +278,8 @@ extension UnifiedDaemon {
         let xrayJSONURL = bundleDir.appendingPathComponent("xray.json")
         let stateJSONURL = bundleDir.appendingPathComponent("inspector-state.json")
         let annotationSnapshotJSONURL = bundleDir.appendingPathComponent("annotation-snapshot.json")
+        let contextSessionJSONURL = bundleDir.appendingPathComponent("context-session.json")
+        let contextKeyframeJSONURL = bundleDir.appendingPathComponent("context-keyframe.json")
         let displayGeometryURL = bundleDir.appendingPathComponent("display-geometry.json")
         let canvasListURL = bundleDir.appendingPathComponent("canvas-list.json")
         let bundleJSONURL = bundleDir.appendingPathComponent("bundle.json")
@@ -312,6 +321,36 @@ extension UnifiedDaemon {
                 )
                 try writeJSONValue(annotationSnapshot, to: annotationSnapshotJSONURL)
                 files["annotation_snapshot_json"] = annotationSnapshotJSONURL.lastPathComponent
+            }
+
+            let contextAssetRefs = canvasInspectorContextAssetRefs(runtimeConfig: runtimeConfig)
+            let contextSession = canvasInspectorContextSessionForBundle(
+                canvasID: canvasID,
+                trigger: trigger,
+                capturedAt: createdAt,
+                contextPayload: contextPayload
+            )
+            var contextEvidence: [String: Any] = [
+                "status": "skipped",
+                "reason": "context_session_unavailable",
+            ]
+            if let contextSession {
+                try writeJSONValue(contextSession, to: contextSessionJSONURL)
+                files["context_session_json"] = contextSessionJSONURL.lastPathComponent
+                let contextKeyframe = canvasInspectorContextKeyframeForBundle(
+                    trigger: trigger,
+                    capturedAt: createdAt,
+                    contextSession: contextSession,
+                    contextPayload: contextPayload,
+                    assetRefs: contextAssetRefs
+                )
+                try writeJSONValue(contextKeyframe, to: contextKeyframeJSONURL)
+                files["context_keyframe_json"] = contextKeyframeJSONURL.lastPathComponent
+                contextEvidence = [
+                    "status": "included",
+                    "session_file": contextSessionJSONURL.lastPathComponent,
+                    "keyframe_file": contextKeyframeJSONURL.lastPathComponent,
+                ]
             }
 
             if runtimeConfig.include.displayGeometry {
@@ -369,6 +408,7 @@ extension UnifiedDaemon {
                     "include": runtimeConfig.include.asDictionary,
                 ],
                 "files": files,
+                "context": contextEvidence,
             ]
             var finalManifest = manifest
             if let hotkey = runtimeConfig.hotkey {
@@ -487,7 +527,8 @@ extension UnifiedDaemon {
         sourceCanvasID: String,
         trigger: String,
         runtimeConfig: CanvasInspectorBundleRuntimeConfig,
-        createdAt: String
+        createdAt: String,
+        contextPayload: [String: Any]? = nil
     ) {
         let canvasList = snapshotCanvasList()
         guard let canvasInfo = canvasList.first(where: { $0.id == canvasID }) else {
@@ -569,6 +610,32 @@ extension UnifiedDaemon {
             )
         }
 
+        let contextSession = canvasInspectorContextSessionForBundle(
+            canvasID: canvasID,
+            trigger: trigger,
+            capturedAt: createdAt,
+            contextPayload: contextPayload
+        )
+        if let contextSession {
+            payload["context_session"] = contextSession
+            payload["context_keyframe"] = canvasInspectorContextKeyframeForBundle(
+                trigger: trigger,
+                capturedAt: createdAt,
+                contextSession: contextSession,
+                contextPayload: contextPayload,
+                assetRefs: canvasInspectorContextAssetRefs(runtimeConfig: runtimeConfig, clipboardPayload: true)
+            )
+        } else {
+            payload["context_session"] = [
+                "status": "skipped",
+                "reason": "context_session_unavailable",
+            ]
+            payload["context_keyframe"] = [
+                "status": "skipped",
+                "reason": "context_session_unavailable",
+            ]
+        }
+
         do {
             let payloadText = try jsonPayloadString(payload)
             guard !containsEmbeddedImageData(payloadText) else {
@@ -637,6 +704,102 @@ extension UnifiedDaemon {
                 ? "\(name) requires disk-backed capture files and is not embedded in clipboard payload mode"
                 : "disabled by include config",
         ]
+    }
+
+    private func canvasInspectorContextAssetRefs(
+        runtimeConfig: CanvasInspectorBundleRuntimeConfig,
+        clipboardPayload: Bool = false
+    ) -> [String: Any] {
+        [
+            "context_session_json": clipboardPayload ? NSNull() : "context-session.json",
+            "capture_image": runtimeConfig.include.captureImage && !clipboardPayload ? "capture.png" : NSNull(),
+            "capture_json": runtimeConfig.include.captureMetadata && !clipboardPayload ? "capture.json" : NSNull(),
+            "display_geometry_json": runtimeConfig.include.displayGeometry && !clipboardPayload ? "display-geometry.json" : NSNull(),
+            "canvas_list_json": runtimeConfig.include.canvasList && !clipboardPayload ? "canvas-list.json" : NSNull(),
+            "inspector_state_json": runtimeConfig.include.inspectorState && !clipboardPayload ? "inspector-state.json" : NSNull(),
+            "surface_inspector_annotation_snapshot": runtimeConfig.include.annotationSnapshot && !clipboardPayload
+                ? "annotation-snapshot.json"
+                : NSNull(),
+        ]
+    }
+
+    private func safeContextDictionary(_ value: [String: Any]?) -> [String: Any]? {
+        guard let value,
+              let text = try? jsonPayloadString(value),
+              !containsEmbeddedImageData(text) else {
+            return nil
+        }
+        return value
+    }
+
+    private func canvasInspectorContextSessionForBundle(
+        canvasID: String,
+        trigger: String,
+        capturedAt: String,
+        contextPayload: [String: Any]?
+    ) -> [String: Any]? {
+        if let supplied = contextPayload?["context_session"] as? [String: Any],
+           supplied["schema"] as? String == "aos_context_session" {
+            return safeContextDictionary(supplied)
+        }
+        return safeContextDictionary(snapshotCanvasInspectorContextSession(
+            canvasID: canvasID,
+            trigger: trigger,
+            capturedAt: capturedAt
+        ))
+    }
+
+    private func canvasInspectorContextKeyframeForBundle(
+        trigger: String,
+        capturedAt: String,
+        contextSession: [String: Any],
+        contextPayload: [String: Any]?,
+        assetRefs: [String: Any]
+    ) -> [String: Any] {
+        var keyframe: [String: Any]
+        if let supplied = contextPayload?["context_keyframe"] as? [String: Any],
+           supplied["schema"] as? String == "aos_context_keyframe" {
+            keyframe = supplied
+        } else {
+            let artifacts = contextSession["artifacts"] as? [[String: Any]] ?? []
+            let artifactIDs = artifacts.compactMap { $0["id"] as? String }.filter { !$0.isEmpty }
+            keyframe = [
+                "schema": "aos_context_keyframe",
+                "version": "0.1.0",
+                "id": "keyframe:\(capturedAt):\(trigger)",
+                "captured_at": capturedAt,
+                "trigger": trigger,
+                "artifact_ids": artifactIDs,
+                "session_summary": [
+                    "schema": contextSession["schema"] as? String ?? "aos_context_session",
+                    "version": contextSession["version"] as? String ?? "0.1.0",
+                    "id": contextSession["id"] as? String ?? "",
+                ],
+                "asset_refs": [:],
+                "metadata": [:],
+            ]
+        }
+        var mergedAssetRefs = keyframe["asset_refs"] as? [String: Any] ?? [:]
+        for (key, value) in assetRefs {
+            mergedAssetRefs[key] = value
+        }
+        keyframe["asset_refs"] = mergedAssetRefs
+        if safeContextDictionary(keyframe) == nil {
+            return [
+                "schema": "aos_context_keyframe",
+                "version": "0.1.0",
+                "id": "keyframe:\(capturedAt):\(trigger)",
+                "captured_at": capturedAt,
+                "trigger": trigger,
+                "artifact_ids": [],
+                "session_summary": NSNull(),
+                "asset_refs": assetRefs,
+                "metadata": [
+                    "context_keyframe_source": "sanitized_after_embedded_image_data",
+                ],
+            ]
+        }
+        return keyframe
     }
 
     private func canvasInfoDictionary(_ canvas: CanvasInfo) -> [String: Any] {
@@ -821,6 +984,40 @@ extension UnifiedDaemon {
                     "error": response.error ?? response.result ?? "Failed to read annotation snapshot",
                 ],
             ]
+        }
+        return dict
+    }
+
+    private func snapshotCanvasInspectorContextSession(
+        canvasID: String,
+        trigger: String,
+        capturedAt: String
+    ) -> [String: Any]? {
+        let js = """
+        JSON.stringify((() => {
+          const options = {
+            captured_at: \(jsStringLiteral(capturedAt)),
+            trigger: \(jsStringLiteral(trigger)),
+            source_canvas_id: \(jsStringLiteral(canvasID))
+          };
+          if (window.__canvasInspectorDebug?.buildContextSession) {
+            return window.__canvasInspectorDebug.buildContextSession(options);
+          }
+          return null;
+        })())
+        """
+
+        var response = CanvasResponse.fail("eval unavailable", code: "EVAL_UNAVAILABLE")
+        DispatchQueue.main.sync {
+            response = canvasManager.handle(CanvasRequest(action: "eval", id: canvasID, js: js))
+        }
+
+        guard let raw = response.result,
+              let data = raw.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: data, options: []),
+              let dict = parsed as? [String: Any],
+              dict["schema"] as? String == "aos_context_session" else {
+            return nil
         }
         return dict
     }
