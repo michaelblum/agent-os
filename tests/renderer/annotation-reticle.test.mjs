@@ -865,10 +865,17 @@ test('Sigil radial camera bundle request carries canonical context session and k
 
 test('Sigil wires live Selection Mode state, capture, overlay, and recording hooks', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const selectionRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/selection-mode-runtime.js'), 'utf8')
+  const contextRecordingRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/context-recording-runtime.js'), 'utf8')
   const debugStart = source.indexOf('window.__sigilDebug = {')
   const debugBlock = source.slice(debugStart)
 
-  assert.match(source, /createSelectionModeContextSession/)
+  assert.match(selectionRuntimeSource, /createSelectionModeContextSession/)
+  assert.match(selectionRuntimeSource, /function enter\(pointer = null, reason = 'avatar-double-click'\)/)
+  assert.match(selectionRuntimeSource, /function acquire\(point = null\)/)
+  assert.match(selectionRuntimeSource, /function handleInput\(msg = \{\}\)/)
+  assert.match(selectionRuntimeSource, /setActiveContextProvider\(\{[\s\S]*source: 'selection_mode_debug'/)
+  assert.match(contextRecordingRuntimeSource, /createContextRecording/)
   assert.match(source, /selectionMode: \{\s*active: false,[\s\S]*path_candidates: \[\],[\s\S]*context_session: null/)
   assert.match(source, /function enterSelectionMode\(pointer = null, reason = 'avatar-double-click'\)/)
   assert.match(source, /function acquireSelectionModeCandidates\(point = null\)/)
@@ -878,7 +885,6 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   assert.match(source, /selectionModeIsActive: \(\) => liveJs\.selectionMode\?\.active === true/)
   assert.match(source, /selectionModeOverlay: liveJs\.selectionModeOverlay \|\| buildProjectedSelectionModeOverlay/)
   assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)
-  assert.match(source, /setActiveContextProvider\(\{[\s\S]*source: 'selection_mode_debug'/)
   assert.match(debugBlock, /selectionMode: liveJs\.selectionMode/)
   assert.match(debugBlock, /activeContext: liveJs\.activeContext/)
   assert.match(debugBlock, /contextRecording: liveJs\.contextRecording/)

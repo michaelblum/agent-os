@@ -259,12 +259,12 @@ function rejectEmbeddedAssetRef(key, value) {
   if (/base64|binary|image_data/i.test(String(key))) {
     throw new TypeError(`context asset ref '${key}' cannot store embedded image data`)
   }
-  if (typeof value === 'string' && /^data:/i.test(value)) {
-    throw new TypeError(`context asset ref '${key}' cannot use a data URL`)
+  if (typeof value === 'string' && /^(data|blob):/i.test(value.trimStart())) {
+    throw new TypeError(`context asset ref '${key}' cannot use an embedded data/blob URL`)
   }
   if (value && typeof value === 'object') {
-    if (typeof value.uri === 'string' && /^data:/i.test(value.uri)) {
-      throw new TypeError(`context asset ref '${key}' cannot use a data URL`)
+    if (typeof value.uri === 'string' && /^(data|blob):/i.test(value.uri.trimStart())) {
+      throw new TypeError(`context asset ref '${key}' cannot use an embedded data/blob URL`)
     }
     const serialized = JSON.stringify(value)
     if (/data:image\//i.test(serialized)) {

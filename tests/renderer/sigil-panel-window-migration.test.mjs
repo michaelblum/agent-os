@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 const radialEditor = readFileSync(new URL('../../apps/sigil/radial-item-editor/index.js', import.meta.url), 'utf8')
 const radialWorkbench = readFileSync(new URL('../../apps/sigil/radial-item-workbench/index.js', import.meta.url), 'utf8')
 const codexTerminal = readFileSync(new URL('../../apps/sigil/codex-terminal/index.html', import.meta.url), 'utf8')
+const toolkitAgentTerminal = readFileSync(new URL('../../packages/toolkit/components/agent-terminal/index.html', import.meta.url), 'utf8')
 const chat = readFileSync(new URL('../../apps/sigil/chat/index.html', import.meta.url), 'utf8')
 const sigilAgents = readFileSync(new URL('../../apps/sigil/AGENTS.md', import.meta.url), 'utf8')
 const placementContract = readFileSync(new URL('../../docs/design/aos-panel-window-placement-contract.md', import.meta.url), 'utf8')
@@ -53,11 +54,12 @@ test('Sigil radial item workbench preserves separate 3D orbit dragging', () => {
 })
 
 test('Agent Terminal remains the shared mountChrome precedent', () => {
-  assert.match(codexTerminal, /mountChrome\(document\.body/)
-  assert.match(codexTerminal, /draggable:\s*true/)
-  assert.match(codexTerminal, /minimize:\s*true/)
-  assert.match(codexTerminal, /maximize:\s*true/)
-  assert.match(codexTerminal, /resizable:\s*true/)
+  assert.match(codexTerminal, /components\/agent-terminal\/index\.html/)
+  assert.match(toolkitAgentTerminal, /mountChrome\(document\.body/)
+  assert.match(toolkitAgentTerminal, /draggable:\s*true/)
+  assert.match(toolkitAgentTerminal, /minimize:\s*true/)
+  assert.match(toolkitAgentTerminal, /maximize:\s*true/)
+  assert.match(toolkitAgentTerminal, /resizable:\s*true/)
   assert.doesNotMatch(codexTerminal, /type:\s*'move_abs'/)
 })
 

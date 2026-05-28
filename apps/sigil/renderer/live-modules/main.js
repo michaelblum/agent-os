@@ -47,7 +47,6 @@ import {
     buildAnnotationReticleOverlayModel,
     clearAnnotationReticleSemanticCandidatesForCanvas,
     createAnnotationReticleAcquisitionState,
-    createDisplayAnnotationSubject,
     createAnnotationReticleTargetEvidenceCache,
     CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
     createSigilAnnotationReticleController,
@@ -60,8 +59,9 @@ import { advanceMenuActivation } from './menu-activation-runtime.js';
 import { createSigilInputRegionAdapter } from './input-regions.js';
 import {
     createAvatarDoubleClickTracker,
-    resolveSelectionModeInputRoute,
 } from './selection-mode-input.js';
+import { createSigilSelectionModeRuntime } from './selection-mode-runtime.js';
+import { createSigilContextRecordingRuntime } from './context-recording-runtime.js';
 import {
     contextMenuOpenCommandOpened,
     resolveContextMenuRightClickRoute,
@@ -107,13 +107,6 @@ const {
 const {
     writeClipboardText,
 } = await import(toolkitSpecifier('runtime/canvas.js'));
-const {
-    createContextKeyframe,
-    createContextRecording,
-} = await import(toolkitSpecifier('workbench/context-session.js'));
-const {
-    createSelectionModeContextSession,
-} = await import(toolkitSpecifier('workbench/selection-mode.js'));
 
 const host = createHostRuntime();
 const interactionTrace = createInteractionTrace({
@@ -240,6 +233,32 @@ const STATUS_PARK_SCALE = 0.2;
 window.liveJs = liveJs;
 window.state = state;
 window.applyAppearance = applyAppearance;
+
+const contextRecordingRuntime = createSigilContextRecordingRuntime({
+    liveState: liveJs,
+    rendererState: state,
+});
+
+const selectionModeRuntime = createSigilSelectionModeRuntime({
+    liveState: liveJs,
+    rendererState: state,
+    getPointer: () => liveJs.pointerPos,
+    getDisplays: () => liveJs.displays,
+    getCandidateList: () => annotationReticleCandidateList(),
+    projectPoint: (point) => stagePoint(point),
+    closeContextMenu: (reason) => contextMenu.close(reason),
+    exitAnnotationReticle,
+    clearGestureState,
+    syncInputRegions: syncSigilInputRegions,
+    scheduleRenderFrame,
+    clearSelectionModeEntryReleasePending,
+    consumeSelectionModeEntryRelease,
+    isOnAvatar,
+    consumeAvatarDoubleClick,
+    setActiveContextProvider: contextRecordingRuntime.setActiveContextProvider,
+    executeCommand: executeSelectionModeRouteCommand,
+});
+
 const SIGIL_RENDERER_RUNTIME = {
     entrypoint: 'renderer/live-modules/main.js',
     loadedAt: new Date().toISOString(),
@@ -2349,50 +2368,8 @@ function buildProjectedAnnotationReticleOverlay(snapshot = liveJs.annotationReti
     };
 }
 
-function projectSelectionModeRect(rect = null) {
-    if (!rect) return null;
-    const x = Number(rect.x);
-    const y = Number(rect.y);
-    const width = Number(rect.width ?? rect.w);
-    const height = Number(rect.height ?? rect.h);
-    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
-    const origin = stagePoint({ x, y, valid: true });
-    if (!origin) return null;
-    return { x: origin.x, y: origin.y, width, height };
-}
-
 function buildProjectedSelectionModeOverlay(selectionMode = liveJs.selectionMode) {
-    if (!selectionMode?.active && !selectionMode?.context_session) return { visible: false };
-    const artifact = selectionMode.context_session?.artifacts?.[0] || null;
-    const path = Array.isArray(artifact?.path) ? artifact.path : [];
-    const activeNodeId = artifact?.active_target_node_id || selectionMode.selected_node_id || '';
-    const leafNodeId = artifact?.acquisition?.leaf_node_id || path.at(-1)?.id || '';
-    const frames = path.map((node, index) => {
-        const rect = projectSelectionModeRect(
-            node.projection?.visible_display_rect
-            || node.projection?.display_space_rect
-        );
-        if (!rect) return null;
-        return {
-            kind: node.id === activeNodeId ? 'active_target' : (node.id === leafNodeId ? 'clicked_leaf' : 'ancestor'),
-            id: node.id,
-            address: node.address,
-            label: node.label || node.role || node.kind || node.id,
-            rect,
-            index,
-            active: node.id === activeNodeId,
-            leaf: node.id === leafNodeId,
-        };
-    }).filter(Boolean);
-    return {
-        visible: selectionMode.active === true,
-        cursor: selectionMode.cursor ? stagePoint(selectionMode.cursor) : null,
-        frames,
-        activeNodeId,
-        leafNodeId,
-        blocker: selectionMode.blocker || null,
-        eventCount: Array.isArray(selectionMode.events) ? selectionMode.events.length : 0,
-    };
+    return selectionModeRuntime.buildProjectedOverlay(selectionMode);
 }
 
 function recordAnnotationReticleEvent(stage, event = {}) {
@@ -2546,39 +2523,7 @@ function createContextKeyframeForSession(contextSession = null, {
     assetRefs = {},
     metadata = {},
 } = {}) {
-    if (contextSession?.schema !== 'aos_context_session') return null;
-    return createContextKeyframe({
-        captured_at: capturedAt,
-        trigger,
-        artifact_ids: Array.isArray(contextSession.artifacts)
-            ? contextSession.artifacts.map((artifact) => artifact.id).filter(Boolean)
-            : [],
-        session_summary: {
-            schema: contextSession.schema,
-            version: contextSession.version,
-            id: contextSession.id,
-        },
-        asset_refs: assetRefs,
-        metadata: {
-            source,
-            request_reason: reason,
-            ...metadata,
-        },
-    });
-}
-
-function setActiveContextProvider({
-    source = '',
-    contextSession = null,
-    contextKeyframe = null,
-    unavailable = null,
-    trigger = 'active_context',
-    reason = '',
-    assetRefs = {},
-    metadata = {},
-} = {}) {
-    const capturedAt = new Date().toISOString();
-    const keyframe = contextKeyframe || createContextKeyframeForSession(contextSession, {
+    return contextRecordingRuntime.createContextKeyframeForSession(contextSession, {
         trigger,
         reason,
         source,
@@ -2586,199 +2531,30 @@ function setActiveContextProvider({
         assetRefs,
         metadata,
     });
-    liveJs.activeContext = {
-        source,
-        updated_at: capturedAt,
-        context_session: contextSession || null,
-        context_keyframe: keyframe || null,
-        unavailable: contextSession ? null : (unavailable || {
-            status: 'skipped',
-            reason: 'context_session_unavailable',
-        }),
-    };
-    state.activeContext = liveJs.activeContext;
-    return liveJs.activeContext;
+}
+
+function setActiveContextProvider(options = {}) {
+    return contextRecordingRuntime.setActiveContextProvider(options);
 }
 
 function updateActiveContextFromReticle(contextSession = null, reason = 'reticle') {
-    return setActiveContextProvider({
-        source: 'sigil_annotation_reticle',
-        contextSession,
-        trigger: 'sigil_radial_camera',
-        reason,
-        assetRefs: {
-            capture_image: 'capture.png',
-            capture_json: 'capture.json',
-            display_geometry_json: 'display-geometry.json',
-            canvas_list_json: 'canvas-list.json',
-            inspector_state_json: 'inspector-state.json',
-            surface_inspector_annotation_snapshot: 'annotation-snapshot.json',
-        },
-    });
+    return contextRecordingRuntime.updateActiveContextFromReticle(contextSession, reason);
 }
 
 function appendContextRecordingKeyframe(keyframe = liveJs.activeContext?.context_keyframe, options = {}) {
-    if (!keyframe) return null;
-    const keyframes = [...(liveJs.contextRecording?.keyframes || []), keyframe];
-    const events = [...(liveJs.contextRecording?.events || [])];
-    const recording = createContextRecording({
-        id: options.id || liveJs.contextRecording?.recording?.id,
-        created_at: liveJs.contextRecording?.recording?.created_at || keyframe.captured_at,
-        updated_at: options.updated_at || new Date().toISOString(),
-        source_session_ref: options.source_session_ref || {
-            schema: liveJs.activeContext?.context_session?.schema || '',
-            id: liveJs.activeContext?.context_session?.id || '',
-        },
-        keyframes,
-        events,
-        asset_refs: options.asset_refs || liveJs.contextRecording?.recording?.asset_refs || {},
-        source_metadata: {
-            source: 'sigil_renderer_debug_recording',
-            ...(options.source_metadata || {}),
-        },
-    });
-    liveJs.contextRecording = { recording, keyframes: recording.keyframes, events: recording.events };
-    state.contextRecording = liveJs.contextRecording;
-    return recording;
+    return contextRecordingRuntime.appendContextRecordingKeyframe(keyframe, options);
 }
 
 function appendContextRecordingEvent(event = {}) {
-    const keyframes = [...(liveJs.contextRecording?.keyframes || [])];
-    const events = [...(liveJs.contextRecording?.events || []), event];
-    const recording = createContextRecording({
-        id: liveJs.contextRecording?.recording?.id,
-        created_at: liveJs.contextRecording?.recording?.created_at || event.occurred_at || new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        source_session_ref: liveJs.contextRecording?.recording?.source_session_ref || null,
-        keyframes,
-        events,
-        asset_refs: liveJs.contextRecording?.recording?.asset_refs || {},
-        source_metadata: liveJs.contextRecording?.recording?.source_metadata || { source: 'sigil_renderer_debug_recording' },
-    });
-    liveJs.contextRecording = { recording, keyframes: recording.keyframes, events: recording.events };
-    state.contextRecording = liveJs.contextRecording;
-    return recording;
-}
-
-function selectionModeEvent(type, extra = {}) {
-    const entry = {
-        type,
-        at: new Date().toISOString(),
-        ...extra,
-    };
-    liveJs.selectionMode.events = [...(liveJs.selectionMode.events || []), entry].slice(-40);
-    return entry;
-}
-
-function selectionModeProjectionRect(candidate = null) {
-    return annotationReticleProjectionRect(
-        candidate?.projection?.visible_display_rect
-        || candidate?.projection?.display_space_rect
-        || candidate?.visible_display_rect
-        || candidate?.display_space_rect
-        || candidate?.rect
-    );
-}
-
-function selectionModePointInRect(point = null, rect = null) {
-    if (!point || !rect) return false;
-    return point.x >= rect.x && point.x <= rect.x + rect.w
-        && point.y >= rect.y && point.y <= rect.y + rect.h;
-}
-
-function selectionModeCandidateArea(candidate = null) {
-    const rect = selectionModeProjectionRect(candidate);
-    return rect ? rect.w * rect.h : Number.POSITIVE_INFINITY;
-}
-
-function selectionModeDisplayCandidate(point = null) {
-    const x = Number(point?.x);
-    const y = Number(point?.y);
-    const display = findDisplayForPoint(liveJs.displays, Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0)
-        || liveJs.displays[0]
-        || null;
-    return createDisplayAnnotationSubject(display, point || liveJs.pointerPos || { x: 0, y: 0 }, {
-        role: 'selection-root',
-    });
-}
-
-function selectionModeCandidatesAtPoint(point = null) {
-    const displayCandidate = selectionModeDisplayCandidate(point);
-    const containing = annotationReticleCandidateList()
-        .filter((candidate) => selectionModePointInRect(point, selectionModeProjectionRect(candidate)))
-        .sort((a, b) => selectionModeCandidateArea(b) - selectionModeCandidateArea(a));
-    const path = [displayCandidate, ...containing];
-    const seen = new Set();
-    return path.filter((candidate) => {
-        const key = String(candidate?.id || candidate?.subject_id || candidate?.address || '');
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
-}
-
-function buildSelectionModeContextSession({ selectedNodeId = liveJs.selectionMode.selected_node_id } = {}) {
-    const pathCandidates = Array.isArray(liveJs.selectionMode.path_candidates)
-        ? liveJs.selectionMode.path_candidates
-        : [];
-    if (!pathCandidates.length) return null;
-    const contextSession = createSelectionModeContextSession({
-        id: liveJs.selectionMode.context_session?.id,
-        updated_at: new Date().toISOString(),
-        pointer: liveJs.selectionMode.cursor,
-        clicked_leaf_candidate: liveJs.selectionMode.leaf_candidate || pathCandidates.at(-1),
-        path_candidates: pathCandidates,
-        selected_target_id: selectedNodeId || liveJs.selectionMode.selected_node_id || pathCandidates.at(-1)?.id,
-        adapter_blockers: liveJs.selectionMode.blocker ? [liveJs.selectionMode.blocker] : [],
-        session_metadata: {
-            source: 'sigil_selection_mode_runtime',
-        },
-    });
-    const artifact = contextSession.artifacts?.[0] || null;
-    liveJs.selectionMode.context_session = contextSession;
-    liveJs.selectionMode.selected_node_id = artifact?.active_target_node_id || '';
-    liveJs.selectionModeOverlay = buildProjectedSelectionModeOverlay(liveJs.selectionMode);
-    return contextSession;
+    return contextRecordingRuntime.appendContextRecordingEvent(event);
 }
 
 function enterSelectionMode(pointer = null, reason = 'avatar-double-click') {
-    contextMenu.close('selection-mode');
-    exitAnnotationReticle('selection-mode');
-    clearGestureState();
-    const cursor = pointer || liveJs.pointerPos || null;
-    liveJs.selectionMode = {
-        active: true,
-        entered_at: new Date().toISOString(),
-        cursor,
-        leaf_candidate: null,
-        path_candidates: [],
-        selected_node_id: '',
-        context_session: null,
-        events: [],
-        blocker: null,
-    };
-    selectionModeEvent('enter', { reason, cursor });
-    liveJs.selectionModeOverlay = buildProjectedSelectionModeOverlay(liveJs.selectionMode);
-    state.selectionMode = liveJs.selectionMode;
-    syncSigilInputRegions();
-    scheduleRenderFrame();
-    return liveJs.selectionMode;
+    return selectionModeRuntime.enter(pointer, reason);
 }
 
 function exitSelectionMode(reason = 'cancel') {
-    if (!liveJs.selectionMode?.active) return liveJs.selectionMode;
-    clearSelectionModeEntryReleasePending();
-    selectionModeEvent('exit', { reason });
-    liveJs.selectionMode = {
-        ...liveJs.selectionMode,
-        active: false,
-        blocker: reason === 'cancel' ? { status: 'cancelled', reason } : liveJs.selectionMode.blocker,
-    };
-    liveJs.selectionModeOverlay = buildProjectedSelectionModeOverlay(liveJs.selectionMode);
-    state.selectionMode = liveJs.selectionMode;
-    syncSigilInputRegions();
-    scheduleRenderFrame();
-    return liveJs.selectionMode;
+    return selectionModeRuntime.exit(reason);
 }
 
 const sigilUxCommandRegistry = createSigilUxTreeCommandRegistry({
@@ -2877,10 +2653,12 @@ function executeSelectionModeCommand(input, msg = {}, {
     return result;
 }
 
-function executeSelectionModeEscapeCommand(msg = {}) {
-    return executeSelectionModeCommand(SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT, msg, {
-        fallback: () => exitSelectionMode('escape'),
-    });
+function executeSelectionModeRouteCommand(command = '', msg = {}, options = {}) {
+    const input = command === 'escape'
+        ? SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT
+        : SIGIL_SELECTION_MODE_COMMAND_INPUTS[command];
+    if (!input) return null;
+    return executeSelectionModeCommand(input, msg, options);
 }
 
 function executeContextMenuRightClickCommand(route = {}, msg = {}) {
@@ -2917,169 +2695,27 @@ function executeAvatarCommand(input, msg = {}, {
 }
 
 function acquireSelectionModeCandidates(point = null) {
-    const cursor = { x: Number(point?.x), y: Number(point?.y), valid: true };
-    const pathCandidates = selectionModeCandidatesAtPoint(cursor);
-    const leaf = pathCandidates.at(-1) || null;
-    liveJs.selectionMode = {
-        ...liveJs.selectionMode,
-        cursor,
-        leaf_candidate: leaf,
-        path_candidates: pathCandidates,
-        selected_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
-        blocker: pathCandidates.length > 1 ? null : {
-            status: 'degraded',
-            reason: 'selection_mode_only_display_fallback_available',
-        },
-    };
-    selectionModeEvent('acquire', {
-        cursor,
-        path_candidate_count: pathCandidates.length,
-        leaf_candidate_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
-    });
-    const contextSession = buildSelectionModeContextSession();
-    state.selectionMode = liveJs.selectionMode;
-    scheduleRenderFrame();
-    return contextSession;
+    return selectionModeRuntime.acquire(point);
 }
 
 function cycleSelectionModeTarget(delta = -1) {
-    const contextSession = liveJs.selectionMode?.context_session;
-    const path = contextSession?.artifacts?.[0]?.path || [];
-    if (!path.length) return null;
-    const current = path.findIndex((node) => node.id === liveJs.selectionMode.selected_node_id);
-    const nextIndex = (current >= 0 ? current : path.length - 1) + delta;
-    const wrapped = ((nextIndex % path.length) + path.length) % path.length;
-    const context = buildSelectionModeContextSession({ selectedNodeId: path[wrapped].id });
-    selectionModeEvent('select_target', {
-        selected_node_id: liveJs.selectionMode.selected_node_id,
-    });
-    state.selectionMode = liveJs.selectionMode;
-    scheduleRenderFrame();
-    return context;
+    return selectionModeRuntime.cycleTarget(delta);
 }
 
 function commitSelectionMode(reason = 'selection-mode-commit') {
-    const contextSession = liveJs.selectionMode?.context_session || buildSelectionModeContextSession();
-    if (!contextSession) return null;
-    const activeContext = setActiveContextProvider({
-        source: 'selection_mode',
-        contextSession,
-        trigger: 'selection_mode_commit',
-        reason,
-    });
-    selectionModeEvent('commit', {
-        reason,
-        context_session_id: contextSession.id,
-        context_keyframe_id: activeContext.context_keyframe?.id || '',
-    });
-    exitSelectionMode('commit');
-    return contextSession;
+    return selectionModeRuntime.commit(reason);
 }
 
 function setSelectionModeNodeComment(nodeId = '', text = '', options = {}) {
-    const target = String(nodeId || liveJs.selectionMode?.selected_node_id || '').trim();
-    const path = liveJs.selectionMode?.path_candidates || [];
-    const contextPath = liveJs.selectionMode?.context_session?.artifacts?.[0]?.path || [];
-    const targetIndex = contextPath.findIndex((node) => node.id === target || node.address === target);
-    const nextPath = path.map((candidate, index) => {
-        const key = String(candidate.id || candidate.node_id || candidate.subject_id || candidate.address || '').trim();
-        if (key !== target && index !== targetIndex) return candidate;
-        return {
-            ...candidate,
-            comments: [
-                ...(Array.isArray(candidate.comments) ? candidate.comments : []),
-                {
-                    id: options.id || `comment:selection-mode:${Date.now()}`,
-                    text,
-                    actor: options.actor || { role: 'operator', id: 'human' },
-                    created_at: options.created_at || new Date().toISOString(),
-                    updated_at: options.updated_at || new Date().toISOString(),
-                },
-            ],
-        };
-    });
-    liveJs.selectionMode.path_candidates = nextPath;
-    const context = buildSelectionModeContextSession({ selectedNodeId: liveJs.selectionMode.selected_node_id });
-    state.selectionMode = liveJs.selectionMode;
-    return context;
+    return selectionModeRuntime.setNodeComment(nodeId, text, options);
 }
 
 function createSelectionModeContextFromDebugInput(input = {}) {
-    const contextSession = createSelectionModeContextSession(input, {
-        updated_at: input.updated_at || new Date().toISOString(),
-    });
-    liveJs.selectionMode = {
-        active: Boolean(input.active ?? false),
-        entered_at: input.entered_at || null,
-        cursor: input.pointer || input.cursor || null,
-        leaf_candidate: input.clicked_leaf_candidate || input.leaf_candidate || null,
-        path_candidates: input.path_candidates || input.ancestor_candidates || [],
-        selected_node_id: contextSession.artifacts?.[0]?.active_target_node_id || '',
-        context_session: contextSession,
-        events: [],
-        blocker: input.blocker || null,
-    };
-    liveJs.selectionModeOverlay = buildProjectedSelectionModeOverlay(liveJs.selectionMode);
-    setActiveContextProvider({
-        source: 'selection_mode_debug',
-        contextSession,
-        trigger: 'selection_mode_debug',
-        reason: 'debug-api',
-    });
-    state.selectionMode = liveJs.selectionMode;
-    return contextSession;
+    return selectionModeRuntime.createContextFromDebugInput(input);
 }
 
 function handleSelectionModeInput(msg = {}) {
-    if (!liveJs.selectionMode?.active) return false;
-    if (typeof msg.x === 'number' && typeof msg.y === 'number') {
-        liveJs.selectionMode.cursor = { x: msg.x, y: msg.y, valid: true };
-        liveJs.selectionModeOverlay = buildProjectedSelectionModeOverlay(liveJs.selectionMode);
-    }
-    const route = resolveSelectionModeInputRoute(msg, {
-        consumeSelectionModeEntryRelease,
-        isOnAvatar,
-        consumeAvatarDoubleClick,
-    });
-    if (!route.handled) return false;
-    if (route.direct === 'render_only') {
-        scheduleRenderFrame();
-        return true;
-    }
-    if (route.direct === 'avatar_double_click_exit') {
-        exitSelectionMode('avatar-double-click');
-        return true;
-    }
-    if (!route.command) return true;
-
-    if (route.command === 'escape') {
-        executeSelectionModeEscapeCommand(msg);
-        return true;
-    }
-
-    const commandInput = SIGIL_SELECTION_MODE_COMMAND_INPUTS[route.command];
-    if (!commandInput) return true;
-    executeSelectionModeCommand(commandInput, msg, {
-        pointer: route.pointer || null,
-        fallback: () => {
-            if (route.command === 'commit') {
-                commitSelectionMode('enter');
-                return;
-            }
-            if (route.command === 'tabPreviousTarget' || route.command === 'arrowUpPreviousTarget') {
-                cycleSelectionModeTarget(-1);
-                return;
-            }
-            if (route.command === 'arrowDownNextTarget') {
-                cycleSelectionModeTarget(1);
-                return;
-            }
-            if (route.command === 'acquire') {
-                acquireSelectionModeCandidates(route.pointer);
-            }
-        }
-    });
-    return true;
+    return selectionModeRuntime.handleInput(msg);
 }
 
 function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
@@ -4727,10 +4363,7 @@ window.__sigilDebug = {
         return appendContextRecordingEvent(event);
     },
     exportContextRecording() {
-        return liveJs.contextRecording?.recording || createContextRecording({
-            keyframes: liveJs.contextRecording?.keyframes || [],
-            events: liveJs.contextRecording?.events || [],
-        });
+        return contextRecordingRuntime.exportContextRecording();
     },
 };
 

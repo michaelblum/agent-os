@@ -14,6 +14,10 @@ const recordingFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-co
 const missingPathFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/missing-ordered-path.json')
 const embeddedImageAssetFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/embedded-image-asset.json')
 const embeddedImageRecordingAssetFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/embedded-image-recording-asset.json')
+const blobKeyframeAssetFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/blob-keyframe-asset.json')
+const leadingWhitespaceDataKeyframeAssetFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/leading-whitespace-data-keyframe-asset.json')
+const blobRecordingAssetUriFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/blob-recording-asset-uri.json')
+const leadingWhitespaceDataRecordingAssetUriFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/leading-whitespace-data-recording-asset-uri.json')
 
 function validateFixture(fixturePath) {
   return spawnSync(
@@ -78,4 +82,17 @@ test('AOS context session schema rejects embedded image data URL recording asset
   const result = validateFixture(embeddedImageRecordingAssetFixturePath)
   assert.notEqual(result.status, 0, 'invalid fixture unexpectedly passed')
   assert.match(`${result.stdout}${result.stderr}`, /capture_image|not valid/)
+})
+
+test('AOS context session schema rejects blob and leading-whitespace data asset refs', () => {
+  for (const fixturePath of [
+    blobKeyframeAssetFixturePath,
+    leadingWhitespaceDataKeyframeAssetFixturePath,
+    blobRecordingAssetUriFixturePath,
+    leadingWhitespaceDataRecordingAssetUriFixturePath,
+  ]) {
+    const result = validateFixture(fixturePath)
+    assert.notEqual(result.status, 0, `${fixturePath} unexpectedly passed`)
+    assert.match(`${result.stdout}${result.stderr}`, /asset_refs|not valid/)
+  }
 })

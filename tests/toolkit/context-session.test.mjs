@@ -258,10 +258,32 @@ test('keyframe and recording asset refs reject embedded image data', () => {
     captured_at: '2026-05-28T12:00:00.000Z',
     trigger: 'manual',
     asset_refs: { capture_image: 'data:image/png;base64,AAAA' },
-  }), /data URL/)
+  }), /data\/blob URL/)
 
   assert.throws(() => createContextRecording({
     id: 'recording:bad',
     asset_refs: { image_data: { uri: 'capture.png' } },
   }), /embedded image data/)
+})
+
+test('asset refs reject blob and leading-whitespace data refs without rejecting file-like refs', () => {
+  for (const [name, fn] of [
+    ['keyframe string blob', () => createContextKeyframe({ asset_refs: { capture: 'blob:https://example.test/resource' } })],
+    ['keyframe whitespace data', () => createContextKeyframe({ asset_refs: { capture: ' Data:text/plain;base64,SGk=' } })],
+    ['recording object blob uri', () => createContextRecording({ asset_refs: { capture: { uri: 'blob:https://example.test/resource' } } })],
+    ['recording object whitespace data uri', () => createContextRecording({ asset_refs: { capture: { uri: ' Data:text/plain;base64,SGk=' } } })],
+  ]) {
+    assert.throws(fn, /data\/blob URL/, name)
+  }
+
+  const keyframe = createContextKeyframe({
+    asset_refs: {
+      capture: 'capture.png',
+      annotation_snapshot: 'annotation-snapshot.json',
+      notes: { uri: 'notes/context-recording.md', media_type: 'text/markdown' },
+    },
+  })
+  assert.equal(keyframe.asset_refs.capture, 'capture.png')
+  assert.equal(keyframe.asset_refs.annotation_snapshot, 'annotation-snapshot.json')
+  assert.equal(keyframe.asset_refs.notes.uri, 'notes/context-recording.md')
 })
