@@ -60,8 +60,15 @@ import { createSigilInputRegionAdapter } from './input-regions.js';
 import {
     createAvatarDoubleClickTracker,
 } from './selection-mode-input.js';
-import { createSigilSelectionModeRuntime } from './selection-mode-runtime.js';
-import { createSigilContextRecordingRuntime } from './context-recording-runtime.js';
+import {
+    createDefaultSelectionModeState,
+    createSigilSelectionModeRuntime,
+} from './selection-mode-runtime.js';
+import {
+    createDefaultActiveContextState,
+    createDefaultContextRecordingState,
+    createSigilContextRecordingRuntime,
+} from './context-recording-runtime.js';
 import {
     contextMenuOpenCommandOpened,
     resolveContextMenuRightClickRoute,
@@ -162,17 +169,7 @@ const liveJs = {
     sessionVitality: null,
     lastRadialActivation: null,
     annotationReticle: null,
-    selectionMode: {
-        active: false,
-        entered_at: null,
-        cursor: null,
-        leaf_candidate: null,
-        path_candidates: [],
-        selected_node_id: '',
-        context_session: null,
-        events: [],
-        blocker: null,
-    },
+    selectionMode: createDefaultSelectionModeState(),
     selectionModeOverlay: null,
     uxCommandRuntime: {
         lastExecution: null,
@@ -180,18 +177,8 @@ const liveJs = {
         fallbackCount: 0,
         trace: [],
     },
-    activeContext: {
-        source: '',
-        updated_at: null,
-        context_session: null,
-        context_keyframe: null,
-        unavailable: null,
-    },
-    contextRecording: {
-        recording: null,
-        keyframes: [],
-        events: [],
-    },
+    activeContext: createDefaultActiveContextState(),
+    contextRecording: createDefaultContextRecordingState(),
     annotationReticleTargetEvidence: createAnnotationReticleTargetEvidenceCache(),
     annotationReticleBrowserDomBridge: null,
     annotationReticleEvents: [],
@@ -2464,25 +2451,14 @@ function requestAnnotationSnapshot(reason = 'radial-camera') {
     const event = annotationReticle.requestSnapshotEvent();
     syncAnnotationReticleSnapshot();
     const reticleContextSession = event.context_session || liveJs.annotationReticle?.context_session || null;
-    const activeContext = liveJs.activeContext?.context_session
-        ? liveJs.activeContext
-        : updateActiveContextFromReticle(reticleContextSession, reason);
-    const contextSession = activeContext.context_session || reticleContextSession;
-    const contextKeyframe = activeContext.context_keyframe || createContextKeyframeForSession(contextSession, {
-        trigger: 'sigil_radial_camera',
+    const {
+        contextSession,
+        contextKeyframe,
+        contextUnavailable,
+    } = contextRecordingRuntime.resolveReticleBundleContext({
+        reticleContextSession,
+        event,
         reason,
-        source: 'sigil_annotation_reticle',
-        assetRefs: {
-            capture_image: 'capture.png',
-            capture_json: 'capture.json',
-            display_geometry_json: 'display-geometry.json',
-            canvas_list_json: 'canvas-list.json',
-            inspector_state_json: 'inspector-state.json',
-            surface_inspector_annotation_snapshot: 'annotation-snapshot.json',
-        },
-        metadata: {
-            anchor_count: event.anchor_count,
-        },
     });
     recordAnnotationReticleEvent('snapshot_request', {
         type: event.type,
@@ -2498,10 +2474,7 @@ function requestAnnotationSnapshot(reason = 'radial-camera') {
         anchor_count: event.anchor_count,
         context_session: contextSession,
         context_keyframe: contextKeyframe,
-        context_unavailable: contextSession ? null : (activeContext.unavailable || {
-            status: 'skipped',
-            reason: 'reticle_context_session_unavailable',
-        }),
+        context_unavailable: contextUnavailable,
     });
     return true;
 }
@@ -2520,28 +2493,6 @@ function requestCanvasInspectorAnnotationToggle(reason = 'sigil-radial') {
             error: String(error?.message || error),
         });
     });
-}
-
-function createContextKeyframeForSession(contextSession = null, {
-    trigger = 'manual',
-    reason = '',
-    source = 'active_context',
-    capturedAt = new Date().toISOString(),
-    assetRefs = {},
-    metadata = {},
-} = {}) {
-    return contextRecordingRuntime.createContextKeyframeForSession(contextSession, {
-        trigger,
-        reason,
-        source,
-        capturedAt,
-        assetRefs,
-        metadata,
-    });
-}
-
-function setActiveContextProvider(options = {}) {
-    return contextRecordingRuntime.setActiveContextProvider(options);
 }
 
 function updateActiveContextFromReticle(contextSession = null, reason = 'reticle') {

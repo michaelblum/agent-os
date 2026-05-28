@@ -5,7 +5,7 @@ const {
     createContextRecording,
 } = await import(toolkitSpecifier('workbench/context-session.js'));
 
-const RETICLE_CONTEXT_ASSET_REFS = Object.freeze({
+export const RETICLE_CONTEXT_ASSET_REFS = Object.freeze({
     capture_image: 'capture.png',
     capture_json: 'capture.json',
     display_geometry_json: 'display-geometry.json',
@@ -122,6 +122,44 @@ export function createSigilContextRecordingRuntime({
         });
     }
 
+    function resolveReticleBundleContext({
+        reticleContextSession = null,
+        event = {},
+        reason = 'radial-camera',
+    } = {}) {
+        const activeContext = liveState.activeContext?.context_session
+            ? liveState.activeContext
+            : setActiveContextProvider({
+                source: 'sigil_annotation_reticle',
+                contextSession: reticleContextSession,
+                trigger: 'sigil_radial_camera',
+                reason,
+                assetRefs: RETICLE_CONTEXT_ASSET_REFS,
+                metadata: {
+                    anchor_count: event.anchor_count,
+                },
+            });
+        const contextSession = activeContext.context_session || reticleContextSession;
+        const contextKeyframe = activeContext.context_keyframe || createContextKeyframeForSession(contextSession, {
+            trigger: 'sigil_radial_camera',
+            reason,
+            source: 'sigil_annotation_reticle',
+            assetRefs: RETICLE_CONTEXT_ASSET_REFS,
+            metadata: {
+                anchor_count: event.anchor_count,
+            },
+        });
+        return {
+            activeContext,
+            contextSession,
+            contextKeyframe,
+            contextUnavailable: contextSession ? null : (activeContext.unavailable || {
+                status: 'skipped',
+                reason: 'reticle_context_session_unavailable',
+            }),
+        };
+    }
+
     function appendContextRecordingKeyframe(keyframe = liveState.activeContext?.context_keyframe, options = {}) {
         if (!keyframe) return null;
         const keyframes = [...(liveState.contextRecording?.keyframes || []), keyframe];
@@ -174,6 +212,7 @@ export function createSigilContextRecordingRuntime({
         createContextKeyframeForSession,
         setActiveContextProvider,
         updateActiveContextFromReticle,
+        resolveReticleBundleContext,
         appendContextRecordingKeyframe,
         appendContextRecordingEvent,
         exportContextRecording,

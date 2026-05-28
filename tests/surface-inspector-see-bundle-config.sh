@@ -205,8 +205,92 @@ for name in ["capture_image", "capture_metadata", "xray"]:
         raise SystemExit(f"FAIL: expected {name} to be skipped or disabled: {artifacts}")
 if payload.get("canvas_list") is not None:
     raise SystemExit("FAIL: canvas_list should be omitted when include.canvas_list=false")
-if "data:image/" in raw:
-    raise SystemExit("FAIL: clipboard payload embedded image data")
+raw_lower = raw.lower()
+if "data:" in raw_lower or "blob:" in raw_lower:
+    raise SystemExit("FAIL: clipboard payload embedded data/blob asset ref")
+PY
+
+./aos show create \
+  --id clipboard-invalid-context-requester \
+  --at 120,120,240,160 \
+  --interactive \
+  --html '<!doctype html><html><body>clipboard invalid context requester<script type="module">
+import { wireBridge, emit } from "aos://toolkit/runtime/index.js"
+window.__bundleStatuses = []
+wireBridge((msg) => {
+  if (msg.type === "canvas_inspector.see_bundle_status") {
+    window.__bundleStatuses.push(msg.payload || msg)
+  }
+})
+window.__requestInvalidClipboardBundle = () => {
+  window.__bundleStatuses = []
+  emit("canvas_inspector.capture_bundle", {
+    trigger: "invalid-context-clipboard-test",
+    context_session: {
+      schema: "aos_context_session",
+      version: "0.1.0",
+      id: "context-session:invalid",
+      keyframes: [{
+        schema: "aos_context_keyframe",
+        version: "0.1.0",
+        id: "keyframe:invalid-data",
+        captured_at: "2026-05-28T12:00:00.000Z",
+        trigger: "invalid",
+        artifact_ids: [],
+        asset_refs: { transcript: " Data:text/plain;base64,SGk=" }
+      }]
+    },
+    context_keyframe: {
+      schema: "aos_context_keyframe",
+      version: "0.1.0",
+      id: "keyframe:invalid-blob",
+      captured_at: "2026-05-28T12:00:01.000Z",
+      trigger: "invalid",
+      artifact_ids: [],
+      asset_refs: { capture: { uri: "blob:https://example.test/capture" } }
+    }
+  })
+}
+</script></body></html>' >/dev/null
+
+./aos show wait \
+  --id clipboard-invalid-context-requester \
+  --js 'typeof window.__requestInvalidClipboardBundle === "function"' \
+  --timeout 5s >/dev/null
+
+sleep 1
+
+./aos show eval --id clipboard-invalid-context-requester --js 'window.__requestInvalidClipboardBundle(); "ok"' >/dev/null
+
+python3 <<'PY'
+import json, subprocess, time
+
+deadline = time.time() + 15
+while time.time() < deadline:
+    payload = json.loads(subprocess.check_output([
+        "./aos", "show", "eval", "--id", "clipboard-invalid-context-requester", "--js",
+        'JSON.stringify(window.__bundleStatuses || [])'
+    ], text=True))
+    result = payload.get("result")
+    statuses = json.loads(result) if result else []
+    for state in statuses:
+        status = state.get("status")
+        if status == "success":
+            raise SystemExit(f"FAIL: invalid clipboard context unexpectedly succeeded: {state}")
+        if status == "error":
+            error = state.get("error") or {}
+            if error.get("code") != "CONTEXT_PAYLOAD_INVALID_ASSET_REF":
+                raise SystemExit(f"FAIL: invalid clipboard context returned wrong error: {state}")
+            if error.get("phase") != "context_payload_validation":
+                raise SystemExit(f"FAIL: invalid clipboard context returned wrong phase: {state}")
+            if "context_session" not in (error.get("path") or ""):
+                raise SystemExit(f"FAIL: invalid clipboard context did not report context_session path: {state}")
+            if "data:" not in json.dumps(state).lower() and "blob:" not in json.dumps(state).lower():
+                raise SystemExit(f"FAIL: invalid clipboard context error did not mention rejected URI class: {state}")
+            raise SystemExit(0)
+    time.sleep(0.2)
+
+raise SystemExit("FAIL: invalid clipboard context did not report validation error")
 PY
 
 ./aos set see.canvas_inspector_bundle.output.mode bundle_path >/dev/null

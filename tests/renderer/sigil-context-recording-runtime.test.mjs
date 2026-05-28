@@ -58,3 +58,27 @@ test('reticle active context uses canonical external asset refs', () => {
     'annotation-snapshot.json',
   )
 })
+
+test('reticle bundle context assembly stays owned by context recording runtime', () => {
+  const liveState = {}
+  const runtime = createSigilContextRecordingRuntime({
+    liveState,
+    now: () => '2026-05-28T12:00:00.000Z',
+  })
+  const resolved = runtime.resolveReticleBundleContext({
+    reticleContextSession: contextSession,
+    event: { anchor_count: 2 },
+    reason: 'radial-camera',
+  })
+
+  assert.equal(resolved.contextSession, contextSession)
+  assert.equal(resolved.contextKeyframe.trigger, 'sigil_radial_camera')
+  assert.equal(resolved.contextKeyframe.metadata.anchor_count, 2)
+  assert.equal(resolved.contextKeyframe.asset_refs.capture_image, 'capture.png')
+  assert.equal(
+    resolved.contextKeyframe.asset_refs.surface_inspector_annotation_snapshot,
+    'annotation-snapshot.json',
+  )
+  assert.equal(resolved.contextUnavailable, null)
+  assert.equal(liveState.activeContext.context_keyframe, resolved.contextKeyframe)
+})

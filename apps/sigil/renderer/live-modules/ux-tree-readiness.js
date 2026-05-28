@@ -1,5 +1,8 @@
 import { toolkitSpecifier } from './content-roots.js';
-import { createSigilUxTreeCommandRouteCatalog } from './ux-tree-command-registry.js';
+import {
+    createSigilUxTreeCommandRouteCatalog,
+    resolveSigilUxTreeCommandRegistryHandler,
+} from './ux-tree-command-registry.js';
 
 const {
     resolveUxTree,
@@ -7,8 +10,6 @@ const {
 } = await import(toolkitSpecifier('runtime/ux-tree.js', {
     local: '../../../../packages/toolkit/runtime/ux-tree.js',
 }));
-
-const HAS_OWN = Object.prototype.hasOwnProperty;
 
 const DEFAULT_RUNTIME_MECHANICS = Object.freeze([
     {
@@ -67,37 +68,12 @@ function cloneJson(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
-function ownValue(object, key) {
-    if (!object || typeof object !== 'object' || !HAS_OWN.call(object, key)) return undefined;
-    return object[key];
-}
-
-function ownFunction(object, key) {
-    const value = ownValue(object, key);
-    return typeof value === 'function' ? value : null;
-}
-
 function registryHandler(registry = {}, command = {}) {
-    const keys = [
-        text(command.handler_ref),
-        text(command.id),
-    ].filter(Boolean);
-    for (const key of keys) {
-        if (registry instanceof Map) {
-            if (typeof registry.get(key) === 'function') {
-                return { key, registered: true };
-            }
-            continue;
-        }
-        if (ownFunction(registry, key)) {
-            return { key, registered: true };
-        }
-        const nestedHandlers = ownValue(registry, 'handlers');
-        if (ownFunction(nestedHandlers, key)) {
-            return { key, registered: true };
-        }
-    }
-    return { key: keys[0] || null, registered: false };
+    const resolution = resolveSigilUxTreeCommandRegistryHandler(registry, command);
+    return {
+        key: resolution.key,
+        registered: typeof resolution.handler === 'function',
+    };
 }
 
 function classifyCommand(command = {}, {

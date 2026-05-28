@@ -157,7 +157,7 @@ function validationErrors(tree = {}) {
     return [];
 }
 
-function registryHandler(registry = {}, command = {}) {
+export function resolveSigilUxTreeCommandRegistryHandler(registry = {}, command = {}) {
     const keys = [
         text(command.handler_ref),
         text(command.id),
@@ -489,7 +489,7 @@ export function executeSigilUxTreeCommand(tree, { input = {}, registry = {}, con
         };
     }
 
-    const { handler, key } = registryHandler(registry, command);
+    const { handler, key } = resolveSigilUxTreeCommandRegistryHandler(registry, command);
     if (typeof handler !== 'function') {
         return {
             ...base,

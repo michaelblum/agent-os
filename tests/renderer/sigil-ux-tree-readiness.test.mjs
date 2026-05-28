@@ -4,6 +4,7 @@ import { createSigilUxTree } from '../../apps/sigil/renderer/live-modules/ux-tre
 import {
   createSigilUxTreeCommandRegistry,
   createSigilUxTreeCommandRouteCatalog,
+  resolveSigilUxTreeCommandRegistryHandler,
 } from '../../apps/sigil/renderer/live-modules/ux-tree-command-registry.js'
 import { createSigilUxTreeReadinessAudit } from '../../apps/sigil/renderer/live-modules/ux-tree-readiness.js'
 
@@ -162,4 +163,40 @@ test('Sigil UX tree readiness audit fails closed for unregistered commands and u
   assert.equal(audit.ok, false)
   assert.ok(audit.failures.some((failure) => failure.kind === 'command' && failure.id === 'sigil.context_menu.open'))
   assert.ok(audit.failures.some((failure) => failure.kind === 'binding' && failure.id === 'sigil.test.unclassified'))
+})
+
+test('Sigil UX tree readiness uses executor-owned handler lookup semantics', () => {
+  const tree = cloneJson(createSigilUxTree())
+  tree.validation = { ok: true, errors: [] }
+  tree.commands = tree.commands.map((command) => command.id === 'sigil.selection_mode.cancel'
+    ? {
+        ...command,
+        handler_ref: 'toString',
+      }
+    : command)
+  const inheritedAudit = createSigilUxTreeReadinessAudit(tree, {
+    registry: {},
+  })
+  assert.equal(inheritedAudit.ok, false)
+  assert.ok(inheritedAudit.failures.some((failure) => (
+    failure.kind === 'command'
+      && failure.id === 'sigil.selection_mode.cancel'
+  )))
+
+  const registry = Object.create(null)
+  Object.defineProperty(registry, 'toString', {
+    value() {},
+  })
+  const handler = resolveSigilUxTreeCommandRegistryHandler(
+    registry,
+    tree.commands.find((command) => command.id === 'sigil.selection_mode.cancel'),
+  )
+  const ownHandlerAudit = createSigilUxTreeReadinessAudit(tree, {
+    registry,
+  })
+
+  assert.equal(typeof handler.handler, 'function')
+  assert.equal(ownHandlerAudit.commandCoverage
+    .find((entry) => entry.id === 'sigil.selection_mode.cancel')
+    .status, 'registered_runtime_handler')
 })
