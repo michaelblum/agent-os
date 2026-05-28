@@ -268,13 +268,37 @@ canceled = show_eval_json(
 )
 assert canceled["state"] == "IDLE", canceled
 
+second_radial_start = show_eval_json(
+    """(() => {
+      const p = window.liveJs.avatarPos
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 80, y: p.y })
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    })()"""
+)
+assert second_radial_start["state"] == "RADIAL", second_radial_start
+second_radial_ready = wait_until(
+    lambda: (
+        lambda snap: snap
+        if snap.get("radialTargetSurface", {}).get("interactive") is True
+        and {"context-menu", "wiki-graph"}.issubset({target.get("id") for target in snap.get("radialTargetSurface", {}).get("targets", [])})
+        else None
+    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
+    timeout=3.0,
+    label="second radial target surface ready",
+)
+second_radial_surface = second_radial_ready["radialTargetSurface"]
+second_radial_context_semantic = wait_until(lambda: semantic_target(second_radial_surface["id"], "context-menu"), timeout=3.0, label="second radial context semantic target")
+second_context_point = semantic_target_world_point(
+    second_radial_surface,
+    second_radial_context_semantic["payload"],
+    second_radial_context_semantic["target"],
+    show_eval_json("JSON.stringify(window.liveJs.displays)"),
+)
 radial_context = show_eval_json(
     f"""(() => {{
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_down', x: p.x, y: p.y }})
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: p.x + 18, y: p.y }})
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: {context_point['x']}, y: {context_point['y']} }})
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_up', x: {context_point['x']}, y: {context_point['y']} }})
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: {second_context_point['x']}, y: {second_context_point['y']} }})
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_up', x: {second_context_point['x']}, y: {second_context_point['y']} }})
       return JSON.stringify(window.__sigilDebug.snapshot())
     }})()"""
 )

@@ -1431,6 +1431,7 @@ function clearGestureState() {
     liveJs.radialGestureMenu = null;
     annotationReticleAcquisition?.reset?.();
     radialReticleItemWasActive = false;
+    syncRadialTargetSurface();
     setAvatarHover(false);
 }
 
