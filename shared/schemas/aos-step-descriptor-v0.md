@@ -1,26 +1,25 @@
-# AOS Playbook Step v0 Sketch
+# AOS Step Descriptor v0 Sketch
 
 Status: schema-backed design sketch. The JSON Schema in
-[`aos-playbook-step-v0.schema.json`](aos-playbook-step-v0.schema.json)
+[`aos-step-descriptor-v0.schema.json`](aos-step-descriptor-v0.schema.json)
 validates example fixtures under
-[`fixtures/aos-playbook-step-v0/`](fixtures/aos-playbook-step-v0/).
+[`fixtures/aos-step-descriptor-v0/`](fixtures/aos-step-descriptor-v0/).
 
 Transition note: ADR-0013 supersedes Playbook-as-executable language. This
-`aos.playbook_step` contract remains a transitional v0 descriptor for one
-Workflow-gated step/evidence bridge. It is not the preferred current executable
-substrate, and its `playbook` names are compatibility vocabulary until a future
-Block, Step, or Harness rename lands.
+`aos.step_descriptor` contract is the neutral v0 descriptor for one
+Workflow-gated step/evidence bridge. It is not a Workflow engine, evidence log,
+or autonomous replay contract.
 
 ## Purpose
 
-A Playbook step is a transitional descriptor over the
+A Step descriptor is a descriptor over the
 `see -> resolve -> do -> see -> verify` shape. It describes what should be
 perceived, how a target should be resolved, which AOS action adapter may be
 called by a gated harness, which postconditions should be checked, and which
 repair hints are safe to use under a Workflow gate.
 
 A Work Record is different: it records one run. A Workflow-gated harness or
-saved-evidence bridge can combine this transitional descriptor with
+saved-evidence bridge can combine this descriptor with
 before/action/after evidence to emit a Work Record with Claim Results, a
 Verifier Report, and Health. The descriptor is not the evidence log, and a Work
 Record is not the descriptor.
@@ -29,11 +28,11 @@ Record is not the descriptor.
 
 ```json
 {
-  "type": "aos.playbook_step",
-  "schema_version": "2026-05-playbook-step-v0",
-  "id": "playbook-step:<stable-id>",
+  "type": "aos.step_descriptor",
+  "schema_version": "2026-05-step-descriptor-v0",
+  "id": "step-descriptor:<stable-id>",
   "label": "Human label",
-  "playbook_ref": "playbook:<subject-handle>",
+  "workflow_ref": "workflow:<subject-handle>",
   "version": "v0",
   "target_dialect": "browser",
   "intent": {},
@@ -70,8 +69,8 @@ and accessible candidate hints:
 ```
 
 The Work Record generated from a run stores the target that actually resolved,
-the State IDs, and the immutable evidence refs. The transitional descriptor
-stores compatibility target-resolution metadata for the gated bridge.
+the State IDs, and the immutable evidence refs. The descriptor stores
+target-resolution metadata for the gated bridge.
 
 ## Claim Promotion
 
@@ -95,14 +94,12 @@ text to hide target drift.
 ## Bridge To Work Record v0
 
 The narrow toolkit bridge is
-`buildWorkRecordV0FromPlaybookStepEvidence(playbookStep, evidenceSource)` in
+`buildWorkRecordV0FromStepDescriptorEvidence(stepDescriptor, evidenceSource)` in
 `packages/toolkit/workbench/work-record-capture.js`. It combines one
-transitional `aos.playbook_step` descriptor with one saved AOS `see -> do ->
-see` action evidence source and emits Work Record v0. The generated Work Record
-uses `origin.kind: "playbook"` and `origin.ref` only because the v0 schemas and
-fixtures still require that compatibility shape, preserves immutable evidence
-refs, keeps replay and repair Workflow-gated, and reuses
-`aos.verifier.work-record.v0.report-only`.
+`aos.step_descriptor` descriptor with one saved AOS `see -> do -> see` action
+evidence source and emits Work Record v0. The generated Work Record uses the
+containing Workflow as origin, preserves immutable evidence refs, keeps replay
+and repair Workflow-gated, and reuses `aos.verifier.work-record.v0.report-only`.
 
 The bridge remains saved-evidence only. It does not execute the step, replay a
 macro, repair refs, or add a broad CLI command surface.
@@ -110,10 +107,10 @@ macro, repair refs, or add a broad CLI command surface.
 ## One-Step Harness Boundary
 
 The first explicit-gate harness is
-`runOneStepPlaybookHarness()` in
-`packages/toolkit/workbench/playbook-step-harness.js`. It is a toolkit module
-above the daemon, not a new `aos playbook` command. The harness accepts exactly
-one `aos.playbook_step` descriptor and either simulates a run from one saved AOS
+`runOneStepStepDescriptorHarness()` in
+`packages/toolkit/workbench/step-descriptor-harness.js`. It is a toolkit module
+above the daemon, not a new public command group. The harness accepts exactly
+one `aos.step_descriptor` descriptor and either simulates a run from one saved AOS
 action evidence source or calls one caller-supplied execution adapter that
 returns the same evidence shape.
 
@@ -122,27 +119,27 @@ provide both a gate ref declared in `workflow_gates.gate_refs[]` and an explicit
 gate token. Ungated simulation or execution is rejected without producing a Work
 Record and, for execute mode, before the adapter can run.
 
-A gated harness run still does not make the Playbook step the evidence log or
-the preferred executable substrate. The transitional descriptor supplies intent,
+A gated harness run still does not make the Step descriptor the evidence log or
+the preferred executable substrate. The descriptor supplies intent,
 target-resolution, precondition, postcondition, repair-hint, and
 Claim-promotion metadata. The harness supplies the run boundary and gate. The
 Work Record emitted through
-`buildWorkRecordV0FromPlaybookStepEvidence()` owns the immutable before/action/
+`buildWorkRecordV0FromStepDescriptorEvidence()` owns the immutable before/action/
 after evidence, Claim Results, Verifier Report, and Health for that run.
 
 Verifier diagnostics remain report-only. They classify drift or failure in the
 Work Record without replaying the action, repairing refs, mutating historical
-evidence, or patching the Playbook template. Future replay or repair work must
+evidence, or patching guidance templates. Future replay or repair work must
 use a separate Workflow-gated path that creates a new run or an explicit
 execution-map patch.
 
 ## Examples
 
-- [`valid/browser-click-status.json`](fixtures/aos-playbook-step-v0/valid/browser-click-status.json)
+- [`valid/browser-click-status.json`](fixtures/aos-step-descriptor-v0/valid/browser-click-status.json)
   describes the browser click/status step with preconditions, target
   resolution, action, postconditions, repair hints, and claim promotion.
-- [`invalid/missing-target-resolution.json`](fixtures/aos-playbook-step-v0/invalid/missing-target-resolution.json)
-  is rejected because the transitional descriptor without target resolution
+- [`invalid/missing-target-resolution.json`](fixtures/aos-step-descriptor-v0/invalid/missing-target-resolution.json)
+  is rejected because a descriptor without target resolution
   cannot support the gated `see -> resolve -> do` bridge.
-- [`invalid/replay-without-workflow-gate.json`](fixtures/aos-playbook-step-v0/invalid/replay-without-workflow-gate.json)
+- [`invalid/replay-without-workflow-gate.json`](fixtures/aos-step-descriptor-v0/invalid/replay-without-workflow-gate.json)
   is rejected because v0 replay and repair must remain gated by a Workflow.

@@ -177,7 +177,7 @@ test('mounted toolkit panel component pages import base theme and panel defaults
     'packages/toolkit/components/log-console/index.html',
     'packages/toolkit/components/markdown-workbench/index.html',
     'packages/toolkit/components/object-transform-panel/index.html',
-    'packages/toolkit/components/playbook-workbench/index.html',
+    'packages/toolkit/components/step-descriptor-workbench/index.html',
     'packages/toolkit/components/render-performance/index.html',
     'packages/toolkit/components/spatial-telemetry/index.html',
     'packages/toolkit/components/surface-inspector/index.html',
@@ -200,7 +200,7 @@ test('segmented controls are not used as tablists', async () => {
     'packages/toolkit/components/integration-hub/index.js',
     'packages/toolkit/components/markdown-workbench/index.js',
     'packages/toolkit/components/object-transform-panel/index.js',
-    'packages/toolkit/components/playbook-workbench/index.js',
+    'packages/toolkit/components/step-descriptor-workbench/index.js',
     'packages/toolkit/components/surface-zoom-inspector/index.js',
   ];
 
@@ -215,7 +215,7 @@ test('segmented control primitive users import control defaults', async () => {
   const adopters = [
     ['packages/toolkit/components/markdown-workbench/index.html', 'packages/toolkit/components/markdown-workbench/index.js'],
     ['packages/toolkit/components/object-transform-panel/index.html', 'packages/toolkit/components/object-transform-panel/index.js'],
-    ['packages/toolkit/components/playbook-workbench/index.html', 'packages/toolkit/components/playbook-workbench/index.js'],
+    ['packages/toolkit/components/step-descriptor-workbench/index.html', 'packages/toolkit/components/step-descriptor-workbench/index.js'],
     ['packages/toolkit/components/surface-zoom-inspector/index.html', 'packages/toolkit/components/surface-zoom-inspector/index.js'],
     ['packages/toolkit/components/wiki-kb/index.html', 'packages/toolkit/components/wiki-kb/index.js'],
   ];

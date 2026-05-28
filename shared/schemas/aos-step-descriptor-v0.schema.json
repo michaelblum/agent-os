@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-playbook-step-v0.schema.json",
-  "title": "AOS Playbook Step v0",
-  "description": "Transitional v0 design-schema sketch for one Workflow-gated AOS step descriptor. The playbook names are compatibility vocabulary; a gated harness or saved-evidence bridge emits the Work Record.",
+  "$id": "https://github.com/michaelblum/agent-os/shared/schemas/aos-step-descriptor-v0.schema.json",
+  "title": "AOS Step Descriptor v0",
+  "description": "V0 design-schema sketch for one Workflow-gated AOS step descriptor. A gated harness or saved-evidence bridge emits the Work Record.",
   "type": "object",
   "required": [
     "type",
     "schema_version",
     "id",
     "label",
-    "playbook_ref",
+    "workflow_ref",
     "version",
     "target_dialect",
     "intent",
@@ -23,10 +23,10 @@
   ],
   "properties": {
     "type": {
-      "const": "aos.playbook_step"
+      "const": "aos.step_descriptor"
     },
     "schema_version": {
-      "const": "2026-05-playbook-step-v0"
+      "const": "2026-05-step-descriptor-v0"
     },
     "id": {
       "$ref": "#/$defs/non_empty_string"
@@ -34,7 +34,7 @@
     "label": {
       "$ref": "#/$defs/non_empty_string"
     },
-    "playbook_ref": {
+    "workflow_ref": {
       "$ref": "#/$defs/non_empty_string"
     },
     "version": {

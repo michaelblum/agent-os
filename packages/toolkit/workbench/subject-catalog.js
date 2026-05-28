@@ -23,7 +23,7 @@ export const SUBJECT_OPEN_REQUEST_TYPE = 'subject.open.requested';
 export const SUBJECT_OPEN_RESULT_TYPE = 'subject.open.result';
 
 export const WORK_RECORD_WORKBENCH_URL = 'aos://toolkit/components/work-record-workbench/index.html';
-export const PLAYBOOK_WORKBENCH_URL = 'aos://toolkit/components/playbook-workbench/index.html';
+export const STEP_DESCRIPTOR_WORKBENCH_URL = 'aos://toolkit/components/step-descriptor-workbench/index.html';
 export { ARTIFACT_BUNDLE_WORKBENCH_URL };
 
 const COMPONENT_OPENERS = Object.freeze([
@@ -35,11 +35,11 @@ const COMPONENT_OPENERS = Object.freeze([
     message_types: ['work_record.open'],
   },
   {
-    id: 'playbook-workbench',
-    component_url: PLAYBOOK_WORKBENCH_URL,
-    subject_types: ['aos.playbook_prototype'],
-    required_contract_prefix: 'playbook_step.',
-    message_types: [SUBJECT_CATALOG_LOAD_TYPE, 'playbook_workbench.load'],
+    id: 'step-descriptor-workbench',
+    component_url: STEP_DESCRIPTOR_WORKBENCH_URL,
+    subject_types: ['aos.step_descriptor_prototype'],
+    required_contract_prefix: 'step_descriptor.',
+    message_types: [SUBJECT_CATALOG_LOAD_TYPE, 'step_descriptor_workbench.load'],
   },
   {
     id: 'artifact-bundle-workbench',

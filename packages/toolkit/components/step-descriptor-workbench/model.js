@@ -1,39 +1,39 @@
 import {
-  createBrowserPlaybookPrototype,
-  createBrowserPlaybookPrototypeWorkRecordOpenMessage,
-  runBrowserPlaybookPrototype,
-} from '../../workbench/browser-playbook-prototype.js';
+  createBrowserStepDescriptorPrototype,
+  createBrowserStepDescriptorPrototypeWorkRecordOpenMessage,
+  runBrowserStepDescriptorPrototype,
+} from '../../workbench/browser-step-descriptor-prototype.js';
 import {
   subjectContracts,
   subjectFacets,
 } from '../../workbench/subject.js';
 import {
-  checkPlaybookHarnessGate,
-  normalizePlaybookHarnessGate,
-} from '../../workbench/playbook-step-harness.js';
+  checkStepDescriptorHarnessGate,
+  normalizeStepDescriptorHarnessGate,
+} from '../../workbench/step-descriptor-harness.js';
 import {
   createWorkRecordWorkbenchState,
   openWorkRecord,
   workRecordWorkbenchSnapshot,
 } from '../work-record-workbench/model.js';
 import {
-  PLAYBOOK_WORKBENCH_SURFACE,
-  PLAYBOOK_WORKBENCH_MANIFEST,
-  PLAYBOOK_WORKBENCH_URL,
-  playbookWorkbenchSemanticRefs,
+  STEP_DESCRIPTOR_WORKBENCH_SURFACE,
+  STEP_DESCRIPTOR_WORKBENCH_MANIFEST,
+  STEP_DESCRIPTOR_WORKBENCH_URL,
+  stepDescriptorWorkbenchSemanticRefs,
 } from './semantics.js';
 
-export { PLAYBOOK_WORKBENCH_SURFACE, PLAYBOOK_WORKBENCH_MANIFEST, PLAYBOOK_WORKBENCH_URL };
+export { STEP_DESCRIPTOR_WORKBENCH_SURFACE, STEP_DESCRIPTOR_WORKBENCH_MANIFEST, STEP_DESCRIPTOR_WORKBENCH_URL };
 
-export const PLAYBOOK_WORKBENCH_SCHEMA_VERSION = '2026-05-06-playbook-workbench-v0';
-export const PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID = 'playbook-workbench-v0-work-record';
-export const PLAYBOOK_WORKBENCH_MESSAGE_TYPES = Object.freeze({
-  load: 'playbook_workbench.load',
-  workflowGateSet: 'playbook_workbench.workflow_gate.set',
-  simulateRequested: 'playbook_workbench.simulate.requested',
-  simulateResult: 'playbook_workbench.simulate.result',
-  workRecordOpenRequested: 'playbook_workbench.work_record.open.requested',
-  workRecordOpenResult: 'playbook_workbench.work_record.open.result',
+export const STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION = '2026-05-06-step-descriptor-workbench-v0';
+export const STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID = 'step-descriptor-workbench-v0-work-record';
+export const STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES = Object.freeze({
+  load: 'step_descriptor_workbench.load',
+  workflowGateSet: 'step_descriptor_workbench.workflow_gate.set',
+  simulateRequested: 'step_descriptor_workbench.simulate.requested',
+  simulateResult: 'step_descriptor_workbench.simulate.result',
+  workRecordOpenRequested: 'step_descriptor_workbench.work_record.open.requested',
+  workRecordOpenResult: 'step_descriptor_workbench.work_record.open.result',
 });
 
 function text(value, fallback = '') {
@@ -65,25 +65,25 @@ function gateRefsFromPrototype(prototype = {}) {
 }
 
 function prototypeFromInputs({
-  playbookStep = null,
+  stepDescriptor = null,
   evidenceSource = null,
   workflowGateRef = '',
 } = {}) {
-  if (!hasObject(playbookStep) || !hasObject(evidenceSource)) return null;
-  return createBrowserPlaybookPrototype({
-    playbookStep,
+  if (!hasObject(stepDescriptor) || !hasObject(evidenceSource)) return null;
+  return createBrowserStepDescriptorPrototype({
+    stepDescriptor,
     evidenceSource,
     workflowGateRef,
   });
 }
 
 function summarizeStep(prototype = null) {
-  const step = objectValue(prototype?.playbook_step);
+  const step = objectValue(prototype?.step_descriptor);
   const targetResolution = objectValue(step.target_resolution);
   return {
     id: text(step.id),
     label: text(step.label),
-    playbook_ref: text(step.playbook_ref),
+    workflow_ref: text(step.workflow_ref),
     target_dialect: text(step.target_dialect),
     target: text(targetResolution.target),
     target_with_ref: text(targetResolution.target_with_ref),
@@ -144,7 +144,7 @@ function summarizeWorkRecord(record = null) {
   };
 }
 
-export function playbookWorkbenchBoundarySummary() {
+export function stepDescriptorWorkbenchBoundarySummary() {
   return {
     fixture_backed: true,
     report_only: true,
@@ -159,7 +159,7 @@ export function playbookWorkbenchBoundarySummary() {
   };
 }
 
-export function playbookWorkbenchForbiddenControls(subject = {}) {
+export function stepDescriptorWorkbenchForbiddenControls(subject = {}) {
   const contracts = [
     ...subjectContracts(subject),
     ...subjectFacets(subject).flatMap((facet) => arrayValue(facet.contracts).map((contract) => text(contract))),
@@ -173,7 +173,7 @@ export function playbookWorkbenchForbiddenControls(subject = {}) {
   };
 }
 
-export function playbookWorkbenchGateStatus(state = {}) {
+export function stepDescriptorWorkbenchGateStatus(state = {}) {
   const prototype = objectValue(state.prototype);
   if (!hasObject(prototype)) {
     return {
@@ -185,8 +185,8 @@ export function playbookWorkbenchGateStatus(state = {}) {
     };
   }
 
-  const gate = normalizePlaybookHarnessGate(state.workflow_gate);
-  const check = checkPlaybookHarnessGate(prototype.playbook_step, gate);
+  const gate = normalizeStepDescriptorHarnessGate(state.workflow_gate);
+  const check = checkStepDescriptorHarnessGate(prototype.step_descriptor, gate);
   if (check.ok) {
     return {
       status: 'ready',
@@ -207,26 +207,26 @@ export function playbookWorkbenchGateStatus(state = {}) {
   };
 }
 
-export function createPlaybookWorkbenchState({
-  playbookStep = null,
+export function createStepDescriptorWorkbenchState({
+  stepDescriptor = null,
   evidenceSource = null,
   workflowGate = null,
   workflowGateRef = '',
   workRecordWorkbenchUrl = '',
-  workRecordCanvasId = PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID,
+  workRecordCanvasId = STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID,
 } = {}) {
-  const gate = normalizePlaybookHarnessGate(workflowGate);
+  const gate = normalizeStepDescriptorHarnessGate(workflowGate);
   if (!gate.ref && workflowGateRef) gate.ref = text(workflowGateRef);
   const prototype = prototypeFromInputs({
-    playbookStep,
+    stepDescriptor,
     evidenceSource,
     workflowGateRef: text(gate.ref),
   });
   const state = {
-    type: 'playbook_workbench.snapshot',
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
-    surface: PLAYBOOK_WORKBENCH_SURFACE,
-    url: PLAYBOOK_WORKBENCH_URL,
+    type: 'step_descriptor_workbench.snapshot',
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
+    surface: STEP_DESCRIPTOR_WORKBENCH_SURFACE,
+    url: STEP_DESCRIPTOR_WORKBENCH_URL,
     fixture_loaded: !!prototype,
     status: prototype ? 'ready' : 'waiting_for_fixture',
     prototype,
@@ -246,20 +246,20 @@ export function createPlaybookWorkbenchState({
       workRecordWorkbenchUrl,
       'aos://toolkit/components/work-record-workbench/index.html',
     ),
-    work_record_canvas_id: text(workRecordCanvasId, PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID),
-    semantic_refs: playbookWorkbenchSemanticRefs(),
-    boundaries: playbookWorkbenchBoundarySummary(),
-    forbidden_controls: playbookWorkbenchForbiddenControls(prototype?.subject),
+    work_record_canvas_id: text(workRecordCanvasId, STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID),
+    semantic_refs: stepDescriptorWorkbenchSemanticRefs(),
+    boundaries: stepDescriptorWorkbenchBoundarySummary(),
+    forbidden_controls: stepDescriptorWorkbenchForbiddenControls(prototype?.subject),
     last_event: null,
     last_result: null,
   };
-  state.gate_status = playbookWorkbenchGateStatus(state);
+  state.gate_status = stepDescriptorWorkbenchGateStatus(state);
   return state;
 }
 
-export function loadPlaybookWorkbenchFixture(state, {
-  playbookStep = null,
-  playbook_step = playbookStep,
+export function loadStepDescriptorWorkbenchFixture(state, {
+  stepDescriptor = null,
+  step_descriptor = stepDescriptor,
   evidenceSource = null,
   evidence_source = evidenceSource,
   workflowGate = null,
@@ -272,17 +272,17 @@ export function loadPlaybookWorkbenchFixture(state, {
   work_record_canvas_id = workRecordCanvasId,
 } = {}) {
   if (!state || typeof state !== 'object') {
-    throw new TypeError('playbook workbench state is required');
+    throw new TypeError('step descriptor workbench state is required');
   }
-  const gate = normalizePlaybookHarnessGate(workflow_gate);
+  const gate = normalizeStepDescriptorHarnessGate(workflow_gate);
   if (!gate.ref && workflow_gate_ref) gate.ref = text(workflow_gate_ref);
   const prototype = prototypeFromInputs({
-    playbookStep: playbook_step,
+    stepDescriptor: step_descriptor,
     evidenceSource: evidence_source,
     workflowGateRef: text(gate.ref),
   });
   if (!prototype) {
-    throw new TypeError('playbook_step and evidence_source are required');
+    throw new TypeError('step_descriptor and evidence_source are required');
   }
 
   state.fixture_loaded = true;
@@ -291,7 +291,7 @@ export function loadPlaybookWorkbenchFixture(state, {
   state.subject = cloneJson(prototype.subject);
   state.step_summary = summarizeStep(prototype);
   state.workflow_gate = gate;
-  state.gate_status = playbookWorkbenchGateStatus(state);
+  state.gate_status = stepDescriptorWorkbenchGateStatus(state);
   state.result = null;
   state.record = null;
   state.verifier = null;
@@ -305,38 +305,38 @@ export function loadPlaybookWorkbenchFixture(state, {
     state.work_record_workbench_url,
   );
   state.work_record_canvas_id = text(work_record_canvas_id, state.work_record_canvas_id);
-  state.forbidden_controls = playbookWorkbenchForbiddenControls(state.subject);
+  state.forbidden_controls = stepDescriptorWorkbenchForbiddenControls(state.subject);
   state.last_event = {
-    type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.load,
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
-    playbook_step_id: text(prototype.playbook_step.id),
+    type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.load,
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
+    step_descriptor_id: text(prototype.step_descriptor.id),
     evidence_source_id: text(prototype.evidence_source.id),
   };
   state.last_result = {
-    type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.load,
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+    type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.load,
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
     status: 'loaded',
-    playbook_step_id: text(prototype.playbook_step.id),
+    step_descriptor_id: text(prototype.step_descriptor.id),
     evidence_source_id: text(prototype.evidence_source.id),
   };
   return state.last_result;
 }
 
-export function setPlaybookWorkbenchWorkflowGate(state, gate = null) {
+export function setStepDescriptorWorkbenchWorkflowGate(state, gate = null) {
   if (!state || typeof state !== 'object') {
-    throw new TypeError('playbook workbench state is required');
+    throw new TypeError('step descriptor workbench state is required');
   }
-  state.workflow_gate = normalizePlaybookHarnessGate(gate);
-  state.gate_status = playbookWorkbenchGateStatus(state);
+  state.workflow_gate = normalizeStepDescriptorHarnessGate(gate);
+  state.gate_status = stepDescriptorWorkbenchGateStatus(state);
   state.last_event = {
-    type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+    type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
     ref: text(state.workflow_gate.ref),
     token_present: !!text(state.workflow_gate.token),
   };
   state.last_result = {
-    type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+    type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workflowGateSet,
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
     status: state.gate_status.status,
     reason: state.gate_status.reason,
     ref: state.gate_status.ref,
@@ -345,18 +345,18 @@ export function setPlaybookWorkbenchWorkflowGate(state, gate = null) {
   return state.last_result;
 }
 
-export function simulatePlaybookWorkbench(state, {
+export function simulateStepDescriptorWorkbench(state, {
   workflowGate = null,
   workflow_gate = workflowGate,
 } = {}) {
   if (!state || typeof state !== 'object') {
-    throw new TypeError('playbook workbench state is required');
+    throw new TypeError('step descriptor workbench state is required');
   }
   if (!hasObject(state.prototype)) {
     state.status = 'rejected';
     state.last_result = {
-      type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.simulateResult,
-      schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+      type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateResult,
+      schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
       status: 'rejected',
       reason: 'fixture_required',
       record_id: null,
@@ -364,10 +364,10 @@ export function simulatePlaybookWorkbench(state, {
     return state.last_result;
   }
   if (workflow_gate !== null && workflow_gate !== undefined) {
-    setPlaybookWorkbenchWorkflowGate(state, workflow_gate);
+    setStepDescriptorWorkbenchWorkflowGate(state, workflow_gate);
   }
 
-  const result = runBrowserPlaybookPrototype(state.prototype, {
+  const result = runBrowserStepDescriptorPrototype(state.prototype, {
     workflowGate: state.workflow_gate,
   });
   state.result = cloneJson(result);
@@ -380,12 +380,12 @@ export function simulatePlaybookWorkbench(state, {
   state.work_record_open_message = result.workbench_open_message
     ? cloneJson(result.workbench_open_message)
     : null;
-  state.gate_status = playbookWorkbenchGateStatus(state);
+  state.gate_status = stepDescriptorWorkbenchGateStatus(state);
   state.status = result.status === 'passed' ? 'simulated' : 'rejected';
-  state.forbidden_controls = playbookWorkbenchForbiddenControls(state.subject);
+  state.forbidden_controls = stepDescriptorWorkbenchForbiddenControls(state.subject);
   state.last_result = {
-    type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.simulateResult,
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+    type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.simulateResult,
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
     status: result.status,
     reason: text(result.reason),
     record_id: text(result.record?.id) || null,
@@ -396,31 +396,31 @@ export function simulatePlaybookWorkbench(state, {
   return state.last_result;
 }
 
-export function createPlaybookWorkbenchWorkRecordOpenMessage(state = {}) {
+export function createStepDescriptorWorkbenchWorkRecordOpenMessage(state = {}) {
   if (state.work_record_open_message) return cloneJson(state.work_record_open_message);
   if (!hasObject(state.record)) {
     throw new TypeError('simulated Work Record is required before opening');
   }
-  return createBrowserPlaybookPrototypeWorkRecordOpenMessage(state.record, {
+  return createBrowserStepDescriptorPrototypeWorkRecordOpenMessage(state.record, {
     prototype: state.prototype,
   });
 }
 
-export function openPlaybookWorkbenchWorkRecord(state, {
+export function openStepDescriptorWorkbenchWorkRecord(state, {
   canvasId = '',
   canvas_id = canvasId,
 } = {}) {
   if (!state || typeof state !== 'object') {
-    throw new TypeError('playbook workbench state is required');
+    throw new TypeError('step descriptor workbench state is required');
   }
-  const openMessage = createPlaybookWorkbenchWorkRecordOpenMessage(state);
+  const openMessage = createStepDescriptorWorkbenchWorkRecordOpenMessage(state);
   const workbenchState = createWorkRecordWorkbenchState();
   const opened = openWorkRecord(workbenchState, openMessage);
   const snapshot = workRecordWorkbenchSnapshot(workbenchState);
   const childCanvasId = text(canvas_id, state.work_record_canvas_id);
   state.work_record_open = {
-    type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+    type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
     status: opened.status,
     record_id: text(opened.record_id),
     source: cloneJson(opened.source),
@@ -431,8 +431,8 @@ export function openPlaybookWorkbenchWorkRecord(state, {
     workbench_snapshot: snapshot,
   };
   state.last_result = {
-    type: PLAYBOOK_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
+    type: STEP_DESCRIPTOR_WORKBENCH_MESSAGE_TYPES.workRecordOpenResult,
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
     status: opened.status,
     record_id: text(opened.record_id),
     read_only: snapshot.diagnostics.read_only === true,
@@ -441,30 +441,30 @@ export function openPlaybookWorkbenchWorkRecord(state, {
   return state.last_result;
 }
 
-export function playbookWorkbenchSnapshot(state = {}) {
+export function stepDescriptorWorkbenchSnapshot(state = {}) {
   return {
-    type: 'playbook_workbench.snapshot',
-    schema_version: PLAYBOOK_WORKBENCH_SCHEMA_VERSION,
-    surface: PLAYBOOK_WORKBENCH_SURFACE,
-    url: PLAYBOOK_WORKBENCH_URL,
+    type: 'step_descriptor_workbench.snapshot',
+    schema_version: STEP_DESCRIPTOR_WORKBENCH_SCHEMA_VERSION,
+    surface: STEP_DESCRIPTOR_WORKBENCH_SURFACE,
+    url: STEP_DESCRIPTOR_WORKBENCH_URL,
     fixture_loaded: !!state.fixture_loaded,
     status: text(state.status, 'unknown'),
     subject: state.subject ? cloneJson(state.subject) : null,
     step_summary: cloneJson(state.step_summary || {}),
-    gate_status: cloneJson(state.gate_status || playbookWorkbenchGateStatus(state)),
+    gate_status: cloneJson(state.gate_status || stepDescriptorWorkbenchGateStatus(state)),
     verifier_summary: cloneJson(state.verifier_summary || summarizeVerifier(state.verifier)),
     work_record_summary: cloneJson(state.work_record_summary || summarizeWorkRecord(state.record)),
     diagnostics: arrayValue(state.diagnostics).map((diagnostic) => cloneJson(diagnostic)),
     work_record_open: state.work_record_open ? cloneJson(state.work_record_open) : null,
     work_record_canvas_id: text(
       state.work_record_canvas_id,
-      PLAYBOOK_WORKBENCH_WORK_RECORD_CANVAS_ID,
+      STEP_DESCRIPTOR_WORKBENCH_WORK_RECORD_CANVAS_ID,
     ),
     work_record_workbench_url: text(state.work_record_workbench_url),
-    semantic_refs: cloneJson(state.semantic_refs || playbookWorkbenchSemanticRefs()),
-    boundaries: cloneJson(state.boundaries || playbookWorkbenchBoundarySummary()),
+    semantic_refs: cloneJson(state.semantic_refs || stepDescriptorWorkbenchSemanticRefs()),
+    boundaries: cloneJson(state.boundaries || stepDescriptorWorkbenchBoundarySummary()),
     forbidden_controls: cloneJson(
-      state.forbidden_controls || playbookWorkbenchForbiddenControls(state.subject),
+      state.forbidden_controls || stepDescriptorWorkbenchForbiddenControls(state.subject),
     ),
     last_event: state.last_event ? cloneJson(state.last_event) : null,
     last_result: state.last_result ? cloneJson(state.last_result) : null,

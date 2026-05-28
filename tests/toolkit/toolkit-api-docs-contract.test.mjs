@@ -81,7 +81,7 @@ test('toolkit scoped API files exist and own expected stable terms', async () =>
   assert.match(docs['docs/api/toolkit/workbench.md'], /HTML Workbench Expression V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Workbench Human Checkpoint V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Artifact Bundle Subject V0/);
-  assert.match(docs['docs/api/toolkit/workbench.md'], /Playbook Workbench V0/);
+  assert.match(docs['docs/api/toolkit/workbench.md'], /Step Descriptor Workbench V0/);
   assert.match(docs['docs/api/toolkit/workbench.md'], /Wiki Subject Browser V0/);
 
   assert.match(docs['docs/api/toolkit/components.md'], /Surface Inspector/);

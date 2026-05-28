@@ -1,15 +1,15 @@
 {
-  "type": "aos.playbook_step",
-  "schema_version": "2026-05-playbook-step-v0",
-  "id": "playbook-step:browser-click-status",
+  "type": "aos.step_descriptor",
+  "schema_version": "2026-05-step-descriptor-v0",
+  "id": "step-descriptor:browser-click-status",
   "label": "Click the browser live action button and verify status",
-  "playbook_ref": "playbook:browser-live-action-status",
+  "workflow_ref": "workflow:browser-live-action-status",
   "version": "v0",
   "target_dialect": "browser",
   "intent": {
     "summary": "Click the browser live action commit button and verify that the status output changes.",
-    "purpose": "Prove a transitional Playbook-step descriptor can describe the existing AOS browser click/status evidence bridge without becoming the Work Record run evidence.",
-    "acceptance": "A generated Work Record validates, preserves origin.kind playbook, and verifies the promoted status-change Claim through the report-only verifier.",
+    "purpose": "Prove a Step Descriptor can describe the existing AOS browser click/status evidence bridge without becoming the Work Record run evidence.",
+    "acceptance": "A generated Work Record validates, preserves origin.kind workflow, and verifies the promoted status-change Claim through the report-only verifier.",
     "constraints": [
       "Use AOS browser Target-with-Ref addresses instead of raw Playwright selectors.",
       "Re-see and re-resolve the semantic target before any gated future execution.",
@@ -39,10 +39,10 @@
     "replay_requires_workflow_gate": true,
     "repair_requires_workflow_gate": true,
     "gate_refs": [
-      "workflow-gate:playbook-browser-click-status-replay",
-      "workflow-gate:playbook-browser-click-status-repair"
+      "workflow-gate:step-descriptor-browser-click-status-replay",
+      "workflow-gate:step-descriptor-browser-click-status-repair"
     ],
-    "notes": "The step descriptor is v0 compatibility metadata; this contract only emits report-only Work Records from saved evidence."
+    "notes": "The step descriptor supplies v0 target and gate metadata; this contract only emits report-only Work Records from saved evidence."
   },
   "preconditions": [
     {
@@ -127,12 +127,12 @@
     {
       "kind": "patch_target_resolution",
       "note": "Re-run see under the replay workflow gate and patch target_resolution candidate hints if e2 no longer resolves.",
-      "gate_ref": "workflow-gate:playbook-browser-click-status-repair"
+      "gate_ref": "workflow-gate:step-descriptor-browser-click-status-repair"
     },
     {
       "kind": "patch_postcondition",
       "note": "Patch the status postcondition ref or value path under the repair workflow gate if the browser facet changes.",
-      "gate_ref": "workflow-gate:playbook-browser-click-status-repair"
+      "gate_ref": "workflow-gate:step-descriptor-browser-click-status-repair"
     }
   ],
   "claim_promotions": [
@@ -145,7 +145,7 @@
       "acceptance": "After perception semantic target e3 contains Action recorded.",
       "metadata": {
         "promotion_boundary": "postcondition_to_work_record_claim",
-        "source": "playbook_step_v0"
+        "source": "step_descriptor_v0"
       }
     }
   ],

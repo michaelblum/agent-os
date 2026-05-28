@@ -1,9 +1,9 @@
 {
-  "type": "aos.playbook_step",
-  "schema_version": "2026-05-playbook-step-v0",
-  "id": "playbook-step:ungated-replay",
+  "type": "aos.step_descriptor",
+  "schema_version": "2026-05-step-descriptor-v0",
+  "id": "step-descriptor:ungated-replay",
   "label": "Invalid step with ungated replay",
-  "playbook_ref": "playbook:invalid",
+  "workflow_ref": "workflow:invalid",
   "version": "v0",
   "target_dialect": "browser",
   "intent": {

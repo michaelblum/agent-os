@@ -48,10 +48,9 @@ alias is: no repo docs, scripts, generated indexes, packaged resources, tests,
 or known external callers require the old noun. Internal filenames and schema
 IDs that still contain `ops` are compatibility names, not public taxonomy.
 
-The existing `aos.playbook_step` schema remains a transitional V0 sketch for
-one gated step descriptor. Its name is not precedent for making Playbook the
-primary executable substrate; a future schema rename may align it with Block,
-Step, or Harness vocabulary once producers harden.
+The existing gated descriptor contract is named `aos.step_descriptor`. It is a
+neutral V0 sketch for one Workflow-gated step/evidence bridge; it is not
+precedent for making Playbook the primary executable substrate.
 
 ## Packaging And Activation
 
@@ -97,9 +96,9 @@ Workflow-gated slices.
 - Historical reports may retain older `aos ops`, "ops recipe", and "recipe
   ladder" language when they are clearly historical; add supersession pointers
   only when needed to avoid current confusion.
-- Work Records use executable origins (`recipe`, `workflow`, `playbook` only
-  where the existing schema says so) and cite transitional Markdown guides in
-  `references[]` with `relationship: "guided_by"`.
+- Work Records use executable origins (`ad_hoc`, `recipe`, or `workflow`) and
+  cite Markdown Guides/SOPs or Playbooks in `references[]` with `relationship:
+  "guided_by"` when they only shaped judgment.
 - Future work should split schema/file renames, capture ladder specialization,
   and GitHub issue body cleanup into exact follow-up cards instead of broad
   opportunistic rewrites.

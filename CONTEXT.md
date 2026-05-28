@@ -66,8 +66,8 @@ _Avoid_: documentation-only recipe, tutorial, molecule.
 
 **Playbook**:
 Method guidance that shapes human or agent judgment but does not itself execute
-as the primary substrate. The current `aos.playbook_step` V0 schema is a
-transitional gated step-descriptor sketch; it does not make Playbook the general
+as the primary substrate. The current `aos.step_descriptor` V0 schema is a
+neutral Workflow-gated descriptor sketch; it does not make Playbook the general
 workflow engine or evidence log.
 _Avoid_: macro, script, executable recipe, workflow engine.
 
@@ -153,7 +153,7 @@ A durable, agent/human-readable assertion on a Work Record about what the run ac
 _Avoid_: assertion (overloaded with code-level asserts), expectation, outcome.
 
 **Postcondition**:
-A structured, machine-checkable condition tied to a `see` capture — DOM state, AX state, canvas object state, artifact presence, file contents, command exit, etc. Lives on the **execution map** and is repairable: when a selector or ref drifts, the Postcondition is patched, not the Claim. May be a step-local gate in a transitional `aos.playbook_step` descriptor and not promoted, or referenced from a Claim.
+A structured, machine-checkable condition tied to a `see` capture — DOM state, AX state, canvas object state, artifact presence, file contents, command exit, etc. Lives on the **execution map** and is repairable: when a selector or ref drifts, the Postcondition is patched, not the Claim. May be a step-local gate in an `aos.step_descriptor` and not promoted, or referenced from a Claim.
 _Avoid_: precondition (those are the per-step *entry* checks), expectation, check (too generic).
 
 **Claim Result**:
@@ -251,11 +251,9 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - **Workflows** may invoke **Recipes**, gated harnesses, agent tasks, or
   human decisions. A Recipe may be one executable child of a Workflow, but a
   Recipe does not orchestrate multi-system gates and child runs. Work Record
-  origins use the current v0 `origin.kind` values (`ad_hoc | recipe | playbook |
-  workflow`); `playbook` is compatibility vocabulary for transitional bridges,
-  not new execution-model direction. Transitional Markdown Guides that shaped a
-  run without executing should be cited via `references[]` (`relationship:
-  "guided_by"`), not as `origin`.
+  origins use the current v0 `origin.kind` values (`ad_hoc | recipe |
+  workflow`). Markdown Guides/SOPs that shaped a run without executing should
+  be cited via `references[]` (`relationship: "guided_by"`), not as `origin`.
 - A **Dock** is adopted by launching Codex from that dock's directory, or with `codex --cd <dock-dir>`. A **Docked Session** may work on a **Workflow**, but the Dock is not the Workflow and does not create a parallel Workflow type.
 - Within a Work Record: the **intent spine** is durable, the **execution map** is repairable, **evidence** is immutable, **Verifier Health** can be re-evaluated.
 - **Claims** belong to the intent spine; **Postconditions** belong to the execution map. A Claim references zero or more Postconditions; a Postcondition can exist as a step-local gate without being referenced by any Claim.
@@ -291,9 +289,10 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
 - "subject chain" — resolved: this is a **Navigation Trail** of Subject Entry Handles, not a chain of Subjects. Toolkit now defines the canonical `<facet-key>:<subject-id>` handle helper; only a future shared JSON schema for handles, if desired, remains pending.
 - Work Record `origin` field shape — **resolved (ADR-0009, refined by
   ADR-0013)**: `origin: { kind, ref }` where `kind ∈ ad_hoc | recipe |
-  playbook | workflow` in the current v0 schema. Transitional Markdown
-  Guides/SOPs are *not* origins; they are cited via a separate `references[]`
-  array with `relationship: "guided_by"`. Schema sketch:
+  workflow` in the current v0 schema. Markdown Guides/SOPs and Playbooks are
+  *not* origins unless a live executable Workflow or Recipe wraps them; guidance
+  is cited via a separate `references[]` array with `relationship: "guided_by"`.
+  Schema sketch:
   `shared/schemas/aos-work-record-v0.md`; representative Work Record helpers
   now preserve v0 origin/reference data in descriptor projections.
 - AOS Execution Model: **resolved (ADR-0013)**: the formal taxonomy is
@@ -301,9 +300,9 @@ _Avoid_: accepted (schema term is `applied`), validation-result (diagnostic deta
   with Gates, Signals, Checkpoints, Guides, and Playbooks around that stack.
   `Recipe` means executable source-backed procedure; `docs/guides/` is the
   home for Markdown Guides/SOPs.
-- Phase 6 of `aos-grand-unification-plan.md` lists "save a work record" and "run verifier report" as Playbook steps - they are *harness obligations* around a Workflow-gated run, not Playbook-authored execution steps. Transitional `aos.playbook_step` descriptors end at the single action + postcondition and remain compatibility sketches until Block/Step/Harness vocabulary replaces them. Pending: plan revision.
+- Phase 6 of `aos-grand-unification-plan.md` lists "save a work record" and "run verifier report" as Playbook steps - they are *harness obligations* around a Workflow-gated run, not Playbook-authored execution steps. Current `aos.step_descriptor` descriptors end at the single action + postcondition. Pending: plan revision.
 - Verifier Report shape — the plan lists `claims`, `verified`, `failed`, `unverified` as four parallel fields. Resolved direction (ADR-0003): use `claim_results[]` as the source of truth; if the four parallel fields persist, they are *derived indexes of Claim IDs*, not independent storage. When a Verifier Report is embedded in a Work Record it should not echo the full `claims` list (single source of truth); when reports travel standalone, they include a `claims_digest` for auditability. The v0 sketch keeps `claim_results[]` top-level and makes report indexes derived.
-- Transitional step descriptors need explicit syntax to *promote* a step Postcondition into a Work Record Claim for the gated harness bridge. The v0 Work Record examples show promoted run Claims referencing execution-map Postconditions; a future Block/Step/Harness contract should replace the Playbook-step grammar name.
+- Step descriptors need explicit syntax to *promote* a step Postcondition into a Work Record Claim for the gated harness bridge. The v0 Work Record examples show promoted run Claims referencing execution-map Postconditions.
 - `--anchor-browser` (and sibling `--anchor-window`, `--anchor-channel`) is a *role flag* whose value is a regular Target-with-Ref, not a parallel target dialect. The plan now says this explicitly; longer-term a generic `--anchor <target>` flag may consolidate them, but that is a future cleanup, not a plan rewrite. See ADR-0004.
 - `facets[].host` enum (`"browser" | "canvas" | "either"`) was considered and rejected as too coarse — a Facet may have *multiple Host implementations* with different entry points, target dialects, or fidelity. Resolved direction: `facets[].hosts[]` array of `{ kind, target_dialect, entry, ... }` records, with optional preference ordering. Initial sketch: `shared/schemas/aos-workbench-subject-vnext.md`.
 - "Dual-hosting" (used in `aos-grand-unification-plan.md` Phase 4) — resolved meaning: shipping a Facet with both Browser-Host and Canvas-Host implementations. The plan now says every editor Facet does not need to ship both Browser-Host and Canvas-Host implementations.

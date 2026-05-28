@@ -5,27 +5,27 @@
   "label": "AOS browser click status Work Record capture",
   "created_at": "2026-05-06T03:10:00Z",
   "origin": {
-    "kind": "playbook",
-    "ref": "playbook:browser-live-action-status",
+    "kind": "workflow",
+    "ref": "workflow:browser-live-action-status",
     "run_id": "run:browser-click-status:2026-05-06T03-10-03Z",
     "version": "v0",
-    "subject_type": "aos.playbook",
+    "subject_type": "aos.workflow",
     "description": "Click the browser live action commit button and verify that the status output changes."
   },
   "references": [
     {
-      "id": "origin-playbook-subject",
+      "id": "origin-workflow-subject",
       "relationship": "origin_subject",
-      "ref": "playbook:browser-live-action-status",
-      "subject_type": "aos.playbook",
+      "ref": "workflow:browser-live-action-status",
+      "subject_type": "aos.workflow",
       "layer": "execution_map",
       "role": "emitter"
     },
     {
-      "id": "origin-playbook-step",
+      "id": "origin-step-descriptor",
       "relationship": "origin_step",
-      "ref": "playbook-step:browser-click-status",
-      "subject_type": "aos.playbook_step",
+      "ref": "step-descriptor:browser-click-status",
+      "subject_type": "aos.step_descriptor",
       "layer": "execution_map",
       "role": "step_template"
     },
@@ -64,8 +64,8 @@
   ],
   "intent": {
     "summary": "Click the browser live action commit button and verify that the status output changes.",
-    "purpose": "Prove a transitional Playbook-step descriptor can describe the existing AOS browser click/status evidence bridge without becoming the Work Record run evidence.",
-    "acceptance": "A generated Work Record validates, preserves origin.kind playbook, and verifies the promoted status-change Claim through the report-only verifier.",
+    "purpose": "Prove a Step Descriptor can describe the existing AOS browser click/status evidence bridge without becoming the Work Record run evidence.",
+    "acceptance": "A generated Work Record validates, preserves origin.kind workflow, and verifies the promoted status-change Claim through the report-only verifier.",
     "constraints": [
       "Use AOS browser Target-with-Ref addresses instead of raw Playwright selectors.",
       "Re-see and re-resolve the semantic target before any gated future execution.",
@@ -169,8 +169,8 @@
               "fallback_used": false,
               "state_id": "see_browserlive001"
             },
-            "playbook_ref": "playbook:browser-live-action-status",
-            "playbook_step_id": "playbook-step:browser-click-status",
+            "workflow_ref": "workflow:browser-live-action-status",
+            "step_descriptor_id": "step-descriptor:browser-click-status",
             "target_resolution": {
               "id": "target-resolution:browser-click-status-commit-button",
               "strategy": "semantic_ref_then_role_name",
@@ -208,12 +208,12 @@
           {
             "kind": "patch_target_resolution",
             "note": "Re-run see under the replay workflow gate and patch target_resolution candidate hints if e2 no longer resolves.",
-            "gate_ref": "workflow-gate:playbook-browser-click-status-repair"
+            "gate_ref": "workflow-gate:step-descriptor-browser-click-status-repair"
           },
           {
             "kind": "patch_postcondition",
             "note": "Patch the status postcondition ref or value path under the repair workflow gate if the browser facet changes.",
-            "gate_ref": "workflow-gate:playbook-browser-click-status-repair"
+            "gate_ref": "workflow-gate:step-descriptor-browser-click-status-repair"
           }
         ],
         "precondition_refs": [
@@ -306,10 +306,10 @@
       "replay_requires_workflow_gate": true,
       "repair_requires_workflow_gate": true,
       "gate_refs": [
-        "workflow-gate:playbook-browser-click-status-replay",
-        "workflow-gate:playbook-browser-click-status-repair"
+        "workflow-gate:step-descriptor-browser-click-status-replay",
+        "workflow-gate:step-descriptor-browser-click-status-repair"
       ],
-      "notes": "The step descriptor is v0 compatibility metadata; this contract only emits report-only Work Records from saved evidence."
+      "notes": "The step descriptor supplies v0 target and gate metadata; this contract only emits report-only Work Records from saved evidence."
     }
   },
   "evidence": [
@@ -453,8 +453,8 @@
       ],
       "metadata": {
         "promoted_from": {
-          "playbook_ref": "playbook:browser-live-action-status",
-          "playbook_step_id": "playbook-step:browser-click-status",
+          "workflow_ref": "workflow:browser-live-action-status",
+          "step_descriptor_id": "step-descriptor:browser-click-status",
           "claim_promotion_id": "claim-promotion:browser-click-status-recorded",
           "postcondition_ref": "postcondition:aos-browser-click-status-after-status"
         },
@@ -553,31 +553,31 @@
     "verifier_report_id": "verifier-report:aos-browser-click-status-2026-05-06",
     "confidence": 0.96,
     "repair_gate_refs": [
-      "workflow-gate:playbook-browser-click-status-replay",
-      "workflow-gate:playbook-browser-click-status-repair"
+      "workflow-gate:step-descriptor-browser-click-status-replay",
+      "workflow-gate:step-descriptor-browser-click-status-repair"
     ],
     "replay_gate_refs": [
-      "workflow-gate:playbook-browser-click-status-replay",
-      "workflow-gate:playbook-browser-click-status-repair"
+      "workflow-gate:step-descriptor-browser-click-status-replay",
+      "workflow-gate:step-descriptor-browser-click-status-repair"
     ]
   },
   "metadata": {
-    "generated_by": "2026-05-playbook-step-evidence-v0",
+    "generated_by": "2026-05-step-descriptor-evidence-v0",
     "evidence_source_id": "aos-action-evidence:browser-click-status-2026-05-06",
     "verifier_profile_id": "aos.verifier.work-record.v0.report-only",
     "target_dialect": "browser",
     "target_with_ref": "browser:work-record-live-action/e2",
     "action_evidence_builder": "2026-05-aos-action-evidence-v0",
-    "playbook_ref": "playbook:browser-live-action-status",
-    "playbook_step_id": "playbook-step:browser-click-status",
-    "playbook_step_schema_version": "2026-05-playbook-step-v0",
-    "playbook_step_version": "v0",
+    "workflow_ref": "workflow:browser-live-action-status",
+    "step_descriptor_id": "step-descriptor:browser-click-status",
+    "step_descriptor_schema_version": "2026-05-step-descriptor-v0",
+    "step_descriptor_version": "v0",
     "claim_promotion_refs": [
       "claim-promotion:browser-click-status-recorded"
     ],
     "workflow_gate_refs": [
-      "workflow-gate:playbook-browser-click-status-replay",
-      "workflow-gate:playbook-browser-click-status-repair"
+      "workflow-gate:step-descriptor-browser-click-status-replay",
+      "workflow-gate:step-descriptor-browser-click-status-repair"
     ]
   }
 }

@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
-const schemaPath = path.join(repoRoot, 'shared/schemas/aos-playbook-step-v0.schema.json');
-const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-playbook-step-v0');
+const schemaPath = path.join(repoRoot, 'shared/schemas/aos-step-descriptor-v0.schema.json');
+const fixtureRoot = path.join(repoRoot, 'shared/schemas/fixtures/aos-step-descriptor-v0');
 
 async function jsonFiles(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -91,9 +91,9 @@ function assertInternalRefs(step, fixture) {
   }
 }
 
-test('valid Playbook step v0 fixtures match the schema and resolve internal ids', async () => {
+test('valid Step descriptor v0 fixtures match the schema and resolve internal ids', async () => {
   const fixtures = await jsonFiles(path.join(fixtureRoot, 'valid'));
-  assert.ok(fixtures.length >= 1, 'expected valid Playbook step fixtures');
+  assert.ok(fixtures.length >= 1, 'expected valid Step descriptor fixtures');
 
   for (const fixture of fixtures) {
     const result = validate(fixture);
@@ -108,9 +108,9 @@ test('valid Playbook step v0 fixtures match the schema and resolve internal ids'
   }
 });
 
-test('invalid Playbook step v0 fixtures are rejected by the schema', async () => {
+test('invalid Step descriptor v0 fixtures are rejected by the schema', async () => {
   const fixtures = await jsonFiles(path.join(fixtureRoot, 'invalid'));
-  assert.ok(fixtures.length >= 1, 'expected invalid Playbook step fixtures');
+  assert.ok(fixtures.length >= 1, 'expected invalid Step descriptor fixtures');
 
   for (const fixture of fixtures) {
     const result = validate(fixture);

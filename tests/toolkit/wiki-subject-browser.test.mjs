@@ -62,7 +62,7 @@ async function repoJson(path) {
 
 async function subjectBrowserFixtureState() {
   const record = await repoJson(
-    'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json',
+    'shared/schemas/fixtures/aos-work-record-v0/valid/workflow-browser-click-status.json',
   );
   const wikiSubject = createWikiPageSubject({
     path: 'aos/concepts/runtime-modes.md',
@@ -574,7 +574,7 @@ test('wiki subject browser clear returns wiki selection state to graph root', ()
 
 test('wiki subject browser loads and opens non-wiki catalog entries through canonical descriptors', async () => {
   const record = await repoJson(
-    'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-browser-click-status.json',
+    'shared/schemas/fixtures/aos-work-record-v0/valid/workflow-browser-click-status.json',
   );
   const entry = createWorkRecordSubjectCatalogEntry(record);
   const state = createWikiSubjectBrowserState();

@@ -24,7 +24,7 @@ const workRecordFixturePath = path.join(
 );
 const v0WorkRecordFixturePath = path.join(
   repoRoot,
-  'shared/schemas/fixtures/aos-work-record-v0/valid/playbook-origin.json',
+  'shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json',
 );
 const workflowMapMarkdownPath = path.join(repoRoot, 'wiki-seed/concepts/employer-brand-workflow-map.md');
 const artifactBundleFixturePath = path.join(

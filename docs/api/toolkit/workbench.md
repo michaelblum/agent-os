@@ -1113,59 +1113,59 @@ to consume wiki graph snapshots with `nodes[]`, `links[]`, `raw`, and
 `config.graphView`; Subject graph index V0 consumes Workbench Subject
 descriptors and catalog entries.
 
-### Playbook Workbench V0
+### Step Descriptor Workbench V0
 
 The named V0 shell lives at:
 
 ```text
-aos://toolkit/components/playbook-workbench/index.html
+aos://toolkit/components/step-descriptor-workbench/index.html
 ```
 
 Launch the fixture-backed shell in repo mode with:
 
 ```bash
-packages/toolkit/components/playbook-workbench/launch.sh
+packages/toolkit/components/step-descriptor-workbench/launch.sh
 ```
 
-The shell manifest name is `playbook-workbench-v0`. It is a browser-hosted,
-fixture-backed, report-only shell around the existing browser Playbook
-prototype APIs. It uses `createBrowserPlaybookPrototype()`,
-`runBrowserPlaybookPrototype()`, `runOneStepPlaybookHarness()`, and the existing
+The shell manifest name is `step-descriptor-workbench-v0`. It is a browser-hosted,
+fixture-backed, report-only shell around the existing browser Step Descriptor
+prototype APIs. It uses `createBrowserStepDescriptorPrototype()`,
+`runBrowserStepDescriptorPrototype()`, `runOneStepStepDescriptorHarness()`, and the existing
 read-only Work Record workbench open model. It simulates exactly one saved AOS
 browser action evidence source only after an explicit workflow gate ref and
 token are provided.
 
 The launch script loads:
 
-- `shared/schemas/fixtures/aos-playbook-step-v0/valid/browser-click-status.json`
+- `shared/schemas/fixtures/aos-step-descriptor-v0/valid/browser-click-status.json`
 - `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`
 
-The shell sets `window.__playbookWorkbenchState` for inspection and exposes
-stable refs such as `playbook-workbench-v0:root`,
-`playbook-workbench-v0:gate-ref`, `playbook-workbench-v0:gate-token`,
-`playbook-workbench-v0:simulate`, `playbook-workbench-v0:verifier-status`,
-`playbook-workbench-v0:diagnostics`,
-`playbook-workbench-v0:work-record-summary`, and
-`playbook-workbench-v0:open-work-record`.
+The shell sets `window.__stepDescriptorWorkbenchState` for inspection and exposes
+stable refs such as `step-descriptor-workbench-v0:root`,
+`step-descriptor-workbench-v0:gate-ref`, `step-descriptor-workbench-v0:gate-token`,
+`step-descriptor-workbench-v0:simulate`, `step-descriptor-workbench-v0:verifier-status`,
+`step-descriptor-workbench-v0:diagnostics`,
+`step-descriptor-workbench-v0:work-record-summary`, and
+`step-descriptor-workbench-v0:open-work-record`.
 
 V0 message contract:
 
-- `playbook_workbench.load` carries `{ playbook_step, evidence_source,
+- `step_descriptor_workbench.load` carries `{ step_descriptor, evidence_source,
   work_record_workbench_url?, work_record_canvas_id? }` and loads the fixture
   payloads into the shell.
-- `playbook_workbench.workflow_gate.set` carries `{ ref, token }` and records
+- `step_descriptor_workbench.workflow_gate.set` carries `{ ref, token }` and records
   the explicit workflow gate candidate without running the harness.
-- `playbook_workbench.simulate.requested` runs the existing prototype in
+- `step_descriptor_workbench.simulate.requested` runs the existing prototype in
   `simulate` mode. Missing tokens or undeclared refs are rejected before a Work
   Record is emitted.
-- `playbook_workbench.simulate.result` reports harness status, reason, verifier
+- `step_descriptor_workbench.simulate.result` reports harness status, reason, verifier
   status, diagnostics, and the emitted Work Record id when present.
-- `playbook_workbench.work_record.open.requested` creates a `work_record.open`
-  payload with `source.kind: "browser_playbook_prototype"` and opens it through
+- `step_descriptor_workbench.work_record.open.requested` creates a `work_record.open`
+  payload with `source.kind: "browser_step_descriptor_prototype"` and opens it through
   the existing Work Record workbench model. The UI also attempts to spawn the
   stock `work-record-workbench` canvas and post the same `work_record.open`
   message to it.
-- `playbook_workbench.work_record.open.result` reports the read-only handoff
+- `step_descriptor_workbench.work_record.open.result` reports the read-only handoff
   status, Work Record id, and child Work Record workbench canvas id.
 
 V0 boundaries:
@@ -1321,7 +1321,7 @@ repo command evidence source into a completed Work Record v0.
 metadata, after perception, target dialect, Target-with-Ref, State IDs where
 available, immutable evidence refs, Claims, Postconditions, Claim Results, a
 Verifier Report, and Health. This is report-only substrate for later browser,
-canvas, or Playbook steps; it does not add replay, repair, or a broad CLI
+canvas, or Step descriptors; it does not add replay, repair, or a broad CLI
 command surface.
 
 `packages/toolkit/workbench/browser-evidence-capture.js` exposes Browser

@@ -38,9 +38,9 @@
       "role": "durable_run_artifact"
     },
     {
-      "id": "playbook-step-schema",
+      "id": "step-descriptor-schema",
       "relationship": "aligns_with",
-      "ref": "repo:shared/schemas/aos-playbook-step-v0.md",
+      "ref": "repo:shared/schemas/aos-step-descriptor-v0.md",
       "subject_type": "schema.sketch",
       "layer": "execution_map",
       "role": "reusable_step_contract"

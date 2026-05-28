@@ -138,7 +138,7 @@
           "required": ["kind", "ref"],
           "properties": {
             "kind": {
-              "enum": ["recipe", "playbook", "workflow"]
+              "enum": ["recipe", "workflow"]
             },
             "ref": {
               "$ref": "#/$defs/non_empty_string"
