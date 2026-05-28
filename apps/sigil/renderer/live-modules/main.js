@@ -73,6 +73,11 @@ import {
 } from './radial-object-control.js';
 import { buildAvatarObjectRegistry } from './avatar-object-control.js';
 import { createSigilUxTree, createSigilUxTreeShadowResolver } from './ux-tree.js';
+import {
+    SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+    createSigilUxTreeCommandRegistry,
+    executeSigilUxTreeCommand,
+} from './ux-tree-command-registry.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
@@ -169,6 +174,12 @@ const liveJs = {
         blocker: null,
     },
     selectionModeOverlay: null,
+    uxCommandRuntime: {
+        lastExecution: null,
+        executedCount: 0,
+        fallbackCount: 0,
+        trace: [],
+    },
     activeContext: {
         source: '',
         updated_at: null,
@@ -2770,6 +2781,50 @@ function exitSelectionMode(reason = 'cancel') {
     return liveJs.selectionMode;
 }
 
+const sigilUxCommandRegistry = createSigilUxTreeCommandRegistry({
+    selectionModeCancel: () => exitSelectionMode('escape'),
+});
+
+function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
+    const entry = {
+        ts: Date.now(),
+        matched: result.matched === true,
+        executed: result.executed === true,
+        command_id: result.command_id || null,
+        binding_id: result.binding_id || null,
+        handler_ref: result.handler_ref || null,
+        reason: result.reason || '',
+        errors: Array.isArray(result.errors) ? result.errors : [],
+        input: result.input || null,
+        fallback,
+    };
+    liveJs.uxCommandRuntime = {
+        lastExecution: entry,
+        executedCount: (liveJs.uxCommandRuntime?.executedCount || 0) + (entry.executed ? 1 : 0),
+        fallbackCount: (liveJs.uxCommandRuntime?.fallbackCount || 0) + (entry.fallback ? 1 : 0),
+        trace: [
+            ...(liveJs.uxCommandRuntime?.trace || []),
+            entry,
+        ].slice(-20),
+    };
+    recordInteraction('ux-command', entry);
+    return entry;
+}
+
+function executeSelectionModeEscapeCommand(msg = {}) {
+    const result = executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
+        input: SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
+        registry: sigilUxCommandRegistry,
+        context: {
+            source: 'handleSelectionModeInput',
+            msg,
+        },
+    });
+    recordUxCommandRuntime(result, { fallback: result.executed !== true });
+    if (result.executed !== true) exitSelectionMode('escape');
+    return result;
+}
+
 function acquireSelectionModeCandidates(point = null) {
     const cursor = { x: Number(point?.x), y: Number(point?.y), valid: true };
     const pathCandidates = selectionModeCandidatesAtPoint(cursor);
@@ -2897,7 +2952,7 @@ function handleSelectionModeInput(msg = {}) {
     if (msg.type === 'key_down') {
         const key = selectionModeKeyName(msg);
         if (msg.key_code === 53 || key === 'escape') {
-            exitSelectionMode('escape');
+            executeSelectionModeEscapeCommand(msg);
             return true;
         }
         if (msg.key_code === 36 || msg.key_code === 76 || key === 'enter' || key === 'return') {
@@ -4415,6 +4470,7 @@ window.__sigilDebug = {
             annotationReticle: liveJs.annotationReticle,
             selectionMode: liveJs.selectionMode,
             selectionModeOverlay: liveJs.selectionModeOverlay,
+            uxCommandRuntime: liveJs.uxCommandRuntime,
             activeContext: liveJs.activeContext,
             contextRecording: liveJs.contextRecording,
             annotationReticleOverlay: liveJs.annotationReticleOverlay,
@@ -4457,6 +4513,13 @@ window.__sigilDebug = {
     },
     uxTreeShadow(input) {
         return sigilUxTreeShadowResolver().resolve(input || {});
+    },
+    uxTreeCommand(input, registry = {}) {
+        return executeSigilUxTreeCommand(sigilUxTreeSnapshot(), {
+            input: input || {},
+            registry,
+            context: { source: 'debug-api' },
+        });
     },
     openWikiWorkbench(path) {
         return openWikiWorkbench(path || WIKI_WORKBENCH_DEFAULT_PATH);
