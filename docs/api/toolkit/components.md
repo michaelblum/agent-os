@@ -980,6 +980,8 @@ writes a temp bundle directory containing:
 - `capture.png` — a `see capture --region <inspector-at-trigger> --perception` image
 - `capture.json` — the capture response metadata
 - `annotation-snapshot.json` — the public point-in-time Annotation Mode artifact
+- `context-session.json` — the canonical `aos_context_session` export
+- `context-keyframe.json` — the canonical `aos_context_keyframe` export
 - `inspector-state.json` — the surface's live JS/debug snapshot
 - `display-geometry.json` — the daemon display snapshot at export time
 - `canvas-list.json` — the daemon canvas list at export time
@@ -1008,11 +1010,20 @@ payload with `kind: "canvas_inspector_see_bundle_clipboard_payload"`, status,
 timestamp, trigger, shortcut, source canvas id, resolved include toggles,
 inline inspector/display/canvas-list data when those toggles are enabled, and
 the public `surface_inspector_annotation_snapshot` payload when
-`include.annotation_snapshot=true`. Capture image, capture metadata, and xray
-artifacts are represented as skipped or disabled evidence in clipboard mode
-instead of embedding image binary, base64, or `data:image/...` values in JSON.
-The status bar shows whether the shortcut will copy a bundle path or JSON
-payload.
+`include.annotation_snapshot=true`. Clipboard payload mode also includes compact
+`context_session` and `context_keyframe` fields when canonical context is
+available, or explicit skipped evidence when it is not. Capture image, capture
+metadata, and xray artifacts are represented as skipped or disabled evidence in
+clipboard mode instead of embedding image binary, base64, or `data:image/...`
+values in JSON. The status bar shows whether the shortcut will copy a bundle
+path or JSON payload.
+
+`annotation-snapshot.json` and the `surface_inspector_annotation_snapshot`
+clipboard field remain compatibility exports. The canonical machine-readable
+path is now `aos_context_session`, `aos_context_keyframe`, and
+`aos_context_recording`; compatibility keys can only be removed after downstream
+bundle consumers have migrated to the context files/fields and a later removal
+gate explicitly retires the old artifact.
 
 Supported include toggles today:
 

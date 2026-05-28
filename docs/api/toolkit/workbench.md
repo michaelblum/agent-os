@@ -175,6 +175,33 @@ references. `createContextRecording()` creates the ordered
 blocker events, source metadata, and file-style asset references. Recordings are
 not video/blob containers and do not create another annotation-session shape.
 
+### Selection Mode Context Helper
+
+`packages/toolkit/workbench/selection-mode.js` provides the deterministic
+bottom-up acquisition path for Selection Mode:
+
+```js
+import {
+  createSelectionModeContextSession,
+  selectionModeContextArtifact,
+} from '../workbench/selection-mode.js'
+```
+
+`createSelectionModeContextSession(input)` accepts pointer/click evidence, a
+clicked leaf candidate, ordered root-to-leaf path candidates, the selected
+target id or address, ambiguity/rejection/skipped-ancestor reports, adapter
+blockers, and comments on any path candidate. It returns one
+`aos_context_session` with one `aos_context_artifact` using
+`acquisition.mode = "selection_mode"`. The artifact preserves the clicked leaf
+as `leaf_node_id`, the intended target as `selected_node_id`, and the full
+ancestry as context path nodes. `selectionModeContextArtifact(input)` returns
+the artifact alone for callers that already own the surrounding session.
+
+Sigil exposes a debug-only construction path through
+`window.__sigilDebug.createSelectionModeContext(input)`, which stores the result
+at `window.__sigilDebug.snapshot().selectionMode.context_session`. It does not
+install pointer watchers or a full-screen capture layer.
+
 ### Annotation Overlay Renderer V0
 
 `packages/toolkit/workbench/annotation-overlay-renderer.js` converts an

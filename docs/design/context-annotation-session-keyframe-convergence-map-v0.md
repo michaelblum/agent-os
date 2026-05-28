@@ -1,11 +1,14 @@
 # Context Annotation Session + Keyframe Convergence Map V0
 
-Status: planning map for follow-on convergence slices.
+Status: planning map with implemented convergence checkpoints.
 
 This note maps the current annotation, snapshot, and recording concepts onto
-one canonical model family. It is intentionally contract-first: it does not
-implement Selection Mode, rename schemas, change hotkeys, alter Surface
-Inspector UI behavior, or create a recorder.
+one canonical model family. It started as a contract-first plan. The current
+implementation now includes the context session/keyframe foundation, the
+`aos_context_recording` contract, Surface Inspector and Sigil reticle adapters,
+canonical radial camera and see-bundle context exports, and a deterministic
+Selection Mode helper. It still does not rename schemas, remove compatibility
+artifacts, add a full recorder UI, or add always-on pointer capture.
 
 ## Evidence Basis
 
@@ -23,8 +26,9 @@ Current repo state shows these accepted boundaries:
 - Sigil's reticle controller writes the shared session shape and commits
   preview paths with `commitAnnotationPreview`.
 - `ctrl+opt+c` and Sigil radial camera bundle requests route through
-  `canvas_inspector.capture_bundle`; the daemon snapshots the Surface Inspector
-  bundle owner today.
+  `canvas_inspector.capture_bundle`; the daemon preserves that transport while
+  adding canonical `context-session.json` and `context-keyframe.json` files or
+  clipboard fields beside the compatibility annotation snapshot.
 - `aos see cursor`, `aos inspect`, `surface-hit-test-inspect`, AX/window
   evidence, semantic targets, and browser DOM bridge evidence are acquisition
   or diagnostic inputs, not separate annotation truth stores.
@@ -462,6 +466,17 @@ Tests:
 
 Goal: implement leaf-up ancestry disambiguation as another acquisition mode,
 writing the same artifacts.
+
+Implemented checkpoint: `packages/toolkit/workbench/selection-mode.js` exposes
+`createSelectionModeContextSession(input)` and `selectionModeContextArtifact`.
+The helper accepts pointer/click evidence, a clicked leaf candidate, ordered
+root-to-leaf candidates, selected target id/address, ambiguity/rejection/skipped
+ancestor reports, adapter blockers, and comments. It returns an
+`aos_context_session` with one artifact whose `acquisition.mode` is
+`selection_mode`, preserving both `leaf_node_id` and `selected_node_id`.
+Sigil exposes only a debug construction entry point,
+`window.__sigilDebug.createSelectionModeContext(input)`, with the active result
+visible at `selectionMode.context_session`.
 
 Likely files:
 

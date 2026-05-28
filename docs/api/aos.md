@@ -821,8 +821,16 @@ public `annotation-snapshot.json` artifact recorded in
 display-first annotation session boundary as point-in-time evidence, including
 root/scope stacks, hover preview evidence, anchors/comments, projection
 stale/blocker status, and successful snapshot count; it does not persist live
-annotations for later reuse. `aos set <key> <value>` remains supported as the
-shorthand write form.
+annotations for later reuse. Bundle-path exports also write canonical
+`context-session.json` and `context-keyframe.json` files, recorded in
+`bundle.json.files.context_session_json` and
+`bundle.json.files.context_keyframe_json`; clipboard-payload exports include
+inline `context_session` and `context_keyframe` fields or explicit skipped
+evidence. These canonical context fields are the machine-readable convergence
+path for future recordings. `annotation-snapshot.json` and
+`surface_inspector_annotation_snapshot` remain compatibility data until a later
+removal gate confirms downstream consumers have migrated. `aos set <key>
+<value>` remains supported as the shorthand write form.
 
 Failed CLI invocations now append local JSONL records to
 `~/.config/aos/{mode}/cli-errors.jsonl`, which makes it easier to review
