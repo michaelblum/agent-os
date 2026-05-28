@@ -122,6 +122,7 @@ function commandList() {
     return [
         command('sigil.context_menu.open', 'Open context menu', 'Open the current Sigil context menu.'),
         command('sigil.context_menu.toggle', 'Toggle context menu', 'Toggle the current Sigil context menu.'),
+        command('sigil.avatar.press.begin', 'Begin avatar press', 'Begin the existing avatar left-press state.'),
         command('sigil.avatar.goto.begin', 'Begin GOTO', 'Begin the existing avatar GOTO behavior.'),
         command('sigil.radial.begin', 'Begin radial gesture', 'Begin the existing radial gesture path.'),
         command('sigil.radial.release_item', 'Release radial item', 'Release the active radial item through the current activation path.'),
@@ -257,7 +258,7 @@ function bindingList(radialMenu) {
             consume_policy: 'route',
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js', { event_type: 'right_mouse_down' }),
         }),
-        binding('sigil.avatar.goto.left_press', 'sigil.avatar.body', 'idle', 'pointer.left.press', 'sigil.avatar.goto.begin', {
+        binding('sigil.avatar.press.left_press', 'sigil.avatar.body', 'idle', 'pointer.left.press', 'sigil.avatar.press.begin', {
             priority: 80,
             consume_policy: 'route',
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js', { event_type: 'left_mouse_down' }),
@@ -433,8 +434,8 @@ export function createSigilUxTree({ state = {}, metadata = {} } = {}) {
         relations: relationList(),
         settings: settingsFor(radialMenu, state),
         metadata: {
-            runtime_state: 'read_only_shadow',
-            behavior_cutover: false,
+            runtime_state: 'sigil_side_command_routed',
+            behavior_cutover: true,
             generated_at: new Date().toISOString(),
             radial_menu_id: radialMenu.id,
             ...cloneJson(metadata),
