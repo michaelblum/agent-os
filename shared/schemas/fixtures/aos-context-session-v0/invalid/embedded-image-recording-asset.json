@@ -1,0 +1,15 @@
+{
+  "schema": "aos_context_recording",
+  "version": "0.1.0",
+  "id": "recording:bad-image",
+  "created_at": "2026-05-28T12:00:00.000Z",
+  "updated_at": "2026-05-28T12:00:00.000Z",
+  "source_session_ref": null,
+  "keyframes": [],
+  "events": [],
+  "asset_refs": {
+    "capture_image": "data:image/png;base64,AAAA"
+  },
+  "source_metadata": {},
+  "metadata": {}
+}

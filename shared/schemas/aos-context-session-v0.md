@@ -10,7 +10,7 @@ Canonical schema:
 
 ## Identity
 
-- `schema`: `aos_context_session`
+- `schema`: `aos_context_session` or `aos_context_recording`
 - `version`: `0.1.0`
 
 ## Relationship To Annotation Session
@@ -85,7 +85,15 @@ Keyframes must not embed screenshots, base64 image payloads, or data URLs. Image
 and capture data belong in sibling files such as `capture.png`,
 `annotation-snapshot.json`, or bundle metadata, referenced through `asset_refs`.
 
-Future recordings should be ordered sequences of context keyframes plus optional
-events between them. Recordings should reference keyframes and their source
-`aos_annotation_session` summaries rather than introducing a second annotation
-session or anchor model.
+## Context Recordings
+
+`aos_context_recording` is the ordered keyframe-plus-events contract in this
+schema family. It records an ordered `keyframes` array, optional text/action/
+blocker events between keyframes, source metadata, and external asset
+references. It does not require video, screenshots, or embedded image payloads.
+
+Recording events can carry operator text, action evidence, or blocker evidence
+and can point before or after a keyframe with `before_keyframe_id` and
+`after_keyframe_id`. Recordings should reference keyframes and their source
+`aos_annotation_session` or `aos_context_session` summaries rather than
+introducing a second annotation session or anchor model.

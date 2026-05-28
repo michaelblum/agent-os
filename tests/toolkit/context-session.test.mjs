@@ -11,6 +11,7 @@ import {
   CONTEXT_SESSION_SCHEMA,
   createContextArtifactFromAnnotationSession,
   createContextKeyframe,
+  createContextRecording,
   createContextSession,
   contextSessionSnapshot,
   normalizeContextArtifact,
@@ -200,4 +201,67 @@ test('keyframes can reference multiple artifacts without embedding assets', () =
   assert.deepEqual(snapshot.keyframes[0].artifact_ids, [first.id, second.id])
   assert.equal(snapshot.keyframes[0].asset_refs.capture_image, 'capture.png')
   assert.equal(snapshot.artifacts.length, 2)
+})
+
+test('recordings preserve ordered keyframes and timeline events', () => {
+  const first = createContextKeyframe({
+    id: 'keyframe:001',
+    captured_at: '2026-05-28T12:00:00.000Z',
+    trigger: 'sigil_radial_camera',
+    artifact_ids: ['context-artifact:a'],
+    asset_refs: { capture_image: 'capture.png' },
+  })
+  const second = createContextKeyframe({
+    id: 'keyframe:002',
+    captured_at: '2026-05-28T12:00:03.000Z',
+    trigger: 'ctrl_opt_c',
+    artifact_ids: ['context-artifact:a'],
+    asset_refs: { context_session_json: 'context-session.json' },
+  })
+  const recording = createContextRecording({
+    id: 'recording:demo',
+    created_at: '2026-05-28T12:00:00.000Z',
+    updated_at: '2026-05-28T12:00:04.000Z',
+    keyframes: [first, second],
+    events: [
+      {
+        id: 'event:note',
+        kind: 'text',
+        occurred_at: '2026-05-28T12:00:01.000Z',
+        after_keyframe_id: first.id,
+        before_keyframe_id: second.id,
+        text: 'Operator selected the window ancestor.',
+      },
+      {
+        id: 'event:blocker',
+        kind: 'blocker',
+        occurred_at: '2026-05-28T12:00:02.000Z',
+        after_keyframe_id: first.id,
+        blocker: { status: 'blocked', reason: 'projection_stale' },
+      },
+    ],
+    asset_refs: { transcript: { uri: 'notes/context-recording.md', media_type: 'text/markdown' } },
+    source_metadata: { source: 'test' },
+  })
+
+  assert.equal(recording.schema, 'aos_context_recording')
+  assert.deepEqual(recording.keyframes.map((keyframe) => keyframe.id), ['keyframe:001', 'keyframe:002'])
+  assert.deepEqual(recording.events.map((event) => event.kind), ['text', 'blocker'])
+  assert.equal(recording.events[0].after_keyframe_id, first.id)
+  assert.equal(recording.events[1].blocker.reason, 'projection_stale')
+  assert.equal(recording.asset_refs.transcript.uri, 'notes/context-recording.md')
+})
+
+test('keyframe and recording asset refs reject embedded image data', () => {
+  assert.throws(() => createContextKeyframe({
+    id: 'keyframe:bad',
+    captured_at: '2026-05-28T12:00:00.000Z',
+    trigger: 'manual',
+    asset_refs: { capture_image: 'data:image/png;base64,AAAA' },
+  }), /data URL/)
+
+  assert.throws(() => createContextRecording({
+    id: 'recording:bad',
+    asset_refs: { image_data: { uri: 'capture.png' } },
+  }), /embedded image data/)
 })

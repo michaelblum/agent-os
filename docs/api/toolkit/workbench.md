@@ -152,6 +152,7 @@ Use:
 import {
   createContextArtifactFromAnnotationSession,
   createContextKeyframe,
+  createContextRecording,
   createContextSession,
   contextSessionSnapshot,
   normalizeContextArtifact,
@@ -169,8 +170,10 @@ explain how the artifact was acquired.
 Context keyframes reference artifacts and external assets. They must not embed
 screenshots, image base64, or data URLs; capture files and compatibility
 artifacts such as `surface_inspector_annotation_snapshot` travel as asset
-references. Future recordings should order these keyframes and events rather
-than creating another annotation-session shape.
+references. `createContextRecording()` creates the ordered
+`aos_context_recording` contract: keyframes plus optional text, action, or
+blocker events, source metadata, and file-style asset references. Recordings are
+not video/blob containers and do not create another annotation-session shape.
 
 ### Annotation Overlay Renderer V0
 

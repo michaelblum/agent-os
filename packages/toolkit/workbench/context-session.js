@@ -10,6 +10,7 @@ export const CONTEXT_SESSION_SCHEMA = 'aos_context_session'
 export const CONTEXT_SESSION_VERSION = '0.1.0'
 export const CONTEXT_ARTIFACT_SCHEMA = 'aos_context_artifact'
 export const CONTEXT_KEYFRAME_SCHEMA = 'aos_context_keyframe'
+export const CONTEXT_RECORDING_SCHEMA = 'aos_context_recording'
 
 const DEFAULT_ACTOR = Object.freeze({ role: 'operator', id: 'human' })
 
@@ -254,9 +255,30 @@ export function createContextArtifactFromAnnotationSession(session = {}, options
   }, options)
 }
 
+function rejectEmbeddedAssetRef(key, value) {
+  if (/base64|binary|image_data/i.test(String(key))) {
+    throw new TypeError(`context asset ref '${key}' cannot store embedded image data`)
+  }
+  if (typeof value === 'string' && /^data:/i.test(value)) {
+    throw new TypeError(`context asset ref '${key}' cannot use a data URL`)
+  }
+  if (value && typeof value === 'object') {
+    if (typeof value.uri === 'string' && /^data:/i.test(value.uri)) {
+      throw new TypeError(`context asset ref '${key}' cannot use a data URL`)
+    }
+    const serialized = JSON.stringify(value)
+    if (/data:image\//i.test(serialized)) {
+      throw new TypeError(`context asset ref '${key}' cannot store embedded image data`)
+    }
+  }
+}
+
 function normalizeAssetRefs(assetRefs = {}) {
   const source = assetRefs && typeof assetRefs === 'object' ? assetRefs : {}
-  return Object.fromEntries(Object.entries(source).map(([key, value]) => [key, clone(value)]))
+  return Object.fromEntries(Object.entries(source).map(([key, value]) => {
+    rejectEmbeddedAssetRef(key, value)
+    return [key, clone(value)]
+  }))
 }
 
 function isAnnotationSessionSummary(input = {}) {
@@ -296,6 +318,45 @@ export function createContextKeyframe(keyframe = {}, options = {}) {
     session_summary: keyframe.session_summary ? clone(keyframe.session_summary) : null,
     asset_refs: normalizeAssetRefs(keyframe.asset_refs),
     metadata: clone(keyframe.metadata || {}),
+  }
+}
+
+function normalizeRecordingEvent(event = {}, options = {}) {
+  const occurredAt = isoNow(event.occurred_at || event.created_at || options.now || Date.now())
+  return {
+    id: text(event.id, stableId('event', [event.kind, occurredAt, event.after_keyframe_id])),
+    kind: text(event.kind || event.type, 'note'),
+    occurred_at: occurredAt,
+    after_keyframe_id: text(event.after_keyframe_id),
+    before_keyframe_id: text(event.before_keyframe_id),
+    text: text(event.text || event.note || event.message),
+    action: event.action ? clone(event.action) : null,
+    blocker: event.blocker ? clone(event.blocker) : null,
+    source_metadata: clone(event.source_metadata || {}),
+    metadata: clone(event.metadata || {}),
+  }
+}
+
+export function createContextRecording(recording = {}, options = {}) {
+  const updatedAt = isoNow(recording.updated_at || options.updated_at || options.now || Date.now())
+  const createdAt = isoNow(recording.created_at || options.created_at || updatedAt)
+  const keyframes = Array.isArray(recording.keyframes)
+    ? recording.keyframes.map((keyframe) => createContextKeyframe(keyframe, { now: updatedAt }))
+    : []
+  return {
+    schema: CONTEXT_RECORDING_SCHEMA,
+    version: CONTEXT_SESSION_VERSION,
+    id: text(recording.id || recording.recording_id, stableId('recording', [createdAt])),
+    created_at: createdAt,
+    updated_at: updatedAt,
+    source_session_ref: recording.source_session_ref ? clone(recording.source_session_ref) : null,
+    keyframes,
+    events: Array.isArray(recording.events)
+      ? recording.events.map((event) => normalizeRecordingEvent(event, { now: updatedAt }))
+      : [],
+    asset_refs: normalizeAssetRefs(recording.asset_refs),
+    source_metadata: clone(recording.source_metadata || {}),
+    metadata: clone(recording.metadata || {}),
   }
 }
 

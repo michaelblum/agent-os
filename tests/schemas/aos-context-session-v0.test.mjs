@@ -10,8 +10,10 @@ const schemaPath = path.join(repoRoot, 'shared/schemas/aos-context-session-v0.sc
 const leafActiveFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/valid/leaf-active.json')
 const ancestorActiveFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/valid/ancestor-active.json')
 const multiArtifactKeyframeFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/valid/multi-artifact-keyframe.json')
+const recordingFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/valid/recording.json')
 const missingPathFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/missing-ordered-path.json')
 const embeddedImageAssetFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/embedded-image-asset.json')
+const embeddedImageRecordingAssetFixturePath = path.join(repoRoot, 'shared/schemas/fixtures/aos-context-session-v0/invalid/embedded-image-recording-asset.json')
 
 function validateFixture(fixturePath) {
   return spawnSync(
@@ -55,6 +57,11 @@ test('AOS context session schema accepts multi-artifact keyframe fixture', () =>
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
 })
 
+test('AOS context session schema accepts context recording fixture', () => {
+  const result = validateFixture(recordingFixturePath)
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+})
+
 test('AOS context session schema rejects artifacts without ordered path and active target', () => {
   const result = validateFixture(missingPathFixturePath)
   assert.notEqual(result.status, 0, 'invalid fixture unexpectedly passed')
@@ -63,6 +70,12 @@ test('AOS context session schema rejects artifacts without ordered path and acti
 
 test('AOS context session schema rejects embedded image data URL assets', () => {
   const result = validateFixture(embeddedImageAssetFixturePath)
+  assert.notEqual(result.status, 0, 'invalid fixture unexpectedly passed')
+  assert.match(`${result.stdout}${result.stderr}`, /capture_image|not valid/)
+})
+
+test('AOS context session schema rejects embedded image data URL recording assets', () => {
+  const result = validateFixture(embeddedImageRecordingAssetFixturePath)
   assert.notEqual(result.status, 0, 'invalid fixture unexpectedly passed')
   assert.match(`${result.stdout}${result.stderr}`, /capture_image|not valid/)
 })
