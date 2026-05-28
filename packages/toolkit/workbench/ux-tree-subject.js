@@ -4,6 +4,7 @@ export const UX_TREE_SUBJECT_TYPE = 'aos.ux_tree';
 export const UX_TREE_RESOURCE_FACETS = Object.freeze({
   overview: 'ux-tree-overview',
   bindings: 'ux-tree-bindings',
+  relations: 'ux-tree-relations',
   commands: 'ux-tree-commands',
   settings: 'ux-tree-settings',
   rawJson: 'ux-tree-json',
@@ -77,6 +78,7 @@ export function createUxTreeWorkbenchSubject({
     contracts: [
       'aos.ux_tree',
       'aos.ux_tree.bindings',
+      'aos.ux_tree.relations',
       'aos.ux_tree.commands',
       'aos.ux_tree.settings',
     ],
@@ -90,6 +92,7 @@ export function createUxTreeWorkbenchSubject({
         metadata: {
           node_count: list(tree.nodes).length,
           binding_count: list(tree.bindings).length,
+          relation_count: list(tree.relations).length,
           command_count: list(tree.commands).length,
         },
       }),
@@ -99,6 +102,13 @@ export function createUxTreeWorkbenchSubject({
         label: 'Bindings',
         contracts: ['aos.ux_tree.bindings'],
         hosts: hostsFor(UX_TREE_RESOURCE_FACETS.bindings),
+      }),
+      facet({
+        key: UX_TREE_RESOURCE_FACETS.relations,
+        layer: 'model',
+        label: 'Relations',
+        contracts: ['aos.ux_tree.relations'],
+        hosts: hostsFor(UX_TREE_RESOURCE_FACETS.relations),
       }),
       facet({
         key: UX_TREE_RESOURCE_FACETS.commands,
@@ -132,8 +142,10 @@ export function createUxTreeWorkbenchSubject({
       version: tree.version || null,
       node_count: list(tree.nodes).length,
       binding_count: list(tree.bindings).length,
+      relation_count: list(tree.relations).length,
       command_count: list(tree.commands).length,
       bindings: cloneJson(list(tree.bindings)),
+      relations: cloneJson(list(tree.relations)),
       commands: cloneJson(list(tree.commands)),
       settings: cloneJson(tree.settings || {}),
       raw_tree: cloneJson(tree),

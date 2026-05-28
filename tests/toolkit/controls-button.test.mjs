@@ -10,6 +10,7 @@ test('createButton returns shape and button element with variant class', () => {
   assert.equal(button.el.tagName, 'BUTTON');
   assert.equal(typeof button.setLabel, 'function');
   assert.equal(typeof button.setDisabled, 'function');
+  assert.equal(typeof button.getUxTreeFragment, 'function');
   assert.equal(typeof button.on, 'function');
   assert.equal(typeof button.destroy, 'function');
   assert.equal(button.el.classList.contains('aos-button'), true);
@@ -33,6 +34,26 @@ test('createButton toggles disabled attribute and click listeners', () => {
   button.el.dispatchEvent(new FakeEvent('click'));
   assert.equal(clicks, 1);
   button.destroy();
+});
+
+test('createButton exposes a UX tree fragment for current label and disabled state', () => {
+  const document = createFakeDocument();
+  const button = createButton({ document, id: 'save-button', label: 'Save', disabled: false });
+
+  button.setLabel('Save As');
+  button.setDisabled(true);
+
+  const fragment = button.getUxTreeFragment();
+
+  assert.equal(fragment.validation.ok, true);
+  assert.equal(fragment.nodes[0].id, 'save-button');
+  assert.equal(fragment.nodes[0].label, 'Save As');
+  assert.equal(fragment.nodes[0].metadata.state.disabled, true);
+  assert.deepEqual(fragment.bindings.map((binding) => binding.gesture), [
+    'pointer.left.click',
+    'keyboard.enter',
+    'keyboard.space',
+  ]);
 });
 
 test('createButton stamps DOM metadata used by component render paths', () => {

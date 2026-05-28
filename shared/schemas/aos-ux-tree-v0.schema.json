@@ -15,6 +15,7 @@
     "nodes",
     "commands",
     "bindings",
+    "relations",
     "settings",
     "metadata"
   ],
@@ -50,6 +51,10 @@
     "bindings": {
       "type": "array",
       "items": { "$ref": "#/$defs/Binding" }
+    },
+    "relations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Relation" }
     },
     "settings": {
       "type": "object",
@@ -239,6 +244,27 @@
         "metadata": {
           "type": "object",
           "additionalProperties": true
+        }
+      }
+    },
+    "Relation": {
+      "type": "object",
+      "required": ["id", "relation_type", "from_node_id", "to_node_id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "relation_type": {
+          "enum": ["triggers", "opens", "anchors", "targets", "owns"]
+        },
+        "from_node_id": { "type": "string", "minLength": 1 },
+        "to_node_id": { "type": "string", "minLength": 1 },
+        "source_metadata": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/JsonValue" }
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/JsonValue" }
         }
       }
     }

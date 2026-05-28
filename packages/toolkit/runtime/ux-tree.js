@@ -1,9 +1,10 @@
 export const UX_TREE_SCHEMA = 'aos_ux_tree';
 export const UX_TREE_VERSION = '0.1.0';
 
-const KEYED_ARRAYS = new Set(['nodes', 'commands', 'bindings', 'modes']);
+const KEYED_ARRAYS = new Set(['nodes', 'commands', 'bindings', 'modes', 'relations']);
 const HANDLER_REF_PATTERN = /^[A-Za-z0-9_.:-]+$/;
 const ALLOWLISTED_EXECUTION = 'allowlisted';
+const UX_TREE_RELATION_TYPES = new Set(['triggers', 'opens', 'anchors', 'targets', 'owns']);
 
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -135,6 +136,11 @@ function hasExecutableValue(value, seen = new Set()) {
   return Object.values(value).some((entry) => hasExecutableValue(entry, seen));
 }
 
+function isCollectionRelationTarget(value) {
+  const ref = text(value);
+  return ref.endsWith('.*') && ref.indexOf('*') === ref.length - 1;
+}
+
 export function normalizeUxTreeNode(node = {}, options = {}) {
   const id = text(node.id || options.id);
   return {
@@ -184,6 +190,18 @@ export function normalizeUxTreeBinding(binding = {}, options = {}) {
   };
 }
 
+export function normalizeUxTreeRelation(relation = {}, options = {}) {
+  const id = text(relation.id || options.id);
+  return {
+    id,
+    relation_type: text(relation.relation_type || relation.type),
+    from_node_id: text(relation.from_node_id),
+    to_node_id: text(relation.to_node_id),
+    source_metadata: cloneJson(relation.source_metadata || {}),
+    metadata: cloneJson(relation.metadata || {}),
+  };
+}
+
 export function mergeUxTreeDefinitions(base = {}, override = {}) {
   return mergeUxTreeValue(base, override);
 }
@@ -217,6 +235,7 @@ function validateUxTree(tree = {}) {
   const nodeIds = new Set();
   const commandIds = new Set();
   const modeIds = new Set(['global']);
+  const relationIds = new Set();
 
   errors.push(...validateEmbeddedRefs(tree.source_refs, {
     pathPrefix: '/source_refs',
@@ -257,6 +276,44 @@ function validateUxTree(tree = {}) {
     if (binding.mode && !modeIds.has(binding.mode)) errors.push(validationError('binding.mode_ref', `binding ${binding.id || index} references unknown mode ${binding.mode}`, `/bindings/${index}/mode`));
     if (!text(binding.gesture)) errors.push(validationError('binding.gesture', `bindings[${index}].gesture is required`, `/bindings/${index}/gesture`));
   }
+  for (const [index, relation] of list(tree.relations).entries()) {
+    const relationId = text(relation.id);
+    const relationType = text(relation.relation_type);
+    const fromNodeId = text(relation.from_node_id);
+    const toNodeId = text(relation.to_node_id);
+    const toIsCollection = isCollectionRelationTarget(toNodeId);
+
+    if (!relationId) {
+      errors.push(validationError('relation.id', `relations[${index}].id is required`, `/relations/${index}/id`));
+    } else if (relationIds.has(relationId)) {
+      errors.push(validationError('relation.duplicate', `duplicate relation id ${relationId}`, `/relations/${index}/id`));
+    }
+    if (relationId) relationIds.add(relationId);
+
+    if (!relationType) {
+      errors.push(validationError('relation.type', `relations[${index}].relation_type is required`, `/relations/${index}/relation_type`));
+    } else if (!UX_TREE_RELATION_TYPES.has(relationType)) {
+      errors.push(validationError('relation.type', `relation ${relationId || index} uses unsupported type ${relationType}`, `/relations/${index}/relation_type`));
+    }
+
+    if (!fromNodeId) {
+      errors.push(validationError('relation.from_node_id', `relations[${index}].from_node_id is required`, `/relations/${index}/from_node_id`));
+    } else if (!nodeIds.has(fromNodeId)) {
+      errors.push(validationError('relation.from_node_ref', `relation ${relationId || index} references unknown from_node_id ${fromNodeId}`, `/relations/${index}/from_node_id`));
+    }
+
+    if (!toNodeId) {
+      errors.push(validationError('relation.to_node_id', `relations[${index}].to_node_id is required`, `/relations/${index}/to_node_id`));
+    } else if (toIsCollection && relationType !== 'targets') {
+      errors.push(validationError('relation.collection_target', `relation ${relationId || index} collection targets are only valid for targets relations`, `/relations/${index}/to_node_id`));
+    } else if (!toIsCollection && !nodeIds.has(toNodeId)) {
+      errors.push(validationError('relation.to_node_ref', `relation ${relationId || index} references unknown to_node_id ${toNodeId}`, `/relations/${index}/to_node_id`));
+    }
+
+    if (hasExecutableValue(relation.source_metadata) || hasExecutableValue(relation.metadata)) {
+      errors.push(validationError('relation.metadata.executable', 'relation metadata must be plain JSON values', `/relations/${index}/metadata`));
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 
@@ -274,6 +331,7 @@ export function resolveUxTree(input = {}, options = {}) {
     nodes: list(source.nodes).map((node) => normalizeUxTreeNode(node)),
     commands: list(source.commands).map((command) => normalizeUxTreeCommand(command)),
     bindings: list(source.bindings).map((binding) => normalizeUxTreeBinding(binding)),
+    relations: list(source.relations).map((relation) => normalizeUxTreeRelation(relation)),
     settings: cloneJson(source.settings || {}),
     metadata: cloneJson(source.metadata || {}),
   };
@@ -304,4 +362,23 @@ export function uxTreeBindingsForGesture(tree = {}, { nodeId = '', mode = 'globa
 export function uxTreeCommandById(tree = {}, commandId = '') {
   const id = text(commandId);
   return list(tree.commands).find((command) => command.id === id) || null;
+}
+
+export function uxTreeRelationsByType(tree = {}, relationType = '') {
+  const type = text(relationType);
+  return list(tree.relations).filter((relation) => !type || relation.relation_type === type);
+}
+
+export function uxTreeRelationsForNode(tree = {}, nodeId = '', options = {}) {
+  const id = text(nodeId);
+  const direction = text(options.direction, 'any');
+  const type = text(options.relationType || options.relation_type);
+  return list(tree.relations)
+    .filter((relation) => !type || relation.relation_type === type)
+    .filter((relation) => {
+      if (!id) return true;
+      if (direction === 'from' || direction === 'outgoing') return relation.from_node_id === id;
+      if (direction === 'to' || direction === 'incoming') return relation.to_node_id === id;
+      return relation.from_node_id === id || relation.to_node_id === id;
+    });
 }

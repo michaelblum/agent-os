@@ -9,6 +9,7 @@ test('createToggle returns shape and tracks value', () => {
 
   assert.equal(typeof toggle.getValue, 'function');
   assert.equal(typeof toggle.setValue, 'function');
+  assert.equal(typeof toggle.getUxTreeFragment, 'function');
   assert.equal(typeof toggle.on, 'function');
   assert.equal(typeof toggle.destroy, 'function');
   assert.equal(toggle.getValue(), true);
@@ -16,6 +17,32 @@ test('createToggle returns shape and tracks value', () => {
   assert.equal(toggle.getValue(), false);
   toggle.setValue(true);
   assert.equal(toggle.getValue(), true);
+});
+
+test('createToggle exposes a UX tree fragment for current checked state', () => {
+  const document = createFakeDocument();
+  const toggle = createToggle({ document, id: 'snap-toggle', label: 'Snap', checked: false });
+
+  toggle.setValue(true);
+
+  const fragment = toggle.getUxTreeFragment();
+
+  assert.equal(fragment.validation.ok, true);
+  assert.equal(fragment.nodes[0].id, 'snap-toggle');
+  assert.equal(fragment.nodes[0].label, 'Snap');
+  assert.equal(fragment.nodes[0].metadata.state.checked, true);
+  assert.equal(fragment.commands[0].handler_ref, 'toolkit.controls.toggle.change');
+});
+
+test('createToggle honors disabled config in DOM and UX tree state', () => {
+  const document = createFakeDocument();
+  const toggle = createToggle({ document, id: 'readonly-toggle', label: 'Read Only', disabled: true });
+  const input = toggle.el.querySelector('input');
+
+  const fragment = toggle.getUxTreeFragment();
+
+  assert.equal(input.disabled, true);
+  assert.equal(fragment.nodes[0].metadata.state.disabled, true);
 });
 
 test('toggle change fires from underlying input', () => {
