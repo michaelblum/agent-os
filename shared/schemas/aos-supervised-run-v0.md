@@ -14,9 +14,10 @@ coordination/event layer, not the durable evidence artifact for the run.
 The durable artifact remains Work Record v0. A Supervised Run may carry
 Work Record-compatible `evidence:*` references and handoff metadata for a later
 Work Record builder, but it does not duplicate Work Record `evidence[]`,
-Claims, Postconditions, Claim Results, Verifier Reports, or Health. Playbook
-Steps and Workflows remain reusable execution knowledge; a Supervised Run
-records the bounded coordination state for one attempt.
+Claims, Postconditions, Claim Results, Verifier Reports, or Health. Workflows
+own orchestration, and transitional `aos.playbook_step` descriptors may carry
+compatibility step metadata for a gated harness; a Supervised Run records the
+bounded coordination state for one attempt.
 
 ## Top-Level Shape
 
@@ -118,7 +119,9 @@ Work Record schema.
 Supervised Runs align with Work Record v0 and Playbook Step v0 by keeping the
 boundaries explicit:
 
-- A Playbook Step or Workflow can be the reusable origin for a run.
+- A Workflow can be the orchestration origin for a run; `origin.kind:
+  "playbook"` remains only a v0 compatibility origin for transitional
+  `aos.playbook_step` bridges.
 - A Supervised Run coordinates one bounded attempt and human feedback timeline.
 - Work Record v0 remains the durable run artifact with immutable evidence,
   Claims, Postconditions, Claim Results, Verifier Report, and Health.

@@ -5,18 +5,25 @@ Status: schema-backed design sketch. The JSON Schema in
 validates example fixtures under
 [`fixtures/aos-playbook-step-v0/`](fixtures/aos-playbook-step-v0/).
 
+Transition note: ADR-0013 supersedes Playbook-as-executable language. This
+`aos.playbook_step` contract remains a transitional v0 descriptor for one
+Workflow-gated step/evidence bridge. It is not the preferred current executable
+substrate, and its `playbook` names are compatibility vocabulary until a future
+Block, Step, or Harness rename lands.
+
 ## Purpose
 
-A Playbook step is reusable execution knowledge over the
+A Playbook step is a transitional descriptor over the
 `see -> resolve -> do -> see -> verify` shape. It describes what should be
-perceived, how a target should be resolved, which AOS action should be taken,
-which postconditions should be checked, and which repair hints are safe to use
-under a workflow gate.
+perceived, how a target should be resolved, which AOS action adapter may be
+called by a gated harness, which postconditions should be checked, and which
+repair hints are safe to use under a Workflow gate.
 
-A Work Record is different: it records one run. Running a Playbook step can emit
-a Work Record with immutable before/action/after evidence, Claim Results, a
-Verifier Report, and Health. The Playbook step is not the evidence log, and a
-Work Record is not the reusable template.
+A Work Record is different: it records one run. A Workflow-gated harness or
+saved-evidence bridge can combine this transitional descriptor with
+before/action/after evidence to emit a Work Record with Claim Results, a
+Verifier Report, and Health. The descriptor is not the evidence log, and a Work
+Record is not the descriptor.
 
 ## Top-Level Shape
 
@@ -63,8 +70,8 @@ and accessible candidate hints:
 ```
 
 The Work Record generated from a run stores the target that actually resolved,
-the State IDs, and the immutable evidence refs. The Playbook step stores the
-reusable resolution knowledge.
+the State IDs, and the immutable evidence refs. The transitional descriptor
+stores compatibility target-resolution metadata for the gated bridge.
 
 ## Claim Promotion
 
@@ -89,11 +96,12 @@ text to hide target drift.
 
 The narrow toolkit bridge is
 `buildWorkRecordV0FromPlaybookStepEvidence(playbookStep, evidenceSource)` in
-`packages/toolkit/workbench/work-record-capture.js`. It combines one Playbook
-step descriptor with one saved AOS `see -> do -> see` action evidence source and
-emits Work Record v0. The generated Work Record uses
-`origin.kind: "playbook"` and `origin.ref` from the Playbook step, preserves
-immutable evidence refs, keeps replay and repair workflow-gated, and reuses
+`packages/toolkit/workbench/work-record-capture.js`. It combines one
+transitional `aos.playbook_step` descriptor with one saved AOS `see -> do ->
+see` action evidence source and emits Work Record v0. The generated Work Record
+uses `origin.kind: "playbook"` and `origin.ref` only because the v0 schemas and
+fixtures still require that compatibility shape, preserves immutable evidence
+refs, keeps replay and repair Workflow-gated, and reuses
 `aos.verifier.work-record.v0.report-only`.
 
 The bridge remains saved-evidence only. It does not execute the step, replay a
@@ -114,10 +122,11 @@ provide both a gate ref declared in `workflow_gates.gate_refs[]` and an explicit
 gate token. Ungated simulation or execution is rejected without producing a Work
 Record and, for execute mode, before the adapter can run.
 
-A gated harness run still does not make the Playbook step the evidence log. The
-Playbook step supplies reusable intent, target-resolution, precondition,
-postcondition, repair-hint, and Claim-promotion metadata. The harness supplies
-the run boundary and gate. The Work Record emitted through
+A gated harness run still does not make the Playbook step the evidence log or
+the preferred executable substrate. The transitional descriptor supplies intent,
+target-resolution, precondition, postcondition, repair-hint, and
+Claim-promotion metadata. The harness supplies the run boundary and gate. The
+Work Record emitted through
 `buildWorkRecordV0FromPlaybookStepEvidence()` owns the immutable before/action/
 after evidence, Claim Results, Verifier Report, and Health for that run.
 
@@ -133,7 +142,7 @@ execution-map patch.
   describes the browser click/status step with preconditions, target
   resolution, action, postconditions, repair hints, and claim promotion.
 - [`invalid/missing-target-resolution.json`](fixtures/aos-playbook-step-v0/invalid/missing-target-resolution.json)
-  is rejected because a Playbook step without target resolution cannot produce a
-  reusable `see -> resolve -> do` plan.
+  is rejected because the transitional descriptor without target resolution
+  cannot support the gated `see -> resolve -> do` bridge.
 - [`invalid/replay-without-workflow-gate.json`](fixtures/aos-playbook-step-v0/invalid/replay-without-workflow-gate.json)
   is rejected because v0 replay and repair must remain gated by a Workflow.

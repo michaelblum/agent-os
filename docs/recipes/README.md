@@ -1,12 +1,14 @@
-# Recipes
+# Transitional Guides And SOPs
 
-`docs/recipes/` holds durable, role-neutral operating procedures for agent-os.
-Use these Markdown recipes when a repeated engineering, product, verification,
-or documentation procedure should shape human and agent judgment without being
-owned by one dock persona.
+`docs/recipes/` is the historical directory for durable, role-neutral Markdown
+operating procedures for agent-os. Under the AOS Execution Model V0
+([ADR-0013](../adr/0013-aos-execution-model-v0.md)), these Markdown files are
+transitional **Guides/SOPs**: they shape human and agent judgment, but they are
+not executable Recipes.
 
-Recipes are not one-off handoffs, successor-session memory, role instructions,
-or provider skill registries. Put those elsewhere:
+Guides/SOPs are not one-off handoffs, successor-session memory, role
+instructions, executable recipe manifests, or provider skill registries. Put
+those elsewhere:
 
 - dock roles and persona contracts live under `.docks/`;
 - dock-local skills live under `.docks/<dock>/skills/<name>/SKILL.md`;
@@ -15,22 +17,32 @@ or provider skill registries. Put those elsewhere:
 - cross-tool contracts live under `docs/api/`, `shared/schemas/`, or
   `ARCHITECTURE.md`.
 
-## Recipe Types
+## Execution Model Boundary
 
-Agent-os currently has two recipe surfaces:
+Agent-os currently has two surfaces with historical recipe naming:
 
-- Markdown SOPs under `docs/recipes/`. These are documentation-only procedures
-  that guide classification, implementation, review, or verification.
-- Source-backed recipes under top-level `recipes/*.json`. These are executable
-  `aos ops` manifests with explicit inputs, outputs, and runtime behavior.
+- Markdown Guides/SOPs under `docs/recipes/`. These are documentation-only
+  procedures that guide classification, implementation, review, or verification.
+- Source-backed executable Recipes under top-level `recipes/*.json`. These are
+  `aos recipe` manifests with explicit inputs, outputs, blocks, resources, and
+  runtime behavior.
 
-ADR 0009 defines the broader distinction between Recipe, Playbook, and
-Workflow. Do not collapse these surfaces with a mechanical rename until the
-recipe/playbook/workflow model and `aos ops` naming are ready to move together.
+`Recipe` now means the executable source-backed procedure. The old `aos ops`
+noun is only a compatibility alias for `aos recipe`; do not add new current
+guidance that makes `aos ops` canonical.
 
-## Good Recipe Fit
+## Transition TODO
 
-A Markdown recipe belongs here when it is:
+Owner: Foreman routes; GDI implements only from an exact follow-up card.
+
+Scope: rename or rehome `docs/recipes/` to a Guide/SOP location, update current
+links and tests, and leave compatibility pointers for any entry paths that still
+refer to the historical directory. Do not perform that directory migration in
+incidental docs edits.
+
+## Good Guide/SOP Fit
+
+A Markdown Guide/SOP belongs here when it is:
 
 - reusable across more than one dock role;
 - about a bounded procedure rather than a whole persona;
@@ -45,9 +57,9 @@ For test harness selection and lightweight prep before runtime, canvas, input,
 status-item, lifecycle, visual, supervised, or cross-layer work, use
 `docs/recipes/test-harness-ladder-and-prep.md`.
 
-## Poor Recipe Fit
+## Poor Guide/SOP Fit
 
-Do not add or keep a Markdown recipe here when it is:
+Do not add or keep a Markdown Guide/SOP here when it is:
 
 - a successor Foreman handoff or session continuation memory;
 - GDI-specific prompt scaffolding better owned by Foreman transfer references;
@@ -55,13 +67,13 @@ Do not add or keep a Markdown recipe here when it is:
 - obsolete startup guidance superseded by dock-first cold-start docs;
 - a provider-managed global skill or local provider registry entry.
 
-When moving a misplaced recipe, update links and tests in the same change. If a
-recipe is pinned by a test or current work card, migrate it in a dedicated slice
+When moving misplaced guidance, update links and tests in the same change. If a
+guide is pinned by a test or current work card, migrate it in a dedicated slice
 instead of deleting it opportunistically.
 
 ## Structured Steps
 
-Markdown recipes may use light structure when it makes the procedure more
+Markdown Guides/SOPs may use light structure when it makes the procedure more
 reliable:
 
 - classification choices from a closed set, such as adopt, adapt, reject, or
@@ -71,11 +83,11 @@ reliable:
 - stop conditions for human-needed conflicts;
 - evidence the user or next agent should receive.
 
-This structure should clarify judgment. It should not turn every recipe into a
+This structure should clarify judgment. It should not turn every guide into a
 schema before the shape has proved useful.
 
 If the reusable result is only a judgment of the form "given these inputs and
 this evidence, classify/choose/route this way," cite the Decision Contract /
 Inference Block vocabulary in
 `docs/design/durable-agent-cognition-and-afk-primitives.md` instead of treating
-it as a new recipe type.
+it as a new executable Recipe type.

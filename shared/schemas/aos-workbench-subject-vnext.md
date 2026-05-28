@@ -439,4 +439,5 @@ raw `capabilities[]`.
   list `layer` and `contracts`.
 - How Subject Entry Handles should encode subjects whose canonical ids already
   contain a colon, such as `wiki:<path>`.
-- How Playbook step postconditions promote into Work Record Claims.
+- How transitional step-descriptor postconditions promote into Work Record
+  Claims.

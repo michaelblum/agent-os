@@ -97,7 +97,7 @@ The current top-level commands are:
 | `aos ready` | front-door readiness gate; starts/checks AOS and reports blockers |
 | `aos status` | read-only runtime/session status snapshot |
 | `aos recipe` | source-backed executable recipes: list, explain, dry-run, run |
-| `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, or callers require the old noun |
+| `aos ops` | compatibility alias for `aos recipe`; removal gate: no remaining repo docs, scripts, generated indexes, packaged resources, tests, or known external callers require the old noun |
 | `aos see` | Perception: cursor state, captures, observation streams, zones |
 | `aos do` | Action: mouse, keyboard, AX actions, AppleScript, session mode |
 | `aos show` | Projection: canvas create/update/remove/list/eval/render |
@@ -542,7 +542,9 @@ surface instead of falling back to the frontmost app.
 primitive verbs such as `status`, `show`, and `see`, and it can also run
 repo-owned helper scripts through typed `shell` blocks. It keeps primitive
 command and script references visible so agents can inspect what will run.
-`aos ops` remains a compatibility alias while old callers are retired.
+`aos ops` remains a compatibility alias while old callers are retired; see
+[ADR-0013](../adr/0013-aos-execution-model-v0.md) for the AOS Execution Model
+and alias removal gate.
 
 | Subcommand | Purpose |
 | --- | --- |

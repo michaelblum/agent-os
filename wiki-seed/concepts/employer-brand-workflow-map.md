@@ -37,6 +37,20 @@ This is the canonical path for turning a loose employer-brand request into a reu
 - Do not skip profile synthesis when the end request is comparison.
 - Unknowns should become explicit placeholders, not hidden assumptions.
 
+## AOS Execution Model Boundary
+
+This workflow map is a downstream domain projection over the AOS Execution
+Model, not the source of truth for that model. Browser capture and Employer
+Brand artifacts are reference material until a separate platform slice maps
+them onto the stack:
+
+```text
+target control primitive -> capture/evidence block -> reusable capture recipe -> workflow orchestration -> run -> work record + evidence
+```
+
+Do not treat this page as authorization to implement browser collection,
+capture repair, report export, replay, or a workflow engine.
+
 ## PLACEHOLDER - Needs Definition
 
 - [PLACEHOLDER] Which stages should eventually become deterministic scripts rather than agent-authored documents

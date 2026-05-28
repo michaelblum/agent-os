@@ -23,6 +23,7 @@ source root. This file is a routing map, not a replacement for those sources.
   under `docs/api/`.
 - Schemas and cross-tool contracts: `shared/schemas/`, especially
   `shared/schemas/CONTRACT-GOVERNANCE.md`.
+- AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
 - Use this context for `aos` verbs, daemon lifecycle, perception/action/display,
   communication, spatial topology, runtime mode isolation, sockets, native
   frames, input streams, and platform state.
@@ -46,7 +47,8 @@ source root. This file is a routing map, not a replacement for those sources.
   evidence, checkpoint, subject-tree, and browser-evidence schemas in
   `shared/schemas/`.
 - API docs: `docs/api/toolkit/workbench.md`.
-- Recipes and design context: `docs/recipes/layered-subject-expressions.md`,
+- Transitional Guide/SOP and design context:
+  `docs/recipes/layered-subject-expressions.md`,
   `docs/recipes/aos-app-accessibility-surfaces.md`, and active plans or notes
   under `docs/design/`.
 - Use this context for Subjects, Facets, Layers, Subject Browsers, Work Records,
@@ -95,7 +97,8 @@ source root. This file is a routing map, not a replacement for those sources.
 ## Durable Decisions And SOPs
 
 - ADRs and durable architecture decisions: `docs/adr/`.
-- Recipes and SOPs: `docs/recipes/`.
+- Transitional Markdown Guides/SOPs: `docs/recipes/`.
+- Source-backed executable Recipes: `recipes/` plus `aos recipe`.
 - Context maintenance recipe: `docs/recipes/context-doc-maintenance.md`.
 - Design plans, notes, and work cards: `docs/design/`.
 - Use this context when a task touches architectural trade-offs, cross-tool
