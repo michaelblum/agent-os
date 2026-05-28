@@ -51,6 +51,30 @@ target control primitive -> capture/evidence block -> reusable capture recipe ->
 Do not treat this page as authorization to implement browser collection,
 capture repair, report export, replay, or a workflow engine.
 
+## Execution-Model Decomposition
+
+Employer Brand material stays useful as domain reference material, but it maps
+onto AOS concepts rather than defining them:
+
+| Current material | AOS classification | Notes |
+|------|------|------|
+| This workflow map, evidence model, scoring scale, message dimensions, collection, synthesis, comparison, and report-prep concept pages | Guide/SOP and domain reference | Reusable judgment and method guidance. They can guide a run but are not executable Recipes. |
+| `employer-brand-*` wiki plugins under `wiki-seed/plugins/` | Plugin packaging with Skills | Each plugin packages a `SKILL.md` and optional references. The Plugin/Skill activates or guides work; it is not an execution ladder rung. |
+| Intake, collection planning, synthesis, comparison, and report generation skills | Skill | Agent-loadable instructions. A future Skill may call Recipes or Workflows, but the Skill itself is not the Recipe or Workflow. |
+| Capture manifest and surface checklist | Evidence template or future Recipe input | The manifest can become input to a source-backed capture Recipe once a generic capture block exists. |
+| Browser/source collection steps | Possible Recipe plus Workflow orchestration | A reusable capture Recipe would own bounded capture blocks. A Workflow would own gates, retries, human review, and multi-company orchestration. |
+| One completed company/profile/comparison attempt | Run | A Run is the execution instance, whether it is ad-hoc, Recipe-backed, or Workflow-backed. |
+| Evidence registry, citations, screenshots, text extracts, source bundles, verifier output | Evidence and Work Record inputs/outputs | Durable proof belongs in Work Records and evidence artifacts, not in the workflow map. |
+| Employer Brand schemas and fixtures under `shared/schemas/` and `docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/` | Domain schemas, fixtures, and evidence templates | Retained as reference and test data. They do not authorize new generic browser-capture behavior. |
+| Report outlines, narrative packages, PDFs, HTML/SPAs, and wiki report pages | UI/report artifacts | Delivery surfaces downstream of Runs and Work Records. |
+
+This decomposition means future implementation should extract generic capture
+capabilities into AOS primitives, blocks, Recipes, Workflows, Runs, Work
+Records, schemas, and toolkit UI only when the capability is not Employer
+Brand-specific. Employer Brand-specific analysis, scoring, and report language
+should stay in the domain guides, Skills, Plugins, fixtures, and report
+artifacts.
+
 ## PLACEHOLDER - Needs Definition
 
 - [PLACEHOLDER] Which stages should eventually become deterministic scripts rather than agent-authored documents
