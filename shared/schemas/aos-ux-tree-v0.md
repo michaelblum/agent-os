@@ -69,7 +69,7 @@ avatar-specific schema fields.
 Commands are not executable code. A command carries a `handler_ref` string that
 an execution adapter may later map to an allowlisted runtime function. Settings
 and parameters are plain JSON. Asset-like values must be refs, not embedded
-binary or `data:` payloads.
+binary, `data:`, or `blob:` payloads.
 
 Bindings reference known node and command IDs. Relations reference known
 concrete node IDs, with the documented V0 exception for `targets` collection

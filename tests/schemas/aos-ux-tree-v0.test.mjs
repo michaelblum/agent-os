@@ -42,6 +42,32 @@ if errors:
   )
 }
 
+function validateInstance(instance) {
+  return spawnSync(
+    'python3',
+    [
+      '-c',
+      `
+import json, sys
+from pathlib import Path
+from jsonschema import Draft202012Validator
+
+schema = json.loads(Path(sys.argv[1]).read_text())
+instance = json.loads(sys.stdin.read())
+Draft202012Validator.check_schema(schema)
+validator = Draft202012Validator(schema)
+errors = sorted(validator.iter_errors(instance), key=lambda e: list(e.path))
+if errors:
+    for error in errors[:12]:
+        print(error.message)
+    sys.exit(1)
+`,
+      schemaPath,
+    ],
+    { encoding: 'utf8', input: JSON.stringify(instance) },
+  )
+}
+
 test('valid Sigil avatar UX tree fixture matches the canonical schema', () => {
   const result = validateFixture(validFixture)
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
@@ -53,6 +79,47 @@ for (const fixturePath of invalidSchemaFixtures) {
     assert.notEqual(result.status, 0, 'fixture unexpectedly passed schema validation')
   })
 }
+
+test('canonical schema rejects embedded source refs case-insensitively', async () => {
+  const fixture = JSON.parse(await readFile(path.join(repoRoot, validFixture), 'utf8'))
+  const cases = [
+    {
+      label: 'lowercase data source ref',
+      ref: 'data:text/plain;base64,SGk=',
+      mutate(candidate, ref) {
+        candidate.source_refs[0].ref = ref
+      },
+    },
+    {
+      label: 'mixed-case Data source ref',
+      ref: 'Data:text/plain;base64,SGk=',
+      mutate(candidate, ref) {
+        candidate.source_refs[0].ref = ref
+      },
+    },
+    {
+      label: 'lowercase blob source ref',
+      ref: 'blob:https://example.test/resource',
+      mutate(candidate, ref) {
+        candidate.source_refs[0].ref = ref
+      },
+    },
+    {
+      label: 'mixed-case blob node resource ref',
+      ref: 'bLoB:https://example.test/resource',
+      mutate(candidate, ref) {
+        candidate.nodes[0].resource_refs = [{ id: 'embedded', kind: 'asset', ref }]
+      },
+    },
+  ]
+
+  for (const { label, ref, mutate } of cases) {
+    const candidate = JSON.parse(JSON.stringify(fixture))
+    mutate(candidate, ref)
+    const result = validateInstance(candidate)
+    assert.notEqual(result.status, 0, `${label} unexpectedly passed schema validation`)
+  }
+})
 
 test('runtime resolver rejects invalid executable-command and embedded-resource fixtures', async () => {
   const cases = [
