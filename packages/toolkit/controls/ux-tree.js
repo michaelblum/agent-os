@@ -5,16 +5,16 @@ export const CONTROL_UX_TREE_RUNTIME_STATE = 'read_only_shadow';
 const HANDLER_REF_PATTERN = /^[A-Za-z0-9_.:-]+$/;
 const CONTROL_SOURCE_REFS = Object.freeze({
   button: [
-    { kind: 'repo_path', path: 'packages/toolkit/controls/button.js' },
-    { kind: 'repo_path', path: 'packages/toolkit/controls/ux-tree.js' },
+    { id: 'toolkit-controls-button', kind: 'source', ref: 'packages/toolkit/controls/button.js' },
+    { id: 'toolkit-controls-ux-tree', kind: 'source', ref: 'packages/toolkit/controls/ux-tree.js' },
   ],
   toggle: [
-    { kind: 'repo_path', path: 'packages/toolkit/controls/toggle.js' },
-    { kind: 'repo_path', path: 'packages/toolkit/controls/ux-tree.js' },
+    { id: 'toolkit-controls-toggle', kind: 'source', ref: 'packages/toolkit/controls/toggle.js' },
+    { id: 'toolkit-controls-ux-tree', kind: 'source', ref: 'packages/toolkit/controls/ux-tree.js' },
   ],
   buttonGroup: [
-    { kind: 'repo_path', path: 'packages/toolkit/controls/button-group.js' },
-    { kind: 'repo_path', path: 'packages/toolkit/controls/ux-tree.js' },
+    { id: 'toolkit-controls-button-group', kind: 'source', ref: 'packages/toolkit/controls/button-group.js' },
+    { id: 'toolkit-controls-ux-tree', kind: 'source', ref: 'packages/toolkit/controls/ux-tree.js' },
   ],
 });
 

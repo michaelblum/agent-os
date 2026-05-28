@@ -12,6 +12,13 @@ function assertJsonOnly(value) {
   assert.deepEqual(JSON.parse(JSON.stringify(value)), value);
 }
 
+function assertSourceRefs(value, expected) {
+  assert.deepEqual(value.source_refs, [
+    expected,
+    { id: 'toolkit-controls-ux-tree', kind: 'source', ref: 'packages/toolkit/controls/ux-tree.js' },
+  ]);
+}
+
 test('button UX tree fragment describes activation gestures without runtime callbacks', () => {
   const fragment = createButtonUxTreeFragment({
     id: 'save-button',
@@ -23,6 +30,7 @@ test('button UX tree fragment describes activation gestures without runtime call
   });
 
   assert.equal(fragment.validation.ok, true);
+  assertSourceRefs(fragment, { id: 'toolkit-controls-button', kind: 'source', ref: 'packages/toolkit/controls/button.js' });
   assert.equal(fragment.metadata.runtime_state, CONTROL_UX_TREE_RUNTIME_STATE);
   assert.deepEqual(fragment.nodes.map((node) => node.id), ['save-button']);
   assert.equal(fragment.nodes[0].metadata.state.disabled, true);
@@ -47,6 +55,7 @@ test('toggle UX tree fragment describes change gestures and current state as dat
   });
 
   assert.equal(fragment.validation.ok, true);
+  assertSourceRefs(fragment, { id: 'toolkit-controls-toggle', kind: 'source', ref: 'packages/toolkit/controls/toggle.js' });
   assert.equal(fragment.nodes[0].role, 'switch');
   assert.deepEqual(fragment.nodes[0].metadata.state, {
     checked: true,
@@ -75,6 +84,7 @@ test('segmented button group UX tree fragment owns option nodes and maps select/
   });
 
   assert.equal(fragment.validation.ok, true);
+  assertSourceRefs(fragment, { id: 'toolkit-controls-button-group', kind: 'source', ref: 'packages/toolkit/controls/button-group.js' });
   assert.deepEqual(fragment.nodes.map((node) => node.id), [
     'view-mode',
     'view-mode.edit',
