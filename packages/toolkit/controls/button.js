@@ -1,5 +1,6 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
 import { attributeParts, escapeHtml } from './_html.js';
+import { createButtonUxTreeFragment } from './ux-tree.js';
 
 const VARIANTS = new Set(['primary', 'secondary', 'danger', 'ghost']);
 
@@ -40,6 +41,7 @@ export function createButton(config = {}) {
   const doc = ownerDocument(config);
   const hub = createEventHub();
   const el = doc.createElement('button');
+  let currentLabel = '';
   el.type = config.type || 'button';
   el.setAttribute('class', buttonClassName(config));
 
@@ -51,7 +53,8 @@ export function createButton(config = {}) {
   };
 
   const setLabel = (label = '') => {
-    el.textContent = String(label);
+    currentLabel = String(label);
+    el.textContent = currentLabel;
   };
 
   const setDisabled = (disabled = false) => {
@@ -96,6 +99,13 @@ export function createButton(config = {}) {
     el,
     setLabel,
     setDisabled,
+    getUxTreeFragment(options = {}) {
+      return createButtonUxTreeFragment({
+        ...config,
+        label: currentLabel,
+        disabled: !!el.disabled,
+      }, options);
+    },
     on(type, callback) {
       return type === 'click' ? hub.on(type, callback) : () => {};
     },

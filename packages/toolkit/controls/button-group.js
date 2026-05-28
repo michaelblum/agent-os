@@ -1,4 +1,5 @@
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
+import { createButtonGroupUxTreeFragment } from './ux-tree.js';
 
 export function createButtonGroup(config = {}) {
   const doc = ownerDocument(config);
@@ -72,6 +73,13 @@ export function createButtonGroup(config = {}) {
       return value;
     },
     setValue,
+    getUxTreeFragment(fragmentOptions = {}) {
+      return createButtonGroupUxTreeFragment({
+        ...config,
+        options,
+        value,
+      }, fragmentOptions);
+    },
     on(type, callback) {
       return type === 'change' ? hub.on(type, callback) : () => {};
     },
