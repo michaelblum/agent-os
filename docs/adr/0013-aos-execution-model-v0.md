@@ -87,7 +87,8 @@ target control primitive -> capture/evidence block -> reusable capture recipe ->
 
 This ADR does not implement browser capture workflows, Employer Brand
 collection, replay, repair, export, or schema migration. Those need separate
-Workflow-gated slices.
+Workflow-gated slices. The current browser projection note is
+`docs/design/browser-capture-ladder-projection.md`.
 
 ## Consequences
 

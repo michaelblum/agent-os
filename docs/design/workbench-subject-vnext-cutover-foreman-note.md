@@ -48,8 +48,8 @@ The interrupted dirty files appear to be a narrow #281 slice:
 - `packages/toolkit/components/markdown-workbench/model.js`
 - `packages/toolkit/components/playbook-workbench/model.js`
 - `packages/toolkit/components/work-record-workbench/model.js`
-- `packages/toolkit/workbench/browser-playbook-prototype.js`
-- `tests/toolkit/browser-playbook-prototype.test.mjs`
+- `packages/toolkit/workbench/browser-step-descriptor-prototype.js`
+- `tests/toolkit/browser-step-descriptor-prototype.test.mjs`
 - `tests/toolkit/work-record-workbench-model.test.mjs`
 
 Foreman should not assume these are disposable. It should require GDI to

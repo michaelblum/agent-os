@@ -75,7 +75,7 @@ projections rather than taxonomy sources.
 - `shared/schemas/aos-work-record-v0.md`
 - `shared/schemas/aos-work-record-v0.schema.json`
 - `shared/schemas/aos-supervised-run-v0.md`
-- `docs/design/browser-playbook-prototype.md`
+- `docs/design/browser-capture-ladder-projection.md`
 - `docs/design/see-do-grammar-trace-connections.md`
 - `docs/design/employer-brand-comparative-audit-workflow.md` if present
 - `wiki-seed/concepts/employer-brand-workflow-map.md`
@@ -291,7 +291,7 @@ Likely files and areas:
 - `packages/toolkit/workbench/*playbook*`
 - `packages/toolkit/components/playbook-workbench/`
 - `tests/**/*playbook*`
-- `docs/design/browser-playbook-prototype.md`
+- `docs/design/browser-capture-ladder-projection.md`
 - `docs/design/see-do-grammar-trace-connections.md`
 - `wiki-seed/concepts/employer-brand-workflow-map.md`
 - `wiki-seed/plugins/*/SKILL.md` only when taxonomy links are wrong or missing

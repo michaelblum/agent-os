@@ -173,7 +173,7 @@ Cleanup status: the work-record design note now uses `screen:<state-id>/<x,y>`.
 
 | Hit class | Representative evidence | Decision |
 | --- | --- | --- |
-| Live writers | `wiki-subject.js`, `markdown-workbench/model.js`, `work-record-subject.js`, `browser-playbook-prototype.js`, `workflow-subject.js`, `sigil-subject.js`, and `apps/sigil/radial-item-editor/model.js` | Emit high-level `capabilities[]`, dotted `contracts[]`, concrete `facets[]`, `facets[].hosts[]`, and top-level `subject_references[]`; omit `views[]` and `controls[]`. |
+| Live writers | `wiki-subject.js`, `markdown-workbench/model.js`, `work-record-subject.js`, `browser-step-descriptor-prototype.js`, `workflow-subject.js`, `sigil-subject.js`, and `apps/sigil/radial-item-editor/model.js` | Emit high-level `capabilities[]`, dotted `contracts[]`, concrete `facets[]`, `facets[].hosts[]`, and top-level `subject_references[]`; omit `views[]` and `controls[]`. |
 | Live consumers | `wiki-subject-opening.js`, `playbook-workbench/model.js`, and workbench snapshot tests | Derive affordances from `contracts[]`, `facets[]`, and Host entries; do not open from legacy `views[]`/`controls[]`. |
 | Fixture/schema compatibility | `tests/toolkit/workbench-subject.test.mjs` and `tests/schemas/aos-workbench-subject.test.mjs` | Keep one explicit legacy reader boundary for archived descriptors with dotted raw capabilities or `views[]`/`controls[]`; schema marks legacy summaries as deprecated. |
 | Persisted/import boundary | Old helper-shaped Work Record fixtures under `docs/design/fixtures/aos-work-records/` and schema-v0 Work Record fixtures | Preserve Work Record payload adapters; do not emit legacy Workbench Subject summaries from live Work Record Subjects. |

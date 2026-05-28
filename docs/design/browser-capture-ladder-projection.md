@@ -1,13 +1,46 @@
-# Browser Step Descriptor Prototype
+# Browser Capture Ladder Projection
 
-**Status:** first browser-compatible prototype bridge
+**Status:** execution-model projection note plus first browser-compatible prototype bridge
 **Tracked by:** https://github.com/michaelblum/agent-os/issues/274
 
 ## Purpose
 
-This slice proves the browser Step Descriptor path without introducing a general
-Playbook UI, a new public CLI surface, autonomous replay, autonomous repair, or
-the Wiki Subject Browser.
+Browser capture is a downstream capability family on top of the AOS Execution
+Model. It is not a taxonomy root and it does not define the ladder. The current
+shape maps browser work onto the existing model:
+
+```text
+target/app surface
+-> control primitive
+-> observation/capture/evidence block
+-> reusable capture recipe
+-> workflow orchestration with gates/retries
+-> run
+-> work record with evidence/trace
+```
+
+This note defines that projection and records the first browser-compatible Step
+Descriptor prototype without introducing a general Playbook UI, a new public CLI
+surface, autonomous replay, autonomous repair, or the Wiki Subject Browser.
+
+## Projection Shape
+
+| Layer | Browser Capture Projection | Current repo evidence |
+| --- | --- | --- |
+| Target/app surface | Browser Host surface addressed through `browser:<session>` and `browser:<session>/<ref>` target strings. | `CONTEXT.md`, `docs/design/see-do-grammar-trace-connections.md`, browser-compatible workbench subjects. |
+| Control primitive | AOS `see` and `do` primitives over browser targets, with State IDs and Target-with-Ref addresses. | `./aos see capture ... --xray`, `./aos do click ... --state-id ...`, saved AOS action evidence fixtures. |
+| Observation/capture/evidence block | A typed block that captures before/action/after evidence and postconditions without deciding broader orchestration. | `shared/schemas/fixtures/aos-work-record-v0/evidence/aos-browser-click-status.json`, `buildWorkRecordV0FromAosActionEvidence()`. |
+| Reusable capture recipe | A source-backed `aos recipe` manifest that can dry-run and run bounded capture steps once the block shape is ready. | Reserved; current live recipes are under `recipes/` and prove the recipe surface, not website capture. |
+| Workflow orchestration | Gates, retries, human review, branch decisions, evidence quality checks, and optional repair paths around one or more recipes or harness runs. | `aos.step_descriptor`, `runOneStepStepDescriptorHarness()`, workflow gate refs, and report-only verifier checks. |
+| Run | One execution instance of a capture recipe, workflow child, or gated harness. | Step Descriptor harness results and Work Record `origin.run_id`. |
+| Work Record with evidence/trace | Durable receipt containing intent, execution map, claims, postconditions, immutable evidence, verifier output, and health. | `shared/schemas/aos-work-record-v0.md` and `workflow-browser-click-status.json`. |
+
+Existing browser capture work should therefore specialize primitives, blocks,
+recipes, workflows, runs, evidence, and Work Records. It should not add a
+parallel "browser capture" taxonomy or make Employer Brand artifacts the source
+of execution-model terms.
+
+## Current Prototype
 
 The prototype path is:
 
