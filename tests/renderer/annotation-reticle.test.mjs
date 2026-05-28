@@ -11,6 +11,7 @@ import {
   createAnnotationReticleAcquisitionState,
   createAnnotationReticleTargetEvidenceCache,
   createSigilAnnotationReticleController,
+  createSigilAnnotationReticleContextSession,
   recordAnnotationReticleSemanticCandidateIds,
   resolveSigilAnnotationReticleTarget,
   reticleOuterMarginExit,
@@ -95,6 +96,63 @@ test('annotation reticle session enters with sigil radial source and commits bou
   assert.equal(snapshot.camera_available, true)
   assert.equal(snapshot.live_anchor_count, committed.session.anchors.length)
   assert.equal(snapshot.last_committed_event.placement.placement_status, committed.placement.placement_status)
+})
+
+test('annotation reticle commit exposes canonical context session with fallback provenance', () => {
+  let now = Date.parse('2026-05-13T12:00:00.000Z')
+  const controller = createSigilAnnotationReticleController({
+    getDisplays: () => [display],
+    getAvatarPos: () => ({ x: 80, y: 80, valid: true }),
+    getAvatarHitRadius: () => 20,
+    now: () => now,
+  })
+
+  assert.equal(controller.snapshot().context_session, null)
+  assert.equal(controller.requestSnapshotEvent().context_session, null)
+
+  controller.enter({ x: 120, y: 120, valid: true })
+  now += 1000
+  const committed = controller.commitRelease({ x: 220, y: 140, valid: true })
+  const context = committed.context_session
+  const artifact = context.artifacts[0]
+  const leaf = artifact.path.at(-1)
+
+  assert.equal(context.schema, 'aos_context_session')
+  assert.equal(context.entry_source, SIGIL_ANNOTATION_ENTRY_SOURCE)
+  assert.equal(context.source_annotation_session.schema, 'aos_annotation_session')
+  assert.equal(context.source_annotation_session.entry_source, SIGIL_ANNOTATION_ENTRY_SOURCE)
+  assert.deepEqual(
+    context.source_annotation_session.committed_scope_addresses,
+    committed.session.committed_scope_stack.map((subject) => subject.address),
+  )
+  assert.equal(context.artifacts.length, 1)
+  assert.deepEqual(
+    artifact.path.map((node) => node.address),
+    committed.session.committed_scope_stack.map((subject) => subject.address),
+  )
+  assert.equal(artifact.active_target_node_id, leaf.id)
+  assert.equal(artifact.acquisition.mode, SIGIL_ANNOTATION_ENTRY_SOURCE)
+  assert.deepEqual(artifact.acquisition.pointer, {
+    x: 220,
+    y: 140,
+    coordinate_space: 'desktop_world',
+    source_metadata: {},
+  })
+  assert.equal(artifact.acquisition.candidate_report.fallback_reason, 'annotation_candidate_cache_empty')
+  assert.equal(artifact.acquisition.source_metadata.fallback, true)
+  assert.equal(artifact.acquisition.source_metadata.blocker_reason, 'annotation_candidate_cache_empty')
+  assert.equal(artifact.acquisition.source_metadata.root_evidence.display, 'main')
+  assert.equal(artifact.acquisition.source_metadata.placement.placement_status, committed.placement.placement_status)
+  assert.equal(leaf.subject.source_metadata.sigil_fallback, true)
+  assert.equal(leaf.subject.source_metadata.target_source, 'display_fallback')
+  assert.equal(artifact.anchors.every((anchor) => anchor.comment_text === ''), true)
+
+  const snapshot = controller.snapshot()
+  const request = controller.requestSnapshotEvent()
+  assert.equal(snapshot.context_session, context)
+  assert.equal(snapshot.last_committed_event.context_session, context)
+  assert.equal(request.context_session, context)
+  assert.equal(request.anchor_count, committed.session.anchors.length)
 })
 
 test('annotation reticle preview and release prefer shared projectable annotation candidates', () => {
@@ -263,6 +321,73 @@ test('annotation reticle re-enters from the last live parent scope and rejects o
     childAddress,
   ])
   assert.deepEqual(secondCommit.session.anchors.at(-1).scope_path, secondCommit.session.committed_scope_stack.map((subject) => subject.address))
+
+  const context = secondCommit.context_session
+  const artifact = context.artifacts[0]
+  assert.equal(context.schema, 'aos_context_session')
+  assert.deepEqual(
+    artifact.path.map((node) => node.address),
+    secondCommit.session.committed_scope_stack.map((subject) => subject.address),
+  )
+  assert.deepEqual(artifact.path.map((node) => node.subject.subject.id), ['main:root', 'native-window-1', 'ax-inside'])
+  assert.equal(artifact.active_target_node_id, artifact.path.at(-1).id)
+  assert.equal(artifact.acquisition.selected_node_id, artifact.path.at(-1).id)
+  assert.equal(artifact.acquisition.candidate_report.selected.id, 'ax-inside')
+  assert.equal(artifact.acquisition.source_metadata.fallback, false)
+  assert.deepEqual(
+    artifact.anchors.map((anchor) => anchor.address),
+    secondCommit.session.anchors.map((anchor) => anchor.address),
+  )
+})
+
+test('Sigil reticle context adapter preserves compatible anchor comments', () => {
+  const session = {
+    active: false,
+    entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
+    root: {
+      adapter_id: 'sigil-display-reticle-v0',
+      root_id: 'main',
+      subject_id: 'main:root',
+      subject_path: ['display', 'main', 'root'],
+      subject_kind: 'root',
+      role: 'root',
+      label: 'Main display',
+      projection: {
+        adapter_id: 'sigil-display-reticle-v0',
+        subject_id: 'main:root',
+        subject_kind: 'root',
+        current_render_status: 'visible',
+        display_space_rect: { x: 0, y: 0, w: 400, h: 300 },
+        visible_display_rect: { x: 0, y: 0, w: 400, h: 300 },
+      },
+    },
+    committed_scope_stack: [],
+    anchors: [],
+    updated_at: '2026-05-13T12:00:00.000Z',
+  }
+  session.committed_scope_stack = [session.root]
+  session.anchors = [{
+    id: 'anchor:main-root',
+    address: 'subject:sigil-display-reticle-v0:main:display:main:root:main:root',
+    subject: session.root,
+    status: 'live',
+    comment_text: 'Keep this display frame.',
+    projection: session.root.projection,
+    updated_at: '2026-05-13T12:00:00.000Z',
+  }]
+
+  const context = createSigilAnnotationReticleContextSession({
+    type: 'sigil.annotation_reticle.commit',
+    committed_at: '2026-05-13T12:00:01.000Z',
+    release_point: { x: 10, y: 20, valid: true },
+    decision_report: { selected: { id: 'main-root' } },
+    session,
+  })
+  const artifact = context.artifacts[0]
+
+  assert.equal(artifact.path[0].comments[0].text, 'Keep this display frame.')
+  assert.equal(artifact.anchors[0].comment_text, 'Keep this display frame.')
+  assert.equal(artifact.anchors[0].source_annotation_anchor_id, 'anchor:main-root')
 })
 
 test('annotation reticle imports neutral annotation candidate helpers', () => {

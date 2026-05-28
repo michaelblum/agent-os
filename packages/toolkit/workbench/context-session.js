@@ -84,9 +84,18 @@ function blockerFromProjection(projection = null, explicit = undefined) {
 }
 
 export function normalizeContextPathNode(node = {}, options = {}) {
-  const subjectInput = node.subject?.address || node.subject?.adapter_id
-    ? node.subject
-    : (node.address_record || node.subject || node)
+  const contextSubject = node.subject?.address || node.subject?.adapter_id ? node.subject : null
+  const topLevelSubject = !contextSubject && (
+    node.adapter_id || node.root_id || node.subject_id || node.projection || node.source_metadata
+  )
+    ? { ...node }
+    : null
+  if (topLevelSubject && node.subject?.id && !node.subject_id) delete topLevelSubject.id
+  const subjectInput = node.address_record
+    || contextSubject
+    || (topLevelSubject
+      ? topLevelSubject
+      : (node.subject?.address || node.subject?.adapter_id ? node.subject : node.subject || node))
   const subject = normalizeAnnotationSubjectAddress(subjectInput)
   const address = text(node.address || subject?.address, stableId('subject', [node.id || options.index]))
   const id = text(node.id, stableId('node', [address]))
