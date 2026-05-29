@@ -100,6 +100,39 @@ function resolveAvatarPointerSource(rendererState = null) {
     };
 }
 
+function resolveAvatarPointerEffects(rendererState = null) {
+    const colors = rendererState?.colors || {};
+    const auraPrimary = colors.aura?.[0] || colors.face?.[0] || '#bc13fe';
+    const auraSecondary = colors.aura?.[1] || colors.edge?.[0] || auraPrimary;
+    const phenomena = rendererState?.phenomena || {};
+    const enabledFamilies = [];
+    if (rendererState?.isPulsarEnabled || phenomena.pulsar?.enabled) enabledFamilies.push('pulsar');
+    if (rendererState?.isAccretionEnabled || phenomena.accretion?.enabled) enabledFamilies.push('accretion');
+    if (rendererState?.isGammaEnabled || phenomena.gamma?.enabled) enabledFamilies.push('gamma');
+    if (rendererState?.isNeutrinosEnabled || phenomena.neutrino?.enabled) enabledFamilies.push('neutrino');
+    if (rendererState?.isLightningEnabled || rendererState?.lightning?.enabled) enabledFamilies.push('lightning');
+    if (rendererState?.isMagneticEnabled || rendererState?.magnetic?.enabled) enabledFamilies.push('magnetic');
+    return {
+        source: CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
+        appearance_source: CURRENT_LIVE_SIGIL_AVATAR_SOURCE,
+        rendered_pointer_families: rendererState?.isAuraEnabled === false ? [] : ['aura_glow', 'aura_core'],
+        inherited_descriptor_families: enabledFamilies,
+        aura: {
+            enabled: rendererState?.isAuraEnabled !== false,
+            primary: auraPrimary,
+            secondary: auraSecondary,
+            reach: Number(rendererState?.auraReach ?? 1),
+            intensity: Number(rendererState?.auraIntensity ?? 1),
+            pulseRate: Number(rendererState?.auraPulseRate ?? 0.005),
+            wobbleCount: Number(rendererState?.wobbleCount ?? 0),
+        },
+        pointer_scale_boundary: [
+            'aura glow/core render in the Selection Mode pointer harness',
+            'large avatar-only phenomena remain inherited descriptors until they have pointer-scale adapters',
+        ],
+    };
+}
+
 export function buildSelectionModeVisualStyle(rendererState = null) {
     const colors = rendererState?.colors || {};
     const primaryColor = colors.face?.[0] || colors.edge?.[0] || colors.aura?.[0] || '#5efcd2';
@@ -211,6 +244,7 @@ export function selectionModeOverlayHasActiveEffects(overlay = {}, nowMs = Date.
 export function buildSelectionModeCursorGlyph(cursor = null, rendererState = null) {
     if (!cursor) return null;
     const avatar = resolveAvatarPointerSource(rendererState);
+    const avatarEffects = resolveAvatarPointerEffects(rendererState);
     const length = 44;
     const base = length / Math.sqrt(3);
     return {
@@ -220,6 +254,7 @@ export function buildSelectionModeCursorGlyph(cursor = null, rendererState = nul
         appearance_source: avatar.appearance_source,
         material_source: avatar.material_source,
         effects_source: avatar.effects_source,
+        avatar_effects: avatarEffects,
         shape: 'avatar_derived_triangular_pointer',
         point: cursor,
         hotspot: {

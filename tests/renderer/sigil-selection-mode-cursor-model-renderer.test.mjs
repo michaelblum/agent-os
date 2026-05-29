@@ -116,9 +116,17 @@ class FakeMesh extends FakeObject3D {
   }
 }
 
+class FakeSprite extends FakeObject3D {
+  constructor(material) {
+    super()
+    this.material = material
+  }
+}
+
 const FakeTHREE = {
   Group: FakeObject3D,
   Mesh: FakeMesh,
+  Sprite: FakeSprite,
   LineSegments: FakeMesh,
   BufferGeometry: FakeBufferGeometry,
   Float32BufferAttribute: class {
@@ -128,6 +136,7 @@ const FakeTHREE = {
     }
   },
   MeshPhongMaterial: FakeMaterial,
+  SpriteMaterial: FakeMaterial,
   LineBasicMaterial: FakeMaterial,
   EdgesGeometry: class {
     constructor(geometry) {
@@ -141,6 +150,7 @@ const FakeTHREE = {
   },
   Vector3: FakeVector3,
   DoubleSide: 'DoubleSide',
+  AdditiveBlending: 'AdditiveBlending',
 }
 
 function avatarSource({
@@ -148,15 +158,39 @@ function avatarSource({
   primaryMaterial = new FakeMaterial({ name: 'avatar-core', color: '#112233', opacity: 0.55 }),
   edgeMaterial = new FakeMaterial({ name: 'avatar-edge', color: '#778899', opacity: 0.8 }),
   skin = 'none',
+  colors = {
+    face: ['#bc13fe', '#4a2b6e'],
+    edge: ['#bc13fe', '#4a2b6e'],
+    aura: ['#bc13fe', '#2a1b3d'],
+  },
+  auraDescriptor = {
+    enabled: true,
+    reach: 1.2,
+    intensity: 1.4,
+    pulseRate: 0.006,
+    wobble: { count: 1 },
+  },
+  phenomenaDescriptor = {},
+  trailDescriptor = {},
 } = {}) {
   return {
     appearanceSource: 'current_live_sigil_avatar',
     materialSource: 'current_avatar_render_model',
+    effectsSource: 'current_avatar_effect_descriptors',
     version,
     geometryType: 20,
     skin,
     primaryMaterial,
     edgeMaterial,
+    colors,
+    colorRamp: {
+      face: colors.face,
+      edge: colors.edge,
+      aura: colors.aura,
+    },
+    auraDescriptor,
+    phenomenaDescriptor,
+    trailDescriptor,
   }
 }
 
@@ -333,6 +367,98 @@ test('Selection Mode pointer derives materials from the live avatar render sourc
   assert.equal(core.material.copiedFrom, secondCore)
   assert.equal(edge.material.copiedFrom, secondEdge)
   assert.equal(primary.userData.skin, 'plasma')
+})
+
+test('Selection Mode pointer renders current avatar aura/effect descriptors at pointer scale', () => {
+  let source = avatarSource({
+    version: 'effects:v1',
+    colors: {
+      face: ['#112233', '#445566'],
+      edge: ['#778899', '#aabbcc'],
+      aura: ['#ddeeff', '#001122'],
+    },
+    auraDescriptor: {
+      enabled: true,
+      reach: 1.7,
+      intensity: 1.4,
+      pulseRate: 0.006,
+      wobble: { count: 3 },
+    },
+    phenomenaDescriptor: {
+      pulsar: { enabled: true, count: 4 },
+    },
+  })
+  const renderer = createSelectionModeCursorModelRenderer({
+    scene: { add() {}, remove() {} },
+    THREE: FakeTHREE,
+    projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
+    projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => source,
+  })
+
+  const firstSnapshot = renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12 })
+  const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
+  const spin = primary.children.find((child) => child.name.endsWith('.spin'))
+  const effects = primary.children.find((child) => child.name.endsWith('.effects'))
+  const core = spin.children[0]
+  const glow = effects.children.find((child) => child.name.endsWith('.glow'))
+  const auraCore = effects.children.find((child) => child.name.endsWith('.core'))
+
+  assert.equal(firstSnapshot.effects_source, 'current_avatar_effect_descriptors')
+  assert.deepEqual(firstSnapshot.effect_families, ['aura_glow', 'pulsar'])
+  assert.deepEqual(firstSnapshot.pointer_effects.rendered, ['aura_glow', 'aura_core'])
+  assert.equal(firstSnapshot.pointer_effects.aura.primary, '#ddeeff')
+  assert.equal(firstSnapshot.pointer_effects.aura.reach, 1.7)
+  assert.equal(firstSnapshot.resolved_visual.primary, '#112233')
+  assert.equal(core.geometry.userData.vertex_color_source, 'current_avatar_color_ramp')
+  assert.deepEqual(core.geometry.userData.vertex_color_pair, ['#112233', '#445566'])
+  assert.equal(glow.material.color, '#ddeeff')
+  assert.equal(auraCore.material.color, '#001122')
+  assert.equal(effects.visible, true)
+
+  const warmMaterials = firstSnapshot.resource_counts.materials_created
+  renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12.016 })
+  assert.equal(renderer.snapshot().resource_counts.materials_created, warmMaterials)
+
+  source = avatarSource({
+    version: 'effects:v2',
+    colors: {
+      face: ['#224466', '#6688aa'],
+      edge: ['#99aabb', '#ccddee'],
+      aura: ['#ff00aa', '#440022'],
+    },
+    auraDescriptor: {
+      enabled: true,
+      reach: 2.1,
+      intensity: 1.8,
+      pulseRate: 0.008,
+      wobble: { count: 2 },
+    },
+  })
+  const changedSnapshot = renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12.032 })
+
+  assert.equal(changedSnapshot.pointer_effects.aura.primary, '#ff00aa')
+  assert.equal(changedSnapshot.resolved_visual.primary, '#224466')
+  assert.equal(glow.material.color, '#ff00aa')
+})
+
+test('Selection Mode pointer caps and softens avatar-derived trail echoes', () => {
+  const renderer = createSelectionModeCursorModelRenderer({
+    scene: { add() {}, remove() {} },
+    THREE: FakeTHREE,
+    projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
+    projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => avatarSource(),
+  })
+
+  const snapshot = renderer.update(modelOverlay({ repeatCount: 14 }), { time: 12 })
+  const trails = renderer.root.children.filter((child) => String(child.userData.object_id || '').startsWith('selection-mode.cursor.trail-model'))
+
+  assert.equal(snapshot.requested_trail_count, 14)
+  assert.equal(snapshot.trail_count, 8)
+  assert.equal(snapshot.trail_policy.max_visible_instances, 8)
+  assert.equal(trails.length, 8)
+  assert.ok(trails.every((trail) => trail.children.find((child) => child.name.endsWith('.effects'))))
 })
 
 test('Selection Mode pointer locks root orientation and animates only the screen-plane z axis', () => {

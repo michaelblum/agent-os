@@ -433,7 +433,7 @@ test('Selection Mode badge click retargets while preserving original acquisition
   assert.notDeepEqual(liveState.selectionMode.cursor, acquiredPointer)
 })
 
-test('Selection Mode cursor model inherits avatar color, aura, trail, and rotation fields', () => {
+test('Selection Mode cursor model exposes current avatar effect descriptors, trail, and rotation fields', () => {
   const path = [
     candidate('display-root', { x: 0, y: 0, w: 800, h: 600 }, { kind: 'display', role: 'display', label: 'Display' }),
     candidate('leaf', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
@@ -460,14 +460,30 @@ test('Selection Mode cursor model inherits avatar color, aura, trail, and rotati
       trailFadeMs: 640,
       auraReach: 1.7,
       auraIntensity: 1.4,
+      isPulsarEnabled: true,
+      pulsarRayCount: 4,
     },
   })
 
   assert.equal(overlay.cursorGlyph.source, 'avatar_render_state')
   assert.equal(overlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
   assert.equal(overlay.cursorGlyph.material_source, 'current_avatar_render_model')
+  assert.equal(overlay.cursorGlyph.effects_source, 'current_avatar_effect_descriptors')
   assert.equal(overlay.cursorGlyph.color, undefined)
   assert.equal(overlay.cursorGlyph.aura, undefined)
+  assert.equal(overlay.cursorGlyph.avatar_effects.source, 'current_avatar_effect_descriptors')
+  assert.equal(overlay.cursorGlyph.avatar_effects.appearance_source, 'current_live_sigil_avatar')
+  assert.deepEqual(overlay.cursorGlyph.avatar_effects.rendered_pointer_families, ['aura_glow', 'aura_core'])
+  assert.deepEqual(overlay.cursorGlyph.avatar_effects.inherited_descriptor_families, ['pulsar'])
+  assert.deepEqual(overlay.cursorGlyph.avatar_effects.aura, {
+    enabled: true,
+    primary: '#778899',
+    secondary: '#aabbcc',
+    reach: 1.7,
+    intensity: 1.4,
+    pulseRate: 0.005,
+    wobbleCount: 0,
+  })
   assert.equal(overlay.cursorGlyph.trail.style, 'line')
   assert.equal(overlay.cursorGlyph.trail.count, 12)
   assert.equal(overlay.cursorGlyph.trail.opacity, 0.7)

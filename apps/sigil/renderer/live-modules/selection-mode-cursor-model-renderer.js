@@ -2,6 +2,8 @@ const CURSOR_MODEL_ROOT_ID = 'selection-mode.cursor.model-root';
 const CURSOR_MODEL_OBJECT_ID = 'selection-mode.cursor.sigil-model';
 const CURSOR_TRAIL_OBJECT_ID = 'selection-mode.cursor.trail-model';
 const AVATAR_ROOT_OBJECT_ID = 'avatar.main';
+const CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE = 'current_avatar_effect_descriptors';
+const MAX_POINTER_TRAIL_INSTANCES = 8;
 
 function finite(value, fallback = 0) {
     const n = Number(value);
@@ -109,6 +111,110 @@ function cloneMaterial(material) {
     return { ...material };
 }
 
+function hexToRgb(value = '') {
+    let hex = String(value || '').trim().replace(/^#/, '');
+    if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.split('').map((entry) => `${entry}${entry}`).join('');
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return null;
+    return {
+        r: parseInt(hex.slice(0, 2), 16) / 255,
+        g: parseInt(hex.slice(2, 4), 16) / 255,
+        b: parseInt(hex.slice(4, 6), 16) / 255,
+    };
+}
+
+function colorPair(colors = [], fallback = ['#bc13fe', '#4a2b6e']) {
+    const first = String(colors?.[0] || fallback[0] || '#bc13fe');
+    const second = String(colors?.[1] || colors?.[0] || fallback[1] || first);
+    return [first, second];
+}
+
+function avatarColorPair(source = {}, key = 'face', fallback = ['#bc13fe', '#4a2b6e']) {
+    return colorPair(source.colorRamp?.[key] || source.colors?.[key] || [], fallback);
+}
+
+function setMaterialColor(target, value) {
+    if (!target || !value) return;
+    if (target.color?.set) {
+        target.color.set(value);
+    } else if (target.color?.copy && globalThis.THREE?.Color) {
+        target.color.copy(new globalThis.THREE.Color(value));
+    } else {
+        target.color = value;
+    }
+}
+
+function setMaterialEmissive(target, value) {
+    if (!target || !value) return;
+    if (target.emissive?.set) {
+        target.emissive.set(value);
+    } else if ('emissive' in target) {
+        target.emissive = value;
+    }
+}
+
+function applyGeometryGradient(THREE, geometry, colors = []) {
+    const attr = geometry?.attributes?.position;
+    const values = attr?.array;
+    const itemSize = Number(attr?.itemSize) || 3;
+    if (!geometry?.setAttribute || !values || itemSize < 3 || typeof THREE?.Float32BufferAttribute !== 'function') return false;
+    const [first, second] = colorPair(colors);
+    const rgbA = hexToRgb(first);
+    const rgbB = hexToRgb(second) || rgbA;
+    if (!rgbA || !rgbB) return false;
+    const count = Math.floor(values.length / itemSize);
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < count; i += 1) {
+        const y = Number(values[(i * itemSize) + 1]);
+        if (!Number.isFinite(y)) continue;
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+    }
+    const span = Math.max(0.0001, maxY - minY);
+    const result = new Float32Array(count * 3);
+    for (let i = 0; i < count; i += 1) {
+        const y = Number(values[(i * itemSize) + 1]);
+        const t = clamp((y - minY) / span, 0, 1);
+        result[(i * 3)] = rgbA.r + ((rgbB.r - rgbA.r) * t);
+        result[(i * 3) + 1] = rgbA.g + ((rgbB.g - rgbA.g) * t);
+        result[(i * 3) + 2] = rgbA.b + ((rgbB.b - rgbA.b) * t);
+    }
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(result, 3));
+    geometry.userData = {
+        ...geometry.userData,
+        vertex_color_source: 'current_avatar_color_ramp',
+        vertex_color_pair: [first, second],
+    };
+    return true;
+}
+
+function applyAvatarMaterialVisuals(instance, avatarSource = {}) {
+    const nextIdentity = pointerVisualIdentity(avatarSource);
+    const visualIdentityUnchanged = sameIdentity(instance.group?.userData?.visual_identity, nextIdentity);
+    const face = avatarColorPair(avatarSource, 'face');
+    const edge = avatarColorPair(avatarSource, 'edge', face);
+    const aura = avatarColorPair(avatarSource, 'aura', edge);
+    if (!visualIdentityUnchanged) {
+        applyGeometryGradient(instance.THREE || globalThis.THREE || {}, instance.geometry, face);
+        instance.group.userData.visual_identity = nextIdentity;
+    }
+    if (instance.core?.material) {
+        instance.core.material.vertexColors = true;
+        setMaterialColor(instance.core.material, face[0]);
+        setMaterialEmissive(instance.core.material, aura[0]);
+    }
+    if (instance.edges?.material) {
+        setMaterialColor(instance.edges.material, edge[0]);
+    }
+    instance.group.userData.resolved_visual = {
+        source: 'current_avatar_color_ramp',
+        primary: face[0],
+        edge: edge[0],
+        aura: aura[0],
+        all_black_guard: !/^#?0{6}$/i.test(String(face[0] || '')),
+    };
+}
+
 function copyMaterial(source, target) {
     if (!source || !target) return;
     if (typeof target.copy === 'function') {
@@ -156,6 +262,130 @@ function sameIdentity(a = [], b = []) {
     return a.length === b.length && a.every((entry, index) => entry === b[index]);
 }
 
+function pointerEffectIdentity(source = {}) {
+    const aura = source.auraDescriptor || {};
+    return [
+        source.effectsSource || source.effects_source || CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
+        source.identity || source.version,
+        aura.enabled,
+        aura.reach,
+        aura.intensity,
+        aura.pulseRate,
+        aura.wobble?.count,
+        avatarColorPair(source, 'aura').join(':'),
+    ];
+}
+
+function pointerVisualIdentity(source = {}) {
+    return [
+        source.identity || source.version,
+        avatarColorPair(source, 'face').join(':'),
+        avatarColorPair(source, 'edge').join(':'),
+        avatarColorPair(source, 'aura').join(':'),
+    ];
+}
+
+function createEffectSprite(THREE, name, options = {}) {
+    const Material = THREE.SpriteMaterial || THREE.MeshBasicMaterial || THREE.MeshPhongMaterial || THREE.LineBasicMaterial;
+    const material = Material ? new Material(options) : { ...options };
+    const object = typeof THREE.Sprite === 'function' ? new THREE.Sprite(material) : new THREE.Group();
+    object.name = name;
+    object.material = object.material || material;
+    object.userData = {
+        kind: 'selection_mode_pointer_effect',
+        effect_family: name.endsWith('.glow') ? 'aura_glow' : 'aura_core',
+    };
+    return object;
+}
+
+function createPointerEffectObjects(THREE, objectId, trail = false, stats = null) {
+    const group = new THREE.Group();
+    group.name = `${objectId}.effects`;
+    group.userData = {
+        source: CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
+        adapter: 'selection_mode_pointer_scale_effects',
+        pointer_scale_boundary: [
+            'aura glow/core are rendered at pointer scale',
+            'large avatar-only phenomena remain inherited descriptors unless explicitly adapted',
+        ],
+    };
+    const glow = createEffectSprite(THREE, `${objectId}.effects.glow`, {
+        color: '#bc13fe',
+        transparent: true,
+        opacity: trail ? 0.08 : 0.28,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+    });
+    const core = createEffectSprite(THREE, `${objectId}.effects.core`, {
+        color: '#bc13fe',
+        transparent: true,
+        opacity: trail ? 0.05 : 0.18,
+        depthWrite: false,
+        depthTest: true,
+        blending: THREE.AdditiveBlending,
+    });
+    if (glow.scale?.set) glow.scale.set(2.6, 2.6, 1);
+    if (core.scale?.set) core.scale.set(1.18, 1.18, 1);
+    if (group.position?.set) group.position.set(0.74, -0.74, -0.18);
+    group.add(glow);
+    group.add(core);
+    if (stats) {
+        stats.effect_groups_created += 1;
+        stats.materials_created += 2;
+    }
+    return { group, glow, core, effect_identity: [] };
+}
+
+function applyAvatarEffectsToInstance(instance, avatarSource = null) {
+    if (!instance?.effects || !avatarSource) return;
+    const aura = avatarSource.auraDescriptor || {};
+    const identity = pointerEffectIdentity(avatarSource);
+    const [auraPrimary, auraSecondary] = avatarColorPair(avatarSource, 'aura');
+    const enabled = aura.enabled !== false;
+    const intensity = clamp(finite(aura.intensity, 1), 0, 4);
+    const reach = clamp(finite(aura.reach, 1), 0.1, 4);
+    const trailMultiplier = instance.trail ? 0.34 : 1;
+    if (!sameIdentity(instance.effects.effect_identity, identity)) {
+        setMaterialColor(instance.effects.glow?.material, auraPrimary);
+        setMaterialColor(instance.effects.core?.material, auraSecondary || auraPrimary);
+        instance.effects.effect_identity = identity;
+    }
+    instance.effects.group.visible = enabled;
+    if (instance.effects.glow?.material) {
+        instance.effects.glow.material.opacity = enabled ? clamp(0.22 * intensity * trailMultiplier, 0.02, instance.trail ? 0.12 : 0.38) : 0;
+        instance.effects.glow.material.transparent = true;
+    }
+    if (instance.effects.core?.material) {
+        instance.effects.core.material.opacity = enabled ? clamp(0.13 * intensity * trailMultiplier, 0.01, instance.trail ? 0.08 : 0.24) : 0;
+        instance.effects.core.material.transparent = true;
+    }
+    const glowScale = (instance.trail ? 1.55 : 2.6) * reach;
+    const coreScale = (instance.trail ? 0.74 : 1.18) * Math.max(0.5, Math.sqrt(reach));
+    if (instance.effects.glow?.scale?.set) instance.effects.glow.scale.set(glowScale, glowScale, 1);
+    if (instance.effects.core?.scale?.set) instance.effects.core.scale.set(coreScale, coreScale, 1);
+    const phenomena = avatarSource.phenomenaDescriptor || {};
+    const enabledFamilies = ['pulsar', 'accretion', 'gamma', 'neutrino']
+        .filter((key) => phenomena[key]?.enabled === true && finite(phenomena[key]?.count, 0) > 0);
+    if (avatarSource.lightningDescriptor?.enabled) enabledFamilies.push('lightning');
+    if (avatarSource.magneticDescriptor?.enabled || avatarSource.magneticDescriptor?.fieldEnabled) enabledFamilies.push('magnetic');
+    instance.group.userData.effects_source = avatarSource.effectsSource || avatarSource.effects_source || CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE;
+    instance.group.userData.effect_families = enabled ? ['aura_glow', ...enabledFamilies] : enabledFamilies;
+    instance.group.userData.pointer_effects = {
+        source: instance.group.userData.effects_source,
+        rendered: enabled ? ['aura_glow', 'aura_core'] : [],
+        inherited_descriptors: enabledFamilies,
+        aura: {
+            enabled,
+            reach,
+            intensity,
+            primary: auraPrimary,
+            secondary: auraSecondary,
+        },
+        pointer_scale_boundary: instance.effects.group.userData.pointer_scale_boundary,
+    };
+}
+
 function createModelInstance(THREE, {
     objectId,
     trail = false,
@@ -185,6 +415,7 @@ function createModelInstance(THREE, {
         edgeGeometry,
         edgeMaterial,
     );
+    const effects = createPointerEffectObjects(THREE, objectId, trail, stats);
     core.name = `${objectId}.core`;
     edges.name = `${objectId}.edges`;
     spin.name = `${objectId}.spin`;
@@ -205,13 +436,18 @@ function createModelInstance(THREE, {
         trail,
     };
     group.userData.material_source = avatarSource?.materialSource || 'live_avatar_materials';
+    group.userData.effects_source = avatarSource?.effectsSource || avatarSource?.effects_source || CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE;
     group.userData.cursor_overrides = ['geometry', 'orientation', 'hotspot', 'scale', 'visibility', 'single_axis_rotation'];
     group.userData.material_identity = sourceIdentity;
+    group.userData.effect_identity = pointerEffectIdentity(avatarSource);
     spin.add(core);
     spin.add(edges);
     group.add(spin);
+    group.add(effects.group);
     group.visible = false;
-    return { group, spin, core, edges, geometry, trail };
+    applyAvatarMaterialVisuals({ group, core, edges, geometry, THREE }, avatarSource || {});
+    applyAvatarEffectsToInstance({ group, effects, trail }, avatarSource || {});
+    return { group, spin, core, edges, effects, geometry, trail, THREE };
 }
 
 function setInstanceOpacity(instance, alpha, fill = true) {
@@ -242,6 +478,8 @@ function applyAvatarSourceToInstance(instance, avatarSource = null, stats = null
     const edgeTemplate = avatarSource.edgeMaterialTemplate || avatarSource.edgeMaterial;
     copyMaterial(coreTemplate, instance.core?.material);
     copyMaterial(edgeTemplate, instance.edges?.material);
+    applyAvatarMaterialVisuals(instance, avatarSource);
+    applyAvatarEffectsToInstance(instance, avatarSource);
     instance.group.userData.appearance_source = avatarSource.appearanceSource || 'current_live_sigil_avatar';
     instance.group.userData.material_source = avatarSource.materialSource || 'live_avatar_materials';
     instance.group.userData.skin = avatarSource.skin || '';
@@ -333,6 +571,7 @@ export function createSelectionModeCursorModelRenderer({
         root_groups_created: 1,
         model_instances_created: 0,
         trail_instances_created: 0,
+        effect_groups_created: 0,
         geometries_created: 0,
         materials_created: 0,
         scene_adds: 0,
@@ -450,7 +689,8 @@ export function createSelectionModeCursorModelRenderer({
         const geometry = glyph.geometry || {};
         const length = Math.max(8, finite(geometry.length, 44));
         const trail = overlay.cursorTrail?.timing || overlay.cursorTrail || {};
-        const repeatCount = clamp(Math.round(finite(trail.repeatCount, 0)), 0, 24);
+        const requestedRepeatCount = clamp(Math.round(finite(trail.repeatCount, 0)), 0, 24);
+        const repeatCount = Math.min(requestedRepeatCount, MAX_POINTER_TRAIL_INSTANCES);
         const duration = Math.max(0.05, finite(trail.duration, 0.22));
         const delay = Math.max(0, finite(trail.delay, 0));
         const lag = clamp(finite(trail.lag, 0.05), 0.01, 0.5);
@@ -488,10 +728,10 @@ export function createSelectionModeCursorModelRenderer({
             const progress = i / Math.max(1, repeatCount);
             const mode = String(trail.trailMode || 'fade');
             const alpha = mode === 'hold'
-                ? 0.18 + (0.25 * (1 - progress))
-                : Math.max(0.04, 0.38 * (1 - progress));
+                ? 0.08 + (0.12 * (1 - progress))
+                : Math.max(0.025, 0.18 * (1 - progress));
             updateInstance(instance, scenePointFor(sample), {
-                scale: baseScale * Math.max(0.36, trailScale * (0.58 + (1 - progress) * 0.2)),
+                scale: baseScale * Math.max(0.28, trailScale * (0.42 + (1 - progress) * 0.12)),
                 alpha,
                 phase: phase - i * 0.16,
                 fill: false,
@@ -516,10 +756,20 @@ export function createSelectionModeCursorModelRenderer({
             object_id: model.group.userData.object_id,
             hotspot: glyph.hotspot || null,
             hotspot_aligned: hotspotAligned,
+            effects_source: model.group.userData.effects_source || '',
+            pointer_effects: model.group.userData.pointer_effects || null,
+            effect_families: model.group.userData.effect_families || [],
+            resolved_visual: model.group.userData.resolved_visual || null,
             scene_position: primaryPoint
                 ? { x: finite(primaryPoint.x), y: finite(primaryPoint.y), z: finite(primaryPoint.z) }
                 : null,
             trail_count: repeatCount,
+            requested_trail_count: requestedRepeatCount,
+            trail_policy: {
+                source: 'selection_mode_pointer_trail_policy',
+                max_visible_instances: MAX_POINTER_TRAIL_INSTANCES,
+                opacity: 'subtle_avatar_derived_echo',
+            },
             resource_counts: resourceCounts(),
             object_counts: objectCounts(),
         };
