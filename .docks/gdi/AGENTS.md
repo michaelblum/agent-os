@@ -182,14 +182,13 @@ For this deterministic TCC stall, the final GDI chat tail must include the
 helper's human-action block without relying on memory:
 
 ```text
-human_needed: repo-mode AOS permission repair
+human_needed: TCC reset needed
 
 Human action:
-1. Complete the macOS System Settings permission step for the repo-mode aos
-   runtime.
-2. If macOS does not prompt or the grant remains stale, physically remove and
-   re-add the repo-mode aos runtime in Accessibility/Input Monitoring, then
-   enable it.
+1. Open macOS System Settings -> Privacy & Security.
+2. Physically remove and re-add the repo-mode AOS runtime in Accessibility,
+   Input Monitoring, and Screen & System Audio Recording if the grant is stale
+   or missing.
 3. Return to the GDI session, or the next turn for that same session, and say:
    finished.
 4. Do not start a new goal for the same work.

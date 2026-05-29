@@ -362,7 +362,6 @@ message = payload.get("systemMessage", "")
 for required in (
     "GDI stopped for repo-mode AOS permission repair.",
     "./aos permissions reset-runtime --mode repo",
-    "./aos permissions setup --once",
     "Accessibility/Input Monitoring",
     "finished",
     "./aos ready --post-permission",
@@ -634,9 +633,9 @@ if payload.get("continue") is not False:
 message = payload.get("systemMessage", "")
 for required in (
     "goal_pause_required: repo-mode AOS permission repair",
+    "rebuilt the repo-mode AOS binary",
     "/goal pause",
     "./aos permissions reset-runtime --mode repo",
-    "./aos permissions setup --once",
     "./aos ready --post-permission",
     "finished",
     "Do not run ./aos dev build again after the human return",
@@ -688,11 +687,6 @@ if payload != {"continue": True}:
 PY
 grep -q '^POST_TOOL_AOS:permissions reset-runtime --mode repo$' "$post_tool_log" || {
   echo "FAIL: successful dev build hook should reset repo runtime permissions after build" >&2
-  cat "$post_tool_log" >&2
-  exit 1
-}
-grep -q '^POST_TOOL_AOS:permissions setup --once$' "$post_tool_log" || {
-  echo "FAIL: successful dev build hook should request repo runtime permission setup after reset" >&2
   cat "$post_tool_log" >&2
   exit 1
 }
@@ -760,25 +754,18 @@ if payload.get("continue") is not False:
     raise SystemExit(f"FAIL: non-GDI dev-build post-tool hook should stop the current turn, got {payload}")
 message = payload.get("systemMessage", "")
 for required in (
-    "stop: user action needed",
-    "./aos dev build completed successfully",
-    "./aos permissions setup --once",
+    "goal_pause_required: repo-mode AOS permission repair",
+    "rebuilt the repo-mode AOS binary",
+    "./aos permissions reset-runtime --mode repo",
     "./aos ready --post-permission",
     "finished",
     "Do not run readiness, repair, status, or helper loops",
 ):
     if required not in message:
         raise SystemExit(f"FAIL: non-GDI post-tool message missing {required!r}: {message!r}")
-if "/goal pause" in message or "/goal resume" in message:
-    raise SystemExit(f"FAIL: non-GDI post-tool message should not include goal-mode commands: {message!r}")
 PY
 grep -q '^POST_TOOL_AOS:permissions reset-runtime --mode repo$' "$post_tool_log" || {
   echo "FAIL: non-GDI successful dev build hook should reset repo runtime permissions after build" >&2
-  cat "$post_tool_log" >&2
-  exit 1
-}
-grep -q '^POST_TOOL_AOS:permissions setup --once$' "$post_tool_log" || {
-  echo "FAIL: non-GDI successful dev build hook should request repo runtime permission setup after reset" >&2
   cat "$post_tool_log" >&2
   exit 1
 }
@@ -802,7 +789,7 @@ message = payload.get("systemMessage", "")
 if "GDI stopped for repo-mode AOS permission repair." not in message:
     raise SystemExit(f"FAIL: post-tool marker should feed Stop TCC notice, got {payload}")
 for required in (
-    "./aos dev build already completed successfully",
+    "repo-mode ./aos binary was rebuilt successfully",
     "Do not run ./aos dev build again",
     "./aos ready --post-permission",
     "continue with the next planned step after the completed build",
@@ -907,9 +894,8 @@ import sys
 
 text = sys.argv[1]
 for required in (
-    "human_needed: repo-mode AOS permission repair",
+    "human_needed: TCC reset needed",
     "./aos permissions reset-runtime --mode repo",
-    "./aos permissions setup --once",
     "Grant the requested macOS Accessibility/Input Monitoring permission",
     "say: finished",
     "./aos ready --post-permission",

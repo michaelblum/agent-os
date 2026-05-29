@@ -146,7 +146,6 @@ fi
 
 aos_bin="${AOS_DOCK_AOS_BIN:-$REPO_ROOT/aos}"
 "$aos_bin" permissions reset-runtime --mode repo >/dev/null 2>&1 || true
-"$aos_bin" permissions setup --once >/dev/null 2>&1 || true
 "$REPO_ROOT/.docks/harness/stop-condition.sh" write "$REPO_ROOT" "$dock" tcc_permission_reset 600
 "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" write "$REPO_ROOT" "$dock" 3600
 "$REPO_ROOT/.docks/harness/goal-pause-control.sh" request "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
@@ -154,28 +153,7 @@ aos_bin="${AOS_DOCK_AOS_BIN:-$REPO_ROOT/aos}"
   "$REPO_ROOT/.docks/harness/human-needed-surface.sh" show "$REPO_ROOT" "$dock" tcc_permission_reset >/dev/null 2>&1 || true
 ) >/dev/null 2>&1 &
 
-if [[ "$dock" == "gdi" ]]; then
-  message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" post_tool_system_message)"
-else
-  message="stop: user action needed
-
-./aos dev build completed successfully, and repo runtime reset/setup were requested.
-Stop now. Do not run readiness, repair, status, or helper loops before stopping.
-
-The hook has already requested:
-1. ./aos permissions reset-runtime --mode repo
-2. ./aos permissions setup --once
-
-Human action:
-1. Complete the macOS System Settings permission step for the repo-mode AOS runtime.
-2. If macOS does not prompt or the grant remains stale, physically remove and re-add the repo-mode aos runtime in Accessibility/Input Monitoring, then enable it.
-3. Return to this waiting session, or the next turn for this same session, and say: finished
-
-After the human says finished, run exactly:
-./aos ready --post-permission
-
-If that reports ready=true, continue with the next planned step after the completed build. Do not restart from the build step."
-fi
+message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" post_tool_system_message)"
 python3 - "$message" <<'PY'
 import json
 import sys
