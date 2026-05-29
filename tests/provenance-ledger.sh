@@ -37,6 +37,12 @@ else
   fail "unknown sensitive command hook write failed"
 fi
 
+if record_payload '{"session_id":"s1","cmd":"bash tests/dev-workflow-router.sh --token super-secret","exit_code":0}'; then
+  pass "allowlisted-looking command with a secret argument records as redacted metadata"
+else
+  fail "allowlisted-looking command with a secret argument hook write failed"
+fi
+
 if AOS_PROVENANCE_EVENT_BYTES=32 record_payload '{"cmd":"./aos dev recommend --json --files scripts/aos-dev-workflow.mjs","stdout":"this output is deliberately large enough to exceed the tiny cap"}'; then
   pass "over-limit payload records a bounded diagnostic"
 else
@@ -65,19 +71,40 @@ else
   fail "summary output did not match expected provenance accounting"
 fi
 
-if OUT="$(./aos dev provenance audit --dock gdi --state-root "$STATE_ROOT" --runtime-mode repo --files scripts/aos-dev-workflow.mjs --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos dev provenance audit --dock gdi --state-root "$STATE_ROOT" --runtime-mode repo --files scripts/aos-dev-workflow.mjs --json 2>/dev/null)"; then
+  fail "audit with missing recommendations and bypass signals should exit non-zero"
+elif OUT="$OUT" python3 - <<'PY'
 import json, os
 data = json.loads(os.environ["OUT"])
-assert data["status"] == "success", data
+assert data["status"] == "failed", data
+assert data["compliance_status"] == "non_compliant", data
+assert "missing_recommended_commands" in data["compliance_failures"], data
+assert "lower_level_bypass_signals" in data["compliance_failures"], data
 assert "scripts/aos-dev-workflow.mjs" in data["changed_files"], data
 assert "bash tests/dev-workflow-router.sh" in data["observed_matching_commands"], data
 assert data["missing_recommended_commands"], data
 assert data["bypass_signals"].get("direct-daemon-curl") == 1, data
 PY
 then
-  pass "audit compares recommended versus observed commands deterministically"
+  pass "audit fails deterministically for missing recommendations and bypass signals"
 else
-  fail "audit did not compare recommendations and observations as expected"
+  fail "audit failure output did not include expected compliance evidence"
+fi
+
+if OUT="$(./aos dev provenance record --dock gdi --state-root "$STATE_ROOT" --runtime-mode repo --json --not-real value 2>&1 >/dev/null)"; then
+  fail "record should reject unknown flags"
+elif echo "$OUT" | grep -q '"code": "UNKNOWN_FLAG"'; then
+  pass "record rejects unknown flags"
+else
+  fail "record unknown flag error mismatch: $OUT"
+fi
+
+if OUT="$(./aos dev provenance summary unexpected --dock gdi --state-root "$STATE_ROOT" --runtime-mode repo --json 2>&1 >/dev/null)"; then
+  fail "summary should reject unexpected positional arguments"
+elif echo "$OUT" | grep -q '"code": "UNKNOWN_ARG"'; then
+  pass "summary rejects unexpected positional arguments"
+else
+  fail "summary positional argument error mismatch: $OUT"
 fi
 
 TELEMETRY="$STATE_ROOT/codex-rollout.jsonl"
@@ -141,10 +168,29 @@ else
   fail "prune apply did not succeed"
 fi
 
+if OUT="$(./aos dev provenance summary --dock gdi --state-root "$STATE_ROOT" --runtime-mode repo --json 2>/dev/null)" python3 - <<'PY'
+import json, os
+data = json.loads(os.environ["OUT"])
+assert data["retained_summary_count"] >= 1, data
+assert data["event_count"] >= data["raw_event_count"], data
+assert any(item.get("summary") == "bash tests/dev-workflow-router.sh" for item in data["commands"]), data
+PY
+then
+  pass "summary reads retained daily summaries after raw event pruning"
+else
+  fail "summary did not use retained daily summaries after pruning"
+fi
+
 if grep -R "secret-value" "$STATE_ROOT" >/dev/null 2>&1; then
   fail "ledger persisted sensitive raw command text"
 else
   pass "ledger did not persist sensitive raw command text"
+fi
+
+if grep -R "super-secret" "$STATE_ROOT" >/dev/null 2>&1; then
+  fail "ledger persisted secret from allowlisted-looking command"
+else
+  pass "allowlisted-looking command did not persist secret argument"
 fi
 
 echo

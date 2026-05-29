@@ -15,19 +15,7 @@ const RAW_CAP_BYTES = intEnv('AOS_PROVENANCE_RAW_CAP_BYTES', 32 * 1024 * 1024);
 const SUMMARY_RETENTION_DAYS = intEnv('AOS_PROVENANCE_SUMMARY_RETENTION_DAYS', 90);
 const SUMMARY_CAP_BYTES = intEnv('AOS_PROVENANCE_SUMMARY_CAP_BYTES', 16 * 1024 * 1024);
 
-const ALLOWLIST_PREFIXES = [
-  './aos dev recommend',
-  './aos dev classify',
-  './aos dev audit',
-  './aos dev provenance',
-  './aos ready',
-  './aos dev build',
-  'node --test ',
-  'bash tests/',
-  'git diff --check',
-  'cd packages/host && npm test',
-  'cd packages/gateway && npm test',
-];
+const SECRET_ARG_PATTERN = /(?:token|secret|password|passwd|credential|api[-_]?key|auth|bearer)/i;
 
 const BYPASS_PATTERNS = [
   { id: 'direct-daemon-curl', pattern: /\bcurl\b.*(?:localhost|127\.0\.0\.1).*(?:daemon|sock|api|ipc)/i },
@@ -53,14 +41,39 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-function parseArgs(args) {
+const PARSER_POLICY = {
+  record: {
+    value: new Set(['--phase', '--dock', '--repo', '--payload-file', '--state-root', '--runtime-mode']),
+    bool: new Set(['--json']),
+    files: false,
+  },
+  summary: {
+    value: new Set(['--dock', '--repo', '--state-root', '--runtime-mode', '--telemetry-file', '--telemetry-provider', '--session-id']),
+    bool: new Set(['--json']),
+    files: false,
+  },
+  audit: {
+    value: new Set(['--dock', '--repo', '--state-root', '--runtime-mode', '--telemetry-file', '--telemetry-provider', '--session-id', '--manifest', '--base']),
+    bool: new Set(['--json']),
+    files: true,
+  },
+  prune: {
+    value: new Set(['--dock', '--repo', '--state-root', '--runtime-mode']),
+    bool: new Set(['--json', '--apply', '--dry-run']),
+    files: false,
+  },
+};
+
+function parseArgs(command, args) {
+  const policy = PARSER_POLICY[command];
+  if (!policy) error(`Unknown provenance command: ${command || ''}`, 'UNKNOWN_SUBCOMMAND');
   const out = { _: [] };
   for (let i = 0; i < args.length;) {
     const arg = args[i];
-    if (arg === '--json' || arg === '--apply' || arg === '--dry-run') {
+    if (policy.bool.has(arg)) {
       out[arg.slice(2).replaceAll('-', '_')] = true;
       i += 1;
-    } else if (arg === '--files') {
+    } else if (arg === '--files' && policy.files) {
       out.files = [];
       i += 1;
       while (i < args.length && !args[i].startsWith('--')) {
@@ -68,13 +81,14 @@ function parseArgs(args) {
         i += 1;
       }
       if (!out.files.length) error('--files requires at least one path', 'MISSING_ARG');
-    } else if (arg.startsWith('--')) {
+    } else if (policy.value.has(arg)) {
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) error(`${arg} requires a value`, 'MISSING_ARG');
       out[arg.slice(2).replaceAll('-', '_')] = args[i + 1];
       i += 2;
+    } else if (arg.startsWith('--')) {
+      error(`Unknown provenance flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
-      out._.push(arg);
-      i += 1;
+      error(`Unknown provenance argument: ${arg}`, 'UNKNOWN_ARG');
     }
   }
   return out;
@@ -230,10 +244,69 @@ function commandKind(normalized) {
 
 function allowedSummary(normalized) {
   if (normalized.length > COMMAND_MAX_CHARS) return null;
-  for (const prefix of ALLOWLIST_PREFIXES) {
-    if (normalized === prefix.trim() || normalized.startsWith(prefix)) return normalized;
-  }
+  if (SECRET_ARG_PATTERN.test(normalized)) return null;
+  const parts = splitShell(normalized);
+  if (!parts.length) return null;
+  if (parts[0] === 'bash' && parts.length === 2 && /^tests\/[A-Za-z0-9._/-]+\.sh$/.test(parts[1])) return normalized;
+  if (parts[0] === 'node' && parts[1] === '--test' && parts.length >= 3 && parts.slice(2).every(isSafeTestPath)) return normalized;
+  if (parts.join(' ') === 'git diff --check') return normalized;
+  if (parts.length === 5 && parts[0] === 'cd' && ['packages/host', 'packages/gateway'].includes(parts[1]) && parts[2] === '&&' && parts[3] === 'npm' && parts[4] === 'test') return normalized;
+  if (isAosCommand(parts)) return normalized;
   return null;
+}
+
+function splitShell(command) {
+  const parts = [];
+  let current = '';
+  let quote = '';
+  let escaped = false;
+  for (const ch of String(command)) {
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === '\\' && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote) {
+      if (ch === quote) quote = '';
+      else current += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (current) {
+        parts.push(current);
+        current = '';
+      }
+      continue;
+    }
+    current += ch;
+  }
+  if (current) parts.push(current);
+  return quote ? [] : parts;
+}
+
+function isSafeTestPath(value) {
+  return /^tests\/[A-Za-z0-9._/*-]+(?:\.mjs|\.js|\.ts|\.sh)?$/.test(value) && !value.includes('..') && !SECRET_ARG_PATTERN.test(value);
+}
+
+function isSafePathArg(value) {
+  return /^[A-Za-z0-9._/@:+,=-]+$/.test(value) && !value.includes('..') && !SECRET_ARG_PATTERN.test(value);
+}
+
+function isAosCommand(parts) {
+  if (parts[0] !== './aos' && parts[0] !== 'aos') return false;
+  if (parts[1] === 'ready') return parts.slice(2).every((part) => part === '--post-permission');
+  if (parts[1] !== 'dev') return false;
+  if (parts[2] === 'build') return parts.length === 3;
+  if (!['recommend', 'classify', 'audit', 'provenance'].includes(parts[2])) return false;
+  return parts.slice(3).every((part) => part.startsWith('--') || isSafePathArg(part));
 }
 
 function commandRecord(command, repoRoot) {
@@ -408,16 +481,14 @@ function appendEvent(event, options) {
   const file = eventPath(event, options);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, `${JSON.stringify(event)}\n`);
-  updateDailySummary(event, summaryPath(event, options));
 }
 
-function updateDailySummary(event, file) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  let summary = {
+function emptyDailySummary(date, dock, observedAt) {
+  return {
     type: 'aos.dock.provenance.daily_summary',
     schema_version: SCHEMA_VERSION,
-    date: dateKey(event.observed_at),
-    dock: event.dock,
+    date,
+    dock,
     events: 0,
     command_counts: {},
     command_kind_counts: {},
@@ -425,11 +496,11 @@ function updateDailySummary(event, file) {
     diagnostics: {},
     bypass_signals: {},
     token_telemetry: { available: 0, unknown: 0 },
-    updated_at: event.observed_at,
+    updated_at: observedAt,
   };
-  try {
-    summary = { ...summary, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
-  } catch {}
+}
+
+function addEventToDailySummary(summary, event) {
   summary.events += 1;
   summary.updated_at = event.observed_at;
   if (event.command) {
@@ -446,7 +517,36 @@ function updateDailySummary(event, file) {
   }
   if (event.token_telemetry?.status === 'available') summary.token_telemetry.available += 1;
   else summary.token_telemetry.unknown += 1;
-  fs.writeFileSync(file, `${JSON.stringify(summary, null, 2)}\n`);
+  return summary;
+}
+
+function buildDailySummary(events, date, dock) {
+  const summary = emptyDailySummary(date, dock, events.at(-1)?.observed_at || `${date}T00:00:00.000Z`);
+  for (const event of events) addEventToDailySummary(summary, event);
+  return summary;
+}
+
+function writeDailySummary(summary, options) {
+  const file = path.join(dockDir(options), 'summaries', `${summary.date}.json`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(summary, null, 2)}\n`);
+  fs.renameSync(tmp, file);
+}
+
+function materializeSummariesForEvents(options) {
+  const docksRoot = path.join(baseDir(options), 'docks');
+  const docks = options.dock
+    ? [sanitizeName(options.dock)]
+    : fs.existsSync(docksRoot)
+      ? fs.readdirSync(docksRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+      : [sanitizeName(options.dock || 'unknown')];
+  for (const dock of docks) {
+    const dockOptions = { ...options, dock };
+    for (const [date, events] of readRawEventsByDate(dockOptions)) {
+      writeDailySummary(buildDailySummary(events, date, sanitizeName(events[0]?.dock || dock)), dockOptions);
+    }
+  }
 }
 
 function retentionSettings() {
@@ -485,6 +585,29 @@ function readEvents(options) {
   return events;
 }
 
+function readRawEventsByDate(options) {
+  const byDate = new Map();
+  for (const event of readEvents(options)) {
+    const date = dateKey(event.observed_at);
+    if (!byDate.has(date)) byDate.set(date, []);
+    byDate.get(date).push(event);
+  }
+  return byDate;
+}
+
+function readDailySummaries(options) {
+  const root = path.join(dockDir(options), 'summaries');
+  const summaries = [];
+  if (!fs.existsSync(root)) return summaries;
+  for (const file of listFiles(root).filter((item) => item.endsWith('.json')).sort()) {
+    try {
+      const summary = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (summary?.type === 'aos.dock.provenance.daily_summary') summaries.push(summary);
+    } catch {}
+  }
+  return summaries;
+}
+
 function listFiles(root) {
   const out = [];
   if (!fs.existsSync(root)) return out;
@@ -496,7 +619,26 @@ function listFiles(root) {
   return out;
 }
 
-function summarizeEvents(events, options) {
+function commandSummaryEntry(commands, key, patch) {
+  if (!commands.has(key)) {
+    commands.set(key, {
+      summary: patch.summary,
+      hash: patch.hash,
+      kind: patch.kind || 'unknown',
+      redacted: patch.redacted ?? !patch.summary,
+      count: 0,
+      successes: 0,
+      failures: 0,
+      source: patch.source,
+    });
+  }
+  return commands.get(key);
+}
+
+function summarizeLedger(options) {
+  const rawByDate = readRawEventsByDate(options);
+  const events = [...rawByDate.values()].flat();
+  const retainedSummaries = readDailySummaries(options).filter((summary) => !rawByDate.has(summary.date));
   const commands = new Map();
   const failed = [];
   const bypass = {};
@@ -504,18 +646,13 @@ function summarizeEvents(events, options) {
   for (const event of events) {
     if (event.command) {
       const key = event.command.summary || event.command.hash;
-      if (!commands.has(key)) {
-        commands.set(key, {
-          summary: event.command.summary,
-          hash: event.command.hash,
-          kind: event.command.kind,
-          redacted: event.command.redacted,
-          count: 0,
-          successes: 0,
-          failures: 0,
-        });
-      }
-      const item = commands.get(key);
+      const item = commandSummaryEntry(commands, key, {
+        summary: event.command.summary,
+        hash: event.command.hash,
+        kind: event.command.kind,
+        redacted: event.command.redacted,
+        source: 'raw_events',
+      });
       item.count += 1;
       if (event.success === false) item.failures += 1;
       else if (event.success === true) item.successes += 1;
@@ -523,6 +660,21 @@ function summarizeEvents(events, options) {
       for (const signal of event.command.bypass_signals || []) bypass[signal] = (bypass[signal] || 0) + 1;
     }
     if (event.diagnostic?.code) diagnostics[event.diagnostic.code] = (diagnostics[event.diagnostic.code] || 0) + 1;
+  }
+  for (const daily of retainedSummaries) {
+    for (const [key, count] of Object.entries(daily.command_counts || {})) {
+      const isHash = key.startsWith('sha256:');
+      const item = commandSummaryEntry(commands, key, {
+        summary: isHash ? undefined : key,
+        hash: isHash ? key : undefined,
+        redacted: isHash,
+        source: 'daily_summary',
+      });
+      item.count += count;
+    }
+    if (daily.failed_commands) failed.push({ source: 'daily_summary', date: daily.date, count: daily.failed_commands });
+    for (const [key, count] of Object.entries(daily.bypass_signals || {})) bypass[key] = (bypass[key] || 0) + count;
+    for (const [key, count] of Object.entries(daily.diagnostics || {})) diagnostics[key] = (diagnostics[key] || 0) + count;
   }
   return {
     status: 'success',
@@ -532,7 +684,9 @@ function summarizeEvents(events, options) {
     runtime_mode: runtimeMode(options),
     dock: sanitizeName(options.dock || 'unknown'),
     retention: retentionSettings(),
-    event_count: events.length,
+    event_count: events.length + retainedSummaries.reduce((sum, item) => sum + item.events, 0),
+    raw_event_count: events.length,
+    retained_summary_count: retainedSummaries.length,
     command_count: [...commands.values()].reduce((sum, item) => sum + item.count, 0),
     commands: [...commands.values()].sort((a, b) => (a.summary || a.hash).localeCompare(b.summary || b.hash)),
     failed_commands: failed,
@@ -540,7 +694,7 @@ function summarizeEvents(events, options) {
     diagnostics,
     omitted: {
       possible_due_to_retention: true,
-      reason: 'summary reads retained ledger partitions only',
+      reason: 'summary reads raw events first and retained daily summaries only for dates with no raw partition',
     },
   };
 }
@@ -710,8 +864,7 @@ function buildRecommendation(options) {
 }
 
 function audit(options) {
-  const events = readEvents(options);
-  const summary = summarizeEvents(events, options);
+  const summary = summarizeLedger(options);
   const recommendation = buildRecommendation(options);
   const recommended = [
     ...(recommendation.next_commands || []),
@@ -723,8 +876,16 @@ function audit(options) {
   const missing = recommendedCommands.filter((command) => !observedSet.has(command));
   const observedMatching = observed.filter((command) => recommendedCommands.includes(command));
   const extras = observed.filter((command) => !recommendedCommands.includes(command));
+  const complianceFailures = [];
+  if (recommendation.status !== 'success') complianceFailures.push('recommendation_failed');
+  if (missing.length) complianceFailures.push('missing_recommended_commands');
+  if (summary.failed_commands.length) complianceFailures.push('observed_command_failures');
+  if (Object.keys(summary.bypass_signals).length) complianceFailures.push('lower_level_bypass_signals');
+  const complianceStatus = complianceFailures.length ? 'non_compliant' : 'compliant';
   return {
-    status: recommendation.status === 'success' ? 'success' : 'failed',
+    status: complianceStatus === 'compliant' ? 'success' : 'failed',
+    compliance_status: complianceStatus,
+    compliance_failures: complianceFailures,
     subject: 'dock-provenance-audit',
     repo: path.resolve(options.repo || process.cwd()),
     dock: sanitizeName(options.dock || 'unknown'),
@@ -749,6 +910,7 @@ function cutoffDate(days, now) {
 }
 
 function prunePlan(options) {
+  materializeSummariesForEvents(options);
   const root = baseDir(options);
   const now = isoNow(options);
   const files = listFiles(root).map((file) => {
@@ -800,7 +962,7 @@ function applyPrune(plan, options) {
 
 function main() {
   const [command, ...rest] = process.argv.slice(2);
-  const options = parseArgs(rest);
+  const options = parseArgs(command, rest);
   if (command === 'record') {
     try {
       const raw = readPayload(options);
@@ -813,7 +975,7 @@ function main() {
     return;
   }
   if (command === 'summary') {
-    const payload = summarizeEvents(readEvents(options), options);
+    const payload = summarizeLedger(options);
     payload.token_telemetry = telemetryFromFile(options.telemetry_file, options.telemetry_provider || 'codex', options);
     options.json ? printJSON(payload) : process.stdout.write(`provenance summary: ${payload.event_count} events\n`);
     return;
