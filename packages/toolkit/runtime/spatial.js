@@ -270,6 +270,60 @@ function rectCenter(rect) {
   }
 }
 
+function rectToAt(rect) {
+  return rect ? [rect.x, rect.y, rect.w, rect.h] : null
+}
+
+function rectsEqual(a, b, epsilon = 0.001) {
+  if (!a || !b) return false
+  return Math.abs(a.x - b.x) <= epsilon
+    && Math.abs(a.y - b.y) <= epsilon
+    && Math.abs(a.w - b.w) <= epsilon
+    && Math.abs(a.h - b.h) <= epsilon
+}
+
+function normalizeCoordinateSpace(value = '') {
+  const space = String(value || '').trim().toLowerCase()
+  if (!space) return ''
+  if (space === 'desktopworld') return 'desktop_world'
+  if (space === 'native' || space === 'screen' || space === 'native_desktop' || space === 'global_cg') return 'native_display'
+  return space
+}
+
+function isDesktopWorldSpace(value = '') {
+  return normalizeCoordinateSpace(value) === 'desktop_world'
+}
+
+function isNativeDisplaySpace(value = '') {
+  return normalizeCoordinateSpace(value) === 'native_display'
+}
+
+function canvasFrameCoordinateSpace(canvas = {}, field = 'at') {
+  if (!canvas || typeof canvas !== 'object') return ''
+  if (field === 'atResolved') {
+    return normalizeCoordinateSpace(
+      canvas.atResolvedCoordinateSpace
+        ?? canvas.at_resolved_coordinate_space
+        ?? canvas.resolvedCoordinateSpace
+        ?? canvas.resolved_coordinate_space
+        ?? canvas.frame_coordinate_spaces?.atResolved
+        ?? canvas.frame_coordinate_spaces?.at_resolved
+        ?? canvas.coordinate_spaces?.atResolved
+        ?? canvas.coordinate_spaces?.at_resolved,
+    )
+  }
+  return normalizeCoordinateSpace(
+    canvas.atCoordinateSpace
+      ?? canvas.at_coordinate_space
+      ?? canvas.frameCoordinateSpace
+      ?? canvas.frame_coordinate_space
+      ?? canvas.coordinateSpace
+      ?? canvas.coordinate_space
+      ?? canvas.frame_coordinate_spaces?.at
+      ?? canvas.coordinate_spaces?.at,
+  )
+}
+
 function displayForNativeRect(rect, displays = []) {
   if (!rect) return null
   const point = rectCenter(rect)
@@ -478,6 +532,114 @@ export function resolveCanvasFrames(list = []) {
   }))
 }
 
+export function normalizeCanvasFrameToDesktopWorld(canvas = {}, displaysOrNativeDesktopBounds = []) {
+  const at = rectFromAt(canvas?.at)
+  const atResolved = rectFromAt(canvas?.atResolved)
+  const atSpace = canvasFrameCoordinateSpace(canvas, 'at')
+  const resolvedSpace = canvasFrameCoordinateSpace(canvas, 'atResolved')
+  const nativeAtWorld = at
+    ? (isDesktopWorldSpace(atSpace) ? at : nativeToDesktopWorldRect(at, displaysOrNativeDesktopBounds))
+    : null
+
+  function result(rect, metadata = {}) {
+    if (!rect) return null
+    return {
+      rect,
+      at: rectToAt(rect),
+      coordinate_space: 'desktop_world',
+      ...metadata,
+    }
+  }
+
+  if (atResolved) {
+    if (isDesktopWorldSpace(resolvedSpace)) {
+      return result(atResolved, {
+        source_frame: 'atResolved',
+        source_coordinate_space: 'desktop_world',
+        source_rect: atResolved,
+      })
+    }
+    if (isNativeDisplaySpace(resolvedSpace)) {
+      return result(nativeToDesktopWorldRect(atResolved, displaysOrNativeDesktopBounds), {
+        source_frame: 'atResolved',
+        source_coordinate_space: 'native_display',
+        native_rect: atResolved,
+        source_rect: atResolved,
+      })
+    }
+    if (nativeAtWorld && rectsEqual(atResolved, nativeAtWorld)) {
+      return result(atResolved, {
+        source_frame: 'atResolved',
+        source_coordinate_space: 'desktop_world',
+        source_rect: atResolved,
+        native_rect: at,
+        inference: 'atResolved_matches_projected_at',
+      })
+    }
+    if (nativeAtWorld && at && rectsEqual(atResolved, at)) {
+      return result(nativeAtWorld, {
+        source_frame: 'atResolved',
+        source_coordinate_space: isDesktopWorldSpace(atSpace) ? 'desktop_world' : 'native_display',
+        native_rect: isDesktopWorldSpace(atSpace) ? null : atResolved,
+        source_rect: atResolved,
+        inference: 'atResolved_duplicates_at',
+      })
+    }
+    if (!at && Array.isArray(displaysOrNativeDesktopBounds)
+        && findContainingDisplayForRect(atResolved, displaysOrNativeDesktopBounds, { rectKey: 'bounds' })
+        && !findContainingDisplayForRect(atResolved, displaysOrNativeDesktopBounds, { rectKey: 'nativeBounds' })) {
+      return result(atResolved, {
+        source_frame: 'atResolved',
+        source_coordinate_space: 'desktop_world',
+        source_rect: atResolved,
+        inference: 'atResolved_only_fits_desktop_world',
+      })
+    }
+    if (nativeAtWorld) {
+      return result(nativeAtWorld, {
+        source_frame: 'at',
+        source_coordinate_space: isDesktopWorldSpace(atSpace) ? 'desktop_world' : 'native_display',
+        native_rect: isDesktopWorldSpace(atSpace) ? null : at,
+        source_rect: at,
+        ignored_frame: 'atResolved',
+        ambiguity: {
+          frame: 'atResolved',
+          reason: 'missing_or_unknown_coordinate_space',
+          rect: atResolved,
+        },
+      })
+    }
+    return null
+  }
+
+  if (!at) return null
+  if (isDesktopWorldSpace(atSpace)) {
+    return result(at, {
+      source_frame: 'at',
+      source_coordinate_space: 'desktop_world',
+      source_rect: at,
+    })
+  }
+  return result(nativeToDesktopWorldRect(at, displaysOrNativeDesktopBounds), {
+    source_frame: 'at',
+    source_coordinate_space: 'native_display',
+    native_rect: at,
+    source_rect: at,
+  })
+}
+
+export function canvasLocalRectToDesktopWorld(canvas = {}, localRect = null, displaysOrNativeDesktopBounds = []) {
+  const frame = normalizeCanvasFrameToDesktopWorld(canvas, displaysOrNativeDesktopBounds)
+  const rect = normalizeRect(localRect)
+  if (!frame?.rect || !rect || rect.w <= 0 || rect.h <= 0) return null
+  return {
+    x: frame.rect.x + rect.x,
+    y: frame.rect.y + rect.y,
+    w: rect.w,
+    h: rect.h,
+  }
+}
+
 export function computeMinimapLayout(displays, canvases, mapW, {
   selfId = 'surface-inspector',
   border = 1,
@@ -535,8 +697,9 @@ export function computeMinimapLayout(displays, canvases, mapW, {
       visibleH: Math.max(1, Math.round(display.visibleBounds.h * scale)),
     })),
     canvases: resolvedCanvases.flatMap((canvas) => {
-      const nativeRect = rectFromAt(canvas.atResolved ?? canvas.at)
-      const rect = nativeToDesktopWorldRect(nativeRect, normalizedDisplays) ?? nativeToDesktopWorldRect(nativeRect, nativeDesktopBounds)
+      const frame = normalizeCanvasFrameToDesktopWorld(canvas, normalizedDisplays)
+        ?? normalizeCanvasFrameToDesktopWorld(canvas, nativeDesktopBounds)
+      const rect = frame?.rect
       if (!rect) return []
       return [{
         canvas,

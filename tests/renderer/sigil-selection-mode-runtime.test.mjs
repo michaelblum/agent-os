@@ -5,6 +5,11 @@ import {
   createSigilSelectionModeRuntime,
   resolveSigilAvatarIdleRotation,
 } from '../../apps/sigil/renderer/live-modules/selection-mode-runtime.js'
+import {
+  canvasLocalRectToDesktopWorld,
+  normalizeCanvasFrameToDesktopWorld,
+  normalizeDisplays,
+} from '../../packages/toolkit/runtime/spatial.js'
 
 const display = {
   id: 'display-1',
@@ -165,6 +170,55 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   assert.equal(liveState.selectionMode.active, false)
   assert.equal(activeContexts[0].source, 'selection_mode')
   assert.equal(activeContexts[0].contextSession.id, committed.id)
+})
+
+test('Selection Mode overlay aligns semantic targets from normalized DesktopWorld canvas frames', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'left',
+      bounds: { x: -207, y: 0, w: 207, h: 900 },
+      visible_bounds: { x: -207, y: 0, w: 207, h: 900 },
+    },
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+    },
+  ])
+  const canvas = {
+    id: 'target-canvas',
+    at: [120, 120, 360, 260],
+    atResolved: [327, 120, 360, 260],
+    at_resolved_coordinate_space: 'desktop_world',
+  }
+  const canvasFrame = normalizeCanvasFrameToDesktopWorld(canvas, displays)
+  const semanticRect = canvasLocalRectToDesktopWorld(canvas, { x: 24, y: 36, w: 90, h: 44 }, displays)
+  assert.deepEqual(canvasFrame.rect, { x: 327, y: 120, w: 360, h: 260 })
+  assert.deepEqual(semanticRect, { x: 351, y: 156, w: 90, h: 44 })
+
+  const surfaceCandidate = candidate('target-canvas', canvasFrame.rect, { kind: 'canvas_window', label: 'Canvas' })
+  const semanticCandidate = candidate('target-button', semanticRect, { kind: 'button', role: 'button', label: 'Save' })
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 370, y: 170, valid: true },
+    selected_node_id: 'target-button',
+    context_session: {
+      artifacts: [{
+        path: [surfaceCandidate, semanticCandidate],
+        active_target_node_id: 'target-button',
+        acquisition: { leaf_node_id: 'target-button', pointer: { x: 370, y: 170, valid: true } },
+      }],
+    },
+  }, {
+    projectPoint: (point) => point,
+    overlayBounds: { x: 0, y: 0, w: 1512, h: 982 },
+  })
+
+  assert.deepEqual(overlay.frames.map((frame) => frame.rect), [
+    { x: 327, y: 120, width: 360, height: 260 },
+    { x: 351, y: 156, width: 90, height: 44 },
+  ])
 })
 
 test('Selection Mode badge ladder chooses visible diagonal directions near corners', () => {

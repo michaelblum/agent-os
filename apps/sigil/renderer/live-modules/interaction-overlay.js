@@ -99,6 +99,10 @@ function drawSelectionCursorModel(ctx, glyph = {}, {
     ctx.restore();
 }
 
+export function selectionCursorShouldUseCanvasProjection(glyph = null) {
+    return !!glyph && glyph.model_kind !== 'sigil_model';
+}
+
 function trailPointForAge(history = [], ageSeconds = 0, fallback = null) {
     if (!history.length) return fallback;
     const targetTime = history.at(-1).time - ageSeconds;
@@ -315,7 +319,7 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
         drawSelectionBadge(ctx, badge, styles);
     }
 
-    if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) && glyph) {
+    if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) && selectionCursorShouldUseCanvasProjection(glyph)) {
         for (let i = repeatCount; i >= 1; i -= 1) {
             const age = delay + (duration * lag * i);
             const sample = trailPointForAge(trailHistory, age, cursor);

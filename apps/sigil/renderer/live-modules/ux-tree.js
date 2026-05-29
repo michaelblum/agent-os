@@ -410,6 +410,7 @@ function settingsFor(radialMenu, state = {}) {
         visual_overlays: {
             selection_mode: {
                 cursor: cloneJson(state.selectionModeOverlay?.cursor || null),
+                cursor_model: cloneJson(state.selectionModeCursorModel || null),
                 ancestor_badges: cloneJson(state.selectionModeOverlay?.badges || []),
             },
             annotation_reticle: cloneJson(state.annotationReticleOverlay || null),

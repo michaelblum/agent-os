@@ -34,6 +34,8 @@ import {
     nativeToDesktopWorldPoint,
     nativeToDesktopWorldRect,
     normalizeDisplays,
+    normalizeCanvasFrameToDesktopWorld,
+    canvasLocalRectToDesktopWorld,
 } from './display-utils.js';
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
@@ -66,6 +68,7 @@ import {
     resolveSigilAvatarIdleRotation,
     selectionModeOverlayHasActiveEffects,
 } from './selection-mode-runtime.js';
+import { createSelectionModeCursorModelRenderer } from './selection-mode-cursor-model-renderer.js';
 import {
     createDefaultActiveContextState,
     createDefaultContextRecordingState,
@@ -173,6 +176,7 @@ const liveJs = {
     annotationReticle: null,
     selectionMode: createDefaultSelectionModeState(),
     selectionModeOverlay: null,
+    selectionModeCursorModel: null,
     uxCommandRuntime: {
         lastExecution: null,
         executedCount: 0,
@@ -264,6 +268,7 @@ const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
 const IDLE_AVATAR_MOTION_FRAME_DELAY_MS = 33;
 let structuralFrameDirty = true;
 let radialGestureVisuals = null;
+let selectionModeCursorModelRenderer = null;
 let lastRenderPerformanceFrameAt = null;
 let lastRenderPerformanceSampleAt = 0;
 const sessionVitality = createSessionVitalityController({
@@ -1345,12 +1350,11 @@ async function openWikiWorkbench(path = WIKI_WORKBENCH_DEFAULT_PATH, activation 
     return { canvas, message };
 }
 
-function projectAvatarToScene(screenX, screenY, yOffset = 0) {
-    const local = desktopWorldToSegmentLocalPoint({ x: screenX, y: screenY }) ?? { x: screenX, y: screenY };
+function projectStageLocalToScene(localX, localY, yOffset = 0) {
     const vec = new THREE.Vector3();
     vec.set(
-        (local.x / window.innerWidth) * 2 - 1,
-        -(local.y / window.innerHeight) * 2 + 1,
+        (localX / window.innerWidth) * 2 - 1,
+        -(localY / window.innerHeight) * 2 + 1,
         0.5
     );
     vec.unproject(state.perspCamera);
@@ -1359,6 +1363,11 @@ function projectAvatarToScene(screenX, screenY, yOffset = 0) {
     const pos = new THREE.Vector3().copy(state.perspCamera.position).add(vec.multiplyScalar(distance));
     pos.y += yOffset / 10;
     return pos;
+}
+
+function projectAvatarToScene(screenX, screenY, yOffset = 0) {
+    const local = desktopWorldToSegmentLocalPoint({ x: screenX, y: screenY }) ?? { x: screenX, y: screenY };
+    return projectStageLocalToScene(local.x, local.y, yOffset);
 }
 
 function initScene() {
@@ -1917,8 +1926,7 @@ function annotationReticleCanvasDesktopWorldRect(canvasId = '') {
     const id = String(canvasId || '').trim();
     if (!id) return null;
     const canvas = liveJs.annotationReticleTargetEvidence.canvases.get(id);
-    const nativeRect = annotationReticleRectFromAt(canvas?.atResolved || canvas?.at);
-    return nativeToDesktopWorldRect(nativeRect, liveJs.displays);
+    return normalizeCanvasFrameToDesktopWorld(canvas, liveJs.displays)?.rect || null;
 }
 
 function annotationReticleNativeRectToDesktopWorld(rect = null) {
@@ -2005,8 +2013,8 @@ function annotationReticleCanvasCandidate(canvas = null) {
     const id = String(canvas?.id || '').trim();
     if (!id || id === 'avatar-main' || id === hitTarget.hit.id || id === radialTargetSurface.id) return null;
     if (canvas?.suspended === true) return null;
-    const nativeRect = annotationReticleRectFromAt(canvas.atResolved || canvas.at);
-    const rect = nativeToDesktopWorldRect(nativeRect, liveJs.displays);
+    const frame = normalizeCanvasFrameToDesktopWorld(canvas, liveJs.displays);
+    const rect = frame?.rect || null;
     if (!rect) return null;
     return {
         id,
@@ -2030,15 +2038,21 @@ function annotationReticleCanvasCandidate(canvas = null) {
             visible_display_rect: rect,
             display_space_rect: rect,
             coordinate_space: 'desktop_world',
-            source_coordinate_space: 'native_display',
-            native_display_rect: nativeRect,
+            source_coordinate_space: frame.source_coordinate_space,
+            native_display_rect: frame.native_rect || null,
+            canvas_frame_source: frame.source_frame,
+            canvas_frame_inference: frame.inference || '',
+            canvas_frame_ambiguity: frame.ambiguity || null,
             refreshed_at: new Date().toISOString(),
         },
         source_metadata: {
             adapter_scope: 'sigil_cached_canvas_lifecycle',
             canvas_id: id,
-            source_coordinate_space: 'native_display',
-            native_display_rect: nativeRect,
+            source_coordinate_space: frame.source_coordinate_space,
+            native_display_rect: frame.native_rect || null,
+            canvas_frame_source: frame.source_frame,
+            canvas_frame_inference: frame.inference || '',
+            canvas_frame_ambiguity: frame.ambiguity || null,
             parent: canvas.parent || null,
             track: canvas.track || null,
         },
@@ -2071,17 +2085,11 @@ function annotationReticleSemanticTargetForDesktopWorld(canvasId = '', target = 
         || sourceCoordinateSpace === 'native_desktop'
     )
         ? nativeToDesktopWorldRect(sourceRect, liveJs.displays)
-        : (() => {
-            const canvasRect = annotationReticleCanvasDesktopWorldRect(canvasId);
-            return canvasRect
-                ? {
-                    x: canvasRect.x + sourceRect.x,
-                    y: canvasRect.y + sourceRect.y,
-                    w: sourceRect.w,
-                    h: sourceRect.h,
-                }
-                : null;
-        })();
+        : canvasLocalRectToDesktopWorld(
+            liveJs.annotationReticleTargetEvidence.canvases.get(String(canvasId || '').trim()),
+            sourceRect,
+            liveJs.displays,
+        );
 
     if (!desktopRect) return {
         ...target,
@@ -3620,7 +3628,7 @@ function handleHostMessage(rawMsg) {
         const payload = msg.payload || msg;
         if (Array.isArray(payload.canvases)) {
             for (const canvas of payload.canvases) {
-                annotationReticleHandleCanvasLifecycle({ action: 'snapshot', canvas, canvas_id: canvas.id, at: canvas.atResolved || canvas.at });
+                annotationReticleHandleCanvasLifecycle({ action: 'snapshot', canvas, canvas_id: canvas.id, at: canvas.at });
             }
         }
         if (payload.semantic_targets || payload.targets) annotationReticleHandleSemanticTargets(payload);
@@ -3779,6 +3787,18 @@ async function init() {
             },
         });
     });
+    runBootStep('createSelectionModeCursorModelRenderer', () => {
+        selectionModeCursorModelRenderer = createSelectionModeCursorModelRenderer({
+            scene: state.scene,
+            projectPoint: (point) => point?.valid === false ? null : projectStageLocalToScene(point.x, point.y),
+            projectRadius(point, radius) {
+                if (!point || point.valid === false) return null;
+                const center = projectStageLocalToScene(point.x, point.y);
+                const edge = projectStageLocalToScene(point.x + radius, point.y);
+                return center.distanceTo(edge);
+            },
+        });
+    });
     runBootStep('createAuraObjects', () => createAuraObjects());
     runBootStep('createParticleObjects', () => createParticleObjects());
     runBootStep('createPhenomena', () => createPhenomena());
@@ -3802,6 +3822,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         removeSigilInputRegions();
     }
     overlay.draw({ state: 'IDLE', avatarPos: null, dragOrigin: null });
+    selectionModeCursorModelRenderer?.update(null, { time: state.globalTime });
     radialActivationTransition.clear();
     radialGestureVisuals?.reset?.();
     visibilityTransition.draw({ avatarStagePos: null });
@@ -3998,6 +4019,11 @@ function animate() {
             dragCancelRadius: liveJs.dragCancelRadius,
         });
     }
+    selectionModeCursorModelRenderer?.update(
+        liveJs.selectionModeOverlay || selectionModeRuntime.buildProjectedOverlay(),
+        { time: state.globalTime },
+    );
+    liveJs.selectionModeCursorModel = selectionModeCursorModelRenderer?.snapshot?.() || null;
     if (work.structural || activeRadialActivationTransition) {
         radialGestureVisuals?.update(liveJs.radialGestureMenu, {
             time: state.globalTime,
@@ -4077,6 +4103,7 @@ window.__sigilDebug = {
             annotationReticle: liveJs.annotationReticle,
             selectionMode: liveJs.selectionMode,
             selectionModeOverlay: liveJs.selectionModeOverlay,
+            selectionModeCursorModel: liveJs.selectionModeCursorModel,
             uxCommandRuntime: liveJs.uxCommandRuntime,
             activeContext: liveJs.activeContext,
             contextRecording: liveJs.contextRecording,

@@ -480,11 +480,14 @@ test('Sigil reticle candidates are projected through canonical DesktopWorld help
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
 
   assert.match(source, /nativeToDesktopWorldRect/)
+  assert.match(source, /normalizeCanvasFrameToDesktopWorld/)
+  assert.match(source, /canvasLocalRectToDesktopWorld/)
   assert.match(source, /function annotationReticleCandidateInDesktopWorld/)
   assert.match(source, /function annotationReticleSemanticTargetForDesktopWorld/)
-  assert.match(source, /nativeToDesktopWorldRect\(nativeRect, liveJs\.displays\)/)
+  assert.match(source, /normalizeCanvasFrameToDesktopWorld\(canvas, liveJs\.displays\)/)
+  assert.match(source, /canvasLocalRectToDesktopWorld\(/)
   assert.match(source, /coordinate_space: 'desktop_world'/)
-  assert.match(source, /source_coordinate_space: 'native_display'/)
+  assert.match(source, /source_coordinate_space: frame\.source_coordinate_space/)
   assert.match(source, /annotationReticleSemanticTargetForDesktopWorld\(canvasId, target\)/)
 })
 

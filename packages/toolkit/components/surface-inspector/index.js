@@ -27,6 +27,7 @@ import {
   projectPointToMinimap,
   rectFromAt,
   resolveCanvasFrames,
+  normalizeCanvasFrameToDesktopWorld,
 } from '../../runtime/spatial.js'
 import { normalizeMarks } from './marks/normalize.js'
 import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.js'
@@ -99,6 +100,7 @@ export {
   projectPointToMinimap,
   rectFromAt,
   resolveCanvasFrames,
+  normalizeCanvasFrameToDesktopWorld,
 } from '../../runtime/spatial.js'
 
 const SELF_ID = (typeof window !== 'undefined' && (window.__aosCanvasId || window.__aosSurfaceCanvasId)) || 'surface-inspector'
@@ -1202,7 +1204,7 @@ export default function CanvasInspector() {
         annotationOverlaySignatures.set(canvas.id, signature)
         evalCanvas(canvas.id, buildAnnotationOverlayEvalScript({
           ...group,
-          overlay_frame: normalizeDisplayRect(rectFromAt(canvas.atResolved || canvas.at)),
+          overlay_frame: normalizeDisplayRect(normalizeCanvasFrameToDesktopWorld(canvas, displays)?.rect),
         })).catch(() => {
           annotationOverlaySignatures.delete(canvas.id)
         })
@@ -1500,7 +1502,7 @@ export default function CanvasInspector() {
   }
 
   function canvasNodeForAnnotation(canvas) {
-    const rect = rectFromAt(canvas?.atResolved ?? canvas?.at)
+    const rect = normalizeCanvasFrameToDesktopWorld(canvas, displays)?.rect
     const hasChildren = canvases.some((item) => item?.parent === canvas?.id || item?.parent_id === canvas?.id)
     return {
       id: canvas?.id,
@@ -1511,7 +1513,7 @@ export default function CanvasInspector() {
       root_label: canvas?.root_label || canvas?.display_label || 'main',
       adapter_id: 'aos-canvas-window',
       projection: rect
-        ? { status: 'visible', projectable: true, can_project_display_overlay: true, can_reveal: true, visible_display_rect: rect, display_space_rect: rect, coordinate_space: 'native_display' }
+        ? { status: 'visible', projectable: true, can_project_display_overlay: true, can_reveal: true, visible_display_rect: rect, display_space_rect: rect, coordinate_space: 'desktop_world' }
         : { status: 'stale', projectable: false, can_reveal: false, blocker: { reason: 'missing_canvas_rect' }, blocker_reason: 'missing_canvas_rect' },
       has_children: hasChildren,
       pinned: Boolean(findPinForCandidateId(canvas?.id)),
@@ -2223,11 +2225,11 @@ export default function CanvasInspector() {
 
   function minimapCanvases() {
     const displayRects = normalizeDisplays(displays)
-      .map((display) => display.nativeBounds || display.bounds)
+      .map((display) => display.bounds)
       .filter(Boolean)
     const visibleCanvases = canvases.filter((canvas) => canvas?.suspended !== true)
     return resolveCanvasFrames(visibleCanvases).filter((canvas) => {
-      const rect = rectFromAt(canvas.atResolved ?? canvas.at)
+      const rect = normalizeCanvasFrameToDesktopWorld(canvas, displays)?.rect
       if (!rect) return false
       return displayRects.some((display) => rectsIntersect(rect, display))
     })
@@ -2991,12 +2993,22 @@ export default function CanvasInspector() {
   function normalizeCanvasesToDesktopWorld(list) {
     const resolved = resolveCanvasFrames(list)
     return resolved.map((canvas) => {
-      const worldResolved = nativeToDesktopWorldRect(rectFromAt(canvas.atResolved ?? canvas.at), displays)
-      const worldAt = nativeToDesktopWorldRect(rectFromAt(canvas.at), displays)
+      const worldResolved = normalizeCanvasFrameToDesktopWorld(canvas, displays)
+      const worldAt = normalizeCanvasFrameToDesktopWorld({
+        ...canvas,
+        atResolved: null,
+        at_resolved_coordinate_space: null,
+        atResolvedCoordinateSpace: null,
+      }, displays)
       return {
         ...canvas,
-        at: rectToAt(worldAt) ?? canvas.at,
-        atResolved: rectToAt(worldResolved) ?? canvas.atResolved,
+        at: rectToAt(worldAt?.rect) ?? canvas.at,
+        atResolved: rectToAt(worldResolved?.rect) ?? canvas.atResolved,
+        at_coordinate_space: 'desktop_world',
+        at_resolved_coordinate_space: 'desktop_world',
+        canvas_frame_source: worldResolved?.source_frame || '',
+        canvas_frame_inference: worldResolved?.inference || '',
+        canvas_frame_ambiguity: worldResolved?.ambiguity || null,
       }
     })
   }
