@@ -2619,11 +2619,14 @@ function handleSelectionModeInput(msg = {}) {
     return selectionModeRuntime.handleInput(msg);
 }
 
-function updateSelectionModeCursorModelSnapshot(overlay = null) {
-    const cursorOverlay = overlay || liveJs.selectionModeOverlay || selectionModeRuntime.buildProjectedOverlay();
-    selectionModeCursorModelRenderer?.update(cursorOverlay, { time: state.globalTime });
+function readSelectionModeCursorModelSnapshot() {
     liveJs.selectionModeCursorModel = selectionModeCursorModelRenderer?.snapshot?.() || null;
     return liveJs.selectionModeCursorModel;
+}
+
+function refreshSelectionModeCursorModelSnapshot(overlay = liveJs.selectionModeOverlay) {
+    selectionModeCursorModelRenderer?.update(overlay || null, { time: state.globalTime });
+    return readSelectionModeCursorModelSnapshot();
 }
 
 function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
@@ -3862,7 +3865,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         removeSigilInputRegions();
     }
     overlay.draw({ state: 'IDLE', avatarPos: null, dragOrigin: null });
-    selectionModeCursorModelRenderer?.update(null, { time: state.globalTime });
+    refreshSelectionModeCursorModelSnapshot(null);
     radialActivationTransition.clear();
     radialGestureVisuals?.reset?.();
     visibilityTransition.draw({ avatarStagePos: null });
@@ -4059,7 +4062,15 @@ function animate() {
             dragCancelRadius: liveJs.dragCancelRadius,
         });
     }
-    updateSelectionModeCursorModelSnapshot();
+    if (
+        liveJs.selectionModeOverlay?.visible === true
+        || liveJs.selectionModeOverlay?.active === true
+        || liveJs.selectionModeCursorModel?.visible === true
+    ) {
+        refreshSelectionModeCursorModelSnapshot(liveJs.selectionModeOverlay || null);
+    } else {
+        readSelectionModeCursorModelSnapshot();
+    }
     if (work.structural || activeRadialActivationTransition) {
         radialGestureVisuals?.update(liveJs.radialGestureMenu, {
             time: state.globalTime,
@@ -4139,7 +4150,7 @@ window.__sigilDebug = {
             annotationReticle: liveJs.annotationReticle,
             selectionMode: liveJs.selectionMode,
             selectionModeOverlay: liveJs.selectionModeOverlay,
-            selectionModeCursorModel: updateSelectionModeCursorModelSnapshot(),
+            selectionModeCursorModel: readSelectionModeCursorModelSnapshot(),
             uxCommandRuntime: liveJs.uxCommandRuntime,
             activeContext: liveJs.activeContext,
             contextRecording: liveJs.contextRecording,
@@ -4173,6 +4184,9 @@ window.__sigilDebug = {
                 latency: desktopWorldSurface.stateLatencySnapshot(),
             } : null,
         };
+    },
+    refreshSelectionModeCursorModel() {
+        return refreshSelectionModeCursorModelSnapshot(liveJs.selectionModeOverlay || null);
     },
     avatarDefinition,
     importAvatarDefinitionText,

@@ -73,35 +73,35 @@ function setScale(target, value) {
     target.z = value;
 }
 
-function createTriangularPrismGeometry(THREE) {
+function createDepthAlignedTriangularCursorGeometry(THREE) {
     const geometry = new THREE.BufferGeometry();
-    const halfBase = 0.26;
-    const halfDepth = 0.16;
+    const sideLength = 0.72;
+    const baseRadius = sideLength / Math.sqrt(3);
+    const length = 1;
     const vertices = [
-        0, 0, halfDepth,
-        1, halfBase, halfDepth,
-        1, -halfBase, halfDepth,
-        0, 0, -halfDepth,
-        1, halfBase, -halfDepth,
-        1, -halfBase, -halfDepth,
+        0, 0, 0,
+        0, baseRadius, -length,
+        -sideLength / 2, -baseRadius / 2, -length,
+        sideLength / 2, -baseRadius / 2, -length,
     ];
     const indices = [
         0, 1, 2,
-        3, 5, 4,
-        0, 3, 4,
-        0, 4, 1,
-        1, 4, 5,
-        1, 5, 2,
-        2, 5, 3,
-        2, 3, 0,
+        0, 2, 3,
+        0, 3, 1,
+        1, 3, 2,
     ];
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
     if (typeof geometry.setIndex === 'function') geometry.setIndex(indices);
     if (typeof geometry.computeVertexNormals === 'function') geometry.computeVertexNormals();
     geometry.userData = {
-        primitive: 'triangular_prism',
+        primitive: 'triangular_pyramid',
+        geometry_family: 'selection_mode_depth_aligned_triangular_cursor',
         hotspot_local: { x: 0, y: 0, z: 0 },
-        depth_semantics: 'mesh_volume',
+        depth_semantics: 'scene_depth_axis',
+        depth_axis: 'z',
+        long_axis: 'scene_depth_z',
+        base_cross_section: 'equilateral_triangle',
+        equilateral_base_vertex_indices: [1, 2, 3],
     };
     return geometry;
 }
@@ -109,10 +109,18 @@ function createTriangularPrismGeometry(THREE) {
 function createModelInstance(THREE, {
     objectId,
     trail = false,
+    stats = null,
 } = {}) {
     const group = new THREE.Group();
     const spin = new THREE.Group();
-    const geometry = createTriangularPrismGeometry(THREE);
+    const geometry = createDepthAlignedTriangularCursorGeometry(THREE);
+    const edgeGeometry = typeof THREE.EdgesGeometry === 'function' ? new THREE.EdgesGeometry(geometry) : geometry;
+    if (stats) {
+        stats.model_instances_created += 1;
+        stats.geometries_created += edgeGeometry === geometry ? 1 : 2;
+        stats.materials_created += 2;
+        if (trail) stats.trail_instances_created += 1;
+    }
     const core = new THREE.Mesh(
         geometry,
         new THREE.MeshPhongMaterial({
@@ -128,7 +136,7 @@ function createModelInstance(THREE, {
         }),
     );
     const edges = new THREE.LineSegments(
-        typeof THREE.EdgesGeometry === 'function' ? new THREE.EdgesGeometry(geometry) : geometry,
+        edgeGeometry,
         new THREE.LineBasicMaterial({
             color: makeColor(THREE, '#c8ffff', '#c8ffff'),
             transparent: true,
@@ -146,8 +154,10 @@ function createModelInstance(THREE, {
         kind: 'three.object3d',
         model_kind: 'sigil_model',
         source: 'sigil_avatar',
-        shape: 'three_sided_pyramid_prism',
-        geometry: 'triangular_prism',
+        shape: 'depth_aligned_three_sided_sigil_cursor',
+        geometry: 'triangular_pyramid',
+        geometry_family: 'selection_mode_depth_aligned_triangular_cursor',
+        long_axis: 'scene_depth_z',
         hotspot: 'tip',
         trail,
     };
@@ -190,8 +200,10 @@ function updateInstance(instance, scenePoint, {
     }
     setVector(instance.group.position, scenePoint);
     setScale(instance.group.scale, Math.max(0.0001, scale));
-    instance.group.rotation.z = -Math.PI / 4;
-    instance.spin.rotation.x = phase;
+    instance.group.rotation.x = 0;
+    instance.group.rotation.y = 0;
+    instance.group.rotation.z = -Math.PI / 2;
+    instance.spin.rotation.z = phase;
     instance.group.visible = true;
     setInstanceOpacity(instance, alpha, fill);
     return true;
@@ -256,6 +268,15 @@ export function createSelectionModeCursorModelRenderer({
     let primary = null;
     const trailInstances = [];
     const trailHistory = [];
+    const stats = {
+        root_groups_created: 1,
+        model_instances_created: 0,
+        trail_instances_created: 0,
+        geometries_created: 0,
+        materials_created: 0,
+        scene_adds: 0,
+        update_count: 0,
+    };
     let mounted = false;
     let lastSnapshot = {
         mounted: false,
@@ -269,12 +290,13 @@ export function createSelectionModeCursorModelRenderer({
         if (mounted || !scene?.add) return;
         scene.add(root);
         mounted = true;
+        stats.scene_adds += 1;
     }
 
     function ensurePrimary() {
         mount();
         if (primary) return primary;
-        primary = createModelInstance(THREE, { objectId: CURSOR_MODEL_OBJECT_ID });
+        primary = createModelInstance(THREE, { objectId: CURSOR_MODEL_OBJECT_ID, stats });
         root.add(primary.group);
         return primary;
     }
@@ -285,6 +307,7 @@ export function createSelectionModeCursorModelRenderer({
             const item = createModelInstance(THREE, {
                 objectId: `${CURSOR_TRAIL_OBJECT_ID}.${trailInstances.length + 1}`,
                 trail: true,
+                stats,
             });
             trailInstances.push(item);
             root.add(item.group);
@@ -322,12 +345,28 @@ export function createSelectionModeCursorModelRenderer({
             visible: false,
             trail_count: 0,
             hotspot_aligned: false,
+            resource_counts: resourceCounts(),
+            object_counts: objectCounts(),
         };
+    }
+
+    function objectCounts() {
+        return {
+            root_children: Array.isArray(root.children) ? root.children.length : 0,
+            trail_instances: trailInstances.length,
+            visible_trail_instances: trailInstances.filter((item) => item.group?.visible === true).length,
+            scene_children: Array.isArray(scene?.children) ? scene.children.length : null,
+        };
+    }
+
+    function resourceCounts() {
+        return { ...stats };
     }
 
     function update(overlay = null, {
         time = 0,
     } = {}) {
+        stats.update_count += 1;
         const glyph = overlay?.cursorGlyph || null;
         const cursor = overlay?.cursor || null;
         const visible = (overlay?.active === true || overlay?.visible === true)
@@ -365,6 +404,8 @@ export function createSelectionModeCursorModelRenderer({
                 hotspot: glyph.hotspot || null,
                 scene_position: null,
                 blocker_reason: cursor?.valid === false ? 'invalid_cursor' : 'cursor_projection_unavailable',
+                resource_counts: resourceCounts(),
+                object_counts: objectCounts(),
             };
             return lastSnapshot;
         }
@@ -409,6 +450,8 @@ export function createSelectionModeCursorModelRenderer({
                 ? { x: finite(primaryPoint.x), y: finite(primaryPoint.y), z: finite(primaryPoint.z) }
                 : null,
             trail_count: repeatCount,
+            resource_counts: resourceCounts(),
+            object_counts: objectCounts(),
         };
         return lastSnapshot;
     }
@@ -433,7 +476,11 @@ export function createSelectionModeCursorModelRenderer({
     return {
         update,
         destroy,
-        snapshot: () => ({ ...lastSnapshot }),
+        snapshot: () => ({
+            ...lastSnapshot,
+            resource_counts: resourceCounts(),
+            object_counts: objectCounts(),
+        }),
         get root() {
             return root;
         },

@@ -132,16 +132,18 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   assert.equal(liveState.selectionModeOverlay.cursor.x, 101)
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.model_kind, 'sigil_model')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.source, 'sigil_avatar')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'three_sided_pyramid_prism')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.length_base_ratio, 2)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.orientation, 'northwest')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'depth_aligned_three_sided_sigil_cursor')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.primitive, 'triangular_pyramid')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.cross_section, 'equilateral_triangle')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.long_axis, 'scene_depth_z')
   assert.deepEqual(liveState.selectionModeOverlay.cursorGlyph.hotspot, {
     kind: 'tip',
     x: 101,
     y: 102,
-    local: { x: 0, y: 0 },
+    local: { x: 0, y: 0, z: 0 },
   })
-  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'three_sided_pyramid_prism')
+  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'depth_aligned_three_sided_sigil_cursor')
+  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatGeometry, 'triangular_pyramid')
   assert.equal(liveState.selectionModeOverlay.badgeLayout.order, 'leaf-to-root')
   assert.ok(liveState.selectionMode.events.some((entry) => entry.type === 'selection_mode_aura_spike'))
   assert.deepEqual(

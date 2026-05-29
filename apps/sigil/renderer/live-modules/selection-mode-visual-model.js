@@ -205,30 +205,32 @@ export function buildSelectionModeCursorGlyph(cursor = null, rendererState = nul
     if (!cursor) return null;
     const avatar = resolveAvatarCursorSource(rendererState);
     const length = 44;
-    const base = length / 2;
+    const base = length / Math.sqrt(3);
     return {
         kind: 'selection_mode_cursor',
         model_kind: 'sigil_model',
         source: avatar.source,
-        shape: 'three_sided_pyramid_prism',
+        shape: 'depth_aligned_three_sided_sigil_cursor',
         point: cursor,
         hotspot: {
             kind: 'tip',
             x: cursor.x,
             y: cursor.y,
-            local: { x: 0, y: 0 },
+            local: { x: 0, y: 0, z: 0 },
         },
         geometry: {
-            primitive: 'triangular_prism',
+            primitive: 'triangular_pyramid',
             sides: 3,
             length,
             base,
-            length_base_ratio: 2,
-            orientation: 'northwest',
+            cross_section: 'equilateral_triangle',
+            expected_depth_axis: 'z',
+            long_axis: 'scene_depth_z',
+            hotspot_local: { x: 0, y: 0, z: 0 },
         },
         animation: {
             rotates_on_axis: 'long',
-            axis: avatar.rotation.axis,
+            axis: 'scene_depth_z',
             source: avatar.rotation.source,
             rotation_speed: avatar.rotation.speed,
             visible_avatar_y_speed: avatar.rotation.visible_avatar_y_speed,
@@ -292,8 +294,9 @@ export function buildSelectionModeCursorTrailModel(rendererState = null) {
     return {
         kind: 'selection_mode_cursor_trail',
         model_kind: 'sigil_model',
-        shape: 'three_sided_pyramid_prism',
-        repeatShape: 'three_sided_pyramid_prism',
+        shape: 'depth_aligned_three_sided_sigil_cursor',
+        repeatShape: 'depth_aligned_three_sided_sigil_cursor',
+        repeatGeometry: 'triangular_pyramid',
         source: avatar.source,
         aura: avatar.aura,
         trail: avatar.trail,

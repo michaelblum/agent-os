@@ -176,6 +176,19 @@ test('unchanged Selection Mode cursor frames stay visual-only', () => {
   });
 });
 
+test('Selection Mode effect frames redraw overlay without structural sync or state publish', () => {
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['avatar-motion', 'selection-mode-effect'],
+    structuralDirty: false,
+  }), {
+    continuationReasons: ['avatar-motion', 'selection-mode-effect'],
+    structural: false,
+    overlay: true,
+    publishState: false,
+    visualOnly: false,
+  });
+});
+
 test('dirty or interactive frames keep structural sync and state publish active', () => {
   assert.equal(classifyRenderLoopWork({
     continuationReasons: ['avatar-motion'],

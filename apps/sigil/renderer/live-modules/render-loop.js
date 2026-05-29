@@ -36,15 +36,22 @@ export function classifyRenderLoopWork(frame = {}) {
         : renderLoopContinuationReasons(frame);
     const structuralDirty = !!frame.structuralDirty;
     const visualOnlyReasons = new Set(['avatar-motion', 'selection-mode']);
+    const overlayOnlyReasons = new Set(['selection-mode-effect']);
+    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons]);
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => visualOnlyReasons.has(reason));
+    const cheapFrame = !structuralDirty
+        && continuationReasons.length > 0
+        && continuationReasons.every((reason) => cheapFrameReasons.has(reason));
+    const overlayOnly = cheapFrame
+        && continuationReasons.some((reason) => overlayOnlyReasons.has(reason));
 
     return {
         continuationReasons,
-        structural: structuralDirty || (!visualOnly && continuationReasons.length > 0),
-        overlay: structuralDirty || (!visualOnly && continuationReasons.length > 0),
-        publishState: structuralDirty || (!visualOnly && continuationReasons.length > 0),
+        structural: structuralDirty || (!cheapFrame && continuationReasons.length > 0),
+        overlay: structuralDirty || overlayOnly || (!cheapFrame && continuationReasons.length > 0),
+        publishState: structuralDirty || (!cheapFrame && continuationReasons.length > 0),
         visualOnly,
     };
 }
