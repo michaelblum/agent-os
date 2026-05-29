@@ -45,6 +45,10 @@ implement the Selection Mode scene visual facet or pointer migration here.
   or switch to an additional Git worktree for this workflow. Branch-scoped AOS
   content roots such as `sigil_gdi_selection_mode_cursor_ancestor_ladder_v0`
   are served URL namespaces, not separate Git worktrees.
+- Use canonical `aos://...` URLs for launch/update/config commands. AOS may
+  report the loaded canvas as a resolved `http://127.0.0.1:<port>/...` URL;
+  that resolved URL is runtime evidence, not the command surface to copy back
+  into handoffs or reload recipes.
 - Commit any code, test, or work-card correction locally on that branch.
 - Do not push, open or update PRs, close issues, or mutate GitHub state unless
   Foreman explicitly reassigns that responsibility.
@@ -69,9 +73,9 @@ Foreman also found the live avatar state was stale before reload:
   `tesseron.enabled: true`;
 - stale live state had `state.tesseron.enabled: false` and no tesseron child
   meshes;
-- after `./aos show update --id avatar-main --url <same branch-scoped url>`,
-  the live canvas reported `loadedAt: 2026-05-29T18:06:17.799Z`,
-  `tesseron.enabled: true`, and all tesseron child meshes present.
+- after Foreman reloaded the existing canvas, the live canvas reported
+  `loadedAt: 2026-05-29T18:06:17.799Z`, `tesseron.enabled: true`, and all
+  tesseron child meshes present.
 
 Foreman found the render-performance telemetry surface was not visible:
 
@@ -90,6 +94,18 @@ cleared on a freshly reloaded runtime.
 Before any live acceptance claim, reload or recreate `avatar-main` through AOS
 on the current branch and prove the loaded page is fresh.
 
+Use `aos://` at the command/config boundary:
+
+```bash
+./aos show update --id avatar-main --url 'aos://<active-sigil-root>/renderer/index.html?toolkit-root=<active-toolkit-root>'
+```
+
+For this single-worktree dev workflow, prefer the canonical roots
+`aos://sigil/...` and `toolkit-root=toolkit` unless the active Sigil experience
+has explicitly configured branch-scoped content roots. If branch-scoped roots
+are active, they must still be expressed as `aos://<root>/...`, not as raw
+localhost URLs.
+
 Required fresh-runtime assertions:
 
 - `git worktree list --porcelain` shows only
@@ -97,8 +113,10 @@ Required fresh-runtime assertions:
 - `git rev-parse HEAD` equals the commit being validated.
 - `git show -s --format=%cI HEAD` is earlier than or equal to the live
   `window.__sigilDebug.snapshot().runtime.loadedAt`.
-- The live renderer URL is branch-scoped to
-  `gdi/selection-mode-cursor-ancestor-ladder-v0`.
+- The canonical URL used for launch/update is recorded as `aos://...`.
+- If `./aos show list --json` reports a resolved `http://127.0.0.1:<port>/...`
+  URL, compare by content-root/path/query equivalence against the canonical
+  `aos://...` URL instead of raw string equality.
 - Active AOS canvas owners report
   `owner.worktree_root: /Users/Michael/Code/agent-os`.
 - The default avatar is still the tesseron default unless the test explicitly
