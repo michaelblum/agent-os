@@ -127,6 +127,8 @@ class UnifiedDaemon {
     private let eventWriteQueue = DispatchQueue(label: "aos.event-write")
     private let inputRegionLock = NSLock()
     private var inputRegions = AOSInputRegionRegistry()
+    private let nativeCursorSuppressionLock = NSLock()
+    private var nativeCursorSuppressed = false
 
     // Wiki FSEvents watcher
     private var wikiWatcher: WikiWatcher?
@@ -1577,7 +1579,9 @@ class UnifiedDaemon {
             return
         }
         inputRegions.register(region)
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
         inputRegionLock.unlock()
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
 
         let action = existed ? "updated" : "registered"
         publishInputRegionStateEvent(action: action, region: region)
@@ -1601,7 +1605,9 @@ class UnifiedDaemon {
             return
         }
         let removed = inputRegions.remove(id: id)
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
         inputRegionLock.unlock()
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
 
         if let removed {
             publishInputRegionStateEvent(action: "removed", region: removed)
@@ -3253,10 +3259,29 @@ class UnifiedDaemon {
         return CGPoint(x: point.x - origin.x, y: point.y - origin.y)
     }
 
+    private func reconcileNativeCursorSuppression(active: Bool) {
+        nativeCursorSuppressionLock.lock()
+        let changed = nativeCursorSuppressed != active
+        if changed {
+            nativeCursorSuppressed = active
+        }
+        nativeCursorSuppressionLock.unlock()
+        guard changed else { return }
+        DispatchQueue.main.async {
+            if active {
+                CGDisplayHideCursor(CGMainDisplayID())
+            } else {
+                CGDisplayShowCursor(CGMainDisplayID())
+            }
+        }
+    }
+
     private func removeInputRegionsOwned(by ownerCanvasID: String, includeSuspendRetained: Bool) {
         inputRegionLock.lock()
         let removed = inputRegions.removeOwned(by: ownerCanvasID, includeSuspendRetained: includeSuspendRetained)
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
         inputRegionLock.unlock()
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
         for region in removed {
             publishInputRegionStateEvent(action: "removed", region: region)
         }

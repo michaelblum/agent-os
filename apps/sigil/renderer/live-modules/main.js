@@ -232,6 +232,7 @@ const selectionModeRuntime = createSigilSelectionModeRuntime({
     getDisplays: () => liveJs.displays,
     getCandidateList: () => annotationReticleCandidateList(),
     projectPoint: (point) => stagePoint(point),
+    getOverlayBounds: () => ({ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }),
     closeContextMenu: (reason) => contextMenu.close(reason),
     exitAnnotationReticle,
     clearGestureState,
@@ -2542,6 +2543,11 @@ function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
 }
 
 function executeSelectionModeRouteCommand(command = '', msg = {}, options = {}) {
+    if (command === 'selectBadge') {
+        return selectionModeRuntime.selectTargetNode(options.nodeId || msg.nodeId || msg.node_id || '', {
+            reason: 'badge-click',
+        });
+    }
     return sigilUxCommandRuntime?.executeSelectionModeRoute(command, msg, options) || null;
 }
 

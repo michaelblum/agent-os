@@ -73,6 +73,7 @@ export function resolveSelectionModeInputRoute(msg = {}, {
     consumeSelectionModeEntryRelease = () => false,
     isOnAvatar = () => false,
     consumeAvatarDoubleClick = () => false,
+    hitTestBadge = () => null,
 } = {}) {
     if (msg.type === 'key_down') {
         const key = selectionModeKeyName(msg);
@@ -110,6 +111,17 @@ export function resolveSelectionModeInputRoute(msg = {}, {
                 return { handled: true, direct: 'avatar_double_click_exit' };
             }
             return { handled: true, direct: 'avatar_click' };
+        }
+        const badge = hitTestBadge(pointer);
+        if (badge?.nodeId) {
+            return {
+                handled: true,
+                command: 'selectBadge',
+                gesture: 'pointer.badge.click',
+                pointer,
+                nodeId: badge.nodeId,
+                badgeId: badge.id || '',
+            };
         }
         return {
             handled: true,

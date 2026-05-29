@@ -18,13 +18,133 @@ function drawFrame(ctx, frame = {}, style = {}) {
     ctx.restore();
 }
 
-function drawSelectionMode(ctx, overlay = {}, snapshot = {}) {
+function drawSelectionArrow(ctx, glyph = {}, {
+    x = 0,
+    y = 0,
+    scale = 1,
+    alpha = 1,
+    pulse = 0,
+    fill = true,
+} = {}) {
+    const points = Array.isArray(glyph.outline) ? glyph.outline : [];
+    if (!points.length) return;
+    const aura = glyph.aura || {};
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = alpha;
+
+    ctx.shadowColor = aura.primary || 'rgba(94, 252, 210, 0.96)';
+    ctx.shadowBlur = 15 + (pulse * 8);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.closePath();
+    if (fill) {
+        ctx.fillStyle = aura.core || 'rgba(12, 22, 28, 0.58)';
+        ctx.fill();
+    }
+    ctx.strokeStyle = aura.primary || 'rgba(94, 252, 210, 0.96)';
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = alpha * 0.78;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.closePath();
+    ctx.strokeStyle = aura.highlight || 'rgba(255, 255, 255, 0.88)';
+    ctx.lineWidth = 0.85;
+    ctx.stroke();
+    ctx.restore();
+}
+
+function trailPointForAge(history = [], ageSeconds = 0, fallback = null) {
+    if (!history.length) return fallback;
+    const targetTime = history.at(-1).time - ageSeconds;
+    for (let i = history.length - 1; i >= 0; i -= 1) {
+        if (history[i].time <= targetTime) return history[i];
+    }
+    return history[0] || fallback;
+}
+
+function recordSelectionCursorTrail(history = [], cursor = null, time = 0, maxAge = 3) {
+    if (!cursor || !Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) {
+        history.length = 0;
+        return;
+    }
+    const prior = history.at(-1);
+    if (!prior || Math.hypot(prior.x - cursor.x, prior.y - cursor.y) >= 1 || time - prior.time >= 0.024) {
+        history.push({ x: cursor.x, y: cursor.y, time });
+    }
+    while (history.length && time - history[0].time > maxAge) history.shift();
+}
+
+function drawSelectionBadge(ctx, badge = {}) {
+    const rect = badge.rect || {};
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    const active = badge.active === true;
+    const leaf = badge.leaf === true;
+    const token = badge.token || '';
+    const key = token === 'display' || token === 'body' || token === 'app' || token === 'window';
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = active ? 'rgba(94, 252, 210, 0.84)' : (key ? 'rgba(142, 221, 255, 0.52)' : 'rgba(94, 252, 210, 0.42)');
+    ctx.shadowBlur = active ? 16 : 8;
+    ctx.fillStyle = active
+        ? 'rgba(8, 24, 26, 0.88)'
+        : (leaf ? 'rgba(29, 27, 18, 0.82)' : 'rgba(11, 17, 26, 0.78)');
+    ctx.strokeStyle = active
+        ? 'rgba(94, 252, 210, 0.96)'
+        : (key ? 'rgba(142, 221, 255, 0.9)' : 'rgba(170, 210, 255, 0.72)');
+    ctx.lineWidth = active ? 2.3 : 1.4;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, width, height, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    if (leaf || active) {
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = active ? 0.92 : 0.72;
+        ctx.beginPath();
+        ctx.strokeStyle = leaf ? 'rgba(255, 224, 120, 0.88)' : 'rgba(255, 255, 255, 0.82)';
+        ctx.lineWidth = 1;
+        ctx.roundRect(Math.round(x - 3) + 0.5, Math.round(y - 3) + 0.5, width + 6, height + 6, 10);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+
+    ctx.shadowBlur = 0;
+    ctx.font = `${badge.kind === 'secondary' ? 10 : 12}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = active ? 'rgba(214, 255, 245, 0.98)' : 'rgba(238, 248, 255, 0.94)';
+    ctx.fillText(String(badge.label || ''), x + width / 2, y + height / 2 + 0.5);
+    ctx.restore();
+}
+
+function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) {
     if (!overlay?.visible) return;
     const time = Number(snapshot.time) || 0;
     const trail = snapshot.selectionTrail || {};
     const trailScale = Math.max(0.4, Number(trail.scale) || 1);
-    const lag = Math.max(0, Math.min(0.5, Number(trail.lag) || 0.05));
+    const repeatCount = Math.max(0, Math.min(24, Math.round(Number(trail.repeatCount) || 0)));
+    const duration = Math.max(0.05, Number(trail.duration) || 0.22);
+    const delay = Math.max(0, Number(trail.delay) || 0);
+    const lag = Math.max(0.01, Math.min(0.5, Number(trail.lag) || 0.05));
+    const repeatDuration = Math.max(duration, Number(trail.repeatDuration) || 2);
     const pulse = 0.5 + (0.5 * Math.sin(time * 7));
+    const cursor = overlay.cursor;
+    const glyph = overlay.cursorGlyph;
+
+    recordSelectionCursorTrail(trailHistory, cursor, time, Math.max(1, repeatDuration + 0.5));
 
     ctx.save();
     ctx.lineJoin = 'round';
@@ -32,69 +152,60 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}) {
         const active = frame.active === true;
         const leaf = frame.leaf === true;
         drawFrame(ctx, frame, {
-            stroke: active ? 'rgba(94, 252, 210, 0.96)' : (leaf ? 'rgba(255, 224, 120, 0.88)' : 'rgba(170, 210, 255, 0.62)'),
-            fill: active ? 'rgba(94, 252, 210, 0.07)' : 'rgba(170, 210, 255, 0.035)',
-            dash: active ? [] : [7, 7],
-            lineWidth: active ? 2.5 : 1.4,
+            stroke: active ? 'rgba(94, 252, 210, 0.58)' : (leaf ? 'rgba(255, 224, 120, 0.48)' : 'rgba(170, 210, 255, 0.22)'),
+            fill: active ? 'rgba(94, 252, 210, 0.035)' : 'rgba(170, 210, 255, 0.018)',
+            dash: active || leaf ? [] : [5, 10],
+            lineWidth: active ? 1.8 : 1,
         });
-        const rect = frame.rect || {};
-        if (Number.isFinite(rect.x) && Number.isFinite(rect.y)) {
-            const label = `${frame.index + 1}`;
+    }
+
+    for (const group of overlay.badgeGroups || []) {
+        const primary = (overlay.badges || []).find((badge) => badge.id === group.primaryId);
+        if (!primary || !group.secondaryIds?.length) continue;
+        for (const secondaryId of group.secondaryIds) {
+            const secondary = overlay.badges.find((badge) => badge.id === secondaryId);
+            if (!secondary) continue;
             ctx.save();
-            ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textBaseline = 'middle';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = active ? 'rgba(94, 252, 210, 0.96)' : 'rgba(20, 30, 42, 0.86)';
-            ctx.strokeStyle = active ? 'rgba(8, 18, 24, 0.94)' : 'rgba(170, 210, 255, 0.74)';
-            ctx.lineWidth = 1.5;
-            const bx = rect.x + 12;
-            const by = rect.y - 10;
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = 'rgba(142, 221, 255, 0.42)';
+            ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.roundRect(bx - 9, by - 9, 18, 18, 5);
-            ctx.fill();
+            ctx.moveTo(primary.rect.x + primary.rect.width / 2, primary.rect.y + primary.rect.height / 2);
+            ctx.lineTo(secondary.rect.x + secondary.rect.width / 2, secondary.rect.y + secondary.rect.height / 2);
             ctx.stroke();
-            ctx.fillStyle = active ? 'rgba(8, 18, 24, 0.96)' : 'rgba(255, 255, 255, 0.92)';
-            ctx.fillText(label, bx, by + 0.5);
             ctx.restore();
         }
     }
+    for (const badge of overlay.badges || []) {
+        drawSelectionBadge(ctx, badge);
+    }
 
-    const cursor = overlay.cursor;
-    if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
-        const tail = 18 * trailScale;
-        const tailX = cursor.x - (tail * (0.65 + lag));
-        const tailY = cursor.y + (tail * 0.34);
-        const gradient = ctx.createLinearGradient(tailX, tailY, cursor.x, cursor.y);
-        gradient.addColorStop(0, 'rgba(94, 252, 210, 0)');
-        gradient.addColorStop(1, 'rgba(94, 252, 210, 0.82)');
-        ctx.lineCap = 'round';
-        ctx.globalAlpha = 0.84;
-        ctx.beginPath();
-        ctx.strokeStyle = gradient;
-        ctx.lineWidth = 4 + pulse;
-        ctx.moveTo(tailX, tailY);
-        ctx.lineTo(cursor.x, cursor.y);
-        ctx.stroke();
-
-        ctx.globalAlpha = 0.9;
-        ctx.strokeStyle = 'rgba(94, 252, 210, 0.96)';
-        ctx.fillStyle = 'rgba(12, 22, 28, 0.45)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(cursor.x, cursor.y - (14 * trailScale));
-        ctx.lineTo(cursor.x + (10 * trailScale), cursor.y + (10 * trailScale));
-        ctx.lineTo(cursor.x + (1 * trailScale), cursor.y + (7 * trailScale));
-        ctx.lineTo(cursor.x - (7 * trailScale), cursor.y + (15 * trailScale));
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.globalAlpha = 0.34 + (0.18 * pulse);
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
-        ctx.lineWidth = 1.2;
-        ctx.arc(cursor.x, cursor.y, 18 + (pulse * 4), 0, Math.PI * 2);
-        ctx.stroke();
+    if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) && glyph) {
+        for (let i = repeatCount; i >= 1; i -= 1) {
+            const age = delay + (duration * lag * i);
+            const sample = trailPointForAge(trailHistory, age, cursor);
+            const progress = i / Math.max(1, repeatCount);
+            const mode = String(trail.trailMode || 'fade');
+            const alpha = mode === 'hold'
+                ? 0.18 + (0.25 * (1 - progress))
+                : Math.max(0.04, 0.38 * (1 - progress));
+            drawSelectionArrow(ctx, glyph, {
+                x: sample.x,
+                y: sample.y,
+                scale: Math.max(0.36, trailScale * (0.58 + (1 - progress) * 0.2)),
+                alpha,
+                pulse: 0,
+                fill: false,
+            });
+        }
+        drawSelectionArrow(ctx, glyph, {
+            x: cursor.x,
+            y: cursor.y,
+            scale: Math.max(0.42, trailScale * 0.62),
+            alpha: 0.96,
+            pulse,
+            fill: true,
+        });
     }
     ctx.restore();
 }
@@ -102,6 +213,7 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}) {
 export function createInteractionOverlay() {
     let canvas = null;
     let resize = null;
+    const selectionCursorTrail = [];
 
     function ensureCanvas() {
         if (canvas) return canvas;
@@ -319,7 +431,7 @@ export function createInteractionOverlay() {
             ctx.restore();
         }
 
-        drawSelectionMode(ctx, snapshot.selectionModeOverlay, snapshot);
+        drawSelectionMode(ctx, snapshot.selectionModeOverlay, snapshot, selectionCursorTrail);
 
     }
 
@@ -332,6 +444,7 @@ export function createInteractionOverlay() {
             canvas.remove();
             canvas = null;
         }
+        selectionCursorTrail.length = 0;
     }
 
     return {

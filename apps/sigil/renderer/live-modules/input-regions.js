@@ -55,7 +55,7 @@ export function createSigilInputRegionAdapter({
         return selectSigilInputRegionOwner(windowObject, fallbackCanvasId);
     }
 
-    function payloadFor(id, frame, { semanticLabel, priority, purpose }) {
+    function payloadFor(id, frame, { semanticLabel, priority, purpose, metadata = {} }) {
         return {
             id,
             owner_canvas_id: currentOwnerCanvasId(),
@@ -70,6 +70,7 @@ export function createSigilInputRegionAdapter({
                 app: 'sigil',
                 surface: fallbackCanvasId,
                 purpose,
+                ...metadata,
             },
         };
     }
@@ -160,6 +161,10 @@ export function createSigilInputRegionAdapter({
             semanticLabel: 'Sigil Selection Mode input claim',
             priority: 110,
             purpose: 'selection-mode-pointer-capture',
+            metadata: {
+                cursor_suppression: 'hide_native',
+                cursor_suppression_owner: 'selection_mode',
+            },
         }));
     }
 

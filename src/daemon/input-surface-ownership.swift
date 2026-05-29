@@ -267,6 +267,17 @@ final class AOSInputRegionRegistry {
         allRegions.filter { ownerCanvasID == nil || $0.ownerCanvasID == ownerCanvasID }
     }
 
+    func nativeCursorSuppressionActive() -> Bool {
+        regions.values.contains { region in
+            guard region.enabled else { return false }
+            let value = region.metadata["cursor_suppression"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .replacingOccurrences(of: "-", with: "_")
+            return value == "hide_native" || value == "hidden" || value == "true"
+        }
+    }
+
     func activeCaptureSnapshot() -> [String: Any]? {
         guard let captureRegionID else { return nil }
         var snapshot: [String: Any] = ["region_id": captureRegionID]

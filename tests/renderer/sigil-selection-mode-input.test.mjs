@@ -109,3 +109,22 @@ test('Selection Mode routing resolves non-avatar left mouse up to acquire with p
   assert.equal(route.gesture, 'pointer.left.click')
   assert.deepEqual(route.pointer, { x: 11, y: 22, valid: true })
 })
+
+test('Selection Mode routing resolves badge hits before reacquisition', () => {
+  const route = resolveSelectionModeInputRoute({ type: 'left_mouse_up', x: 11, y: 22 }, {
+    consumeSelectionModeEntryRelease: () => false,
+    isOnAvatar: () => false,
+    hitTestBadge: (point) => (
+      point.x === 11 && point.y === 22
+        ? { id: 'selection-mode-badge:ancestor', nodeId: 'node:ancestor' }
+        : null
+    ),
+  })
+
+  assert.equal(route.handled, true)
+  assert.equal(route.command, 'selectBadge')
+  assert.equal(route.gesture, 'pointer.badge.click')
+  assert.equal(route.nodeId, 'node:ancestor')
+  assert.equal(route.badgeId, 'selection-mode-badge:ancestor')
+  assert.deepEqual(route.pointer, { x: 11, y: 22, valid: true })
+})

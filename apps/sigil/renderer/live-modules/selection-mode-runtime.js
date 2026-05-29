@@ -7,6 +7,35 @@ const {
     createSelectionModeContextSession,
 } = await import(toolkitSpecifier('workbench/selection-mode.js'));
 
+const SELECTION_CURSOR_AURA = Object.freeze({
+    family: 'sigil-selection-avatar-aura',
+    primary: 'rgba(94, 252, 210, 0.96)',
+    secondary: 'rgba(142, 221, 255, 0.86)',
+    glow: 'rgba(94, 252, 210, 0.34)',
+    core: 'rgba(12, 22, 28, 0.58)',
+    highlight: 'rgba(255, 255, 255, 0.88)',
+});
+const SELECTION_CURSOR_ARROW_POINTS = Object.freeze([
+    Object.freeze({ x: 0, y: 0 }),
+    Object.freeze({ x: 18, y: 42 }),
+    Object.freeze({ x: 5, y: 36 }),
+    Object.freeze({ x: -8, y: 51 }),
+    Object.freeze({ x: -15, y: 45 }),
+    Object.freeze({ x: -3, y: 31 }),
+    Object.freeze({ x: -22, y: 29 }),
+]);
+const BADGE_SIZE = 28;
+const BADGE_OFFSET_START = 28;
+const BADGE_OFFSET_STEP = 25;
+const BADGE_MARGIN = 6;
+const BADGE_FAN_GAP = 8;
+const BADGE_DIRECTIONS = Object.freeze([
+    Object.freeze({ id: 'down-right', dx: 1, dy: 1 }),
+    Object.freeze({ id: 'down-left', dx: -1, dy: 1 }),
+    Object.freeze({ id: 'up-left', dx: -1, dy: -1 }),
+    Object.freeze({ id: 'up-right', dx: 1, dy: -1 }),
+]);
+
 export function createDefaultSelectionModeState() {
     return {
         active: false,
@@ -55,8 +84,10 @@ function projectionRect(candidate = null) {
 
 function pointInRect(point = null, rect = null) {
     if (!point || !rect) return false;
-    return point.x >= rect.x && point.x <= rect.x + rect.w
-        && point.y >= rect.y && point.y <= rect.y + rect.h;
+    const width = Number(rect.w ?? rect.width);
+    const height = Number(rect.h ?? rect.height);
+    return point.x >= rect.x && point.x <= rect.x + width
+        && point.y >= rect.y && point.y <= rect.y + height;
 }
 
 function candidateArea(candidate = null) {
@@ -86,8 +117,272 @@ function projectRect(rect = null, projectPoint = (point) => point) {
     };
 }
 
+function normalizeBounds(bounds = null) {
+    const x = Number(bounds?.x ?? bounds?.left);
+    const y = Number(bounds?.y ?? bounds?.top);
+    const width = Number(bounds?.w ?? bounds?.width);
+    const height = Number(bounds?.h ?? bounds?.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
+    return { x, y, w: width, h: height };
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function fitBadgeRect(point, bounds = null) {
+    if (!bounds) return { x: point.x, y: point.y, width: BADGE_SIZE, height: BADGE_SIZE };
+    return {
+        x: clamp(point.x, bounds.x + BADGE_MARGIN, bounds.x + bounds.w - BADGE_SIZE - BADGE_MARGIN),
+        y: clamp(point.y, bounds.y + BADGE_MARGIN, bounds.y + bounds.h - BADGE_SIZE - BADGE_MARGIN),
+        width: BADGE_SIZE,
+        height: BADGE_SIZE,
+    };
+}
+
+function badgeFits(point, bounds = null) {
+    if (!bounds) return true;
+    return point.x >= bounds.x + BADGE_MARGIN
+        && point.y >= bounds.y + BADGE_MARGIN
+        && point.x + BADGE_SIZE <= bounds.x + bounds.w - BADGE_MARGIN
+        && point.y + BADGE_SIZE <= bounds.y + bounds.h - BADGE_MARGIN;
+}
+
+function canPlacePrimaryBadges(count, startPoint, bounds, direction) {
+    if (!bounds) return true;
+    for (let i = 0; i < count; i += 1) {
+        const offset = BADGE_OFFSET_START + (i * BADGE_OFFSET_STEP);
+        if (!badgeFits({
+            x: startPoint.x + direction.dx * offset,
+            y: startPoint.y + direction.dy * offset,
+        }, bounds)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function chooseBadgeDirection(count, startPoint, bounds = null) {
+    const direction = BADGE_DIRECTIONS.find((candidate) => (
+        canPlacePrimaryBadges(count, startPoint, bounds, candidate)
+    )) || BADGE_DIRECTIONS[0];
+    return {
+        ...direction,
+        fallback: !canPlacePrimaryBadges(count, startPoint, bounds, direction),
+    };
+}
+
+function normalizedRoleToken(node = {}) {
+    const text = [
+        node.role,
+        node.kind,
+        node.subject_kind,
+        node.label,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    if (text.includes('display') || text.includes('screen')) return 'display';
+    if (/\bbody\b/.test(text) || text.includes('document body')) return 'body';
+    if (text.includes('native_app') || text.includes('application') || /\bapp\b/.test(text)) return 'app';
+    if (text.includes('native_window') || /\bwindow\b/.test(text)) return 'window';
+    return '';
+}
+
+function nodeRoleLabel(node = {}) {
+    return String(node.role || node.subject_kind || node.kind || node.label || '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function genericNodeLabel(node = {}) {
+    const label = String(node.label || '').toLowerCase().trim();
+    return !label || ['frame', 'group', 'container', 'element', 'unknown'].includes(label);
+}
+
+function rectDistance(a = null, b = null) {
+    if (!a || !b) return Number.POSITIVE_INFINITY;
+    const acx = a.x + (a.width || a.w || 0) / 2;
+    const acy = a.y + (a.height || a.h || 0) / 2;
+    const bcx = b.x + (b.width || b.w || 0) / 2;
+    const bcy = b.y + (b.height || b.h || 0) / 2;
+    return Math.hypot(acx - bcx, acy - bcy);
+}
+
+function rectSimilar(a = null, b = null) {
+    if (!a || !b) return false;
+    const aw = Number(a.width ?? a.w);
+    const ah = Number(a.height ?? a.h);
+    const bw = Number(b.width ?? b.w);
+    const bh = Number(b.height ?? b.h);
+    if (![aw, ah, bw, bh].every(Number.isFinite)) return false;
+    return Math.abs(aw - bw) <= 8
+        && Math.abs(ah - bh) <= 8
+        && rectDistance(a, b) <= 12;
+}
+
+function badgeNodeDistinct(node = {}, primary = {}) {
+    const token = normalizedRoleToken(node);
+    const primaryToken = normalizedRoleToken(primary);
+    if (token || primaryToken) return token !== primaryToken;
+    const rect = normalizeRect(node.projection?.visible_display_rect || node.projection?.display_space_rect);
+    const primaryRect = normalizeRect(primary.projection?.visible_display_rect || primary.projection?.display_space_rect);
+    if (rectSimilar(rect, primaryRect)) {
+        const role = nodeRoleLabel(node);
+        const primaryRole = nodeRoleLabel(primary);
+        if (!role || role === primaryRole || (genericNodeLabel(node) && genericNodeLabel(primary))) return false;
+    }
+    return true;
+}
+
+function badgeTokenLabel(token = '', fallback = '') {
+    if (token === 'display') return 'D';
+    if (token === 'body') return 'B';
+    if (token === 'app') return 'A';
+    if (token === 'window') return 'W';
+    return fallback;
+}
+
+function badgeTitle(node = {}, fallback = '') {
+    const role = String(node.role || node.subject_kind || node.kind || '').trim();
+    const label = String(node.label || node.address || node.id || fallback).trim();
+    return role && role !== label ? `${label} (${role})` : label;
+}
+
+function buildBadgeGroups(path = []) {
+    const ordered = path.map((node, pathIndex) => ({ node, pathIndex })).reverse();
+    const groups = [];
+    for (const entry of ordered) {
+        const last = groups.at(-1);
+        if (!last || badgeNodeDistinct(entry.node, last.primary.node)) {
+            groups.push({ primary: entry, secondaries: [] });
+        } else {
+            last.secondaries.push(entry);
+        }
+    }
+    return groups;
+}
+
+function buildBadgeModel({
+    path = [],
+    activeNodeId = '',
+    leafNodeId = '',
+    cursor = null,
+    overlayBounds = null,
+} = {}) {
+    if (!path.length || !cursor) return { badges: [], badgeGroups: [], badgeLayout: null };
+    const groups = buildBadgeGroups(path);
+    const bounds = normalizeBounds(overlayBounds);
+    const direction = chooseBadgeDirection(groups.length, cursor, bounds);
+    const fanDx = direction.dx >= 0 ? 1 : -1;
+    const badges = [];
+    const badgeGroups = groups.map((group, groupIndex) => {
+        const offset = BADGE_OFFSET_START + (groupIndex * BADGE_OFFSET_STEP);
+        const primaryPoint = {
+            x: cursor.x + direction.dx * offset,
+            y: cursor.y + direction.dy * offset,
+        };
+        const token = normalizedRoleToken(group.primary.node);
+        const primaryLabel = badgeTokenLabel(token, String(groupIndex + 1));
+        const primaryBadge = {
+            id: `selection-mode-badge:${group.primary.node.id}`,
+            kind: 'primary',
+            nodeId: group.primary.node.id,
+            address: group.primary.node.address,
+            label: primaryLabel,
+            title: badgeTitle(group.primary.node, primaryLabel),
+            pathIndex: group.primary.pathIndex,
+            groupIndex,
+            token,
+            active: group.primary.node.id === activeNodeId,
+            leaf: group.primary.node.id === leafNodeId,
+            rect: fitBadgeRect(primaryPoint, bounds),
+            decoration: {
+                token,
+                style: token ? `key-${token}` : 'ancestor',
+            },
+        };
+        badges.push(primaryBadge);
+        const secondaryIds = [];
+        group.secondaries.forEach((secondary, secondaryIndex) => {
+            const secondaryToken = normalizedRoleToken(secondary.node);
+            const rect = fitBadgeRect({
+                x: primaryBadge.rect.x + fanDx * (BADGE_SIZE + BADGE_FAN_GAP) * (secondaryIndex + 1),
+                y: primaryBadge.rect.y,
+            }, bounds);
+            const secondaryBadge = {
+                id: `selection-mode-badge:${secondary.node.id}`,
+                kind: 'secondary',
+                nodeId: secondary.node.id,
+                address: secondary.node.address,
+                label: `${primaryLabel}.${secondaryIndex + 1}`,
+                title: badgeTitle(secondary.node, `${primaryLabel}.${secondaryIndex + 1}`),
+                pathIndex: secondary.pathIndex,
+                groupIndex,
+                token: secondaryToken,
+                active: secondary.node.id === activeNodeId,
+                leaf: secondary.node.id === leafNodeId,
+                rect,
+                decoration: {
+                    token: secondaryToken,
+                    style: secondaryToken ? `key-${secondaryToken}` : 'grouped-ancestor',
+                },
+            };
+            secondaryIds.push(secondaryBadge.id);
+            badges.push(secondaryBadge);
+        });
+        return {
+            id: `selection-mode-badge-group:${groupIndex}`,
+            primaryId: primaryBadge.id,
+            secondaryIds,
+            fanoutDirection: fanDx > 0 ? 'right' : 'left',
+            groupedCount: group.secondaries.length,
+            pathNodeIds: [group.primary, ...group.secondaries].map((entry) => entry.node.id),
+        };
+    });
+    return {
+        badges,
+        badgeGroups,
+        badgeLayout: {
+            order: 'leaf-to-root',
+            direction: direction.id,
+            fallback: direction.fallback,
+            badgeSize: BADGE_SIZE,
+            offsetStart: BADGE_OFFSET_START,
+            offsetStep: BADGE_OFFSET_STEP,
+        },
+    };
+}
+
+function buildCursorGlyph(cursor = null) {
+    if (!cursor) return null;
+    return {
+        kind: 'selection_mode_cursor',
+        shape: 'bespoke_arrow_outline',
+        point: cursor,
+        hotspot: { x: 0, y: 0 },
+        outline: SELECTION_CURSOR_ARROW_POINTS.map((point) => ({ ...point })),
+        aura: { ...SELECTION_CURSOR_AURA },
+        animatedGlow: true,
+    };
+}
+
+function buildCursorTrailModel() {
+    return {
+        kind: 'selection_mode_cursor_trail',
+        shape: 'bespoke_arrow_outline',
+        repeatShape: 'bespoke_arrow_outline',
+        aura: { ...SELECTION_CURSOR_AURA },
+        timingSource: 'fast_travel_line',
+    };
+}
+
+export function hitTestSelectionModeBadge(overlay = {}, point = null) {
+    if (!point || !Array.isArray(overlay.badges)) return null;
+    return overlay.badges.find((badge) => pointInRect(point, badge.rect)) || null;
+}
+
 export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     projectPoint = (point) => point,
+    overlayBounds = null,
 } = {}) {
     if (!selectionMode?.active && !selectionMode?.context_session) return { visible: false };
     const artifact = selectionMode.context_session?.artifacts?.[0] || null;
@@ -112,10 +407,24 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
             leaf: node.id === leafNodeId,
         };
     }).filter(Boolean);
+    const cursor = selectionMode.cursor ? projectPoint(selectionMode.cursor) : null;
+    const badgeAnchor = artifact?.acquisition?.pointer
+        ? projectPoint(artifact.acquisition.pointer)
+        : cursor;
+    const badgeModel = buildBadgeModel({
+        path,
+        activeNodeId,
+        leafNodeId,
+        cursor: badgeAnchor,
+        overlayBounds,
+    });
     return {
         visible: selectionMode.active === true,
-        cursor: selectionMode.cursor ? projectPoint(selectionMode.cursor) : null,
+        cursor,
+        cursorGlyph: buildCursorGlyph(cursor),
+        cursorTrail: buildCursorTrailModel(),
         frames,
+        ...badgeModel,
         activeNodeId,
         leafNodeId,
         blocker: selectionMode.blocker || null,
@@ -131,6 +440,7 @@ export function createSigilSelectionModeRuntime({
     getDisplays = () => [],
     getCandidateList = () => [],
     projectPoint = (point) => point,
+    getOverlayBounds = () => null,
     closeContextMenu = () => {},
     exitAnnotationReticle = () => {},
     clearGestureState = () => {},
@@ -147,7 +457,10 @@ export function createSigilSelectionModeRuntime({
     if (liveState.selectionModeOverlay === undefined) liveState.selectionModeOverlay = null;
 
     function buildOverlay(selectionMode = liveState.selectionMode) {
-        return buildProjectedSelectionModeOverlay(selectionMode, { projectPoint });
+        return buildProjectedSelectionModeOverlay(selectionMode, {
+            projectPoint,
+            overlayBounds: getOverlayBounds(),
+        });
     }
 
     function publish({ inputRegions = false, render = false } = {}) {
@@ -288,6 +601,27 @@ export function createSigilSelectionModeRuntime({
         return context;
     }
 
+    function selectTargetNode(nodeId = '', { reason = 'badge-click' } = {}) {
+        const target = String(nodeId || '').trim();
+        const path = liveState.selectionMode?.context_session?.artifacts?.[0]?.path || [];
+        if (!target || !path.some((node) => node.id === target || node.address === target)) return null;
+        const context = buildContextSession({ selectedNodeId: target });
+        recordEvent('select_target', {
+            reason,
+            selected_node_id: liveState.selectionMode.selected_node_id,
+        });
+        publish({ render: true });
+        return context;
+    }
+
+    function hitTestBadge(point = null) {
+        const cursor = cursorFromPoint(point);
+        if (!cursor) return null;
+        const projected = projectPoint(cursor);
+        const overlay = buildOverlay(liveState.selectionMode);
+        return hitTestSelectionModeBadge(overlay, projected);
+    }
+
     function commit(reason = 'selection-mode-commit') {
         const contextSession = liveState.selectionMode?.context_session || buildContextSession();
         if (!contextSession) return null;
@@ -369,6 +703,7 @@ export function createSigilSelectionModeRuntime({
             consumeSelectionModeEntryRelease,
             isOnAvatar,
             consumeAvatarDoubleClick,
+            hitTestBadge,
         });
         if (!route.handled) return false;
         if (route.direct === 'render_only') {
@@ -383,6 +718,8 @@ export function createSigilSelectionModeRuntime({
 
         executeCommand(route.command, msg, {
             pointer: route.pointer || null,
+            nodeId: route.nodeId || null,
+            badgeId: route.badgeId || null,
         });
         return true;
     }
@@ -395,6 +732,8 @@ export function createSigilSelectionModeRuntime({
         exit,
         acquire,
         cycleTarget,
+        selectTargetNode,
+        hitTestBadge,
         commit,
         setNodeComment,
         createContextFromDebugInput,
