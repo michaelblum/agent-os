@@ -57,7 +57,8 @@ contract, or would need private test plumbing that already exists one level up.
 - Visual harness tests: use when canvas placement, Surface Inspector visibility,
   app launch composition, stale content roots, or visual diagnostics need a
   repeatable workspace. They do not replace assertions for product semantics or
-  real input. Reuse `tests/lib/visual-harness.sh`,
+  real input. Reuse generic helpers in `tests/lib/visual-harness.sh`,
+  app-specific compositions such as `tests/lib/sigil/visual-harness.sh`,
   `tests/visual-harness-content-preflight.sh`, and named visual launch helpers
   such as `aos_visual_launch_canvas_inspector` and
   `aos_visual_launch_sigil_with_inspector`. Escalate when a human must judge a
@@ -344,13 +345,16 @@ commands over ad hoc polling:
 - `aos content wait --root <name> ...`
 - `aos show wait --id <canvas> [--manifest <name>] [--js <condition>]`
 
-For tests or manual harnesses that need visual context, use the shared fixture
-in `tests/lib/visual-harness.sh` instead of reimplementing canvas setup. It
-wraps the isolated daemon helpers and provides named launch steps for common
+For tests or manual harnesses that need visual context, use shared harness
+fixtures instead of reimplementing canvas setup. Generic AOS/canvas primitives
+live in `tests/lib/visual-harness.sh`. App-specific compositions live under
+`tests/lib/<app>/`, such as `tests/lib/sigil/visual-harness.sh`. Together they
+wrap the isolated daemon helpers and provide named launch steps for common
 surfaces:
 
 - `aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil`
-- `aos_visual_sigil_renderer_url` and `aos_visual_toolkit_url <path> [query]`
+- `aos_visual_toolkit_url <path> [query]`
+- `aos_visual_sigil_renderer_url`
 - `aos_visual_launch_canvas_inspector surface-inspector`
 - `aos_visual_launch_sigil_avatar avatar-main`
 - `aos_visual_launch_sigil_with_inspector avatar-main surface-inspector`
@@ -466,7 +470,7 @@ before escalating to screenshots, pixel checks, or HITL inspection.
 
 For live or manual Sigil checks after source edits, do not trust an already-open
 `avatar-main` unless its debug runtime snapshot proves it was reloaded after the
-change. Relaunch the surface or use `tests/lib/visual-harness.sh`; stale
+change. Relaunch the surface or use `tests/lib/sigil/visual-harness.sh`; stale
 WKWebView canvases can retain old JS modules and create false failures during
 real-input verification.
 

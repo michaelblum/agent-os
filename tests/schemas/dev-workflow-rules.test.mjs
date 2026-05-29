@@ -87,6 +87,17 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
     'bash tests/help-contract.sh',
   );
   assert.deepEqual(
+    rules.get('visual-harness-primitives')?.commands?.map((step) => step.command),
+    [
+      'bash tests/visual-harness-boundary.sh',
+      'bash tests/visual-harness-canonical-url-primitives.sh',
+      'bash tests/visual-harness-content-preflight.sh',
+      'bash tests/harness-composability-contracts.sh',
+    ],
+  );
+  assert.ok(rules.get('visual-harness-primitives')?.patterns?.includes('tests/lib/visual-harness.sh'));
+  assert.ok(rules.get('visual-harness-primitives')?.patterns?.includes('tests/lib/sigil/visual-harness.sh'));
+  assert.deepEqual(
     rules.get('command-surface-manifests')?.commands?.map((step) => step.command),
     [
       'node --test tests/schemas/aos-external-command-manifest-v0.test.mjs',

@@ -45,7 +45,12 @@ Candidate reusable artifact reporting:
 ## Canonical URL And Fresh Runtime Evidence
 
 Use shared helpers in `tests/lib/visual-harness.sh` when a visual or live-canvas
-test touches content-root URLs, reloads, or Sigil renderer freshness.
+test touches generic content-root URLs, reloads, or canvas setup. Use
+app-specific harnesses such as `tests/lib/sigil/visual-harness.sh` for
+product-specific launch composition, renderer freshness, fixtures, and status
+item setup. New app-specific visual helpers should start under
+`tests/lib/<app>/` and source the generic harness rather than growing the
+generic file.
 
 - Command/config boundary: pass canonical `aos://...` URLs. AOS may rewrite
   those to `http://127.0.0.1:<port>/...` inside WKWebView or `show list`

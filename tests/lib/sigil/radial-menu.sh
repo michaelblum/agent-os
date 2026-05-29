@@ -2,6 +2,7 @@
 
 SIGIL_RADIAL_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SIGIL_RADIAL_LIB_DIR/../real-input-surface-harness.sh"
+source "$SIGIL_RADIAL_LIB_DIR/visual-harness.sh"
 
 aos_sigil_radial_verify_real_input() {
   local avatar_id="${1:-avatar-main}"
