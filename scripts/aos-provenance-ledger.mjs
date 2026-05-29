@@ -910,7 +910,6 @@ function cutoffDate(days, now) {
 }
 
 function prunePlan(options) {
-  materializeSummariesForEvents(options);
   const root = baseDir(options);
   const now = isoNow(options);
   const files = listFiles(root).map((file) => {
@@ -950,6 +949,7 @@ function prunePlan(options) {
 }
 
 function applyPrune(plan, options) {
+  materializeSummariesForEvents(options);
   const root = stateRoot(options);
   for (const candidate of plan.candidates) {
     const file = path.resolve(root, candidate.path);

@@ -143,6 +143,7 @@ old_event = events[0] / "2026-05-01.jsonl"
 old_event.write_text('{"type":"aos.dock.provenance.event","schema_version":"2026-05-dock-provenance-v0","observed_at":"2026-05-01T00:00:00.000Z","repo_key":"old","dock":"gdi","phase":"post-tool-use","event":"tool"}\n')
 PY
 
+BEFORE_DRY_RUN="$(find "$STATE_ROOT" -type f -print | sort | xargs stat -f '%N %z %m')"
 if OUT="$(./aos dev provenance prune --dry-run --state-root "$STATE_ROOT" --runtime-mode repo --json 2>/dev/null)" python3 - <<'PY'
 import json, os
 data = json.loads(os.environ["OUT"])
@@ -154,6 +155,12 @@ then
   pass "prune dry-run reports fixture-state candidates"
 else
   fail "prune dry-run did not report expected candidates"
+fi
+AFTER_DRY_RUN="$(find "$STATE_ROOT" -type f -print | sort | xargs stat -f '%N %z %m')"
+if [[ "$BEFORE_DRY_RUN" == "$AFTER_DRY_RUN" ]]; then
+  pass "prune dry-run leaves fixture ledger files unchanged"
+else
+  fail "prune dry-run mutated fixture ledger files"
 fi
 
 if OUT="$(./aos dev provenance prune --apply --state-root "$STATE_ROOT" --runtime-mode repo --json 2>/dev/null)" python3 - <<'PY'
