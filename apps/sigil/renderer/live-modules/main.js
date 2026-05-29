@@ -30,13 +30,17 @@ import {
     computeDesktopWorldBounds,
     computeVisibleDesktopWorldBounds,
     desktopWorldToNativePoint,
-    globalToUnionLocalPoint,
     nativeToDesktopWorldPoint,
     nativeToDesktopWorldRect,
     normalizeDisplays,
     normalizeCanvasFrameToDesktopWorld,
     canvasLocalRectToDesktopWorld,
 } from './display-utils.js';
+import {
+    applyOmegaRenderStateSnapshot,
+    desktopWorldToSegmentLocalPoint as desktopWorldToSegmentLocalPointForSurface,
+    omegaRenderStateSnapshot,
+} from './surface-render-state.js';
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
 import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
@@ -524,10 +528,7 @@ function applySurfaceRenderSnapshot(snapshot) {
     }
     if (Number.isFinite(snapshot.appScale)) state.appScale = snapshot.appScale;
     if (Number.isFinite(snapshot.globalTime)) state.globalTime = snapshot.globalTime;
-    if (snapshot.omega && typeof snapshot.omega === 'object') {
-        if (typeof snapshot.omega.enabled === 'boolean') state.isOmegaEnabled = snapshot.omega.enabled;
-        if (typeof snapshot.omega.interDimensional === 'boolean') state.omegaInterDimensional = snapshot.omega.interDimensional;
-    }
+    applyOmegaRenderStateSnapshot(state, snapshot.omega);
     if (snapshot.contextMenu && typeof snapshot.contextMenu === 'object') {
         contextMenu.applySnapshot(snapshot.contextMenu);
     }
@@ -555,10 +556,7 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         appScale: state.appScale,
         globalTime: state.globalTime,
         appearanceVersion: liveJs.appearanceVersion,
-        omega: {
-            enabled: state.isOmegaEnabled,
-            interDimensional: state.omegaInterDimensional,
-        },
+        omega: omegaRenderStateSnapshot(state),
         contextMenu: contextMenu?.snapshot?.(),
         fastTravel: fastTravel.exportSnapshot(),
         annotationReticle: liveJs.annotationReticle,
@@ -571,21 +569,10 @@ function surfaceRenderSnapshot(renderAvatarPos) {
 }
 
 function desktopWorldToSegmentLocalPoint(point) {
-    if (!point) return null;
-    const dw = desktopWorldSurface?.segment?.dw_bounds;
-    if (Array.isArray(dw) && dw.length >= 4) {
-        return {
-            x: point.x - dw[0],
-            y: point.y - dw[1],
-            valid: point.valid ?? true,
-        };
-    }
-    const local = globalToUnionLocalPoint(point, liveJs.globalBounds);
-    if (!local) return null;
-    return {
-        ...local,
-        valid: point.valid ?? true,
-    };
+    return desktopWorldToSegmentLocalPointForSurface(point, {
+        segment: desktopWorldSurface?.segment,
+        globalBounds: liveJs.globalBounds,
+    });
 }
 
 function stagePoint(point) {
