@@ -520,7 +520,7 @@ export function createSigilSelectionModeRuntime({
         });
         if (!route.handled) return false;
         if (route.direct === 'render_only') {
-            scheduleRenderFrame();
+            scheduleRenderFrame({ structural: false });
             return true;
         }
         if (route.direct === 'avatar_double_click_exit') {

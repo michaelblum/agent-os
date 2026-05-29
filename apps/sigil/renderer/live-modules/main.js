@@ -3864,12 +3864,12 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
         removeSigilInputRegions();
     }
-    overlay.draw({ state: 'IDLE', avatarPos: null, dragOrigin: null });
+    overlay.clear();
     refreshSelectionModeCursorModelSnapshot(null);
     radialActivationTransition.clear();
     radialGestureVisuals?.reset?.();
-    visibilityTransition.draw({ avatarStagePos: null });
-    fastTravel.draw();
+    visibilityTransition.clear();
+    fastTravel.clear?.();
     const renderStartedAt = performance.now();
     state.renderer.clear(true, true, true);
     postRenderPerformanceSample({

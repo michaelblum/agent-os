@@ -69,7 +69,7 @@ function createRuntime(options = {}) {
     exitAnnotationReticle: () => { exitedReticle += 1 },
     clearGestureState: () => { clearedGesture += 1 },
     syncInputRegions: () => { syncedRegions += 1 },
-    scheduleRenderFrame: () => { scheduled.push('frame') },
+    scheduleRenderFrame: (options = {}) => { scheduled.push(options) },
     clearSelectionModeEntryReleasePending: () => {},
     consumeSelectionModeEntryRelease: () => false,
     isOnAvatar: () => false,
@@ -172,6 +172,21 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   assert.equal(liveState.selectionMode.active, false)
   assert.equal(activeContexts[0].source, 'selection_mode')
   assert.equal(activeContexts[0].contextSession.id, committed.id)
+})
+
+test('Selection Mode pointer movement updates overlay and schedules visual-only render work', () => {
+  const { runtime, liveState, scheduled, commands } = createRuntime()
+
+  runtime.enter({ x: 40, y: 40, valid: true }, 'test')
+  const handled = runtime.handleInput({ type: 'mouse_moved', x: 120, y: 130 })
+
+  assert.equal(handled, true)
+  assert.equal(commands.length, 0)
+  assert.equal(liveState.selectionMode.cursor.x, 120)
+  assert.equal(liveState.selectionMode.cursor.y, 130)
+  assert.equal(liveState.selectionModeOverlay.cursor.x, 121)
+  assert.equal(liveState.selectionModeOverlay.cursor.y, 132)
+  assert.deepEqual(scheduled.at(-1), { structural: false })
 })
 
 test('Selection Mode overlay aligns semantic targets from normalized DesktopWorld canvas frames', () => {

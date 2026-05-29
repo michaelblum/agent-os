@@ -576,6 +576,14 @@ export function createInteractionOverlay() {
 
     }
 
+    function clear() {
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        selectionCursorTrail.length = 0;
+    }
+
     function destroy() {
         if (resize) {
             window.removeEventListener('resize', resize);
@@ -591,6 +599,7 @@ export function createInteractionOverlay() {
     return {
         mount: ensureCanvas,
         draw,
+        clear,
         destroy,
     };
 }

@@ -72,3 +72,27 @@ test('Sigil visual cursor refresh uses owned overlay cache instead of rebuilding
   assert.match(cursorRefreshBlock, /refreshSelectionModeCursorModelSnapshot\(liveJs\.selectionModeOverlay \|\| null\)/)
   assert.doesNotMatch(cursorRefreshBlock, /selectionModeRuntime\.buildProjectedOverlay\(\)/)
 })
+
+test('Selection Mode render-only input schedules visual-only frames', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/selection-mode-runtime.js'), 'utf8')
+  const renderOnlyStart = source.indexOf("if (route.direct === 'render_only')")
+  const renderOnlyEnd = source.indexOf("if (route.direct === 'avatar_double_click_exit')", renderOnlyStart)
+  const renderOnlyBlock = source.slice(renderOnlyStart, renderOnlyEnd)
+
+  assert.match(renderOnlyBlock, /scheduleRenderFrame\(\{\s*structural:\s*false\s*\}\)/)
+  assert.doesNotMatch(renderOnlyBlock, /scheduleRenderFrame\(\);/)
+})
+
+test('hidden Sigil cleanup clears overlay canvases and cursor model before publishing hidden state', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const clearStart = source.indexOf('function clearHiddenFrame')
+  const clearEnd = source.indexOf('function animate()', clearStart)
+  const clearBlock = source.slice(clearStart, clearEnd)
+
+  assert.match(clearBlock, /overlay\.clear\(\)/)
+  assert.match(clearBlock, /refreshSelectionModeCursorModelSnapshot\(null\)/)
+  assert.match(clearBlock, /visibilityTransition\.clear\(\)/)
+  assert.match(clearBlock, /fastTravel\.clear\?\.\(\)/)
+  assert.match(clearBlock, /state\.renderer\.clear\(true,\s*true,\s*true\)/)
+  assert.ok(clearBlock.indexOf('overlay.clear()') < clearBlock.indexOf('state.renderer.clear(true, true, true)'))
+})

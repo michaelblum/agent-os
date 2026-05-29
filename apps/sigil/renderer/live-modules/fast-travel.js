@@ -2151,6 +2151,10 @@ export function createFastTravelController({
         tick,
         preview,
         draw,
+        clear() {
+            overlay.clear();
+            wormholeOverlay.clear();
+        },
         exportSnapshot,
         applySnapshot,
         destroy() {
