@@ -1,0 +1,365 @@
+{
+  "schema": "aos_ux_tree",
+  "version": "0.1.0",
+  "id": "sigil.avatar.ux_tree",
+  "label": "Sigil Avatar UX Tree",
+  "owner": "sigil",
+  "source_refs": [
+    {
+      "id": "sigil-main",
+      "kind": "source",
+      "ref": "apps/sigil/renderer/live-modules/main.js"
+    },
+    {
+      "id": "sigil-radial-menu",
+      "kind": "resource",
+      "ref": "apps/sigil/renderer/radial-menu/sigil-radial-menu.json"
+    }
+  ],
+  "modes": [
+    { "id": "global", "label": "Global" },
+    { "id": "idle", "label": "Idle" },
+    { "id": "goto", "label": "GOTO" },
+    { "id": "press", "label": "Press" },
+    { "id": "radial", "label": "Radial" },
+    { "id": "selection_mode", "label": "Selection Mode" }
+  ],
+  "nodes": [
+    {
+      "id": "sigil.avatar",
+      "label": "Sigil Avatar",
+      "role": "root",
+      "node_type": "avatar",
+      "hit_source": { "kind": "sigil.avatar.hit_target" },
+      "settings_ref": "settings.avatar",
+      "children": [
+        "sigil.avatar.body",
+        "sigil.avatar.radial_menu",
+        "sigil.avatar.context_menu",
+        "sigil.avatar.selection_mode",
+        "sigil.avatar.annotation_reticle",
+        "sigil.avatar.annotation_camera"
+      ],
+      "resource_refs": [],
+      "source_metadata": { "source": "main.js" }
+    },
+    {
+      "id": "sigil.avatar.body",
+      "parent_id": "sigil.avatar",
+      "label": "Avatar Body",
+      "role": "button",
+      "node_type": "hit_target",
+      "hit_source": { "kind": "input_region", "id": "sigil-avatar-main-input-region" },
+      "resource_refs": [],
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.radial_menu",
+      "parent_id": "sigil.avatar",
+      "label": "Radial Menu",
+      "role": "menu",
+      "node_type": "radial_menu",
+      "settings_ref": "settings.radial",
+      "resource_refs": [
+        {
+          "id": "radial-menu-config",
+          "kind": "resource",
+          "ref": "apps/sigil/renderer/radial-menu/sigil-radial-menu.json"
+        }
+      ],
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.radial_menu.item.context-menu",
+      "parent_id": "sigil.avatar.radial_menu",
+      "label": "Context Menu",
+      "role": "menuitem",
+      "node_type": "radial_item",
+      "settings_ref": "settings.radial.items.context-menu",
+      "resource_refs": [],
+      "source_metadata": { "radial_item_id": "context-menu" }
+    },
+    {
+      "id": "sigil.avatar.context_menu",
+      "parent_id": "sigil.avatar",
+      "label": "Context Menu",
+      "role": "menu",
+      "node_type": "context_menu",
+      "resource_refs": [],
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.selection_mode",
+      "parent_id": "sigil.avatar",
+      "label": "Selection Mode",
+      "role": "mode",
+      "node_type": "mode_scope",
+      "children": [
+        "sigil.avatar.selection_mode.cursor_overlay",
+        "sigil.avatar.selection_mode.ancestor_badges"
+      ],
+      "resource_refs": [],
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.selection_mode.cursor_overlay",
+      "parent_id": "sigil.avatar.selection_mode",
+      "label": "Selection Cursor Overlay",
+      "role": "overlay",
+      "node_type": "visual_overlay",
+      "resource_refs": [],
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.selection_mode.ancestor_badges",
+      "parent_id": "sigil.avatar.selection_mode",
+      "label": "Ancestor Badges",
+      "role": "overlay",
+      "node_type": "visual_overlay",
+      "resource_refs": [],
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.annotation_reticle",
+      "parent_id": "sigil.avatar",
+      "label": "Annotation Reticle",
+      "role": "tool",
+      "node_type": "reticle",
+      "resource_refs": [],
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.annotation_camera",
+      "parent_id": "sigil.avatar",
+      "label": "Annotation Camera",
+      "role": "tool",
+      "node_type": "camera",
+      "resource_refs": [],
+      "source_metadata": {}
+    }
+  ],
+  "commands": [
+    {
+      "id": "sigil.context_menu.open",
+      "label": "Open context menu",
+      "description": "Open the existing Sigil context menu through current runtime code.",
+      "handler_ref": "sigil.context_menu.open",
+      "parameters": {},
+      "safety": { "execution": "allowlisted", "side_effect": "existing_runtime_path" },
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.radial.release_item",
+      "label": "Release radial item",
+      "description": "Invoke the current radial item release path.",
+      "handler_ref": "sigil.radial.release_item",
+      "parameters": {},
+      "safety": { "execution": "allowlisted", "side_effect": "existing_runtime_path" },
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.selection_mode.enter",
+      "label": "Enter Selection Mode",
+      "description": "Enter Selection Mode through the existing double-click path.",
+      "handler_ref": "sigil.selection_mode.enter",
+      "parameters": {},
+      "safety": { "execution": "allowlisted", "side_effect": "existing_runtime_path" },
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.selection_mode.cancel",
+      "label": "Cancel Selection Mode",
+      "description": "Cancel active Selection Mode.",
+      "handler_ref": "sigil.selection_mode.cancel",
+      "parameters": {},
+      "safety": { "execution": "allowlisted", "side_effect": "existing_runtime_path" },
+      "source_metadata": {}
+    }
+  ],
+  "bindings": [
+    {
+      "id": "sigil.avatar.context_menu.right_click",
+      "node_id": "sigil.avatar.body",
+      "mode": "idle",
+      "gesture": "pointer.right.click",
+      "command_id": "sigil.context_menu.open",
+      "enabled": true,
+      "priority": 100,
+      "consume_policy": "route",
+      "parameters": {},
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.avatar.selection_mode.double_click",
+      "node_id": "sigil.avatar.body",
+      "mode": "goto",
+      "gesture": "pointer.left.double_click",
+      "command_id": "sigil.selection_mode.enter",
+      "enabled": true,
+      "priority": 100,
+      "consume_policy": "consume",
+      "parameters": {},
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.selection_mode.escape",
+      "node_id": "sigil.avatar.selection_mode",
+      "mode": "selection_mode",
+      "gesture": "key.escape",
+      "command_id": "sigil.selection_mode.cancel",
+      "enabled": true,
+      "priority": 100,
+      "consume_policy": "consume",
+      "parameters": {},
+      "source_metadata": {}
+    },
+    {
+      "id": "sigil.radial.item.release.context-menu",
+      "node_id": "sigil.avatar.radial_menu.item.context-menu",
+      "mode": "radial",
+      "gesture": "pointer.left.release",
+      "command_id": "sigil.radial.release_item",
+      "enabled": true,
+      "priority": 100,
+      "consume_policy": "consume",
+      "parameters": { "item_id": "context-menu" },
+      "source_metadata": {}
+    }
+  ],
+  "relations": [
+    {
+      "id": "sigil.avatar.body.opens_context_menu",
+      "relation_type": "opens",
+      "from_node_id": "sigil.avatar.body",
+      "to_node_id": "sigil.avatar.context_menu",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/context-menu-input.js",
+        "binding_id": "sigil.avatar.context_menu.right_click",
+        "command_id": "sigil.context_menu.open"
+      },
+      "metadata": {
+        "gesture": "pointer.right.click"
+      }
+    },
+    {
+      "id": "sigil.avatar.body.triggers_radial_menu",
+      "relation_type": "triggers",
+      "from_node_id": "sigil.avatar.body",
+      "to_node_id": "sigil.avatar.radial_menu",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/radial-gesture-menu.js"
+      },
+      "metadata": {
+        "gesture": "pointer.left.drag_threshold"
+      }
+    },
+    {
+      "id": "sigil.avatar.body.triggers_selection_mode",
+      "relation_type": "triggers",
+      "from_node_id": "sigil.avatar.body",
+      "to_node_id": "sigil.avatar.selection_mode",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/selection-mode-input.js",
+        "binding_id": "sigil.avatar.selection_mode.double_click",
+        "command_id": "sigil.selection_mode.enter"
+      },
+      "metadata": {
+        "gesture": "pointer.left.double_click"
+      }
+    },
+    {
+      "id": "sigil.avatar.anchors_radial_menu",
+      "relation_type": "anchors",
+      "from_node_id": "sigil.avatar",
+      "to_node_id": "sigil.avatar.radial_menu",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/radial-gesture-menu.js"
+      },
+      "metadata": {
+        "anchor": {
+          "kind": "avatar_position",
+          "state_ref": "liveJs.avatarPos"
+        }
+      }
+    },
+    {
+      "id": "sigil.avatar.body.anchors_context_menu",
+      "relation_type": "anchors",
+      "from_node_id": "sigil.avatar.body",
+      "to_node_id": "sigil.avatar.context_menu",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/context-menu-input.js"
+      },
+      "metadata": {
+        "anchor": {
+          "kind": "pointer_open_point"
+        }
+      }
+    },
+    {
+      "id": "sigil.avatar.radial_menu.targets_items",
+      "relation_type": "targets",
+      "from_node_id": "sigil.avatar.radial_menu",
+      "to_node_id": "sigil.avatar.radial_menu.item.*",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/radial-menu-target-surface.js"
+      },
+      "metadata": {
+        "target_surface": {
+          "kind": "radial_menu_targets",
+          "lifecycle": "active_radial_phase",
+          "hit_source_ref": "radialTargetSurface",
+          "collection_ref": "sigil.avatar.radial_menu.item.*"
+        }
+      }
+    },
+    {
+      "id": "sigil.avatar.context_menu.targets_input_region",
+      "relation_type": "targets",
+      "from_node_id": "sigil.avatar.context_menu",
+      "to_node_id": "sigil.avatar.context_menu",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/context-menu-input.js"
+      },
+      "metadata": {
+        "target_surface": {
+          "kind": "input_region",
+          "lifecycle": "context_menu_open",
+          "hit_source_ref": "sigil-context-menu-input-region",
+          "consume_policy": "captured"
+        }
+      }
+    },
+    {
+      "id": "sigil.avatar.selection_mode.targets_input_region",
+      "relation_type": "targets",
+      "from_node_id": "sigil.avatar.selection_mode",
+      "to_node_id": "sigil.avatar.selection_mode",
+      "source_metadata": {
+        "source": "apps/sigil/renderer/live-modules/selection-mode-input.js"
+      },
+      "metadata": {
+        "target_surface": {
+          "kind": "input_region",
+          "lifecycle": "selection_mode_active",
+          "hit_source_ref": "sigil-selection-mode-input-region",
+          "consume_policy": "captured"
+        }
+      }
+    }
+  ],
+  "settings": {
+    "avatar": { "hit_radius": 40 },
+    "radial": {
+      "geometry": { "menuRadius": 2.65 },
+      "items": {
+        "context-menu": { "action": "contextMenu" }
+      }
+    },
+    "visual_overlays": {},
+    "overrides": {}
+  },
+  "metadata": {
+    "runtime_state": "read_only_shadow"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "schema": "aos_ux_tree",
+  "version": "0.1.0",
+  "id": "invalid.embedded-resource",
+  "label": "Invalid Embedded Resource",
+  "owner": "test",
+  "source_refs": [
+    {
+      "id": "blob",
+      "kind": "asset",
+      "ref": "data:application/octet-stream;base64,AAAA"
+    }
+  ],
+  "modes": [{ "id": "global", "label": "Global" }],
+  "nodes": [{ "id": "node", "label": "Node", "role": "button", "node_type": "affordance" }],
+  "commands": [
+    {
+      "id": "noop",
+      "label": "Noop",
+      "description": "",
+      "handler_ref": "test.noop",
+      "parameters": {},
+      "safety": { "execution": "allowlisted" },
+      "source_metadata": {}
+    }
+  ],
+  "bindings": [],
+  "relations": [],
+  "settings": {},
+  "metadata": {}
+}

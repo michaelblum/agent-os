@@ -1,0 +1,153 @@
+{
+  "schema": "aos_context_session",
+  "version": "0.1.0",
+  "id": "context-session:leaf-active",
+  "created_at": "2026-05-28T12:00:00.000Z",
+  "updated_at": "2026-05-28T12:00:01.000Z",
+  "active": true,
+  "entry_source": "selection_mode",
+  "source_annotation_session": {
+    "schema": "aos_annotation_session",
+    "version": "0.1.0",
+    "active": true,
+    "entry_source": "selection_mode",
+    "updated_at": "2026-05-28T12:00:01.000Z",
+    "root_address": "subject:aos-toolkit-semantic-target:display-1:display-1",
+    "committed_scope_addresses": [
+      "subject:aos-toolkit-semantic-target:display-1:display-1",
+      "subject:aos-toolkit-semantic-target:display-1:window-1",
+      "subject:aos-toolkit-semantic-target:display-1:save-button"
+    ],
+    "preview_scope_addresses": [
+      "subject:aos-toolkit-semantic-target:display-1:display-1",
+      "subject:aos-toolkit-semantic-target:display-1:window-1",
+      "subject:aos-toolkit-semantic-target:display-1:save-button"
+    ],
+    "hover_candidate_address": "",
+    "anchor_addresses": [
+      "subject:aos-toolkit-semantic-target:display-1:save-button"
+    ],
+    "snapshot_count": 0
+  },
+  "artifacts": [
+    {
+      "schema": "aos_context_artifact",
+      "version": "0.1.0",
+      "id": "context-artifact:save-button",
+      "kind": "selection",
+      "path": [
+        {
+          "id": "node:display",
+          "address": "subject:aos-toolkit-semantic-target:display-1:display-1",
+          "subject": {
+            "address": "subject:aos-toolkit-semantic-target:display-1:display-1",
+            "adapter_id": "aos-toolkit-semantic-target",
+            "root": { "id": "display-1", "kind": "display", "label": "Built-in Display" },
+            "subject": { "id": "display-1", "path": ["display-1"], "kind": "display" },
+            "source_metadata": {},
+            "fallback_evidence": {}
+          },
+          "kind": "display",
+          "role": "display",
+          "label": "Built-in Display",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 0, "y": 0, "w": 1440, "h": 900 }
+          },
+          "blocker": null,
+          "comments": []
+        },
+        {
+          "id": "node:window",
+          "address": "subject:aos-toolkit-semantic-target:display-1:window-1",
+          "subject": {
+            "address": "subject:aos-toolkit-semantic-target:display-1:window-1",
+            "adapter_id": "aos-toolkit-semantic-target",
+            "root": { "id": "display-1", "kind": "display", "label": "Built-in Display" },
+            "subject": { "id": "window-1", "path": ["display-1", "window-1"], "kind": "window" },
+            "source_metadata": { "app": "Workbench" },
+            "fallback_evidence": {}
+          },
+          "kind": "window",
+          "role": "window",
+          "label": "Workbench",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 100, "y": 100, "w": 800, "h": 520 }
+          },
+          "blocker": null,
+          "comments": []
+        },
+        {
+          "id": "node:save-button",
+          "address": "subject:aos-toolkit-semantic-target:display-1:save-button",
+          "subject": {
+            "address": "subject:aos-toolkit-semantic-target:display-1:save-button",
+            "adapter_id": "aos-toolkit-semantic-target",
+            "root": { "id": "display-1", "kind": "display", "label": "Built-in Display" },
+            "subject": { "id": "save-button", "path": ["display-1", "window-1", "save-button"], "kind": "button" },
+            "source_metadata": { "data_aos_ref": "save" },
+            "fallback_evidence": { "label": "Save" }
+          },
+          "kind": "button",
+          "role": "button",
+          "label": "Save",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 720, "y": 570, "w": 80, "h": 32 }
+          },
+          "blocker": null,
+          "comments": [
+            {
+              "id": "comment:save-button",
+              "text": "This is the intended target.",
+              "actor": { "role": "operator", "id": "human" },
+              "created_at": "2026-05-28T12:00:01.000Z",
+              "updated_at": "2026-05-28T12:00:01.000Z",
+              "source_metadata": {}
+            }
+          ]
+        }
+      ],
+      "active_target_node_id": "node:save-button",
+      "acquisition": {
+        "mode": "selection_mode",
+        "pointer": { "x": 760, "y": 586, "coordinate_space": "desktop_world", "source_metadata": {} },
+        "leaf_node_id": "node:save-button",
+        "selected_node_id": "node:save-button",
+        "hovered_node_id": "node:save-button",
+        "candidate_report": { "selected": "node:save-button", "rejected": [] },
+        "source_metadata": { "event_id": "pointer-up-1" }
+      },
+      "anchors": [
+        {
+          "id": "anchor:save-button",
+          "node_id": "node:save-button",
+          "address": "subject:aos-toolkit-semantic-target:display-1:save-button",
+          "status": "live",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 720, "y": 570, "w": 80, "h": 32 }
+          },
+          "comment_text": "This is the intended target.",
+          "comments": ["comment:save-button"],
+          "source_annotation_anchor_id": "anchor:save-button",
+          "metadata": {}
+        }
+      ],
+      "metadata": {},
+      "source_session_ref": {
+        "schema": "aos_annotation_session",
+        "version": "0.1.0",
+        "anchor_addresses": ["subject:aos-toolkit-semantic-target:display-1:save-button"]
+      }
+    }
+  ],
+  "active_artifact_id": "context-artifact:save-button",
+  "keyframes": [],
+  "metadata": {}
+}

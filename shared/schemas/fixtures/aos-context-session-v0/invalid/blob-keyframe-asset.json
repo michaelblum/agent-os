@@ -1,0 +1,27 @@
+{
+  "schema": "aos_context_session",
+  "version": "0.1.0",
+  "id": "context-session:blob-keyframe-asset",
+  "created_at": "2026-05-28T12:40:00.000Z",
+  "updated_at": "2026-05-28T12:40:01.000Z",
+  "active": true,
+  "entry_source": "selection_mode",
+  "source_annotation_session": null,
+  "artifacts": [],
+  "active_artifact_id": "",
+  "keyframes": [
+    {
+      "schema": "aos_context_keyframe",
+      "version": "0.1.0",
+      "id": "keyframe:blob-asset",
+      "captured_at": "2026-05-28T12:40:01.000Z",
+      "trigger": "selection_mode_commit",
+      "artifact_ids": [],
+      "asset_refs": {
+        "capture": "blob:https://example.test/resource"
+      },
+      "metadata": {}
+    }
+  ],
+  "metadata": {}
+}

@@ -11,6 +11,7 @@ import {
   createAnnotationReticleAcquisitionState,
   createAnnotationReticleTargetEvidenceCache,
   createSigilAnnotationReticleController,
+  createSigilAnnotationReticleContextSession,
   recordAnnotationReticleSemanticCandidateIds,
   resolveSigilAnnotationReticleTarget,
   reticleOuterMarginExit,
@@ -95,6 +96,63 @@ test('annotation reticle session enters with sigil radial source and commits bou
   assert.equal(snapshot.camera_available, true)
   assert.equal(snapshot.live_anchor_count, committed.session.anchors.length)
   assert.equal(snapshot.last_committed_event.placement.placement_status, committed.placement.placement_status)
+})
+
+test('annotation reticle commit exposes canonical context session with fallback provenance', () => {
+  let now = Date.parse('2026-05-13T12:00:00.000Z')
+  const controller = createSigilAnnotationReticleController({
+    getDisplays: () => [display],
+    getAvatarPos: () => ({ x: 80, y: 80, valid: true }),
+    getAvatarHitRadius: () => 20,
+    now: () => now,
+  })
+
+  assert.equal(controller.snapshot().context_session, null)
+  assert.equal(controller.requestSnapshotEvent().context_session, null)
+
+  controller.enter({ x: 120, y: 120, valid: true })
+  now += 1000
+  const committed = controller.commitRelease({ x: 220, y: 140, valid: true })
+  const context = committed.context_session
+  const artifact = context.artifacts[0]
+  const leaf = artifact.path.at(-1)
+
+  assert.equal(context.schema, 'aos_context_session')
+  assert.equal(context.entry_source, SIGIL_ANNOTATION_ENTRY_SOURCE)
+  assert.equal(context.source_annotation_session.schema, 'aos_annotation_session')
+  assert.equal(context.source_annotation_session.entry_source, SIGIL_ANNOTATION_ENTRY_SOURCE)
+  assert.deepEqual(
+    context.source_annotation_session.committed_scope_addresses,
+    committed.session.committed_scope_stack.map((subject) => subject.address),
+  )
+  assert.equal(context.artifacts.length, 1)
+  assert.deepEqual(
+    artifact.path.map((node) => node.address),
+    committed.session.committed_scope_stack.map((subject) => subject.address),
+  )
+  assert.equal(artifact.active_target_node_id, leaf.id)
+  assert.equal(artifact.acquisition.mode, SIGIL_ANNOTATION_ENTRY_SOURCE)
+  assert.deepEqual(artifact.acquisition.pointer, {
+    x: 220,
+    y: 140,
+    coordinate_space: 'desktop_world',
+    source_metadata: {},
+  })
+  assert.equal(artifact.acquisition.candidate_report.fallback_reason, 'annotation_candidate_cache_empty')
+  assert.equal(artifact.acquisition.source_metadata.fallback, true)
+  assert.equal(artifact.acquisition.source_metadata.blocker_reason, 'annotation_candidate_cache_empty')
+  assert.equal(artifact.acquisition.source_metadata.root_evidence.display, 'main')
+  assert.equal(artifact.acquisition.source_metadata.placement.placement_status, committed.placement.placement_status)
+  assert.equal(leaf.subject.source_metadata.sigil_fallback, true)
+  assert.equal(leaf.subject.source_metadata.target_source, 'display_fallback')
+  assert.equal(artifact.anchors.every((anchor) => anchor.comment_text === ''), true)
+
+  const snapshot = controller.snapshot()
+  const request = controller.requestSnapshotEvent()
+  assert.equal(snapshot.context_session, context)
+  assert.equal(snapshot.last_committed_event.context_session, context)
+  assert.equal(request.context_session, context)
+  assert.equal(request.anchor_count, committed.session.anchors.length)
 })
 
 test('annotation reticle preview and release prefer shared projectable annotation candidates', () => {
@@ -263,6 +321,73 @@ test('annotation reticle re-enters from the last live parent scope and rejects o
     childAddress,
   ])
   assert.deepEqual(secondCommit.session.anchors.at(-1).scope_path, secondCommit.session.committed_scope_stack.map((subject) => subject.address))
+
+  const context = secondCommit.context_session
+  const artifact = context.artifacts[0]
+  assert.equal(context.schema, 'aos_context_session')
+  assert.deepEqual(
+    artifact.path.map((node) => node.address),
+    secondCommit.session.committed_scope_stack.map((subject) => subject.address),
+  )
+  assert.deepEqual(artifact.path.map((node) => node.subject.subject.id), ['main:root', 'native-window-1', 'ax-inside'])
+  assert.equal(artifact.active_target_node_id, artifact.path.at(-1).id)
+  assert.equal(artifact.acquisition.selected_node_id, artifact.path.at(-1).id)
+  assert.equal(artifact.acquisition.candidate_report.selected.id, 'ax-inside')
+  assert.equal(artifact.acquisition.source_metadata.fallback, false)
+  assert.deepEqual(
+    artifact.anchors.map((anchor) => anchor.address),
+    secondCommit.session.anchors.map((anchor) => anchor.address),
+  )
+})
+
+test('Sigil reticle context adapter preserves compatible anchor comments', () => {
+  const session = {
+    active: false,
+    entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
+    root: {
+      adapter_id: 'sigil-display-reticle-v0',
+      root_id: 'main',
+      subject_id: 'main:root',
+      subject_path: ['display', 'main', 'root'],
+      subject_kind: 'root',
+      role: 'root',
+      label: 'Main display',
+      projection: {
+        adapter_id: 'sigil-display-reticle-v0',
+        subject_id: 'main:root',
+        subject_kind: 'root',
+        current_render_status: 'visible',
+        display_space_rect: { x: 0, y: 0, w: 400, h: 300 },
+        visible_display_rect: { x: 0, y: 0, w: 400, h: 300 },
+      },
+    },
+    committed_scope_stack: [],
+    anchors: [],
+    updated_at: '2026-05-13T12:00:00.000Z',
+  }
+  session.committed_scope_stack = [session.root]
+  session.anchors = [{
+    id: 'anchor:main-root',
+    address: 'subject:sigil-display-reticle-v0:main:display:main:root:main:root',
+    subject: session.root,
+    status: 'live',
+    comment_text: 'Keep this display frame.',
+    projection: session.root.projection,
+    updated_at: '2026-05-13T12:00:00.000Z',
+  }]
+
+  const context = createSigilAnnotationReticleContextSession({
+    type: 'sigil.annotation_reticle.commit',
+    committed_at: '2026-05-13T12:00:01.000Z',
+    release_point: { x: 10, y: 20, valid: true },
+    decision_report: { selected: { id: 'main-root' } },
+    session,
+  })
+  const artifact = context.artifacts[0]
+
+  assert.equal(artifact.path[0].comments[0].text, 'Keep this display frame.')
+  assert.equal(artifact.anchors[0].comment_text, 'Keep this display frame.')
+  assert.equal(artifact.anchors[0].source_annotation_anchor_id, 'anchor:main-root')
 })
 
 test('annotation reticle imports neutral annotation candidate helpers', () => {
@@ -704,6 +829,7 @@ test('Sigil defers Surface Inspector opening out of the radial drag reticle entr
 
 test('Sigil records and recovers delayed radial camera target-surface clicks', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const dispatchSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/radial-item-action-dispatch.js'), 'utf8')
 
   assert.match(source, /type: event\.type/)
   assert.match(source, /radialTargetSurfaceReceiptEvidence/)
@@ -711,11 +837,66 @@ test('Sigil records and recovers delayed radial camera target-surface clicks', (
   assert.match(source, /payload\.kind === 'radial_item_pointer_move' \|\| payload\.kind === 'radial_surface_pointer_move'/)
   assert.match(source, /handleLeftMouseUp\(receipt\.worldPoint\.x, receipt\.worldPoint\.y\)/)
   assert.match(source, /payload\.itemId === SIGIL_ANNOTATION_CAMERA_ITEM_ID \|\| payload\.itemAction === 'annotationSnapshot'/)
-  assert.match(source, /requestAnnotationSnapshot\('radial-camera-target-surface-recovery'\)/)
+  assert.match(source, /reason: 'radial-camera-target-surface-recovery'/)
+  assert.match(dispatchSource, /requestAnnotationSnapshot\(reason\)/)
+  assert.match(dispatchSource, /context\.reason === 'radial-camera-target-surface-recovery'/)
   assert.match(source, /host\.post\('canvas_inspector\.capture_bundle', \{[\s\S]*trigger: 'sigil_radial_camera'/)
   assert.match(source, /reason: 'camera-click-after-radial-cleanup'/)
   assert.match(source, /radialTargetSurfaceActive: radialTargetSurface\.snapshot\(\)\.interactive/)
   assert.match(source, /pointerInsideRadialTargetSurface: pointInRadialTargetSurface/)
+})
+
+test('Sigil radial camera bundle request carries canonical context session and keyframe', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const requestStart = source.indexOf('function requestAnnotationSnapshot')
+  const requestEnd = source.indexOf('function requestCanvasInspectorAnnotationToggle', requestStart)
+  const requestBlock = source.slice(requestStart, requestEnd)
+
+  const contextRecordingRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/context-recording-runtime.js'), 'utf8')
+
+  assert.match(contextRecordingRuntimeSource, /export const RETICLE_CONTEXT_ASSET_REFS/)
+  assert.match(contextRecordingRuntimeSource, /function resolveReticleBundleContext/)
+  assert.match(contextRecordingRuntimeSource, /function resolveReticleBundleContext\(\{[\s\S]*contextSession: reticleContextSession/)
+  assert.match(contextRecordingRuntimeSource, /activeContext\.context_keyframe \|\| createContextKeyframeForSession/)
+  assert.match(requestBlock, /host\.post\('canvas_inspector\.capture_bundle', \{[\s\S]*trigger: 'sigil_radial_camera'/)
+  assert.match(requestBlock, /context_session: contextSession/)
+  assert.match(requestBlock, /context_keyframe: contextKeyframe/)
+  assert.match(requestBlock, /context_unavailable: contextUnavailable/)
+  assert.match(contextRecordingRuntimeSource, /surface_inspector_annotation_snapshot: 'annotation-snapshot\.json'/)
+})
+
+test('Sigil wires live Selection Mode state, capture, overlay, and recording hooks', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const selectionRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/selection-mode-runtime.js'), 'utf8')
+  const contextRecordingRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/context-recording-runtime.js'), 'utf8')
+  const commandRuntimeSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/ux-tree-command-registry.js'), 'utf8')
+  const debugStart = source.indexOf('window.__sigilDebug = {')
+  const debugBlock = source.slice(debugStart)
+
+  assert.match(selectionRuntimeSource, /createSelectionModeContextSession/)
+  assert.match(selectionRuntimeSource, /function enter\(pointer = null, reason = 'avatar-double-click'\)/)
+  assert.match(selectionRuntimeSource, /function acquire\(point = null\)/)
+  assert.match(selectionRuntimeSource, /function handleInput\(msg = \{\}\)/)
+  assert.match(selectionRuntimeSource, /setActiveContextProvider\(\{[\s\S]*source: 'selection_mode_debug'/)
+  assert.match(contextRecordingRuntimeSource, /createContextRecording/)
+  assert.match(source, /selectionMode: createDefaultSelectionModeState\(\)/)
+  assert.match(source, /activeContext: createDefaultActiveContextState\(\)/)
+  assert.match(source, /contextRecording: createDefaultContextRecordingState\(\)/)
+  assert.match(source, /function enterSelectionMode\(pointer = null, reason = 'avatar-double-click'\)/)
+  assert.match(source, /function acquireSelectionModeCandidates\(point = null\)/)
+  assert.match(source, /function handleSelectionModeInput\(msg = \{\}\)/)
+  assert.match(source, /if \(handleSelectionModeInput\(msg\)\) return/)
+  assert.match(source, /consumeAvatarDoubleClick\(x, y\)[\s\S]*sigilUxCommandRuntime\.executeSelectionModeEnter/)
+  assert.match(commandRuntimeSource, /enterSelectionMode\(pointer, 'avatar-double-click'\)/)
+  assert.match(source, /selectionModeIsActive: \(\) => liveJs\.selectionMode\?\.active === true/)
+  assert.match(source, /selectionModeOverlay: liveJs\.selectionModeOverlay \|\| buildProjectedSelectionModeOverlay/)
+  assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)
+  assert.match(debugBlock, /selectionMode: liveJs\.selectionMode/)
+  assert.match(debugBlock, /activeContext: liveJs\.activeContext/)
+  assert.match(debugBlock, /contextRecording: liveJs\.contextRecording/)
+  assert.match(debugBlock, /createSelectionModeContext\(input = \{\}\) \{[\s\S]*createSelectionModeContextFromDebugInput\(input\)/)
+  assert.match(debugBlock, /appendActiveContextKeyframe\(options = \{\}\)/)
+  assert.match(debugBlock, /exportContextRecording\(\)/)
 })
 
 test('annotation reticle overlay model exposes current scope hover and live anchors', () => {

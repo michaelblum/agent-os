@@ -1467,3 +1467,25 @@ test('Surface Inspector menu and shortcut hooks expose Annotation Mode entry poi
   assert.match(daemonBundle, /openCanvasInspectorForAnnotationMode/);
   assert.match(unified, /maybeHandleCanvasInspectorAnnotationHotkey/);
 });
+
+test('Surface Inspector daemon bundle rejects canonical context embedded asset refs', () => {
+  const daemonBundle = readFileSync(path.join(repoRoot, 'src/daemon/surface-inspector-bundle.swift'), 'utf8');
+
+  assert.match(daemonBundle, /rejectEmbeddedContextAssetRefs/);
+  assert.match(daemonBundle, /rejectContextAssetRefs/);
+  assert.match(daemonBundle, /rejectContextAssetRefValue/);
+  assert.match(daemonBundle, /lowercased\.contains\("base64"\)/);
+  assert.match(daemonBundle, /lowercased\.contains\("binary"\)/);
+  assert.match(daemonBundle, /lowercased\.contains\("image_data"\)/);
+  assert.match(daemonBundle, /trimmingCharacters\(in: \.whitespacesAndNewlines\)\.lowercased\(\)/);
+  assert.match(daemonBundle, /trimmed\.hasPrefix\("data:"\) \|\| trimmed\.hasPrefix\("blob:"\)/);
+  assert.match(daemonBundle, /try canvasInspectorContextSessionForBundle/);
+  assert.match(daemonBundle, /try canvasInspectorContextKeyframeForBundle/);
+  assert.match(daemonBundle, /CONTEXT_PAYLOAD_INVALID_ASSET_REF/);
+  assert.ok(
+    daemonBundle.indexOf('try rejectEmbeddedContextAssetRefs(keyframe, path: "context_keyframe")')
+      < daemonBundle.indexOf('var mergedAssetRefs = keyframe["asset_refs"] as? [String: Any] ?? [:]'),
+    'supplied context keyframe asset refs must be validated before daemon asset refs are merged',
+  );
+  assert.doesNotMatch(daemonBundle, /sanitized_after_embedded_image_data/);
+});

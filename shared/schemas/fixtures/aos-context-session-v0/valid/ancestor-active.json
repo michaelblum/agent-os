@@ -1,0 +1,109 @@
+{
+  "schema": "aos_context_session",
+  "version": "0.1.0",
+  "id": "context-session:ancestor-active",
+  "created_at": "2026-05-28T12:10:00.000Z",
+  "updated_at": "2026-05-28T12:10:01.000Z",
+  "active": true,
+  "entry_source": "selection_mode",
+  "source_annotation_session": null,
+  "artifacts": [
+    {
+      "schema": "aos_context_artifact",
+      "version": "0.1.0",
+      "id": "context-artifact:settings-window",
+      "kind": "selection",
+      "path": [
+        {
+          "id": "node:window",
+          "address": "subject:macos-ax:settings:window",
+          "subject": {
+            "address": "subject:macos-ax:settings:window",
+            "adapter_id": "macos-ax",
+            "root": { "id": "display-1", "kind": "display", "label": "Built-in Display" },
+            "subject": { "id": "settings-window", "path": ["display-1", "settings-window"], "kind": "window" },
+            "source_metadata": { "app_name": "Settings" },
+            "fallback_evidence": { "title": "Settings" }
+          },
+          "kind": "window",
+          "role": "AXWindow",
+          "label": "Settings",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 80, "y": 60, "w": 900, "h": 660 }
+          },
+          "blocker": null,
+          "comments": [
+            {
+              "id": "comment:window-scope",
+              "text": "Use the whole Settings window as context.",
+              "actor": { "role": "operator", "id": "human" },
+              "created_at": "2026-05-28T12:10:01.000Z",
+              "updated_at": "2026-05-28T12:10:01.000Z",
+              "source_metadata": {}
+            }
+          ]
+        },
+        {
+          "id": "node:toggle-leaf",
+          "address": "subject:macos-ax:settings:toggle",
+          "subject": {
+            "address": "subject:macos-ax:settings:toggle",
+            "adapter_id": "macos-ax",
+            "root": { "id": "display-1", "kind": "display", "label": "Built-in Display" },
+            "subject": { "id": "toggle-leaf", "path": ["display-1", "settings-window", "toggle-leaf"], "kind": "switch" },
+            "source_metadata": { "ax_role": "AXCheckBox" },
+            "fallback_evidence": { "label": "Enable previews" }
+          },
+          "kind": "switch",
+          "role": "AXCheckBox",
+          "label": "Enable previews",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 520, "y": 340, "w": 44, "h": 28 }
+          },
+          "blocker": null,
+          "comments": []
+        }
+      ],
+      "active_target_node_id": "node:window",
+      "acquisition": {
+        "mode": "selection_mode",
+        "pointer": { "x": 542, "y": 354, "coordinate_space": "desktop_world", "source_metadata": {} },
+        "leaf_node_id": "node:toggle-leaf",
+        "selected_node_id": "node:window",
+        "hovered_node_id": "node:toggle-leaf",
+        "candidate_report": {
+          "selected": "node:toggle-leaf",
+          "active_target_override": "node:window",
+          "rejected": []
+        },
+        "source_metadata": { "selection_reason": "ancestor-chosen" }
+      },
+      "anchors": [
+        {
+          "id": "anchor:settings-window",
+          "node_id": "node:window",
+          "address": "subject:macos-ax:settings:window",
+          "status": "live",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 80, "y": 60, "w": 900, "h": 660 }
+          },
+          "comment_text": "Use the whole Settings window as context.",
+          "comments": ["comment:window-scope"],
+          "source_annotation_anchor_id": "anchor:settings-window",
+          "metadata": {}
+        }
+      ],
+      "metadata": {},
+      "source_session_ref": null
+    }
+  ],
+  "active_artifact_id": "context-artifact:settings-window",
+  "keyframes": [],
+  "metadata": {}
+}

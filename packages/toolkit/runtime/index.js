@@ -97,6 +97,18 @@ export {
   validateRadialMenuDefinition,
 } from './radial-menu-config.js'
 export {
+  UX_TREE_SCHEMA,
+  UX_TREE_VERSION,
+  createUxTree,
+  mergeUxTreeDefinitions,
+  normalizeUxTreeBinding,
+  normalizeUxTreeCommand,
+  normalizeUxTreeNode,
+  resolveUxTree,
+  uxTreeBindingsForGesture,
+  uxTreeCommandById,
+} from './ux-tree.js'
+export {
   createStackMenu,
   createStackMenuModel,
   applyStackMenuState,

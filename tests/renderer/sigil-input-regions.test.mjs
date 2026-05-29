@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   SIGIL_AVATAR_INPUT_REGION_ID,
   SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
+  SIGIL_SELECTION_MODE_INPUT_REGION_ID,
   createSigilInputRegionAdapter,
   selectSigilInputRegionOwner,
 } from '../../apps/sigil/renderer/live-modules/input-regions.js'
@@ -200,28 +201,78 @@ test('update NOT_FOUND triggers a register retry', async () => {
   assert.deepEqual(host.calls[2].payload.frame, [70, 80, 80, 80])
 })
 
-test('cleanup removes both known regions', () => {
+test('selection mode registers an active-only capture region', () => {
   const host = createHost()
+  const liveState = createLiveState({
+    selectionMode: { active: true },
+  })
   const adapter = createSigilInputRegionAdapter({
     host,
-    liveState: createLiveState(),
+    liveState,
+    windowObject: { __aosCanvasId: 'avatar-main' },
+    fallbackCanvasId: 'avatar-main',
+    avatarNativeFrame: () => null,
+    contextMenuIsOpen: () => false,
+    selectionModeIsActive: () => liveState.selectionMode.active,
+    selectionModeNativeFrame: () => [0, 0, 1440, 900],
+    logger: quietLogger(),
+  })
+
+  adapter.sync()
+  liveState.selectionMode.active = false
+  adapter.sync()
+
+  assert.equal(host.calls[0].method, 'register')
+  assert.deepEqual(host.calls[0].payload, {
+    id: SIGIL_SELECTION_MODE_INPUT_REGION_ID,
+    owner_canvas_id: 'avatar-main',
+    frame: [0, 0, 1440, 900],
+    coordinate_space: 'native',
+    semantic_label: 'Sigil Selection Mode input claim',
+    priority: 110,
+    consume_policy: 'captured',
+    remove_on_owner_suspend: true,
+    enabled: true,
+    metadata: {
+      app: 'sigil',
+      surface: 'avatar-main',
+      purpose: 'selection-mode-pointer-capture',
+    },
+  })
+  assert.equal(host.calls[1].method, 'remove')
+  assert.equal(host.calls[1].id, SIGIL_SELECTION_MODE_INPUT_REGION_ID)
+  assert.equal(adapter.snapshot().regions.selectionMode.registered, false)
+})
+
+test('cleanup removes all known regions', () => {
+  const host = createHost()
+  const liveState = createLiveState({
+    selectionMode: { active: true },
+  })
+  const adapter = createSigilInputRegionAdapter({
+    host,
+    liveState,
     windowObject: {},
     avatarNativeFrame: () => [60, 80, 80, 80],
     contextMenuIsOpen: () => true,
     contextMenuNativeFrame: () => [200, 220, 240, 160],
+    selectionModeIsActive: () => liveState.selectionMode.active,
+    selectionModeNativeFrame: () => [0, 0, 1440, 900],
     logger: quietLogger(),
   })
 
   adapter.sync()
   adapter.removeAll()
 
-  assert.deepEqual(host.calls.map((call) => call.method), ['register', 'register', 'remove', 'remove'])
-  assert.deepEqual(host.calls.slice(2).map((call) => call.id), [
+  assert.deepEqual(host.calls.map((call) => call.method), ['register', 'register', 'register', 'remove', 'remove', 'remove'])
+  assert.deepEqual(host.calls.slice(3).map((call) => call.id), [
     SIGIL_AVATAR_INPUT_REGION_ID,
     SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
+    SIGIL_SELECTION_MODE_INPUT_REGION_ID,
   ])
   assert.equal(adapter.snapshot().regions.avatar.registered, false)
   assert.equal(adapter.snapshot().regions.contextMenu.registered, false)
+  assert.equal(adapter.snapshot().regions.selectionMode.registered, false)
 })
 
 test('non-primary segments do not register regions', () => {
@@ -241,4 +292,5 @@ test('non-primary segments do not register regions', () => {
   assert.equal(host.calls.length, 0)
   assert.equal(adapter.snapshot().regions.avatar.registered, false)
   assert.equal(adapter.snapshot().regions.contextMenu.registered, false)
+  assert.equal(adapter.snapshot().regions.selectionMode.registered, false)
 })

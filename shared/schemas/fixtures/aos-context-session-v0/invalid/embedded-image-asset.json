@@ -1,0 +1,80 @@
+{
+  "schema": "aos_context_session",
+  "version": "0.1.0",
+  "id": "context-session:embedded-image",
+  "created_at": "2026-05-28T12:40:00.000Z",
+  "updated_at": "2026-05-28T12:40:01.000Z",
+  "active": true,
+  "entry_source": "sigil_radial",
+  "source_annotation_session": null,
+  "artifacts": [
+    {
+      "schema": "aos_context_artifact",
+      "version": "0.1.0",
+      "id": "context-artifact:target",
+      "kind": "selection",
+      "path": [
+        {
+          "id": "node:target",
+          "address": "subject:aos-toolkit-semantic-target:canvas-a:target",
+          "subject": {
+            "address": "subject:aos-toolkit-semantic-target:canvas-a:target",
+            "adapter_id": "aos-toolkit-semantic-target",
+            "root": { "id": "canvas-a", "kind": "aos_canvas", "label": "Canvas A" },
+            "subject": { "id": "target", "path": ["canvas-a", "target"], "kind": "button" },
+            "source_metadata": {},
+            "fallback_evidence": {}
+          },
+          "kind": "button",
+          "role": "button",
+          "label": "Target",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 10, "y": 10, "w": 80, "h": 32 }
+          },
+          "blocker": null,
+          "comments": []
+        }
+      ],
+      "active_target_node_id": "node:target",
+      "acquisition": {
+        "mode": "sigil_radial",
+        "pointer": null,
+        "leaf_node_id": "node:target",
+        "selected_node_id": "node:target",
+        "candidate_report": {},
+        "source_metadata": {}
+      },
+      "anchors": [
+        {
+          "id": "anchor:target",
+          "node_id": "node:target",
+          "address": "subject:aos-toolkit-semantic-target:canvas-a:target",
+          "status": "live",
+          "projection": {
+            "current_render_status": "visible",
+            "can_project_display_overlay": true,
+            "display_space_rect": { "x": 10, "y": 10, "w": 80, "h": 32 }
+          },
+          "comments": []
+        }
+      ]
+    }
+  ],
+  "active_artifact_id": "context-artifact:target",
+  "keyframes": [
+    {
+      "schema": "aos_context_keyframe",
+      "version": "0.1.0",
+      "id": "keyframe:bad-image",
+      "captured_at": "2026-05-28T12:40:01.000Z",
+      "trigger": "sigil_radial_camera",
+      "artifact_ids": ["context-artifact:target"],
+      "asset_refs": {
+        "capture_image": "data:image/png;base64,iVBORw0KGgo="
+      }
+    }
+  ],
+  "metadata": {}
+}

@@ -50,6 +50,18 @@ shape with:
 import { createSigilAgentSubject } from '../workbench/sigil-subject.js'
 ```
 
+Read-only UX tree descriptors can be projected with:
+
+```js
+import { createUxTreeWorkbenchSubject } from '../workbench/ux-tree-subject.js'
+```
+
+The UX tree subject exposes `aos.ux_tree`, `aos.ux_tree.bindings`,
+`aos.ux_tree.commands`, `aos.ux_tree.settings`, and raw JSON facets. Its
+capability is inspect-only in V0. Editors should treat it as a discovery and
+review surface until the execution adapter, binding cutover, radial override
+patches, user persistence, and duplicate-router removal have landed.
+
 Design-stage work records can be projected from schema-shaped work-record
 objects with:
 
@@ -92,6 +104,7 @@ when reading descriptors:
 The first adopters are:
 
 - Sigil radial item editor subjects: `sigil.radial_menu.item_3d`
+- Read-only UX tree subjects: `aos.ux_tree`
 - Markdown workbench subjects: `markdown.document`
 - Wiki page subjects: `wiki.concept`, `wiki.entity`, `wiki.workflow`,
   `wiki.reference`, and `wiki.page`
@@ -133,6 +146,90 @@ import { opacityForDepth } from '../workbench/annotation-session.js'
 `opacityForDepth(index, count, floor = 0.75)` returns `1` for the current or
 only frame, `0.75` for the outer/root frame when ancestry exists, and evenly
 interpolates intermediate frames between those values.
+
+### Context Session V0
+
+`packages/toolkit/workbench/context-session.js` provides the additive context
+artifact/keyframe wrapper for the V0 Annotation Mode core. It keeps
+`aos_annotation_session` as the canonical live in-memory model and projects it
+into `aos_context_session`, `aos_context_artifact`, path node, acquisition
+evidence, and `aos_context_keyframe` records when a workflow needs durable
+multi-artifact context or snapshot/keyframe references.
+
+Canonical schema:
+[`shared/schemas/aos-context-session-v0.schema.json`](../../../shared/schemas/aos-context-session-v0.schema.json)
+
+Use:
+
+```js
+import {
+  createContextArtifactFromAnnotationSession,
+  createContextKeyframe,
+  createContextRecording,
+  createContextSession,
+  contextSessionSnapshot,
+  normalizeContextArtifact,
+  normalizeContextPathNode,
+} from '../workbench/context-session.js'
+```
+
+A context artifact carries an ordered root-to-leaf path, an active target node,
+acquisition evidence, anchors, comments, projection evidence, and blocker state.
+The active target may be the clicked or hovered leaf, or an ancestor chosen by a
+Selection Mode-style disambiguation step. Acquisition evidence preserves both
+the leaf node and selected node so future recording and keyframe work can
+explain how the artifact was acquired.
+
+Context keyframes reference artifacts and external assets. They must not embed
+screenshots, image base64, or data URLs; capture files and compatibility
+artifacts such as `surface_inspector_annotation_snapshot` travel as asset
+references. `createContextRecording()` creates the ordered
+`aos_context_recording` contract: keyframes plus optional text, action, or
+blocker events, source metadata, and file-style asset references. Recordings are
+not video/blob containers and do not create another annotation-session shape.
+
+### Selection Mode Context Helper
+
+`packages/toolkit/workbench/selection-mode.js` provides the deterministic
+bottom-up acquisition path for Selection Mode:
+
+```js
+import {
+  createSelectionModeContextSession,
+  selectionModeContextArtifact,
+} from '../workbench/selection-mode.js'
+```
+
+`createSelectionModeContextSession(input)` accepts pointer/click evidence, a
+clicked leaf candidate, ordered root-to-leaf path candidates, the selected
+target id or address, ambiguity/rejection/skipped-ancestor reports, adapter
+blockers, and comments on any path candidate. It returns one
+`aos_context_session` with one `aos_context_artifact` using
+`acquisition.mode = "selection_mode"`. The artifact preserves the clicked leaf
+as `leaf_node_id`, the intended target as `selected_node_id`, and the full
+ancestry as context path nodes. `selectionModeContextArtifact(input)` returns
+the artifact alone for callers that already own the surrounding session.
+
+Sigil now uses the helper as a live product path. Double-clicking the avatar
+enters Selection Mode, registers an active-only daemon input-region claim,
+captures only Selection Mode clicks, and stores runtime state at
+`window.__sigilDebug.snapshot().selectionMode`. The state includes `active`,
+`entered_at`, `cursor`, `leaf_candidate`, `path_candidates`,
+`selected_node_id`, `context_session`, `events`, and `blocker`. After a
+selection click, Sigil exposes the root-to-leaf path, lets the selected target
+move from the leaf to an ancestor with keyboard cycling or debug calls, and
+commits the current `aos_context_session` into the renderer-local active
+context provider. `Escape`, a second avatar double-click, cancel, or successful
+commit exits the mode.
+
+The debug API remains available for deterministic tests and comment entry:
+`window.__sigilDebug.createSelectionModeContext(input)` constructs a session,
+`setSelectionModeNodeComment(nodeId, text)` attaches comments to path nodes, and
+`appendActiveContextKeyframe()` / `exportContextRecording()` assemble compact
+`aos_context_recording` payloads from ordered context keyframes and optional
+events. Sigil does not install an always-on pointer watcher or a new capture
+canvas; the visual cursor decoration and ancestor badges draw on the existing
+interaction overlay.
 
 ### Annotation Overlay Renderer V0
 
@@ -220,6 +317,7 @@ boundary, builds snapshot artifacts, and handles settled reprojection:
 
 ```js
 import {
+  surfaceInspectorAnnotationStateToContextSession,
   surfaceInspectorAnnotationStateToSession,
   markSurfaceInspectorAnnotationProjectionsStale,
   refreshSurfaceInspectorAnnotationProjectionsFromEvidence,
@@ -235,6 +333,17 @@ artifact without making the snapshot artifact the source of truth for future
 live annotations. Future entry paths should produce the shared session model
 directly instead of adding more product-specific adapters to the neutral
 session or renderer modules.
+
+`surfaceInspectorAnnotationStateToContextSession(state)` is the additive
+compatibility adapter into `aos_context_session`. It normalizes current Surface
+Inspector pin/comment state, keeps the source `aos_annotation_session` summary
+as `source_annotation_session`, and emits one context artifact per active pin
+path. The active Surface Inspector frame selects `active_artifact_id`; comments
+attach to path nodes while anchor `comment_text` remains available for V0
+compatibility. Projection, stale, absent, unsupported, blocker, scope-stack, and
+Surface Inspector acquisition provenance stay in the context artifact evidence.
+This does not change the public `surface_inspector_annotation_snapshot` schema
+or see-bundle shape.
 
 `markSurfaceInspectorAnnotationProjectionsStale(state, reason)` marks saved frame
 anchors, committed scope entries, preview/hover evidence, and support diagnostics

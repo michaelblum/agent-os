@@ -90,6 +90,8 @@ required = [
     "capture.json",
     "capture.png",
     "annotation-snapshot.json",
+    "context-session.json",
+    "context-keyframe.json",
     "inspector-state.json",
     "display-geometry.json",
     "canvas-list.json",
@@ -107,6 +109,12 @@ if manifest.get("config", {}).get("output", {}).get("mode") != "bundle_path":
     raise SystemExit(f"FAIL: default output mode should be bundle_path: {manifest.get('config')}")
 if manifest.get("files", {}).get("annotation_snapshot_json") != "annotation-snapshot.json":
     raise SystemExit(f"FAIL: bundle manifest missing annotation snapshot entry: {manifest.get('files')}")
+if manifest.get("files", {}).get("context_session_json") != "context-session.json":
+    raise SystemExit(f"FAIL: bundle manifest missing context session entry: {manifest.get('files')}")
+if manifest.get("files", {}).get("context_keyframe_json") != "context-keyframe.json":
+    raise SystemExit(f"FAIL: bundle manifest missing context keyframe entry: {manifest.get('files')}")
+if manifest.get("context", {}).get("status") != "included":
+    raise SystemExit(f"FAIL: bundle manifest should include context evidence: {manifest.get('context')}")
 
 state = json.loads((bundle / "inspector-state.json").read_text())
 if "state" not in state:
@@ -119,8 +127,22 @@ if annotation.get("capture", {}).get("trigger") != "test":
     raise SystemExit(f"FAIL: unexpected annotation snapshot trigger: {annotation.get('capture')}")
 if "pins" not in annotation or "comments" not in annotation or "adapter_capability_summary" not in annotation:
     raise SystemExit(f"FAIL: annotation snapshot missing public state arrays: {annotation}")
-if "data:image/" in json.dumps(annotation):
-    raise SystemExit("FAIL: annotation snapshot embedded image data")
+annotation_text = json.dumps(annotation)
+if "data:" in annotation_text.lower() or "blob:" in annotation_text.lower():
+    raise SystemExit("FAIL: annotation snapshot embedded data/blob asset ref")
+
+context_session = json.loads((bundle / "context-session.json").read_text())
+if context_session.get("schema") != "aos_context_session":
+    raise SystemExit(f"FAIL: unexpected context session identity: {context_session}")
+context_keyframe = json.loads((bundle / "context-keyframe.json").read_text())
+if context_keyframe.get("schema") != "aos_context_keyframe":
+    raise SystemExit(f"FAIL: unexpected context keyframe identity: {context_keyframe}")
+asset_refs = context_keyframe.get("asset_refs") or {}
+if asset_refs.get("surface_inspector_annotation_snapshot") != "annotation-snapshot.json":
+    raise SystemExit(f"FAIL: context keyframe missing annotation snapshot asset ref: {asset_refs}")
+context_text = json.dumps({"session": context_session, "keyframe": context_keyframe}).lower()
+if "data:" in context_text or "blob:" in context_text:
+    raise SystemExit("FAIL: context JSON embedded data/blob asset ref")
 
 capture = json.loads((bundle / "capture.json").read_text())
 files = capture.get("files") or []
@@ -148,6 +170,28 @@ wireBridge((msg) => {
   }
 })
 window.__requestExternalBundle = () => emit("canvas_inspector.capture_bundle", { trigger: "external-source-test" })
+window.__requestInvalidContextBundle = () => {
+  window.__bundleStatuses = []
+  emit("canvas_inspector.capture_bundle", {
+    trigger: "invalid-context-bundle-test",
+    context_session: {
+      schema: "aos_context_session",
+      version: "0.1.0",
+      id: "context-session:valid",
+      artifacts: [],
+      keyframes: []
+    },
+    context_keyframe: {
+      schema: "aos_context_keyframe",
+      version: "0.1.0",
+      id: "keyframe:invalid-colliding-data",
+      captured_at: "2026-05-28T12:00:01.000Z",
+      trigger: "invalid",
+      artifact_ids: [],
+      asset_refs: { capture_image: " Data:text/plain;base64,SGk=" }
+    }
+  })
+}
 </script></body></html>' >/dev/null
 
 ./aos show wait \
@@ -201,6 +245,41 @@ if manifest.get("canvas_id") != "surface-inspector":
     raise SystemExit(f"FAIL: bundle owner should remain surface-inspector: {manifest}")
 if manifest.get("source_canvas_id") != "avatar-main":
     raise SystemExit(f"FAIL: external requester not recorded: {manifest}")
+PY
+
+sleep 1
+
+./aos show eval --id avatar-main --js 'window.__requestInvalidContextBundle(); "ok"' >/dev/null
+
+python3 <<'PY'
+import json, subprocess, time
+
+deadline = time.time() + 15
+while time.time() < deadline:
+    payload = json.loads(subprocess.check_output([
+        "./aos", "show", "eval", "--id", "avatar-main", "--js",
+        'JSON.stringify(window.__bundleStatuses || [])'
+    ], text=True))
+    result = payload.get("result")
+    statuses = json.loads(result) if result else []
+    for state in statuses:
+        status = state.get("status")
+        if status == "success":
+            raise SystemExit(f"FAIL: invalid context bundle unexpectedly succeeded: {state}")
+        if status == "error":
+            error = state.get("error") or {}
+            if error.get("code") != "CONTEXT_PAYLOAD_INVALID_ASSET_REF":
+                raise SystemExit(f"FAIL: invalid context bundle returned wrong error: {state}")
+            if error.get("phase") != "context_payload_validation":
+                raise SystemExit(f"FAIL: invalid context bundle returned wrong phase: {state}")
+            if "context_keyframe.asset_refs.capture_image" not in (error.get("path") or ""):
+                raise SystemExit(f"FAIL: invalid context bundle did not report colliding keyframe asset path: {state}")
+            if "data:" not in json.dumps(state).lower():
+                raise SystemExit(f"FAIL: invalid context bundle error did not mention rejected URI class: {state}")
+            raise SystemExit(0)
+    time.sleep(0.2)
+
+raise SystemExit("FAIL: invalid context bundle did not report validation error")
 PY
 
 echo "PASS: Surface Inspector see bundle"

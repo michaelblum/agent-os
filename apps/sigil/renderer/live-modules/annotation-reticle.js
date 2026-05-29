@@ -8,6 +8,10 @@ const {
     commitAnnotationPreview,
 } = await import(toolkitSpecifier('workbench/annotation-session.js'));
 const {
+    createContextArtifactFromAnnotationSession,
+    createContextSession,
+} = await import(toolkitSpecifier('workbench/context-session.js'));
+const {
     chooseAnnotationCandidateForScope,
     explainAnnotationCandidateChoice,
     normalizeAnnotationCandidate,
@@ -25,6 +29,10 @@ function finite(value, fallback = 0) {
 
 function objectOrEmpty(value) {
     return value && typeof value === 'object' ? value : {};
+}
+
+function clone(value) {
+    return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
 function displayId(display = null, fallback = 'display:unknown') {
@@ -180,6 +188,94 @@ function liveCommittedScopeStack(session = null) {
         .filter(Boolean));
     if (!liveAddresses.size) return [];
     return stack.every((subject) => liveAddresses.has(String(subject?.address || ''))) ? stack : [];
+}
+
+function liveCommittedAnchors(session = null) {
+    const stack = Array.isArray(session?.committed_scope_stack) ? session.committed_scope_stack : [];
+    if (!stack.length) return [];
+    const committedAddresses = new Set(stack
+        .map((subject) => String(subject?.address || ''))
+        .filter(Boolean));
+    return (Array.isArray(session?.anchors) ? session.anchors : [])
+        .filter((anchor) => anchor?.status === 'live' && committedAddresses.has(String(anchor.address || anchor.subject?.address || '')));
+}
+
+function contextSourceMetadataFromReticleEvent(event = {}, options = {}) {
+    const previewTarget = objectOrEmpty(options.preview_target || event.preview_target);
+    return {
+        source: 'sigil_annotation_reticle',
+        entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
+        release_pointer: clone(options.release_point || event.release_point || null),
+        fallback: Boolean(options.fallback ?? event.fallback),
+        blocker_reason: String(options.blocker_reason ?? event.blocker_reason ?? ''),
+        target_limitation: String(options.target_limitation ?? event.target_limitation ?? ''),
+        root_evidence: clone(options.root_evidence || event.root_evidence || null),
+        placement: clone(options.placement || event.placement || null),
+        preview_target: previewTarget.address ? {
+            address: previewTarget.address,
+            adapter_id: previewTarget.adapter_id || '',
+            root_id: previewTarget.root?.id || previewTarget.root_id || '',
+            subject_id: previewTarget.subject?.id || previewTarget.subject_id || '',
+            subject_kind: previewTarget.subject?.kind || previewTarget.subject_kind || '',
+            source_metadata: clone(previewTarget.source_metadata || {}),
+        } : null,
+        ...(options.source_metadata || {}),
+    };
+}
+
+export function createSigilAnnotationReticleContextSession(snapshotOrSession = {}, options = {}) {
+    const event = options.event || snapshotOrSession?.last_committed_event || snapshotOrSession;
+    const sourceSession = snapshotOrSession?.session || event?.session || snapshotOrSession;
+    const normalizedSession = createAnnotationSession(sourceSession || {
+        entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
+    });
+    const anchors = liveCommittedAnchors(normalizedSession);
+    if (!anchors.length) return null;
+
+    const updatedAt = options.updated_at || options.now || event?.committed_at || normalizedSession.updated_at || Date.now();
+    const sourceMetadata = contextSourceMetadataFromReticleEvent(event, options);
+    const artifact = createContextArtifactFromAnnotationSession(normalizedSession, {
+        id: options.artifact_id,
+        kind: options.kind || 'selection',
+        mode: SIGIL_ANNOTATION_ENTRY_SOURCE,
+        pointer: options.release_point || event?.release_point || null,
+        candidate_report: options.decision_report || event?.decision_report || {},
+        source_metadata: sourceMetadata,
+        metadata: {
+            source: 'sigil_annotation_reticle',
+            source_event_type: event?.type || 'sigil.annotation_reticle.commit',
+            committed_at: event?.committed_at || '',
+            fallback: Boolean(options.fallback ?? event?.fallback),
+            blocker_reason: String(options.blocker_reason ?? event?.blocker_reason ?? ''),
+            target_limitation: String(options.target_limitation ?? event?.target_limitation ?? ''),
+            root_evidence: clone(options.root_evidence || event?.root_evidence || null),
+            placement: clone(options.placement || event?.placement || null),
+            live_anchor_count: anchors.length,
+            ...(options.artifact_metadata || {}),
+        },
+        now: updatedAt,
+    });
+
+    return createContextSession({
+        id: options.id || options.session_id,
+        created_at: options.created_at || updatedAt,
+        updated_at: updatedAt,
+        active: normalizedSession.active,
+        entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
+        source_annotation_session: normalizedSession,
+        artifacts: [artifact],
+        active_artifact_id: artifact.id,
+        metadata: {
+            source: 'sigil_annotation_reticle',
+            source_event_type: event?.type || 'sigil.annotation_reticle.commit',
+            context_adapter: 'sigil_annotation_reticle_context_session_v0',
+            fallback: Boolean(options.fallback ?? event?.fallback),
+            blocker_reason: String(options.blocker_reason ?? event?.blocker_reason ?? ''),
+            target_limitation: String(options.target_limitation ?? event?.target_limitation ?? ''),
+            live_anchor_count: anchors.length,
+            ...(options.metadata || {}),
+        },
+    });
 }
 
 export function resolveSigilAnnotationReticleTarget({
@@ -384,6 +480,7 @@ export function createSigilAnnotationReticleController({
     let lastExitReason = null;
     let lastScopeBlocker = null;
     let lastDecisionReport = null;
+    let contextSession = null;
 
     function enter(pointer = null) {
         const avatarPos = getAvatarPos() || pointer || { x: 0, y: 0, valid: true };
@@ -476,7 +573,7 @@ export function createSigilAnnotationReticleController({
             active: false,
             updated_at: now(),
         });
-        lastCommit = {
+        const commitEvent = {
             type: 'sigil.annotation_reticle.commit',
             entry_source: SIGIL_ANNOTATION_ENTRY_SOURCE,
             committed_at: new Date(now()).toISOString(),
@@ -492,6 +589,11 @@ export function createSigilAnnotationReticleController({
             placement,
             session,
         };
+        contextSession = createSigilAnnotationReticleContextSession(commitEvent);
+        lastCommit = {
+            ...commitEvent,
+            context_session: contextSession,
+        };
         return lastCommit;
     }
 
@@ -503,6 +605,7 @@ export function createSigilAnnotationReticleController({
             available: cameraAvailable(),
             anchor_count: liveAnchors().length,
             session,
+            context_session: contextSession,
         };
     }
 
@@ -525,6 +628,7 @@ export function createSigilAnnotationReticleController({
             preview_target: session.hover_candidate,
             decision_report: lastDecisionReport,
             last_committed_event: lastCommit,
+            context_session: contextSession,
             last_exit_reason: lastExitReason,
             camera_available: cameraAvailable(),
             live_anchor_count: liveAnchors().length,
@@ -538,6 +642,7 @@ export function createSigilAnnotationReticleController({
         previewPointer = value.preview_pointer || null;
         rootEvidence = value.root_evidence || null;
         lastCommit = value.last_committed_event || null;
+        contextSession = value.context_session || lastCommit?.context_session || null;
         lastExitReason = value.last_exit_reason || null;
         lastDecisionReport = value.decision_report || null;
         session = createAnnotationSession(value.session || {

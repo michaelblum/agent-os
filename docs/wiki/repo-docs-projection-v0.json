@@ -67,9 +67,9 @@
       "slug": "repo-doc-api-toolkit-workbench",
       "type": "repo_doc",
       "name": "Toolkit Workbench API",
-      "description": "Workbench contracts for subjects, annotation sessions, wiki subjects, and HTML Workbench Expression.",
+      "description": "Workbench contracts for subjects, annotation/context sessions, Selection Mode, recordings, wiki subjects, and HTML Workbench Expression.",
       "tags": ["repo-docs", "api", "toolkit", "workbench"],
-      "concepts": ["toolkit", "Surface Inspector", "Annotation Mode", "HTML Workbench Expression", "runtime wiki"],
+      "concepts": ["toolkit", "Surface Inspector", "Annotation Mode", "Selection Mode", "context recording", "HTML Workbench Expression", "runtime wiki"],
       "source_type": "api_doc"
     },
     {

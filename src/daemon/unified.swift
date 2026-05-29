@@ -334,7 +334,11 @@ class UnifiedDaemon {
                     self.forwardCanvasObjectControlMessage(type: type, data: resultPayload)
                     return
                 case "canvas_inspector.capture_bundle":
-                    self.triggerCanvasInspectorSeeBundle(sourceCanvasID: canvasID, trigger: inner?["trigger"] as? String ?? "canvas")
+                    self.triggerCanvasInspectorSeeBundle(
+                        sourceCanvasID: canvasID,
+                        trigger: inner?["trigger"] as? String ?? "canvas",
+                        contextPayload: inner
+                    )
                     return
                 case "canvas_inspector.request_bundle_config":
                     self.sendCanvasInspectorSeeBundleConfig(canvasID: canvasID)

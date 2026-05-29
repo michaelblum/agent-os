@@ -9,6 +9,19 @@ feel like AOS app controls instead of raw browser defaults. Controls attach to
 ordinary semantic HTML and dispatch normal DOM events so panels can remain
 domain-specific.
 
+`controls/ux-tree.js` starts toolkit control UX tree adoption with read-only
+shadow fragments for buttons, toggles, and segmented button groups. Use
+`createButtonUxTreeFragment()`, `createToggleUxTreeFragment()`, or
+`createButtonGroupUxTreeFragment()` when a surface needs inspectable data for
+existing control bindings. Factory-created `createButton()`, `createToggle()`,
+and `createButtonGroup()` controls also expose `getUxTreeFragment(options = {})`
+on their return values so callers can discover the same read-only fragment from
+the live control object. The helpers return plain JSON `aos_ux_tree` objects
+validated by the toolkit runtime shape: node identity, existing pointer/keyboard
+gestures, allowlisted command handler refs, grouped option ownership relations,
+and current state metadata. They do not execute commands, install a command
+registry, persist overrides, or expose a binding editor.
+
 `number-field.js` provides focused wheel and arrow-key stepping for numeric
 fields marked with `data-aos-control="number-field"`. It uses the field's
 native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
@@ -127,6 +140,14 @@ iframe; syntax or runtime errors inside the preview do not replace the editor.
 Smoke tests can inspect `window.__htmlFileWorkbenchState`, which includes
 `path`, `dirty`, `content`, `content_length`, `content_hash`, `preview_mode`,
 `preview_revision`, `preview_content_length`, and `last_result`.
+
+## UX Tree Readiness
+
+Toolkit components do not include a full UX tree editor yet. V0 producers expose
+UX trees as read-only workbench subjects with facets for overview, bindings,
+commands, settings, and raw JSON. A future editor can use the existing
+workbench shell and control defaults, but persistence and command execution must
+wait for the command registry adapter and binding cutover phases.
 
 ## Decision Gate
 
@@ -980,6 +1001,8 @@ writes a temp bundle directory containing:
 - `capture.png` — a `see capture --region <inspector-at-trigger> --perception` image
 - `capture.json` — the capture response metadata
 - `annotation-snapshot.json` — the public point-in-time Annotation Mode artifact
+- `context-session.json` — the canonical `aos_context_session` export
+- `context-keyframe.json` — the canonical `aos_context_keyframe` export
 - `inspector-state.json` — the surface's live JS/debug snapshot
 - `display-geometry.json` — the daemon display snapshot at export time
 - `canvas-list.json` — the daemon canvas list at export time
@@ -1008,11 +1031,28 @@ payload with `kind: "canvas_inspector_see_bundle_clipboard_payload"`, status,
 timestamp, trigger, shortcut, source canvas id, resolved include toggles,
 inline inspector/display/canvas-list data when those toggles are enabled, and
 the public `surface_inspector_annotation_snapshot` payload when
-`include.annotation_snapshot=true`. Capture image, capture metadata, and xray
-artifacts are represented as skipped or disabled evidence in clipboard mode
-instead of embedding image binary, base64, or `data:image/...` values in JSON.
-The status bar shows whether the shortcut will copy a bundle path or JSON
-payload.
+`include.annotation_snapshot=true`. Clipboard payload mode also includes compact
+`context_session` and `context_keyframe` fields when canonical context is
+available, or explicit skipped evidence when it is not. Capture image, capture
+metadata, and xray artifacts are represented as skipped or disabled evidence in
+clipboard mode instead of embedding image binary, base64, or `data:image/...`
+values in JSON. The status bar shows whether the shortcut will copy a bundle
+path or JSON payload.
+
+`annotation-snapshot.json` and the `surface_inspector_annotation_snapshot`
+clipboard field remain compatibility exports. The canonical machine-readable
+path is now `aos_context_session`, `aos_context_keyframe`, and
+`aos_context_recording`; compatibility keys can only be removed after downstream
+bundle consumers have migrated to the context files/fields and a later removal
+gate explicitly retires the old artifact.
+
+Sigil's radial camera shutter prefers the renderer-local active context provider
+when it has one. That provider can be populated by reticle commits, live
+Selection Mode commits, or debug compatibility adapters, so the export shutter
+does not need to know which mode produced the canonical context. The current V0
+provider is renderer-local; a daemon-visible provider/event channel remains the
+removal gate before other apps can consume active context without a Sigil
+renderer instance.
 
 Supported include toggles today:
 

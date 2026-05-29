@@ -1,0 +1,25 @@
+{
+  "schema": "aos_ux_tree",
+  "version": "0.1.0",
+  "id": "invalid.executable",
+  "label": "Invalid Executable Command",
+  "owner": "test",
+  "source_refs": [],
+  "modes": [{ "id": "global", "label": "Global" }],
+  "nodes": [{ "id": "node", "label": "Node", "role": "button", "node_type": "affordance" }],
+  "commands": [
+    {
+      "id": "run",
+      "label": "Run",
+      "description": "Invalid inline script-like handler object.",
+      "handler_ref": { "javascript": "alert(1)" },
+      "parameters": {},
+      "safety": { "execution": "allowlisted" },
+      "source_metadata": {}
+    }
+  ],
+  "bindings": [],
+  "relations": [],
+  "settings": {},
+  "metadata": {}
+}

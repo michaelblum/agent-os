@@ -29,7 +29,7 @@ the shared toolkit DesktopWorld stage for simple whole-desktop layers and record
 what the stage lacks before adding another private full-display canvas.
 
 Before adding private DesktopWorld/UI behavior, apply
-`docs/recipes/aos-surface-interaction-decision-tree.md`. Do not remodel Sigil
+`docs/guides/aos-surface-interaction-decision-tree.md`. Do not remodel Sigil
 surface architecture until reusable StageAffordance, input identity, lifecycle,
 and panel/windowing primitives are locked enough for Sigil to become their
 second client.
@@ -146,7 +146,7 @@ target size, and daemon-routed behavior before tests reach for renderer debug
 state. If the visual control is already rendered by the parent canvas, keep the
 child surface's labels in ARIA/AX semantics rather than painting duplicate text
 or tooltips into the user-facing composition. See
-`docs/recipes/aos-app-accessibility-surfaces.md` for the repo-wide app and
+`docs/guides/aos-app-accessibility-surfaces.md` for the repo-wide app and
 toolkit contract.
 
 ### Radial Menu Real-Input Verification
