@@ -37,7 +37,8 @@ Create the smallest useful AOS provenance/accounting primitive for dock work:
 - capture cheap sanitized per-dock tool-use/run events deterministically;
 - summarize tool calls, shell/AOS command usage, elapsed accounting, token telemetry when available, and harness compliance signals;
 - make the summary accessible through AOS, not ad-hoc log spelunking;
-- keep the hot path lightweight, bounded, and safe for hooks.
+- keep the hot path lightweight, bounded, and safe for hooks;
+- keep analysis separate from collection so recording does not spend inference or model tokens.
 
 The target outcome is not a full observability product. It is a V0 ledger that lets Foreman ask, per dock/session/task: what tools ran, which recommended test batteries were expected versus observed, how much token context was consumed when provider data is available, and what compliance gaps are visible from deterministic data.
 
@@ -88,6 +89,29 @@ If live readiness is not needed for the deterministic slice, do not spend time r
 
 ## Required Behavior
 
+### Collection Budget / Analysis Boundary
+
+Collection must be cheap mechanical accounting. Analysis is a separate explicit
+operation.
+
+Requirements:
+
+- The hook-time path must not call an LLM, invoke semantic summarization, parse
+  full transcripts for meaning, or run any inference-priced operation.
+- The hook-time path must not call back into a large AOS audit/recommendation
+  flow for every event. It may append sanitized event records and update small
+  counters or bounded indexes.
+- The hook-time path must be bounded in payload size, traversal depth, runtime,
+  and write size. Define the limits in code and tests.
+- Over-limit payloads should produce a small diagnostic record or skip cleanly;
+  they must not persist raw over-limit content.
+- Expensive analysis, if any, belongs behind an explicit user-invoked command
+  and must default to deterministic local computation. Any future inference
+  analysis must be opt-in, named, and outside this V0.
+- V0 should prefer "missing/unknown" over guessing. Unknown token telemetry,
+  session identity, or command status is acceptable when the source data is not
+  available cheaply.
+
 ### Event Ledger
 
 Add a small append-only JSONL ledger for dock run provenance.
@@ -111,6 +135,39 @@ Requirements:
   - duration when available;
   - output byte count/hash when available, not output text.
 - For stop/session events, record a summary event if the hook payload provides enough signal.
+
+### Storage / Retention
+
+Do not create an unbounded permanent event lake.
+
+Requirements:
+
+- Use rotating files or similarly bounded partitions so pruning can delete whole
+  chunks cheaply. Prefer date/dock/session partitions over one forever-growing
+  file.
+- Define explicit default retention limits in V0. Suggested defaults:
+  - raw sanitized event records: keep 14 days, with a repo-level cap around 32
+    MiB;
+  - compact aggregate summaries: keep 90 days, with a smaller fixed cap around
+    16 MiB;
+  - anything larger than the per-event payload cap is represented by metadata
+    and hashes only.
+- Retention settings must be configurable through environment variables or a
+  small AOS config path, but defaults must work without user setup.
+- Provide a deterministic pruning surface. Preferred shape:
+
+```bash
+./aos dev provenance prune --dry-run --json
+./aos dev provenance prune --apply --json
+```
+
+- Pruning must be fixture-testable with a state-root override and must never
+  touch tracked repo files.
+- Opportunistic pruning from hooks is allowed only if it is bounded and rate
+  limited, for example at most once per dock per day. A user-invoked prune
+  command is required either way.
+- The summary/audit command should disclose retention settings and whether
+  records were omitted because they aged out or were pruned.
 
 ### Token Telemetry
 
@@ -166,6 +223,7 @@ Requirements:
 - No full shell output.
 - No provider transcript copy.
 - No secret-bearing environment capture.
+- No model-generated summaries in captured records.
 - Hash unknown commands or sensitive arguments rather than storing them verbatim.
 - Use allowlisted verbatim command summaries only for repo-local deterministic commands where the command itself is useful for compliance, such as `./aos dev recommend ...`, `node --test ...`, `bash tests/...`, `git diff --check`, and `./aos ready ...`.
 
@@ -183,6 +241,8 @@ Owned areas:
 - Do not implement a dashboard.
 - Do not make Work Record generation the hot path.
 - Do not record full prompts, full outputs, raw provider transcripts, or large payloads.
+- Do not add inference-backed analysis to V0.
+- Do not leave retention/pruning unspecified.
 - Do not require live AOS runtime readiness for deterministic validation.
 - Do not mutate GitHub, push, or open PRs.
 - Do not resume Sigil Selection Mode, interdimensional trail, or visual harness feature work from adjacent cards.
@@ -221,7 +281,10 @@ Add and run focused tests for:
 - malformed payload does not fail the hook;
 - unknown/sensitive command stores hash/summary, not raw text;
 - allowlisted deterministic commands are visible enough for compliance matching;
+- collection over-limit behavior is bounded and does not persist raw over-limit content;
 - provenance summary reports expected/observed/missing command batteries from fixtures;
+- provenance prune dry-run and apply operate only on fixture state roots;
+- retention settings appear in summary/audit output;
 - token telemetry reports exact/derived data when fixture transcript context exists and `unknown` with diagnostics otherwise;
 - hook write path respects fixture state-root override.
 
@@ -244,6 +307,8 @@ Report:
 - files changed;
 - schema/command names added;
 - where ledger files are written by default and how tests override that location;
+- default retention limits and prune command behavior;
+- measured or bounded hook-time collection behavior from tests;
 - privacy decisions for captured fields;
 - exact verification commands and pass/fail results;
 - a sample summarized JSON object or key fields from fixture output;
