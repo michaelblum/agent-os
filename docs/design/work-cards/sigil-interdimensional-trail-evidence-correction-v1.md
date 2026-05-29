@@ -18,6 +18,8 @@ topology. Rediscover from the repo and live AOS state before editing.
 ## Source Artifact
 
 - Branch: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- Harness prerequisite accepted:
+  `156b2fdbdaf641006364d6d65ab9115a8554945a`
 - Failed preflight card:
   `docs/design/work-cards/sigil-interdimensional-trail-multidisplay-preflight-v0.md`
 - Failed completion commit:
@@ -27,15 +29,14 @@ topology. Rediscover from the repo and live AOS state before editing.
 - Deferred pointer card:
   `docs/design/work-cards/sigil-selection-scene-facet-pointer-v0.md`
 
-## Supersession Note
+## Harness Prerequisite
 
-Do not execute this trail correction until the shared harness primitive card
-has landed:
+The shared harness primitive card has landed:
 
 - `docs/design/work-cards/aos-canonical-url-harness-primitives-v0.md`
 
-After that prerequisite exists, use the shared canonical URL / fresh-runtime
-helpers from `tests/lib/` instead of hand-rolling the checks below.
+Use the shared canonical URL / fresh-runtime helpers from `tests/lib/` instead
+of hand-rolling the checks below.
 
 ## Single Goal
 
@@ -49,7 +50,7 @@ implement the Selection Mode scene visual facet or pointer migration here.
 ## Branch / Base
 
 - `branch_from`: `gdi/selection-mode-cursor-ancestor-ladder-v0`
-- `required_start_ref`: `0318c5e6ad7967b6eec7d72c4969098c88bd92b8`
+- `required_start_ref`: `156b2fdbdaf641006364d6d65ab9115a8554945a`
 - Work surface/output branch: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 - Use the single repo worktree at `/Users/Michael/Code/agent-os`. Do not create
   or switch to an additional Git worktree for this workflow. Branch-scoped AOS
@@ -109,6 +110,12 @@ Use `aos://` at the command/config boundary:
 ```bash
 ./aos show update --id avatar-main --url 'aos://<active-sigil-root>/renderer/index.html?toolkit-root=<active-toolkit-root>'
 ```
+
+Use the shared helpers added in `tests/lib/visual-harness.sh`, including the
+canonical URL builders, URL-equivalence assertion, worktree-owner assertion, and
+Sigil renderer freshness assertion. If a needed assertion is missing, add it to
+the helper layer with a focused deterministic test before using a local
+one-off.
 
 For this single-worktree dev workflow, prefer the canonical roots
 `aos://sigil/...` and `toolkit-root=toolkit` unless the active Sigil experience
