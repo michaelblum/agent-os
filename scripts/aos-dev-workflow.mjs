@@ -554,7 +554,7 @@ function auditRegistryClaims(repoRoot) {
     return [claim('dev-help-registry-present', 'The external help manifest exposes the dev command.', false, 'command path dev', 'missing', ['manifests/commands/aos-commands.json'], 'Register the dev command before trusting parser/help alignment.')];
   }
   const forms = new Map((dev.forms || []).map((form) => [form.id, form]));
-  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-gh'];
+  const expectedForms = ['dev-classify', 'dev-recommend', 'dev-build', 'dev-afk-dry-run', 'dev-afk-launch-attempt', 'dev-afk-session-trigger', 'dev-audit', 'dev-capabilities', 'dev-docks', 'dev-provenance', 'dev-gh'];
   const observedForms = (dev.forms || []).map((form) => form.id).sort();
   return [
     claim('dev-help-forms', 'External help manifest exposes the complete dev command surface.', expectedForms.every((id) => observedForms.includes(id)), expectedForms.slice().sort().join(','), observedForms.join(','), ['manifests/commands/aos-commands.json', './aos help dev --json'], 'Add the missing dev InvocationForm so agents can discover the command.'),
@@ -566,6 +566,7 @@ function auditRegistryClaims(repoRoot) {
     auditFormFlagClaim('dev-audit-help-flags', forms.get('dev-audit'), ['--manifest', '--repo', '--json'], true),
     auditFormFlagClaim('dev-capabilities-help-flags', forms.get('dev-capabilities'), ['--manifest', '--repo', '--role', '--entry-path', '--json'], false),
     auditFormFlagClaim('dev-docks-help-flags', forms.get('dev-docks'), ['--dock-root', '--capabilities-manifest', '--entry-path', '--repo', '--json'], false),
+    auditFormFlagClaim('dev-provenance-help-flags', forms.get('dev-provenance'), ['--dock', '--repo', '--state-root', '--runtime-mode', '--files', '--manifest', '--base', '--telemetry-file', '--telemetry-provider', '--dry-run', '--apply', '--json'], false),
     auditFormFlagClaim('dev-gh-help-flags', forms.get('dev-gh'), ['--repo', '--cwd', '--json', '--body-file', '--pr'], false),
   ];
 }
@@ -701,6 +702,18 @@ function printDockCapabilities(payload) {
   }
 }
 
+function provenanceCommand(args) {
+  const repoRoot = resolveRepoRoot(process.cwd());
+  const result = spawnSync(process.execPath, ['scripts/aos-provenance-ledger.mjs', ...args], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    stdio: ['inherit', 'pipe', 'pipe'],
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.status ?? 1);
+}
+
 const [subcommand, ...rest] = process.argv.slice(2);
 if (subcommand === 'classify') {
   const options = parseWorkflowOptions(rest);
@@ -720,6 +733,8 @@ if (subcommand === 'classify') {
   const [action, ...args] = rest;
   if (!action) error('dev docks requires a subcommand', 'MISSING_SUBCOMMAND');
   docksCommand(action, args);
+} else if (subcommand === 'provenance') {
+  provenanceCommand(rest);
 } else {
   error(`Unknown dev workflow command: ${subcommand ?? ''}`, 'UNKNOWN_SUBCOMMAND');
 }

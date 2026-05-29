@@ -1,0 +1,14 @@
+{
+  "type": "aos.dock.provenance.event",
+  "schema_version": "2026-05-dock-provenance-v0",
+  "observed_at": "2026-05-29T12:00:00.000Z",
+  "repo_key": "0123456789abcdef",
+  "dock": "gdi",
+  "phase": "post-tool-use",
+  "event": "command",
+  "command": {
+    "kind": "shell",
+    "hash": "curl http://localhost:64511/daemon?token=secret",
+    "redacted": true
+  }
+}

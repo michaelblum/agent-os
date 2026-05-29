@@ -113,6 +113,7 @@ test('canonical rules preserve the expected V0 routing contracts', async () => {
       'bash tests/external-command-dispatch.sh',
       'bash tests/external-parser-flags.sh',
       'bash tests/help-contract.sh',
+      'bash tests/provenance-ledger.sh',
     ],
   );
   assert.ok(rules.get('command-surface-implementations')?.patterns?.includes('scripts/aos-*.mjs'));

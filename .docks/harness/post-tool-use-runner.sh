@@ -16,6 +16,23 @@ fi
 REPO_ROOT="${AOS_DOCK_REPO_ROOT:-/Users/Michael/Code/agent-os}"
 payload="$(cat || true)"
 
+source "$REPO_ROOT/.agents/hooks/session-common.sh"
+
+record_provenance() {
+  local payload_file
+  payload_file="$(mktemp "${TMPDIR:-/tmp}/aos-provenance-hook.XXXXXX")"
+  printf '%s' "$payload" >"$payload_file"
+  aos_run_hook_command_bounded "${AOS_DOCK_HOOK_TIMEOUT_SECONDS:-3}" \
+    node "$REPO_ROOT/scripts/aos-provenance-ledger.mjs" record \
+      --phase "$phase" \
+      --dock "$dock" \
+      --repo "$REPO_ROOT" \
+      --payload-file "$payload_file" >/dev/null 2>&1 || true
+  rm -f "$payload_file"
+}
+
+record_provenance
+
 python_result="$(python3 - "$payload" "$REPO_ROOT" <<'PY'
 import json
 import pathlib

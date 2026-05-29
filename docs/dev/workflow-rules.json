@@ -211,6 +211,11 @@
           "id": "help-contract",
           "command": "bash tests/help-contract.sh",
           "reason": "Command implementation changes must stay aligned with discoverable help and parser contracts."
+        },
+        {
+          "id": "provenance-ledger",
+          "command": "bash tests/provenance-ledger.sh",
+          "reason": "Provenance command and hook ledger changes must keep sanitized collection, audit, and pruning behavior intact."
         }
       ],
       "verification": []

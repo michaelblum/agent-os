@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-os.local/schemas/aos-dock-provenance-ledger-v0.schema.json",
+  "title": "AOS Dock Provenance Ledger v0",
+  "description": "Compact sanitized hook-time accounting records and daily aggregates for dock run provenance.",
+  "oneOf": [
+    { "$ref": "#/$defs/event" },
+    { "$ref": "#/$defs/dailySummary" }
+  ],
+  "$defs": {
+    "schemaVersion": {
+      "const": "2026-05-dock-provenance-v0"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "countMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "hash", "redacted"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["shell", "aos", "git", "github", "slack", "unknown"]
+        },
+        "summary": { "$ref": "#/$defs/nonEmptyString" },
+        "hash": { "$ref": "#/$defs/hash" },
+        "redacted": { "type": "boolean" },
+        "bypass_signals": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        }
+      }
+    },
+    "tokenTelemetry": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "unknown"]
+        },
+        "precision": {
+          "type": "string",
+          "enum": ["exact", "derived", "estimated", "unknown"]
+        },
+        "reason": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["code"],
+      "properties": {
+        "code": { "$ref": "#/$defs/nonEmptyString" },
+        "payload_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "payload_hash": { "$ref": "#/$defs/hash" },
+        "limit_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "schema_version", "observed_at", "repo_key", "dock", "phase", "event"],
+      "properties": {
+        "type": {
+          "const": "aos.dock.provenance.event"
+        },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "observed_at": { "$ref": "#/$defs/dateTime" },
+        "repo_key": { "$ref": "#/$defs/nonEmptyString" },
+        "dock": { "$ref": "#/$defs/nonEmptyString" },
+        "phase": { "$ref": "#/$defs/nonEmptyString" },
+        "event": {
+          "type": "string",
+          "enum": ["command", "tool", "session", "diagnostic"]
+        },
+        "provider": { "$ref": "#/$defs/nonEmptyString" },
+        "tool_name": { "$ref": "#/$defs/nonEmptyString" },
+        "session_id": { "$ref": "#/$defs/nonEmptyString" },
+        "command": { "$ref": "#/$defs/command" },
+        "commands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/command" }
+        },
+        "success": { "type": "boolean" },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bytes", "hash"],
+          "properties": {
+            "bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "hash": { "$ref": "#/$defs/hash" }
+          }
+        },
+        "token_telemetry": { "$ref": "#/$defs/tokenTelemetry" },
+        "diagnostic": { "$ref": "#/$defs/diagnostic" }
+      }
+    },
+    "dailySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "schema_version",
+        "date",
+        "dock",
+        "events",
+        "command_counts",
+        "command_kind_counts",
+        "failed_commands",
+        "diagnostics",
+        "bypass_signals",
+        "token_telemetry",
+        "updated_at"
+      ],
+      "properties": {
+        "type": {
+          "const": "aos.dock.provenance.daily_summary"
+        },
+        "schema_version": { "$ref": "#/$defs/schemaVersion" },
+        "date": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "dock": { "$ref": "#/$defs/nonEmptyString" },
+        "events": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "command_counts": { "$ref": "#/$defs/countMap" },
+        "command_kind_counts": { "$ref": "#/$defs/countMap" },
+        "failed_commands": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "diagnostics": { "$ref": "#/$defs/countMap" },
+        "bypass_signals": { "$ref": "#/$defs/countMap" },
+        "token_telemetry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["available", "unknown"],
+          "properties": {
+            "available": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unknown": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "updated_at": { "$ref": "#/$defs/dateTime" }
+      }
+    }
+  }
+}

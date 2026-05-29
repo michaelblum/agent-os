@@ -25,6 +25,7 @@ function run(command, args, options = {}) {
     cwd: options.cwd ?? process.cwd(),
     env: options.env ?? process.env,
     encoding: 'utf8',
+    maxBuffer: options.maxBuffer ?? 16 * 1024 * 1024,
   });
   if (result.error) {
     return { status: 127, stdout: '', stderr: `${result.error.message}\n` };

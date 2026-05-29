@@ -1,0 +1,28 @@
+{
+  "type": "aos.dock.provenance.event",
+  "schema_version": "2026-05-dock-provenance-v0",
+  "observed_at": "2026-05-29T12:00:00.000Z",
+  "repo_key": "0123456789abcdef",
+  "dock": "gdi",
+  "phase": "post-tool-use",
+  "event": "command",
+  "provider": "codex",
+  "tool_name": "functions.exec_command",
+  "session_id": "session-1",
+  "command": {
+    "kind": "aos",
+    "summary": "./aos dev recommend --json --files scripts/aos-dev-workflow.mjs",
+    "hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "redacted": false
+  },
+  "success": true,
+  "duration_ms": 42,
+  "output": {
+    "bytes": 128,
+    "hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "token_telemetry": {
+    "status": "unknown",
+    "reason": "no_hook_session_telemetry"
+  }
+}

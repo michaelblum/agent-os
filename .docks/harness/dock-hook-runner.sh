@@ -133,6 +133,22 @@ run_aos_bounded() {
 
 HOOK_INPUT="$(cat || true)"
 hook_timeout="${AOS_DOCK_HOOK_TIMEOUT_SECONDS:-$(dock_json_value hook_timeout_seconds 3)}"
+
+record_provenance() {
+  local payload_file
+  payload_file="$(mktemp "${TMPDIR:-/tmp}/aos-provenance-hook.XXXXXX")"
+  printf '%s' "$HOOK_INPUT" >"$payload_file"
+  aos_run_hook_command_bounded "$hook_timeout" \
+    node "$REPO_ROOT/scripts/aos-provenance-ledger.mjs" record \
+      --phase "$phase" \
+      --dock "$dock" \
+      --repo "$REPO_ROOT" \
+      --payload-file "$payload_file" >/dev/null 2>&1 || true
+  rm -f "$payload_file"
+}
+
+record_provenance
+
 name="$(dock_json_value name "$dock")"
 voice_enabled="$(dock_json_value voice.enabled true)"
 voice_language="$(dock_json_value voice.language en)"

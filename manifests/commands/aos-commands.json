@@ -6586,6 +6586,136 @@
         {
           "args" : [
             {
+              "id" : "action",
+              "kind" : "positional",
+              "required" : true,
+              "summary" : "Provenance action: summary, audit, or prune",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dock",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Dock name to summarize or audit",
+              "token" : "--dock",
+              "value_type" : "string"
+            },
+            {
+              "id" : "repo",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repository root path",
+              "token" : "--repo",
+              "value_type" : "string"
+            },
+            {
+              "id" : "state-root",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "AOS state root override for fixture-safe reads and pruning",
+              "token" : "--state-root",
+              "value_type" : "string"
+            },
+            {
+              "id" : "runtime-mode",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "AOS runtime mode for the ledger partition",
+              "token" : "--runtime-mode",
+              "value_type" : "string"
+            },
+            {
+              "id" : "files",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Space-separated files for audit recommendation comparison",
+              "token" : "--files",
+              "value_type" : "string",
+              "variadic" : true
+            },
+            {
+              "id" : "manifest",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Workflow rules manifest path for audit recommendations",
+              "token" : "--manifest",
+              "value_type" : "string"
+            },
+            {
+              "id" : "base",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Git ref for audit recommendation comparison",
+              "token" : "--base",
+              "value_type" : "string"
+            },
+            {
+              "id" : "telemetry-file",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Provider transcript/status fixture for explicit token telemetry extraction",
+              "token" : "--telemetry-file",
+              "value_type" : "string"
+            },
+            {
+              "id" : "telemetry-provider",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Provider for --telemetry-file, such as codex or claude-code",
+              "token" : "--telemetry-provider",
+              "value_type" : "string"
+            },
+            {
+              "id" : "dry-run",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Plan prune deletes without applying them",
+              "token" : "--dry-run",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "apply",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Apply prune deletes",
+              "token" : "--apply",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable provenance output",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos dev provenance summary --dock gdi --json",
+            "aos dev provenance audit --dock gdi --files scripts/aos-dev-workflow.mjs --json",
+            "aos dev provenance prune --dry-run --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : true,
+            "read_only" : false,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : true
+          },
+          "id" : "dev-provenance",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos dev provenance <summary|audit|prune> [--dock <dock>] [--repo <path>] [--state-root <path>] [--runtime-mode <mode>] [--files <path...>] [--manifest <path>] [--base <ref>] [--telemetry-file <path>] [--telemetry-provider <provider>] [--dry-run|--apply] [--json]"
+        },
+        {
+          "args" : [
+            {
               "id" : "group",
               "kind" : "positional",
               "required" : true,

@@ -1,0 +1,23 @@
+{
+  "type": "aos.dock.provenance.daily_summary",
+  "schema_version": "2026-05-dock-provenance-v0",
+  "date": "2026-05-29",
+  "dock": "gdi",
+  "events": 2,
+  "command_counts": {
+    "./aos dev recommend --json --files scripts/aos-dev-workflow.mjs": 1
+  },
+  "command_kind_counts": {
+    "aos": 1
+  },
+  "failed_commands": 0,
+  "diagnostics": {
+    "payload_over_limit": 1
+  },
+  "bypass_signals": {},
+  "token_telemetry": {
+    "available": 0,
+    "unknown": 2
+  },
+  "updated_at": "2026-05-29T12:00:00.000Z"
+}

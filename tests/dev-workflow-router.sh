@@ -281,7 +281,7 @@ import os
 
 data = json.loads(os.environ["OUT"])
 forms = {form["id"]: form for form in data["forms"]}
-assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-gh"} <= set(forms), forms
+assert {"dev-classify", "dev-recommend", "dev-build", "dev-afk-dry-run", "dev-afk-launch-attempt", "dev-afk-session-trigger", "dev-audit", "dev-capabilities", "dev-docks", "dev-provenance", "dev-gh"} <= set(forms), forms
 tokens = {arg.get("token") for arg in forms["dev-classify"]["args"]}
 assert {"--paths", "--files", "--base", "--manifest", "--repo", "--json"} <= tokens, tokens
 recommend_tokens = {arg.get("token") for arg in forms["dev-recommend"]["args"]}
@@ -306,11 +306,13 @@ capability_tokens = {arg.get("token") for arg in forms["dev-capabilities"]["args
 assert {"--manifest", "--repo", "--role", "--entry-path", "--json"} <= capability_tokens, capability_tokens
 dock_tokens = {arg.get("token") for arg in forms["dev-docks"]["args"]}
 assert {"--dock-root", "--capabilities-manifest", "--entry-path", "--repo", "--json"} <= dock_tokens, dock_tokens
+provenance_tokens = {arg.get("token") for arg in forms["dev-provenance"]["args"]}
+assert {"--dock", "--repo", "--state-root", "--runtime-mode", "--files", "--manifest", "--base", "--telemetry-file", "--telemetry-provider", "--dry-run", "--apply", "--json"} <= provenance_tokens, provenance_tokens
 gh_tokens = {arg.get("token") for arg in forms["dev-gh"]["args"]}
 assert {"--repo", "--cwd", "--json", "--body-file", "--pr"} <= gh_tokens, gh_tokens
 PY
 then
-    pass "dev help exposes classify/recommend/build/afk commands/audit/capabilities/docks/gh"
+    pass "dev help exposes classify/recommend/build/afk commands/audit/capabilities/docks/provenance/gh"
 else
     fail "dev help missing workflow router forms"
 fi
@@ -640,6 +642,32 @@ elif echo "$ERR" | grep -q '"code" : "MISSING_ARG"'; then
     pass "dev docks capabilities treats flag-after---entry-path as missing value"
 else
     fail "dev docks capabilities missing --entry-path error mismatch: $ERR"
+fi
+
+PROVENANCE_STATE="$(mktemp -d -t aos-dev-provenance-router.XXXXXX)"
+if OUT="$(./aos dev provenance summary --dock gdi --state-root "$PROVENANCE_STATE" --runtime-mode repo --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["subject"] == "dock-provenance-summary", data
+assert data["dock"] == "gdi", data
+assert data["retention"]["raw_retention_days"] == 14, data
+PY
+then
+    pass "dev provenance summary runs through external command manifest"
+else
+    fail "dev provenance summary did not run through external command manifest"
+fi
+rm -rf "$PROVENANCE_STATE"
+
+if ERR="$(./aos dev provenance prune --state-root --json 2>&1 >/dev/null)"; then
+    fail "dev provenance should reject missing --state-root values before a flag"
+elif echo "$ERR" | grep -q '"code": "MISSING_ARG"'; then
+    pass "dev provenance treats flag-after---state-root as missing value"
+else
+    fail "dev provenance missing --state-root error mismatch: $ERR"
 fi
 
 TMPDIR="$(mktemp -d)"

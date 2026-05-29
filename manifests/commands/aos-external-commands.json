@@ -529,6 +529,16 @@
       }
     },
     {
+      "path": ["dev", "provenance"],
+      "summary": "Summarize and prune dock run provenance ledgers through the external dev workflow router.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-workflow.mjs", "provenance"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["runtime"],
       "summary": "Validate runtime subcommand routing through the external subcommand router.",
       "executable": "/usr/bin/env",
