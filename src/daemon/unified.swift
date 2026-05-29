@@ -129,6 +129,7 @@ class UnifiedDaemon {
     private var inputRegions = AOSInputRegionRegistry()
     private let nativeCursorSuppressionLock = NSLock()
     private var nativeCursorSuppressed = false
+    private var nativeCursorSuppressedDisplayIDs: [CGDirectDisplayID] = []
 
     // Wiki FSEvents watcher
     private var wikiWatcher: WikiWatcher?
@@ -3259,6 +3260,19 @@ class UnifiedDaemon {
         return CGPoint(x: point.x - origin.x, y: point.y - origin.y)
     }
 
+    private func activeDisplayIDsForCursorSuppression() -> [CGDirectDisplayID] {
+        var displayCount: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &displayCount) == .success,
+              displayCount > 0 else {
+            return []
+        }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(displayCount))
+        guard CGGetActiveDisplayList(displayCount, &displays, &displayCount) == .success else {
+            return []
+        }
+        return Array(displays.prefix(Int(displayCount))).filter { $0 != 0 }
+    }
+
     private func reconcileNativeCursorSuppression(active: Bool) {
         nativeCursorSuppressionLock.lock()
         let changed = nativeCursorSuppressed != active
@@ -3269,9 +3283,25 @@ class UnifiedDaemon {
         guard changed else { return }
         DispatchQueue.main.async {
             if active {
-                CGDisplayHideCursor(CGMainDisplayID())
+                let displays = self.activeDisplayIDsForCursorSuppression()
+                self.nativeCursorSuppressionLock.lock()
+                guard self.nativeCursorSuppressed else {
+                    self.nativeCursorSuppressionLock.unlock()
+                    return
+                }
+                self.nativeCursorSuppressedDisplayIDs = displays
+                self.nativeCursorSuppressionLock.unlock()
+                for display in displays {
+                    CGDisplayHideCursor(display)
+                }
             } else {
-                CGDisplayShowCursor(CGMainDisplayID())
+                self.nativeCursorSuppressionLock.lock()
+                let displays = self.nativeCursorSuppressedDisplayIDs
+                self.nativeCursorSuppressedDisplayIDs = []
+                self.nativeCursorSuppressionLock.unlock()
+                for display in displays {
+                    CGDisplayShowCursor(display)
+                }
             }
         }
     }

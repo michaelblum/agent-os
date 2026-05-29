@@ -39,7 +39,7 @@ function candidate(id, rect, extra = {}) {
 
 function createRuntime(options = {}) {
   const liveState = {}
-  const rendererState = {}
+  const rendererState = options.rendererState || {}
   const commands = []
   const activeContexts = []
   const scheduled = []
@@ -123,9 +123,20 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   )
   assert.equal(liveState.selectionModeOverlay.visible, true)
   assert.equal(liveState.selectionModeOverlay.cursor.x, 101)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'bespoke_arrow_outline')
-  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'bespoke_arrow_outline')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.model_kind, 'sigil_model')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.source, 'sigil_avatar')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'three_sided_pyramid_prism')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.length_base_ratio, 2)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.orientation, 'northwest')
+  assert.deepEqual(liveState.selectionModeOverlay.cursorGlyph.hotspot, {
+    kind: 'tip',
+    x: 101,
+    y: 102,
+    local: { x: 0, y: 0 },
+  })
+  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'three_sided_pyramid_prism')
   assert.equal(liveState.selectionModeOverlay.badgeLayout.order, 'leaf-to-root')
+  assert.ok(liveState.selectionMode.events.some((entry) => entry.type === 'selection_mode_aura_spike'))
   assert.deepEqual(
     liveState.selectionModeOverlay.badges.filter((badge) => badge.kind === 'primary').map((badge) => badge.nodeId),
     liveState.selectionMode.context_session.artifacts[0].path.map((node) => node.id).reverse(),
@@ -197,6 +208,61 @@ test('Selection Mode badge ladder chooses visible diagonal directions near corne
   assert.ok(bottomRight.badges.every((badge) => badge.rect.y + badge.rect.height <= 174))
 })
 
+function badgeOverlapArea(a, b) {
+  const left = Math.max(a.rect.x, b.rect.x)
+  const right = Math.min(a.rect.x + a.rect.width, b.rect.x + b.rect.width)
+  const top = Math.max(a.rect.y, b.rect.y)
+  const bottom = Math.min(a.rect.y + a.rect.height, b.rect.y + b.rect.height)
+  return Math.max(0, right - left) * Math.max(0, bottom - top)
+}
+
+function badgesSubstantiallyOverlap(a, b) {
+  const overlap = badgeOverlapArea(a, b)
+  const smallerArea = Math.min(a.rect.width * a.rect.height, b.rect.width * b.rect.height)
+  return a.rect.x === b.rect.x && a.rect.y === b.rect.y
+    || (smallerArea > 0 && overlap / smallerArea > 0.35)
+    || (a.rect.x < b.rect.x + b.rect.width
+    && a.rect.x + a.rect.width > b.rect.x
+    && a.rect.y < b.rect.y + b.rect.height
+    && a.rect.y + a.rect.height > b.rect.y
+    && overlap > 64)
+}
+
+test('Selection Mode grouped badge fan-out remains distinct near overlay edges', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 0, w: 220, h: 180 }, { kind: 'display', role: 'display', label: 'Display' }),
+    candidate('app', { x: 20, y: 20, w: 180, h: 140 }, { kind: 'application', role: 'native_app', label: 'Example App' }),
+    candidate('group-a', { x: 36, y: 38, w: 130, h: 80 }, { kind: 'group', role: 'group', label: 'Group' }),
+    candidate('group-b', { x: 38, y: 40, w: 130, h: 80 }, { kind: 'group', role: 'group', label: 'Group' }),
+    candidate('group-c', { x: 40, y: 42, w: 130, h: 80 }, { kind: 'group', role: 'group', label: 'Group' }),
+    candidate('leaf', { x: 80, y: 60, w: 40, h: 24 }, { kind: 'button', role: 'button', label: 'Save' }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 130, y: 20, valid: true },
+    selected_node_id: 'leaf',
+    path_candidates: path,
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 130, y: 20, valid: true } },
+      }],
+    },
+  }, { overlayBounds: { x: 0, y: 0, w: 220, h: 180 } })
+
+  const grouped = overlay.badgeGroups.find((group) => group.groupedCount >= 2)
+  assert.ok(grouped, 'expected at least two grouped secondary badges')
+  assert.ok(overlay.badges.every((badge) => badge.rect.x >= 6 && badge.rect.y >= 6))
+  assert.ok(overlay.badges.every((badge) => badge.rect.x + badge.rect.width <= 214))
+  assert.ok(overlay.badges.every((badge) => badge.rect.y + badge.rect.height <= 174))
+  for (let i = 0; i < overlay.badges.length; i += 1) {
+    for (let j = i + 1; j < overlay.badges.length; j += 1) {
+      assert.equal(badgesSubstantiallyOverlap(overlay.badges[i], overlay.badges[j]), false, `${overlay.badges[i].id} overlaps ${overlay.badges[j].id}`)
+    }
+  }
+})
+
 test('Selection Mode groups same-size deep ancestors into horizontal badge fan-out and marks key ancestors', () => {
   const wrapper = candidate('wrapper', { x: 40, y: 40, w: 300, h: 220 }, { kind: 'group', role: 'group', label: 'Group' })
   const wrapperInner = candidate('wrapper-inner', { x: 42, y: 42, w: 300, h: 220 }, { kind: 'group', role: 'group', label: 'Group' })
@@ -213,11 +279,10 @@ test('Selection Mode groups same-size deep ancestors into horizontal badge fan-o
   const overlay = liveState.selectionModeOverlay
   const grouped = overlay.badgeGroups.find((group) => group.groupedCount > 0)
   assert.ok(grouped, 'expected same-size ancestors to group behind a primary badge')
-  assert.equal(grouped.fanoutDirection, 'right')
   const primary = overlay.badges.find((badge) => badge.id === grouped.primaryId)
   const secondary = overlay.badges.find((badge) => badge.id === grouped.secondaryIds[0])
   assert.equal(secondary.kind, 'secondary')
-  assert.ok(secondary.rect.x > primary.rect.x)
+  assert.notDeepEqual(secondary.rect, primary.rect)
   assert.ok(overlay.badges.some((badge) => badge.token === 'display'))
   assert.ok(overlay.badges.some((badge) => badge.token === 'app'))
 })
@@ -244,6 +309,104 @@ test('Selection Mode badge click selects an existing ancestor without reacquirin
 
   assert.deepEqual(commands.map((entry) => entry.command), ['acquire', 'selectBadge'])
   assert.equal(liveState.selectionMode.context_session.artifacts[0].active_target_node_id, ancestorBadge.nodeId)
+})
+
+test('Selection Mode cursor model inherits avatar color, aura, trail, and rotation fields', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 0, w: 800, h: 600 }, { kind: 'display', role: 'display', label: 'Display' }),
+    candidate('leaf', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 100, y: 100, valid: true },
+    selected_node_id: 'leaf',
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 100, y: 100, valid: true } },
+      }],
+    },
+  }, {
+    rendererState: {
+      colors: { face: ['#112233', '#445566'], aura: ['#778899', '#aabbcc'] },
+      idleSpinSpeed: 0.08,
+      sessionVitality: { scaleMultiplier: 1.25 },
+      trailStyle: 'line',
+      trailLength: 12,
+      trailOpacity: 0.7,
+      trailFadeMs: 640,
+      auraReach: 1.7,
+      auraIntensity: 1.4,
+    },
+  })
+
+  assert.equal(overlay.cursorGlyph.color.primary, '#112233')
+  assert.equal(overlay.cursorGlyph.aura.reach, 1.7)
+  assert.equal(overlay.cursorGlyph.aura.intensity, 1.4)
+  assert.equal(overlay.cursorGlyph.trail.style, 'line')
+  assert.equal(overlay.cursorGlyph.trail.count, 12)
+  assert.equal(overlay.cursorGlyph.trail.opacity, 0.7)
+  assert.equal(overlay.cursorGlyph.animation.rotation_speed, 0.08)
+  assert.equal(overlay.cursorGlyph.animation.session_vitality_multiplier, 1.25)
+})
+
+test('Selection Mode entry and exit effects record defaults and config overrides once per exit path', () => {
+  const { runtime, liveState } = createRuntime()
+  runtime.enter({ x: 40, y: 40, valid: true }, 'test')
+  assert.deepEqual(liveState.selectionMode.effects.map((effect) => [effect.phase, effect.effect]), [
+    ['enter', 'supernova'],
+  ])
+  runtime.handleInput({ type: 'key_down', key: 'Escape' })
+  assert.equal(liveState.selectionMode.active, false)
+  assert.deepEqual(liveState.selectionMode.effects.map((effect) => [effect.phase, effect.effect]), [
+    ['enter', 'supernova'],
+    ['exit', 'reverse_supernova'],
+  ])
+
+  const overridden = createRuntime({
+    rendererState: {
+      selectionModeEffects: { enter: 'nova_bloom', exit: 'nova_collapse' },
+    },
+  })
+  overridden.runtime.enter({ x: 40, y: 40, valid: true }, 'test')
+  overridden.runtime.exit('cancel')
+  overridden.runtime.exit('cancel-again')
+  assert.deepEqual(overridden.liveState.selectionMode.effects.map((effect) => [effect.phase, effect.effect]), [
+    ['enter', 'nova_bloom'],
+    ['exit', 'nova_collapse'],
+  ])
+})
+
+test('Selection Mode effect defaults roundtrip through appearance state', async () => {
+  globalThis.window ??= { innerHeight: 1080 }
+  globalThis.window.innerHeight ??= 1080
+  const { DEFAULT_APPEARANCE, applyAppearance, snapshotAppearance } = await import('../../apps/sigil/renderer/appearance.js')
+  const state = (await import('../../apps/sigil/renderer/state.js')).default
+
+  assert.deepEqual(DEFAULT_APPEARANCE.transitions.selectionMode, {
+    enter: 'supernova',
+    exit: 'reverse_supernova',
+  })
+
+  const priorDebug = console.debug
+  console.debug = () => {}
+  try {
+    applyAppearance({
+      transitions: {
+        selectionMode: { enter: 'nova_bloom', exit: 'nova_collapse' },
+      },
+    })
+  } finally {
+    console.debug = priorDebug
+  }
+
+  assert.equal(state.selectionModeEnterEffect, 'nova_bloom')
+  assert.equal(state.selectionModeExitEffect, 'nova_collapse')
+  assert.deepEqual(snapshotAppearance().transitions.selectionMode, {
+    enter: 'nova_bloom',
+    exit: 'nova_collapse',
+  })
 })
 
 test('Selection Mode runtime consumes avatar double-click exit without command dispatch', () => {

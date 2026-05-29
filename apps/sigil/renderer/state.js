@@ -167,6 +167,12 @@ const defaults = {
     // Visibility transitions
     transitionEnterEffect: 'scale',
     transitionExitEffect: 'scale',
+    selectionModeEnterEffect: 'supernova',
+    selectionModeExitEffect: 'reverse_supernova',
+    selectionModeEffects: {
+        enter: 'supernova',
+        exit: 'reverse_supernova',
+    },
     transitionFastTravelEffect: 'line',
     fastTravelLineInterDimensional: true,
     fastTravelLineDuration: 0.22,

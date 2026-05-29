@@ -7,23 +7,10 @@ const {
     createSelectionModeContextSession,
 } = await import(toolkitSpecifier('workbench/selection-mode.js'));
 
-const SELECTION_CURSOR_AURA = Object.freeze({
-    family: 'sigil-selection-avatar-aura',
-    primary: 'rgba(94, 252, 210, 0.96)',
-    secondary: 'rgba(142, 221, 255, 0.86)',
-    glow: 'rgba(94, 252, 210, 0.34)',
-    core: 'rgba(12, 22, 28, 0.58)',
-    highlight: 'rgba(255, 255, 255, 0.88)',
+const DEFAULT_SELECTION_MODE_EFFECTS = Object.freeze({
+    enter: 'supernova',
+    exit: 'reverse_supernova',
 });
-const SELECTION_CURSOR_ARROW_POINTS = Object.freeze([
-    Object.freeze({ x: 0, y: 0 }),
-    Object.freeze({ x: 18, y: 42 }),
-    Object.freeze({ x: 5, y: 36 }),
-    Object.freeze({ x: -8, y: 51 }),
-    Object.freeze({ x: -15, y: 45 }),
-    Object.freeze({ x: -3, y: 31 }),
-    Object.freeze({ x: -22, y: 29 }),
-]);
 const BADGE_SIZE = 28;
 const BADGE_OFFSET_START = 28;
 const BADGE_OFFSET_STEP = 25;
@@ -46,6 +33,7 @@ export function createDefaultSelectionModeState() {
         selected_node_id: '',
         context_session: null,
         events: [],
+        effects: [],
         blocker: null,
     };
 }
@@ -130,6 +118,64 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function normalizeSelectionModeEffects(rendererState = null) {
+    const configured = rendererState?.selectionModeEffects
+        || rendererState?.selectionMode?.effects
+        || {};
+    const enter = String(configured.enter || rendererState?.selectionModeEnterEffect || '').trim()
+        || DEFAULT_SELECTION_MODE_EFFECTS.enter;
+    const exit = String(configured.exit || rendererState?.selectionModeExitEffect || '').trim()
+        || DEFAULT_SELECTION_MODE_EFFECTS.exit;
+    return { enter, exit };
+}
+
+function hexToRgba(value = '', alpha = 1) {
+    const hex = String(value || '').trim().replace(/^#/, '');
+    if (!/^[0-9a-f]{6}$/i.test(hex)) return value || `rgba(94, 252, 210, ${alpha})`;
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function resolveAvatarCursorSource(rendererState = null) {
+    const colors = rendererState?.colors || {};
+    const primaryColor = colors.face?.[0] || colors.edge?.[0] || colors.aura?.[0] || '#5efcd2';
+    const auraColor = colors.aura?.[0] || primaryColor;
+    const auraSecondary = colors.aura?.[1] || colors.edge?.[1] || '#8eddff';
+    const vitality = rendererState?.sessionVitality || {};
+    const vitalityMultiplier = Number(vitality.scaleMultiplier ?? vitality.rotationMultiplier ?? 1);
+    return {
+        source: 'sigil_avatar',
+        primaryColor,
+        aura: {
+            enabled: rendererState?.isAuraEnabled !== false,
+            family: 'sigil-avatar-aura',
+            primary: hexToRgba(auraColor, 0.96),
+            secondary: hexToRgba(auraSecondary, 0.86),
+            glow: hexToRgba(auraColor, 0.34),
+            core: 'rgba(12, 22, 28, 0.58)',
+            highlight: 'rgba(255, 255, 255, 0.88)',
+            reach: Number(rendererState?.auraReach ?? 1),
+            intensity: Number(rendererState?.auraIntensity ?? 1),
+            pulseRate: Number(rendererState?.auraPulseRate ?? 0.005),
+            spikeMultiplier: Number(rendererState?.spikeMultiplier ?? 1.5),
+        },
+        trail: {
+            enabled: rendererState?.isTrailEnabled !== false,
+            style: rendererState?.trailStyle || 'omega',
+            count: Number(rendererState?.trailLength ?? 6),
+            opacity: Number(rendererState?.trailOpacity ?? 0.5),
+            fadeMs: Number(rendererState?.trailFadeMs ?? 400),
+        },
+        rotation: {
+            axis: 'long',
+            speed: Number(rendererState?.idleSpinSpeed ?? rendererState?.idleSpin ?? 0.01),
+            session_vitality_multiplier: Number.isFinite(vitalityMultiplier) ? vitalityMultiplier : 1,
+        },
+    };
+}
+
 function fitBadgeRect(point, bounds = null) {
     if (!bounds) return { x: point.x, y: point.y, width: BADGE_SIZE, height: BADGE_SIZE };
     return {
@@ -148,27 +194,78 @@ function badgeFits(point, bounds = null) {
         && point.y + BADGE_SIZE <= bounds.y + bounds.h - BADGE_MARGIN;
 }
 
-function canPlacePrimaryBadges(count, startPoint, bounds, direction) {
+function badgeOverlapArea(a = {}, b = {}) {
+    const left = Math.max(a.x, b.x);
+    const right = Math.min(a.x + a.width, b.x + b.width);
+    const top = Math.max(a.y, b.y);
+    const bottom = Math.min(a.y + a.height, b.y + b.height);
+    return Math.max(0, right - left) * Math.max(0, bottom - top);
+}
+
+function badgeRectsSubstantiallyOverlap(a = {}, b = {}) {
+    const overlap = badgeOverlapArea(a, b);
+    const smallerArea = Math.min(
+        Math.max(0, a.width) * Math.max(0, a.height),
+        Math.max(0, b.width) * Math.max(0, b.height),
+    );
+    return a.x === b.x && a.y === b.y
+        || (smallerArea > 0 && overlap / smallerArea > 0.35)
+        || (a.x < b.x + b.width
+        && a.x + a.width > b.x
+        && a.y < b.y + b.height
+        && a.y + a.height > b.y
+        && overlap > 64);
+}
+
+function canPlaceBadgeGroups(groups = [], startPoint, bounds, direction, fanDx) {
     if (!bounds) return true;
-    for (let i = 0; i < count; i += 1) {
+    const rects = [];
+    for (let i = 0; i < groups.length; i += 1) {
         const offset = BADGE_OFFSET_START + (i * BADGE_OFFSET_STEP);
-        if (!badgeFits({
+        const primaryPoint = {
             x: startPoint.x + direction.dx * offset,
             y: startPoint.y + direction.dy * offset,
-        }, bounds)) {
+        };
+        if (!badgeFits(primaryPoint, bounds)) {
             return false;
+        }
+        const primaryRect = { ...primaryPoint, width: BADGE_SIZE, height: BADGE_SIZE };
+        if (rects.some((rect) => badgeRectsSubstantiallyOverlap(rect, primaryRect))) return false;
+        rects.push(primaryRect);
+        const secondaryCount = groups[i]?.secondaries?.length || 0;
+        for (let secondaryIndex = 0; secondaryIndex < secondaryCount; secondaryIndex += 1) {
+            const secondaryPoint = {
+                x: primaryPoint.x + fanDx * (BADGE_SIZE + BADGE_FAN_GAP) * (secondaryIndex + 1),
+                y: primaryPoint.y,
+            };
+            if (!badgeFits(secondaryPoint, bounds)) return false;
+            const secondaryRect = { ...secondaryPoint, width: BADGE_SIZE, height: BADGE_SIZE };
+            if (rects.some((rect) => badgeRectsSubstantiallyOverlap(rect, secondaryRect))) return false;
+            rects.push(secondaryRect);
         }
     }
     return true;
 }
 
-function chooseBadgeDirection(count, startPoint, bounds = null) {
-    const direction = BADGE_DIRECTIONS.find((candidate) => (
-        canPlacePrimaryBadges(count, startPoint, bounds, candidate)
-    )) || BADGE_DIRECTIONS[0];
+function chooseBadgeLayout(groups, startPoint, bounds = null) {
+    for (const candidate of BADGE_DIRECTIONS) {
+        const preferredFanDx = candidate.dx >= 0 ? 1 : -1;
+        const fanCandidates = [preferredFanDx, -preferredFanDx];
+        for (const fanDx of fanCandidates) {
+            if (canPlaceBadgeGroups(groups, startPoint, bounds, candidate, fanDx)) {
+                return {
+                    ...candidate,
+                    fanDx,
+                    fallback: false,
+                };
+            }
+        }
+    }
+    const direction = BADGE_DIRECTIONS[0];
     return {
         ...direction,
-        fallback: !canPlacePrimaryBadges(count, startPoint, bounds, direction),
+        fanDx: direction.dx >= 0 ? -1 : 1,
+        fallback: true,
     };
 }
 
@@ -271,8 +368,8 @@ function buildBadgeModel({
     if (!path.length || !cursor) return { badges: [], badgeGroups: [], badgeLayout: null };
     const groups = buildBadgeGroups(path);
     const bounds = normalizeBounds(overlayBounds);
-    const direction = chooseBadgeDirection(groups.length, cursor, bounds);
-    const fanDx = direction.dx >= 0 ? 1 : -1;
+    const direction = chooseBadgeLayout(groups, cursor, bounds);
+    const fanDx = direction.fanDx;
     const badges = [];
     const badgeGroups = groups.map((group, groupIndex) => {
         const offset = BADGE_OFFSET_START + (groupIndex * BADGE_OFFSET_STEP);
@@ -345,6 +442,7 @@ function buildBadgeModel({
             order: 'leaf-to-root',
             direction: direction.id,
             fallback: direction.fallback,
+            fanoutDirection: fanDx > 0 ? 'right' : 'left',
             badgeSize: BADGE_SIZE,
             offsetStart: BADGE_OFFSET_START,
             offsetStep: BADGE_OFFSET_STEP,
@@ -352,25 +450,58 @@ function buildBadgeModel({
     };
 }
 
-function buildCursorGlyph(cursor = null) {
+function buildCursorGlyph(cursor = null, rendererState = null) {
     if (!cursor) return null;
+    const avatar = resolveAvatarCursorSource(rendererState);
+    const length = 44;
+    const base = length / 2;
     return {
         kind: 'selection_mode_cursor',
-        shape: 'bespoke_arrow_outline',
+        model_kind: 'sigil_model',
+        source: avatar.source,
+        shape: 'three_sided_pyramid_prism',
         point: cursor,
-        hotspot: { x: 0, y: 0 },
-        outline: SELECTION_CURSOR_ARROW_POINTS.map((point) => ({ ...point })),
-        aura: { ...SELECTION_CURSOR_AURA },
-        animatedGlow: true,
+        hotspot: {
+            kind: 'tip',
+            x: cursor.x,
+            y: cursor.y,
+            local: { x: 0, y: 0 },
+        },
+        geometry: {
+            primitive: 'triangular_prism',
+            sides: 3,
+            length,
+            base,
+            length_base_ratio: 2,
+            orientation: 'northwest',
+        },
+        animation: {
+            rotates_on_axis: 'long',
+            axis: avatar.rotation.axis,
+            rotation_speed: avatar.rotation.speed,
+            session_vitality_multiplier: avatar.rotation.session_vitality_multiplier,
+        },
+        color: {
+            primary: avatar.primaryColor,
+            aura_primary: avatar.aura.primary,
+            aura_secondary: avatar.aura.secondary,
+        },
+        aura: avatar.aura,
+        trail: avatar.trail,
+        animatedGlow: avatar.aura.enabled,
     };
 }
 
-function buildCursorTrailModel() {
+function buildCursorTrailModel(rendererState = null) {
+    const avatar = resolveAvatarCursorSource(rendererState);
     return {
         kind: 'selection_mode_cursor_trail',
-        shape: 'bespoke_arrow_outline',
-        repeatShape: 'bespoke_arrow_outline',
-        aura: { ...SELECTION_CURSOR_AURA },
+        model_kind: 'sigil_model',
+        shape: 'three_sided_pyramid_prism',
+        repeatShape: 'three_sided_pyramid_prism',
+        source: avatar.source,
+        aura: avatar.aura,
+        trail: avatar.trail,
         timingSource: 'fast_travel_line',
     };
 }
@@ -383,6 +514,7 @@ export function hitTestSelectionModeBadge(overlay = {}, point = null) {
 export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     projectPoint = (point) => point,
     overlayBounds = null,
+    rendererState = null,
 } = {}) {
     if (!selectionMode?.active && !selectionMode?.context_session) return { visible: false };
     const artifact = selectionMode.context_session?.artifacts?.[0] || null;
@@ -421,8 +553,8 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     return {
         visible: selectionMode.active === true,
         cursor,
-        cursorGlyph: buildCursorGlyph(cursor),
-        cursorTrail: buildCursorTrailModel(),
+        cursorGlyph: buildCursorGlyph(cursor, rendererState),
+        cursorTrail: buildCursorTrailModel(rendererState),
         frames,
         ...badgeModel,
         activeNodeId,
@@ -460,6 +592,7 @@ export function createSigilSelectionModeRuntime({
         return buildProjectedSelectionModeOverlay(selectionMode, {
             projectPoint,
             overlayBounds: getOverlayBounds(),
+            rendererState,
         });
     }
 
@@ -479,6 +612,34 @@ export function createSigilSelectionModeRuntime({
         };
         liveState.selectionMode.events = [...(liveState.selectionMode.events || []), entry].slice(-40);
         return entry;
+    }
+
+    function recordEffect(phase, reason = '') {
+        const effects = normalizeSelectionModeEffects(rendererState);
+        const effect = phase === 'enter' ? effects.enter : effects.exit;
+        const entry = {
+            phase,
+            effect,
+            reason,
+            at: nowIso(),
+        };
+        liveState.selectionMode.effects = [
+            ...(liveState.selectionMode.effects || []),
+            entry,
+        ].slice(-20);
+        recordEvent('selection_mode_effect', entry);
+        return entry;
+    }
+
+    function recordAcquireFeedback(reason = 'acquire') {
+        if (rendererState) {
+            rendererState.auraSpike = Math.max(Number(rendererState.auraSpike) || 0, 1);
+        }
+        return recordEvent('selection_mode_aura_spike', {
+            reason,
+            style: 'avatar_aura_spike',
+            bounded: true,
+        });
     }
 
     function displayCandidate(point = null) {
@@ -543,6 +704,7 @@ export function createSigilSelectionModeRuntime({
             entered_at: nowIso(),
             cursor,
         };
+        recordEffect('enter', reason);
         recordEvent('enter', { reason, cursor });
         publish({ inputRegions: true, render: true });
         return liveState.selectionMode;
@@ -551,6 +713,7 @@ export function createSigilSelectionModeRuntime({
     function exit(reason = 'cancel') {
         if (!liveState.selectionMode?.active) return liveState.selectionMode;
         clearSelectionModeEntryReleasePending();
+        recordEffect('exit', reason);
         recordEvent('exit', { reason });
         liveState.selectionMode = {
             ...liveState.selectionMode,
@@ -581,6 +744,7 @@ export function createSigilSelectionModeRuntime({
             path_candidate_count: pathCandidates.length,
             leaf_candidate_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
         });
+        recordAcquireFeedback('acquire');
         const contextSession = buildContextSession();
         publish({ render: true });
         return contextSession;
@@ -681,6 +845,7 @@ export function createSigilSelectionModeRuntime({
             selected_node_id: contextSession.artifacts?.[0]?.active_target_node_id || '',
             context_session: contextSession,
             events: [],
+            effects: [],
             blocker: input.blocker || null,
         };
         setActiveContextProvider({
@@ -712,6 +877,10 @@ export function createSigilSelectionModeRuntime({
         }
         if (route.direct === 'avatar_double_click_exit') {
             exit('avatar-double-click');
+            return true;
+        }
+        if (route.command === 'escape') {
+            exit('escape');
             return true;
         }
         if (!route.command) return true;

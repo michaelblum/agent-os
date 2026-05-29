@@ -121,6 +121,10 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     transitions: {
         enter: DEFAULT_TRANSITION_EFFECT,
         exit: DEFAULT_TRANSITION_EFFECT,
+        selectionMode: {
+            enter: 'supernova',
+            exit: 'reverse_supernova',
+        },
         fastTravel: DEFAULT_FAST_TRAVEL_EFFECT,
         lineInterDimensional: true,
         line: {
@@ -381,10 +385,17 @@ export function applyAppearance(blob) {
         : D.windowing.avatarLevel;
 
     const transitions = blob.transitions ?? D.transitions;
+    const selectionModeTransitions = transitions.selectionMode ?? D.transitions.selectionMode;
     const line = transitions.line ?? D.transitions.line;
     const wormhole = transitions.wormhole ?? D.transitions.wormhole;
     state.transitionEnterEffect = normalizeTransitionEffect(transitions.enter, D.transitions.enter);
     state.transitionExitEffect = normalizeTransitionEffect(transitions.exit, D.transitions.exit);
+    state.selectionModeEnterEffect = String(selectionModeTransitions.enter || D.transitions.selectionMode.enter);
+    state.selectionModeExitEffect = String(selectionModeTransitions.exit || D.transitions.selectionMode.exit);
+    state.selectionModeEffects = {
+        enter: state.selectionModeEnterEffect,
+        exit: state.selectionModeExitEffect,
+    };
     state.transitionFastTravelEffect = normalizeFastTravelEffect(transitions.fastTravel, D.transitions.fastTravel);
     state.fastTravelLineInterDimensional = transitions.lineInterDimensional ?? D.transitions.lineInterDimensional;
     state.fastTravelLineDuration = line.duration ?? D.transitions.line.duration;
@@ -654,6 +665,10 @@ export function snapshotAppearance() {
         transitions: {
             enter: normalizeTransitionEffect(state.transitionEnterEffect, DEFAULT_APPEARANCE.transitions.enter),
             exit: normalizeTransitionEffect(state.transitionExitEffect, DEFAULT_APPEARANCE.transitions.exit),
+            selectionMode: {
+                enter: state.selectionModeEnterEffect || DEFAULT_APPEARANCE.transitions.selectionMode.enter,
+                exit: state.selectionModeExitEffect || DEFAULT_APPEARANCE.transitions.selectionMode.exit,
+            },
             fastTravel: normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_APPEARANCE.transitions.fastTravel),
             lineInterDimensional: state.fastTravelLineInterDimensional ?? DEFAULT_APPEARANCE.transitions.lineInterDimensional,
             line: {

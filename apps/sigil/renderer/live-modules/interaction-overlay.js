@@ -18,15 +18,38 @@ function drawFrame(ctx, frame = {}, style = {}) {
     ctx.restore();
 }
 
-function drawSelectionArrow(ctx, glyph = {}, {
+function selectionCursorProjectionPoints(glyph = {}, time = 0) {
+    if (Array.isArray(glyph.outline) && glyph.outline.length) {
+        return glyph.outline;
+    }
+    const geometry = glyph.geometry || {};
+    const length = Math.max(8, Number(geometry.length) || 44);
+    const base = Math.max(4, Number(geometry.base) || length / 2);
+    const axis = { x: Math.SQRT1_2, y: Math.SQRT1_2 };
+    const perp = { x: -Math.SQRT1_2, y: Math.SQRT1_2 };
+    const rotationSpeed = Math.abs(Number(glyph.animation?.rotation_speed) || 0.01);
+    const vitality = Math.max(0.1, Number(glyph.animation?.session_vitality_multiplier) || 1);
+    const rotationPhase = 0.72 + (0.28 * Math.sin(time * rotationSpeed * vitality * 120));
+    const baseCenter = { x: axis.x * length, y: axis.y * length };
+    const halfBase = (base / 2) * rotationPhase;
+    return [
+        { x: 0, y: 0 },
+        { x: baseCenter.x + perp.x * halfBase, y: baseCenter.y + perp.y * halfBase },
+        { x: baseCenter.x + axis.x * 7, y: baseCenter.y + axis.y * 7 },
+        { x: baseCenter.x - perp.x * halfBase, y: baseCenter.y - perp.y * halfBase },
+    ];
+}
+
+function drawSelectionCursorModel(ctx, glyph = {}, {
     x = 0,
     y = 0,
     scale = 1,
     alpha = 1,
     pulse = 0,
+    time = 0,
     fill = true,
 } = {}) {
-    const points = Array.isArray(glyph.outline) ? glyph.outline : [];
+    const points = selectionCursorProjectionPoints(glyph, time);
     if (!points.length) return;
     const aura = glyph.aura || {};
     ctx.save();
@@ -36,7 +59,7 @@ function drawSelectionArrow(ctx, glyph = {}, {
     ctx.lineCap = 'round';
     ctx.globalAlpha = alpha;
 
-    ctx.shadowColor = aura.primary || 'rgba(94, 252, 210, 0.96)';
+    ctx.shadowColor = aura.primary || glyph.color?.aura_primary || 'rgba(94, 252, 210, 0.96)';
     ctx.shadowBlur = 15 + (pulse * 8);
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
@@ -46,9 +69,23 @@ function drawSelectionArrow(ctx, glyph = {}, {
         ctx.fillStyle = aura.core || 'rgba(12, 22, 28, 0.58)';
         ctx.fill();
     }
-    ctx.strokeStyle = aura.primary || 'rgba(94, 252, 210, 0.96)';
+    ctx.strokeStyle = aura.primary || glyph.color?.aura_primary || 'rgba(94, 252, 210, 0.96)';
     ctx.lineWidth = 2.2;
     ctx.stroke();
+
+    if (glyph.model_kind === 'sigil_model') {
+        const base = points.slice(1);
+        ctx.globalAlpha = alpha * 0.58;
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (const point of base) {
+            ctx.lineTo(point.x - 5, point.y - 2);
+            ctx.moveTo(points[0].x, points[0].y);
+        }
+        ctx.strokeStyle = aura.secondary || glyph.color?.aura_secondary || 'rgba(142, 221, 255, 0.86)';
+        ctx.lineWidth = 1.1;
+        ctx.stroke();
+    }
 
     ctx.shadowBlur = 0;
     ctx.globalAlpha = alpha * 0.78;
@@ -189,21 +226,23 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
             const alpha = mode === 'hold'
                 ? 0.18 + (0.25 * (1 - progress))
                 : Math.max(0.04, 0.38 * (1 - progress));
-            drawSelectionArrow(ctx, glyph, {
+            drawSelectionCursorModel(ctx, glyph, {
                 x: sample.x,
                 y: sample.y,
                 scale: Math.max(0.36, trailScale * (0.58 + (1 - progress) * 0.2)),
                 alpha,
                 pulse: 0,
+                time: sample.time,
                 fill: false,
             });
         }
-        drawSelectionArrow(ctx, glyph, {
+        drawSelectionCursorModel(ctx, glyph, {
             x: cursor.x,
             y: cursor.y,
             scale: Math.max(0.42, trailScale * 0.62),
             alpha: 0.96,
             pulse,
+            time,
             fill: true,
         });
     }

@@ -3582,6 +3582,7 @@ function handleHostMessage(rawMsg) {
         } else if (msg.action === 'exit') {
             animateVisibility(false, 'exit', origin);
         } else if (msg.action === 'suspend') {
+            if (liveJs.selectionMode?.active) exitSelectionMode('cleanup');
             rendererSuspended = true;
             removeSigilInputRegions();
             renderLoop.suspend();
@@ -3793,6 +3794,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
     state.polyGroup.scale.setScalar(0);
     if (state.omegaGroup) state.omegaGroup.visible = false;
     if (isPrimarySurfaceSegment()) {
+        if (liveJs.selectionMode?.active) exitSelectionMode('cleanup');
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
         removeSigilInputRegions();
     }
