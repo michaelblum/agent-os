@@ -194,6 +194,11 @@ test('transitions and interaction states keep render loop continuous', () => {
     selectionModeActive: true,
   }), ['selection-mode']);
 
+  assert.deepEqual(renderLoopContinuationReasons({
+    currentState: 'IDLE',
+    selectionModeEffectActive: true,
+  }), ['selection-mode-effect']);
+
   assert.ok(shouldContinueRenderLoop({
     currentState: 'IDLE',
     avatarHover: true,

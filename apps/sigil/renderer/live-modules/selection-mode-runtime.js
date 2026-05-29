@@ -11,6 +11,12 @@ const DEFAULT_SELECTION_MODE_EFFECTS = Object.freeze({
     enter: 'supernova',
     exit: 'reverse_supernova',
 });
+const DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS = 520;
+const SELECTION_MODE_EFFECT_DURATIONS_MS = Object.freeze({
+    supernova: 520,
+    reverse_supernova: 520,
+});
+const DEFAULT_AVATAR_IDLE_SPIN_SPEED = 0.01;
 const BADGE_SIZE = 28;
 const BADGE_OFFSET_START = 28;
 const BADGE_OFFSET_STEP = 25;
@@ -129,6 +135,10 @@ function normalizeSelectionModeEffects(rendererState = null) {
     return { enter, exit };
 }
 
+function effectDurationMs(effect = '') {
+    return SELECTION_MODE_EFFECT_DURATIONS_MS[effect] || DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS;
+}
+
 function hexToRgba(value = '', alpha = 1) {
     const hex = String(value || '').trim().replace(/^#/, '');
     if (!/^[0-9a-f]{6}$/i.test(hex)) return value || `rgba(94, 252, 210, ${alpha})`;
@@ -138,6 +148,18 @@ function hexToRgba(value = '', alpha = 1) {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+export function resolveSigilAvatarIdleRotation(rendererState = null) {
+    const configured = Number(rendererState?.idleSpinSpeed ?? rendererState?.idleSpin ?? DEFAULT_AVATAR_IDLE_SPIN_SPEED);
+    const baseSpeed = Number.isFinite(configured) ? configured : DEFAULT_AVATAR_IDLE_SPIN_SPEED;
+    return {
+        source: 'sigil_avatar_idle_rotation',
+        base_speed: baseSpeed,
+        cursor_long_axis_speed: baseSpeed,
+        visible_avatar_y_speed: baseSpeed * 0.5,
+        visible_avatar_x_speed: baseSpeed * 0.2,
+    };
+}
+
 function resolveAvatarCursorSource(rendererState = null) {
     const colors = rendererState?.colors || {};
     const primaryColor = colors.face?.[0] || colors.edge?.[0] || colors.aura?.[0] || '#5efcd2';
@@ -145,6 +167,7 @@ function resolveAvatarCursorSource(rendererState = null) {
     const auraSecondary = colors.aura?.[1] || colors.edge?.[1] || '#8eddff';
     const vitality = rendererState?.sessionVitality || {};
     const vitalityMultiplier = Number(vitality.scaleMultiplier ?? vitality.rotationMultiplier ?? 1);
+    const rotation = resolveSigilAvatarIdleRotation(rendererState);
     return {
         source: 'sigil_avatar',
         primaryColor,
@@ -170,10 +193,73 @@ function resolveAvatarCursorSource(rendererState = null) {
         },
         rotation: {
             axis: 'long',
-            speed: Number(rendererState?.idleSpinSpeed ?? rendererState?.idleSpin ?? 0.01),
+            source: rotation.source,
+            speed: rotation.cursor_long_axis_speed,
+            visible_avatar_y_speed: rotation.visible_avatar_y_speed,
+            visible_avatar_x_speed: rotation.visible_avatar_x_speed,
             session_vitality_multiplier: Number.isFinite(vitalityMultiplier) ? vitalityMultiplier : 1,
         },
     };
+}
+
+function buildSelectionModeVisualStyle(rendererState = null) {
+    const avatar = resolveAvatarCursorSource(rendererState);
+    return {
+        source: avatar.source,
+        primary: avatar.primaryColor,
+        aura: avatar.aura,
+        badge: {
+            active: {
+                shadow: avatar.aura.primary,
+                fill: avatar.aura.core,
+                stroke: avatar.aura.primary,
+                text: avatar.aura.highlight,
+            },
+            inactive: {
+                shadow: avatar.aura.glow,
+                fill: 'rgba(11, 17, 26, 0.78)',
+                stroke: avatar.aura.secondary,
+                text: 'rgba(238, 248, 255, 0.94)',
+            },
+            leaf: {
+                ring: avatar.aura.secondary,
+            },
+        },
+        frame: {
+            active: {
+                stroke: hexToRgba(avatar.primaryColor, 0.58),
+                fill: hexToRgba(avatar.primaryColor, 0.035),
+            },
+            leaf: {
+                stroke: avatar.aura.secondary,
+                fill: hexToRgba(avatar.primaryColor, 0.026),
+            },
+            ancestor: {
+                stroke: hexToRgba(avatar.primaryColor, 0.22),
+                fill: hexToRgba(avatar.primaryColor, 0.018),
+            },
+        },
+        connector: {
+            stroke: avatar.aura.secondary,
+        },
+        highlight: {
+            stroke: avatar.aura.highlight,
+            glow: avatar.aura.glow,
+        },
+        effect: {
+            primary: avatar.aura.primary,
+            secondary: avatar.aura.secondary,
+            glow: avatar.aura.glow,
+            highlight: avatar.aura.highlight,
+        },
+    };
+}
+
+function badgeVisualStyle(visualStyle = null, { active = false, leaf = false } = {}) {
+    if (active) return visualStyle?.badge?.active || null;
+    return leaf
+        ? { ...(visualStyle?.badge?.inactive || {}), ...(visualStyle?.badge?.leaf || {}) }
+        : (visualStyle?.badge?.inactive || null);
 }
 
 function fitBadgeRect(point, bounds = null) {
@@ -364,6 +450,7 @@ function buildBadgeModel({
     leafNodeId = '',
     cursor = null,
     overlayBounds = null,
+    visualStyle = null,
 } = {}) {
     if (!path.length || !cursor) return { badges: [], badgeGroups: [], badgeLayout: null };
     const groups = buildBadgeGroups(path);
@@ -396,6 +483,10 @@ function buildBadgeModel({
                 token,
                 style: token ? `key-${token}` : 'ancestor',
             },
+            style: badgeVisualStyle(visualStyle, {
+                active: group.primary.node.id === activeNodeId,
+                leaf: group.primary.node.id === leafNodeId,
+            }),
         };
         badges.push(primaryBadge);
         const secondaryIds = [];
@@ -422,6 +513,10 @@ function buildBadgeModel({
                     token: secondaryToken,
                     style: secondaryToken ? `key-${secondaryToken}` : 'grouped-ancestor',
                 },
+                style: badgeVisualStyle(visualStyle, {
+                    active: secondary.node.id === activeNodeId,
+                    leaf: secondary.node.id === leafNodeId,
+                }),
             };
             secondaryIds.push(secondaryBadge.id);
             badges.push(secondaryBadge);
@@ -448,6 +543,45 @@ function buildBadgeModel({
             offsetStep: BADGE_OFFSET_STEP,
         },
     };
+}
+
+function buildSelectionModeVisualEffects(selectionMode = {}, {
+    projectPoint = (point) => point,
+    nowMs = Date.now(),
+} = {}) {
+    if (!Array.isArray(selectionMode.effects)) return [];
+    return selectionMode.effects
+        .map((entry, index) => {
+            const effect = String(entry?.effect || '').trim();
+            const startedAtMs = Number(entry?.started_at_ms ?? Date.parse(entry?.at || ''));
+            const durationMs = Math.max(80, Number(entry?.duration_ms) || effectDurationMs(effect));
+            if (!effect || !Number.isFinite(startedAtMs)) return null;
+            const progress = Math.max(0, Math.min(1, (Number(nowMs) - startedAtMs) / durationMs));
+            const anchor = entry.anchor ? projectPoint(entry.anchor) : (selectionMode.cursor ? projectPoint(selectionMode.cursor) : null);
+            return {
+                id: `selection-mode-effect:${index}:${entry.phase || 'effect'}:${startedAtMs}`,
+                phase: entry.phase || '',
+                effect,
+                reason: entry.reason || '',
+                at: entry.at || '',
+                started_at_ms: startedAtMs,
+                duration_ms: durationMs,
+                bounded: true,
+                active: progress < 1,
+                progress,
+                anchor,
+            };
+        })
+        .filter(Boolean);
+}
+
+export function selectionModeOverlayHasActiveEffects(overlay = {}, nowMs = Date.now()) {
+    return Array.isArray(overlay?.visualEffects) && overlay.visualEffects.some((effect) => {
+        const startedAtMs = Number(effect?.started_at_ms);
+        const durationMs = Number(effect?.duration_ms);
+        if (!Number.isFinite(startedAtMs) || !Number.isFinite(durationMs)) return effect?.active === true;
+        return Number(nowMs) - startedAtMs < durationMs;
+    });
 }
 
 function buildCursorGlyph(cursor = null, rendererState = null) {
@@ -478,7 +612,10 @@ function buildCursorGlyph(cursor = null, rendererState = null) {
         animation: {
             rotates_on_axis: 'long',
             axis: avatar.rotation.axis,
+            source: avatar.rotation.source,
             rotation_speed: avatar.rotation.speed,
+            visible_avatar_y_speed: avatar.rotation.visible_avatar_y_speed,
+            visible_avatar_x_speed: avatar.rotation.visible_avatar_x_speed,
             session_vitality_multiplier: avatar.rotation.session_vitality_multiplier,
         },
         color: {
@@ -515,8 +652,17 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     projectPoint = (point) => point,
     overlayBounds = null,
     rendererState = null,
+    nowMs = Date.now(),
 } = {}) {
-    if (!selectionMode?.active && !selectionMode?.context_session) return { visible: false };
+    const visualStyle = buildSelectionModeVisualStyle(rendererState);
+    const visualEffects = buildSelectionModeVisualEffects(selectionMode, { projectPoint, nowMs });
+    const effectsActive = visualEffects.some((effect) => effect.active);
+    if (!selectionMode?.active && !selectionMode?.context_session && !effectsActive) return {
+        visible: false,
+        active: false,
+        styles: visualStyle,
+        visualEffects,
+    };
     const artifact = selectionMode.context_session?.artifacts?.[0] || null;
     const path = Array.isArray(artifact?.path) ? artifact.path : [];
     const activeNodeId = artifact?.active_target_node_id || selectionMode.selected_node_id || '';
@@ -537,6 +683,9 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
             index,
             active: node.id === activeNodeId,
             leaf: node.id === leafNodeId,
+            style: node.id === activeNodeId
+                ? visualStyle.frame.active
+                : (node.id === leafNodeId ? visualStyle.frame.leaf : visualStyle.frame.ancestor),
         };
     }).filter(Boolean);
     const cursor = selectionMode.cursor ? projectPoint(selectionMode.cursor) : null;
@@ -549,14 +698,18 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         leafNodeId,
         cursor: badgeAnchor,
         overlayBounds,
+        visualStyle,
     });
     return {
-        visible: selectionMode.active === true,
+        visible: selectionMode.active === true || effectsActive,
+        active: selectionMode.active === true,
         cursor,
         cursorGlyph: buildCursorGlyph(cursor, rendererState),
         cursorTrail: buildCursorTrailModel(rendererState),
         frames,
         ...badgeModel,
+        styles: visualStyle,
+        visualEffects,
         activeNodeId,
         leafNodeId,
         blocker: selectionMode.blocker || null,
@@ -567,6 +720,7 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
 export function createSigilSelectionModeRuntime({
     liveState = {},
     rendererState = null,
+    nowMs = () => Date.now(),
     nowIso = defaultNowIso,
     getPointer = () => null,
     getDisplays = () => [],
@@ -593,6 +747,7 @@ export function createSigilSelectionModeRuntime({
             projectPoint,
             overlayBounds: getOverlayBounds(),
             rendererState,
+            nowMs: nowMs(),
         });
     }
 
@@ -617,11 +772,16 @@ export function createSigilSelectionModeRuntime({
     function recordEffect(phase, reason = '') {
         const effects = normalizeSelectionModeEffects(rendererState);
         const effect = phase === 'enter' ? effects.enter : effects.exit;
+        const startedAtMs = nowMs();
         const entry = {
             phase,
             effect,
             reason,
             at: nowIso(),
+            started_at_ms: startedAtMs,
+            duration_ms: effectDurationMs(effect),
+            anchor: liveState.selectionMode?.cursor || null,
+            bounded: true,
         };
         liveState.selectionMode.effects = [
             ...(liveState.selectionMode.effects || []),

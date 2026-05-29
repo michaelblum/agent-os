@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   buildProjectedSelectionModeOverlay,
   createSigilSelectionModeRuntime,
+  resolveSigilAvatarIdleRotation,
 } from '../../apps/sigil/renderer/live-modules/selection-mode-runtime.js'
 
 const display = {
@@ -53,6 +54,7 @@ function createRuntime(options = {}) {
     liveState,
     rendererState,
     nowIso: () => `2026-05-28T12:00:0${nowIndex++}.000Z`,
+    nowMs: options.nowMs || (() => 100000 + nowIndex * 1000),
     getPointer: () => ({ x: 40, y: 40, valid: true }),
     getDisplays: () => [display],
     getCandidateList: () => options.candidates || [],
@@ -349,20 +351,47 @@ test('Selection Mode cursor model inherits avatar color, aura, trail, and rotati
   assert.equal(overlay.cursorGlyph.trail.opacity, 0.7)
   assert.equal(overlay.cursorGlyph.animation.rotation_speed, 0.08)
   assert.equal(overlay.cursorGlyph.animation.session_vitality_multiplier, 1.25)
+  assert.equal(overlay.cursorGlyph.animation.visible_avatar_y_speed, 0.04)
+  assert.equal(overlay.cursorGlyph.animation.visible_avatar_x_speed, 0.016)
+  assert.deepEqual(resolveSigilAvatarIdleRotation({ idleSpinSpeed: 0.08 }), {
+    source: 'sigil_avatar_idle_rotation',
+    base_speed: 0.08,
+    cursor_long_axis_speed: 0.08,
+    visible_avatar_y_speed: 0.04,
+    visible_avatar_x_speed: 0.016,
+  })
 })
 
-test('Selection Mode entry and exit effects record defaults and config overrides once per exit path', () => {
-  const { runtime, liveState } = createRuntime()
+test('Selection Mode entry and exit effects produce bounded renderable overlay transitions', () => {
+  let clock = 200000
+  const { runtime, liveState } = createRuntime({ nowMs: () => clock })
   runtime.enter({ x: 40, y: 40, valid: true }, 'test')
   assert.deepEqual(liveState.selectionMode.effects.map((effect) => [effect.phase, effect.effect]), [
     ['enter', 'supernova'],
   ])
+  assert.deepEqual(liveState.selectionModeOverlay.visualEffects.map((effect) => [effect.phase, effect.effect, effect.active]), [
+    ['enter', 'supernova', true],
+  ])
+  assert.equal(liveState.selectionModeOverlay.visualEffects[0].anchor.x, 41)
+  assert.equal(liveState.selectionModeOverlay.visualEffects[0].bounded, true)
+
+  clock += 240
   runtime.handleInput({ type: 'key_down', key: 'Escape' })
   assert.equal(liveState.selectionMode.active, false)
   assert.deepEqual(liveState.selectionMode.effects.map((effect) => [effect.phase, effect.effect]), [
     ['enter', 'supernova'],
     ['exit', 'reverse_supernova'],
   ])
+  assert.equal(liveState.selectionModeOverlay.visible, true)
+  assert.equal(liveState.selectionModeOverlay.active, false)
+  assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).phase, 'exit')
+  assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).effect, 'reverse_supernova')
+  assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).active, true)
+
+  clock += liveState.selectionModeOverlay.visualEffects.at(-1).duration_ms + 1
+  const expired = runtime.buildProjectedOverlay()
+  assert.equal(expired.visible, false)
+  assert.equal(expired.visualEffects.every((effect) => effect.active === false), true)
 
   const overridden = createRuntime({
     rendererState: {
@@ -376,6 +405,51 @@ test('Selection Mode entry and exit effects record defaults and config overrides
     ['enter', 'nova_bloom'],
     ['exit', 'nova_collapse'],
   ])
+  assert.deepEqual(overridden.liveState.selectionModeOverlay.visualEffects.map((effect) => [effect.phase, effect.effect]), [
+    ['enter', 'nova_bloom'],
+    ['exit', 'nova_collapse'],
+  ])
+})
+
+test('Selection Mode overlay badge, frame, connector, and effect styles derive from avatar colors', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 0, w: 800, h: 600 }, { kind: 'display', role: 'display', label: 'Display' }),
+    candidate('leaf', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 100, y: 100, valid: true },
+    selected_node_id: 'leaf',
+    effects: [{
+      phase: 'enter',
+      effect: 'supernova',
+      at: '2026-05-28T12:00:00.000Z',
+      started_at_ms: 200000,
+      duration_ms: 520,
+      anchor: { x: 100, y: 100, valid: true },
+    }],
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 100, y: 100, valid: true } },
+      }],
+    },
+  }, {
+    nowMs: 200010,
+    rendererState: {
+      colors: { face: ['#123456'], aura: ['#abcdef', '#fedcba'] },
+    },
+  })
+
+  assert.equal(overlay.styles.source, 'sigil_avatar')
+  assert.equal(overlay.styles.primary, '#123456')
+  assert.equal(overlay.styles.frame.active.stroke, 'rgba(18, 52, 86, 0.58)')
+  assert.equal(overlay.styles.connector.stroke, 'rgba(254, 220, 186, 0.86)')
+  assert.equal(overlay.styles.effect.primary, 'rgba(171, 205, 239, 0.96)')
+  assert.equal(overlay.frames.find((frame) => frame.active).style.stroke, 'rgba(18, 52, 86, 0.58)')
+  assert.equal(overlay.badges.find((badge) => badge.active).style.stroke, 'rgba(171, 205, 239, 0.96)')
+  assert.equal(overlay.visualEffects[0].anchor.x, 100)
 })
 
 test('Selection Mode effect defaults roundtrip through appearance state', async () => {

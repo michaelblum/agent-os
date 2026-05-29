@@ -120,7 +120,81 @@ function recordSelectionCursorTrail(history = [], cursor = null, time = 0, maxAg
     while (history.length && time - history[0].time > maxAge) history.shift();
 }
 
-function drawSelectionBadge(ctx, badge = {}) {
+function drawSelectionModeEffect(ctx, effect = {}, styles = {}, {
+    time = 0,
+    nowMs = Date.now(),
+} = {}) {
+    const anchor = effect.anchor || {};
+    const x = Number(anchor.x);
+    const y = Number(anchor.y);
+    if (![x, y].every(Number.isFinite)) return;
+    const startedAtMs = Number(effect.started_at_ms);
+    const durationMs = Math.max(80, Number(effect.duration_ms) || 520);
+    const progress = Number.isFinite(startedAtMs)
+        ? Math.max(0, Math.min(1, (Number(nowMs) - startedAtMs) / durationMs))
+        : Math.max(0, Math.min(1, Number(effect.progress) || 0));
+    if (progress >= 1) return;
+
+    const reverse = effect.effect === 'reverse_supernova' || effect.phase === 'exit';
+    const primary = styles.effect?.primary || styles.aura?.primary || 'rgba(94, 252, 210, 0.96)';
+    const secondary = styles.effect?.secondary || styles.aura?.secondary || 'rgba(142, 221, 255, 0.86)';
+    const highlight = styles.effect?.highlight || styles.aura?.highlight || 'rgba(255, 255, 255, 0.88)';
+    const glow = styles.effect?.glow || styles.aura?.glow || 'rgba(94, 252, 210, 0.34)';
+    const eased = reverse ? 1 - Math.pow(1 - progress, 3) : 1 - Math.pow(1 - progress, 2);
+    const radius = reverse
+        ? 84 - (eased * 66)
+        : 12 + (eased * 82);
+    const alpha = reverse
+        ? Math.max(0, 0.82 * (1 - progress))
+        : Math.max(0, 0.78 * (1 - progress * 0.72));
+    const pulse = 0.5 + (0.5 * Math.sin((time * 9) + progress * Math.PI));
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 18 + (pulse * 14);
+
+    const ringCount = reverse ? 3 : 4;
+    for (let i = 0; i < ringCount; i += 1) {
+        const ringProgress = Math.max(0, Math.min(1, progress + (i * 0.08)));
+        const ringRadius = reverse
+            ? radius + (i * 13) - (ringProgress * 10)
+            : radius + (i * 10);
+        ctx.globalAlpha = alpha * (1 - i * 0.16);
+        ctx.beginPath();
+        ctx.strokeStyle = i % 2 === 0 ? primary : secondary;
+        ctx.lineWidth = reverse ? Math.max(1, 3.2 - i * 0.55) : Math.max(1, 2.2 - i * 0.35);
+        ctx.arc(x, y, Math.max(2, ringRadius), 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    const rayCount = 12;
+    const seed = reverse ? -time * 0.4 : time * 0.5;
+    for (let i = 0; i < rayCount; i += 1) {
+        const angle = seed + (i / rayCount) * Math.PI * 2;
+        const inner = reverse ? radius * (0.52 + progress * 0.18) : radius * 0.14;
+        const outer = reverse ? radius * (1.03 - progress * 0.36) : radius * (0.62 + pulse * 0.16);
+        ctx.globalAlpha = alpha * (reverse ? 0.36 : 0.48);
+        ctx.beginPath();
+        ctx.strokeStyle = i % 2 === 0 ? secondary : highlight;
+        ctx.lineWidth = i % 3 === 0 ? 1.6 : 1;
+        ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
+        ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
+        ctx.stroke();
+    }
+
+    ctx.globalAlpha = alpha * (reverse ? 0.42 : 0.66);
+    ctx.fillStyle = highlight;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(1.5, reverse ? 8 * (1 - progress) : 3 + (pulse * 2)), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawSelectionBadge(ctx, badge = {}, styles = {}) {
     const rect = badge.rect || {};
     const x = Number(rect.x);
     const y = Number(rect.y);
@@ -131,16 +205,19 @@ function drawSelectionBadge(ctx, badge = {}) {
     const leaf = badge.leaf === true;
     const token = badge.token || '';
     const key = token === 'display' || token === 'body' || token === 'app' || token === 'window';
+    const badgeStyle = active
+        ? styles.badge?.active
+        : (leaf ? { ...styles.badge?.inactive, ...styles.badge?.leaf } : styles.badge?.inactive);
     ctx.save();
     ctx.lineJoin = 'round';
-    ctx.shadowColor = active ? 'rgba(94, 252, 210, 0.84)' : (key ? 'rgba(142, 221, 255, 0.52)' : 'rgba(94, 252, 210, 0.42)');
+    ctx.shadowColor = badgeStyle?.shadow || (active ? 'rgba(94, 252, 210, 0.84)' : (key ? 'rgba(142, 221, 255, 0.52)' : 'rgba(94, 252, 210, 0.42)'));
     ctx.shadowBlur = active ? 16 : 8;
-    ctx.fillStyle = active
+    ctx.fillStyle = badgeStyle?.fill || (active
         ? 'rgba(8, 24, 26, 0.88)'
-        : (leaf ? 'rgba(29, 27, 18, 0.82)' : 'rgba(11, 17, 26, 0.78)');
-    ctx.strokeStyle = active
+        : (leaf ? 'rgba(29, 27, 18, 0.82)' : 'rgba(11, 17, 26, 0.78)'));
+    ctx.strokeStyle = badgeStyle?.stroke || (active
         ? 'rgba(94, 252, 210, 0.96)'
-        : (key ? 'rgba(142, 221, 255, 0.9)' : 'rgba(170, 210, 255, 0.72)');
+        : (key ? 'rgba(142, 221, 255, 0.9)' : 'rgba(170, 210, 255, 0.72)'));
     ctx.lineWidth = active ? 2.3 : 1.4;
     ctx.beginPath();
     ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, width, height, 8);
@@ -151,7 +228,7 @@ function drawSelectionBadge(ctx, badge = {}) {
         ctx.shadowBlur = 0;
         ctx.globalAlpha = active ? 0.92 : 0.72;
         ctx.beginPath();
-        ctx.strokeStyle = leaf ? 'rgba(255, 224, 120, 0.88)' : 'rgba(255, 255, 255, 0.82)';
+        ctx.strokeStyle = leaf ? (badgeStyle?.ring || styles.badge?.leaf?.ring || 'rgba(255, 224, 120, 0.88)') : (styles.highlight?.stroke || 'rgba(255, 255, 255, 0.82)');
         ctx.lineWidth = 1;
         ctx.roundRect(Math.round(x - 3) + 0.5, Math.round(y - 3) + 0.5, width + 6, height + 6, 10);
         ctx.stroke();
@@ -162,13 +239,26 @@ function drawSelectionBadge(ctx, badge = {}) {
     ctx.font = `${badge.kind === 'secondary' ? 10 : 12}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = active ? 'rgba(214, 255, 245, 0.98)' : 'rgba(238, 248, 255, 0.94)';
+    ctx.fillStyle = badgeStyle?.text || (active ? 'rgba(214, 255, 245, 0.98)' : 'rgba(238, 248, 255, 0.94)');
     ctx.fillText(String(badge.label || ''), x + width / 2, y + height / 2 + 0.5);
     ctx.restore();
 }
 
+function activeSelectionModeVisualEffects(overlay = {}, nowMs = Date.now()) {
+    if (!Array.isArray(overlay.visualEffects)) return [];
+    return overlay.visualEffects.filter((effect) => {
+        const startedAtMs = Number(effect?.started_at_ms);
+        const durationMs = Number(effect?.duration_ms);
+        if (!Number.isFinite(startedAtMs) || !Number.isFinite(durationMs)) return effect?.active === true;
+        return Number(nowMs) - startedAtMs < durationMs;
+    });
+}
+
 function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) {
-    if (!overlay?.visible) return;
+    const nowMs = Number(snapshot.wallTimeMs) || Date.now();
+    const visualEffects = activeSelectionModeVisualEffects(overlay, nowMs);
+    const modeVisible = overlay?.active === true || (overlay?.active !== false && overlay?.visible === true);
+    if (!modeVisible && !visualEffects.length) return;
     const time = Number(snapshot.time) || 0;
     const trail = snapshot.selectionTrail || {};
     const trailScale = Math.max(0.4, Number(trail.scale) || 1);
@@ -180,17 +270,25 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
     const pulse = 0.5 + (0.5 * Math.sin(time * 7));
     const cursor = overlay.cursor;
     const glyph = overlay.cursorGlyph;
+    const styles = overlay.styles || {};
 
     recordSelectionCursorTrail(trailHistory, cursor, time, Math.max(1, repeatDuration + 0.5));
 
     ctx.save();
     ctx.lineJoin = 'round';
+    for (const effect of visualEffects) {
+        drawSelectionModeEffect(ctx, effect, styles, { time, nowMs });
+    }
+    if (!modeVisible) {
+        ctx.restore();
+        return;
+    }
     for (const frame of overlay.frames || []) {
         const active = frame.active === true;
         const leaf = frame.leaf === true;
         drawFrame(ctx, frame, {
-            stroke: active ? 'rgba(94, 252, 210, 0.58)' : (leaf ? 'rgba(255, 224, 120, 0.48)' : 'rgba(170, 210, 255, 0.22)'),
-            fill: active ? 'rgba(94, 252, 210, 0.035)' : 'rgba(170, 210, 255, 0.018)',
+            stroke: frame.style?.stroke || (active ? 'rgba(94, 252, 210, 0.58)' : (leaf ? 'rgba(255, 224, 120, 0.48)' : 'rgba(170, 210, 255, 0.22)')),
+            fill: frame.style?.fill || (active ? 'rgba(94, 252, 210, 0.035)' : 'rgba(170, 210, 255, 0.018)'),
             dash: active || leaf ? [] : [5, 10],
             lineWidth: active ? 1.8 : 1,
         });
@@ -204,7 +302,7 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
             if (!secondary) continue;
             ctx.save();
             ctx.globalAlpha = 0.5;
-            ctx.strokeStyle = 'rgba(142, 221, 255, 0.42)';
+            ctx.strokeStyle = styles.connector?.stroke || 'rgba(142, 221, 255, 0.42)';
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(primary.rect.x + primary.rect.width / 2, primary.rect.y + primary.rect.height / 2);
@@ -214,7 +312,7 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
         }
     }
     for (const badge of overlay.badges || []) {
-        drawSelectionBadge(ctx, badge);
+        drawSelectionBadge(ctx, badge, styles);
     }
 
     if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) && glyph) {

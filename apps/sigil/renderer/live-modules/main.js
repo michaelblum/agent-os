@@ -63,6 +63,8 @@ import {
 import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
+    resolveSigilAvatarIdleRotation,
+    selectionModeOverlayHasActiveEffects,
 } from './selection-mode-runtime.js';
 import {
     createDefaultActiveContextState,
@@ -417,6 +419,7 @@ function currentRenderLoopContinuationReasons(vitalityFrame = state.sessionVital
         contextMenuOpen: contextMenu?.isOpen?.() ?? false,
         annotationReticleActive: !!annotationReticle.active,
         selectionModeActive: liveJs.selectionMode?.active === true,
+        selectionModeEffectActive: selectionModeOverlayHasActiveEffects(liveJs.selectionModeOverlay, Date.now()),
         avatarMotionActive: liveJs.avatarVisible
             && !state.isPaused
             && Number(vitalityFrame?.rotationMultiplier ?? 1) !== 0,
@@ -3922,8 +3925,9 @@ function animate() {
         const rotationMultiplier = Number.isFinite(vitalityFrame.rotationMultiplier)
             ? vitalityFrame.rotationMultiplier
             : 1;
-        state.polyGroup.rotation.y += 0.005 * rotationMultiplier;
-        state.polyGroup.rotation.x += 0.002 * rotationMultiplier;
+        const idleRotation = resolveSigilAvatarIdleRotation(state);
+        state.polyGroup.rotation.y += idleRotation.visible_avatar_y_speed * rotationMultiplier;
+        state.polyGroup.rotation.x += idleRotation.visible_avatar_x_speed * rotationMultiplier;
     }
 
     const hoverTarget = liveJs.avatarHover && liveJs.avatarVisible && liveJs.currentState === 'IDLE' ? 1 : 0;
@@ -3994,6 +3998,7 @@ function animate() {
             },
             fastTravelEffect: state.transitionFastTravelEffect,
             time: state.globalTime,
+            wallTimeMs: Date.now(),
             gotoRingRadius: liveJs.gotoRingRadius,
             avatarHitRadius: liveJs.avatarHitRadius,
             menuRingRadius: liveJs.menuRingRadius,
