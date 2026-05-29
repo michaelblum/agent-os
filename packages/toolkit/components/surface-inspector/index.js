@@ -156,6 +156,32 @@ function normalizeDisplayRect(rect = null) {
   return { x, y, w, h }
 }
 
+function normalizedCoordinateSpace(value = '') {
+  const space = String(value || '').trim().toLowerCase()
+  if (space === 'desktopworld') return 'desktop_world'
+  return space
+}
+
+function canvasExplicitDesktopWorldRect(canvas = {}) {
+  if (normalizedCoordinateSpace(canvas.at_resolved_coordinate_space ?? canvas.atResolvedCoordinateSpace) === 'desktop_world') {
+    return normalizeDisplayRect(rectFromAt(canvas.atResolved))
+  }
+  if (normalizedCoordinateSpace(canvas.at_coordinate_space ?? canvas.atCoordinateSpace ?? canvas.coordinate_space ?? canvas.coordinateSpace) === 'desktop_world') {
+    return normalizeDisplayRect(rectFromAt(canvas.at))
+  }
+  return null
+}
+
+function canvasDisplayRect(canvas = {}, displaysForProjection = []) {
+  const explicit = normalizeDisplayRect(canvas.visible_display_rect || canvas.display_space_rect || canvas.rect)
+  if (explicit) return explicit
+  if (Array.isArray(displaysForProjection) && displaysForProjection.length > 0) {
+    return normalizeDisplayRect(normalizeCanvasFrameToDesktopWorld(canvas, displaysForProjection)?.rect)
+  }
+  if (canvas.canvas_frame_blocker || canvas.canvas_frame_ambiguity) return null
+  return canvasExplicitDesktopWorldRect(canvas)
+}
+
 function unionDisplayRects(rects = []) {
   const usable = rects.map((rect) => normalizeDisplayRect(rect)).filter(Boolean)
   if (usable.length === 0) return null
@@ -327,6 +353,12 @@ function rowIndentStyle(depth) {
 function formatAt(at) {
   const [x, y, w, h] = Array.isArray(at) ? at : [0, 0, 0, 0]
   return `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
+}
+
+function canvasRowFrameAt(canvas = {}) {
+  if (Array.isArray(canvas.atResolved)) return canvas.atResolved
+  if (Array.isArray(canvas.at)) return canvas.at
+  return null
 }
 
 function formatBounds(bounds) {
@@ -580,11 +612,11 @@ export function planAnnotationActionControlCanvasSync({
   }
 }
 
-export function buildAnnotationScopedHitRegions({ canvases = [], semanticTargetsByCanvas = new Map(), scopeStack = [], selfId = SELF_ID } = {}) {
+export function buildAnnotationScopedHitRegions({ canvases = [], displays = [], semanticTargetsByCanvas = new Map(), scopeStack = [], selfId = SELF_ID } = {}) {
   const internal = (id) => id === selfId || String(id || '').startsWith(`${selfId}-annotation-action-`) || String(id || '').startsWith(`${selfId}-annotation-hit-layer`)
   const broadRoot = (id) => /^desktop[-_]world$/i.test(String(id || '')) || /^aos-desktop-world-stage$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^avatar-main$/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
   const parentId = (canvas = {}) => canvas.parent || canvas.parent_id || ''
-  const rectForCanvas = (canvas) => normalizeDisplayRect(canvas.visible_display_rect || canvas.display_space_rect || canvas.rect || rectFromAt(canvas.atResolved ?? canvas.at))
+  const rectForCanvas = (canvas) => canvasDisplayRect(canvas, displays)
   const scope = Array.isArray(scopeStack) ? scopeStack.at(-1) : null
   const visibleCanvases = (Array.isArray(canvases) ? canvases : []).filter((canvas) => !canvas?.suspended && !internal(canvas.id))
   const ids = new Set(visibleCanvases.map((canvas) => canvas.id))
@@ -685,7 +717,7 @@ function renderSurfaceRow(c, depth, options = {}) {
   html += `<span class="canvas-id">${escapeHTML(c.id)}</span>`
   html += `<span class="canvas-kind">desktop-world</span>`
   html += `<span class="canvas-kind-detail">${segmentCount} segment${segmentCount === 1 ? '' : 's'}</span>`
-  html += `<span class="canvas-dims">${formatAt(c.atResolved || c.at)}</span>`
+  html += `<span class="canvas-dims">${formatAt(canvasRowFrameAt(c))}</span>`
   html += `<span class="canvas-flags">`
   html += renderCanvasActionButtons(c.id, options)
   html += `</span></div>`
@@ -696,7 +728,7 @@ function renderSurfaceRow(c, depth, options = {}) {
 export function renderCanvasRow(c, depth = 0, options = {}) {
   if (Array.isArray(c?.segments)) return renderSurfaceRow(c, depth, options)
 
-  const dims = formatAt(c?.atResolved || c?.at)
+  const dims = formatAt(canvasRowFrameAt(c))
   const selfId = options.selfId ?? SELF_ID
   const tintedIds = options.tintedIds || new Set()
   const statsIds = options.statsIds || new Set()
@@ -3000,15 +3032,17 @@ export default function CanvasInspector() {
         at_resolved_coordinate_space: null,
         atResolvedCoordinateSpace: null,
       }, displays)
+      const blocked = worldResolved?.status === 'blocked'
       return {
         ...canvas,
-        at: rectToAt(worldAt?.rect) ?? canvas.at,
-        atResolved: rectToAt(worldResolved?.rect) ?? canvas.atResolved,
-        at_coordinate_space: 'desktop_world',
-        at_resolved_coordinate_space: 'desktop_world',
+        at: blocked ? null : (rectToAt(worldAt?.rect) ?? canvas.at),
+        atResolved: blocked ? null : (rectToAt(worldResolved?.rect) ?? canvas.atResolved),
+        at_coordinate_space: blocked ? '' : 'desktop_world',
+        at_resolved_coordinate_space: blocked ? '' : 'desktop_world',
         canvas_frame_source: worldResolved?.source_frame || '',
         canvas_frame_inference: worldResolved?.inference || '',
         canvas_frame_ambiguity: worldResolved?.ambiguity || null,
+        canvas_frame_blocker: blocked ? (worldResolved.blocker || { reason: worldResolved.blocker_reason || 'canvas_frame_blocked' }) : null,
       }
     })
   }

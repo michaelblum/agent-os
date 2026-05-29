@@ -1,3 +1,7 @@
+import {
+  normalizeCanvasFrameToDesktopWorld,
+} from '../runtime/spatial.js'
+
 const DEFAULT_CREATED_AT = '1970-01-01T00:00:00.000Z'
 
 const PATH_PREFIX_BY_KIND = {
@@ -197,15 +201,16 @@ function windowDesktopRect(window, topology) {
   }
 }
 
-function canvasRect(canvas) {
-  if (Array.isArray(canvas.atResolved) && canvas.atResolved.length >= 4) {
-    const [x, y, width, height] = canvas.atResolved
-    return normalizeRect({ x, y, width, height })
+function canvasRect(canvas, topology) {
+  const displays = Array.isArray(topology?.displays) ? topology.displays : []
+  if (displays.length > 0) {
+    const frame = normalizeCanvasFrameToDesktopWorld(canvas, displays)
+    return frame?.rect ? normalizeRect(frame.rect) : null
   }
-  if (Array.isArray(canvas.at) && canvas.at.length >= 4) {
-    const [x, y, width, height] = canvas.at
-    return normalizeRect({ x, y, width, height })
-  }
+  const explicitDesktopWorld = normalizeRect(canvas.desktop_world_bounds ?? canvas.desktopWorldBounds)
+  if (explicitDesktopWorld) return explicitDesktopWorld
+  // Without display topology, this helper can only preserve records that were
+  // already reduced to a single caller-owned frame.
   return normalizeRect(canvas.bounds ?? canvas.frame ?? canvas.desktop_world_bounds ?? canvas.desktopWorldBounds)
 }
 
@@ -295,7 +300,7 @@ export function buildSpatialSubjectTree({
       kind: 'canvas',
       label: canvas.label ?? canvas.title ?? canvasId,
       source: { canvas_id: canvasId, window_id: canvas.window_id ?? defaultWindowId },
-      bounds: { parent_local: canvas.parent_local_bounds, desktop_world: canvasRect(canvas) },
+      bounds: { parent_local: canvas.parent_local_bounds, desktop_world: canvasRect(canvas, snapshot) },
       sibling_order: canvasIndex,
       state: canvas.hidden ? 'hidden' : 'visible',
       adapter: { id: 'aos-canvas', type: 'aos_canvas', confidence: 0.9, freshness: 'snapshot', child_discovery: 'partial' },

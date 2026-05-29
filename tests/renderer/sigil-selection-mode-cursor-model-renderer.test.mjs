@@ -185,3 +185,60 @@ test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer
   assert.equal(primary.userData.geometry, 'triangular_prism')
   assert.equal(primary.children[0].children[0].geometry.userData.depth_semantics, 'mesh_volume')
 })
+
+test('Selection Mode cursor model hides stale objects when cursor projection fails', () => {
+  const scene = {
+    add() {},
+    remove() {},
+  }
+  const renderer = createSelectionModeCursorModelRenderer({
+    scene,
+    THREE: FakeTHREE,
+    projectPoint: (point) => {
+      if (point.valid === false) return null
+      return new FakeVector3(point.x / 10, -point.y / 10, 0)
+    },
+    projectRadius: (_point, radius) => radius / 10,
+  })
+  const overlay = {
+    visible: true,
+    active: true,
+    cursor: { x: 100, y: 80, valid: true },
+    cursorGlyph: {
+      model_kind: 'sigil_model',
+      source: 'sigil_avatar',
+      shape: 'three_sided_pyramid_prism',
+      hotspot: { kind: 'tip', x: 100, y: 80, local: { x: 0, y: 0 } },
+      geometry: { primitive: 'triangular_prism', length: 44, base: 22 },
+      animation: { rotation_speed: 0.01, session_vitality_multiplier: 1 },
+      color: { aura_primary: '#5efcd2', aura_secondary: '#8eddff' },
+      aura: { core: '#071318', primary: '#5efcd2', secondary: '#8eddff', highlight: '#ffffff' },
+    },
+    cursorTrail: {
+      timing: { repeatCount: 2, duration: 0.22, delay: 0, repeatDuration: 2, trailMode: 'fade', lag: 0.05, scale: 1.5 },
+    },
+  }
+
+  renderer.update(overlay, { time: 12 })
+  const root = renderer.root
+  const primary = root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
+  const trails = root.children.filter((child) => String(child.userData.object_id || '').startsWith('selection-mode.cursor.trail-model'))
+  assert.equal(root.visible, true)
+  assert.equal(primary.visible, true)
+  assert.equal(trails.length, 2)
+  assert.equal(trails.every((trail) => trail.visible), true)
+
+  const blockedSnapshot = renderer.update({
+    ...overlay,
+    cursor: { x: 100, y: 80, valid: false },
+  }, { time: 13 })
+
+  assert.equal(blockedSnapshot.visible, false)
+  assert.equal(blockedSnapshot.hotspot_aligned, false)
+  assert.equal(blockedSnapshot.trail_count, 0)
+  assert.equal(blockedSnapshot.scene_position, null)
+  assert.equal(blockedSnapshot.blocker_reason, 'invalid_cursor')
+  assert.equal(root.visible, false)
+  assert.equal(primary.visible, false)
+  assert.equal(trails.every((trail) => trail.visible === false), true)
+})

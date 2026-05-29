@@ -251,3 +251,44 @@ test('normalizeCanvasFrameToDesktopWorld projects native frames once and preserv
     { x: 347, y: 150, w: 80, h: 40 },
   )
 })
+
+test('normalizeCanvasFrameToDesktopWorld blocks conflicting unknown atResolved frames', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'left',
+      bounds: { x: -207, y: 0, w: 207, h: 900 },
+      visible_bounds: { x: -207, y: 0, w: 207, h: 900 },
+    },
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+    },
+  ])
+
+  const frame = normalizeCanvasFrameToDesktopWorld({
+    id: 'ambiguous-canvas',
+    at: [120, 120, 360, 260],
+    atResolved: [500, 120, 360, 260],
+  }, displays)
+
+  assert.equal(frame.status, 'blocked')
+  assert.equal(frame.projectable, false)
+  assert.equal(frame.can_project_display_overlay, false)
+  assert.equal(frame.rect, null)
+  assert.equal(frame.blocker_reason, 'ambiguous_canvas_frame_coordinate_space')
+  assert.deepEqual(frame.ambiguity, {
+    frame: 'atResolved',
+    reason: 'missing_or_unknown_coordinate_space',
+    rect: { x: 500, y: 120, w: 360, h: 260 },
+  })
+  assert.equal(
+    canvasLocalRectToDesktopWorld({
+      id: 'ambiguous-canvas',
+      at: [120, 120, 360, 260],
+      atResolved: [500, 120, 360, 260],
+    }, { x: 20, y: 30, w: 80, h: 40 }, displays),
+    null,
+  )
+})

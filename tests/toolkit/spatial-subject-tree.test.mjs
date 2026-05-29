@@ -158,3 +158,58 @@ test('buildSpatialSubjectTree maps topology, canvas, targets, and projections in
   assert.deepEqual(projection.bounds.viewport_local, { x: 48, y: 80, width: 160, height: 36 })
   assert.equal(projection.adapter.child_discovery, 'unsupported')
 })
+
+test('buildSpatialSubjectTree normalizes canvas frames through DesktopWorld contract', () => {
+  const tree = buildSpatialSubjectTree({
+    spatial_topology: {
+      schema: 'spatial-topology',
+      version: '0.2.0',
+      timestamp: '2026-05-09T12:00:00.000Z',
+      desktop_world_bounds: { x: 0, y: 0, width: 1719, height: 982 },
+      displays: [
+        {
+          display_id: 'left',
+          native_bounds: { x: -207, y: 0, w: 207, h: 900 },
+          native_visible_bounds: { x: -207, y: 0, w: 207, h: 900 },
+          desktop_world_bounds: { x: 0, y: 0, width: 207, height: 900 },
+        },
+        {
+          display_id: 'main',
+          is_main: true,
+          native_bounds: { x: 0, y: 0, w: 1512, h: 982 },
+          native_visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+          desktop_world_bounds: { x: 207, y: 0, width: 1512, height: 982 },
+          windows: [
+            {
+              window_id: 1001,
+              title: 'Main Window',
+              desktop_world_bounds: { x: 207, y: 0, width: 1512, height: 982 },
+              is_on_screen: true,
+            },
+          ],
+        },
+      ],
+    },
+    canvases: [
+      { id: 'native-canvas', window_id: 1001, at: [120, 120, 360, 260] },
+      {
+        id: 'resolved-desktop-world-canvas',
+        window_id: 1001,
+        at: [120, 120, 360, 260],
+        atResolved: [327, 120, 360, 260],
+        at_resolved_coordinate_space: 'desktop_world',
+      },
+      {
+        id: 'ambiguous-canvas',
+        window_id: 1001,
+        at: [120, 120, 360, 260],
+        atResolved: [500, 120, 360, 260],
+      },
+    ],
+  })
+
+  const byId = new Map(tree.nodes.map((node) => [node.id, node]))
+  assert.deepEqual(byId.get('canvas:native-canvas').bounds.desktop_world, { x: 327, y: 120, width: 360, height: 260 })
+  assert.deepEqual(byId.get('canvas:resolved-desktop-world-canvas').bounds.desktop_world, { x: 327, y: 120, width: 360, height: 260 })
+  assert.equal(byId.get('canvas:ambiguous-canvas').bounds.desktop_world, undefined)
+})

@@ -547,6 +547,26 @@ export function normalizeCanvasFrameToDesktopWorld(canvas = {}, displaysOrNative
       rect,
       at: rectToAt(rect),
       coordinate_space: 'desktop_world',
+      status: 'projectable',
+      projectable: true,
+      can_project_display_overlay: true,
+      ...metadata,
+    }
+  }
+
+  function blocked(reason, metadata = {}) {
+    return {
+      rect: null,
+      at: null,
+      coordinate_space: 'desktop_world',
+      status: 'blocked',
+      projectable: false,
+      can_project_display_overlay: false,
+      blocker_reason: reason,
+      blocker: {
+        reason,
+        ...(metadata.blocker || {}),
+      },
       ...metadata,
     }
   }
@@ -596,7 +616,7 @@ export function normalizeCanvasFrameToDesktopWorld(canvas = {}, displaysOrNative
       })
     }
     if (nativeAtWorld) {
-      return result(nativeAtWorld, {
+      return blocked('ambiguous_canvas_frame_coordinate_space', {
         source_frame: 'at',
         source_coordinate_space: isDesktopWorldSpace(atSpace) ? 'desktop_world' : 'native_display',
         native_rect: isDesktopWorldSpace(atSpace) ? null : at,
@@ -609,7 +629,15 @@ export function normalizeCanvasFrameToDesktopWorld(canvas = {}, displaysOrNative
         },
       })
     }
-    return null
+    return blocked('ambiguous_canvas_frame_coordinate_space', {
+      source_frame: 'atResolved',
+      source_rect: atResolved,
+      ambiguity: {
+        frame: 'atResolved',
+        reason: 'missing_or_unknown_coordinate_space',
+        rect: atResolved,
+      },
+    })
   }
 
   if (!at) return null

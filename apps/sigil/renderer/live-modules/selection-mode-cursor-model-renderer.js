@@ -183,7 +183,11 @@ function updateInstance(instance, scenePoint, {
     phase = 0,
     fill = true,
 } = {}) {
-    if (!instance || !scenePoint) return false;
+    if (!instance) return false;
+    if (!scenePoint) {
+        hideInstance(instance);
+        return false;
+    }
     setVector(instance.group.position, scenePoint);
     setScale(instance.group.scale, Math.max(0.0001, scale));
     instance.group.rotation.z = -Math.PI / 4;
@@ -308,10 +312,11 @@ export function createSelectionModeCursorModelRenderer({
         return Math.max(0.0001, pixels / 44);
     }
 
-    function hideAll() {
+    function hideAll({ clearTrail = true } = {}) {
         root.visible = false;
         hideInstance(primary);
         for (const item of trailInstances) hideInstance(item);
+        if (clearTrail) trailHistory.length = 0;
         lastSnapshot = {
             ...lastSnapshot,
             visible: false,
@@ -335,7 +340,6 @@ export function createSelectionModeCursorModelRenderer({
 
         const model = ensurePrimary();
         setInstanceColors(THREE, model, glyph);
-        root.visible = true;
 
         const geometry = glyph.geometry || {};
         const length = Math.max(8, finite(geometry.length, 44));
@@ -350,6 +354,21 @@ export function createSelectionModeCursorModelRenderer({
         const rotationSpeed = Math.abs(finite(glyph.animation?.rotation_speed, 0.01));
         const phase = time * rotationSpeed * vitality * Math.PI * 2;
         const primaryPoint = scenePointFor(cursor);
+        if (!primaryPoint) {
+            hideAll();
+            lastSnapshot = {
+                ...lastSnapshot,
+                mounted,
+                model_kind: glyph.model_kind,
+                source: glyph.source || '',
+                object_id: model.group.userData.object_id,
+                hotspot: glyph.hotspot || null,
+                scene_position: null,
+                blocker_reason: cursor?.valid === false ? 'invalid_cursor' : 'cursor_projection_unavailable',
+            };
+            return lastSnapshot;
+        }
+        root.visible = true;
         const baseScale = sceneScaleFor(cursor, length);
 
         recordTrail(trailHistory, cursor, time, Math.max(1, repeatDuration + 0.5));

@@ -2015,7 +2015,57 @@ function annotationReticleCanvasCandidate(canvas = null) {
     if (canvas?.suspended === true) return null;
     const frame = normalizeCanvasFrameToDesktopWorld(canvas, liveJs.displays);
     const rect = frame?.rect || null;
-    if (!rect) return null;
+    const frameBlocked = frame?.status === 'blocked' || frame?.projectable === false;
+    const projectionBase = {
+        adapter_id: 'aos-canvas-window',
+        root_id: id,
+        subject_id: id,
+        subject_kind: 'canvas_window',
+        source_coordinate_space: frame?.source_coordinate_space || '',
+        native_display_rect: frame?.native_rect || null,
+        canvas_frame_source: frame?.source_frame || '',
+        canvas_frame_inference: frame?.inference || '',
+        canvas_frame_ambiguity: frame?.ambiguity || null,
+        refreshed_at: new Date().toISOString(),
+    };
+    const sourceMetadataBase = {
+        adapter_scope: 'sigil_cached_canvas_lifecycle',
+        canvas_id: id,
+        source_coordinate_space: frame?.source_coordinate_space || '',
+        native_display_rect: frame?.native_rect || null,
+        canvas_frame_source: frame?.source_frame || '',
+        canvas_frame_inference: frame?.inference || '',
+        canvas_frame_ambiguity: frame?.ambiguity || null,
+        parent: canvas.parent || null,
+        track: canvas.track || null,
+    };
+    if (!rect) {
+        return frameBlocked ? {
+            id,
+            subject_id: id,
+            subject_path: ['canvas', id],
+            root_id: id,
+            root_label: canvas.title || canvas.name || id,
+            root_kind: 'canvas',
+            subject_kind: 'canvas_window',
+            label: canvas.title || canvas.name || id,
+            adapter_id: 'aos-canvas-window',
+            projection: {
+                ...projectionBase,
+                status: 'blocked',
+                projectable: false,
+                can_project_display_overlay: false,
+                can_reveal: false,
+                coordinate_space: 'desktop_world',
+                blocker: frame.blocker || { reason: frame.blocker_reason || 'canvas_frame_blocked' },
+                blocker_reason: frame.blocker_reason || frame.blocker?.reason || 'canvas_frame_blocked',
+            },
+            source_metadata: {
+                ...sourceMetadataBase,
+                blocker: frame.blocker || { reason: frame.blocker_reason || 'canvas_frame_blocked' },
+            },
+        } : null;
+    }
     return {
         id,
         subject_id: id,
@@ -2027,10 +2077,7 @@ function annotationReticleCanvasCandidate(canvas = null) {
         label: canvas.title || canvas.name || id,
         adapter_id: 'aos-canvas-window',
         projection: {
-            adapter_id: 'aos-canvas-window',
-            root_id: id,
-            subject_id: id,
-            subject_kind: 'canvas_window',
+            ...projectionBase,
             status: 'visible',
             projectable: true,
             can_project_display_overlay: true,
@@ -2038,23 +2085,9 @@ function annotationReticleCanvasCandidate(canvas = null) {
             visible_display_rect: rect,
             display_space_rect: rect,
             coordinate_space: 'desktop_world',
-            source_coordinate_space: frame.source_coordinate_space,
-            native_display_rect: frame.native_rect || null,
-            canvas_frame_source: frame.source_frame,
-            canvas_frame_inference: frame.inference || '',
-            canvas_frame_ambiguity: frame.ambiguity || null,
-            refreshed_at: new Date().toISOString(),
         },
         source_metadata: {
-            adapter_scope: 'sigil_cached_canvas_lifecycle',
-            canvas_id: id,
-            source_coordinate_space: frame.source_coordinate_space,
-            native_display_rect: frame.native_rect || null,
-            canvas_frame_source: frame.source_frame,
-            canvas_frame_inference: frame.inference || '',
-            canvas_frame_ambiguity: frame.ambiguity || null,
-            parent: canvas.parent || null,
-            track: canvas.track || null,
+            ...sourceMetadataBase,
         },
     };
 }
