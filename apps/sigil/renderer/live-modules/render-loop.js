@@ -35,7 +35,7 @@ export function classifyRenderLoopWork(frame = {}) {
         ? frame.continuationReasons
         : renderLoopContinuationReasons(frame);
     const structuralDirty = !!frame.structuralDirty;
-    const visualOnlyReasons = new Set(['avatar-motion']);
+    const visualOnlyReasons = new Set(['avatar-motion', 'selection-mode']);
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => visualOnlyReasons.has(reason));

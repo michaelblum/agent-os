@@ -282,6 +282,29 @@ test('semantic target adapter projects visible structured bounds and revealable 
   assert.equal(htmlTarget.can_reveal, true);
 });
 
+test('semantic target adapter preserves DesktopWorld semantic display rects', () => {
+  const target = buildSemanticTargetProjectionAdapterResult({
+    id: 'selection-mode-live-save-button',
+    label: 'Save',
+    role: 'button',
+    kind: 'button',
+    coordinate_space: 'desktop_world',
+    source_coordinate_space: 'canvas_local',
+    rect: { x: 24, y: 36, w: 90, h: 44 },
+    display_space_rect: { x: 598, y: 209, w: 90, h: 44 },
+    visible_display_rect: { x: 598, y: 209, w: 90, h: 44 },
+    local_space_rect: { x: 24, y: 36, w: 90, h: 44 },
+  }, {
+    canvas_id: 'selection-mode-live-target',
+    refreshed_at: '2026-05-29T13:11:37.956Z',
+  });
+
+  assert.equal(target.coordinate_space, 'desktop_world');
+  assert.deepEqual(target.display_space_rect, { x: 598, y: 209, width: 90, height: 44 });
+  assert.notEqual(target.display_space_rect.x, 805);
+  assert.equal(target.source_tree_node_metadata.source_coordinate_space, 'canvas_local');
+});
+
 test('semantic target adapter clips display geometry to visible ancestor bounds', () => {
   const clipped = buildSemanticTargetProjectionAdapterResult({
     id: 'oversized-target',

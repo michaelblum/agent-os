@@ -2619,6 +2619,13 @@ function handleSelectionModeInput(msg = {}) {
     return selectionModeRuntime.handleInput(msg);
 }
 
+function updateSelectionModeCursorModelSnapshot(overlay = null) {
+    const cursorOverlay = overlay || liveJs.selectionModeOverlay || selectionModeRuntime.buildProjectedOverlay();
+    selectionModeCursorModelRenderer?.update(cursorOverlay, { time: state.globalTime });
+    liveJs.selectionModeCursorModel = selectionModeCursorModelRenderer?.snapshot?.() || null;
+    return liveJs.selectionModeCursorModel;
+}
+
 function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
     const item = radial?.items?.find((candidate) => candidate.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID);
     if (!item) return null;
@@ -4052,11 +4059,7 @@ function animate() {
             dragCancelRadius: liveJs.dragCancelRadius,
         });
     }
-    selectionModeCursorModelRenderer?.update(
-        liveJs.selectionModeOverlay || selectionModeRuntime.buildProjectedOverlay(),
-        { time: state.globalTime },
-    );
-    liveJs.selectionModeCursorModel = selectionModeCursorModelRenderer?.snapshot?.() || null;
+    updateSelectionModeCursorModelSnapshot();
     if (work.structural || activeRadialActivationTransition) {
         radialGestureVisuals?.update(liveJs.radialGestureMenu, {
             time: state.globalTime,
@@ -4136,7 +4139,7 @@ window.__sigilDebug = {
             annotationReticle: liveJs.annotationReticle,
             selectionMode: liveJs.selectionMode,
             selectionModeOverlay: liveJs.selectionModeOverlay,
-            selectionModeCursorModel: liveJs.selectionModeCursorModel,
+            selectionModeCursorModel: updateSelectionModeCursorModelSnapshot(),
             uxCommandRuntime: liveJs.uxCommandRuntime,
             activeContext: liveJs.activeContext,
             contextRecording: liveJs.contextRecording,

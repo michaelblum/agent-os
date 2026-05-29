@@ -474,6 +474,13 @@ export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = 
         || target.semantic_target_id,
     );
   const visible = target.visible !== false && bounds;
+  const coordinateSpace = text(
+    target.coordinate_space
+      || target.coordinateSpace
+      || target.rect_coordinate_space
+      || target.display_rect_coordinate_space,
+    'native_display',
+  );
   const current_render_status = target.current_render_status
     || target.render_status
     || (visible
@@ -492,6 +499,7 @@ export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = 
     can_project_display_overlay: current_render_status === 'visible' && Boolean(bounds),
     can_reveal: Boolean(target.can_reveal || scrollable || target.revealable || hasStructuredReveal),
     display_space_rect: bounds,
+    coordinate_space: coordinateSpace,
     local_space_rect: local,
     ancestor_viewport_clip_chain: target.ancestor_viewport_clip_chain,
     scrollable_ancestor_chain: target.scrollable_ancestor_chain,

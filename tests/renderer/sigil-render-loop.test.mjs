@@ -163,6 +163,19 @@ test('idle avatar motion is classified as visual-only when no structural inputs 
   });
 });
 
+test('unchanged Selection Mode cursor frames stay visual-only', () => {
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['avatar-motion', 'selection-mode'],
+    structuralDirty: false,
+  }), {
+    continuationReasons: ['avatar-motion', 'selection-mode'],
+    structural: false,
+    overlay: false,
+    publishState: false,
+    visualOnly: true,
+  });
+});
+
 test('dirty or interactive frames keep structural sync and state publish active', () => {
   assert.equal(classifyRenderLoopWork({
     continuationReasons: ['avatar-motion'],

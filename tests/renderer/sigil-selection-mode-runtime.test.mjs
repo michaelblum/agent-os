@@ -343,6 +343,33 @@ test('Selection Mode groups same-size deep ancestors into horizontal badge fan-o
   assert.ok(overlay.badges.some((badge) => badge.token === 'app'))
 })
 
+test('Selection Mode acquires DesktopWorld semantic leaf at visible button center', () => {
+  const canvasWindow = candidate('selection-mode-live-target', { x: 574, y: 173, w: 360, h: 260 }, {
+    kind: 'canvas_window',
+    label: 'selection-mode-live-target',
+  })
+  const saveButton = candidate('selection-mode-live-save-button', { x: 598, y: 209, w: 90, h: 44 }, {
+    kind: 'button',
+    role: 'button',
+    label: 'Save',
+  })
+  const { runtime, liveState } = createRuntime({
+    candidates: [canvasWindow, saveButton],
+    projectPoint: (point) => point,
+  })
+
+  runtime.enter({ x: 643, y: 231, valid: true }, 'test')
+  runtime.acquire({ x: 643, y: 231, valid: true })
+
+  assert.equal(liveState.selectionMode.leaf_candidate.id, 'selection-mode-live-save-button')
+  assert.equal(liveState.selectionMode.selected_node_id, 'node:selection-mode:selection-mode-live-save-button:selection-mode-live-save-button')
+  assert.deepEqual(
+    liveState.selectionMode.context_session.artifacts[0].path.map((node) => node.label),
+    ['Display 1', 'selection-mode-live-target', 'Save'],
+  )
+  assert.equal(liveState.selectionModeOverlay.leafNodeId, liveState.selectionMode.selected_node_id)
+})
+
 test('Selection Mode badge click retargets while preserving original acquisition evidence', () => {
   const windowCandidate = candidate('window', { x: 50, y: 50, w: 300, h: 220 }, { kind: 'window', role: 'native_window', label: 'Window' })
   const buttonCandidate = candidate('button', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' })

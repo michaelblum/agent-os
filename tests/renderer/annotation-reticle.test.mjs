@@ -487,7 +487,7 @@ test('Sigil reticle candidates are projected through canonical DesktopWorld help
   assert.match(source, /normalizeCanvasFrameToDesktopWorld\(canvas, liveJs\.displays\)/)
   assert.match(source, /canvasLocalRectToDesktopWorld\(/)
   assert.match(source, /coordinate_space: 'desktop_world'/)
-  assert.match(source, /source_coordinate_space: frame\.source_coordinate_space/)
+  assert.match(source, /source_coordinate_space: frame\?\.source_coordinate_space/)
   assert.match(source, /annotationReticleSemanticTargetForDesktopWorld\(canvasId, target\)/)
 })
 
@@ -894,7 +894,9 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   assert.match(source, /selectionModeIsActive: \(\) => liveJs\.selectionMode\?\.active === true/)
   assert.match(source, /selectionModeOverlay: liveJs\.selectionModeOverlay \|\| buildProjectedSelectionModeOverlay/)
   assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)
+  assert.match(source, /function updateSelectionModeCursorModelSnapshot\(overlay = null\)/)
   assert.match(debugBlock, /selectionMode: liveJs\.selectionMode/)
+  assert.match(debugBlock, /selectionModeCursorModel: updateSelectionModeCursorModelSnapshot\(\)/)
   assert.match(debugBlock, /activeContext: liveJs\.activeContext/)
   assert.match(debugBlock, /contextRecording: liveJs\.contextRecording/)
   assert.match(debugBlock, /createSelectionModeContext\(input = \{\}\) \{[\s\S]*createSelectionModeContextFromDebugInput\(input\)/)
