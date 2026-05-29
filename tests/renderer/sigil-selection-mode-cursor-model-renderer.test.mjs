@@ -241,6 +241,15 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 }
 
+function pointerEffects(object) {
+  const effects = object.children.find((child) => child.name.endsWith('.effects'))
+  return {
+    group: effects,
+    glow: effects.children.find((child) => child.name.endsWith('.glow')),
+    core: effects.children.find((child) => child.name.endsWith('.core')),
+  }
+}
+
 test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer', () => {
   const sceneAdds = []
   const scene = {
@@ -459,6 +468,22 @@ test('Selection Mode pointer caps and softens avatar-derived trail echoes', () =
   assert.equal(snapshot.trail_policy.max_visible_instances, 8)
   assert.equal(trails.length, 8)
   assert.ok(trails.every((trail) => trail.children.find((child) => child.name.endsWith('.effects'))))
+
+  const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
+  const primaryEffects = pointerEffects(primary)
+  const trailGlowOpacities = trails.map((trail) => pointerEffects(trail).glow.material.opacity)
+  const trailCoreOpacities = trails.map((trail) => pointerEffects(trail).core.material.opacity)
+  const newestToOldestGlowOpacities = [...trailGlowOpacities].reverse()
+  const newestToOldestCoreOpacities = [...trailCoreOpacities].reverse()
+
+  assert.ok(trailGlowOpacities.every((opacity) => opacity < primaryEffects.glow.material.opacity))
+  assert.ok(trailCoreOpacities.every((opacity) => opacity < primaryEffects.core.material.opacity))
+  for (let index = 1; index < newestToOldestGlowOpacities.length; index += 1) {
+    assert.ok(newestToOldestGlowOpacities[index] <= newestToOldestGlowOpacities[index - 1])
+    assert.ok(newestToOldestCoreOpacities[index] <= newestToOldestCoreOpacities[index - 1])
+  }
+  assert.ok(newestToOldestGlowOpacities.at(-1) < newestToOldestGlowOpacities[0])
+  assert.ok(newestToOldestCoreOpacities.at(-1) < newestToOldestCoreOpacities[0])
 })
 
 test('Selection Mode pointer locks root orientation and animates only the screen-plane z axis', () => {
@@ -556,4 +581,39 @@ test('Selection Mode cursor model reuses objects and bounded resources after war
   assert.equal(steadySnapshot.object_counts.trail_instances, 4)
   assert.equal(steadySnapshot.object_counts.scene_children, 1)
   assert.equal(steadySnapshot.resource_counts.update_count, warmSnapshot.resource_counts.update_count + 2)
+})
+
+test('Selection Mode cursor model disposes avatar-derived effect materials on destroy', () => {
+  const scene = {
+    children: [],
+    removed: null,
+    add(object) {
+      this.children.push(object)
+    },
+    remove(object) {
+      this.removed = object
+      this.children = this.children.filter((child) => child !== object)
+    },
+  }
+  const renderer = createSelectionModeCursorModelRenderer({
+    scene,
+    THREE: FakeTHREE,
+    projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
+    projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => avatarSource(),
+  })
+
+  renderer.update(modelOverlay({ repeatCount: 3 }), { time: 12 })
+  const effectMaterials = renderer.root.children.flatMap((child) => {
+    const effects = pointerEffects(child)
+    return [effects.glow.material, effects.core.material]
+  })
+
+  assert.equal(effectMaterials.length, 8)
+  assert.ok(effectMaterials.every((material) => material.disposed === false))
+
+  renderer.destroy()
+
+  assert.equal(scene.removed.userData.object_id, 'selection-mode.cursor.model-root')
+  assert.ok(effectMaterials.every((material) => material.disposed === true))
 })

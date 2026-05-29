@@ -288,6 +288,10 @@ function pointerVisualIdentity(source = {}) {
 function createEffectSprite(THREE, name, options = {}) {
     const Material = THREE.SpriteMaterial || THREE.MeshBasicMaterial || THREE.MeshPhongMaterial || THREE.LineBasicMaterial;
     const material = Material ? new Material(options) : { ...options };
+    material.userData = {
+        ...(material.userData || {}),
+        pointer_effect_base_opacity: finite(options.opacity, 0),
+    };
     const object = typeof THREE.Sprite === 'function' ? new THREE.Sprite(material) : new THREE.Group();
     object.name = name;
     object.material = object.material || material;
@@ -296,6 +300,27 @@ function createEffectSprite(THREE, name, options = {}) {
         effect_family: name.endsWith('.glow') ? 'aura_glow' : 'aura_core',
     };
     return object;
+}
+
+function setPointerEffectBaseOpacity(sprite, opacity) {
+    const material = sprite?.material;
+    if (!material) return;
+    const baseOpacity = clamp(opacity, 0, 1);
+    material.userData = {
+        ...(material.userData || {}),
+        pointer_effect_base_opacity: baseOpacity,
+    };
+    material.opacity = baseOpacity;
+    material.transparent = true;
+}
+
+function setPointerEffectOpacity(sprite, alpha, fill = true) {
+    const material = sprite?.material;
+    if (!material) return;
+    const baseOpacity = finite(material.userData?.pointer_effect_base_opacity, finite(material.opacity, 0));
+    const trailSoftening = fill ? 1 : 0.42;
+    material.opacity = clamp(baseOpacity * alpha * trailSoftening, 0, 1);
+    material.transparent = true;
 }
 
 function createPointerEffectObjects(THREE, objectId, trail = false, stats = null) {
@@ -353,12 +378,16 @@ function applyAvatarEffectsToInstance(instance, avatarSource = null) {
     }
     instance.effects.group.visible = enabled;
     if (instance.effects.glow?.material) {
-        instance.effects.glow.material.opacity = enabled ? clamp(0.22 * intensity * trailMultiplier, 0.02, instance.trail ? 0.12 : 0.38) : 0;
-        instance.effects.glow.material.transparent = true;
+        setPointerEffectBaseOpacity(
+            instance.effects.glow,
+            enabled ? clamp(0.22 * intensity * trailMultiplier, 0.02, instance.trail ? 0.12 : 0.38) : 0,
+        );
     }
     if (instance.effects.core?.material) {
-        instance.effects.core.material.opacity = enabled ? clamp(0.13 * intensity * trailMultiplier, 0.01, instance.trail ? 0.08 : 0.24) : 0;
-        instance.effects.core.material.transparent = true;
+        setPointerEffectBaseOpacity(
+            instance.effects.core,
+            enabled ? clamp(0.13 * intensity * trailMultiplier, 0.01, instance.trail ? 0.08 : 0.24) : 0,
+        );
     }
     const glowScale = (instance.trail ? 1.55 : 2.6) * reach;
     const coreScale = (instance.trail ? 0.74 : 1.18) * Math.max(0.5, Math.sqrt(reach));
@@ -454,6 +483,8 @@ function setInstanceOpacity(instance, alpha, fill = true) {
     const coreOpacity = fill ? 0.82 : 0.18;
     if (instance.core?.material) instance.core.material.opacity = clamp(alpha * coreOpacity, 0, 1);
     if (instance.edges?.material) instance.edges.material.opacity = clamp(alpha * 0.96, 0, 1);
+    setPointerEffectOpacity(instance.effects?.glow, alpha, fill);
+    setPointerEffectOpacity(instance.effects?.core, alpha, fill);
 }
 
 function applyAvatarSourceToInstance(instance, avatarSource = null, stats = null) {
@@ -525,6 +556,8 @@ function disposeInstance(instance) {
     if (instance.edges?.geometry !== instance.geometry) instance.edges?.geometry?.dispose?.();
     disposeMaterial(instance.core?.material);
     disposeMaterial(instance.edges?.material);
+    disposeMaterial(instance.effects?.glow?.material);
+    disposeMaterial(instance.effects?.core?.material);
 }
 
 function recordTrail(history, cursor = null, time = 0, maxAge = 3) {
