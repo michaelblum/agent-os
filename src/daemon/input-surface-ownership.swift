@@ -36,6 +36,32 @@ private let aosInputRegionTerminalPhases: Set<String> = [
     "mouse_cancel",
 ]
 
+struct AOSNativeCursorSuppressionReconcileResult: Equatable {
+    let hideDisplayIDs: [CGDirectDisplayID]
+    let showDisplayIDs: [CGDirectDisplayID]
+    let suppressedDisplayIDs: [CGDirectDisplayID]
+}
+
+final class AOSNativeCursorSuppressionReconciler {
+    private var suppressedDisplayIDs = Set<CGDirectDisplayID>()
+
+    func reconcile(activeDisplayIDs: [CGDirectDisplayID]) -> AOSNativeCursorSuppressionReconcileResult {
+        let target = Set(activeDisplayIDs.filter { $0 != 0 })
+        let hide = Array(target.subtracting(suppressedDisplayIDs)).sorted()
+        let show = Array(suppressedDisplayIDs.subtracting(target)).sorted()
+        suppressedDisplayIDs = target
+        return AOSNativeCursorSuppressionReconcileResult(
+            hideDisplayIDs: hide,
+            showDisplayIDs: show,
+            suppressedDisplayIDs: Array(suppressedDisplayIDs).sorted()
+        )
+    }
+
+    func snapshot() -> [CGDirectDisplayID] {
+        Array(suppressedDisplayIDs).sorted()
+    }
+}
+
 struct AOSInputRegionRecord: Equatable {
     let id: String
     let ownerCanvasID: String

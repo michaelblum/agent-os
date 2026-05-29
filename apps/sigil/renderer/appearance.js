@@ -125,6 +125,16 @@ export const DEFAULT_APPEARANCE = Object.freeze({
             enter: 'supernova',
             exit: 'reverse_supernova',
         },
+        selectionModeTrail: {
+            interDimensional: true,
+            duration: 0.22,
+            delay: 0,
+            repeatCount: 10,
+            repeatDuration: 2.0,
+            trailMode: 'fade',
+            lagFactor: 0.05,
+            scale: 1.5,
+        },
         fastTravel: DEFAULT_FAST_TRAVEL_EFFECT,
         lineInterDimensional: true,
         line: {
@@ -386,6 +396,7 @@ export function applyAppearance(blob) {
 
     const transitions = blob.transitions ?? D.transitions;
     const selectionModeTransitions = transitions.selectionMode ?? D.transitions.selectionMode;
+    const selectionModeTrail = transitions.selectionModeTrail ?? D.transitions.selectionModeTrail;
     const line = transitions.line ?? D.transitions.line;
     const wormhole = transitions.wormhole ?? D.transitions.wormhole;
     state.transitionEnterEffect = normalizeTransitionEffect(transitions.enter, D.transitions.enter);
@@ -395,6 +406,24 @@ export function applyAppearance(blob) {
     state.selectionModeEffects = {
         enter: state.selectionModeEnterEffect,
         exit: state.selectionModeExitEffect,
+    };
+    state.selectionModeTrailInterDimensional = selectionModeTrail.interDimensional ?? D.transitions.selectionModeTrail.interDimensional;
+    state.selectionModeTrailDuration = selectionModeTrail.duration ?? D.transitions.selectionModeTrail.duration;
+    state.selectionModeTrailDelay = selectionModeTrail.delay ?? D.transitions.selectionModeTrail.delay;
+    state.selectionModeTrailRepeatCount = selectionModeTrail.repeatCount ?? D.transitions.selectionModeTrail.repeatCount;
+    state.selectionModeTrailRepeatDuration = selectionModeTrail.repeatDuration ?? D.transitions.selectionModeTrail.repeatDuration;
+    state.selectionModeTrailMode = selectionModeTrail.trailMode ?? D.transitions.selectionModeTrail.trailMode;
+    state.selectionModeTrailLag = selectionModeTrail.lagFactor ?? D.transitions.selectionModeTrail.lagFactor;
+    state.selectionModeTrailScale = selectionModeTrail.scale ?? D.transitions.selectionModeTrail.scale;
+    state.selectionModeTrail = {
+        interDimensional: state.selectionModeTrailInterDimensional,
+        duration: state.selectionModeTrailDuration,
+        delay: state.selectionModeTrailDelay,
+        repeatCount: state.selectionModeTrailRepeatCount,
+        repeatDuration: state.selectionModeTrailRepeatDuration,
+        trailMode: state.selectionModeTrailMode,
+        lag: state.selectionModeTrailLag,
+        scale: state.selectionModeTrailScale,
     };
     state.transitionFastTravelEffect = normalizeFastTravelEffect(transitions.fastTravel, D.transitions.fastTravel);
     state.fastTravelLineInterDimensional = transitions.lineInterDimensional ?? D.transitions.lineInterDimensional;
@@ -668,6 +697,16 @@ export function snapshotAppearance() {
             selectionMode: {
                 enter: state.selectionModeEnterEffect || DEFAULT_APPEARANCE.transitions.selectionMode.enter,
                 exit: state.selectionModeExitEffect || DEFAULT_APPEARANCE.transitions.selectionMode.exit,
+            },
+            selectionModeTrail: {
+                interDimensional: state.selectionModeTrailInterDimensional ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.interDimensional,
+                duration: state.selectionModeTrailDuration ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.duration,
+                delay: state.selectionModeTrailDelay ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.delay,
+                repeatCount: state.selectionModeTrailRepeatCount ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.repeatCount,
+                repeatDuration: state.selectionModeTrailRepeatDuration ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.repeatDuration,
+                trailMode: state.selectionModeTrailMode ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.trailMode,
+                lagFactor: state.selectionModeTrailLag ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.lagFactor,
+                scale: state.selectionModeTrailScale ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.scale,
             },
             fastTravel: normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_APPEARANCE.transitions.fastTravel),
             lineInterDimensional: state.fastTravelLineInterDimensional ?? DEFAULT_APPEARANCE.transitions.lineInterDimensional,

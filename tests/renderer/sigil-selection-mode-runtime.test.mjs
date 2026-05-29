@@ -362,6 +362,52 @@ test('Selection Mode cursor model inherits avatar color, aura, trail, and rotati
   })
 })
 
+test('Selection Mode cursor trail uses Selection Mode trail settings instead of fast-travel line state', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 0, w: 800, h: 600 }, { kind: 'display', role: 'display', label: 'Display' }),
+    candidate('leaf', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 100, y: 100, valid: true },
+    selected_node_id: 'leaf',
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 100, y: 100, valid: true } },
+      }],
+    },
+  }, {
+    rendererState: {
+      selectionModeTrailDuration: 0.33,
+      selectionModeTrailDelay: 0.04,
+      selectionModeTrailRepeatCount: 4,
+      selectionModeTrailRepeatDuration: 1.25,
+      selectionModeTrailMode: 'hold',
+      selectionModeTrailLag: 0.11,
+      selectionModeTrailScale: 1.9,
+      fastTravelLineDuration: 9,
+      fastTravelLineRepeatCount: 99,
+      fastTravelLineLag: 0.4,
+      fastTravelLineScale: 8,
+    },
+  })
+
+  assert.equal(overlay.cursorTrail.timingSource, 'selection_mode_trail')
+  assert.deepEqual(overlay.cursorTrail.timing, {
+    source: 'selection_mode_trail',
+    interDimensional: true,
+    duration: 0.33,
+    delay: 0.04,
+    repeatCount: 4,
+    repeatDuration: 1.25,
+    trailMode: 'hold',
+    lag: 0.11,
+    scale: 1.9,
+  })
+})
+
 test('Selection Mode entry and exit effects produce bounded renderable overlay transitions', () => {
   let clock = 200000
   const { runtime, liveState } = createRuntime({ nowMs: () => clock })
@@ -462,6 +508,16 @@ test('Selection Mode effect defaults roundtrip through appearance state', async 
     enter: 'supernova',
     exit: 'reverse_supernova',
   })
+  assert.deepEqual(DEFAULT_APPEARANCE.transitions.selectionModeTrail, {
+    interDimensional: true,
+    duration: 0.22,
+    delay: 0,
+    repeatCount: 10,
+    repeatDuration: 2.0,
+    trailMode: 'fade',
+    lagFactor: 0.05,
+    scale: 1.5,
+  })
 
   const priorDebug = console.debug
   console.debug = () => {}
@@ -469,6 +525,16 @@ test('Selection Mode effect defaults roundtrip through appearance state', async 
     applyAppearance({
       transitions: {
         selectionMode: { enter: 'nova_bloom', exit: 'nova_collapse' },
+        selectionModeTrail: {
+          interDimensional: false,
+          duration: 0.4,
+          delay: 0.05,
+          repeatCount: 6,
+          repeatDuration: 1.1,
+          trailMode: 'hold',
+          lagFactor: 0.08,
+          scale: 1.8,
+        },
       },
     })
   } finally {
@@ -480,6 +546,16 @@ test('Selection Mode effect defaults roundtrip through appearance state', async 
   assert.deepEqual(snapshotAppearance().transitions.selectionMode, {
     enter: 'nova_bloom',
     exit: 'nova_collapse',
+  })
+  assert.deepEqual(snapshotAppearance().transitions.selectionModeTrail, {
+    interDimensional: false,
+    duration: 0.4,
+    delay: 0.05,
+    repeatCount: 6,
+    repeatDuration: 1.1,
+    trailMode: 'hold',
+    lagFactor: 0.08,
+    scale: 1.8,
   })
 })
 

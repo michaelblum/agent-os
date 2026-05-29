@@ -141,6 +141,19 @@ assert(registry.removeOwned(by: "stage", includeSuspendRetained: false).isEmpty,
 assert(registry.snapshot().map(\.id) == ["retained"], "retained region should remain visible")
 assert(registry.removeOwned(by: "stage", includeSuspendRetained: true).map(\.id) == ["retained"], "owner removal should remove retained regions")
 
+let cursorReconciler = AOSNativeCursorSuppressionReconciler()
+let firstCursorSuppression = cursorReconciler.reconcile(activeDisplayIDs: [1001, 1002])
+assert(firstCursorSuppression.hideDisplayIDs == [1001, 1002], "first cursor suppression should hide every active display once")
+assert(firstCursorSuppression.showDisplayIDs.isEmpty, "first cursor suppression should not show displays")
+let unchangedCursorSuppression = cursorReconciler.reconcile(activeDisplayIDs: [1001, 1002])
+assert(unchangedCursorSuppression.hideDisplayIDs.isEmpty, "unchanged cursor suppression should not double-hide")
+assert(unchangedCursorSuppression.showDisplayIDs.isEmpty, "unchanged cursor suppression should not restore")
+let changedCursorSuppression = cursorReconciler.reconcile(activeDisplayIDs: [1002, 1003])
+assert(changedCursorSuppression.hideDisplayIDs == [1003], "new cursor suppression display should hide once")
+assert(changedCursorSuppression.showDisplayIDs == [1001], "removed cursor suppression display should restore once")
+let clearedCursorSuppression = cursorReconciler.reconcile(activeDisplayIDs: [])
+assert(clearedCursorSuppression.showDisplayIDs == [1002, 1003], "last cursor suppression removal should restore hidden displays")
+
 print("PASS daemon input surface ownership and input regions")
 SWIFT
 

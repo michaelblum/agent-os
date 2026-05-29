@@ -128,8 +128,7 @@ class UnifiedDaemon {
     private let inputRegionLock = NSLock()
     private var inputRegions = AOSInputRegionRegistry()
     private let nativeCursorSuppressionLock = NSLock()
-    private var nativeCursorSuppressed = false
-    private var nativeCursorSuppressedDisplayIDs: [CGDirectDisplayID] = []
+    private let nativeCursorSuppressionReconciler = AOSNativeCursorSuppressionReconciler()
 
     // Wiki FSEvents watcher
     private var wikiWatcher: WikiWatcher?
@@ -3274,34 +3273,17 @@ class UnifiedDaemon {
     }
 
     private func reconcileNativeCursorSuppression(active: Bool) {
+        let activeDisplayIDs = active ? activeDisplayIDsForCursorSuppression() : []
         nativeCursorSuppressionLock.lock()
-        let changed = nativeCursorSuppressed != active
-        if changed {
-            nativeCursorSuppressed = active
-        }
+        let result = nativeCursorSuppressionReconciler.reconcile(activeDisplayIDs: activeDisplayIDs)
         nativeCursorSuppressionLock.unlock()
-        guard changed else { return }
+        guard !result.hideDisplayIDs.isEmpty || !result.showDisplayIDs.isEmpty else { return }
         DispatchQueue.main.async {
-            if active {
-                let displays = self.activeDisplayIDsForCursorSuppression()
-                self.nativeCursorSuppressionLock.lock()
-                guard self.nativeCursorSuppressed else {
-                    self.nativeCursorSuppressionLock.unlock()
-                    return
-                }
-                self.nativeCursorSuppressedDisplayIDs = displays
-                self.nativeCursorSuppressionLock.unlock()
-                for display in displays {
-                    CGDisplayHideCursor(display)
-                }
-            } else {
-                self.nativeCursorSuppressionLock.lock()
-                let displays = self.nativeCursorSuppressedDisplayIDs
-                self.nativeCursorSuppressedDisplayIDs = []
-                self.nativeCursorSuppressionLock.unlock()
-                for display in displays {
-                    CGDisplayShowCursor(display)
-                }
+            for display in result.showDisplayIDs {
+                CGDisplayShowCursor(display)
+            }
+            for display in result.hideDisplayIDs {
+                CGDisplayHideCursor(display)
             }
         }
     }

@@ -260,7 +260,7 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
     const modeVisible = overlay?.active === true || (overlay?.active !== false && overlay?.visible === true);
     if (!modeVisible && !visualEffects.length) return;
     const time = Number(snapshot.time) || 0;
-    const trail = snapshot.selectionTrail || {};
+    const trail = overlay.cursorTrail?.timing || snapshot.selectionModeTrail || snapshot.selectionTrail || {};
     const trailScale = Math.max(0.4, Number(trail.scale) || 1);
     const repeatCount = Math.max(0, Math.min(24, Math.round(Number(trail.repeatCount) || 0)));
     const duration = Math.max(0.05, Number(trail.duration) || 0.22);
