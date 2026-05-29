@@ -41,6 +41,10 @@ implement the Selection Mode scene visual facet or pointer migration here.
 - `branch_from`: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 - `required_start_ref`: `0318c5e6ad7967b6eec7d72c4969098c88bd92b8`
 - Work surface/output branch: `gdi/selection-mode-cursor-ancestor-ladder-v0`
+- Use the single repo worktree at `/Users/Michael/Code/agent-os`. Do not create
+  or switch to an additional Git worktree for this workflow. Branch-scoped AOS
+  content roots such as `sigil_gdi_selection_mode_cursor_ancestor_ladder_v0`
+  are served URL namespaces, not separate Git worktrees.
 - Commit any code, test, or work-card correction locally on that branch.
 - Do not push, open or update PRs, close issues, or mutate GitHub state unless
   Foreman explicitly reassigns that responsibility.
@@ -88,11 +92,15 @@ on the current branch and prove the loaded page is fresh.
 
 Required fresh-runtime assertions:
 
+- `git worktree list --porcelain` shows only
+  `/Users/Michael/Code/agent-os` for this dev workflow.
 - `git rev-parse HEAD` equals the commit being validated.
 - `git show -s --format=%cI HEAD` is earlier than or equal to the live
   `window.__sigilDebug.snapshot().runtime.loadedAt`.
 - The live renderer URL is branch-scoped to
   `gdi/selection-mode-cursor-ancestor-ladder-v0`.
+- Active AOS canvas owners report
+  `owner.worktree_root: /Users/Michael/Code/agent-os`.
 - The default avatar is still the tesseron default unless the test explicitly
   changes appearance:
   - `state.currentGeometryType === 6`;
