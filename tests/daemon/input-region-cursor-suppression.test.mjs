@@ -8,6 +8,26 @@ import { spawnSync } from 'node:child_process'
 const registryPath = new URL('../../src/daemon/input-surface-ownership.swift', import.meta.url)
 const daemonPath = new URL('../../src/daemon/unified.swift', import.meta.url)
 
+function swiftFunctionBody(source, signature) {
+  const signatureIndex = source.indexOf(signature)
+  assert.notEqual(signatureIndex, -1, `${signature} should exist`)
+  const openBraceIndex = source.indexOf('{', signatureIndex)
+  assert.notEqual(openBraceIndex, -1, `${signature} should have a body`)
+
+  let depth = 0
+  for (let index = openBraceIndex; index < source.length; index += 1) {
+    if (source[index] === '{') {
+      depth += 1
+    } else if (source[index] === '}') {
+      depth -= 1
+      if (depth === 0) {
+        return source.slice(openBraceIndex + 1, index)
+      }
+    }
+  }
+  assert.fail(`${signature} body should close`)
+}
+
 test('input-region native cursor suppression reconciler balances hide/show lifecycle', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'aos-cursor-suppression-'))
   const mainPath = path.join(tmp, 'main.swift')
@@ -73,6 +93,11 @@ print("PASS cursor suppression reconciler lifecycle")
 test('input-region native cursor suppression is wired to region lifecycle', () => {
   const registrySource = fs.readFileSync(registryPath, 'utf8')
   const daemonSource = fs.readFileSync(daemonPath, 'utf8')
+  const displayChangeBody = swiftFunctionBody(daemonSource, 'private func scheduleDisplayGeometryBroadcast()')
+  const displayReconcileBody = swiftFunctionBody(
+    daemonSource,
+    'private func reconcileNativeCursorSuppressionAfterDisplayGeometryChange()',
+  )
 
   assert.match(registrySource, /func nativeCursorSuppressionActive\(\) -> Bool/)
   assert.match(registrySource, /metadata\["cursor_suppression"\]/)
@@ -86,4 +111,9 @@ test('input-region native cursor suppression is wired to region lifecycle', () =
   assert.doesNotMatch(daemonSource, /CGDisplayHideCursor\(CGMainDisplayID\(\)\)/)
   assert.doesNotMatch(daemonSource, /CGDisplayShowCursor\(CGMainDisplayID\(\)\)/)
   assert.match(daemonSource, /removeInputRegionsOwned[\s\S]*nativeCursorSuppressionActive\(\)/)
+  assert.match(displayChangeBody, /retargetTrackedCanvases\(\)[\s\S]*syncCanvasFrames\(excluding: retargeted\)[\s\S]*broadcastDisplayGeometry\(\)/)
+  assert.match(displayChangeBody, /broadcastDisplayGeometry\(\)[\s\S]*reconcileNativeCursorSuppressionAfterDisplayGeometryChange\(\)/)
+  assert.match(displayReconcileBody, /inputRegions\.nativeCursorSuppressionActive\(\)/)
+  assert.match(displayReconcileBody, /guard cursorSuppressionActive else \{ return \}/)
+  assert.match(displayReconcileBody, /reconcileNativeCursorSuppression\(active: cursorSuppressionActive\)/)
 })

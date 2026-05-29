@@ -1060,7 +1060,16 @@ class UnifiedDaemon {
             let retargeted = self.canvasManager.retargetTrackedCanvases()
             self.canvasManager.syncCanvasFrames(excluding: retargeted)
             self.broadcastDisplayGeometry()
+            self.reconcileNativeCursorSuppressionAfterDisplayGeometryChange()
         }
+    }
+
+    private func reconcileNativeCursorSuppressionAfterDisplayGeometryChange() {
+        inputRegionLock.lock()
+        let cursorSuppressionActive = inputRegions.nativeCursorSuppressionActive()
+        inputRegionLock.unlock()
+        guard cursorSuppressionActive else { return }
+        reconcileNativeCursorSuppression(active: cursorSuppressionActive)
     }
 
     /// Send an async response to a canvas that made a mutation request with a request_id.
