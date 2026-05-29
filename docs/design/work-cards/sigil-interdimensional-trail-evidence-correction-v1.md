@@ -27,6 +27,16 @@ topology. Rediscover from the repo and live AOS state before editing.
 - Deferred pointer card:
   `docs/design/work-cards/sigil-selection-scene-facet-pointer-v0.md`
 
+## Supersession Note
+
+Do not execute this trail correction until the shared harness primitive card
+has landed:
+
+- `docs/design/work-cards/aos-canonical-url-harness-primitives-v0.md`
+
+After that prerequisite exists, use the shared canonical URL / fresh-runtime
+helpers from `tests/lib/` instead of hand-rolling the checks below.
+
 ## Single Goal
 
 Make the interdimensional trail preflight evidence trustworthy, then either
