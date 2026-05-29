@@ -101,6 +101,14 @@ appendAgentTerminalProvenanceEvent({
   content: 'super-secret prompt',
 }, { dock: 'gdi', state_root: stateRoot, runtime_mode: 'repo' });
 
+const summariesBeforePrune = spawnSync(
+  'find',
+  [stateRoot, '-path', '*/docks/gdi/summaries/*.json', '-print'],
+  { encoding: 'utf8' },
+);
+assert.equal(summariesBeforePrune.status, 0, summariesBeforePrune.stderr);
+assert.equal(summariesBeforePrune.stdout.trim(), '', summariesBeforePrune.stdout);
+
 const result = spawnSync(
   './aos',
   ['dev', 'provenance', 'summary', '--dock', 'gdi', '--state-root', stateRoot, '--runtime-mode', 'repo', '--json'],
@@ -112,9 +120,17 @@ assert.equal(summary.agent_terminal.session_events.created, 1, summary);
 assert.equal(summary.agent_terminal.input_events.send, 1, summary);
 assert.equal(summary.agent_terminal.sessions['dock-terminal:gdi:test-session'].events, 2, summary);
 assert.equal(JSON.stringify(summary).includes('super-secret prompt'), false, summary);
+
+const summariesAfterSummaryQuery = spawnSync(
+  'find',
+  [stateRoot, '-path', '*/docks/gdi/summaries/*.json', '-print'],
+  { encoding: 'utf8' },
+);
+assert.equal(summariesAfterSummaryQuery.status, 0, summariesAfterSummaryQuery.stderr);
+assert.equal(summariesAfterSummaryQuery.stdout.trim(), '', summariesAfterSummaryQuery.stdout);
 NODE
 then
-  pass "Agent Terminal accounting appends to provenance summary without raw input text"
+  pass "Agent Terminal accounting stays append-only and summarizes without raw input text"
 else
   fail "Agent Terminal accounting did not summarize sanitized session/input events"
 fi

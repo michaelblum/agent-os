@@ -409,7 +409,6 @@ function appendAgentTerminalProvenanceEvent(record = {}, options = {}) {
   try {
     const event = buildAgentTerminalProvenanceEvent(record, options);
     appendEvent(event, options);
-    materializeSummariesForEvents({ ...options, dock: event.dock });
     return { status: 'success', event };
   } catch (err) {
     return { status: 'skipped', diagnostic: String(err?.message || err) };
