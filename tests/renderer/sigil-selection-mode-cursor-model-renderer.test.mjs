@@ -93,6 +93,16 @@ class FakeMaterial {
     this.disposed = false
   }
 
+  clone() {
+    return new FakeMaterial({ ...this, clonedFrom: this })
+  }
+
+  copy(source) {
+    Object.assign(this, source)
+    this.copiedFrom = source
+    return this
+  }
+
   dispose() {
     this.disposed = true
   }
@@ -133,6 +143,23 @@ const FakeTHREE = {
   DoubleSide: 'DoubleSide',
 }
 
+function avatarSource({
+  version = 'avatar:v1',
+  primaryMaterial = new FakeMaterial({ name: 'avatar-core', color: '#112233', opacity: 0.55 }),
+  edgeMaterial = new FakeMaterial({ name: 'avatar-edge', color: '#778899', opacity: 0.8 }),
+  skin = 'none',
+} = {}) {
+  return {
+    appearanceSource: 'current_live_sigil_avatar',
+    materialSource: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
+    version,
+    geometryType: 20,
+    skin,
+    primaryMaterial,
+    edgeMaterial,
+  }
+}
+
 function modelOverlay({
   repeatCount = 2,
   cursor = { x: 100, y: 80, valid: true },
@@ -143,20 +170,22 @@ function modelOverlay({
     cursor,
     cursorGlyph: {
       model_kind: 'sigil_model',
-      source: 'sigil_avatar',
-      shape: 'depth_aligned_three_sided_sigil_cursor',
+      source: 'avatar_render_state',
+      appearance_source: 'current_live_sigil_avatar',
+      material_source: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
+      shape: 'avatar_derived_triangular_pointer',
       hotspot: { kind: 'tip', x: cursor.x, y: cursor.y, local: { x: 0, y: 0, z: 0 } },
       geometry: {
         primitive: 'triangular_pyramid',
         length: 44,
         base: 44 / Math.sqrt(3),
         cross_section: 'equilateral_triangle',
-        expected_depth_axis: 'z',
-        long_axis: 'scene_depth_z',
+        expected_depth_axis: 'screen_plane',
+        long_axis: 'screen_north_west',
+        base_screen_quadrant: 'down_right',
       },
-      animation: { rotation_speed: 0.01, session_vitality_multiplier: 1 },
-      color: { aura_primary: '#5efcd2', aura_secondary: '#8eddff' },
-      aura: { core: '#071318', primary: '#5efcd2', secondary: '#8eddff', highlight: '#ffffff' },
+      animation: { axis: 'scene_z', rotation_speed: 0.01, session_vitality_multiplier: 1 },
+      cursor_overrides: { geometry: true, orientation: true, hotspot: true, scale: true, visibility: true, single_axis_rotation: true },
     },
     cursorTrail: {
       timing: { repeatCount, duration: 0.22, delay: 0, repeatDuration: 2, trailMode: 'fade', lag: 0.05, scale: 1.5 },
@@ -191,6 +220,7 @@ test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer
     THREE: FakeTHREE,
     projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
     projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => avatarSource(),
   })
 
   const snapshot = renderer.update(modelOverlay(), { time: 12 })
@@ -200,7 +230,10 @@ test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer
   assert.equal(sceneAdds[0].userData.object_id, 'selection-mode.cursor.model-root')
   assert.equal(snapshot.visible, true)
   assert.equal(snapshot.model_kind, 'sigil_model')
-  assert.equal(snapshot.source, 'sigil_avatar')
+  assert.equal(snapshot.source, 'avatar_render_state')
+  assert.equal(snapshot.appearance_source, 'current_live_sigil_avatar')
+  assert.equal(snapshot.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.deepEqual(snapshot.cursor_overrides, ['geometry', 'orientation', 'hotspot', 'scale', 'visibility', 'single_axis_rotation'])
   assert.equal(snapshot.object_id, 'selection-mode.cursor.sigil-model')
   assert.equal(snapshot.hotspot_aligned, true)
   assert.deepEqual(snapshot.scene_position, { x: 10, y: -8, z: 0 })
@@ -211,24 +244,30 @@ test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer
   assert.ok(primary)
   assert.equal(primary.userData.model_kind, 'sigil_model')
   assert.equal(primary.userData.geometry, 'triangular_pyramid')
-  assert.equal(primary.userData.long_axis, 'scene_depth_z')
-  assert.equal(primary.children[0].children[0].geometry.userData.depth_semantics, 'scene_depth_axis')
+  assert.equal(primary.userData.long_axis, 'screen_north_west')
+  assert.equal(primary.userData.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(primary.children[0].children[0].geometry.userData.depth_semantics, 'screen_plane_pointer')
 })
 
-test('Selection Mode cursor geometry is equilateral and depth-aligned to the scene z axis', () => {
+test('Selection Mode cursor geometry has apex hotspot at origin and base down/right in screen projection', () => {
   const renderer = createSelectionModeCursorModelRenderer({
     scene: { add() {}, remove() {} },
     THREE: FakeTHREE,
     projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
     projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => avatarSource(),
   })
 
   renderer.update(modelOverlay(), { time: 12 })
   const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
   const geometry = primary.children[0].children[0].geometry
   const vertices = geometryVertices(geometry)
-  const zValues = vertices.map((vertex) => vertex.z)
   const base = geometry.userData.equilateral_base_vertex_indices.map((index) => vertices[index])
+  const baseCentroid = base.reduce((acc, vertex) => ({
+    x: acc.x + vertex.x / base.length,
+    y: acc.y + vertex.y / base.length,
+    z: acc.z + vertex.z / base.length,
+  }), { x: 0, y: 0, z: 0 })
   const sides = [
     distance(base[0], base[1]),
     distance(base[1], base[2]),
@@ -236,29 +275,85 @@ test('Selection Mode cursor geometry is equilateral and depth-aligned to the sce
   ]
 
   assert.equal(geometry.userData.primitive, 'triangular_pyramid')
-  assert.equal(geometry.userData.long_axis, 'scene_depth_z')
+  assert.equal(geometry.userData.long_axis, 'screen_north_west')
+  assert.equal(geometry.userData.base_screen_quadrant, 'down_right')
   assert.deepEqual(geometry.userData.hotspot_local, { x: 0, y: 0, z: 0 })
-  assert.ok(Math.max(...zValues) - Math.min(...zValues) > 0.9)
+  assert.deepEqual(vertices[0], { x: 0, y: 0, z: 0 })
+  assert.ok(baseCentroid.x > 0)
+  assert.ok(baseCentroid.y < 0)
+  assert.ok(distance(vertices[0], baseCentroid) > 1.8)
   assert.ok(sides.every((side) => Math.abs(side - sides[0]) < 0.000001))
-  assert.equal(new Set(base.map((vertex) => vertex.z)).size, 1)
 })
 
-test('Selection Mode primary and trail instances reuse the same depth cursor geometry family', () => {
+test('Selection Mode primary and trail instances reuse the same avatar-derived pointer geometry family', () => {
   const renderer = createSelectionModeCursorModelRenderer({
     scene: { add() {}, remove() {} },
     THREE: FakeTHREE,
     projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
     projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => avatarSource(),
   })
 
   renderer.update(modelOverlay({ repeatCount: 3 }), { time: 12 })
   const geometryFamilies = renderer.root.children.map((child) => child.userData.geometry_family)
   assert.deepEqual(geometryFamilies, [
-    'selection_mode_depth_aligned_triangular_cursor',
-    'selection_mode_depth_aligned_triangular_cursor',
-    'selection_mode_depth_aligned_triangular_cursor',
-    'selection_mode_depth_aligned_triangular_cursor',
+    'selection_mode_avatar_derived_pointer',
+    'selection_mode_avatar_derived_pointer',
+    'selection_mode_avatar_derived_pointer',
+    'selection_mode_avatar_derived_pointer',
   ])
+})
+
+test('Selection Mode pointer derives materials from the live avatar render source', () => {
+  const firstCore = new FakeMaterial({ name: 'avatar-core-v1', color: '#112233', opacity: 0.6 })
+  const firstEdge = new FakeMaterial({ name: 'avatar-edge-v1', color: '#778899', opacity: 0.7 })
+  const secondCore = new FakeMaterial({ name: 'avatar-core-v2', color: '#aabbcc', opacity: 0.4 })
+  const secondEdge = new FakeMaterial({ name: 'avatar-edge-v2', color: '#ddeeff', opacity: 0.5 })
+  let source = avatarSource({ version: 'v1', primaryMaterial: firstCore, edgeMaterial: firstEdge })
+  const renderer = createSelectionModeCursorModelRenderer({
+    scene: { add() {}, remove() {} },
+    THREE: FakeTHREE,
+    projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
+    projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => source,
+  })
+
+  renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12 })
+  const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
+  const core = primary.children[0].children[0]
+  const edge = primary.children[0].children[1]
+
+  assert.equal(core.material.copiedFrom, firstCore)
+  assert.equal(edge.material.copiedFrom, firstEdge)
+  assert.equal(primary.userData.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+
+  source = avatarSource({ version: 'v2', primaryMaterial: secondCore, edgeMaterial: secondEdge, skin: 'plasma' })
+  renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12.016 })
+
+  assert.equal(core.material.copiedFrom, secondCore)
+  assert.equal(edge.material.copiedFrom, secondEdge)
+  assert.equal(primary.userData.skin, 'plasma')
+})
+
+test('Selection Mode pointer locks root orientation and animates only the screen-plane z axis', () => {
+  const renderer = createSelectionModeCursorModelRenderer({
+    scene: { add() {}, remove() {} },
+    THREE: FakeTHREE,
+    projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
+    projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => avatarSource(),
+  })
+
+  renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12 })
+  const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
+  const spin = primary.children[0]
+
+  assert.equal(primary.rotation.x, 0)
+  assert.equal(primary.rotation.y, 0)
+  assert.equal(primary.rotation.z, 0)
+  assert.equal(spin.rotation.x, 0)
+  assert.equal(spin.rotation.y, 0)
+  assert.notEqual(spin.rotation.z, 0)
 })
 
 test('Selection Mode cursor model hides stale objects when cursor projection fails', () => {
@@ -274,6 +369,7 @@ test('Selection Mode cursor model hides stale objects when cursor projection fai
       return new FakeVector3(point.x / 10, -point.y / 10, 0)
     },
     projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => avatarSource(),
   })
   const overlay = modelOverlay()
 
@@ -302,6 +398,7 @@ test('Selection Mode cursor model hides stale objects when cursor projection fai
 })
 
 test('Selection Mode cursor model reuses objects and bounded resources after warmup', () => {
+  const stableAvatarSource = avatarSource()
   const scene = {
     children: [],
     add(object) {
@@ -314,6 +411,7 @@ test('Selection Mode cursor model reuses objects and bounded resources after war
     THREE: FakeTHREE,
     projectPoint: (point) => new FakeVector3(point.x / 10, -point.y / 10, 0),
     projectRadius: (_point, radius) => radius / 10,
+    getAvatarRenderSource: () => stableAvatarSource,
   })
   const overlay = modelOverlay({ repeatCount: 4 })
 

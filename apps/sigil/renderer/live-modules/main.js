@@ -2624,6 +2624,25 @@ function readSelectionModeCursorModelSnapshot() {
     return liveJs.selectionModeCursorModel;
 }
 
+function currentAvatarRenderSourceForSelectionPointer() {
+    return {
+        appearanceSource: 'current_live_sigil_avatar',
+        materialSource: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
+        version: [
+            state.currentGeometryType,
+            state.currentSkin,
+            state.currentOpacity,
+            state.currentEdgeOpacity,
+            state.isSpecularEnabled,
+        ].join(':'),
+        geometryType: state.currentGeometryType,
+        skin: state.currentSkin,
+        primaryMaterial: state.coreMesh?.material || state.skinMaterial || null,
+        edgeMaterial: state.wireframeMesh?.material || null,
+        effectRoot: state.polyGroup || null,
+    };
+}
+
 function refreshSelectionModeCursorModelSnapshot(overlay = liveJs.selectionModeOverlay) {
     selectionModeCursorModelRenderer?.update(overlay || null, { time: state.globalTime });
     return readSelectionModeCursorModelSnapshot();
@@ -3840,6 +3859,7 @@ async function init() {
                 const edge = projectStageLocalToScene(point.x + radius, point.y);
                 return center.distanceTo(edge);
             },
+            getAvatarRenderSource: currentAvatarRenderSourceForSelectionPointer,
         });
     });
     runBootStep('createAuraObjects', () => createAuraObjects());

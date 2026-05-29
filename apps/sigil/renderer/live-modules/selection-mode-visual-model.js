@@ -67,30 +67,14 @@ export function resolveSigilAvatarIdleRotation(rendererState = null) {
     };
 }
 
-function resolveAvatarCursorSource(rendererState = null) {
-    const colors = rendererState?.colors || {};
-    const primaryColor = colors.face?.[0] || colors.edge?.[0] || colors.aura?.[0] || '#5efcd2';
-    const auraColor = colors.aura?.[0] || primaryColor;
-    const auraSecondary = colors.aura?.[1] || colors.edge?.[1] || '#8eddff';
+function resolveAvatarPointerSource(rendererState = null) {
     const vitality = rendererState?.sessionVitality || {};
     const vitalityMultiplier = Number(vitality.scaleMultiplier ?? vitality.rotationMultiplier ?? 1);
-    const rotation = resolveSigilAvatarIdleRotation(rendererState);
     return {
-        source: 'sigil_avatar',
-        primaryColor,
-        aura: {
-            enabled: rendererState?.isAuraEnabled !== false,
-            family: 'sigil-avatar-aura',
-            primary: hexToRgba(auraColor, 0.96),
-            secondary: hexToRgba(auraSecondary, 0.86),
-            glow: hexToRgba(auraColor, 0.34),
-            core: 'rgba(12, 22, 28, 0.58)',
-            highlight: 'rgba(255, 255, 255, 0.88)',
-            reach: Number(rendererState?.auraReach ?? 1),
-            intensity: Number(rendererState?.auraIntensity ?? 1),
-            pulseRate: Number(rendererState?.auraPulseRate ?? 0.005),
-            spikeMultiplier: Number(rendererState?.spikeMultiplier ?? 1.5),
-        },
+        source: 'avatar_render_state',
+        appearance_source: 'current_live_sigil_avatar',
+        material_source: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
+        effects_source: 'state.polyGroup avatar effect family',
         trail: {
             enabled: rendererState?.isTrailEnabled !== false,
             style: rendererState?.trailStyle || 'omega',
@@ -99,65 +83,81 @@ function resolveAvatarCursorSource(rendererState = null) {
             fadeMs: Number(rendererState?.trailFadeMs ?? 400),
         },
         rotation: {
-            axis: 'long',
-            source: rotation.source,
-            speed: rotation.cursor_long_axis_speed,
-            visible_avatar_y_speed: rotation.visible_avatar_y_speed,
-            visible_avatar_x_speed: rotation.visible_avatar_x_speed,
+            axis: 'screen_plane_z',
+            source: 'selection_mode_pointer_single_axis',
+            speed: 0.01,
+            visible_avatar_y_speed: 0,
+            visible_avatar_x_speed: 0,
             session_vitality_multiplier: Number.isFinite(vitalityMultiplier) ? vitalityMultiplier : 1,
         },
     };
 }
 
 export function buildSelectionModeVisualStyle(rendererState = null) {
-    const avatar = resolveAvatarCursorSource(rendererState);
+    const colors = rendererState?.colors || {};
+    const primaryColor = colors.face?.[0] || colors.edge?.[0] || colors.aura?.[0] || '#5efcd2';
+    const auraColor = colors.aura?.[0] || primaryColor;
+    const auraSecondary = colors.aura?.[1] || colors.edge?.[1] || '#8eddff';
+    const aura = {
+        enabled: rendererState?.isAuraEnabled !== false,
+        family: 'sigil-avatar-aura',
+        primary: hexToRgba(auraColor, 0.96),
+        secondary: hexToRgba(auraSecondary, 0.86),
+        glow: hexToRgba(auraColor, 0.34),
+        core: 'rgba(12, 22, 28, 0.58)',
+        highlight: 'rgba(255, 255, 255, 0.88)',
+        reach: Number(rendererState?.auraReach ?? 1),
+        intensity: Number(rendererState?.auraIntensity ?? 1),
+        pulseRate: Number(rendererState?.auraPulseRate ?? 0.005),
+        spikeMultiplier: Number(rendererState?.spikeMultiplier ?? 1.5),
+    };
     return {
-        source: avatar.source,
-        primary: avatar.primaryColor,
-        aura: avatar.aura,
+        source: 'sigil_avatar',
+        primary: primaryColor,
+        aura,
         badge: {
             active: {
-                shadow: avatar.aura.primary,
-                fill: avatar.aura.core,
-                stroke: avatar.aura.primary,
-                text: avatar.aura.highlight,
+                shadow: aura.primary,
+                fill: aura.core,
+                stroke: aura.primary,
+                text: aura.highlight,
             },
             inactive: {
-                shadow: avatar.aura.glow,
+                shadow: aura.glow,
                 fill: 'rgba(11, 17, 26, 0.78)',
-                stroke: avatar.aura.secondary,
+                stroke: aura.secondary,
                 text: 'rgba(238, 248, 255, 0.94)',
             },
             leaf: {
-                ring: avatar.aura.secondary,
+                ring: aura.secondary,
             },
         },
         frame: {
             active: {
-                stroke: hexToRgba(avatar.primaryColor, 0.58),
-                fill: hexToRgba(avatar.primaryColor, 0.035),
+                stroke: hexToRgba(primaryColor, 0.58),
+                fill: hexToRgba(primaryColor, 0.035),
             },
             leaf: {
-                stroke: avatar.aura.secondary,
-                fill: hexToRgba(avatar.primaryColor, 0.026),
+                stroke: aura.secondary,
+                fill: hexToRgba(primaryColor, 0.026),
             },
             ancestor: {
-                stroke: hexToRgba(avatar.primaryColor, 0.22),
-                fill: hexToRgba(avatar.primaryColor, 0.018),
+                stroke: hexToRgba(primaryColor, 0.22),
+                fill: hexToRgba(primaryColor, 0.018),
             },
         },
         connector: {
-            stroke: avatar.aura.secondary,
+            stroke: aura.secondary,
         },
         highlight: {
-            stroke: avatar.aura.highlight,
-            glow: avatar.aura.glow,
+            stroke: aura.highlight,
+            glow: aura.glow,
         },
         effect: {
-            primary: avatar.aura.primary,
-            secondary: avatar.aura.secondary,
-            glow: avatar.aura.glow,
-            highlight: avatar.aura.highlight,
+            primary: aura.primary,
+            secondary: aura.secondary,
+            glow: aura.glow,
+            highlight: aura.highlight,
         },
     };
 }
@@ -203,14 +203,17 @@ export function selectionModeOverlayHasActiveEffects(overlay = {}, nowMs = Date.
 
 export function buildSelectionModeCursorGlyph(cursor = null, rendererState = null) {
     if (!cursor) return null;
-    const avatar = resolveAvatarCursorSource(rendererState);
+    const avatar = resolveAvatarPointerSource(rendererState);
     const length = 44;
     const base = length / Math.sqrt(3);
     return {
         kind: 'selection_mode_cursor',
         model_kind: 'sigil_model',
         source: avatar.source,
-        shape: 'depth_aligned_three_sided_sigil_cursor',
+        appearance_source: avatar.appearance_source,
+        material_source: avatar.material_source,
+        effects_source: avatar.effects_source,
+        shape: 'avatar_derived_triangular_pointer',
         point: cursor,
         hotspot: {
             kind: 'tip',
@@ -224,27 +227,29 @@ export function buildSelectionModeCursorGlyph(cursor = null, rendererState = nul
             length,
             base,
             cross_section: 'equilateral_triangle',
-            expected_depth_axis: 'z',
-            long_axis: 'scene_depth_z',
+            expected_depth_axis: 'screen_plane',
+            long_axis: 'screen_north_west',
+            base_screen_quadrant: 'down_right',
             hotspot_local: { x: 0, y: 0, z: 0 },
         },
         animation: {
-            rotates_on_axis: 'long',
-            axis: 'scene_depth_z',
+            rotates_on_axis: 'screen_plane_z',
+            axis: 'scene_z',
             source: avatar.rotation.source,
             rotation_speed: avatar.rotation.speed,
             visible_avatar_y_speed: avatar.rotation.visible_avatar_y_speed,
             visible_avatar_x_speed: avatar.rotation.visible_avatar_x_speed,
             session_vitality_multiplier: avatar.rotation.session_vitality_multiplier,
         },
-        color: {
-            primary: avatar.primaryColor,
-            aura_primary: avatar.aura.primary,
-            aura_secondary: avatar.aura.secondary,
-        },
-        aura: avatar.aura,
         trail: avatar.trail,
-        animatedGlow: avatar.aura.enabled,
+        cursor_overrides: {
+            geometry: true,
+            orientation: true,
+            hotspot: true,
+            scale: true,
+            visibility: true,
+            single_axis_rotation: true,
+        },
     };
 }
 
@@ -289,16 +294,15 @@ export function resolveSelectionModeTrailTiming(rendererState = null) {
 }
 
 export function buildSelectionModeCursorTrailModel(rendererState = null) {
-    const avatar = resolveAvatarCursorSource(rendererState);
+    const avatar = resolveAvatarPointerSource(rendererState);
     const timing = resolveSelectionModeTrailTiming(rendererState);
     return {
         kind: 'selection_mode_cursor_trail',
         model_kind: 'sigil_model',
-        shape: 'depth_aligned_three_sided_sigil_cursor',
-        repeatShape: 'depth_aligned_three_sided_sigil_cursor',
+        shape: 'avatar_derived_triangular_pointer',
+        repeatShape: 'avatar_derived_triangular_pointer',
         repeatGeometry: 'triangular_pyramid',
         source: avatar.source,
-        aura: avatar.aura,
         trail: avatar.trail,
         timing,
         timingSource: timing.source,

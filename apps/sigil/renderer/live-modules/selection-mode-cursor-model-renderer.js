@@ -18,11 +18,6 @@ function ensureThree(THREEImpl) {
     return THREE;
 }
 
-function makeColor(THREE, value, fallback) {
-    if (typeof THREE.Color === 'function') return new THREE.Color(value || fallback);
-    return value || fallback;
-}
-
 function makeVector3(THREE, x = 0, y = 0, z = 0) {
     if (typeof THREE.Vector3 === 'function') return new THREE.Vector3(x, y, z);
     return {
@@ -73,16 +68,18 @@ function setScale(target, value) {
     target.z = value;
 }
 
-function createDepthAlignedTriangularCursorGeometry(THREE) {
+function createAvatarDerivedPointerGeometry(THREE) {
     const geometry = new THREE.BufferGeometry();
-    const sideLength = 0.72;
-    const baseRadius = sideLength / Math.sqrt(3);
-    const length = 1;
+    const sideLength = 0.66;
+    const depth = 0.46;
+    const baseCenter = { x: 1.32, y: -1.32, z: -depth };
+    const tangent = sideLength / 2;
+    const normal = sideLength / Math.sqrt(3);
     const vertices = [
         0, 0, 0,
-        0, baseRadius, -length,
-        -sideLength / 2, -baseRadius / 2, -length,
-        sideLength / 2, -baseRadius / 2, -length,
+        baseCenter.x - tangent, baseCenter.y - normal / 2, baseCenter.z,
+        baseCenter.x + tangent, baseCenter.y - normal / 2, baseCenter.z,
+        baseCenter.x, baseCenter.y + normal, baseCenter.z,
     ];
     const indices = [
         0, 1, 2,
@@ -95,26 +92,83 @@ function createDepthAlignedTriangularCursorGeometry(THREE) {
     if (typeof geometry.computeVertexNormals === 'function') geometry.computeVertexNormals();
     geometry.userData = {
         primitive: 'triangular_pyramid',
-        geometry_family: 'selection_mode_depth_aligned_triangular_cursor',
+        geometry_family: 'selection_mode_avatar_derived_pointer',
         hotspot_local: { x: 0, y: 0, z: 0 },
-        depth_semantics: 'scene_depth_axis',
-        depth_axis: 'z',
-        long_axis: 'scene_depth_z',
+        depth_semantics: 'screen_plane_pointer',
+        long_axis: 'screen_north_west',
+        base_screen_quadrant: 'down_right',
         base_cross_section: 'equilateral_triangle',
         equilateral_base_vertex_indices: [1, 2, 3],
     };
     return geometry;
 }
 
+function cloneMaterial(material) {
+    if (!material) return null;
+    if (typeof material.clone === 'function') return material.clone();
+    return { ...material };
+}
+
+function copyMaterial(source, target) {
+    if (!source || !target) return;
+    if (typeof target.copy === 'function') {
+        target.copy(source);
+    } else {
+        Object.assign(target, source);
+    }
+    target.transparent = true;
+    target.depthTest = source.depthTest !== false;
+}
+
+function makeFallbackMaterial(THREE, kind, trail = false) {
+    if (kind === 'edge') {
+        return new THREE.LineBasicMaterial({
+            color: '#c8ffff',
+            transparent: true,
+            opacity: trail ? 0.34 : 0.96,
+            depthTest: true,
+        });
+    }
+    return new THREE.MeshPhongMaterial({
+        color: '#071318',
+        emissive: '#28f6ff',
+        specular: '#c8ffff',
+        shininess: 80,
+        transparent: true,
+        opacity: trail ? 0.22 : 0.82,
+        side: THREE.DoubleSide,
+        depthTest: true,
+        depthWrite: !trail,
+    });
+}
+
+function sourceMaterialIdentity(source = {}) {
+    return [
+        source.version,
+        source.primaryMaterial,
+        source.edgeMaterial,
+        source.skin,
+        source.geometryType,
+    ];
+}
+
+function sameIdentity(a = [], b = []) {
+    return a.length === b.length && a.every((entry, index) => entry === b[index]);
+}
+
 function createModelInstance(THREE, {
     objectId,
     trail = false,
     stats = null,
+    avatarSource = null,
 } = {}) {
     const group = new THREE.Group();
     const spin = new THREE.Group();
-    const geometry = createDepthAlignedTriangularCursorGeometry(THREE);
+    const geometry = createAvatarDerivedPointerGeometry(THREE);
     const edgeGeometry = typeof THREE.EdgesGeometry === 'function' ? new THREE.EdgesGeometry(geometry) : geometry;
+    const sourceIdentity = sourceMaterialIdentity(avatarSource);
+    const coreMaterial = cloneMaterial(avatarSource?.primaryMaterial) || makeFallbackMaterial(THREE, 'core', trail);
+    const edgeMaterial = cloneMaterial(avatarSource?.edgeMaterial) || makeFallbackMaterial(THREE, 'edge', trail);
     if (stats) {
         stats.model_instances_created += 1;
         stats.geometries_created += edgeGeometry === geometry ? 1 : 2;
@@ -123,26 +177,11 @@ function createModelInstance(THREE, {
     }
     const core = new THREE.Mesh(
         geometry,
-        new THREE.MeshPhongMaterial({
-            color: makeColor(THREE, '#071318', '#071318'),
-            emissive: makeColor(THREE, '#28f6ff', '#28f6ff'),
-            specular: makeColor(THREE, '#c8ffff', '#c8ffff'),
-            shininess: 80,
-            transparent: true,
-            opacity: trail ? 0.22 : 0.82,
-            side: THREE.DoubleSide,
-            depthTest: true,
-            depthWrite: !trail,
-        }),
+        coreMaterial,
     );
     const edges = new THREE.LineSegments(
         edgeGeometry,
-        new THREE.LineBasicMaterial({
-            color: makeColor(THREE, '#c8ffff', '#c8ffff'),
-            transparent: true,
-            opacity: trail ? 0.34 : 0.96,
-            depthTest: true,
-        }),
+        edgeMaterial,
     );
     core.name = `${objectId}.core`;
     edges.name = `${objectId}.edges`;
@@ -153,14 +192,19 @@ function createModelInstance(THREE, {
         parent_object_id: AVATAR_ROOT_OBJECT_ID,
         kind: 'three.object3d',
         model_kind: 'sigil_model',
-        source: 'sigil_avatar',
-        shape: 'depth_aligned_three_sided_sigil_cursor',
+        source: 'avatar_render_state',
+        appearance_source: avatarSource?.appearanceSource || 'current_live_sigil_avatar',
+        shape: 'avatar_derived_triangular_pointer',
         geometry: 'triangular_pyramid',
-        geometry_family: 'selection_mode_depth_aligned_triangular_cursor',
-        long_axis: 'scene_depth_z',
+        geometry_family: 'selection_mode_avatar_derived_pointer',
+        long_axis: 'screen_north_west',
+        base_screen_quadrant: 'down_right',
         hotspot: 'tip',
         trail,
     };
+    group.userData.material_source = avatarSource?.materialSource || 'live_avatar_materials';
+    group.userData.cursor_overrides = ['geometry', 'orientation', 'hotspot', 'scale', 'visibility', 'single_axis_rotation'];
+    group.userData.material_identity = sourceIdentity;
     spin.add(core);
     spin.add(edges);
     group.add(spin);
@@ -174,17 +218,29 @@ function setInstanceOpacity(instance, alpha, fill = true) {
     if (instance.edges?.material) instance.edges.material.opacity = clamp(alpha * 0.96, 0, 1);
 }
 
-function setInstanceColors(THREE, instance, glyph = {}) {
-    const color = glyph.color || {};
-    const aura = glyph.aura || {};
-    if (instance.core?.material) {
-        instance.core.material.color = makeColor(THREE, aura.core || '#071318', '#071318');
-        instance.core.material.emissive = makeColor(THREE, color.aura_primary || aura.primary || '#28f6ff', '#28f6ff');
-        instance.core.material.specular = makeColor(THREE, aura.highlight || '#c8ffff', '#c8ffff');
+function applyAvatarSourceToInstance(instance, avatarSource = null, stats = null) {
+    if (!instance || !avatarSource) return;
+    const nextIdentity = sourceMaterialIdentity(avatarSource);
+    if (!sameIdentity(instance.group.userData.material_identity, nextIdentity)) {
+        const nextCore = cloneMaterial(avatarSource.primaryMaterial);
+        const nextEdge = cloneMaterial(avatarSource.edgeMaterial);
+        if (nextCore) {
+            disposeMaterial(instance.core?.material);
+            instance.core.material = nextCore;
+            if (stats) stats.materials_created += 1;
+        }
+        if (nextEdge) {
+            disposeMaterial(instance.edges?.material);
+            instance.edges.material = nextEdge;
+            if (stats) stats.materials_created += 1;
+        }
+        instance.group.userData.material_identity = nextIdentity;
     }
-    if (instance.edges?.material) {
-        instance.edges.material.color = makeColor(THREE, color.aura_secondary || aura.secondary || '#c8ffff', '#c8ffff');
-    }
+    copyMaterial(avatarSource.primaryMaterial, instance.core?.material);
+    copyMaterial(avatarSource.edgeMaterial, instance.edges?.material);
+    instance.group.userData.appearance_source = avatarSource.appearanceSource || 'current_live_sigil_avatar';
+    instance.group.userData.material_source = avatarSource.materialSource || 'live_avatar_materials';
+    instance.group.userData.skin = avatarSource.skin || '';
 }
 
 function updateInstance(instance, scenePoint, {
@@ -202,7 +258,7 @@ function updateInstance(instance, scenePoint, {
     setScale(instance.group.scale, Math.max(0.0001, scale));
     instance.group.rotation.x = 0;
     instance.group.rotation.y = 0;
-    instance.group.rotation.z = -Math.PI / 2;
+    instance.group.rotation.z = 0;
     instance.spin.rotation.z = phase;
     instance.group.visible = true;
     setInstanceOpacity(instance, alpha, fill);
@@ -255,6 +311,7 @@ export function createSelectionModeCursorModelRenderer({
     THREE: THREEImpl = null,
     projectPoint = (point) => point,
     projectRadius = null,
+    getAvatarRenderSource = () => null,
 } = {}) {
     const THREE = ensureThree(THREEImpl);
     const root = new THREE.Group();
@@ -296,7 +353,11 @@ export function createSelectionModeCursorModelRenderer({
     function ensurePrimary() {
         mount();
         if (primary) return primary;
-        primary = createModelInstance(THREE, { objectId: CURSOR_MODEL_OBJECT_ID, stats });
+        primary = createModelInstance(THREE, {
+            objectId: CURSOR_MODEL_OBJECT_ID,
+            stats,
+            avatarSource: getAvatarRenderSource?.(),
+        });
         root.add(primary.group);
         return primary;
     }
@@ -308,6 +369,7 @@ export function createSelectionModeCursorModelRenderer({
                 objectId: `${CURSOR_TRAIL_OBJECT_ID}.${trailInstances.length + 1}`,
                 trail: true,
                 stats,
+                avatarSource: getAvatarRenderSource?.(),
             });
             trailInstances.push(item);
             root.add(item.group);
@@ -378,7 +440,8 @@ export function createSelectionModeCursorModelRenderer({
         }
 
         const model = ensurePrimary();
-        setInstanceColors(THREE, model, glyph);
+        const avatarSource = getAvatarRenderSource?.() || null;
+        applyAvatarSourceToInstance(model, avatarSource, stats);
 
         const geometry = glyph.geometry || {};
         const length = Math.max(8, finite(geometry.length, 44));
@@ -415,7 +478,7 @@ export function createSelectionModeCursorModelRenderer({
         recordTrail(trailHistory, cursor, time, Math.max(1, repeatDuration + 0.5));
         for (let i = repeatCount; i >= 1; i -= 1) {
             const instance = ensureTrail(repeatCount - i);
-            setInstanceColors(THREE, instance, glyph);
+            applyAvatarSourceToInstance(instance, avatarSource, stats);
             const age = delay + (duration * lag * i);
             const sample = trailPointForAge(trailHistory, age, cursor);
             const progress = i / Math.max(1, repeatCount);
@@ -443,6 +506,9 @@ export function createSelectionModeCursorModelRenderer({
             visible: root.visible === true,
             model_kind: glyph.model_kind,
             source: glyph.source || '',
+            appearance_source: model.group.userData.appearance_source || '',
+            material_source: model.group.userData.material_source || '',
+            cursor_overrides: model.group.userData.cursor_overrides || [],
             object_id: model.group.userData.object_id,
             hotspot: glyph.hotspot || null,
             hotspot_aligned: hotspotAligned,

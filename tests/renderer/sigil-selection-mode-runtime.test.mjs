@@ -131,18 +131,23 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   assert.equal(liveState.selectionModeOverlay.visible, true)
   assert.equal(liveState.selectionModeOverlay.cursor.x, 101)
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.model_kind, 'sigil_model')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.source, 'sigil_avatar')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'depth_aligned_three_sided_sigil_cursor')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.source, 'avatar_render_state')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'avatar_derived_triangular_pointer')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.primitive, 'triangular_pyramid')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.cross_section, 'equilateral_triangle')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.long_axis, 'scene_depth_z')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.long_axis, 'screen_north_west')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.base_screen_quadrant, 'down_right')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.source, 'selection_mode_pointer_single_axis')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.axis, 'scene_z')
   assert.deepEqual(liveState.selectionModeOverlay.cursorGlyph.hotspot, {
     kind: 'tip',
     x: 101,
     y: 102,
     local: { x: 0, y: 0, z: 0 },
   })
-  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'depth_aligned_three_sided_sigil_cursor')
+  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'avatar_derived_triangular_pointer')
   assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatGeometry, 'triangular_pyramid')
   assert.equal(liveState.selectionModeOverlay.badgeLayout.order, 'leaf-to-root')
   assert.ok(liveState.selectionMode.events.some((entry) => entry.type === 'selection_mode_aura_spike'))
@@ -458,16 +463,20 @@ test('Selection Mode cursor model inherits avatar color, aura, trail, and rotati
     },
   })
 
-  assert.equal(overlay.cursorGlyph.color.primary, '#112233')
-  assert.equal(overlay.cursorGlyph.aura.reach, 1.7)
-  assert.equal(overlay.cursorGlyph.aura.intensity, 1.4)
+  assert.equal(overlay.cursorGlyph.source, 'avatar_render_state')
+  assert.equal(overlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
+  assert.equal(overlay.cursorGlyph.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(overlay.cursorGlyph.color, undefined)
+  assert.equal(overlay.cursorGlyph.aura, undefined)
   assert.equal(overlay.cursorGlyph.trail.style, 'line')
   assert.equal(overlay.cursorGlyph.trail.count, 12)
   assert.equal(overlay.cursorGlyph.trail.opacity, 0.7)
-  assert.equal(overlay.cursorGlyph.animation.rotation_speed, 0.08)
+  assert.equal(overlay.cursorGlyph.animation.source, 'selection_mode_pointer_single_axis')
+  assert.equal(overlay.cursorGlyph.animation.axis, 'scene_z')
+  assert.equal(overlay.cursorGlyph.animation.rotation_speed, 0.01)
   assert.equal(overlay.cursorGlyph.animation.session_vitality_multiplier, 1.25)
-  assert.equal(overlay.cursorGlyph.animation.visible_avatar_y_speed, 0.04)
-  assert.equal(overlay.cursorGlyph.animation.visible_avatar_x_speed, 0.016)
+  assert.equal(overlay.cursorGlyph.animation.visible_avatar_y_speed, 0)
+  assert.equal(overlay.cursorGlyph.animation.visible_avatar_x_speed, 0)
   assert.deepEqual(resolveSigilAvatarIdleRotation({ idleSpinSpeed: 0.08 }), {
     source: 'sigil_avatar_idle_rotation',
     base_speed: 0.08,
