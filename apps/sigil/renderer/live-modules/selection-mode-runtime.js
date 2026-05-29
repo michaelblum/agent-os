@@ -289,15 +289,23 @@ export function createSigilSelectionModeRuntime({
         });
     }
 
-    function buildContextSession({ selectedNodeId = liveState.selectionMode.selected_node_id } = {}) {
+    function buildContextSession({
+        selectedNodeId = liveState.selectionMode.selected_node_id,
+        transition = 'acquire',
+    } = {}) {
         const pathCandidates = Array.isArray(liveState.selectionMode.path_candidates)
             ? liveState.selectionMode.path_candidates
             : [];
         if (!pathCandidates.length) return null;
+        const priorArtifact = liveState.selectionMode.context_session?.artifacts?.[0] || null;
+        const retargeting = transition === 'retarget' && priorArtifact?.acquisition;
+        const acquisitionPointer = retargeting
+            ? priorArtifact.acquisition.pointer
+            : liveState.selectionMode.cursor;
         const contextSession = createSelectionModeContextSession({
             id: liveState.selectionMode.context_session?.id,
             updated_at: nowIso(),
-            pointer: liveState.selectionMode.cursor,
+            pointer: acquisitionPointer,
             clicked_leaf_candidate: liveState.selectionMode.leaf_candidate || pathCandidates.at(-1),
             path_candidates: pathCandidates,
             selected_target_id: selectedNodeId || liveState.selectionMode.selected_node_id || pathCandidates.at(-1)?.id,
@@ -311,6 +319,26 @@ export function createSigilSelectionModeRuntime({
         liveState.selectionMode.selected_node_id = artifact?.active_target_node_id || '';
         liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
         return contextSession;
+    }
+
+    function retargetContextSession(selectedNodeId = liveState.selectionMode.selected_node_id) {
+        return buildContextSession({
+            selectedNodeId,
+            transition: 'retarget',
+        });
+    }
+
+    function reconcileOverlayLifecycle({ render = false } = {}) {
+        const priorOverlay = liveState.selectionModeOverlay;
+        if (liveState.selectionMode?.active === true || priorOverlay?.visible !== true) return false;
+        if (selectionModeOverlayHasActiveEffects(priorOverlay, nowMs())) return false;
+
+        const nextOverlay = buildOverlay(liveState.selectionMode);
+        if (nextOverlay.visible === true || selectionModeOverlayHasActiveEffects(nextOverlay, nowMs())) return false;
+        liveState.selectionModeOverlay = nextOverlay;
+        if (rendererState) rendererState.selectionMode = liveState.selectionMode;
+        if (render) scheduleRenderFrame();
+        return true;
     }
 
     function enter(pointer = null, reason = 'avatar-double-click') {
@@ -377,7 +405,7 @@ export function createSigilSelectionModeRuntime({
         const current = path.findIndex((node) => node.id === liveState.selectionMode.selected_node_id);
         const nextIndex = (current >= 0 ? current : path.length - 1) + delta;
         const wrapped = ((nextIndex % path.length) + path.length) % path.length;
-        const context = buildContextSession({ selectedNodeId: path[wrapped].id });
+        const context = retargetContextSession(path[wrapped].id);
         recordEvent('select_target', {
             selected_node_id: liveState.selectionMode.selected_node_id,
         });
@@ -389,7 +417,7 @@ export function createSigilSelectionModeRuntime({
         const target = String(nodeId || '').trim();
         const path = liveState.selectionMode?.context_session?.artifacts?.[0]?.path || [];
         if (!target || !path.some((node) => node.id === target || node.address === target)) return null;
-        const context = buildContextSession({ selectedNodeId: target });
+        const context = retargetContextSession(target);
         recordEvent('select_target', {
             reason,
             selected_node_id: liveState.selectionMode.selected_node_id,
@@ -447,7 +475,7 @@ export function createSigilSelectionModeRuntime({
             };
         });
         liveState.selectionMode.path_candidates = nextPath;
-        const context = buildContextSession({ selectedNodeId: liveState.selectionMode.selected_node_id });
+        const context = retargetContextSession(liveState.selectionMode.selected_node_id);
         publish();
         return context;
     }
@@ -515,6 +543,7 @@ export function createSigilSelectionModeRuntime({
 
     return {
         buildContextSession,
+        reconcileOverlayLifecycle,
         buildProjectedOverlay: buildOverlay,
         candidatesAtPoint,
         enter,

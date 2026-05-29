@@ -289,7 +289,7 @@ test('Selection Mode groups same-size deep ancestors into horizontal badge fan-o
   assert.ok(overlay.badges.some((badge) => badge.token === 'app'))
 })
 
-test('Selection Mode badge click selects an existing ancestor without reacquiring', () => {
+test('Selection Mode badge click retargets while preserving original acquisition evidence', () => {
   const windowCandidate = candidate('window', { x: 50, y: 50, w: 300, h: 220 }, { kind: 'window', role: 'native_window', label: 'Window' })
   const buttonCandidate = candidate('button', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' })
   const { runtime, liveState, commands } = createRuntime({
@@ -299,10 +299,18 @@ test('Selection Mode badge click selects an existing ancestor without reacquirin
 
   runtime.enter({ x: 100, y: 100, valid: true }, 'test')
   runtime.handleInput({ type: 'left_mouse_up', x: 100, y: 100 })
+  const acquiredArtifact = liveState.selectionMode.context_session.artifacts[0]
+  const acquiredPointer = structuredClone(acquiredArtifact.acquisition.pointer)
+  const acquiredLeafNodeId = acquiredArtifact.acquisition.leaf_node_id
+  const acquiredPathNodeIds = acquiredArtifact.path.map((node) => node.id)
   const ancestorBadge = liveState.selectionModeOverlay.badges.find((badge) => (
-    badge.nodeId === liveState.selectionMode.context_session.artifacts[0].path[1].id
+    badge.nodeId === acquiredArtifact.path[1].id
   ))
   assert.ok(ancestorBadge)
+  const originalBadgeRects = new Map(liveState.selectionModeOverlay.badges.map((badge) => [
+    badge.nodeId,
+    structuredClone(badge.rect),
+  ]))
   runtime.handleInput({
     type: 'left_mouse_up',
     x: ancestorBadge.rect.x + ancestorBadge.rect.width / 2,
@@ -310,7 +318,16 @@ test('Selection Mode badge click selects an existing ancestor without reacquirin
   })
 
   assert.deepEqual(commands.map((entry) => entry.command), ['acquire', 'selectBadge'])
-  assert.equal(liveState.selectionMode.context_session.artifacts[0].active_target_node_id, ancestorBadge.nodeId)
+  const retargetedArtifact = liveState.selectionMode.context_session.artifacts[0]
+  assert.equal(retargetedArtifact.active_target_node_id, ancestorBadge.nodeId)
+  assert.deepEqual(retargetedArtifact.acquisition.pointer, acquiredPointer)
+  assert.equal(retargetedArtifact.acquisition.leaf_node_id, acquiredLeafNodeId)
+  assert.deepEqual(retargetedArtifact.path.map((node) => node.id), acquiredPathNodeIds)
+  assert.equal(retargetedArtifact.acquisition.candidate_report.clicked_leaf.node_id, acquiredLeafNodeId)
+  for (const badge of liveState.selectionModeOverlay.badges) {
+    assert.deepEqual(badge.rect, originalBadgeRects.get(badge.nodeId))
+  }
+  assert.notDeepEqual(liveState.selectionMode.cursor, acquiredPointer)
 })
 
 test('Selection Mode cursor model inherits avatar color, aura, trail, and rotation fields', () => {
@@ -410,7 +427,7 @@ test('Selection Mode cursor trail uses Selection Mode trail settings instead of 
 
 test('Selection Mode entry and exit effects produce bounded renderable overlay transitions', () => {
   let clock = 200000
-  const { runtime, liveState } = createRuntime({ nowMs: () => clock })
+  const { runtime, liveState, scheduled } = createRuntime({ nowMs: () => clock })
   runtime.enter({ x: 40, y: 40, valid: true }, 'test')
   assert.deepEqual(liveState.selectionMode.effects.map((effect) => [effect.phase, effect.effect]), [
     ['enter', 'supernova'],
@@ -435,6 +452,12 @@ test('Selection Mode entry and exit effects produce bounded renderable overlay t
   assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).active, true)
 
   clock += liveState.selectionModeOverlay.visualEffects.at(-1).duration_ms + 1
+  assert.equal(liveState.selectionModeOverlay.visible, true)
+  const cleaned = runtime.reconcileOverlayLifecycle({ render: true })
+  assert.equal(cleaned, true)
+  assert.equal(liveState.selectionModeOverlay.visible, false)
+  assert.equal(liveState.selectionModeOverlay.visualEffects.every((effect) => effect.active === false), true)
+  assert.ok(scheduled.length >= 1)
   const expired = runtime.buildProjectedOverlay()
   assert.equal(expired.visible, false)
   assert.equal(expired.visualEffects.every((effect) => effect.active === false), true)

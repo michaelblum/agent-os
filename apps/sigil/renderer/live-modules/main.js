@@ -3901,6 +3901,7 @@ function animate() {
         clearHiddenFrame(renderAvatarPos, frameStartedAt);
         return;
     }
+    const selectionModeOverlayCleanupFrame = selectionModeRuntime.reconcileOverlayLifecycle();
 
     if (renderAvatarPos.valid) {
         const avatarStagePos = stagePoint(renderAvatarPos);
@@ -3950,7 +3951,7 @@ function animate() {
     const continuationReasons = currentRenderLoopContinuationReasons(vitalityFrame);
     const work = classifyRenderLoopWork({
         continuationReasons,
-        structuralDirty: structuralFrameDirty,
+        structuralDirty: structuralFrameDirty || selectionModeOverlayCleanupFrame,
     });
     structuralFrameDirty = false;
     liveJs.renderLoop.work = {

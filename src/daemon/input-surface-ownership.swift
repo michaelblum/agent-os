@@ -37,28 +37,31 @@ private let aosInputRegionTerminalPhases: Set<String> = [
 ]
 
 struct AOSNativeCursorSuppressionReconcileResult: Equatable {
-    let hideDisplayIDs: [CGDirectDisplayID]
-    let showDisplayIDs: [CGDirectDisplayID]
-    let suppressedDisplayIDs: [CGDirectDisplayID]
+    let hideNativeCursor: Bool
+    let showNativeCursor: Bool
+    let active: Bool
 }
 
 final class AOSNativeCursorSuppressionReconciler {
-    private var suppressedDisplayIDs = Set<CGDirectDisplayID>()
+    private var active = false
 
-    func reconcile(activeDisplayIDs: [CGDirectDisplayID]) -> AOSNativeCursorSuppressionReconcileResult {
-        let target = Set(activeDisplayIDs.filter { $0 != 0 })
-        let hide = Array(target.subtracting(suppressedDisplayIDs)).sorted()
-        let show = Array(suppressedDisplayIDs.subtracting(target)).sorted()
-        suppressedDisplayIDs = target
+    func reconcile(active targetActive: Bool) -> AOSNativeCursorSuppressionReconcileResult {
+        let hide = targetActive && !active
+        let show = !targetActive && active
+        active = targetActive
         return AOSNativeCursorSuppressionReconcileResult(
-            hideDisplayIDs: hide,
-            showDisplayIDs: show,
-            suppressedDisplayIDs: Array(suppressedDisplayIDs).sorted()
+            hideNativeCursor: hide,
+            showNativeCursor: show,
+            active: active
         )
     }
 
-    func snapshot() -> [CGDirectDisplayID] {
-        Array(suppressedDisplayIDs).sorted()
+    func restore() -> AOSNativeCursorSuppressionReconcileResult {
+        reconcile(active: false)
+    }
+
+    func snapshot() -> Bool {
+        active
     }
 }
 

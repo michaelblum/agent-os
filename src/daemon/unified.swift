@@ -6,6 +6,18 @@ import Foundation
 
 private let inputSafetyLogCanvasID = "__log__"
 private let inputSafetyLogConsoleURL = "aos://toolkit/components/log-console/index.html"
+private var aosNativeCursorSuppressionSignalActive: Int32 = 0
+
+private func aosSetNativeCursorSuppressionSignalActive(_ active: Bool) {
+    aosNativeCursorSuppressionSignalActive = active ? 1 : 0
+}
+
+private func aosRestoreNativeCursorSuppressionForSignalExit() {
+    if aosNativeCursorSuppressionSignalActive != 0 {
+        CGDisplayShowCursor(CGMainDisplayID())
+        aosNativeCursorSuppressionSignalActive = 0
+    }
+}
 
 private final class DaemonInputSafetyVisualFeedbackRuntime: InputSafetyVisualFeedbackRuntime {
     private let canvasManager: CanvasManager
@@ -3268,33 +3280,30 @@ class UnifiedDaemon {
         return CGPoint(x: point.x - origin.x, y: point.y - origin.y)
     }
 
-    private func activeDisplayIDsForCursorSuppression() -> [CGDirectDisplayID] {
-        var displayCount: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &displayCount) == .success,
-              displayCount > 0 else {
-            return []
+    private func reconcileNativeCursorSuppression(active: Bool) {
+        nativeCursorSuppressionLock.lock()
+        let result = nativeCursorSuppressionReconciler.reconcile(active: active)
+        nativeCursorSuppressionLock.unlock()
+        guard result.hideNativeCursor || result.showNativeCursor else { return }
+        DispatchQueue.main.async {
+            if result.showNativeCursor {
+                CGDisplayShowCursor(CGMainDisplayID())
+                aosSetNativeCursorSuppressionSignalActive(false)
+            }
+            if result.hideNativeCursor {
+                CGDisplayHideCursor(CGMainDisplayID())
+                aosSetNativeCursorSuppressionSignalActive(true)
+            }
         }
-        var displays = [CGDirectDisplayID](repeating: 0, count: Int(displayCount))
-        guard CGGetActiveDisplayList(displayCount, &displays, &displayCount) == .success else {
-            return []
-        }
-        return Array(displays.prefix(Int(displayCount))).filter { $0 != 0 }
     }
 
-    private func reconcileNativeCursorSuppression(active: Bool) {
-        let activeDisplayIDs = active ? activeDisplayIDsForCursorSuppression() : []
+    private func restoreNativeCursorSuppressionForExit() {
         nativeCursorSuppressionLock.lock()
-        let result = nativeCursorSuppressionReconciler.reconcile(activeDisplayIDs: activeDisplayIDs)
+        let result = nativeCursorSuppressionReconciler.restore()
         nativeCursorSuppressionLock.unlock()
-        guard !result.hideDisplayIDs.isEmpty || !result.showDisplayIDs.isEmpty else { return }
-        DispatchQueue.main.async {
-            for display in result.showDisplayIDs {
-                CGDisplayShowCursor(display)
-            }
-            for display in result.hideDisplayIDs {
-                CGDisplayHideCursor(display)
-            }
-        }
+        guard result.showNativeCursor else { return }
+        CGDisplayShowCursor(CGMainDisplayID())
+        aosSetNativeCursorSuppressionSignalActive(false)
     }
 
     private func removeInputRegionsOwned(by ownerCanvasID: String, includeSuspendRetained: Bool) {
@@ -3347,6 +3356,7 @@ class UnifiedDaemon {
 
     func shutdown() {
         fputs("aos daemon shutting down (idle)\n", stderr)
+        restoreNativeCursorSuppressionForExit()
         spatial.stopPolling()
         unlink(socketPath)
         releaseDaemonLock()
@@ -3355,6 +3365,7 @@ class UnifiedDaemon {
 
     private func setupSignalHandlers() {
         let handler: @convention(c) (Int32) -> Void = { _ in
+            aosRestoreNativeCursorSuppressionForSignalExit()
             unlink(kDefaultSocketPath)
             exit(0)
         }
