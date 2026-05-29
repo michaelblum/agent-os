@@ -350,9 +350,21 @@ wraps the isolated daemon helpers and provides named launch steps for common
 surfaces:
 
 - `aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil`
+- `aos_visual_sigil_renderer_url` and `aos_visual_toolkit_url <path> [query]`
 - `aos_visual_launch_canvas_inspector surface-inspector`
 - `aos_visual_launch_sigil_avatar avatar-main`
 - `aos_visual_launch_sigil_with_inspector avatar-main surface-inspector`
+
+Visual URL helpers own the canonical `aos://...` launch/update contract. Runtime
+evidence may contain resolved localhost URLs; compare those with
+`aos_visual_assert_url_equivalent` instead of raw string equality. Reload
+URL-backed canvases with `aos_visual_update_canvas_url`, which rejects resolved
+localhost inputs by default. In the single-worktree dev workflow, visual helpers
+use canonical `sigil` and `toolkit` root keys; branch-scoped keys are for
+explicit overrides or true parallel worktree/session isolation. Use
+`aos_visual_assert_canvas_worktree` for owner metadata and
+`aos_visual_assert_sigil_renderer_fresh` when a live Sigil smoke must prove the
+loaded page is newer than or equal to the commit under test.
 
 Visual Sigil scenarios should default to launching `surface-inspector` beside the
 surface under test unless the test is specifically measuring canvas lifecycle,

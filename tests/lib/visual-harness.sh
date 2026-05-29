@@ -137,7 +137,189 @@ aos_visual_content_root_key() {
       return
     fi
   fi
+
+  case "${AOS_VISUAL_CONTENT_ROOT_SCOPE:-}" in
+    branch|scoped|parallel|worktree)
+      aos_content_root_key_for "$prefix" "$VISUAL_HARNESS_ROOT"
+      return
+      ;;
+    canonical|single)
+      printf '%s\n' "$prefix"
+      return
+      ;;
+  esac
+
+  if [[ "$(git -C "$VISUAL_HARNESS_ROOT" worktree list --porcelain 2>/dev/null | awk '$1 == "worktree" { count++ } END { print count + 0 }')" -le 1 ]]; then
+    printf '%s\n' "$prefix"
+    return
+  fi
+
   aos_content_root_key_for "$prefix" "$VISUAL_HARNESS_ROOT"
+}
+
+aos_visual_content_url() {
+  local root_key="$1"
+  local path="$2"
+  local query="${3:-}"
+
+  path="${path#/}"
+  if [[ -n "$query" && "$query" != \?* ]]; then
+    query="?$query"
+  fi
+  printf 'aos://%s/%s%s\n' "$root_key" "$path" "$query"
+}
+
+aos_visual_sigil_renderer_url() {
+  local sigil_key toolkit_key
+  sigil_key="$(aos_visual_content_root_key sigil)"
+  toolkit_key="$(aos_visual_content_root_key toolkit)"
+  aos_visual_content_url "$sigil_key" "renderer/index.html" "toolkit-root=$toolkit_key"
+}
+
+aos_visual_toolkit_url() {
+  local path="$1"
+  local query="${2:-}"
+  aos_visual_content_url "$(aos_visual_content_root_key toolkit)" "$path" "$query"
+}
+
+aos_visual_url_is_canonical() {
+  [[ "$1" == aos://* ]]
+}
+
+aos_visual_assert_canonical_url() {
+  local url="$1"
+  if aos_visual_url_is_canonical "$url"; then
+    return 0
+  fi
+
+  if [[ "$url" == http://127.0.0.1:* || "$url" == http://localhost:* ]]; then
+    echo "FAIL: resolved localhost URL is runtime evidence, not a canonical launch/update input: $url" >&2
+  else
+    echo "FAIL: expected canonical aos:// URL, got: $url" >&2
+  fi
+  return 1
+}
+
+aos_visual_update_canvas_url() {
+  local canvas_id="$1"
+  local url="$2"
+  local mode="${3:-canonical}"
+  local aos_bin
+  aos_bin="$(aos_visual_aos)"
+
+  if [[ "$mode" != "diagnostic" ]]; then
+    aos_visual_assert_canonical_url "$url" || return $?
+  fi
+  "$aos_bin" show update --id "$canvas_id" --url "$url" >/dev/null
+}
+
+aos_visual_urls_equivalent() {
+  local canonical_url="$1"
+  local live_url="$2"
+
+  python3 - "$canonical_url" "$live_url" <<'PY'
+from urllib.parse import parse_qsl, urlparse
+import sys
+
+left, right = sys.argv[1:3]
+
+def parts(raw):
+    parsed = urlparse(raw)
+    if parsed.scheme == "aos":
+        root = parsed.netloc
+        path = parsed.path
+    elif parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost"}:
+        segments = parsed.path.lstrip("/").split("/", 1)
+        root = segments[0] if segments else ""
+        path = "/" + (segments[1] if len(segments) > 1 else "")
+    else:
+        raise ValueError(f"unsupported URL form: {raw}")
+    return (root, path, sorted(parse_qsl(parsed.query, keep_blank_values=True)))
+
+try:
+    raise SystemExit(0 if parts(left) == parts(right) else 1)
+except Exception:
+    raise SystemExit(1)
+PY
+}
+
+aos_visual_assert_url_equivalent() {
+  local expected="$1"
+  local actual="$2"
+  if ! aos_visual_urls_equivalent "$expected" "$actual"; then
+    echo "FAIL: content URL mismatch." >&2
+    echo "Expected: $expected" >&2
+    echo "Actual:   $actual" >&2
+    return 1
+  fi
+}
+
+aos_visual_assert_canvas_worktree() {
+  local canvas_id="$1"
+  local expected_root="${2:-$VISUAL_HARNESS_ROOT}"
+  local aos_bin show_json
+  aos_bin="$(aos_visual_aos)"
+  show_json="$("$aos_bin" show list --json)"
+
+  python3 - "$canvas_id" "$expected_root" "$show_json" <<'PY'
+import json
+import pathlib
+import sys
+
+canvas_id, expected_root, raw = sys.argv[1:4]
+payload = json.loads(raw)
+expected = str(pathlib.Path(expected_root).expanduser().resolve(strict=False))
+for canvas in payload.get("canvases") or []:
+    if canvas.get("id") != canvas_id:
+        continue
+    owner = canvas.get("owner") or {}
+    actual = owner.get("worktree_root")
+    if actual and str(pathlib.Path(actual).expanduser().resolve(strict=False)) == expected:
+        raise SystemExit(0)
+    print(f"FAIL: canvas {canvas_id} worktree mismatch. Expected: {expected} Actual: {actual or '<missing>'}", file=sys.stderr)
+    raise SystemExit(1)
+print(f"FAIL: canvas {canvas_id} missing from show list data", file=sys.stderr)
+raise SystemExit(1)
+PY
+}
+
+aos_visual_assert_sigil_renderer_fresh() {
+  local canvas_id="${1:-avatar-main}"
+  local commit_time="${2:-}"
+  local aos_bin eval_json
+  aos_bin="$(aos_visual_aos)"
+  if [[ -z "$commit_time" ]]; then
+    commit_time="$(git -C "$VISUAL_HARNESS_ROOT" show -s --format=%cI HEAD)"
+  fi
+
+  eval_json="$("$aos_bin" show eval --id "$canvas_id" --js 'window.__sigilDebug && window.__sigilDebug.snapshot && window.__sigilDebug.snapshot().runtime && window.__sigilDebug.snapshot().runtime.loadedAt' --json)"
+  python3 - "$commit_time" "$eval_json" <<'PY'
+import json
+from datetime import datetime
+import sys
+
+commit_time, raw = sys.argv[1:3]
+payload = json.loads(raw)
+loaded_at = payload.get("result")
+if isinstance(loaded_at, str) and len(loaded_at) >= 2 and loaded_at[0] == loaded_at[-1] == '"':
+    loaded_at = json.loads(loaded_at)
+
+def parse(value):
+    if not value:
+        raise ValueError("missing timestamp")
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+try:
+    commit_dt = parse(commit_time)
+    loaded_dt = parse(loaded_at)
+except Exception as error:
+    print(f"FAIL: unable to compare Sigil renderer freshness: {error}; loadedAt={loaded_at!r}", file=sys.stderr)
+    raise SystemExit(1)
+
+if loaded_dt < commit_dt:
+    print(f"FAIL: Sigil renderer is stale. loadedAt={loaded_at} commit={commit_time}", file=sys.stderr)
+    raise SystemExit(1)
+PY
 }
 
 aos_visual_assert_live_content_root() {
@@ -408,12 +590,11 @@ EOF
 
 aos_visual_launch_sigil_avatar() {
   local avatar_id="${1:-avatar-main}"
-  local aos_bin sigil_key toolkit_key
+  local aos_bin url
   aos_bin="$(aos_visual_aos)"
-  sigil_key="$(aos_visual_content_root_key sigil)"
-  toolkit_key="$(aos_visual_content_root_key toolkit)"
+  url="$(aos_visual_sigil_renderer_url)"
 
-  python3 - "$aos_bin" "$avatar_id" "aos://$sigil_key/renderer/index.html?toolkit-root=$toolkit_key" <<'PY'
+  python3 - "$aos_bin" "$avatar_id" "$url" <<'PY'
 import json
 import subprocess
 import sys

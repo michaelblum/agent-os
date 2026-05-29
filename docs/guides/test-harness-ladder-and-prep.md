@@ -42,6 +42,31 @@ Candidate reusable artifact reporting:
 6. If new helper code is still needed, keep it local until a second caller or a
    clear platform boundary proves it should be promoted.
 
+## Canonical URL And Fresh Runtime Evidence
+
+Use shared helpers in `tests/lib/visual-harness.sh` when a visual or live-canvas
+test touches content-root URLs, reloads, or Sigil renderer freshness.
+
+- Command/config boundary: pass canonical `aos://...` URLs. AOS may rewrite
+  those to `http://127.0.0.1:<port>/...` inside WKWebView or `show list`
+  runtime evidence.
+- Comparison boundary: compare canonical and resolved URLs by content-root,
+  path, and query equivalence. Do not require raw string equality between
+  `aos://sigil/...` and the localhost URL that served the page.
+- Reload boundary: reload URL-backed canvases with
+  `aos show update --url 'aos://...'`; do not copy a resolved localhost URL
+  back into launch or update inputs.
+- Root scoping: the single-worktree dev workflow defaults to canonical
+  `sigil` and `toolkit` content-root keys, even on feature branches. Use
+  branch-scoped keys only for explicit overrides or true parallel
+  worktree/session isolation.
+- Namespace boundary: a content-root key is a served namespace, not proof of a
+  Git worktree. Use show-list owner metadata to prove
+  `owner.worktree_root` matches the expected repo root.
+- Freshness boundary: when code changes matter, live smoke evidence must prove
+  `window.__sigilDebug.snapshot().runtime.loadedAt` is newer than or equal to
+  `git show -s --format=%cI HEAD`.
+
 ## Examples
 
 - URL-backed canvas versus inline HTML canvas: if the risk is canvas source URL
