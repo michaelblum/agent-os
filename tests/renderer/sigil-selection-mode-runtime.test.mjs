@@ -133,7 +133,7 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.model_kind, 'sigil_model')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.source, 'avatar_render_state')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.material_source, 'current_avatar_render_model')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'avatar_derived_triangular_pointer')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.primitive, 'triangular_pyramid')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.cross_section, 'equilateral_triangle')
@@ -465,7 +465,7 @@ test('Selection Mode cursor model inherits avatar color, aura, trail, and rotati
 
   assert.equal(overlay.cursorGlyph.source, 'avatar_render_state')
   assert.equal(overlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
-  assert.equal(overlay.cursorGlyph.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(overlay.cursorGlyph.material_source, 'current_avatar_render_model')
   assert.equal(overlay.cursorGlyph.color, undefined)
   assert.equal(overlay.cursorGlyph.aura, undefined)
   assert.equal(overlay.cursorGlyph.trail.style, 'line')

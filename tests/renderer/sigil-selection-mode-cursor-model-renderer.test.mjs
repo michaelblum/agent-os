@@ -151,7 +151,7 @@ function avatarSource({
 } = {}) {
   return {
     appearanceSource: 'current_live_sigil_avatar',
-    materialSource: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
+    materialSource: 'current_avatar_render_model',
     version,
     geometryType: 20,
     skin,
@@ -172,7 +172,7 @@ function modelOverlay({
       model_kind: 'sigil_model',
       source: 'avatar_render_state',
       appearance_source: 'current_live_sigil_avatar',
-      material_source: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
+      material_source: 'current_avatar_render_model',
       shape: 'avatar_derived_triangular_pointer',
       hotspot: { kind: 'tip', x: cursor.x, y: cursor.y, local: { x: 0, y: 0, z: 0 } },
       geometry: {
@@ -232,7 +232,7 @@ test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer
   assert.equal(snapshot.model_kind, 'sigil_model')
   assert.equal(snapshot.source, 'avatar_render_state')
   assert.equal(snapshot.appearance_source, 'current_live_sigil_avatar')
-  assert.equal(snapshot.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(snapshot.material_source, 'current_avatar_render_model')
   assert.deepEqual(snapshot.cursor_overrides, ['geometry', 'orientation', 'hotspot', 'scale', 'visibility', 'single_axis_rotation'])
   assert.equal(snapshot.object_id, 'selection-mode.cursor.sigil-model')
   assert.equal(snapshot.hotspot_aligned, true)
@@ -245,7 +245,7 @@ test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer
   assert.equal(primary.userData.model_kind, 'sigil_model')
   assert.equal(primary.userData.geometry, 'triangular_pyramid')
   assert.equal(primary.userData.long_axis, 'screen_north_west')
-  assert.equal(primary.userData.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(primary.userData.material_source, 'current_avatar_render_model')
   assert.equal(primary.children[0].children[0].geometry.userData.depth_semantics, 'screen_plane_pointer')
 })
 
@@ -325,7 +325,7 @@ test('Selection Mode pointer derives materials from the live avatar render sourc
 
   assert.equal(core.material.copiedFrom, firstCore)
   assert.equal(edge.material.copiedFrom, firstEdge)
-  assert.equal(primary.userData.material_source, 'state.coreMesh/state.wireframeMesh/state.skinMaterial')
+  assert.equal(primary.userData.material_source, 'current_avatar_render_model')
 
   source = avatarSource({ version: 'v2', primaryMaterial: secondCore, edgeMaterial: secondEdge, skin: 'plasma' })
   renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12.016 })

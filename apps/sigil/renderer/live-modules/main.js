@@ -62,6 +62,7 @@ import { createSigilInputRegionAdapter } from './input-regions.js';
 import {
     createAvatarDoubleClickTracker,
 } from './selection-mode-input.js';
+import { currentAvatarRenderSource } from './avatar-render-model-adapter.js';
 import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
@@ -2625,22 +2626,7 @@ function readSelectionModeCursorModelSnapshot() {
 }
 
 function currentAvatarRenderSourceForSelectionPointer() {
-    return {
-        appearanceSource: 'current_live_sigil_avatar',
-        materialSource: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
-        version: [
-            state.currentGeometryType,
-            state.currentSkin,
-            state.currentOpacity,
-            state.currentEdgeOpacity,
-            state.isSpecularEnabled,
-        ].join(':'),
-        geometryType: state.currentGeometryType,
-        skin: state.currentSkin,
-        primaryMaterial: state.coreMesh?.material || state.skinMaterial || null,
-        edgeMaterial: state.wireframeMesh?.material || null,
-        effectRoot: state.polyGroup || null,
-    };
+    return currentAvatarRenderSource(state);
 }
 
 function refreshSelectionModeCursorModelSnapshot(overlay = liveJs.selectionModeOverlay) {

@@ -1,3 +1,10 @@
+import {
+    AVATAR_RENDER_SOURCE,
+    CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
+    CURRENT_AVATAR_RENDER_MODEL_SOURCE,
+    CURRENT_LIVE_SIGIL_AVATAR_SOURCE,
+} from './avatar-render-model-adapter.js';
+
 const DEFAULT_SELECTION_MODE_EFFECTS = Object.freeze({
     enter: 'supernova',
     exit: 'reverse_supernova',
@@ -71,10 +78,10 @@ function resolveAvatarPointerSource(rendererState = null) {
     const vitality = rendererState?.sessionVitality || {};
     const vitalityMultiplier = Number(vitality.scaleMultiplier ?? vitality.rotationMultiplier ?? 1);
     return {
-        source: 'avatar_render_state',
-        appearance_source: 'current_live_sigil_avatar',
-        material_source: 'state.coreMesh/state.wireframeMesh/state.skinMaterial',
-        effects_source: 'state.polyGroup avatar effect family',
+        source: AVATAR_RENDER_SOURCE,
+        appearance_source: CURRENT_LIVE_SIGIL_AVATAR_SOURCE,
+        material_source: CURRENT_AVATAR_RENDER_MODEL_SOURCE,
+        effects_source: CURRENT_AVATAR_EFFECT_DESCRIPTORS_SOURCE,
         trail: {
             enabled: rendererState?.isTrailEnabled !== false,
             style: rendererState?.trailStyle || 'omega',

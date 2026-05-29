@@ -144,9 +144,9 @@ function makeFallbackMaterial(THREE, kind, trail = false) {
 
 function sourceMaterialIdentity(source = {}) {
     return [
-        source.version,
-        source.primaryMaterial,
-        source.edgeMaterial,
+        source.identity || source.version,
+        source.primaryMaterialTemplate || source.primaryMaterial,
+        source.edgeMaterialTemplate || source.edgeMaterial,
         source.skin,
         source.geometryType,
     ];
@@ -167,8 +167,10 @@ function createModelInstance(THREE, {
     const geometry = createAvatarDerivedPointerGeometry(THREE);
     const edgeGeometry = typeof THREE.EdgesGeometry === 'function' ? new THREE.EdgesGeometry(geometry) : geometry;
     const sourceIdentity = sourceMaterialIdentity(avatarSource);
-    const coreMaterial = cloneMaterial(avatarSource?.primaryMaterial) || makeFallbackMaterial(THREE, 'core', trail);
-    const edgeMaterial = cloneMaterial(avatarSource?.edgeMaterial) || makeFallbackMaterial(THREE, 'edge', trail);
+    const coreTemplate = avatarSource?.primaryMaterialTemplate || avatarSource?.primaryMaterial || null;
+    const edgeTemplate = avatarSource?.edgeMaterialTemplate || avatarSource?.edgeMaterial || null;
+    const coreMaterial = cloneMaterial(coreTemplate) || makeFallbackMaterial(THREE, 'core', trail);
+    const edgeMaterial = cloneMaterial(edgeTemplate) || makeFallbackMaterial(THREE, 'edge', trail);
     if (stats) {
         stats.model_instances_created += 1;
         stats.geometries_created += edgeGeometry === geometry ? 1 : 2;
@@ -222,8 +224,8 @@ function applyAvatarSourceToInstance(instance, avatarSource = null, stats = null
     if (!instance || !avatarSource) return;
     const nextIdentity = sourceMaterialIdentity(avatarSource);
     if (!sameIdentity(instance.group.userData.material_identity, nextIdentity)) {
-        const nextCore = cloneMaterial(avatarSource.primaryMaterial);
-        const nextEdge = cloneMaterial(avatarSource.edgeMaterial);
+        const nextCore = cloneMaterial(avatarSource.primaryMaterialTemplate || avatarSource.primaryMaterial);
+        const nextEdge = cloneMaterial(avatarSource.edgeMaterialTemplate || avatarSource.edgeMaterial);
         if (nextCore) {
             disposeMaterial(instance.core?.material);
             instance.core.material = nextCore;
@@ -236,8 +238,10 @@ function applyAvatarSourceToInstance(instance, avatarSource = null, stats = null
         }
         instance.group.userData.material_identity = nextIdentity;
     }
-    copyMaterial(avatarSource.primaryMaterial, instance.core?.material);
-    copyMaterial(avatarSource.edgeMaterial, instance.edges?.material);
+    const coreTemplate = avatarSource.primaryMaterialTemplate || avatarSource.primaryMaterial;
+    const edgeTemplate = avatarSource.edgeMaterialTemplate || avatarSource.edgeMaterial;
+    copyMaterial(coreTemplate, instance.core?.material);
+    copyMaterial(edgeTemplate, instance.edges?.material);
     instance.group.userData.appearance_source = avatarSource.appearanceSource || 'current_live_sigil_avatar';
     instance.group.userData.material_source = avatarSource.materialSource || 'live_avatar_materials';
     instance.group.userData.skin = avatarSource.skin || '';
