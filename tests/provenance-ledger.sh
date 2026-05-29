@@ -188,6 +188,43 @@ else
   fail "summary did not use retained daily summaries after pruning"
 fi
 
+EXPIRED_STATE_ROOT="$STATE_ROOT/expired-summary-fixture"
+mkdir -p "$EXPIRED_STATE_ROOT"
+if AOS_STATE_ROOT="$EXPIRED_STATE_ROOT" AOS_PROVENANCE_NOW="2026-01-01T00:00:00.000Z" record_payload '{"session_id":"expired","provider":"codex","tool_name":"functions.exec_command","cmd":"bash tests/provenance-ledger.sh","exit_code":0}'; then
+  pass "expired summary fixture records old raw event"
+else
+  fail "expired summary fixture failed to record old raw event"
+fi
+
+EXPIRED_DOCK_DIR="$(find "$EXPIRED_STATE_ROOT/repo/provenance/repos" -type d -path '*/docks/gdi' -print -quit)"
+EXPIRED_EVENT="$EXPIRED_DOCK_DIR/events/2026-01-01.jsonl"
+EXPIRED_SUMMARY="$EXPIRED_DOCK_DIR/summaries/2026-01-01.json"
+
+if OUT="$(AOS_PROVENANCE_NOW="2026-05-29T00:00:00.000Z" ./aos dev provenance prune --apply --state-root "$EXPIRED_STATE_ROOT" --runtime-mode repo --json 2>/dev/null)" python3 - <<'PY'
+import json, os
+data = json.loads(os.environ["OUT"])
+assert data["mode"] == "apply", data
+assert data["delete_count"] >= 1, data
+assert any(item["path"].endswith("events/2026-01-01.jsonl") for item in data["candidates"]), data
+PY
+then
+  pass "prune apply reports expired raw event candidate"
+else
+  fail "prune apply did not report expired raw event candidate"
+fi
+
+if [[ ! -e "$EXPIRED_EVENT" ]]; then
+  pass "prune apply removes raw event outside raw retention"
+else
+  fail "prune apply left raw event outside raw retention"
+fi
+
+if [[ ! -e "$EXPIRED_SUMMARY" ]]; then
+  pass "prune apply does not materialize summary outside summary retention"
+else
+  fail "prune apply left summary outside summary retention"
+fi
+
 if grep -R "secret-value" "$STATE_ROOT" >/dev/null 2>&1; then
   fail "ledger persisted sensitive raw command text"
 else

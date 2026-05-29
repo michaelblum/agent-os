@@ -534,7 +534,7 @@ function writeDailySummary(summary, options) {
   fs.renameSync(tmp, file);
 }
 
-function materializeSummariesForEvents(options) {
+function materializeSummariesForEvents(options, constraints = {}) {
   const docksRoot = path.join(baseDir(options), 'docks');
   const docks = options.dock
     ? [sanitizeName(options.dock)]
@@ -544,6 +544,7 @@ function materializeSummariesForEvents(options) {
   for (const dock of docks) {
     const dockOptions = { ...options, dock };
     for (const [date, events] of readRawEventsByDate(dockOptions)) {
+      if (constraints.minSummaryDate && date < constraints.minSummaryDate) continue;
       writeDailySummary(buildDailySummary(events, date, sanitizeName(events[0]?.dock || dock)), dockOptions);
     }
   }
@@ -948,8 +949,9 @@ function prunePlan(options) {
   };
 }
 
-function applyPrune(plan, options) {
-  materializeSummariesForEvents(options);
+function applyPrune(options) {
+  materializeSummariesForEvents(options, { minSummaryDate: cutoffDate(SUMMARY_RETENTION_DAYS, isoNow(options)) });
+  const plan = prunePlan(options);
   const root = stateRoot(options);
   for (const candidate of plan.candidates) {
     const file = path.resolve(root, candidate.path);
@@ -958,6 +960,7 @@ function applyPrune(plan, options) {
       fs.unlinkSync(file);
     } catch {}
   }
+  return plan;
 }
 
 function main() {
@@ -988,8 +991,7 @@ function main() {
   if (command === 'prune') {
     if (options.apply && options.dry_run) error('Use either --dry-run or --apply, not both.', 'INVALID_FLAGS');
     if (!options.apply && !options.dry_run) error('provenance prune requires --dry-run or --apply', 'MISSING_MODE');
-    const plan = prunePlan(options);
-    if (options.apply) applyPrune(plan, options);
+    const plan = options.apply ? applyPrune(options) : prunePlan(options);
     options.json ? printJSON(plan) : process.stdout.write(`provenance prune ${plan.mode}: ${plan.delete_count} files\n`);
     return;
   }
