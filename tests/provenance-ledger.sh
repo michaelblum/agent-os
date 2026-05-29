@@ -64,11 +64,59 @@ assert data["diagnostics"].get("malformed_hook_payload") == 1, data
 assert data["diagnostics"].get("payload_over_limit") == 1, data
 assert data["bypass_signals"].get("direct-daemon-curl") == 1, data
 assert data["token_telemetry"]["status"] == "unknown", data
+assert data["event_kind_counts"]["command"] >= 3, data
 PY
 then
   pass "summary reports sanitized commands, diagnostics, retention, and unknown live token telemetry"
 else
   fail "summary output did not match expected provenance accounting"
+fi
+
+if node --input-type=module - "$STATE_ROOT" <<'NODE'
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { appendAgentTerminalProvenanceEvent } from './scripts/aos-provenance-ledger.mjs';
+
+const stateRoot = process.argv[2];
+appendAgentTerminalProvenanceEvent({
+  kind: 'session',
+  session_event: 'created',
+  dock: 'gdi',
+  dock_terminal_session_id: 'dock-terminal:gdi:test-session',
+  pty_handle: 'gdi-terminal',
+  pty_driver: 'process-stdin',
+  provider: 'codex',
+  command: 'node -e "setTimeout(() => {}, 100)"',
+  cwd: process.cwd(),
+}, { dock: 'gdi', state_root: stateRoot, runtime_mode: 'repo' });
+appendAgentTerminalProvenanceEvent({
+  kind: 'input',
+  action: 'send',
+  dock: 'gdi',
+  dock_terminal_session_id: 'dock-terminal:gdi:test-session',
+  pty_handle: 'gdi-terminal',
+  pty_driver: 'process-stdin',
+  byte_count: 18,
+  submit_sent: true,
+  content: 'super-secret prompt',
+}, { dock: 'gdi', state_root: stateRoot, runtime_mode: 'repo' });
+
+const result = spawnSync(
+  './aos',
+  ['dev', 'provenance', 'summary', '--dock', 'gdi', '--state-root', stateRoot, '--runtime-mode', 'repo', '--json'],
+  { encoding: 'utf8' },
+);
+assert.equal(result.status, 0, result.stderr);
+const summary = JSON.parse(result.stdout);
+assert.equal(summary.agent_terminal.session_events.created, 1, summary);
+assert.equal(summary.agent_terminal.input_events.send, 1, summary);
+assert.equal(summary.agent_terminal.sessions['dock-terminal:gdi:test-session'].events, 2, summary);
+assert.equal(JSON.stringify(summary).includes('super-secret prompt'), false, summary);
+NODE
+then
+  pass "Agent Terminal accounting appends to provenance summary without raw input text"
+else
+  fail "Agent Terminal accounting did not summarize sanitized session/input events"
 fi
 
 if OUT="$(./aos dev provenance audit --dock gdi --state-root "$STATE_ROOT" --runtime-mode repo --files scripts/aos-dev-workflow.mjs --json 2>/dev/null)"; then

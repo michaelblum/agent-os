@@ -81,6 +81,50 @@
         }
       }
     },
+    "agentTerminalSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["session", "input"]
+        },
+        "action": {
+          "type": "string",
+          "enum": ["send", "key", "resize", "session", "unknown"]
+        },
+        "session_event": { "$ref": "#/$defs/nonEmptyString" },
+        "dock_terminal_session_id": { "$ref": "#/$defs/nonEmptyString" },
+        "pty_handle": { "$ref": "#/$defs/nonEmptyString" },
+        "pty_driver": { "$ref": "#/$defs/nonEmptyString" },
+        "provider": { "$ref": "#/$defs/nonEmptyString" },
+        "command": { "$ref": "#/$defs/command" },
+        "cwd": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["hash"],
+          "properties": {
+            "hash": { "$ref": "#/$defs/hash" },
+            "repo_relative": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        },
+        "byte_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "key": { "$ref": "#/$defs/nonEmptyString" },
+        "submit_sent": { "type": "boolean" },
+        "content_hash": { "$ref": "#/$defs/hash" },
+        "cols": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
     "event": {
       "type": "object",
       "additionalProperties": false,
@@ -96,7 +140,7 @@
         "phase": { "$ref": "#/$defs/nonEmptyString" },
         "event": {
           "type": "string",
-          "enum": ["command", "tool", "session", "diagnostic"]
+          "enum": ["command", "tool", "session", "diagnostic", "agent_terminal_session", "agent_terminal_input"]
         },
         "provider": { "$ref": "#/$defs/nonEmptyString" },
         "tool_name": { "$ref": "#/$defs/nonEmptyString" },
@@ -124,7 +168,8 @@
           }
         },
         "token_telemetry": { "$ref": "#/$defs/tokenTelemetry" },
-        "diagnostic": { "$ref": "#/$defs/diagnostic" }
+        "diagnostic": { "$ref": "#/$defs/diagnostic" },
+        "agent_terminal": { "$ref": "#/$defs/agentTerminalSession" }
       }
     },
     "dailySummary": {
@@ -139,6 +184,8 @@
         "command_counts",
         "command_kind_counts",
         "failed_commands",
+        "event_kind_counts",
+        "agent_terminal",
         "diagnostics",
         "bypass_signals",
         "token_telemetry",
@@ -163,6 +210,42 @@
         "failed_commands": {
           "type": "integer",
           "minimum": 0
+        },
+        "event_kind_counts": { "$ref": "#/$defs/countMap" },
+        "agent_terminal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_events", "input_events", "sessions"],
+          "properties": {
+            "session_events": { "$ref": "#/$defs/countMap" },
+            "input_events": { "$ref": "#/$defs/countMap" },
+            "sessions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["events", "session_events", "input_events"],
+                "properties": {
+                  "events": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "session_events": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "input_events": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "dock_terminal_session_id": { "$ref": "#/$defs/nonEmptyString" },
+                  "pty_handle": { "$ref": "#/$defs/nonEmptyString" },
+                  "pty_driver": { "$ref": "#/$defs/nonEmptyString" },
+                  "provider": { "$ref": "#/$defs/nonEmptyString" }
+                }
+              }
+            }
+          }
         },
         "diagnostics": { "$ref": "#/$defs/countMap" },
         "bypass_signals": { "$ref": "#/$defs/countMap" },

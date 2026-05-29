@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -15,6 +15,7 @@ const sigilCompatPtyProxy = 'apps/sigil/codex-terminal/pty-proxy.py';
 describe('Sigil Agent Terminal bridge', () => {
   let root;
   let homeDir;
+  let stateRoot;
   let repoCwd;
   let port;
   let child;
@@ -23,6 +24,7 @@ describe('Sigil Agent Terminal bridge', () => {
   beforeEach(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'sigil-agent-terminal-'));
     homeDir = path.join(root, 'home');
+    stateRoot = path.join(root, 'state');
     repoCwd = path.join(root, 'work', 'agent-os');
     fs.mkdirSync(repoCwd, { recursive: true });
     port = await freePort();
@@ -115,8 +117,12 @@ describe('Sigil Agent Terminal bridge', () => {
         AGENT_TERMINAL_DRIVER: 'process',
         AGENT_TERMINAL_TMUX_SESSION: 'sigil-agent-terminal-test',
         AGENT_TERMINAL_CWD: repoCwd,
+        AGENT_TERMINAL_REPO_ROOT: path.resolve('.'),
+        AGENT_TERMINAL_DOCK: 'gdi',
         AGENT_TERMINAL_COMMAND: 'node -e "setTimeout(() => {}, 100)"',
         AGENT_TERMINAL_CATALOG_HOME: homeDir,
+        AOS_STATE_ROOT: stateRoot,
+        AOS_RUNTIME_MODE: 'repo',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -184,6 +190,14 @@ describe('Sigil Agent Terminal bridge', () => {
     assert.equal(payload.agent_terminal_observation.acceptance_role, 'human_observability_only');
     assert.equal(payload.agent_terminal_observation.provider_acceptance.status, 'not_evidence');
     assert.equal(payload.agent_terminal_observation.rail.selected_provider_session_id, 'codex-session');
+
+    const summary = provenanceSummary(stateRoot);
+    assert.equal(summary.agent_terminal.session_events.observed, 1);
+    assert.equal(summary.event_kind_counts.agent_terminal_session, 1);
+    assert.equal(
+      summary.agent_terminal.sessions[payload.dock_terminal_session.dock_terminal_session_id].session_events,
+      1,
+    );
   });
 
   it('supports explicit dock cwd override for dock terminal session observations', async () => {
@@ -199,8 +213,8 @@ describe('Sigil Agent Terminal bridge', () => {
 
   it('passes stable repo root to bridge server startup paths', () => {
     const launcher = fs.readFileSync('apps/sigil/agent-terminal/launch.sh', 'utf8');
-    assert.match(launcher, /"AGENT_TERMINAL_REPO_ROOT=" \+ shlex\.quote\(repo_root\)/);
-    assert.match(launcher, /AGENT_TERMINAL_REPO_ROOT="\$REPO_ROOT" \\/);
+    assert.match(launcher, /REPO_ROOT="\$\(cd "\$SCRIPT_DIR\/\.\.\/\.\.\/\.\." && pwd\)"/);
+    assert.match(launcher, /exec "\$REPO_ROOT\/aos" launch sigil agent-terminal/);
     assert.doesNotMatch(launcher, new RegExp('SIGIL' + '_AGENT_REPO_ROOT'));
   });
 
@@ -341,6 +355,11 @@ describe('Sigil Agent Terminal bridge', () => {
     const snapshot = await waitForSnapshot(port, session, 'got:input-marker');
     assert.equal(snapshot.driver, 'process');
     assert.match(snapshot.text, /got:input-marker/);
+
+    const summary = provenanceSummary(stateRoot);
+    assert.equal(summary.agent_terminal.input_events.send, 1);
+    assert.equal(summary.event_kind_counts.agent_terminal_input, 1);
+    assert.equal(JSON.stringify(summary).includes('input-marker'), false);
   });
 
   it('submits process-driver text through /input enter=false plus /key Enter', async () => {
@@ -611,6 +630,26 @@ describe('Sigil Codex terminal compatibility shims', () => {
 function writeJsonl(file, records) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${records.map((record) => JSON.stringify(record)).join('\n')}\n`, 'utf8');
+}
+
+function provenanceSummary(stateRoot) {
+  const result = spawnSync('./aos', [
+    'dev',
+    'provenance',
+    'summary',
+    '--dock',
+    'gdi',
+    '--state-root',
+    stateRoot,
+    '--runtime-mode',
+    'repo',
+    '--json',
+  ], {
+    cwd: path.resolve('.'),
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
 }
 
 async function freePort() {

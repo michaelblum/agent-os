@@ -323,6 +323,99 @@ function commandRecord(command, repoRoot) {
   return out;
 }
 
+function safeString(value, fallback = undefined) {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  return trimmed || fallback;
+}
+
+function safeHash(value) {
+  return `sha256:${sha256(String(value || ''))}`;
+}
+
+function safeSessionId(value) {
+  const text = safeString(value);
+  if (!text) return undefined;
+  return text.replace(/[^A-Za-z0-9._:-]+/g, '-').slice(0, 160) || undefined;
+}
+
+function safeAction(value) {
+  const text = safeString(value, 'unknown');
+  return ['send', 'key', 'resize', 'session'].includes(text) ? text : 'unknown';
+}
+
+function sanitizedCwdMetadata(cwd, repoRoot) {
+  const text = safeString(cwd);
+  if (!text) return undefined;
+  const resolved = path.resolve(text);
+  const repo = path.resolve(repoRoot || process.cwd());
+  return stripUndefined({
+    hash: safeHash(resolved),
+    repo_relative: resolved.startsWith(repo + path.sep)
+      ? path.relative(repo, resolved) || '.'
+      : undefined,
+  });
+}
+
+function agentTerminalEventKind(kind) {
+  if (kind === 'input') return 'agent_terminal_input';
+  return 'agent_terminal_session';
+}
+
+function buildAgentTerminalProvenanceEvent(record = {}, options = {}) {
+  const observedAt = isoNow(options);
+  const repoRoot = path.resolve(options.repo || record.repoRoot || record.repo || process.cwd());
+  const kind = record.kind === 'input' ? 'input' : 'session';
+  const agentTerminal = stripUndefined({
+    kind,
+    action: kind === 'input' ? safeAction(record.action) : undefined,
+    session_event: kind === 'session' ? safeString(record.session_event || record.phase, 'observed') : undefined,
+    dock_terminal_session_id: safeSessionId(record.dock_terminal_session_id),
+    pty_handle: safeSessionId(record.pty_handle || record.target || record.session),
+    pty_driver: safeString(record.pty_driver || record.driver),
+    provider: safeString(record.provider),
+    command: record.command || record.provider_command
+      ? commandRecord(Array.isArray(record.command || record.provider_command)
+        ? (record.command || record.provider_command).map(shellQuote).join(' ')
+        : record.command || record.provider_command, repoRoot)
+      : undefined,
+    cwd: sanitizedCwdMetadata(record.cwd, repoRoot),
+    byte_count: Number.isFinite(record.byte_count) ? Math.max(0, Math.trunc(record.byte_count)) : undefined,
+    key: kind === 'input' && /^[A-Za-z0-9_.:+-]+$/.test(String(record.key || '')) ? String(record.key) : undefined,
+    submit_sent: typeof record.submit_sent === 'boolean' ? record.submit_sent : undefined,
+    content_hash: record.content_hash
+      ? safeString(record.content_hash)
+      : (record.content != null ? safeHash(record.content) : undefined),
+    cols: Number.isFinite(record.cols) ? Math.max(0, Math.trunc(record.cols)) : undefined,
+    rows: Number.isFinite(record.rows) ? Math.max(0, Math.trunc(record.rows)) : undefined,
+  });
+  return stripUndefined({
+    type: 'aos.dock.provenance.event',
+    schema_version: SCHEMA_VERSION,
+    observed_at: observedAt,
+    repo_key: repoKey(repoRoot),
+    dock: sanitizeName(options.dock || record.dock || 'unknown'),
+    phase: options.phase || record.phase || (kind === 'input' ? 'agent-terminal-input' : 'agent-terminal-session'),
+    event: agentTerminalEventKind(kind),
+    provider: agentTerminal.provider,
+    session_id: safeSessionId(record.session_id || record.dock_terminal_session_id || record.pty_handle || record.session),
+    command: agentTerminal.command,
+    agent_terminal: agentTerminal,
+    token_telemetry: { status: 'unknown', reason: 'agent_terminal_accounting_event' },
+  });
+}
+
+function appendAgentTerminalProvenanceEvent(record = {}, options = {}) {
+  try {
+    const event = buildAgentTerminalProvenanceEvent(record, options);
+    appendEvent(event, options);
+    materializeSummariesForEvents({ ...options, dock: event.dock });
+    return { status: 'success', event };
+  } catch (err) {
+    return { status: 'skipped', diagnostic: String(err?.message || err) };
+  }
+}
+
 function outputMetadata(payload) {
   let bytes = 0;
   const hash = crypto.createHash('sha256');
@@ -493,6 +586,12 @@ function emptyDailySummary(date, dock, observedAt) {
     command_counts: {},
     command_kind_counts: {},
     failed_commands: 0,
+    event_kind_counts: {},
+    agent_terminal: {
+      session_events: {},
+      input_events: {},
+      sessions: {},
+    },
     diagnostics: {},
     bypass_signals: {},
     token_telemetry: { available: 0, unknown: 0 },
@@ -503,6 +602,8 @@ function emptyDailySummary(date, dock, observedAt) {
 function addEventToDailySummary(summary, event) {
   summary.events += 1;
   summary.updated_at = event.observed_at;
+  summary.event_kind_counts ||= {};
+  summary.event_kind_counts[event.event] = (summary.event_kind_counts[event.event] || 0) + 1;
   if (event.command) {
     const key = event.command.summary || event.command.hash;
     summary.command_counts[key] = (summary.command_counts[key] || 0) + 1;
@@ -514,6 +615,24 @@ function addEventToDailySummary(summary, event) {
   }
   if (event.diagnostic?.code) {
     summary.diagnostics[event.diagnostic.code] = (summary.diagnostics[event.diagnostic.code] || 0) + 1;
+  }
+  if (event.agent_terminal) {
+    summary.agent_terminal ||= { session_events: {}, input_events: {}, sessions: {} };
+    const agentTerminal = event.agent_terminal;
+    const sessionKey = agentTerminal.dock_terminal_session_id || agentTerminal.pty_handle || event.session_id || 'unknown';
+    if (!summary.agent_terminal.sessions[sessionKey]) {
+      summary.agent_terminal.sessions[sessionKey] = { events: 0, session_events: 0, input_events: 0 };
+    }
+    summary.agent_terminal.sessions[sessionKey].events += 1;
+    if (event.event === 'agent_terminal_input') {
+      const action = agentTerminal.action || 'unknown';
+      summary.agent_terminal.input_events[action] = (summary.agent_terminal.input_events[action] || 0) + 1;
+      summary.agent_terminal.sessions[sessionKey].input_events += 1;
+    } else {
+      const sessionEvent = agentTerminal.session_event || 'observed';
+      summary.agent_terminal.session_events[sessionEvent] = (summary.agent_terminal.session_events[sessionEvent] || 0) + 1;
+      summary.agent_terminal.sessions[sessionKey].session_events += 1;
+    }
   }
   if (event.token_telemetry?.status === 'available') summary.token_telemetry.available += 1;
   else summary.token_telemetry.unknown += 1;
@@ -644,7 +763,35 @@ function summarizeLedger(options) {
   const failed = [];
   const bypass = {};
   const diagnostics = {};
+  const eventKindCounts = {};
+  const agentTerminal = {
+    session_events: {},
+    input_events: {},
+    sessions: {},
+  };
+  const addCount = (target, key, count = 1) => {
+    target[key] = (target[key] || 0) + count;
+  };
+  const addAgentTerminalSession = (sessionKey, patch) => {
+    if (!agentTerminal.sessions[sessionKey]) {
+      agentTerminal.sessions[sessionKey] = {
+        events: 0,
+        session_events: 0,
+        input_events: 0,
+        dock_terminal_session_id: patch.dock_terminal_session_id,
+        pty_handle: patch.pty_handle,
+        pty_driver: patch.pty_driver,
+        provider: patch.provider,
+      };
+    }
+    const session = agentTerminal.sessions[sessionKey];
+    for (const key of ['dock_terminal_session_id', 'pty_handle', 'pty_driver', 'provider']) {
+      if (!session[key] && patch[key]) session[key] = patch[key];
+    }
+    return session;
+  };
   for (const event of events) {
+    addCount(eventKindCounts, event.event || 'unknown');
     if (event.command) {
       const key = event.command.summary || event.command.hash;
       const item = commandSummaryEntry(commands, key, {
@@ -661,8 +808,22 @@ function summarizeLedger(options) {
       for (const signal of event.command.bypass_signals || []) bypass[signal] = (bypass[signal] || 0) + 1;
     }
     if (event.diagnostic?.code) diagnostics[event.diagnostic.code] = (diagnostics[event.diagnostic.code] || 0) + 1;
+    if (event.agent_terminal) {
+      const item = event.agent_terminal;
+      const sessionKey = item.dock_terminal_session_id || item.pty_handle || event.session_id || 'unknown';
+      const session = addAgentTerminalSession(sessionKey, item);
+      session.events += 1;
+      if (event.event === 'agent_terminal_input') {
+        addCount(agentTerminal.input_events, item.action || 'unknown');
+        session.input_events += 1;
+      } else {
+        addCount(agentTerminal.session_events, item.session_event || 'observed');
+        session.session_events += 1;
+      }
+    }
   }
   for (const daily of retainedSummaries) {
+    for (const [key, count] of Object.entries(daily.event_kind_counts || {})) addCount(eventKindCounts, key, count);
     for (const [key, count] of Object.entries(daily.command_counts || {})) {
       const isHash = key.startsWith('sha256:');
       const item = commandSummaryEntry(commands, key, {
@@ -676,6 +837,14 @@ function summarizeLedger(options) {
     if (daily.failed_commands) failed.push({ source: 'daily_summary', date: daily.date, count: daily.failed_commands });
     for (const [key, count] of Object.entries(daily.bypass_signals || {})) bypass[key] = (bypass[key] || 0) + count;
     for (const [key, count] of Object.entries(daily.diagnostics || {})) diagnostics[key] = (diagnostics[key] || 0) + count;
+    for (const [key, count] of Object.entries(daily.agent_terminal?.session_events || {})) addCount(agentTerminal.session_events, key, count);
+    for (const [key, count] of Object.entries(daily.agent_terminal?.input_events || {})) addCount(agentTerminal.input_events, key, count);
+    for (const [key, value] of Object.entries(daily.agent_terminal?.sessions || {})) {
+      const session = addAgentTerminalSession(key, value);
+      session.events += value.events || 0;
+      session.session_events += value.session_events || 0;
+      session.input_events += value.input_events || 0;
+    }
   }
   return {
     status: 'success',
@@ -688,6 +857,11 @@ function summarizeLedger(options) {
     event_count: events.length + retainedSummaries.reduce((sum, item) => sum + item.events, 0),
     raw_event_count: events.length,
     retained_summary_count: retainedSummaries.length,
+    event_kind_counts: eventKindCounts,
+    agent_terminal: {
+      ...agentTerminal,
+      sessions: Object.fromEntries(Object.entries(agentTerminal.sessions).sort(([a], [b]) => a.localeCompare(b))),
+    },
     command_count: [...commands.values()].reduce((sum, item) => sum + item.count, 0),
     commands: [...commands.values()].sort((a, b) => (a.summary || a.hash).localeCompare(b.summary || b.hash)),
     failed_commands: failed,
@@ -998,4 +1172,11 @@ function main() {
   error(`Unknown provenance command: ${command || ''}`, 'UNKNOWN_SUBCOMMAND');
 }
 
-main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
+
+export {
+  appendAgentTerminalProvenanceEvent,
+  buildAgentTerminalProvenanceEvent,
+};

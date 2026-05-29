@@ -2,6 +2,7 @@ import {
   createAgentTerminalObservation,
   createDockTerminalSessionReceipt,
 } from '../../../../scripts/lib/dock-terminal-session-registry.mjs';
+import { appendAgentTerminalProvenanceEvent } from '../../../../scripts/aos-provenance-ledger.mjs';
 
 function envValue(env, name, fallback) {
   const value = env[name];
@@ -56,6 +57,22 @@ export function dockTerminalSessionResponseForUrl(url, options = {}) {
       purpose: url.searchParams.get('lease_purpose') || 'observation',
       disposition: url.searchParams.get('lease_disposition') || 'returned_to_idle',
     },
+  });
+  appendAgentTerminalProvenanceEvent({
+    kind: 'session',
+    session_event: 'observed',
+    dock,
+    dock_terminal_session_id: receipt.dock_terminal_session_id,
+    pty_handle: receipt.pty.handle,
+    pty_driver: receipt.pty.driver,
+    provider: receipt.provider,
+    provider_command: receipt.provider_command,
+    cwd: receipt.cwd,
+  }, {
+    dock,
+    repo: defaultRepoRoot,
+    state_root: env.AOS_STATE_ROOT,
+    runtime_mode: env.AOS_RUNTIME_MODE,
   });
   return {
     dock_terminal_session: receipt,

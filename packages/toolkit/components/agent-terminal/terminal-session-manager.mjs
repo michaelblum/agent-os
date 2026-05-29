@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { appendAgentTerminalProvenanceEvent } from '../../../../scripts/aos-provenance-ledger.mjs';
 
 function commandExists(command) {
   const result = spawnSync('sh', ['-lc', `command -v ${JSON.stringify(command)} >/dev/null 2>&1`]);
@@ -55,6 +56,38 @@ function appendPtyInputTelemetry(record, env = process.env) {
   } catch {
     // Input delivery should not fail because local telemetry is unavailable.
   }
+}
+
+function dockFromEnv(env = process.env) {
+  return env.AGENT_TERMINAL_DOCK || env.AOS_DOCK || 'gdi';
+}
+
+function repoFromEnv(env = process.env) {
+  return env.AGENT_TERMINAL_REPO_ROOT || env.AOS_REPO_ROOT || process.cwd();
+}
+
+function appendAgentTerminalAccounting(record, env = process.env) {
+  appendAgentTerminalProvenanceEvent(record, {
+    dock: record.dock || dockFromEnv(env),
+    repo: record.repoRoot || repoFromEnv(env),
+    state_root: env.AOS_STATE_ROOT,
+    runtime_mode: env.AOS_RUNTIME_MODE,
+  });
+}
+
+function sanitizedInputTelemetry(record) {
+  return {
+    action: record.action,
+    target: record.target,
+    driver: record.driver,
+    key: record.key,
+    text_bytes: record.text_bytes,
+    clear_sent: record.clear_sent,
+    submit_sent: record.submit_sent,
+    content_hash: record.content_hash,
+    cols: record.cols,
+    rows: record.rows,
+  };
 }
 
 function appendProcessOutput(record, chunk) {
@@ -198,7 +231,18 @@ function createTerminalSessionManager(options = {}) {
 
   function ensureProcessSession(session, cwd, command, force = false) {
     const existing = processSessions.get(session);
-    if (existing && !existing.exited && !force) return { created: false, driver: 'process' };
+    if (existing && !existing.exited && !force) {
+      appendAgentTerminalAccounting({
+        kind: 'session',
+        session_event: 'reused',
+        dock: dockFromEnv(),
+        pty_handle: session,
+        pty_driver: 'process',
+        command: existing.command,
+        cwd: existing.cwd,
+      });
+      return { created: false, driver: 'process' };
+    }
     if (existing && !existing.exited) {
       existing.child.kill('SIGTERM');
     }
@@ -252,6 +296,15 @@ function createTerminalSessionManager(options = {}) {
         }
       }
     });
+    appendAgentTerminalAccounting({
+      kind: 'session',
+      session_event: 'created',
+      dock: dockFromEnv(),
+      pty_handle: session,
+      pty_driver: 'process',
+      command: shellCommand,
+      cwd: cwd || defaultCwd,
+    });
     return { created: true, driver: 'process', child_pid: child.pid };
   }
 
@@ -262,13 +315,33 @@ function createTerminalSessionManager(options = {}) {
     if (force && hasSession(session)) {
       run('tmux', ['kill-session', '-t', session]);
     }
-    if (hasSession(session)) return { created: false, driver: 'tmux' };
+    if (hasSession(session)) {
+      appendAgentTerminalAccounting({
+        kind: 'session',
+        session_event: 'reused',
+        dock: dockFromEnv(),
+        pty_handle: session,
+        pty_driver: 'tmux',
+        command: terminalCommandForSession(session),
+        cwd: terminalCwdForSession(session),
+      });
+      return { created: false, driver: 'tmux' };
+    }
     const args = ['new-session', '-d', '-s', session];
     if (cwd) args.push('-c', cwd);
     args.push(command || defaultCommand);
     run('tmux', args);
     sessionCommands.set(session, { command: command || defaultCommand, cwd: cwd || defaultCwd });
     ownedTmuxSessions.add(session);
+    appendAgentTerminalAccounting({
+      kind: 'session',
+      session_event: 'created',
+      dock: dockFromEnv(),
+      pty_handle: session,
+      pty_driver: 'tmux',
+      command: command || defaultCommand,
+      cwd: cwd || defaultCwd,
+    });
     return { created: true, driver: 'tmux' };
   }
 
@@ -359,14 +432,25 @@ function createTerminalSessionManager(options = {}) {
       if (existing.exited) throw new Error(`session is not running: ${session}`);
       const textWrite = writeProcessStdin(existing, textValue);
       const enterWrite = enter ? writeProcessStdin(existing, '\r') : null;
-      appendPtyInputTelemetry({
+      const contentHash = `sha256:${crypto.createHash('sha256').update(textValue).digest('hex')}`;
+      const telemetry = {
         action: 'send',
         target: session,
         driver: 'process-stdin',
-        text: textValue,
-        utf8_hex: Buffer.from(textValue, 'utf8').toString('hex'),
+        text_bytes: textWrite.bytes,
+        content_hash: contentHash,
         clear_sent: false,
         submit_sent: enter,
+      };
+      appendPtyInputTelemetry(sanitizedInputTelemetry(telemetry));
+      appendAgentTerminalAccounting({
+        kind: 'input',
+        action: 'send',
+        pty_handle: session,
+        pty_driver: 'process-stdin',
+        byte_count: textWrite.bytes,
+        submit_sent: enter,
+        content_hash: contentHash,
       });
       return {
         ok: true,
@@ -394,15 +478,26 @@ function createTerminalSessionManager(options = {}) {
     }
     run('tmux', ['paste-buffer', '-d', '-b', bufferName, '-t', session]);
     if (enter !== false) run('tmux', ['send-keys', '-t', session, 'Enter']);
-    appendPtyInputTelemetry({
+    const textBytes = Buffer.byteLength(textValue, 'utf8');
+    const contentHash = `sha256:${crypto.createHash('sha256').update(textValue).digest('hex')}`;
+    const telemetry = {
       action: 'send',
       target: session,
       driver: 'tmux',
-      paste_buffer: bufferName,
-      text: textValue,
-      utf8_hex: Buffer.from(textValue, 'utf8').toString('hex'),
+      text_bytes: textBytes,
+      content_hash: contentHash,
       clear_sent: false,
       submit_sent: enter !== false,
+    };
+    appendPtyInputTelemetry(sanitizedInputTelemetry(telemetry));
+    appendAgentTerminalAccounting({
+      kind: 'input',
+      action: 'send',
+      pty_handle: session,
+      pty_driver: 'tmux',
+      byte_count: textBytes,
+      submit_sent: enter !== false,
+      content_hash: contentHash,
     });
     return { ok: true, driver: 'tmux', paste_buffer: true, enter_sent: enter !== false };
   }
@@ -430,6 +525,14 @@ function createTerminalSessionManager(options = {}) {
         driver: 'process-stdin',
         key,
       });
+      appendAgentTerminalAccounting({
+        kind: 'input',
+        action: 'key',
+        pty_handle: session,
+        pty_driver: 'process-stdin',
+        key,
+        byte_count: write.bytes,
+      });
       return {
         ok: true,
         driver: 'process',
@@ -448,6 +551,13 @@ function createTerminalSessionManager(options = {}) {
       driver: 'tmux',
       key: tmuxKey,
     });
+    appendAgentTerminalAccounting({
+      kind: 'input',
+      action: 'key',
+      pty_handle: session,
+      pty_driver: 'tmux',
+      key: tmuxKey,
+    });
     return { ok: true, driver: 'tmux' };
   }
 
@@ -459,6 +569,15 @@ function createTerminalSessionManager(options = {}) {
       const rows = boundedInt(rowsValue, existing.terminalSize.rows, 8, 120);
       const write = writeProcessControl(existing, { type: 'resize', cols, rows });
       existing.terminalSize = { cols, rows };
+      appendAgentTerminalAccounting({
+        kind: 'input',
+        action: 'resize',
+        pty_handle: session,
+        pty_driver: 'process-stdin',
+        byte_count: write.bytes,
+        cols,
+        rows,
+      });
       return {
         ok: true,
         driver: 'process',
@@ -473,6 +592,14 @@ function createTerminalSessionManager(options = {}) {
     const cols = boundedInt(colsValue, 80, 20, 300);
     const rows = boundedInt(rowsValue, 24, 8, 120);
     run('tmux', ['resize-window', '-t', session, '-x', String(cols), '-y', String(rows)]);
+    appendAgentTerminalAccounting({
+      kind: 'input',
+      action: 'resize',
+      pty_handle: session,
+      pty_driver: 'tmux',
+      cols,
+      rows,
+    });
     return { ok: true, driver: 'tmux', cols, rows };
   }
 

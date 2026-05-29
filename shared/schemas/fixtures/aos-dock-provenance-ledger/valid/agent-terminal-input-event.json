@@ -1,0 +1,26 @@
+{
+  "type": "aos.dock.provenance.event",
+  "schema_version": "2026-05-dock-provenance-v0",
+  "observed_at": "2026-05-29T12:00:00.000Z",
+  "repo_key": "0123456789abcdef",
+  "dock": "gdi",
+  "phase": "agent-terminal-input",
+  "event": "agent_terminal_input",
+  "provider": "codex",
+  "session_id": "dock-terminal:gdi:0123456789abcdef",
+  "agent_terminal": {
+    "kind": "input",
+    "action": "send",
+    "dock_terminal_session_id": "dock-terminal:gdi:0123456789abcdef",
+    "pty_handle": "gdi-session",
+    "pty_driver": "process-stdin",
+    "provider": "codex",
+    "byte_count": 12,
+    "submit_sent": true,
+    "content_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  },
+  "token_telemetry": {
+    "status": "unknown",
+    "reason": "agent_terminal_accounting_event"
+  }
+}

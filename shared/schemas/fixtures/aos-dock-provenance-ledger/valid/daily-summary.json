@@ -11,6 +11,15 @@
     "aos": 1
   },
   "failed_commands": 0,
+  "event_kind_counts": {
+    "command": 1,
+    "diagnostic": 1
+  },
+  "agent_terminal": {
+    "session_events": {},
+    "input_events": {},
+    "sessions": {}
+  },
   "diagnostics": {
     "payload_over_limit": 1
   },
