@@ -160,9 +160,15 @@ test('native browser tab candidate labels by compact URL site and rejects pane-s
     bounds: { x: 0, y: 44, width: 1512, height: 938 },
     browser_context: {
       browser_app: true,
-      active_url: 'https://notebooklm.google.com/notebook/example',
-      active_tab_title: 'OpenAI Agent Builder Complete Course',
-      content_bounds: { x: 1378, y: 206, width: 586, height: 1069 },
+      pointer: { x: 1000, y: 320 },
+      text_candidates: [
+        { value: 'https://notebooklm.google.com/notebook/example', source_attribute: 'AXURL', role: 'AXWebArea' },
+        { value: 'OpenAI Agent Builder Complete Course', source_attribute: 'AXTitle', role: 'AXButton', selected: true },
+      ],
+      web_area_bounds: [
+        { bounds: { x: 1378, y: 206, width: 586, height: 1069 }, title: 'Studio pane' },
+        { bounds: { x: 0, y: 158, width: 1512, height: 824 }, title: 'NotebookLM page' },
+      ],
       window_bounds: { x: 0, y: 44, width: 1512, height: 938 },
     },
   })
@@ -173,7 +179,9 @@ test('native browser tab candidate labels by compact URL site and rejects pane-s
   assert.equal(tab.title, 'OpenAI Agent Builder Complete Course')
   assert.equal(tab.source_metadata.browser_site_label, 'notebooklm')
   assert.equal(tab.source_metadata.active_url, 'https://notebooklm.google.com/notebook/example')
-  assert.deepEqual(tab.display_space_rect, { x: 0, y: 44, w: 1512, h: 938 })
+  assert.deepEqual(tab.display_space_rect, { x: 0, y: 158, w: 1512, h: 824 })
+  assert.deepEqual(tab.source_metadata.browser_context.selected_content_bounds_candidate.bounds, { x: 0, y: 158, w: 1512, h: 824 })
+  assert.equal(tab.source_metadata.browser_context.url_candidates[0].source_attribute, 'AXURL')
 })
 
 test('native AX element candidate labels fall back through context path before generic AX role', () => {

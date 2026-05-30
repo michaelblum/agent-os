@@ -183,12 +183,6 @@ private func axLooksLikeBrowserApp(appName: String, bundleID: String?) -> Bool {
         || bundle.contains("comet") || bundle.contains("edgemac")
 }
 
-private func axLooksLikeURL(_ value: String?) -> Bool {
-    guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return false }
-    let lower = raw.lowercased()
-    return lower.hasPrefix("http://") || lower.hasPrefix("https://")
-}
-
 private func axRectPayload(_ rect: CGRect?) -> [String: Any]? {
     guard let rect else { return nil }
     return [
@@ -199,8 +193,13 @@ private func axRectPayload(_ rect: CGRect?) -> [String: Any]? {
     ]
 }
 
-private func axRectArea(_ rect: CGRect) -> CGFloat {
-    max(0, rect.size.width) * max(0, rect.size.height)
+private func axPointPayload(_ point: CGPoint?) -> [String: Any]? {
+    guard let point else { return nil }
+    return ["x": point.x, "y": point.y]
+}
+
+private func axTrimmed(_ value: String?) -> String {
+    (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 private func axElementChildrenForTraversal(_ element: AXUIElement) -> [AXUIElement] {
@@ -234,10 +233,8 @@ func axBrowserContext(pid: pid_t, appName: String, bundleID: String?, point: CGP
         roots = axChildren(axApp)
     }
 
-    var activeURL = ""
-    var activeTabTitle = ""
-    var pageTitle = ""
-    var webAreaBounds: [CGRect] = []
+    var textCandidates: [[String: Any]] = []
+    var webAreaBounds: [[String: Any]] = []
     var windowBounds: CGRect?
     var queue = roots.map { ($0, 0) }
     var visited = 0
@@ -253,6 +250,7 @@ func axBrowserContext(pid: pid_t, appName: String, bundleID: String?, point: CGP
         let label = axString(element, kAXDescriptionAttribute) ?? ""
         let value = axValue(element) ?? ""
         let bounds = axBounds(element)
+        let selected = axBool(element, kAXSelectedAttribute) ?? false
 
         if role == "AXWindow", windowBounds == nil {
             if let point, let bounds, bounds.contains(point) {
@@ -262,28 +260,35 @@ func axBrowserContext(pid: pid_t, appName: String, bundleID: String?, point: CGP
             }
         }
 
-        if activeURL.isEmpty {
-            let urlAttr = axAnyString(element, kAXURLAttribute)
-            if axLooksLikeURL(urlAttr) {
-                activeURL = urlAttr!.trimmingCharacters(in: .whitespacesAndNewlines)
-            } else if axLooksLikeURL(value) {
-                activeURL = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            } else if axLooksLikeURL(title) {
-                activeURL = title.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+        var textSources: [(String, String)] = [
+            ("AXTitle", title),
+            ("AXDescription", label),
+            ("AXValue", value)
+        ]
+        let urlAttributeValue = axAnyString(element, kAXURLAttribute)
+        if let urlAttributeValue {
+            textSources.append(("AXURL", urlAttributeValue))
         }
 
-        let selected = axBool(element, kAXSelectedAttribute) ?? false
-        if activeTabTitle.isEmpty && selected && (role == "AXTab" || role == "AXRadioButton" || role == "AXButton") {
-            activeTabTitle = [title, label, value].first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) ?? ""
+        for (attribute, raw) in textSources {
+            let trimmed = axTrimmed(raw)
+            guard !trimmed.isEmpty else { continue }
+            var candidate: [String: Any] = [
+                "value": trimmed,
+                "source_attribute": attribute,
+                "role": role,
+                "selected": selected
+            ]
+            if let rect = axRectPayload(bounds) { candidate["bounds"] = rect }
+            textCandidates.append(candidate)
         }
 
         if role == "AXWebArea" {
-            if pageTitle.isEmpty {
-                pageTitle = [title, label].first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) ?? ""
-            }
             if let bounds, bounds.width > 0, bounds.height > 0 {
-                webAreaBounds.append(bounds)
+                var candidate: [String: Any] = ["bounds": axRectPayload(bounds)!]
+                let webTitle = axTrimmed(title)
+                if !webTitle.isEmpty { candidate["title"] = webTitle }
+                webAreaBounds.append(candidate)
             }
         }
 
@@ -297,22 +302,17 @@ func axBrowserContext(pid: pid_t, appName: String, bundleID: String?, point: CGP
     if windowBounds == nil, let firstWindow = roots.first {
         windowBounds = axBounds(firstWindow)
     }
-    let pointContainingWebAreas = point == nil
-        ? webAreaBounds
-        : webAreaBounds.filter { rect in rect.contains(point!) }
-    let contentBounds = (pointContainingWebAreas.isEmpty ? webAreaBounds : pointContainingWebAreas)
-        .max { axRectArea($0) < axRectArea($1) }
-    let tabTitle = activeTabTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        ? pageTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        : activeTabTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-    if activeURL.isEmpty && tabTitle.isEmpty && contentBounds == nil && windowBounds == nil { return nil }
+    if textCandidates.isEmpty && webAreaBounds.isEmpty && windowBounds == nil { return nil }
 
     var payload: [String: Any] = [
         "browser_app": true,
-        "active_url": activeURL,
-        "active_tab_title": tabTitle,
+        "text_candidates": textCandidates,
+        "web_area_bounds": webAreaBounds,
+        "node_count": visited,
+        "max_nodes": maxNodes,
+        "max_depth": maxDepth
     ]
-    if let rect = axRectPayload(contentBounds) { payload["content_bounds"] = rect }
+    if let point = axPointPayload(point) { payload["pointer"] = point }
     if let rect = axRectPayload(windowBounds) { payload["window_bounds"] = rect }
     return payload
 }

@@ -53,16 +53,22 @@ test('AX cursor telemetry emits for same-role elements with different identity e
   assert.match(clickRefreshBody, /queryAXElementAtCursor\(point\)/)
 })
 
-test('AX cursor telemetry carries browser window and active tab context', () => {
+test('AX cursor telemetry carries raw browser window and tab context evidence', () => {
   const daemonSource = fs.readFileSync(daemonPath, 'utf8')
   const axSource = fs.readFileSync(axPath, 'utf8')
   const windowBody = swiftFunctionBody(daemonSource, 'private func checkWindowAndAppChange(at point: CGPoint)')
   const queryBody = swiftFunctionBody(daemonSource, 'private func queryAXElementAtCursor(_ point: CGPoint)')
 
   assert.match(axSource, /func axBrowserContext\(pid: pid_t, appName: String, bundleID: String\?, point: CGPoint\? = nil\) -> \[String: Any\]\?/)
-  assert.match(axSource, /active_url/)
-  assert.match(axSource, /active_tab_title/)
-  assert.match(axSource, /content_bounds/)
+  assert.match(axSource, /text_candidates/)
+  assert.match(axSource, /web_area_bounds/)
+  assert.match(axSource, /node_count/)
+  assert.doesNotMatch(axSource, /"active_url"/)
+  assert.doesNotMatch(axSource, /"active_tab_title"/)
+  assert.doesNotMatch(axSource, /"content_bounds"/)
+  assert.doesNotMatch(axSource, /"url_candidates"/)
+  assert.doesNotMatch(axSource, /"tab_title_candidates"/)
+  assert.doesNotMatch(axSource, /"page_title_candidates"/)
   assert.match(axSource, /window_bounds/)
   assert.match(windowBody, /let browserContext = axBrowserContext\(pid: pid, appName: ownerName, bundleID: bundleID, point: point\)/)
   assert.match(windowBody, /bounds: browserContextWindowBounds\(browserContext\) \?\? Bounds\(from: rect\)/)

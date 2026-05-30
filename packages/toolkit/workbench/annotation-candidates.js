@@ -87,18 +87,164 @@ function normalizeNativeWindowPayload(input = {}) {
 function normalizeBrowserContextPayload(input = {}) {
   if (!input || typeof input !== 'object') return null
   const payload = input.data && typeof input.data === 'object' ? input.data : input
-  const activeUrl = text(payload.active_url || payload.url || payload.source_url)
-  const activeTabTitle = text(payload.active_tab_title || payload.tab_title || payload.title || payload.page_title)
-  const contentBounds = normalizeAnnotationRectLike(payload.content_bounds || payload.browser_content_rect || payload.content_rect)
+  const textCandidates = normalizeBrowserTextCandidates(payload.text_candidates)
+  const urlCandidates = normalizeBrowserTextCandidates(payload.url_candidates)
+    .concat(textCandidates.filter((candidate) => looksLikeBrowserUrl(candidate.value)))
+  const tabTitleCandidates = normalizeBrowserTextCandidates(payload.tab_title_candidates)
+    .concat(textCandidates.filter((candidate) => isBrowserTabTitleCandidate(candidate)))
+  const pageTitleCandidates = normalizeBrowserTextCandidates(payload.page_title_candidates)
+    .concat(textCandidates.filter((candidate) => isBrowserPageTitleCandidate(candidate)))
+  const webAreaBounds = normalizeBrowserRectCandidates(payload.web_area_bounds)
+  const pointer = normalizeBrowserPoint(payload.pointer || payload.point)
+  const urlCandidate = selectBrowserUrlCandidate(urlCandidates, payload)
+  const tabTitleCandidate = selectBrowserTabTitleCandidate(tabTitleCandidates, pageTitleCandidates, payload)
+  const contentBoundsCandidate = selectBrowserContentBoundsCandidate(webAreaBounds, pointer, payload)
+  const activeUrl = text(urlCandidate?.value)
+  const activeTabTitle = text(tabTitleCandidate?.value)
+  const contentBounds = normalizeAnnotationRectLike(contentBoundsCandidate?.bounds)
   const windowBounds = normalizeAnnotationRectLike(payload.window_bounds || payload.window_rect)
-  if (!activeUrl && !activeTabTitle && !contentBounds && !windowBounds && payload.browser_app !== true) return null
+  if (
+    !activeUrl
+    && !activeTabTitle
+    && !contentBounds
+    && !windowBounds
+    && urlCandidates.length === 0
+    && tabTitleCandidates.length === 0
+    && pageTitleCandidates.length === 0
+    && webAreaBounds.length === 0
+    && payload.browser_app !== true
+  ) {
+    return null
+  }
   return {
     browser_app: payload.browser_app === true,
     active_url: activeUrl,
     active_tab_title: activeTabTitle,
     content_bounds: contentBounds,
     window_bounds: windowBounds,
+    pointer,
+    text_candidates: textCandidates,
+    url_candidates: urlCandidates,
+    tab_title_candidates: tabTitleCandidates,
+    page_title_candidates: pageTitleCandidates,
+    web_area_bounds: webAreaBounds,
+    selected_url_candidate: clone(urlCandidate),
+    selected_tab_title_candidate: clone(tabTitleCandidate),
+    selected_content_bounds_candidate: clone(contentBoundsCandidate),
+    node_count: Number.isFinite(Number(payload.node_count)) ? Number(payload.node_count) : null,
+    max_nodes: Number.isFinite(Number(payload.max_nodes)) ? Number(payload.max_nodes) : null,
+    max_depth: Number.isFinite(Number(payload.max_depth)) ? Number(payload.max_depth) : null,
   }
+}
+
+function normalizeBrowserPoint(input = null) {
+  if (!input || typeof input !== 'object') return null
+  const x = Number(input.x)
+  const y = Number(input.y)
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
+}
+
+function normalizeBrowserTextCandidates(input = []) {
+  const list = Array.isArray(input) ? input : []
+  return list
+    .map((entry) => {
+      if (entry === null || entry === undefined) return null
+      if (typeof entry !== 'object') {
+        const value = text(entry).trim()
+        return value ? { value } : null
+      }
+      const value = text(entry.value ?? entry.url ?? entry.title ?? entry.label ?? entry.text).trim()
+      if (!value) return null
+      const bounds = normalizeAnnotationRectLike(entry.bounds || entry.rect)
+      const candidate = {
+        value,
+        source_attribute: text(entry.source_attribute || entry.attribute || entry.source),
+        role: text(entry.role || entry.ax_role || entry.kind),
+        selected: entry.selected === true,
+      }
+      if (bounds) candidate.bounds = bounds
+      return candidate
+    })
+    .filter(Boolean)
+}
+
+function normalizeBrowserRectCandidates(input = []) {
+  const list = Array.isArray(input) ? input : []
+  return list
+    .map((entry) => {
+      const rect = normalizeAnnotationRectLike(entry?.bounds || entry?.rect || entry)
+      if (!rect) return null
+      const candidate = { bounds: rect }
+      if (entry && typeof entry === 'object') {
+        const title = text(entry.title || entry.label)
+        const role = text(entry.role || entry.ax_role || entry.kind)
+        if (title) candidate.title = title
+        if (role) candidate.role = role
+      }
+      return candidate
+    })
+    .filter(Boolean)
+}
+
+function looksLikeBrowserUrl(value = '') {
+  const raw = text(value).trim().toLowerCase()
+  return raw.startsWith('http://') || raw.startsWith('https://')
+}
+
+function isBrowserTabTitleCandidate(candidate = {}) {
+  const role = text(candidate.role).toLowerCase()
+  return candidate.selected === true
+    && !looksLikeBrowserUrl(candidate.value)
+    && (role === 'axtab' || role === 'axradiobutton' || role === 'axbutton')
+}
+
+function isBrowserPageTitleCandidate(candidate = {}) {
+  const role = text(candidate.role).toLowerCase()
+  const source = text(candidate.source_attribute).toLowerCase()
+  return role === 'axwebarea'
+    && !looksLikeBrowserUrl(candidate.value)
+    && (source === 'axtitle' || source === 'axdescription')
+}
+
+function directBrowserTextCandidate(payload = {}, fields = []) {
+  for (const field of fields) {
+    const value = text(payload[field]).trim()
+    if (value) return { value, source_attribute: field, role: text(payload.role || payload.ax_role || payload.kind) }
+  }
+  return null
+}
+
+function selectBrowserUrlCandidate(candidates = [], payload = {}) {
+  const direct = directBrowserTextCandidate(payload, ['active_url', 'url', 'source_url'])
+  if (direct) return direct
+  const urlLike = candidates.filter((candidate) => looksLikeBrowserUrl(candidate.value))
+  return urlLike.find((candidate) => candidate.source_attribute === 'AXURL')
+    || urlLike.find((candidate) => candidate.selected)
+    || urlLike[0]
+    || null
+}
+
+function selectBrowserTabTitleCandidate(tabCandidates = [], pageCandidates = [], payload = {}) {
+  const direct = directBrowserTextCandidate(payload, ['active_tab_title', 'tab_title', 'title', 'page_title'])
+  if (direct) return direct
+  const nonUrlTabCandidates = tabCandidates.filter((candidate) => !looksLikeBrowserUrl(candidate.value))
+  return nonUrlTabCandidates.find((candidate) => candidate.selected)
+    || nonUrlTabCandidates[0]
+    || pageCandidates.find((candidate) => !looksLikeBrowserUrl(candidate.value))
+    || null
+}
+
+function selectBrowserContentBoundsCandidate(candidates = [], pointer = null, payload = {}) {
+  const direct = normalizeAnnotationRectLike(payload.content_bounds || payload.browser_content_rect || payload.content_rect)
+  if (direct) return { bounds: direct, source_attribute: 'content_bounds' }
+  const containing = pointer
+    ? candidates.filter((candidate) => rectContainsPoint(candidate.bounds, pointer))
+    : []
+  const pool = containing.length ? containing : candidates
+  return pool
+    .slice()
+    .sort((a, b) => rectArea(b.bounds) - rectArea(a.bounds))[0]
+    || null
 }
 
 function browserTabLabel(context = {}) {
