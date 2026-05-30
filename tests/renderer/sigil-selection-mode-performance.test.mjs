@@ -35,7 +35,7 @@ test('Selection Mode visual frames do not request structural or publication work
   assert.equal(work.publishState, false)
 })
 
-test('Selection Mode dirty frames still request lifecycle work while effect frames stay overlay-only', () => {
+test('Selection Mode dirty frames still request lifecycle work while effect frames publish without structural work', () => {
   assert.equal(classifyRenderLoopWork({
     continuationReasons: ['selection-mode', 'avatar-motion'],
     structuralDirty: true,
@@ -48,7 +48,7 @@ test('Selection Mode dirty frames still request lifecycle work while effect fram
   assert.equal(exitEffect.visualOnly, false)
   assert.equal(exitEffect.structural, false)
   assert.equal(exitEffect.overlay, true)
-  assert.equal(exitEffect.publishState, false)
+  assert.equal(exitEffect.publishState, true)
 })
 
 test('Sigil debug snapshot reads cached Selection Mode cursor model state', () => {
@@ -84,6 +84,17 @@ test('Selection Mode render-only input schedules visual-only frames', () => {
 
   assert.match(renderOnlyBlock, /scheduleRenderFrame\(\{\s*structural:\s*false\s*\}\)/)
   assert.doesNotMatch(renderOnlyBlock, /scheduleRenderFrame\(\);/)
+})
+
+test('Selection Mode surface snapshots are reprojected on secondary display segments', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const surfaceApplyStart = source.indexOf('function applySurfaceRenderSnapshot')
+  const surfaceApplyBlock = source.slice(surfaceApplyStart, source.indexOf('function surfaceRenderSnapshot', surfaceApplyStart))
+  const surfaceSnapshotStart = source.indexOf('function surfaceRenderSnapshot')
+  const surfaceSnapshotBlock = source.slice(surfaceSnapshotStart, source.indexOf('function desktopWorldToSegmentLocalPoint', surfaceSnapshotStart))
+
+  assert.match(surfaceSnapshotBlock, /selectionMode: liveJs\.selectionMode/)
+  assert.match(surfaceApplyBlock, /snapshot\.selectionMode && typeof snapshot\.selectionMode === 'object'[\s\S]*liveJs\.selectionMode = snapshot\.selectionMode[\s\S]*liveJs\.selectionModeOverlay = selectionModeRuntime\.buildProjectedOverlay\(liveJs\.selectionMode\)/)
 })
 
 test('hidden Sigil cleanup clears overlay canvases and cursor model before publishing hidden state', () => {

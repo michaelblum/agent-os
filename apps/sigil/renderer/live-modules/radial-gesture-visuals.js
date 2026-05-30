@@ -737,7 +737,7 @@ function finite(value, fallback) {
     return Number.isFinite(n) ? n : fallback;
 }
 
-export const DEFAULT_RADIAL_OPEN_ANIMATION_MS = 1000;
+export const DEFAULT_RADIAL_OPEN_ANIMATION_MS = 333;
 
 function easeRadialOpenProgress(progress, easing = 'easeOutCubic') {
     const t = clamp01(progress);

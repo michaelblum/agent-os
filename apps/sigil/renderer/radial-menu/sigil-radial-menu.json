@@ -39,7 +39,7 @@
   "visuals": {
     "openAnimation": {
       "trigger": "avatar-click",
-      "durationMs": 1000,
+      "durationMs": 333,
       "easing": "easeOutCubic"
     }
   },

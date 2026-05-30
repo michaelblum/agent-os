@@ -176,7 +176,7 @@ test('unchanged Selection Mode cursor frames stay visual-only', () => {
   });
 });
 
-test('Selection Mode effect frames redraw overlay without structural sync or state publish', () => {
+test('Selection Mode effect frames redraw overlay and publish state without structural sync', () => {
   assert.deepEqual(classifyRenderLoopWork({
     continuationReasons: ['avatar-motion', 'selection-mode-effect'],
     structuralDirty: false,
@@ -184,7 +184,7 @@ test('Selection Mode effect frames redraw overlay without structural sync or sta
     continuationReasons: ['avatar-motion', 'selection-mode-effect'],
     structural: false,
     overlay: true,
-    publishState: false,
+    publishState: true,
     visualOnly: false,
   });
 });

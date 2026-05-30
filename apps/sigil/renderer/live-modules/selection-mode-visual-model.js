@@ -9,10 +9,10 @@ const DEFAULT_SELECTION_MODE_EFFECTS = Object.freeze({
     enter: 'supernova',
     exit: 'reverse_supernova',
 });
-const DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS = 520;
+const DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS = 720;
 const SELECTION_MODE_EFFECT_DURATIONS_MS = Object.freeze({
-    supernova: 520,
-    reverse_supernova: 520,
+    supernova: 380,
+    reverse_supernova: 340,
 });
 const DEFAULT_AVATAR_IDLE_SPIN_SPEED = 0.01;
 
@@ -91,6 +91,23 @@ export function normalizeSelectionModeEffects(rendererState = null) {
 
 export function selectionModeEffectDurationMs(effect = '') {
     return SELECTION_MODE_EFFECT_DURATIONS_MS[effect] || DEFAULT_SELECTION_MODE_EFFECT_DURATION_MS;
+}
+
+function selectionModeEffectProfile(effect = '') {
+    if (effect === 'supernova' || effect === 'reverse_supernova') {
+        return {
+            source: 'celestial-v1-supernova-release',
+            reference: 'celestial/_legacy/celestial-v1.html',
+            shockwave_ms: 200,
+            particle_families: ['white_release_sparks', 'edge_color_friction_sparks', 'white_dwarf_core'],
+        };
+    }
+    return {
+        source: 'selection_mode_custom_effect',
+        reference: '',
+        shockwave_ms: 0,
+        particle_families: [],
+    };
 }
 
 export function resolveSigilAvatarIdleRotation(rendererState = null) {
@@ -320,6 +337,7 @@ export function buildSelectionModeVisualEffects(selectionMode = {}, {
                 id: `selection-mode-effect:${index}:${entry.phase || 'effect'}:${startedAtMs}`,
                 phase: entry.phase || '',
                 effect,
+                profile: selectionModeEffectProfile(effect),
                 reason: entry.reason || '',
                 at: entry.at || '',
                 started_at_ms: startedAtMs,

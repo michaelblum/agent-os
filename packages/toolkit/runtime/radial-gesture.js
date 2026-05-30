@@ -270,17 +270,6 @@ export function createRadialGestureModel(options = {}) {
       }
     }
 
-    if (phase === 'fastTravel') {
-      if (m.distance <= config.reentryRadiusPx) {
-        phase = 'radial'
-        lastTransition = 'reenter_radial'
-      }
-    } else if (phase === 'radial' && m.distance >= config.handoffRadiusPx) {
-      phase = 'fastTravel'
-      activeItemId = null
-      lastTransition = 'handoff_fast_travel'
-    }
-
     activeItemId = phase === 'radial' ? hitItem(pointer)?.id || null : null
     return snapshot()
   }
@@ -319,7 +308,8 @@ export function createRadialGestureModel(options = {}) {
         return snapshot()
       }
 
-      if (phase === 'fastTravel') {
+      const m = metrics()
+      if (phase === 'radial' && m.distance >= config.handoffRadiusPx) {
         phase = 'committed'
         activeItemId = null
         committed = { type: 'fastTravel', origin: { ...origin }, destination: { ...pointer } }

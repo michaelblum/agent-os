@@ -333,7 +333,7 @@ test('radialOpenExpansionState expands avatar-click menus for the configured dur
     openAnimation: {
       trigger: 'avatar-click',
       startedAt: 5,
-      durationMs: 1000,
+      durationMs: 333,
       easing: 'linear',
     },
   }
@@ -342,14 +342,14 @@ test('radialOpenExpansionState expands avatar-click menus for the configured dur
     active: true,
     progress: 0,
     rawProgress: 0,
-    durationMs: 1000,
+    durationMs: 333,
   })
-  assert.equal(radialOpenExpansionState(radial, { time: 5.5 }).progress, 0.5)
+  assert.ok(Math.abs(radialOpenExpansionState(radial, { time: 5.1665 }).progress - 0.5) < 1e-6)
   assert.deepEqual(radialOpenExpansionState(radial, { time: 6 }), {
     active: false,
     progress: 1,
     rawProgress: 1,
-    durationMs: 1000,
+    durationMs: 333,
   })
 })
 

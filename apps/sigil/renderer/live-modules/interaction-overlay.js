@@ -278,6 +278,98 @@ function recordSelectionCursorTrail(history = [], cursor = null, time = 0, maxAg
     while (history.length && time - history[0].time > maxAge) history.shift();
 }
 
+function clamp01(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
+function easeOutCubic(value) {
+    const t = clamp01(value);
+    return 1 - Math.pow(1 - t, 3);
+}
+
+function easeOutExpo(value) {
+    const t = clamp01(value);
+    return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
+
+function seededUnit(seed = 0, index = 0, salt = 0) {
+    const value = Math.sin((seed + 1) * 12.9898 + (index + 1) * 78.233 + (salt + 1) * 37.719) * 43758.5453123;
+    return value - Math.floor(value);
+}
+
+function drawGlowDisk(ctx, x, y, radius, {
+    alpha = 1,
+    center = 'rgba(255,255,255,0.9)',
+    middle = 'rgba(255,255,255,0.24)',
+    edge = 'rgba(255,255,255,0)',
+} = {}) {
+    if (radius <= 0 || alpha <= 0) return;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, center);
+    gradient.addColorStop(0.42, middle);
+    gradient.addColorStop(1, edge);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function drawSupernovaParticleCloud(ctx, {
+    x,
+    y,
+    seed,
+    timelineT,
+    primary,
+    secondary,
+    highlight,
+}) {
+    const outward = easeOutExpo(timelineT);
+    const inverse = 1 - timelineT;
+    const whiteCount = 92;
+    for (let i = 0; i < whiteCount; i += 1) {
+        const angle = ((i * 2.399963229728653) + seed * 0.021 + seededUnit(seed, i, 2) * 0.22) % (Math.PI * 2);
+        const speed = 44 + seededUnit(seed, i, 3) * 130;
+        const drift = speed * outward;
+        const jitter = (seededUnit(seed, i, 4) - 0.5) * 10 * Math.sin(timelineT * Math.PI);
+        const px = x + Math.cos(angle) * (drift + jitter);
+        const py = y + Math.sin(angle) * (drift + jitter);
+        const tail = 4 + 16 * inverse;
+        const alpha = Math.max(0, 1 - timelineT * 0.82)
+            * (0.18 + seededUnit(seed, i, 5) * 0.42);
+        if (alpha <= 0.002) continue;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = i % 5 === 0 ? highlight : 'rgba(255,255,255,0.92)';
+        ctx.lineWidth = i % 11 === 0 ? 1.8 : 1;
+        ctx.beginPath();
+        ctx.moveTo(px - Math.cos(angle) * tail, py - Math.sin(angle) * tail);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+    }
+
+    const coloredCount = 118;
+    for (let i = 0; i < coloredCount; i += 1) {
+        const angle = ((i * 2.399963229728653) + Math.PI * 0.17 + seed * 0.015 + seededUnit(seed, i, 8) * 0.3) % (Math.PI * 2);
+        const frictionStop = 0.62 + seededUnit(seed, i, 9) * 0.42;
+        const maxDistance = 56 + seededUnit(seed, i, 10) * 170;
+        const frictionTravel = 1 - Math.pow(1 - timelineT, 2.8);
+        const distance = maxDistance * frictionStop * frictionTravel;
+        const px = x + Math.cos(angle) * distance;
+        const py = y + Math.sin(angle) * distance * (0.82 + seededUnit(seed, i, 11) * 0.36);
+        const tail = 5 + 18 * Math.max(0.12, 1 - timelineT);
+        const alpha = Math.max(0, 1 - timelineT * 0.62)
+            * (0.14 + seededUnit(seed, i, 12) * 0.5);
+        if (alpha <= 0.002) continue;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = i % 3 === 0 ? primary : (i % 3 === 1 ? secondary : highlight);
+        ctx.lineWidth = i % 13 === 0 ? 2 : 1;
+        ctx.beginPath();
+        ctx.moveTo(px - Math.cos(angle) * tail, py - Math.sin(angle) * tail);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+    }
+}
+
 function drawSelectionModeEffect(ctx, effect = {}, styles = {}, {
     time = 0,
     nowMs = Date.now(),
@@ -287,26 +379,21 @@ function drawSelectionModeEffect(ctx, effect = {}, styles = {}, {
     const y = Number(anchor.y);
     if (![x, y].every(Number.isFinite)) return;
     const startedAtMs = Number(effect.started_at_ms);
-    const durationMs = Math.max(80, Number(effect.duration_ms) || 520);
+    const durationMs = Math.max(80, Number(effect.duration_ms) || 720);
     const progress = Number.isFinite(startedAtMs)
         ? Math.max(0, Math.min(1, (Number(nowMs) - startedAtMs) / durationMs))
         : Math.max(0, Math.min(1, Number(effect.progress) || 0));
     if (progress >= 1) return;
 
     const reverse = effect.effect === 'reverse_supernova' || effect.phase === 'exit';
+    const timelineT = reverse ? 1 - progress : progress;
     const primary = styles.effect?.primary || styles.aura?.primary || 'rgba(94, 252, 210, 0.96)';
     const secondary = styles.effect?.secondary || styles.aura?.secondary || 'rgba(142, 221, 255, 0.86)';
     const highlight = styles.effect?.highlight || styles.aura?.highlight || 'rgba(255, 255, 255, 0.88)';
     const glow = styles.effect?.glow || styles.aura?.glow || 'rgba(94, 252, 210, 0.34)';
-    const travel = reverse ? 1 - progress : progress;
-    const c4 = (2 * Math.PI) / 3;
-    const novaScale = reverse
-        ? Math.pow(Math.max(0, travel), 3)
-        : (progress === 0 ? 0 : progress === 1 ? 1 : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1);
-    const shock = reverse ? 1 - Math.pow(1 - progress, 3) : Math.min(1, progress / 0.42);
-    const shockAlpha = Math.max(0, 1 - Math.pow(shock, 2));
-    const particleT = reverse ? 1 - progress : progress;
-    const particleAlpha = reverse ? Math.max(0, 1 - progress * 0.9) : Math.max(0, 1 - progress * 0.78);
+    const shockT = Math.min(1, timelineT / 0.42);
+    const shockAlpha = Math.max(0, 1 - Math.pow(shockT, 2));
+    const coreT = 1 - timelineT * 0.68;
     const seed = String(effect.id || `${effect.phase}:${effect.started_at_ms || effect.at || ''}`)
         .split('')
         .reduce((acc, char) => (acc + char.charCodeAt(0)) % 997, 0);
@@ -316,57 +403,70 @@ function drawSelectionModeEffect(ctx, effect = {}, styles = {}, {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = glow;
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = 28;
 
-    const shockSphereRadius = Math.max(1, shock * 96);
-    ctx.globalAlpha = 0.5 * shockAlpha;
+    const haloRadius = 46 + 120 * easeOutCubic(timelineT);
+    drawGlowDisk(ctx, x, y, haloRadius, {
+        alpha: Math.max(0, 0.38 * (1 - timelineT * 0.72)),
+        center: highlight,
+        middle: primary,
+    });
+
+    const shockSphereRadius = Math.max(1, shockT * 190);
+    ctx.globalAlpha = 0.55 * shockAlpha;
     ctx.strokeStyle = highlight;
-    ctx.lineWidth = Math.max(1, 2.4 * (1 - shock));
+    ctx.lineWidth = Math.max(1, 3.2 * (1 - shockT));
     ctx.beginPath();
     ctx.arc(x, y, shockSphereRadius, 0, Math.PI * 2);
     ctx.stroke();
 
-    const diskRadius = Math.max(1, shock * 54);
-    ctx.globalAlpha = 0.8 * shockAlpha;
+    const diskRadius = Math.max(1, shockT * 126);
+    ctx.globalAlpha = 0.86 * shockAlpha;
     ctx.strokeStyle = primary;
-    ctx.lineWidth = Math.max(1, 4.2 * (1 - shock));
+    ctx.lineWidth = Math.max(1, 5.4 * (1 - shockT));
     ctx.beginPath();
-    ctx.ellipse(x, y, diskRadius, diskRadius * 0.24, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y, diskRadius, diskRadius * 0.22, -0.08, 0, Math.PI * 2);
     ctx.stroke();
 
-    const particleCount = 54;
-    for (let i = 0; i < particleCount; i += 1) {
-        const angle = ((i * 2.399963229728653) + seed * 0.017) % (Math.PI * 2);
-        const speed = 22 + ((i * 37 + seed) % 64);
-        const distance = reverse ? speed * (1 - particleT) : speed * particleT;
-        const px = x + Math.cos(angle) * distance;
-        const py = y + Math.sin(angle) * distance;
-        const tail = reverse ? Math.max(2, 7 * particleT) : Math.max(2, 7 * (1 - particleT));
-        ctx.globalAlpha = particleAlpha * (0.26 + ((i % 5) * 0.035));
-        ctx.strokeStyle = i % 3 === 0 ? highlight : (i % 2 === 0 ? primary : secondary);
-        ctx.lineWidth = i % 7 === 0 ? 1.5 : 1;
+    const beamCount = 10;
+    for (let i = 0; i < beamCount; i += 1) {
+        const angle = (i / beamCount) * Math.PI * 2 + time * 0.35 + seed * 0.009;
+        const inner = 8 + 14 * (1 - timelineT);
+        const outer = 52 + 138 * easeOutCubic(timelineT) * (0.72 + seededUnit(seed, i, 20) * 0.5);
+        const alpha = Math.max(0, Math.sin(timelineT * Math.PI) * 0.22);
+        if (alpha <= 0.002) continue;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = i % 2 === 0 ? secondary : primary;
+        ctx.lineWidth = i % 3 === 0 ? 2.4 : 1.4;
         ctx.beginPath();
-        ctx.moveTo(px - Math.cos(angle) * tail, py - Math.sin(angle) * tail);
-        ctx.lineTo(px, py);
+        ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
+        ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
         ctx.stroke();
     }
 
-    const glowRadius = Math.max(8, 32 * Math.max(0.18, novaScale));
-    const coreGlow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
-    coreGlow.addColorStop(0, highlight);
-    coreGlow.addColorStop(0.35, primary);
-    coreGlow.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.globalAlpha = reverse ? 0.72 * Math.max(0, 1 - progress) : 0.72 * Math.max(0, 1 - progress * 0.65);
-    ctx.fillStyle = coreGlow;
+    drawSupernovaParticleCloud(ctx, {
+        x,
+        y,
+        seed,
+        timelineT,
+        primary,
+        secondary,
+        highlight,
+    });
+
+    const dwarfRadius = Math.max(2, 8 + 24 * Math.max(0, coreT));
+    drawGlowDisk(ctx, x, y, dwarfRadius * 2.1, {
+        alpha: Math.max(0, 0.82 * (1 - timelineT * 0.48)),
+        center: 'rgba(255,255,255,1)',
+        middle: highlight,
+    });
+
+    ctx.globalAlpha = Math.max(0, 0.95 * (1 - timelineT * 0.38));
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
     ctx.beginPath();
-    ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+    ctx.arc(x, y, dwarfRadius * 0.28, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.globalAlpha = reverse ? Math.max(0, 0.9 * (1 - progress)) : Math.max(0, 0.92 * (1 - progress * 0.45));
-    ctx.fillStyle = highlight;
-    ctx.beginPath();
-    ctx.arc(x, y, Math.max(1.4, 4.2 * Math.max(0.2, novaScale)), 0, Math.PI * 2);
-    ctx.fill();
     ctx.restore();
 }
 
@@ -563,7 +663,7 @@ export function createInteractionOverlay() {
         canvas = document.createElement('canvas');
         canvas.style.position = 'absolute';
         canvas.style.inset = '0';
-        canvas.style.zIndex = '0';
+        canvas.style.zIndex = '3';
         canvas.style.pointerEvents = 'none';
         document.body.appendChild(canvas);
 

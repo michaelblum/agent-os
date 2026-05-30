@@ -62,6 +62,7 @@ import { advanceMenuActivation } from './menu-activation-runtime.js';
 import { createSigilInputRegionAdapter } from './input-regions.js';
 import {
     createAvatarDoubleClickTracker,
+    selectionModeKeyName,
 } from './selection-mode-input.js';
 import { currentAvatarRenderSource } from './avatar-render-model-adapter.js';
 import {
@@ -282,6 +283,7 @@ const IDLE_AVATAR_MOTION_FRAME_DELAY_MS = 33;
 let structuralFrameDirty = true;
 let radialGestureVisuals = null;
 let selectionModeCursorModelRenderer = null;
+let lastSelectionModeEffectActive = false;
 let lastRenderPerformanceFrameAt = null;
 let lastRenderPerformanceSampleAt = 0;
 const sessionVitality = createSessionVitalityController({
@@ -547,6 +549,11 @@ function applySurfaceRenderSnapshot(snapshot) {
         annotationReticle.applySnapshot(snapshot.annotationReticle);
         syncAnnotationReticleSnapshot();
     }
+    if (snapshot.selectionMode && typeof snapshot.selectionMode === 'object') {
+        liveJs.selectionMode = snapshot.selectionMode;
+        liveJs.selectionModeOverlay = selectionModeRuntime.buildProjectedOverlay(liveJs.selectionMode);
+        if (state) state.selectionMode = liveJs.selectionMode;
+    }
     fastTravel.applySnapshot(snapshot.fastTravel);
     syncOmegaTrailToTravelOrigin();
     if (!rendererSuspended) scheduleRenderFrame();
@@ -571,6 +578,7 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         contextMenu: contextMenu?.snapshot?.(),
         fastTravel: fastTravel.exportSnapshot(),
         annotationReticle: liveJs.annotationReticle,
+        selectionMode: liveJs.selectionMode,
     };
     if (liveJs.lastPublishedAppearanceVersion !== liveJs.appearanceVersion) {
         snapshot.appearance = snapshotAppearance();
@@ -3220,6 +3228,11 @@ function handleLeftMouseUp(x, y) {
             const annotationDisposition = annotationReticleReleaseDisposition(result);
             if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
             clearGestureState();
+            if (result?.committed?.type === 'fastTravel') {
+                queueFastTravel(x, y);
+                setInteractionState('IDLE', 'radial-release-fast-travel');
+                return;
+            }
             fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-item' : 'radial-release');
             setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-release-item' : 'radial-release-cancel');
             return;
@@ -3338,12 +3351,23 @@ function handleInputEvent(msg) {
         rememberDaemonPointerEvent(msg);
     }
 
-    if (handleSelectionModeInput(msg)) return;
+        if (handleSelectionModeInput(msg)) return;
 
-    if (
-        contextMenu.isOpen()
-        && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
-        && typeof msg.x === 'number'
+        if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
+            if (msg.type === 'key_down' && (msg.key_code === 53 || selectionModeKeyName(msg) === 'escape')) {
+                cancelInteraction('escape');
+                return;
+            }
+            if (msg.type === 'right_mouse_down') {
+                cancelInteraction('right-click');
+                return;
+            }
+        }
+
+        if (
+            contextMenu.isOpen()
+            && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
+            && typeof msg.x === 'number'
         && typeof msg.y === 'number'
     ) {
         const point = { x: msg.x, y: msg.y, valid: true };
@@ -3610,6 +3634,11 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
     const annotationDisposition = annotationReticleReleaseDisposition(result);
     if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
     clearGestureState();
+    if (result?.committed?.type === 'fastTravel') {
+        queueFastTravel(item.center.x, item.center.y);
+        setInteractionState('IDLE', 'radial-surface-fast-travel');
+        return;
+    }
     fastTravel.clearGesture(result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
     setInteractionState('IDLE', result?.committed?.type === 'item' ? 'radial-surface-item' : 'radial-surface-release');
 }
@@ -4092,6 +4121,7 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         host.post('lifecycle.complete', { action: liveJs._pendingLifecycleComplete });
         liveJs._pendingLifecycleComplete = null;
     }
+    lastSelectionModeEffectActive = false;
     updateRenderLoopDebug('idle', []);
 }
 
@@ -4215,6 +4245,8 @@ function animate() {
     const avatarStagePos = stagePoint(renderAvatarPos);
     const dragOriginStage = stagePoint(liveJs.mousedownAvatarPos);
     const activeRadialActivationTransition = radialActivationTransition.tick(state.globalTime);
+    const selectionModeEffectActive = selectionModeOverlayHasActiveEffects(liveJs.selectionModeOverlay, Date.now());
+    const selectionModeEffectStateChanged = selectionModeEffectActive !== lastSelectionModeEffectActive;
     const continuationReasons = currentRenderLoopContinuationReasons(vitalityFrame);
     const work = classifyRenderLoopWork({
         continuationReasons,
@@ -4225,9 +4257,10 @@ function animate() {
         visualOnly: work.visualOnly,
         structural: work.structural,
         overlay: work.overlay,
-        publishState: work.publishState,
+        publishState: work.publishState || selectionModeEffectStateChanged,
         idleMotionDelayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,
     };
+    lastSelectionModeEffectActive = selectionModeEffectActive;
 
     if (work.structural) {
         contextMenu.updateSegmentPosition();

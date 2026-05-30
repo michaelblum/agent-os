@@ -1242,6 +1242,14 @@ test('Selection Mode entry and exit effects produce bounded renderable overlay t
   ])
   assert.equal(liveState.selectionModeOverlay.visualEffects[0].anchor.x, 41)
   assert.equal(liveState.selectionModeOverlay.visualEffects[0].bounded, true)
+  assert.equal(liveState.selectionModeOverlay.visualEffects[0].duration_ms, 380)
+  assert.equal(liveState.selectionModeOverlay.visualEffects[0].profile.source, 'celestial-v1-supernova-release')
+  assert.equal(liveState.selectionModeOverlay.visualEffects[0].profile.shockwave_ms, 200)
+  assert.deepEqual(liveState.selectionModeOverlay.visualEffects[0].profile.particle_families, [
+    'white_release_sparks',
+    'edge_color_friction_sparks',
+    'white_dwarf_core',
+  ])
 
   clock += 240
   runtime.handleInput({ type: 'key_down', key: 'Escape' })
@@ -1254,6 +1262,8 @@ test('Selection Mode entry and exit effects produce bounded renderable overlay t
   assert.equal(liveState.selectionModeOverlay.active, false)
   assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).phase, 'exit')
   assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).effect, 'reverse_supernova')
+  assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).duration_ms, 340)
+  assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).profile.source, 'celestial-v1-supernova-release')
   assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).active, true)
 
   clock += liveState.selectionModeOverlay.visualEffects.at(-1).duration_ms + 1
@@ -1283,6 +1293,35 @@ test('Selection Mode entry and exit effects produce bounded renderable overlay t
     ['enter', 'nova_bloom'],
     ['exit', 'nova_collapse'],
   ])
+})
+
+test('Selection Mode effects reproject desktop-world anchors for each surface segment', () => {
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: false,
+    cursor: { x: 1271, y: 1736, valid: true },
+    effects: [{
+      phase: 'exit',
+      effect: 'reverse_supernova',
+      reason: 'secondary-display-exit',
+      at: '2026-05-30T12:00:00.000Z',
+      started_at_ms: 500000,
+      duration_ms: 340,
+      anchor: { x: 1271, y: 1736, valid: true },
+      bounded: true,
+    }],
+  }, {
+    nowMs: 500080,
+    overlayBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+    projectPoint: (point) => ({ x: point.x, y: point.y - 982, valid: point.valid }),
+  })
+
+  assert.equal(overlay.visible, true)
+  assert.equal(overlay.active, false)
+  assert.equal(overlay.visualEffects[0].active, true)
+  assert.equal(overlay.visualEffects[0].effect, 'reverse_supernova')
+  assert.equal(overlay.visualEffects[0].anchor.x, 1271)
+  assert.equal(overlay.visualEffects[0].anchor.y, 754)
+  assert.equal(overlay.visualEffects[0].profile.source, 'celestial-v1-supernova-release')
 })
 
 test('Selection Mode overlay lineage bar, frame, and effect styles derive from avatar colors', () => {
