@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  contextMenuSurfaceScrollDelta,
   contextMenuContentProps,
   findContextMenuElementAt,
   menuMarkup,
@@ -16,14 +17,13 @@ function fakeElement(id, rect, selector = '*') {
   return {
     id,
     selector,
-    parentCard: null,
     classList: {
       contains(name) {
         return selector.includes(`.${name}`)
       },
     },
     closest(query) {
-      if (query === '.ctx-menu-card' && this.parentCard) return this.parentCard
+      if (selector.includes(query)) return this
       return null
     },
     getBoundingClientRect() {
@@ -86,16 +86,16 @@ test('context menu origin chooses another side when right side would overlap aft
 })
 
 test('context menu hit test falls back to off-viewport geometry', () => {
-  const range = fakeElement('sigil-menu-line-duration', { x: 600, y: 1450, w: 180, h: 24 }, 'input')
-  const card = fakeElement('sigil-menu-line-card', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  const anchor = fakeAnchor([card, range])
+  const slider = fakeElement('sigil-menu-line-duration-slider', { x: 600, y: 1450, w: 180, h: 24 }, '[data-aos-slider-root]')
+  const surface = fakeElement('sigil-avatar-control-surface', { x: 560, y: 1380, w: 292, h: 448 }, '.sigil-avatar-control-surface')
+  const anchor = fakeAnchor([surface, slider])
   const doc = {
     elementFromPoint() {
       return null
     },
   }
 
-  assert.equal(findContextMenuElementAt(anchor, { x: 620, y: 1460 }, doc), range)
+  assert.equal(findContextMenuElementAt(anchor, { x: 620, y: 1460 }, doc), slider)
 })
 
 test('context menu hit test prefers viewport hit when available', () => {
@@ -112,9 +112,9 @@ test('context menu hit test prefers viewport hit when available', () => {
 })
 
 test('context menu hit test includes checkbox labels in projected fallback', () => {
-  const label = fakeElement('line-interdim-label', { x: 600, y: 1450, w: 180, h: 24 }, 'label.checkbox-label')
-  const card = fakeElement('sigil-menu-effects', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  const anchor = fakeAnchor([card, label])
+  const label = fakeElement('line-interdim-label', { x: 600, y: 1450, w: 180, h: 24 }, 'label')
+  const surface = fakeElement('sigil-avatar-control-surface', { x: 560, y: 1380, w: 292, h: 448 }, '.sigil-avatar-control-surface')
+  const anchor = fakeAnchor([surface, label])
   const doc = {
     elementFromPoint() {
       return null
@@ -124,13 +124,11 @@ test('context menu hit test includes checkbox labels in projected fallback', () 
   assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1460 }, doc), label)
 })
 
-test('context menu hit test includes select popover options in projected fallback', () => {
-  const popover = fakeElement('shape-popover', { x: 600, y: 1450, w: 180, h: 88 }, '.ctx-select-popover')
-  const option = fakeElement('octahedron-option', { x: 604, y: 1478, w: 172, h: 24 }, 'button')
-  const card = fakeElement('sigil-menu-root', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  option.parentCard = card
-  popover.parentCard = card
-  const anchor = fakeAnchor([card, popover, option])
+test('context menu hit test includes toolkit select options in projected fallback', () => {
+  const content = fakeElement('shape-listbox', { x: 600, y: 1450, w: 180, h: 88 }, '[data-aos-select-content]')
+  const option = fakeElement('octahedron-option', { x: 604, y: 1478, w: 172, h: 24 }, '[data-aos-select-item]')
+  const surface = fakeElement('sigil-avatar-control-surface', { x: 560, y: 1380, w: 292, h: 448 }, '.sigil-avatar-control-surface')
+  const anchor = fakeAnchor([surface, content, option])
   const doc = {
     elementFromPoint() {
       return null
@@ -140,56 +138,31 @@ test('context menu hit test includes select popover options in projected fallbac
   assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1484 }, doc), option)
 })
 
-test('context menu hit test skips controls inside departing cards', () => {
-  const activeCard = fakeElement('sigil-menu-root', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  const departingCard = fakeElement('sigil-menu-line-card', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.departing')
-  const departingButton = fakeElement('edge-scatter', { x: 600, y: 1450, w: 180, h: 24 }, 'button')
-  const activeButton = fakeElement('wormhole-settings', { x: 600, y: 1450, w: 180, h: 24 }, 'button')
-  departingButton.parentCard = departingCard
-  activeButton.parentCard = activeCard
-  const anchor = fakeAnchor([activeCard, departingCard, departingButton, activeButton])
+test('context menu hit test returns the topmost compact toolkit control', () => {
+  const field = fakeElement('field', { x: 600, y: 1450, w: 180, h: 48 }, '.aos-form-field')
+  const button = fakeElement('surface-shortcut', { x: 610, y: 1460, w: 120, h: 24 }, 'button')
+  const anchor = fakeAnchor([field, button])
   const doc = {
     elementFromPoint() {
       return null
     },
   }
 
-  assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1460 }, doc), activeButton)
-})
-
-test('context menu hit test does not return only a departing control', () => {
-  const departingCard = fakeElement('sigil-menu-line-card', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.departing')
-  const departingButton = fakeElement('edge-scatter', { x: 600, y: 1450, w: 180, h: 24 }, 'button')
-  departingButton.parentCard = departingCard
-  const anchor = fakeAnchor([departingCard, departingButton])
-  const doc = {
-    elementFromPoint() {
-      return null
-    },
-  }
-
-  assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1460 }, doc), null)
+  assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1464 }, doc), button)
 })
 
 test('context menu markup exposes standard accessibility structure', () => {
   const html = menuMarkup()
 
-  assert.match(html, /id="sigil-context-menu"[^>]*role="dialog"[^>]*aria-label="Sigil avatar context menu"/)
-  assert.match(html, /id="sigil-menu-root"[^>]*role="region"[^>]*aria-label="Sigil context menu root"/)
-  assert.match(html, /class="ctx-tabs"[^>]*role="tablist"[^>]*aria-label="Sigil context menu sections"/)
-  assert.match(html, /id="sigil-menu-tab-effects"[^>]*role="tab"[^>]*aria-label="Effects"[^>]*aria-selected="false"[^>]*aria-controls="sigil-menu-effects"[^>]*data-ctx-tab="sigil-menu-effects"/)
-  assert.match(html, /id="sigil-menu-effects"[^>]*role="tabpanel"[^>]*aria-labelledby="sigil-menu-tab-effects"/)
-  assert.match(html, /<label for="sigil-menu-line-duration">Travel Duration<\/label>/)
-  assert.match(html, /id="sigil-menu-line-duration"[^>]*aria-describedby="sigil-menu-line-duration-value"/)
-  assert.match(html, /id="sigil-menu-line-card"[^>]*role="region"[^>]*aria-label="Line trail settings"/)
-  assert.match(html, /role="radiogroup"[^>]*aria-labelledby="sigil-menu-line-trail-effect-label"/)
-  assert.match(html, /role="radio"[^>]*aria-checked="false"[^>]*data-sigil-line-trail-mode="shrink"/)
-  assert.match(html, /data-sigil-action="toggle-render-performance">Render Performance<\/button>/)
+  assert.match(html, /id="sigil-context-menu"[^>]*role="dialog"[^>]*aria-label="Sigil avatar control surface"/)
+  assert.doesNotMatch(html, /ctx-menu-card/)
+  assert.doesNotMatch(html, /ctx-select-popover/)
+  assert.doesNotMatch(html, /data-ctx-/)
 })
 
-test('context menu content props preserve visible open state through Zag binding', () => {
+test('context menu content props preserve visible open state', () => {
   assert.deepEqual(contextMenuContentProps(true), {
-    'aria-label': 'Sigil avatar context menu',
+    'aria-label': 'Sigil avatar control surface',
     'aria-hidden': 'false',
     'data-state': 'open',
     class: 'ctx-anchor sigil-context-menu visible',
@@ -198,43 +171,64 @@ test('context menu content props preserve visible open state through Zag binding
 
 test('context menu content props clear visible state when closed', () => {
   assert.deepEqual(contextMenuContentProps(false), {
-    'aria-label': 'Sigil avatar context menu',
+    'aria-label': 'Sigil avatar control surface',
     'aria-hidden': 'true',
     'data-state': 'closed',
     class: 'ctx-anchor sigil-context-menu',
   })
 })
 
-test('context menu descriptors cover rendered controls and Sigil-owned actions', () => {
-  const html = menuMarkup()
-  const ids = [...html.matchAll(/id="([^"]+)"/g)]
-    .map((match) => match[1])
-    .filter((id) => id.startsWith('sigil-menu-'))
-    .filter((id) => !id.startsWith('sigil-menu-tab-'))
-    .filter((id) => !id.endsWith('-value'))
-    .filter((id) => !id.endsWith('-label'))
-    .filter((id) => ![
-      'sigil-menu-root',
-      'sigil-menu-shape',
-      'sigil-menu-look',
-      'sigil-menu-effects',
-      'sigil-menu-world',
-      'sigil-menu-core-colors',
-      'sigil-menu-effect-colors',
-      'sigil-menu-lightning-card',
-      'sigil-menu-magnetic-card',
-      'sigil-menu-line-card',
-      'sigil-menu-wormhole-card',
-      'sigil-menu-path-card',
-    ].includes(id))
+test('context menu scroll deltas follow native input and preserve canvas-origin synthetic direction', () => {
+  assert.deepEqual(contextMenuSurfaceScrollDelta({ dy: -8 }), {
+    dy: 8,
+    dx: 0,
+    rawY: -8,
+    rawX: 0,
+    sourceOrigin: null,
+  })
+  assert.deepEqual(contextMenuSurfaceScrollDelta({
+    dy: 120,
+    dx: 4,
+    sourceIdentity: { sourceOrigin: 'canvas' },
+  }), {
+    dy: 120,
+    dx: 4,
+    rawY: 120,
+    rawX: 4,
+    sourceOrigin: 'canvas',
+  })
+})
 
+test('context menu descriptors expose compact avatar surface controls and Sigil-owned actions', () => {
   assert.equal(contextMenuControlDescriptors.length > 0, true)
-  assert.deepEqual(ids.filter((id) => !getContextMenuControlDescriptor(id)), [])
+  for (const id of [
+    'sigil-menu-shape-select',
+    'sigil-menu-omega-shape',
+    'sigil-menu-opacity',
+    'sigil-menu-fast-travel-effect',
+    'sigil-menu-line-trail-mode',
+    'sigil-menu-grid-mode',
+  ]) {
+    assert.ok(getContextMenuControlDescriptor(id), id)
+  }
   for (const action of ['toggle-inspector', 'toggle-trace', 'toggle-render-performance', 'toggle-log', 'copy', 'save', 'import']) {
     const descriptor = getContextMenuControlDescriptor(action)
     assert.equal(descriptor?.type, 'action')
     assert.equal(descriptor?.route, 'sigil.action')
   }
+})
+
+test('context menu descriptors carry toolkit form metadata for compact avatar surface controls', () => {
+  const opacity = getContextMenuControlDescriptor('sigil-menu-opacity')
+  const fastTravel = getContextMenuControlDescriptor('sigil-menu-fast-travel-effect')
+  const grid = getContextMenuControlDescriptor('sigil-menu-grid-mode')
+
+  assert.equal(opacity.type, 'slider')
+  assert.equal(opacity.min, 0)
+  assert.equal(opacity.max, 1)
+  assert.equal(opacity.step, 0.01)
+  assert.ok(fastTravel.options.some((option) => option.value === 'line'))
+  assert.deepEqual(grid.options.map((option) => option.value), ['off', 'flat', '3d'])
 })
 
 test('descriptor routing applies a shape control through geometry sync', () => {
@@ -252,6 +246,26 @@ test('descriptor routing applies a shape control through geometry sync', () => {
   assert.equal(state.currentType, 8)
   assert.deepEqual(calls.filter(([kind]) => kind === 'geometry'), [['geometry', 8]])
   assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-menu-shape-select', 8]])
+})
+
+test('descriptor routing applies shape-specific prism parameters through shared geometry sync', () => {
+  const calls = []
+  const state = {
+    currentGeometryType: 93,
+    currentType: 93,
+    omegaGeometryType: 93,
+    omegaType: 93,
+    cylinderSides: 32,
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-prism-sides', '12', {
+    state,
+    updateGeometry(value) { calls.push(['alpha', value]) },
+    updateOmegaGeometry(value) { calls.push(['omega', value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.cylinderSides, 12)
+  assert.deepEqual(calls, [['alpha', 93], ['omega', 93]])
 })
 
 test('descriptor routing applies a tesseron control and preserves child overrides', () => {

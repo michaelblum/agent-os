@@ -220,7 +220,7 @@ export default function WikiSubjectBrowser(options = {}) {
   let subjectIndexSummaryEl = null;
   let subjectSearchEl = null;
   let subjectFiltersEl = null;
-  const subjectFilterEls = new Map();
+  const subjectFilterControls = new Map();
   let subjectFiltersResetEl = null;
   let subjectListEl = null;
   let subjectListStatusEl = null;
@@ -829,23 +829,22 @@ export default function WikiSubjectBrowser(options = {}) {
     if (!subjectFiltersEl) return;
     const activeFilters = objectValue(snapshot.subject_index_filters);
     for (const filterKey of SUBJECT_BROWSER_INDEX_FILTER_KEYS) {
-      const select = subjectFilterEls.get(filterKey);
-      if (!select) continue;
+      const selectControl = subjectFilterControls.get(filterKey);
+      if (!selectControl) continue;
       const selected = text(activeFilters[filterKey]);
       const options = subjectFilterOptions(snapshot, filterKey);
-      select.replaceChildren();
-      const all = document.createElement('option');
-      all.value = '';
-      all.textContent = subjectFilterAllLabel(filterKey);
-      select.appendChild(all);
-      for (const option of options) {
-        const item = document.createElement('option');
-        item.value = option.value;
-        item.textContent = `${option.label} (${option.count})`;
-        item.dataset.aosRef = option.semantic_ref;
-        select.appendChild(item);
-      }
-      select.value = options.some((option) => option.value === selected) ? selected : '';
+      const nextOptions = [
+        { value: '', label: subjectFilterAllLabel(filterKey) },
+        ...options.map((option) => ({
+          value: option.value,
+          label: `${option.label} (${option.count})`,
+          dataset: { aosRef: option.semantic_ref },
+        })),
+      ];
+      selectControl.setOptions(nextOptions, {
+        value: options.some((option) => option.value === selected) ? selected : '',
+        emit: false,
+      });
     }
     if (subjectFiltersResetEl) {
       subjectFiltersResetEl.disabled = snapshot.subject_index_filters_active !== true;
@@ -1366,22 +1365,33 @@ export default function WikiSubjectBrowser(options = {}) {
       for (const filterKey of SUBJECT_BROWSER_INDEX_FILTER_KEYS) {
         const role = filterKey.replaceAll('_', '-');
         const select = subjectIndexEl.querySelector(`[data-role="subject-filter-${role}"]`);
-        const selectControl = createSelect();
-        const sharedSelect = selectControl.el.querySelector('select');
-        sharedSelect.dataset.role = `subject-filter-${role}`;
+        const selectControl = createSelect({
+          onChange(value) {
+            applySubjectIndexFilter(state, filterKey, value);
+            syncSnapshot();
+          },
+        });
+        const sharedSelectTrigger = selectControl.el.querySelector('[data-aos-select-trigger]');
+        selectControl.el.dataset.role = `subject-filter-${role}`;
+        if (sharedSelectTrigger) sharedSelectTrigger.dataset.role = `subject-filter-${role}`;
         select?.replaceWith(selectControl.el);
-        subjectFilterEls.set(filterKey, sharedSelect);
-        applyWikiSubjectBrowserSemanticTarget(sharedSelect, {
+        subjectFilterControls.set(filterKey, selectControl);
+        applyWikiSubjectBrowserSemanticTarget(selectControl.el, {
           id: `subject-filter-${role}`,
           name: `${subjectFilterName(filterKey)} filter`,
           role: 'AXPopUpButton',
           action: 'filter_subjects',
           aosRef: wikiSubjectBrowserAosRef('subject-filter', role),
         });
-        sharedSelect?.addEventListener('change', () => {
-          applySubjectIndexFilter(state, filterKey, sharedSelect.value);
-          syncSnapshot();
-        });
+        if (sharedSelectTrigger) {
+          applyWikiSubjectBrowserSemanticTarget(sharedSelectTrigger, {
+            id: `subject-filter-${role}`,
+            name: `${subjectFilterName(filterKey)} filter`,
+            role: 'AXPopUpButton',
+            action: 'filter_subjects',
+            aosRef: wikiSubjectBrowserAosRef('subject-filter', role),
+          });
+        }
       }
       subjectFiltersResetEl = subjectIndexEl.querySelector('[data-role="subject-filters-reset"]');
       if (subjectFiltersResetEl) {

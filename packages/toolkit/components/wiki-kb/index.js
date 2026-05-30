@@ -317,8 +317,8 @@ export default function WikiKB(options = {}) {
         pressed: isActive,
       })
     }
-    if (dom.layoutModeSelectEl) {
-      dom.layoutModeSelectEl.value = id
+    if (dom.layoutModeSelectControl) {
+      dom.layoutModeSelectControl.setValue(id, { emit: false })
       const layoutMode = layoutModeDefs.find((entry) => entry.id === id)
       applyWikiKBSemanticTarget(dom.layoutModeSelectEl, {
         id: 'layout-mode-select',
@@ -385,13 +385,6 @@ export default function WikiKB(options = {}) {
     }
   }
 
-  function onRootChange(event) {
-    const layoutModeSelect = event.target.closest('.wiki-kb-layout-mode-select')
-    if (layoutModeSelect) {
-      switchLayoutMode(layoutModeSelect.value)
-    }
-  }
-
   function buildDOM() {
     rootEl.innerHTML = `
       <div class="wiki-kb-shell">
@@ -442,12 +435,22 @@ export default function WikiKB(options = {}) {
       const layoutModeSelect = createSelect({
         value: activeLayoutModeId,
         options: layoutModeDefs.map((layoutMode) => ({ value: layoutMode.id, label: layoutMode.label })),
+        onChange(nextLayoutModeId) {
+          if (typeof nextLayoutModeId === 'string' && nextLayoutModeId !== activeLayoutModeId) {
+            switchLayoutMode(nextLayoutModeId)
+          }
+        },
       })
-      dom.layoutModeSelectEl = layoutModeSelect.el.querySelector('select')
+      dom.layoutModeSelectControl = layoutModeSelect
+      dom.layoutModeSelectEl = layoutModeSelect.el
+      const layoutModeSelectTrigger = layoutModeSelect.el.querySelector('[data-aos-select-trigger]')
       addClassNames(dom.layoutModeSelectEl, 'wiki-kb-layout-mode-select')
       dom.layoutModeSelectEl.setAttribute('aria-label', 'Wiki graph layout mode')
+      addClassNames(layoutModeSelectTrigger, 'wiki-kb-layout-mode-select')
+      layoutModeSelectTrigger?.setAttribute('aria-label', 'Wiki graph layout mode')
       layoutModeSelectSlot.replaceWith(layoutModeSelect.el)
     } else {
+      dom.layoutModeSelectControl = null
       dom.layoutModeSelectEl = null
     }
     const layoutModeControlSlot = rootEl.querySelector('[data-role="wiki-kb-layout-mode-control"]')
@@ -509,7 +512,6 @@ export default function WikiKB(options = {}) {
     syncSidebarToggle()
 
     rootEl.addEventListener('click', onRootClick)
-    rootEl.addEventListener('change', onRootChange)
     updateStatus()
     switchLayoutMode(activeLayoutModeId)
   }

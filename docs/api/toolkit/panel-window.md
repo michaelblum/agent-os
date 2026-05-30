@@ -59,17 +59,38 @@ import {
 ### `createForm(container, fields, options?)`
 
 Renders a schema-driven form into a panel container and returns a controller:
-`{ el, getValues, isValid, setValues, focus, on, destroy }`.
+`{ el, getValues, isValid, setValues, setDisabled, getField, focus, on, destroy }`.
 
-`fields` is the reusable panel field vocabulary used by the gate request schema:
+`fields` is the reusable panel field vocabulary used by the gate request schema
+and by compact data-editor surfaces. A field item may also be a section:
+
+```js
+{
+  kind: 'section',
+  id: 'appearance',
+  label: 'Appearance',
+  fields: [
+    { id: 'face', kind: 'color', value: '#4488ff', state_path: 'colors.face.0' },
+    { id: 'opacity', kind: 'slider', value: 0.7, min: 0, max: 1, step: 0.05 },
+  ],
+}
+```
+
+Section children may be supplied as `fields` or `controls`; `controls` is useful
+when the form renders a workbench/editor projection view model.
 
 | Field kind | Control |
 | --- | --- |
 | `exclusive_choice` | `createButtonGroup` |
+| `radio_group` | `createButtonGroup` |
 | `multi_choice` | `createCheckboxGroup` |
 | `boolean` | `createToggle` |
+| `checkbox` | `createToggle` |
 | `text` | `createTextField` |
+| `textarea` | `createTextarea` |
 | `number` | semantic number input enhanced by `wireNumberFieldControls` |
+| `slider` | `createSlider` |
+| `color` / `color_control` | `createColorField` |
 | `select` | `createSelect` |
 
 Fields render inside `.aos-form-field` wrappers within an `.aos-form` root. A
@@ -77,6 +98,15 @@ field with `visible_when: { field, equals }` is hidden until the referenced
 visible or hidden field value equals the requested value. Hidden fields are
 excluded from `getValues()` and `isValid()`. Visible fields are required unless
 `optional: true` is present.
+
+Section items render as `.aos-form-section` with an optional title,
+description, and `.aos-form-section-fields` child. Field wrappers stamp stable
+metadata for editor bindings when present either at the field top level or under
+`field.binding`: `data-aos-field-id`, `data-aos-field-kind`,
+`data-state-path`, `data-route`, `data-object-ids`, `data-group-key`,
+`data-facet-key`, and `data-descriptor-id`. The form harness does not own
+persistence or command routing; consumers translate changed values into their
+domain patch messages.
 
 ### `mountChrome(container, options?)`
 

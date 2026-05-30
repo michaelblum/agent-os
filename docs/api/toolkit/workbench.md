@@ -1329,8 +1329,8 @@ Concrete helper examples:
 - `createSigilAgentSubject()` emits a separate `sigil.agent` domain Subject with
   a `subject_references[]` narrative source pointing back to the wiki document's
   `wiki-markdown` Facet. Its avatar preview and appearance controls are
-  Canvas-Host entries because the live Sigil renderer and studio are AOS canvas
-  surfaces.
+  Canvas-Host entries because the live Sigil renderer and wiki subject browser
+  are AOS canvas surfaces.
 - `createWorkRecordSubject()` maps Work Record intent, execution-map, evidence,
   claims/verifier, and health views into Facets backed by the existing
   `work-record-workbench` Canvas Host. Recording, replay, repair, and retirement

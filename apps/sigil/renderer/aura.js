@@ -53,6 +53,22 @@ export function createAuraObjects() {
     syncWobbleMeshes();
 }
 
+export function hideAuraObjects() {
+    if (state.glowSprite) {
+        state.glowSprite.visible = false;
+        state.glowSprite.scale?.set?.(0, 0, 1);
+        if (state.glowSprite.material) state.glowSprite.material.opacity = 0;
+    }
+    if (state.coreSprite) {
+        state.coreSprite.visible = false;
+        state.coreSprite.scale?.set?.(0, 0, 1);
+        if (state.coreSprite.material) state.coreSprite.material.opacity = 0;
+    }
+    for (const mesh of state.wobbleMeshes || []) {
+        if (mesh) mesh.visible = false;
+    }
+}
+
 export function computeAuraPosition() {
     let auraPos = state.polyGroup.position.clone();
     let auraScaleMult = 1.0;
@@ -80,6 +96,7 @@ export function animateAura(dt) {
     const vitality = state.sessionVitality || {};
     const reachMultiplier = Number.isFinite(vitality.auraReachMultiplier) ? vitality.auraReachMultiplier : 1;
     const intensityMultiplier = Number.isFinite(vitality.auraIntensityMultiplier) ? vitality.auraIntensityMultiplier : 1;
+    const auraVisible = state.isAuraEnabled && state.appScale > 0.001;
 
     state.auraSpike *= state.auraSpikeDecay;
     const baseScale = state.auraBaseScale * state.auraReach * reachMultiplier * state.z_depth;
@@ -88,17 +105,20 @@ export function animateAura(dt) {
     const reachScale = baseScale + pulseOffset + spikeBonus;
 
     // Glow Sprite (Outer Reach)
-    if (state.isAuraEnabled && state.glowSprite) {
+    if (auraVisible && state.glowSprite) {
         state.glowSprite.visible = true;
         state.glowSprite.position.copy(auraPos);
         let sr = reachScale * auraScaleMult * state.appScale;
         state.glowSprite.scale.set(sr, sr, 1);
+        if (state.glowSprite.material) state.glowSprite.material.opacity = 1;
     } else if (state.glowSprite) {
         state.glowSprite.visible = false;
+        state.glowSprite.scale.set(0, 0, 1);
+        if (state.glowSprite.material) state.glowSprite.material.opacity = 0;
     }
 
     // Core Sprite (Inner Intensity)
-    if (state.isAuraEnabled && state.coreSprite) {
+    if (auraVisible && state.coreSprite) {
         state.coreSprite.visible = true;
         state.coreSprite.position.copy(auraPos);
 
@@ -108,9 +128,11 @@ export function animateAura(dt) {
         state.coreSprite.material.opacity = 1.0 - state.auraCoreFade * iFactor;
     } else if (state.coreSprite) {
         state.coreSprite.visible = false;
+        state.coreSprite.scale.set(0, 0, 1);
+        if (state.coreSprite.material) state.coreSprite.material.opacity = 0;
     }
     syncWobbleMeshes();
-    const wobbleVisible = state.isAuraEnabled && state.appScale > 0.001;
+    const wobbleVisible = auraVisible;
     if (wobbleVisible && state.wobbleMeshes.length > 0) {
         const count = state.wobbleMeshes.length;
         const time = state.globalTime * Math.max(0.01, state.wobbleSpeed);

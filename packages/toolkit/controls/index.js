@@ -8,9 +8,11 @@ export {
   createToggleUxTreeFragment,
 } from './ux-tree.js';
 export { createTextField, renderTextFieldHtml } from './text-field.js';
-export { createSelect, renderSelectHtml } from './select.js';
+export { createSelect } from './select.js';
 export { createCheckboxGroup, renderCheckboxHtml } from './checkbox-group.js';
 export { createTextarea, renderTextareaHtml } from './textarea.js';
+export { createSlider, renderSliderHtml } from './slider.js';
+export { createColorField, renderColorFieldHtml } from './color-field.js';
 export { createTimerBar } from './timer-bar.js';
 export {
   createAccordion,

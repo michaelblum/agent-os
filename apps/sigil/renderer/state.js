@@ -191,6 +191,17 @@ const defaults = {
     selectionModeTrailMode: 'fade',
     selectionModeTrailLag: 0.05,
     selectionModeTrailScale: 1.5,
+    selectionModeCursor: {
+        geometryType: 93,
+        geometry: {
+            primitive: 'prism',
+            bottomRadius: 0.8,
+            rotationDegrees: { x: 0, y: 0, z: 45 },
+            spinAxis: 'local_y',
+            spinSpeed: 0.1,
+        },
+        rotationDegrees: { x: 0, y: 0, z: 45 },
+    },
     transitionFastTravelEffect: 'line',
     fastTravelLineInterDimensional: true,
     fastTravelLineDuration: 0.22,

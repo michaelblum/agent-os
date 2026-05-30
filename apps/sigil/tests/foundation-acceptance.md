@@ -384,60 +384,23 @@ branches are the unit under test.
 
 ---
 
-## Criterion 9 — Studio save round-trip
+## Criterion 9 — Avatar editor save round-trip
 
-**Spec language:** Open Studio, change a slider, save. `sigil/agents/default.md`'s
-JSON block reflects the new value. Live avatar updates.
+**Status:** RETIRED / SUPERSEDED
 
-**Test steps:**
+The previous version of this criterion launched the legacy Sigil editor surface
+and verified a color save round-trip through `sigil/agents/default.md`. That
+route is no longer the acceptance target for avatar editing.
 
-```bash
-WIKI=$HOME/.config/aos/repo/wiki/sigil/agents/default.md
-cp "$WIKI" /tmp/acc-c9.bak
+Future acceptance for this criterion should target the canonical avatar editor
+subject/browser flow and verify the same behavior through the avatar model:
 
-# Launch Studio alongside the running live avatar
-./aos show create --id accept-9-studio \
-    --url 'aos://sigil/studio/index.html?agent=default' \
-    --at 0,0,1200,800
-sleep 3
-./aos show eval --id accept-9-studio --js 'document.getElementById("btn-save") ? "present" : "missing"'
+1. Change an avatar-owned value through the editor surface.
+2. Persist the change through the canonical avatar patch/save path.
+3. Verify the live avatar receives the update through the normal reload/event
+   path.
 
-# In Studio: set masterColor1 to #abcdef, then click the save button
-./aos show eval --id accept-9-studio --js '
-  const mc = document.getElementById("masterColor1");
-  mc.value = "#abcdef";
-  mc.dispatchEvent(new Event("input"));
-  document.getElementById("btn-save").click();
-'
-sleep 2
-
-# Verify wiki file was updated
-python3 -c 'import pathlib; s=pathlib.Path("'"$WIKI"'").read_text(); print("contains #abcdef:", "#abcdef" in s.lower())'
-
-# Verify live avatar picked up via wiki_page_changed → live reload
-./aos show eval --id avatar-main --js 'JSON.stringify(window.state.colors.face)'
-
-./aos show remove --id accept-9-studio
-cp /tmp/acc-c9.bak "$WIKI"
-```
-
-**Expected result:** Wiki file contains new color. Live avatar `state.colors.face[0]`
-reflects new color within ~2 s of the Studio save.
-
-**Actual result:**
-
-```
-btn-save present (after 3s boot)
-Studio set masterColor1=#abcdef, clicked save
-Wiki raw: "face": ["#abcdef", "#4a2b6e"]     ← PUT succeeded
-Live avatar state.colors.face: ["#abcdef","#4a2b6e"]   ← live reload fired
-After restore: ["#bc13fe","#4a2b6e"]
-```
-
-Round-trip fully works: Studio snapshot → `fetch PUT /wiki/sigil/agents/default.md`
-→ daemon writes + broadcasts `wiki_page_changed` → live avatar re-applies.
-
-**Status:** PASS
+Do not use the retired legacy editor route as evidence for this criterion.
 
 ---
 

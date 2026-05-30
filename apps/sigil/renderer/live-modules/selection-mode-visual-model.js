@@ -29,6 +29,20 @@ const DEFAULT_SELECTION_MODE_TRAIL = Object.freeze({
     scale: 1.5,
 });
 
+const DEFAULT_SELECTION_CURSOR_PRISM = Object.freeze({
+    geometryType: 93,
+    topRadius: 0,
+    bottomRadius: 0.8,
+    height: 2,
+    sides: 3,
+    faceOpacity: 0.8,
+    edgeOpacity: 0.6,
+    rotationDegrees: Object.freeze({ x: 0, y: 0, z: 45 }),
+    spinAxis: 'local_y',
+    spinSpeed: 0.1,
+    tesseronProportion: 0.5,
+});
+
 function numberOr(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
@@ -36,6 +50,23 @@ function numberOr(value, fallback) {
 
 function boolOr(value, fallback) {
     return typeof value === 'boolean' ? value : fallback;
+}
+
+function integerOr(value, fallback) {
+    return Math.round(numberOr(value, fallback));
+}
+
+function clampNumber(value, min, max, fallback) {
+    const n = numberOr(value, numberOr(fallback, min));
+    return Math.max(min, Math.min(max, n));
+}
+
+function tripletOr(value = {}, fallback = { x: 0, y: 0, z: 0 }) {
+    return {
+        x: numberOr(value?.x, fallback.x),
+        y: numberOr(value?.y, fallback.y),
+        z: numberOr(value?.z, fallback.z),
+    };
 }
 
 function hexToRgba(value = '', alpha = 1) {
@@ -92,11 +123,76 @@ function resolveAvatarPointerSource(rendererState = null) {
         rotation: {
             axis: 'screen_plane_z',
             source: 'selection_mode_pointer_single_axis',
-            speed: 0.01,
+            speed: DEFAULT_SELECTION_CURSOR_PRISM.spinSpeed,
             visible_avatar_y_speed: 0,
             visible_avatar_x_speed: 0,
             session_vitality_multiplier: Number.isFinite(vitalityMultiplier) ? vitalityMultiplier : 1,
         },
+    };
+}
+
+export function resolveSelectionModeCursorPrism(rendererState = null) {
+    const configured = rendererState?.selectionModeCursor || {};
+    const geometry = configured.geometry || {};
+    const tesseron = rendererState?.tesseron || {};
+    const rotation = tripletOr(
+        geometry.rotationDegrees
+            || geometry.rotation_degrees
+            || configured.rotationDegrees
+            || configured.rotation_degrees,
+        DEFAULT_SELECTION_CURSOR_PRISM.rotationDegrees,
+    );
+    return {
+        source: 'selection_mode_cursor_prism_defaults',
+        geometryType: 93,
+        topRadius: numberOr(
+            geometry.topRadius ?? geometry.top_radius ?? configured.prismTopRadius,
+            DEFAULT_SELECTION_CURSOR_PRISM.topRadius,
+        ),
+        bottomRadius: numberOr(
+            geometry.bottomRadius ?? geometry.bottom_radius ?? configured.prismBottomRadius,
+            DEFAULT_SELECTION_CURSOR_PRISM.bottomRadius,
+        ),
+        height: numberOr(
+            geometry.height ?? configured.prismHeight,
+            DEFAULT_SELECTION_CURSOR_PRISM.height,
+        ),
+        sides: Math.max(3, Math.min(64, integerOr(
+            geometry.sides ?? configured.prismSides,
+            DEFAULT_SELECTION_CURSOR_PRISM.sides,
+        ))),
+        faceOpacity: clampNumber(
+            geometry.faceOpacity ?? geometry.face_opacity ?? configured.faceOpacity,
+            0,
+            1,
+            rendererState?.currentOpacity ?? DEFAULT_SELECTION_CURSOR_PRISM.faceOpacity,
+        ),
+        edgeOpacity: clampNumber(
+            geometry.edgeOpacity ?? geometry.edge_opacity ?? configured.edgeOpacity,
+            0,
+            1,
+            rendererState?.currentEdgeOpacity ?? DEFAULT_SELECTION_CURSOR_PRISM.edgeOpacity,
+        ),
+        facesVisible: boolOr(
+            geometry.facesVisible ?? geometry.faces_visible ?? configured.facesVisible,
+            rendererState?.isMaskEnabled === true
+                ? false
+                : numberOr(rendererState?.currentOpacity, DEFAULT_SELECTION_CURSOR_PRISM.faceOpacity) > 0.001,
+        ),
+        tesseronEnabled: boolOr(geometry.tesseronEnabled ?? geometry.tesseron_enabled ?? configured.tesseronEnabled, tesseron.enabled === true),
+        tesseronProportion: clampNumber(
+            geometry.tesseronProportion ?? geometry.tesseron_proportion ?? configured.tesseronProportion,
+            0.12,
+            0.9,
+            tesseron.proportion ?? DEFAULT_SELECTION_CURSOR_PRISM.tesseronProportion,
+        ),
+        tesseronMatchMother: boolOr(
+            geometry.tesseronMatchMother ?? geometry.tesseron_match_mother ?? configured.tesseronMatchMother,
+            tesseron.matchMother !== false,
+        ),
+        rotationDegrees: rotation,
+        spinAxis: String(geometry.spinAxis || geometry.spin_axis || configured.spinAxis || DEFAULT_SELECTION_CURSOR_PRISM.spinAxis),
+        spinSpeed: numberOr(geometry.spinSpeed ?? geometry.spin_speed ?? configured.spinSpeed, DEFAULT_SELECTION_CURSOR_PRISM.spinSpeed),
     };
 }
 
@@ -241,12 +337,15 @@ export function selectionModeOverlayHasActiveEffects(overlay = {}, nowMs = Date.
     });
 }
 
-export function buildSelectionModeCursorGlyph(cursor = null, rendererState = null) {
+export function buildSelectionModeCursorGlyph(cursor = null, rendererState = null, {
+    rotationStartedAtMs = null,
+} = {}) {
     if (!cursor) return null;
     const avatar = resolveAvatarPointerSource(rendererState);
     const avatarEffects = resolveAvatarPointerEffects(rendererState);
-    const length = 44;
-    const base = length / Math.sqrt(3);
+    const prism = resolveSelectionModeCursorPrism(rendererState);
+    const length = Math.max(8, prism.height * 22);
+    const base = Math.max(4, prism.bottomRadius * 24);
     return {
         kind: 'selection_mode_cursor',
         model_kind: 'sigil_model',
@@ -255,7 +354,7 @@ export function buildSelectionModeCursorGlyph(cursor = null, rendererState = nul
         material_source: avatar.material_source,
         effects_source: avatar.effects_source,
         avatar_effects: avatarEffects,
-        shape: 'avatar_derived_triangular_pointer',
+        shape: 'avatar_derived_prism_pointer',
         point: cursor,
         hotspot: {
             kind: 'tip',
@@ -264,21 +363,35 @@ export function buildSelectionModeCursorGlyph(cursor = null, rendererState = nul
             local: { x: 0, y: 0, z: 0 },
         },
         geometry: {
-            primitive: 'triangular_pyramid',
-            sides: 3,
+            primitive: 'prism',
+            geometry_type: 93,
+            top_radius: prism.topRadius,
+            bottom_radius: prism.bottomRadius,
+            height: prism.height,
+            sides: prism.sides,
             length,
             base,
-            cross_section: 'equilateral_triangle',
+            cross_section: prism.sides === 3 ? 'triangular' : 'regular_polygon',
             expected_depth_axis: 'screen_plane',
             long_axis: 'screen_north_west',
             base_screen_quadrant: 'down_right',
             hotspot_local: { x: 0, y: 0, z: 0 },
+            faces_visible: prism.facesVisible,
+            face_opacity: prism.faceOpacity,
+            edge_opacity: prism.edgeOpacity,
+            tesseron_enabled: prism.tesseronEnabled,
+            tesseron_proportion: prism.tesseronProportion,
+            tesseron_match_mother: prism.tesseronMatchMother,
+            orientation_degrees: prism.rotationDegrees,
+            spin_axis: prism.spinAxis,
+            source: prism.source,
         },
         animation: {
-            rotates_on_axis: 'screen_plane_z',
-            axis: 'scene_z',
+            rotates_on_axis: 'long_axis',
+            axis: prism.spinAxis,
             source: avatar.rotation.source,
-            rotation_speed: avatar.rotation.speed,
+            rotation_speed: prism.spinSpeed,
+            rotation_started_at_ms: rotationStartedAtMs,
             visible_avatar_y_speed: avatar.rotation.visible_avatar_y_speed,
             visible_avatar_x_speed: avatar.rotation.visible_avatar_x_speed,
             session_vitality_multiplier: avatar.rotation.session_vitality_multiplier,
@@ -338,12 +451,30 @@ export function resolveSelectionModeTrailTiming(rendererState = null) {
 export function buildSelectionModeCursorTrailModel(rendererState = null) {
     const avatar = resolveAvatarPointerSource(rendererState);
     const timing = resolveSelectionModeTrailTiming(rendererState);
+    const prism = resolveSelectionModeCursorPrism(rendererState);
     return {
         kind: 'selection_mode_cursor_trail',
         model_kind: 'sigil_model',
-        shape: 'avatar_derived_triangular_pointer',
-        repeatShape: 'avatar_derived_triangular_pointer',
-        repeatGeometry: 'triangular_pyramid',
+        shape: 'avatar_derived_prism_pointer',
+        repeatShape: 'avatar_derived_prism_pointer',
+        repeatGeometry: 'prism',
+        geometry: {
+            primitive: 'prism',
+            geometry_type: 93,
+            top_radius: prism.topRadius,
+            bottom_radius: prism.bottomRadius,
+            height: prism.height,
+            sides: prism.sides,
+            long_axis: 'screen_north_west',
+            faces_visible: prism.facesVisible,
+            face_opacity: prism.faceOpacity,
+            edge_opacity: prism.edgeOpacity,
+            tesseron_enabled: prism.tesseronEnabled,
+            tesseron_proportion: prism.tesseronProportion,
+            tesseron_match_mother: prism.tesseronMatchMother,
+            orientation_degrees: prism.rotationDegrees,
+            spin_axis: prism.spinAxis,
+        },
         source: avatar.source,
         trail: avatar.trail,
         timing,

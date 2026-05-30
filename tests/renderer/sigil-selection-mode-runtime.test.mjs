@@ -109,7 +109,18 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
     commands,
     activeContexts,
     sideEffects,
-  } = createRuntime({ candidates: [buttonCandidate, windowCandidate] })
+  } = createRuntime({
+    candidates: [buttonCandidate, windowCandidate],
+    rendererState: {
+      currentOpacity: 0.25,
+      currentEdgeOpacity: 0.8,
+      isMaskEnabled: true,
+      cylinderTopRadius: 0.35,
+      cylinderBottomRadius: 0.65,
+      cylinderHeight: 1,
+      tesseron: { enabled: true, proportion: 0.42, matchMother: true },
+    },
+  })
 
   runtime.enter({ x: 40, y: 40, valid: true }, 'test')
   assert.equal(liveState.selectionMode.active, true)
@@ -134,21 +145,35 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.source, 'avatar_render_state')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.material_source, 'current_avatar_render_model')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'avatar_derived_triangular_pointer')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.primitive, 'triangular_pyramid')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.cross_section, 'equilateral_triangle')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'avatar_derived_prism_pointer')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.primitive, 'prism')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.geometry_type, 93)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.top_radius, 0)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.bottom_radius, 0.8)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.height, 2)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.sides, 3)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.cross_section, 'triangular')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.faces_visible, false)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.face_opacity, 0.25)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.edge_opacity, 0.8)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.tesseron_enabled, true)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.tesseron_proportion, 0.42)
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.long_axis, 'screen_north_west')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.base_screen_quadrant, 'down_right')
+  assert.deepEqual(liveState.selectionModeOverlay.cursorGlyph.geometry.orientation_degrees, { x: 0, y: 0, z: 45 })
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.spin_axis, 'local_y')
   assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.source, 'selection_mode_pointer_single_axis')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.axis, 'scene_z')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.axis, 'local_y')
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.rotation_speed, 0.1)
+  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.rotation_started_at_ms, 101000)
   assert.deepEqual(liveState.selectionModeOverlay.cursorGlyph.hotspot, {
     kind: 'tip',
     x: 101,
     y: 102,
     local: { x: 0, y: 0, z: 0 },
   })
-  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'avatar_derived_triangular_pointer')
-  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatGeometry, 'triangular_pyramid')
+  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'avatar_derived_prism_pointer')
+  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatGeometry, 'prism')
   assert.equal(liveState.selectionModeOverlay.badgeLayout.order, 'leaf-to-root')
   assert.ok(liveState.selectionMode.events.some((entry) => entry.type === 'selection_mode_aura_spike'))
   assert.deepEqual(
@@ -427,10 +452,29 @@ test('Selection Mode badge click retargets while preserving original acquisition
   assert.equal(retargetedArtifact.acquisition.leaf_node_id, acquiredLeafNodeId)
   assert.deepEqual(retargetedArtifact.path.map((node) => node.id), acquiredPathNodeIds)
   assert.equal(retargetedArtifact.acquisition.candidate_report.clicked_leaf.node_id, acquiredLeafNodeId)
+  assert.equal(liveState.selectionMode.selected_node_id, ancestorBadge.nodeId)
+  assert.equal(liveState.selectionMode.hover_node_id, '')
+  assert.equal(liveState.selectionModeOverlay.highlightedNodeId, acquiredLeafNodeId)
+  assert.equal(liveState.selectionModeOverlay.frames.find((frame) => frame.active)?.id, acquiredLeafNodeId)
   for (const badge of liveState.selectionModeOverlay.badges) {
     assert.deepEqual(badge.rect, originalBadgeRects.get(badge.nodeId))
   }
   assert.notDeepEqual(liveState.selectionMode.cursor, acquiredPointer)
+
+  runtime.handleInput({
+    type: 'mouse_moved',
+    x: ancestorBadge.rect.x + ancestorBadge.rect.width / 2,
+    y: ancestorBadge.rect.y + ancestorBadge.rect.height / 2,
+  })
+  assert.equal(liveState.selectionMode.hover_node_id, ancestorBadge.nodeId)
+  assert.equal(liveState.selectionModeOverlay.highlightedNodeId, ancestorBadge.nodeId)
+  assert.equal(liveState.selectionModeOverlay.frames.find((frame) => frame.active)?.id, ancestorBadge.nodeId)
+
+  runtime.handleInput({ type: 'mouse_moved', x: 1, y: 1 })
+  assert.equal(liveState.selectionMode.selected_node_id, ancestorBadge.nodeId)
+  assert.equal(liveState.selectionMode.hover_node_id, '')
+  assert.equal(liveState.selectionModeOverlay.highlightedNodeId, acquiredLeafNodeId)
+  assert.equal(liveState.selectionModeOverlay.frames.find((frame) => frame.active)?.id, acquiredLeafNodeId)
 })
 
 test('Selection Mode cursor model exposes current avatar effect descriptors, trail, and rotation fields', () => {
@@ -488,8 +532,8 @@ test('Selection Mode cursor model exposes current avatar effect descriptors, tra
   assert.equal(overlay.cursorGlyph.trail.count, 12)
   assert.equal(overlay.cursorGlyph.trail.opacity, 0.7)
   assert.equal(overlay.cursorGlyph.animation.source, 'selection_mode_pointer_single_axis')
-  assert.equal(overlay.cursorGlyph.animation.axis, 'scene_z')
-  assert.equal(overlay.cursorGlyph.animation.rotation_speed, 0.01)
+  assert.equal(overlay.cursorGlyph.animation.axis, 'local_y')
+  assert.equal(overlay.cursorGlyph.animation.rotation_speed, 0.1)
   assert.equal(overlay.cursorGlyph.animation.session_vitality_multiplier, 1.25)
   assert.equal(overlay.cursorGlyph.animation.visible_avatar_y_speed, 0)
   assert.equal(overlay.cursorGlyph.animation.visible_avatar_x_speed, 0)

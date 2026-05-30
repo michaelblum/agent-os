@@ -27,7 +27,7 @@ function selectionCursorProjectionPoints(glyph = {}, time = 0) {
     const base = Math.max(4, Number(geometry.base) || length / 2);
     const axis = { x: Math.SQRT1_2, y: Math.SQRT1_2 };
     const perp = { x: -Math.SQRT1_2, y: Math.SQRT1_2 };
-    const rotationSpeed = Math.abs(Number(glyph.animation?.rotation_speed) || 0.01);
+    const rotationSpeed = Math.abs(Number(glyph.animation?.rotation_speed) || 0.1);
     const vitality = Math.max(0.1, Number(glyph.animation?.session_vitality_multiplier) || 1);
     const rotationPhase = 0.72 + (0.28 * Math.sin(time * rotationSpeed * vitality * 120));
     const baseCenter = { x: axis.x * length, y: axis.y * length };
@@ -103,6 +103,13 @@ export function selectionCursorShouldUseCanvasProjection(glyph = null) {
     return !!glyph && glyph.model_kind !== 'sigil_model';
 }
 
+export function avatarHoverDecorationVisible(snapshot = {}) {
+    return snapshot.avatarVisible === true
+        && snapshot.avatarHover === true
+        && Number(snapshot.avatarHoverProgress) > 0.01
+        && snapshot.avatarPos?.valid === true;
+}
+
 function trailPointForAge(history = [], ageSeconds = 0, fallback = null) {
     if (!history.length) return fallback;
     const targetTime = history.at(-1).time - ageSeconds;
@@ -144,56 +151,74 @@ function drawSelectionModeEffect(ctx, effect = {}, styles = {}, {
     const secondary = styles.effect?.secondary || styles.aura?.secondary || 'rgba(142, 221, 255, 0.86)';
     const highlight = styles.effect?.highlight || styles.aura?.highlight || 'rgba(255, 255, 255, 0.88)';
     const glow = styles.effect?.glow || styles.aura?.glow || 'rgba(94, 252, 210, 0.34)';
-    const eased = reverse ? 1 - Math.pow(1 - progress, 3) : 1 - Math.pow(1 - progress, 2);
-    const radius = reverse
-        ? 84 - (eased * 66)
-        : 12 + (eased * 82);
-    const alpha = reverse
-        ? Math.max(0, 0.82 * (1 - progress))
-        : Math.max(0, 0.78 * (1 - progress * 0.72));
-    const pulse = 0.5 + (0.5 * Math.sin((time * 9) + progress * Math.PI));
+    const travel = reverse ? 1 - progress : progress;
+    const c4 = (2 * Math.PI) / 3;
+    const novaScale = reverse
+        ? Math.pow(Math.max(0, travel), 3)
+        : (progress === 0 ? 0 : progress === 1 ? 1 : Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1);
+    const shock = reverse ? 1 - Math.pow(1 - progress, 3) : Math.min(1, progress / 0.42);
+    const shockAlpha = Math.max(0, 1 - Math.pow(shock, 2));
+    const particleT = reverse ? 1 - progress : progress;
+    const particleAlpha = reverse ? Math.max(0, 1 - progress * 0.9) : Math.max(0, 1 - progress * 0.78);
+    const seed = String(effect.id || `${effect.phase}:${effect.started_at_ms || effect.at || ''}`)
+        .split('')
+        .reduce((acc, char) => (acc + char.charCodeAt(0)) % 997, 0);
 
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = alpha;
     ctx.shadowColor = glow;
-    ctx.shadowBlur = 18 + (pulse * 14);
+    ctx.shadowBlur = 18;
 
-    const ringCount = reverse ? 3 : 4;
-    for (let i = 0; i < ringCount; i += 1) {
-        const ringProgress = Math.max(0, Math.min(1, progress + (i * 0.08)));
-        const ringRadius = reverse
-            ? radius + (i * 13) - (ringProgress * 10)
-            : radius + (i * 10);
-        ctx.globalAlpha = alpha * (1 - i * 0.16);
+    const shockSphereRadius = Math.max(1, shock * 96);
+    ctx.globalAlpha = 0.5 * shockAlpha;
+    ctx.strokeStyle = highlight;
+    ctx.lineWidth = Math.max(1, 2.4 * (1 - shock));
+    ctx.beginPath();
+    ctx.arc(x, y, shockSphereRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const diskRadius = Math.max(1, shock * 54);
+    ctx.globalAlpha = 0.8 * shockAlpha;
+    ctx.strokeStyle = primary;
+    ctx.lineWidth = Math.max(1, 4.2 * (1 - shock));
+    ctx.beginPath();
+    ctx.ellipse(x, y, diskRadius, diskRadius * 0.24, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const particleCount = 54;
+    for (let i = 0; i < particleCount; i += 1) {
+        const angle = ((i * 2.399963229728653) + seed * 0.017) % (Math.PI * 2);
+        const speed = 22 + ((i * 37 + seed) % 64);
+        const distance = reverse ? speed * (1 - particleT) : speed * particleT;
+        const px = x + Math.cos(angle) * distance;
+        const py = y + Math.sin(angle) * distance;
+        const tail = reverse ? Math.max(2, 7 * particleT) : Math.max(2, 7 * (1 - particleT));
+        ctx.globalAlpha = particleAlpha * (0.26 + ((i % 5) * 0.035));
+        ctx.strokeStyle = i % 3 === 0 ? highlight : (i % 2 === 0 ? primary : secondary);
+        ctx.lineWidth = i % 7 === 0 ? 1.5 : 1;
         ctx.beginPath();
-        ctx.strokeStyle = i % 2 === 0 ? primary : secondary;
-        ctx.lineWidth = reverse ? Math.max(1, 3.2 - i * 0.55) : Math.max(1, 2.2 - i * 0.35);
-        ctx.arc(x, y, Math.max(2, ringRadius), 0, Math.PI * 2);
+        ctx.moveTo(px - Math.cos(angle) * tail, py - Math.sin(angle) * tail);
+        ctx.lineTo(px, py);
         ctx.stroke();
     }
 
-    const rayCount = 12;
-    const seed = reverse ? -time * 0.4 : time * 0.5;
-    for (let i = 0; i < rayCount; i += 1) {
-        const angle = seed + (i / rayCount) * Math.PI * 2;
-        const inner = reverse ? radius * (0.52 + progress * 0.18) : radius * 0.14;
-        const outer = reverse ? radius * (1.03 - progress * 0.36) : radius * (0.62 + pulse * 0.16);
-        ctx.globalAlpha = alpha * (reverse ? 0.36 : 0.48);
-        ctx.beginPath();
-        ctx.strokeStyle = i % 2 === 0 ? secondary : highlight;
-        ctx.lineWidth = i % 3 === 0 ? 1.6 : 1;
-        ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
-        ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
-        ctx.stroke();
-    }
+    const glowRadius = Math.max(8, 32 * Math.max(0.18, novaScale));
+    const coreGlow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+    coreGlow.addColorStop(0, highlight);
+    coreGlow.addColorStop(0.35, primary);
+    coreGlow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalAlpha = reverse ? 0.72 * Math.max(0, 1 - progress) : 0.72 * Math.max(0, 1 - progress * 0.65);
+    ctx.fillStyle = coreGlow;
+    ctx.beginPath();
+    ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.globalAlpha = alpha * (reverse ? 0.42 : 0.66);
+    ctx.globalAlpha = reverse ? Math.max(0, 0.9 * (1 - progress)) : Math.max(0, 0.92 * (1 - progress * 0.45));
     ctx.fillStyle = highlight;
     ctx.beginPath();
-    ctx.arc(x, y, Math.max(1.5, reverse ? 8 * (1 - progress) : 3 + (pulse * 2)), 0, Math.PI * 2);
+    ctx.arc(x, y, Math.max(1.4, 4.2 * Math.max(0.2, novaScale)), 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 }
@@ -395,7 +420,7 @@ export function createInteractionOverlay() {
             return;
         }
 
-        if (snapshot.avatarHoverProgress > 0.01 && snapshot.avatarPos?.valid) {
+        if (avatarHoverDecorationVisible(snapshot)) {
             const progress = Math.max(0, Math.min(1, snapshot.avatarHoverProgress));
             const radius = (snapshot.avatarHitRadius || 40) + (7 * progress);
             ctx.save();

@@ -1,7 +1,7 @@
 import state from '../state.js';
 import { updateGeometry, updateOmegaGeometry, updateInnerEdgePulse } from '../geometry.js';
 import { updateAllColors } from '../colors.js';
-import { createAuraObjects, animateAura } from '../aura.js';
+import { createAuraObjects, animateAura, hideAuraObjects } from '../aura.js';
 import {
     createPhenomena,
     animatePhenomena,
@@ -10,7 +10,7 @@ import {
     updateAccretion,
     updateNeutrinos,
 } from '../phenomena.js';
-import { createParticleObjects, animateParticles, animateTrails } from '../particles.js';
+import { createParticleObjects, animateParticles, animateTrails, hideTrailSprites } from '../particles.js';
 import { createLightning, animateLightning } from '../lightning.js';
 import { createMagneticField, animateMagneticField, updateMagneticTentacleCount } from '../magnetic.js';
 import { createOmega, animateOmega, resetOmegaInterdimensionalTrail } from '../omega.js';
@@ -93,15 +93,24 @@ import {
 } from './content-roots.js';
 import {
     SIGIL_OBJECT_CONTROL_CANVAS_ID,
+    applyRadialMenuObjectEffectsPatch,
     applyRadialMenuObjectTransformPatch,
 } from './radial-object-control.js';
-import { buildAvatarObjectRegistry } from './avatar-object-control.js';
+import {
+    applyAvatarObjectEffectsPatch,
+    applyAvatarObjectTransformPatch,
+    buildAvatarObjectRegistry,
+} from './avatar-object-control.js';
 import { createSigilUxTree, createSigilUxTreeShadowResolver } from './ux-tree.js';
 import {
     createSigilUxTreeCommandRuntime,
     executeSigilUxTreeCommand,
 } from './ux-tree-command-registry.js';
 import { createSigilUxTreeReadinessAudit } from './ux-tree-readiness.js';
+import {
+    configureTransparentSigilRenderer,
+    transparentSigilRendererOptions,
+} from './webgl-renderer.js';
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
@@ -1367,10 +1376,8 @@ function initScene() {
     state.camera = state.perspCamera;
     state.camera.position.z = 20;
 
-    state.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    state.renderer.setSize(width, height);
-    state.renderer.setPixelRatio(window.devicePixelRatio);
-    state.renderer.setClearColor(0x000000, 0);
+    state.renderer = new THREE.WebGLRenderer(transparentSigilRendererOptions());
+    configureTransparentSigilRenderer(state.renderer, { width, height });
     state.renderer.domElement.style.position = 'absolute';
     state.renderer.domElement.style.inset = '0';
     state.renderer.domElement.style.zIndex = '1';
@@ -1398,7 +1405,7 @@ function onWindowResize() {
         state.camera.bottom = -height / 2;
     }
     state.camera.updateProjectionMatrix();
-    state.renderer.setSize(width, height);
+    configureTransparentSigilRenderer(state.renderer, { width, height, updatePixelRatio: false });
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
@@ -1432,10 +1439,11 @@ function isOnAvatar(x, y) {
     return ((dx * dx) + (dy * dy)) <= (liveJs.avatarHitRadius * liveJs.avatarHitRadius);
 }
 
-function setAvatarHover(over) {
+function setAvatarHover(over, { immediate = false } = {}) {
     const next = !!over;
-    if (liveJs.avatarHover === next) return;
+    if (liveJs.avatarHover === next && !immediate) return;
     liveJs.avatarHover = next;
+    if (immediate) liveJs.avatarHoverProgress = next ? 1 : 0;
     scheduleRenderFrame();
 }
 
@@ -2617,7 +2625,10 @@ function currentAvatarRenderSourceForSelectionPointer() {
 }
 
 function refreshSelectionModeCursorModelSnapshot(overlay = liveJs.selectionModeOverlay) {
-    selectionModeCursorModelRenderer?.update(overlay || null, { time: state.globalTime });
+    selectionModeCursorModelRenderer?.update(overlay || null, {
+        time: state.globalTime,
+        nowMs: Date.now(),
+    });
     return readSelectionModeCursorModelSnapshot();
 }
 
@@ -2700,13 +2711,36 @@ function emitRadialMenuObjectRegistry() {
 
 function handleCanvasObjectTransformPatch(msg = {}) {
     if (!isPrimarySurfaceSegment()) return;
-    const result = applyRadialMenuObjectTransformPatch(state.radialGestureMenu, msg, {
+    let result = applyAvatarObjectTransformPatch(state, msg, {
         canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
     });
+    if (result.status === 'stale' && result.reason === 'unknown_object') {
+        result = applyRadialMenuObjectTransformPatch(state.radialGestureMenu, msg, {
+            canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+        });
+    }
     if (result.status !== 'applied') {
         console.warn('[sigil] object transform patch rejected:', result.reason, result.message || result.target?.object_id);
     }
     host.post('canvas_object.transform.result', result);
+    emitRadialMenuObjectRegistry();
+    scheduleRenderFrame();
+}
+
+function handleCanvasObjectEffectsPatch(msg = {}) {
+    if (!isPrimarySurfaceSegment()) return;
+    let result = applyAvatarObjectEffectsPatch(state, msg, {
+        canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+    });
+    if (result.status === 'stale' && result.reason === 'unknown_object') {
+        result = applyRadialMenuObjectEffectsPatch(state.radialGestureMenu, msg, {
+            canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
+        });
+    }
+    if (result.status !== 'applied') {
+        console.warn('[sigil] object effects patch rejected:', result.reason, result.message || result.target?.object_id);
+    }
+    host.post('canvas_object.effects.result', result);
     emitRadialMenuObjectRegistry();
     scheduleRenderFrame();
 }
@@ -2768,6 +2802,7 @@ function startMarkHeartbeat() {
 
 function setAvatarVisibility(visible) {
     const next = !!visible;
+    if (!next) setAvatarHover(false, { immediate: true });
     if (liveJs.avatarVisible === next && !visibilityTransition.active) return;
     liveJs.avatarVisible = next;
     if (!next) {
@@ -2786,6 +2821,7 @@ function setAvatarVisibility(visible) {
 
 function animateVisibility(visible, lifecycleAction = null, origin = null) {
     const targetVisible = !!visible;
+    if (!targetVisible) setAvatarHover(false, { immediate: true });
     if (liveJs.avatarVisible === targetVisible && !visibilityTransition.active) return;
     if (targetVisible) setAvatarVisibility(true);
     visibilityTransition.begin({
@@ -3569,6 +3605,11 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (msg.type === 'canvas_object.effects.patch') {
+        handleCanvasObjectEffectsPatch(msg);
+        return;
+    }
+
     if (msg.type === 'status_item.toggle') {
         if (isAgentTerminalVisible()) {
             void collapseAgentTerminalToStatus(msg).catch((error) => {
@@ -3590,11 +3631,13 @@ function handleHostMessage(rawMsg) {
     }
 
     if (msg.type === 'status_item.show') {
+        setAvatarHover(false, { immediate: true });
         animateVisibility(true, null, originFromMessage(msg));
         return;
     }
 
     if (msg.type === 'status_item.hide') {
+        setAvatarHover(false, { immediate: true });
         animateVisibility(false, null, originFromMessage(msg));
         return;
     }
@@ -3852,6 +3895,8 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
     state.appScale = 0;
     state.polyGroup.scale.setScalar(0);
     if (state.omegaGroup) state.omegaGroup.visible = false;
+    hideAuraObjects();
+    hideTrailSprites();
     if (isPrimarySurfaceSegment()) {
         if (liveJs.selectionMode?.active) exitSelectionMode('cleanup');
         hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);

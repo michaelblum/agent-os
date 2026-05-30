@@ -30,10 +30,12 @@ export function createDefaultSelectionModeState() {
     return {
         active: false,
         entered_at: null,
+        rotation_started_at_ms: null,
         cursor: null,
         leaf_candidate: null,
         path_candidates: [],
         selected_node_id: '',
+        hover_node_id: '',
         context_session: null,
         events: [],
         effects: [],
@@ -125,8 +127,10 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     };
     const artifact = selectionMode.context_session?.artifacts?.[0] || null;
     const path = Array.isArray(artifact?.path) ? artifact.path : [];
-    const activeNodeId = artifact?.active_target_node_id || selectionMode.selected_node_id || '';
+    const selectedNodeId = artifact?.active_target_node_id || selectionMode.selected_node_id || '';
     const leafNodeId = artifact?.acquisition?.leaf_node_id || path.at(-1)?.id || '';
+    const hoverNodeId = selectionMode.hover_node_id || '';
+    const highlightedNodeId = hoverNodeId || leafNodeId;
     const frames = path.map((node, index) => {
         const rect = projectRect(
             node.projection?.visible_display_rect
@@ -134,27 +138,31 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
             projectPoint,
         );
         if (!rect) return null;
+        const highlighted = node.id === highlightedNodeId;
         return {
-            kind: node.id === activeNodeId ? 'active_target' : (node.id === leafNodeId ? 'clicked_leaf' : 'ancestor'),
+            kind: highlighted ? 'highlighted_target' : (node.id === leafNodeId ? 'clicked_leaf' : 'ancestor'),
             id: node.id,
             address: node.address,
             label: node.label || node.role || node.kind || node.id,
             rect,
             index,
-            active: node.id === activeNodeId,
+            active: highlighted,
+            selected: node.id === selectedNodeId,
+            hovered: node.id === hoverNodeId,
             leaf: node.id === leafNodeId,
-            style: node.id === activeNodeId
+            style: highlighted
                 ? visualStyle.frame.active
                 : (node.id === leafNodeId ? visualStyle.frame.leaf : visualStyle.frame.ancestor),
         };
     }).filter(Boolean);
     const cursor = selectionMode.cursor ? projectPoint(selectionMode.cursor) : null;
+    const rotationStartedAtMs = Number(selectionMode.rotation_started_at_ms ?? Date.parse(selectionMode.entered_at || ''));
     const badgeAnchor = artifact?.acquisition?.pointer
         ? projectPoint(artifact.acquisition.pointer)
         : cursor;
     const badgeModel = buildSelectionModeBadgeModel({
         path,
-        activeNodeId,
+        activeNodeId: selectedNodeId,
         leafNodeId,
         cursor: badgeAnchor,
         overlayBounds,
@@ -164,14 +172,18 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         visible: selectionMode.active === true || effectsActive,
         active: selectionMode.active === true,
         cursor,
-        cursorGlyph: buildSelectionModeCursorGlyph(cursor, rendererState),
+        cursorGlyph: buildSelectionModeCursorGlyph(cursor, rendererState, {
+            rotationStartedAtMs: Number.isFinite(rotationStartedAtMs) ? rotationStartedAtMs : null,
+        }),
         cursorTrail: buildSelectionModeCursorTrailModel(rendererState),
         frames,
         ...badgeModel,
         styles: visualStyle,
         visualEffects,
-        activeNodeId,
+        activeNodeId: selectedNodeId,
         leafNodeId,
+        hoverNodeId,
+        highlightedNodeId,
         blocker: selectionMode.blocker || null,
         eventCount: Array.isArray(selectionMode.events) ? selectionMode.events.length : 0,
     };
@@ -350,6 +362,7 @@ export function createSigilSelectionModeRuntime({
             ...createDefaultSelectionModeState(),
             active: true,
             entered_at: nowIso(),
+            rotation_started_at_ms: nowMs(),
             cursor,
         };
         recordEffect('enter', reason);
@@ -382,6 +395,7 @@ export function createSigilSelectionModeRuntime({
             leaf_candidate: leaf,
             path_candidates: pathCandidates,
             selected_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
+            hover_node_id: '',
             blocker: pathCandidates.length > 1 ? null : {
                 status: 'degraded',
                 reason: 'selection_mode_only_display_fallback_available',
@@ -432,6 +446,15 @@ export function createSigilSelectionModeRuntime({
         const projected = projectPoint(cursor);
         const overlay = buildOverlay(liveState.selectionMode);
         return hitTestSelectionModeBadge(overlay, projected);
+    }
+
+    function updateBadgeHover(point = null) {
+        const badge = point ? hitTestBadge(point) : null;
+        const nextHoverNodeId = badge?.nodeId || '';
+        if ((liveState.selectionMode.hover_node_id || '') === nextHoverNodeId) return false;
+        liveState.selectionMode.hover_node_id = nextHoverNodeId;
+        liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        return true;
     }
 
     function commit(reason = 'selection-mode-commit') {
@@ -487,10 +510,12 @@ export function createSigilSelectionModeRuntime({
         liveState.selectionMode = {
             active: Boolean(input.active ?? false),
             entered_at: input.entered_at || null,
+            rotation_started_at_ms: input.rotation_started_at_ms ?? liveState.selectionMode?.rotation_started_at_ms ?? nowMs(),
             cursor: input.pointer || input.cursor || null,
             leaf_candidate: input.clicked_leaf_candidate || input.leaf_candidate || null,
             path_candidates: input.path_candidates || input.ancestor_candidates || [],
             selected_node_id: contextSession.artifacts?.[0]?.active_target_node_id || '',
+            hover_node_id: '',
             context_session: contextSession,
             events: [],
             effects: [],
@@ -520,6 +545,11 @@ export function createSigilSelectionModeRuntime({
         });
         if (!route.handled) return false;
         if (route.direct === 'render_only') {
+            updateBadgeHover(
+                typeof msg.x === 'number' && typeof msg.y === 'number'
+                    ? { x: msg.x, y: msg.y, valid: true }
+                    : null,
+            );
             scheduleRenderFrame({ structural: false });
             return true;
         }

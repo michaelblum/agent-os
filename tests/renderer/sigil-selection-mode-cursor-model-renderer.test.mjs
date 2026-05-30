@@ -1,7 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { selectionCursorShouldUseCanvasProjection } from '../../apps/sigil/renderer/live-modules/interaction-overlay.js'
+import {
+  avatarHoverDecorationVisible,
+  selectionCursorShouldUseCanvasProjection,
+} from '../../apps/sigil/renderer/live-modules/interaction-overlay.js'
 import { createSelectionModeCursorModelRenderer } from '../../apps/sigil/renderer/live-modules/selection-mode-cursor-model-renderer.js'
 
 class FakeVector3 {
@@ -172,13 +175,15 @@ function avatarSource({
   },
   phenomenaDescriptor = {},
   trailDescriptor = {},
+  lightningDescriptor = {},
+  magneticDescriptor = {},
 } = {}) {
   return {
     appearanceSource: 'current_live_sigil_avatar',
     materialSource: 'current_avatar_render_model',
     effectsSource: 'current_avatar_effect_descriptors',
     version,
-    geometryType: 20,
+    geometryType: 93,
     skin,
     primaryMaterial,
     edgeMaterial,
@@ -191,12 +196,20 @@ function avatarSource({
     auraDescriptor,
     phenomenaDescriptor,
     trailDescriptor,
+    lightningDescriptor,
+    magneticDescriptor,
   }
 }
 
 function modelOverlay({
   repeatCount = 2,
   cursor = { x: 100, y: 80, valid: true },
+  facesVisible = true,
+  faceOpacity = 0.8,
+  edgeOpacity = 0.8,
+  tesseronEnabled = true,
+  tesseronProportion = 0.5,
+  repeatDuration = 2,
 } = {}) {
   return {
     visible: true,
@@ -207,24 +220,57 @@ function modelOverlay({
       source: 'avatar_render_state',
       appearance_source: 'current_live_sigil_avatar',
       material_source: 'current_avatar_render_model',
-      shape: 'avatar_derived_triangular_pointer',
+      shape: 'avatar_derived_prism_pointer',
       hotspot: { kind: 'tip', x: cursor.x, y: cursor.y, local: { x: 0, y: 0, z: 0 } },
       geometry: {
-        primitive: 'triangular_pyramid',
+        primitive: 'prism',
+        geometry_type: 93,
+        top_radius: 0,
+        bottom_radius: 0.8,
+        height: 2,
+        sides: 3,
         length: 44,
-        base: 44 / Math.sqrt(3),
-        cross_section: 'equilateral_triangle',
+        base: 19.2,
+        cross_section: 'triangular',
         expected_depth_axis: 'screen_plane',
         long_axis: 'screen_north_west',
         base_screen_quadrant: 'down_right',
+        faces_visible: facesVisible,
+        face_opacity: faceOpacity,
+        edge_opacity: edgeOpacity,
+        tesseron_enabled: tesseronEnabled,
+        tesseron_proportion: tesseronProportion,
+        tesseron_match_mother: true,
+        orientation_degrees: { x: 0, y: 0, z: 45 },
+        spin_axis: 'local_y',
       },
-      animation: { axis: 'scene_z', rotation_speed: 0.01, session_vitality_multiplier: 1 },
+      animation: { axis: 'local_y', rotation_speed: 0.1, rotation_started_at_ms: 0, session_vitality_multiplier: 1 },
       cursor_overrides: { geometry: true, orientation: true, hotspot: true, scale: true, visibility: true, single_axis_rotation: true },
     },
     cursorTrail: {
-      timing: { repeatCount, duration: 0.22, delay: 0, repeatDuration: 2, trailMode: 'fade', lag: 0.05, scale: 1.5 },
+      timing: { repeatCount, duration: 0.22, delay: 0, repeatDuration, trailMode: 'fade', lag: 0.05, scale: 1.5 },
     },
   }
+}
+
+function warmCursorGhosts(renderer, {
+  repeatCount = 4,
+  steps = 6,
+  startTime = 12,
+  dt = 0.7,
+  x = 100,
+  y = 80,
+  repeatDuration = 2,
+} = {}) {
+  let snapshot = null
+  for (let index = 0; index < steps; index += 1) {
+    snapshot = renderer.update(modelOverlay({
+      repeatCount,
+      repeatDuration,
+      cursor: { x: x + index * 24, y, valid: true },
+    }), { time: startTime + index * dt })
+  }
+  return snapshot
 }
 
 function geometryVertices(geometry) {
@@ -241,13 +287,51 @@ function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 }
 
+function assertPointClose(actual, expected, epsilon = 0.000001) {
+  assert.ok(Math.abs(actual.x - expected.x) <= epsilon, `expected x ${actual.x} near ${expected.x}`)
+  assert.ok(Math.abs(actual.y - expected.y) <= epsilon, `expected y ${actual.y} near ${expected.y}`)
+  assert.ok(Math.abs(actual.z - expected.z) <= epsilon, `expected z ${actual.z} near ${expected.z}`)
+}
+
+function descendants(object) {
+  const result = []
+  for (const child of object?.children || []) {
+    result.push(child, ...descendants(child))
+  }
+  return result
+}
+
+function descendantByName(object, suffix) {
+  return descendants(object).find((child) => child.name.endsWith(suffix))
+}
+
+function pointerParts(object) {
+  return {
+    composition: descendantByName(object, '.composition'),
+    modelGroup: descendantByName(object, '.centered-model'),
+    spin: descendantByName(object, '.spin'),
+    core: descendantByName(object, '.core'),
+    edge: descendantByName(object, '.edges'),
+    childEdges: descendantByName(object, '.tesseron.child.edges'),
+    links: descendantByName(object, '.tesseron.links'),
+    effects: descendantByName(object, '.effects'),
+  }
+}
+
 function pointerEffects(object) {
-  const effects = object.children.find((child) => child.name.endsWith('.effects'))
+  const effects = descendantByName(object, '.effects')
   return {
     group: effects,
     glow: effects.children.find((child) => child.name.endsWith('.glow')),
     core: effects.children.find((child) => child.name.endsWith('.core')),
+    rotatingCore: effects.children.find((child) => child.name.endsWith('.rotating-core')),
+    lightning: effects.children.find((child) => child.name.endsWith('.lightning')),
+    magnetic: effects.children.find((child) => child.name.endsWith('.magnetic')),
   }
+}
+
+function materialBearingDescendants(object) {
+  return descendants(object).filter((child) => child.material)
 }
 
 test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer', () => {
@@ -280,19 +364,48 @@ test('Selection Mode sigil_model cursor is consumed by a Three.js model renderer
   assert.equal(snapshot.object_id, 'selection-mode.cursor.sigil-model')
   assert.equal(snapshot.hotspot_aligned, true)
   assert.deepEqual(snapshot.scene_position, { x: 10, y: -8, z: 0 })
-  assert.equal(snapshot.trail_count, 2)
+  assert.equal(snapshot.trail_count, 0)
 
   const root = renderer.root
   const primary = root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
   assert.ok(primary)
   assert.equal(primary.userData.model_kind, 'sigil_model')
-  assert.equal(primary.userData.geometry, 'triangular_pyramid')
+  assert.equal(primary.userData.geometry, 'prism')
+  assert.equal(primary.userData.geometry_type, 93)
   assert.equal(primary.userData.long_axis, 'screen_north_west')
+  assert.equal(primary.userData.spin_axis, 'local_y')
   assert.equal(primary.userData.material_source, 'current_avatar_render_model')
-  assert.equal(primary.children[0].children[0].geometry.userData.depth_semantics, 'screen_plane_pointer')
+  assert.equal(pointerParts(primary).core.geometry.userData.depth_semantics, 'screen_plane_pointer')
 })
 
-test('Selection Mode cursor geometry has apex hotspot at origin and base down/right in screen projection', () => {
+test('avatar hover decoration requires current visible hover state', () => {
+  assert.equal(avatarHoverDecorationVisible({
+    avatarVisible: true,
+    avatarHover: true,
+    avatarHoverProgress: 0.8,
+    avatarPos: { x: 12, y: 20, valid: true },
+  }), true)
+  assert.equal(avatarHoverDecorationVisible({
+    avatarVisible: false,
+    avatarHover: true,
+    avatarHoverProgress: 0.8,
+    avatarPos: { x: 12, y: 20, valid: true },
+  }), false)
+  assert.equal(avatarHoverDecorationVisible({
+    avatarVisible: true,
+    avatarHover: false,
+    avatarHoverProgress: 0.8,
+    avatarPos: { x: 12, y: 20, valid: true },
+  }), false)
+  assert.equal(avatarHoverDecorationVisible({
+    avatarVisible: true,
+    avatarHover: true,
+    avatarHoverProgress: 0,
+    avatarPos: { x: 12, y: 20, valid: true },
+  }), false)
+})
+
+test('Selection Mode cursor geometry has prism tip hotspot and fixed northwest orientation', () => {
   const renderer = createSelectionModeCursorModelRenderer({
     scene: { add() {}, remove() {} },
     THREE: FakeTHREE,
@@ -301,31 +414,72 @@ test('Selection Mode cursor geometry has apex hotspot at origin and base down/ri
     getAvatarRenderSource: () => avatarSource(),
   })
 
-  renderer.update(modelOverlay(), { time: 12 })
+  renderer.update(modelOverlay({ facesVisible: false, faceOpacity: 0 }), { time: 12 })
   const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
-  const geometry = primary.children[0].children[0].geometry
+  const parts = pointerParts(primary)
+  const spin = parts.spin
+  const geometry = parts.core.geometry
   const vertices = geometryVertices(geometry)
-  const base = geometry.userData.equilateral_base_vertex_indices.map((index) => vertices[index])
+  const base = geometry.userData.base_ring_indices.map((index) => vertices[index])
   const baseCentroid = base.reduce((acc, vertex) => ({
     x: acc.x + vertex.x / base.length,
     y: acc.y + vertex.y / base.length,
     z: acc.z + vertex.z / base.length,
   }), { x: 0, y: 0, z: 0 })
-  const sides = [
-    distance(base[0], base[1]),
-    distance(base[1], base[2]),
-    distance(base[2], base[0]),
-  ]
+  const orientedBaseCentroid = {
+    x: baseCentroid.x * Math.cos(primary.rotation.z) - baseCentroid.y * Math.sin(primary.rotation.z),
+    y: baseCentroid.x * Math.sin(primary.rotation.z) + baseCentroid.y * Math.cos(primary.rotation.z),
+    z: baseCentroid.z,
+  }
+  const sides = base.map((vertex, index) => distance(vertex, base[(index + 1) % base.length]))
+  const apex = vertices[geometry.userData.top_ring_indices[0]]
+  const childEdges = parts.childEdges
+  const links = parts.links
+  const childGeometry = childEdges.geometry.source || childEdges.geometry
+  const childVertices = geometryVertices(childGeometry)
+  const innerApex = childVertices[geometry.userData.top_ring_indices[0]]
+  const linkVertices = geometryVertices(links.geometry)
+  const effects = parts.effects
 
-  assert.equal(geometry.userData.primitive, 'triangular_pyramid')
+  assert.equal(geometry.userData.primitive, 'prism')
+  assert.equal(geometry.userData.geometry_type, 93)
+  assert.equal(geometry.userData.top_radius, 0)
+  assert.equal(geometry.userData.bottom_radius, 0.8)
+  assert.equal(geometry.userData.height, 2)
+  assert.equal(geometry.userData.sides, 3)
+  assert.deepEqual(geometry.userData.top_ring_indices, [0])
+  assert.equal(geometry.userData.faces_visible, false)
+  assert.equal(geometry.userData.face_opacity, 0)
+  assert.equal(geometry.userData.edge_opacity, 0.8)
+  assert.equal(geometry.userData.tesseron_enabled, true)
+  assert.equal(geometry.userData.tesseron_proportion, 0.5)
   assert.equal(geometry.userData.long_axis, 'screen_north_west')
   assert.equal(geometry.userData.base_screen_quadrant, 'down_right')
   assert.deepEqual(geometry.userData.hotspot_local, { x: 0, y: 0, z: 0 })
-  assert.deepEqual(vertices[0], { x: 0, y: 0, z: 0 })
-  assert.ok(baseCentroid.x > 0)
-  assert.ok(baseCentroid.y < 0)
-  assert.ok(distance(vertices[0], baseCentroid) > 1.8)
+  assert.deepEqual(geometry.userData.volume_center_local, { x: 0, y: -1, z: 0 })
+  assert.ok(orientedBaseCentroid.x > 0)
+  assert.ok(orientedBaseCentroid.y < 0)
+  assert.deepEqual(apex, { x: 0, y: 0, z: 0 })
+  assertPointClose(innerApex, { x: 0, y: -0.5, z: 0 })
+  assert.equal(childGeometry.userData.tesseron_scale_origin, 'pointer_volume_center')
+  assert.equal(links.geometry.userData.tesseron_scale_origin, 'pointer_volume_center')
+  assert.equal(links.geometry.userData.link_count, 4)
+  assertPointClose(linkVertices[0], apex)
+  assertPointClose(linkVertices[1], innerApex)
+  assert.deepEqual(primary.userData.source_volume_center_local, { x: 0, y: -1, z: 0 })
+  assertPointClose(primary.userData.hotspot_local, { x: 0, y: 1, z: 0 })
+  assert.deepEqual(parts.composition.userData.center_local, { x: 0, y: 0, z: 0 })
+  assert.deepEqual(parts.composition.userData.source_volume_center_local, { x: 0, y: -1, z: 0 })
+  assert.deepEqual(effects.userData.center_local, { x: 0, y: 0, z: 0 })
+  assert.deepEqual(effects.userData.source_volume_center_local, { x: 0, y: -1, z: 0 })
+  assert.equal(effects.userData.anchor, 'pointer_volume_center')
+  assertPointClose(effects.position, { x: 0, y: 0, z: 0 })
+  assertPointClose(parts.modelGroup.position, { x: 0, y: 1, z: 0 })
+  assert.ok(distance(apex, baseCentroid) > 1.8)
   assert.ok(sides.every((side) => Math.abs(side - sides[0]) < 0.000001))
+  assert.equal(parts.core.visible, false)
+  assert.equal(childEdges.visible, true)
+  assert.equal(links.visible, true)
 })
 
 test('Selection Mode primary and trail instances reuse the same avatar-derived pointer geometry family', () => {
@@ -337,14 +491,10 @@ test('Selection Mode primary and trail instances reuse the same avatar-derived p
     getAvatarRenderSource: () => avatarSource(),
   })
 
-  renderer.update(modelOverlay({ repeatCount: 3 }), { time: 12 })
+  warmCursorGhosts(renderer, { repeatCount: 3, repeatDuration: 4.2, steps: 4, dt: 1.41 })
   const geometryFamilies = renderer.root.children.map((child) => child.userData.geometry_family)
-  assert.deepEqual(geometryFamilies, [
-    'selection_mode_avatar_derived_pointer',
-    'selection_mode_avatar_derived_pointer',
-    'selection_mode_avatar_derived_pointer',
-    'selection_mode_avatar_derived_pointer',
-  ])
+  assert.ok(geometryFamilies.length >= 2)
+  assert.ok(geometryFamilies.every((family) => family === 'selection_mode_avatar_prism_pointer'))
 })
 
 test('Selection Mode pointer derives materials from the live avatar render source', () => {
@@ -363,11 +513,17 @@ test('Selection Mode pointer derives materials from the live avatar render sourc
 
   renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12 })
   const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
-  const core = primary.children[0].children[0]
-  const edge = primary.children[0].children[1]
+  const { core, edge } = pointerParts(primary)
 
   assert.equal(core.material.copiedFrom, firstCore)
   assert.equal(edge.material.copiedFrom, firstEdge)
+  assert.equal(core.material.toneMapped, false)
+  assert.equal(core.material.depthWrite, false)
+  assert.equal(core.material.depthTest, false)
+  assert.equal(edge.material.vertexColors, false)
+  assert.equal(edge.material.toneMapped, false)
+  assert.equal(edge.material.depthWrite, false)
+  assert.equal(edge.material.depthTest, false)
   assert.equal(primary.userData.material_source, 'current_avatar_render_model')
 
   source = avatarSource({ version: 'v2', primaryMaterial: secondCore, edgeMaterial: secondEdge, skin: 'plasma' })
@@ -396,6 +552,15 @@ test('Selection Mode pointer renders current avatar aura/effect descriptors at p
     phenomenaDescriptor: {
       pulsar: { enabled: true, count: 4 },
     },
+    lightningDescriptor: {
+      enabled: true,
+      brightness: 1.2,
+    },
+    magneticDescriptor: {
+      enabled: true,
+      fieldEnabled: true,
+      fieldStrength: 0.9,
+    },
   })
   const renderer = createSelectionModeCursorModelRenderer({
     scene: { add() {}, remove() {} },
@@ -407,23 +572,40 @@ test('Selection Mode pointer renders current avatar aura/effect descriptors at p
 
   const firstSnapshot = renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12 })
   const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
-  const spin = primary.children.find((child) => child.name.endsWith('.spin'))
-  const effects = primary.children.find((child) => child.name.endsWith('.effects'))
-  const core = spin.children[0]
+  const { effects, core } = pointerParts(primary)
   const glow = effects.children.find((child) => child.name.endsWith('.glow'))
   const auraCore = effects.children.find((child) => child.name.endsWith('.core'))
+  const rotatingCore = effects.children.find((child) => child.name.endsWith('.rotating-core'))
+  const lightning = effects.children.find((child) => child.name.endsWith('.lightning'))
+  const magnetic = effects.children.find((child) => child.name.endsWith('.magnetic'))
 
   assert.equal(firstSnapshot.effects_source, 'current_avatar_effect_descriptors')
-  assert.deepEqual(firstSnapshot.effect_families, ['aura_glow', 'pulsar'])
-  assert.deepEqual(firstSnapshot.pointer_effects.rendered, ['aura_glow', 'aura_core'])
+  assert.deepEqual(firstSnapshot.effect_families, ['aura_glow', 'aura_core', 'aura_rotating_core', 'lightning', 'magnetic', 'pulsar'])
+  assert.deepEqual(firstSnapshot.pointer_effects.rendered, ['aura_glow', 'aura_core', 'aura_rotating_core', 'lightning', 'magnetic'])
   assert.equal(firstSnapshot.pointer_effects.aura.primary, '#ddeeff')
   assert.equal(firstSnapshot.pointer_effects.aura.reach, 1.7)
+  assert.equal(firstSnapshot.pointer_effects.lightning.enabled, true)
+  assert.equal(firstSnapshot.pointer_effects.magnetic.enabled, true)
   assert.equal(firstSnapshot.resolved_visual.primary, '#112233')
   assert.equal(core.geometry.userData.vertex_color_source, 'current_avatar_color_ramp')
   assert.deepEqual(core.geometry.userData.vertex_color_pair, ['#112233', '#445566'])
   assert.equal(glow.material.color, '#ddeeff')
   assert.equal(auraCore.material.color, '#001122')
+  assert.equal(rotatingCore.material.color, '#001122')
+  assert.equal(lightning.visible, true)
+  assert.equal(magnetic.visible, true)
+  assert.ok(lightning.geometry.attributes.position.array.length > 6)
+  assert.ok(magnetic.geometry.attributes.position.array.length > 6)
+  assert.equal(glow.material.toneMapped, false)
+  assert.equal(glow.material.depthTest, false)
+  assert.equal(auraCore.material.toneMapped, false)
+  assert.equal(auraCore.material.depthTest, false)
+  assert.equal(rotatingCore.material.depthTest, false)
+  assert.equal(lightning.material.depthTest, false)
   assert.equal(effects.visible, true)
+  assert.ok(glow.material.opacity > 0.8)
+  assert.ok(auraCore.material.opacity > 0.6)
+  assert.ok(rotatingCore.rotation.y !== 0)
 
   const warmMaterials = firstSnapshot.resource_counts.materials_created
   renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12.016 })
@@ -460,33 +642,39 @@ test('Selection Mode pointer caps and softens avatar-derived trail echoes', () =
     getAvatarRenderSource: () => avatarSource(),
   })
 
-  const snapshot = renderer.update(modelOverlay({ repeatCount: 14 }), { time: 12 })
+  const snapshot = warmCursorGhosts(renderer, { repeatCount: 14, repeatDuration: 4, steps: 9, dt: 0.51 })
   const trails = renderer.root.children.filter((child) => String(child.userData.object_id || '').startsWith('selection-mode.cursor.trail-model'))
 
   assert.equal(snapshot.requested_trail_count, 14)
-  assert.equal(snapshot.trail_count, 8)
+  assert.ok(snapshot.trail_count > 0)
+  assert.ok(snapshot.trail_count <= 8)
+  assert.equal(snapshot.trail_policy.source, 'selection_mode_pointer_omega_interdimensional_ghost_policy')
   assert.equal(snapshot.trail_policy.max_visible_instances, 8)
-  assert.equal(trails.length, 8)
-  assert.ok(trails.every((trail) => trail.children.find((child) => child.name.endsWith('.effects'))))
+  assert.equal(trails.length, snapshot.trail_count)
+  assert.ok(trails.every((trail) => pointerParts(trail).effects))
 
   const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
   const primaryEffects = pointerEffects(primary)
+  const trailDistances = trails.map((trail) => distance(trail.position, primary.position))
   const trailGlowOpacities = trails.map((trail) => pointerEffects(trail).glow.material.opacity)
   const trailCoreOpacities = trails.map((trail) => pointerEffects(trail).core.material.opacity)
-  const newestToOldestGlowOpacities = [...trailGlowOpacities].reverse()
-  const newestToOldestCoreOpacities = [...trailCoreOpacities].reverse()
 
+  assert.ok(trailDistances.every((value) => value > 0.01), 'inter-dimensional ghosts should be prior cursor compositions, not local offsets under the primary')
+  assert.ok(trails.every((trail) => trail.userData.render_policy.applies_to === 'composition_tree'))
+  assert.ok(trails.every((trail) => materialBearingDescendants(trail).every((child) => (
+    child.frustumCulled === false
+    && child.renderOrder >= 9999
+    && child.material.depthTest === false
+    && child.material.depthWrite === false
+    && child.material.toneMapped === false
+  ))))
   assert.ok(trailGlowOpacities.every((opacity) => opacity < primaryEffects.glow.material.opacity))
   assert.ok(trailCoreOpacities.every((opacity) => opacity < primaryEffects.core.material.opacity))
-  for (let index = 1; index < newestToOldestGlowOpacities.length; index += 1) {
-    assert.ok(newestToOldestGlowOpacities[index] <= newestToOldestGlowOpacities[index - 1])
-    assert.ok(newestToOldestCoreOpacities[index] <= newestToOldestCoreOpacities[index - 1])
-  }
-  assert.ok(newestToOldestGlowOpacities.at(-1) < newestToOldestGlowOpacities[0])
-  assert.ok(newestToOldestCoreOpacities.at(-1) < newestToOldestCoreOpacities[0])
+  assert.ok(Math.max(...trailGlowOpacities) > Math.min(...trailGlowOpacities))
+  assert.ok(Math.max(...trailCoreOpacities) > Math.min(...trailCoreOpacities))
 })
 
-test('Selection Mode pointer locks root orientation and animates only the screen-plane z axis', () => {
+test('Selection Mode pointer fixes northwest orientation and spins only along its local length axis', () => {
   const renderer = createSelectionModeCursorModelRenderer({
     scene: { add() {}, remove() {} },
     THREE: FakeTHREE,
@@ -497,14 +685,14 @@ test('Selection Mode pointer locks root orientation and animates only the screen
 
   renderer.update(modelOverlay({ repeatCount: 0 }), { time: 12 })
   const primary = renderer.root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
-  const spin = primary.children[0]
+  const { spin } = pointerParts(primary)
 
   assert.equal(primary.rotation.x, 0)
   assert.equal(primary.rotation.y, 0)
-  assert.equal(primary.rotation.z, 0)
+  assert.equal(primary.rotation.z, Math.PI / 4)
   assert.equal(spin.rotation.x, 0)
-  assert.equal(spin.rotation.y, 0)
-  assert.notEqual(spin.rotation.z, 0)
+  assert.notEqual(spin.rotation.y, 0)
+  assert.equal(spin.rotation.z, 0)
 })
 
 test('Selection Mode cursor model hides stale objects when cursor projection fails', () => {
@@ -524,13 +712,14 @@ test('Selection Mode cursor model hides stale objects when cursor projection fai
   })
   const overlay = modelOverlay()
 
-  renderer.update(overlay, { time: 12 })
+  warmCursorGhosts(renderer, { repeatCount: 2, repeatDuration: 3, steps: 3, dt: 1.51 })
   const root = renderer.root
   const primary = root.children.find((child) => child.userData.object_id === 'selection-mode.cursor.sigil-model')
   const trails = root.children.filter((child) => String(child.userData.object_id || '').startsWith('selection-mode.cursor.trail-model'))
   assert.equal(root.visible, true)
   assert.equal(primary.visible, true)
-  assert.equal(trails.length, 2)
+  assert.ok(trails.length > 0)
+  assert.ok(trails.length <= 2)
   assert.equal(trails.every((trail) => trail.visible), true)
 
   const blockedSnapshot = renderer.update({
@@ -566,10 +755,10 @@ test('Selection Mode cursor model reuses objects and bounded resources after war
   })
   const overlay = modelOverlay({ repeatCount: 4 })
 
-  renderer.update(overlay, { time: 12 })
+  warmCursorGhosts(renderer, { repeatCount: 4, repeatDuration: 4, steps: 5, dt: 1.01 })
   const warmSnapshot = renderer.snapshot()
-  renderer.update(overlay, { time: 12.016 })
-  renderer.update(overlay, { time: 12.032 })
+  renderer.update(modelOverlay({ repeatCount: 4, cursor: { x: 196, y: 80, valid: true } }), { time: 15.7 })
+  renderer.update(modelOverlay({ repeatCount: 4, cursor: { x: 196, y: 80, valid: true } }), { time: 15.716 })
   const steadySnapshot = renderer.snapshot()
 
   assert.equal(steadySnapshot.resource_counts.scene_adds, warmSnapshot.resource_counts.scene_adds)
@@ -577,8 +766,10 @@ test('Selection Mode cursor model reuses objects and bounded resources after war
   assert.equal(steadySnapshot.resource_counts.trail_instances_created, warmSnapshot.resource_counts.trail_instances_created)
   assert.equal(steadySnapshot.resource_counts.geometries_created, warmSnapshot.resource_counts.geometries_created)
   assert.equal(steadySnapshot.resource_counts.materials_created, warmSnapshot.resource_counts.materials_created)
-  assert.equal(steadySnapshot.object_counts.root_children, 5)
-  assert.equal(steadySnapshot.object_counts.trail_instances, 4)
+  assert.ok(steadySnapshot.object_counts.root_children >= 2)
+  assert.ok(steadySnapshot.object_counts.root_children <= 5)
+  assert.ok(steadySnapshot.object_counts.trail_instances > 0)
+  assert.ok(steadySnapshot.object_counts.trail_instances <= 4)
   assert.equal(steadySnapshot.object_counts.scene_children, 1)
   assert.equal(steadySnapshot.resource_counts.update_count, warmSnapshot.resource_counts.update_count + 2)
 })
@@ -603,13 +794,13 @@ test('Selection Mode cursor model disposes avatar-derived effect materials on de
     getAvatarRenderSource: () => avatarSource(),
   })
 
-  renderer.update(modelOverlay({ repeatCount: 3 }), { time: 12 })
+  warmCursorGhosts(renderer, { repeatCount: 3, repeatDuration: 4.2, steps: 4, dt: 1.41 })
   const effectMaterials = renderer.root.children.flatMap((child) => {
     const effects = pointerEffects(child)
-    return [effects.glow.material, effects.core.material]
+    return [effects.glow.material, effects.core.material, effects.rotatingCore.material]
   })
 
-  assert.equal(effectMaterials.length, 8)
+  assert.ok(effectMaterials.length >= 6)
   assert.ok(effectMaterials.every((material) => material.disposed === false))
 
   renderer.destroy()

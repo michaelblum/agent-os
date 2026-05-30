@@ -8,6 +8,9 @@ import {
   classifyRenderLoopWork,
   renderLoopContinuationReasons,
 } from '../../apps/sigil/renderer/live-modules/render-loop.js'
+import state from '../../apps/sigil/renderer/state.js'
+import { hideAuraObjects } from '../../apps/sigil/renderer/aura.js'
+import { hideTrailSprites } from '../../apps/sigil/renderer/particles.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../..')
@@ -90,9 +93,59 @@ test('hidden Sigil cleanup clears overlay canvases and cursor model before publi
   const clearBlock = source.slice(clearStart, clearEnd)
 
   assert.match(clearBlock, /overlay\.clear\(\)/)
+  assert.match(clearBlock, /hideAuraObjects\(\)/)
+  assert.match(clearBlock, /hideTrailSprites\(\)/)
   assert.match(clearBlock, /refreshSelectionModeCursorModelSnapshot\(null\)/)
   assert.match(clearBlock, /visibilityTransition\.clear\(\)/)
   assert.match(clearBlock, /fastTravel\.clear\?\.\(\)/)
   assert.match(clearBlock, /state\.renderer\.clear\(true,\s*true,\s*true\)/)
   assert.ok(clearBlock.indexOf('overlay.clear()') < clearBlock.indexOf('state.renderer.clear(true, true, true)'))
+})
+
+test('hidden avatar visual cleanup hides aura and trail sprites instead of leaving zero-scale residues', () => {
+  const original = {
+    glowSprite: state.glowSprite,
+    coreSprite: state.coreSprite,
+    wobbleMeshes: state.wobbleMeshes,
+    trailSprites: state.trailSprites,
+    trailPositions: state.trailPositions,
+  }
+  const makeSprite = () => ({
+    visible: true,
+    material: { opacity: 0.8 },
+    scale: {
+      x: 1,
+      y: 1,
+      z: 1,
+      set(x, y, z) {
+        this.x = x
+        this.y = y
+        this.z = z
+      },
+    },
+  })
+  const wobble = { visible: true }
+  const trail = makeSprite()
+  try {
+    state.glowSprite = makeSprite()
+    state.coreSprite = makeSprite()
+    state.wobbleMeshes = [wobble]
+    state.trailSprites = [trail]
+    state.trailPositions = [{ x: 1, y: 2, z: 3 }]
+
+    hideAuraObjects()
+    hideTrailSprites()
+
+    assert.equal(state.glowSprite.visible, false)
+    assert.equal(state.glowSprite.material.opacity, 0)
+    assert.equal(state.glowSprite.scale.x, 0)
+    assert.equal(state.coreSprite.visible, false)
+    assert.equal(state.coreSprite.material.opacity, 0)
+    assert.equal(wobble.visible, false)
+    assert.equal(trail.visible, false)
+    assert.equal(trail.material.opacity, 0)
+    assert.deepEqual(state.trailPositions, [])
+  } finally {
+    Object.assign(state, original)
+  }
 })

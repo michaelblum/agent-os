@@ -1,7 +1,10 @@
 import { createButtonGroup } from '../controls/button-group.js';
 import { createCheckboxGroup } from '../controls/checkbox-group.js';
+import { createColorField } from '../controls/color-field.js';
 import { createSelect } from '../controls/select.js';
+import { createSlider } from '../controls/slider.js';
 import { createTextField } from '../controls/text-field.js';
+import { createTextarea } from '../controls/textarea.js';
 import { createToggle } from '../controls/toggle.js';
 import { dispatchDomEvent } from '../controls/_events.js';
 import { wireNumberFieldControls } from '../controls/number-field.js';
@@ -37,9 +40,23 @@ function isRequiredField(field) {
   return !field?.optional;
 }
 
+function scalarEqual(a, b) {
+  if (a === b) return true;
+  const aNumber = Number(a);
+  const bNumber = Number(b);
+  if (String(a ?? '').trim() !== ''
+    && String(b ?? '').trim() !== ''
+    && Number.isFinite(aNumber)
+    && Number.isFinite(bNumber)) {
+    return aNumber === bNumber;
+  }
+  return String(a ?? '') === String(b ?? '');
+}
+
 function equalValue(a, b) {
-  if (Array.isArray(a)) return a.includes(b);
-  return a === b;
+  if (Array.isArray(a)) return a.some((value) => scalarEqual(value, b));
+  if (Array.isArray(b)) return b.some((value) => scalarEqual(a, value));
+  return scalarEqual(a, b);
 }
 
 function createNumberField(doc, field) {
@@ -83,10 +100,24 @@ function createNumberField(doc, field) {
   };
 }
 
+function setControlDisabled(control, disabled) {
+  if (typeof control?.setDisabled === 'function') {
+    control.setDisabled(disabled);
+    return;
+  }
+  const targets = [];
+  if (control?.el?.matches?.('button,input,select,textarea')) targets.push(control.el);
+  if (typeof control?.el?.querySelectorAll === 'function') {
+    targets.push(...control.el.querySelectorAll('button,input,select,textarea'));
+  }
+  for (const target of targets) target.disabled = !!disabled;
+}
+
 function controlForField(doc, field) {
   const common = { document: doc };
   switch (field.kind) {
     case 'exclusive_choice':
+    case 'radio_group':
       return createButtonGroup({
         ...common,
         options: field.options || [],
@@ -99,9 +130,10 @@ function controlForField(doc, field) {
         value: field.value || [],
       });
     case 'boolean':
+    case 'checkbox':
       return createToggle({
         ...common,
-        checked: !!field.value,
+        checked: !!(field.value ?? field.checked),
         label: field.control_label,
       });
     case 'text':
@@ -112,8 +144,34 @@ function controlForField(doc, field) {
         maxLength: field.maxLength ?? field.max_length,
         validate: field.validate,
       });
+    case 'textarea':
+      return createTextarea({
+        ...common,
+        value: field.value ?? '',
+        placeholder: field.placeholder,
+        rows: field.rows,
+        maxLength: field.maxLength ?? field.max_length,
+        spellcheck: field.spellcheck,
+        readOnly: field.readOnly ?? field.read_only,
+      });
     case 'number':
       return createNumberField(doc, field);
+    case 'slider':
+      return createSlider({
+        ...common,
+        value: field.value,
+        min: field.min,
+        max: field.max,
+        step: field.step,
+        unit: field.unit,
+        output: field.output,
+      });
+    case 'color':
+    case 'color_control':
+      return createColorField({
+        ...common,
+        value: field.value,
+      });
     case 'select':
       return createSelect({
         ...common,
@@ -130,6 +188,35 @@ function controlForField(doc, field) {
   }
 }
 
+function metadataValue(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (Array.isArray(value)) return value.join(' ');
+  return String(value);
+}
+
+function applyFieldMetadata(fieldEl, field) {
+  const binding = field.binding && typeof field.binding === 'object' ? field.binding : {};
+  fieldEl.dataset.aosFieldId = String(field.id);
+  fieldEl.dataset.aosFieldKind = String(field.kind || 'text');
+  const metadata = {
+    descriptorId: field.descriptor_id ?? binding.descriptor_id,
+    statePath: field.state_path ?? field.path ?? binding.state_path,
+    route: field.route ?? binding.route,
+    objectIds: field.object_ids ?? binding.object_ids,
+    groupKey: field.group_key ?? binding.group_key,
+    facetKey: field.facet_key ?? binding.facet_key,
+    bindingId: field.binding_id ?? binding.id,
+  };
+  for (const [key, value] of Object.entries(metadata)) {
+    const text = metadataValue(value);
+    if (text !== null) fieldEl.dataset[key] = text;
+  }
+}
+
+function isSectionItem(item = {}) {
+  return item.kind === 'section' || Array.isArray(item.fields) || Array.isArray(item.controls);
+}
+
 export function createForm(container, fields = [], options = {}) {
   if (!container?.ownerDocument?.createElement && !options.document?.createElement) {
     throw new Error('createForm requires a DOM container');
@@ -138,7 +225,9 @@ export function createForm(container, fields = [], options = {}) {
   const hub = createHub();
   const formEl = doc.createElement('div');
   const records = new Map();
+  const sections = [];
   let destroyed = false;
+  let disabled = false;
 
   formEl.classList.add('aos-form');
   container.appendChild(formEl);
@@ -161,6 +250,11 @@ export function createForm(container, fields = [], options = {}) {
       record.hidden = hidden;
       record.el.classList.toggle('hidden', hidden);
     }
+    for (const section of sections) {
+      const hidden = section.fieldIds.length > 0
+        && section.fieldIds.every((id) => records.get(id)?.hidden);
+      section.el.classList.toggle('hidden', hidden);
+    }
   };
 
   const emitChange = () => {
@@ -171,10 +265,11 @@ export function createForm(container, fields = [], options = {}) {
     dispatchDomEvent(formEl, 'change', { value: values });
   };
 
-  for (const field of fields) {
-    if (!field?.id) continue;
+  const appendField = (field, parentEl, section = null) => {
+    if (!field?.id) return;
     const fieldEl = doc.createElement('div');
     fieldEl.classList.add('aos-form-field');
+    applyFieldMetadata(fieldEl, field);
     if (field.label) {
       const labelEl = doc.createElement('div');
       labelEl.classList.add('aos-control-label');
@@ -183,9 +278,50 @@ export function createForm(container, fields = [], options = {}) {
     }
     const control = controlForField(doc, field);
     control.on?.('change', emitChange);
+    setControlDisabled(control, disabled);
     fieldEl.appendChild(control.el);
-    formEl.appendChild(fieldEl);
+    parentEl.appendChild(fieldEl);
     records.set(field.id, { field, el: fieldEl, control, hidden: false });
+    section?.fieldIds.push(field.id);
+  };
+
+  const appendSection = (sectionItem, parentEl) => {
+    const sectionEl = doc.createElement('section');
+    const fieldsEl = doc.createElement('div');
+    const section = { el: sectionEl, fieldIds: [] };
+    sectionEl.classList.add('aos-form-section');
+    if (sectionItem.id) sectionEl.dataset.aosSectionId = String(sectionItem.id);
+    if (sectionItem.key) sectionEl.dataset.aosSectionKey = String(sectionItem.key);
+    fieldsEl.classList.add('aos-form-section-fields');
+    if (sectionItem.label || sectionItem.title || sectionItem.description) {
+      const headerEl = doc.createElement('div');
+      headerEl.classList.add('aos-form-section-header');
+      if (sectionItem.label || sectionItem.title) {
+        const titleEl = doc.createElement('div');
+        titleEl.classList.add('aos-form-section-title');
+        titleEl.textContent = String(sectionItem.label || sectionItem.title);
+        headerEl.appendChild(titleEl);
+      }
+      if (sectionItem.description) {
+        const descriptionEl = doc.createElement('div');
+        descriptionEl.classList.add('aos-form-section-description');
+        descriptionEl.textContent = String(sectionItem.description);
+        headerEl.appendChild(descriptionEl);
+      }
+      sectionEl.appendChild(headerEl);
+    }
+    sectionEl.appendChild(fieldsEl);
+    parentEl.appendChild(sectionEl);
+    sections.push(section);
+    for (const field of sectionItem.fields || sectionItem.controls || []) {
+      if (isSectionItem(field)) appendSection(field, fieldsEl);
+      else appendField(field, fieldsEl, section);
+    }
+  };
+
+  for (const field of fields) {
+    if (isSectionItem(field)) appendSection(field, formEl);
+    else appendField(field, formEl);
   }
 
   evaluateVisibility();
@@ -207,6 +343,24 @@ export function createForm(container, fields = [], options = {}) {
         records.get(id)?.control.setValue?.(value, { emit: false });
       }
       emitChange();
+    },
+    setDisabled(nextDisabled = true) {
+      disabled = !!nextDisabled;
+      for (const record of records.values()) setControlDisabled(record.control, disabled);
+    },
+    refreshVisibility() {
+      evaluateVisibility();
+    },
+    getField(id) {
+      const record = records.get(id);
+      if (!record) return null;
+      return {
+        id,
+        el: record.el,
+        control: record.control,
+        field: record.field,
+        hidden: record.hidden,
+      };
     },
     focus() {
       for (const record of records.values()) {

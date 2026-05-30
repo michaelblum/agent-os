@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 
 from real_input_surface_primitives import AOS, wait_until
 
@@ -36,7 +37,22 @@ class SigilContextHarness:
         self.aos.run("do", "scroll", f"{round(point['x'])},{round(point['y'])}", "--dy", str(dy))
 
     def key(self, key):
-        self.aos.run("do", "key", key)
+        if os.getenv("SIGIL_REAL_INPUT_ALLOW_KEYS") == "1":
+            self.aos.run("do", "key", key)
+            return
+        raise RuntimeError(
+            "Sigil real-input smokes must not send real keyboard input by default; "
+            "use renderer/debug dispatch helpers instead, or set "
+            "SIGIL_REAL_INPUT_ALLOW_KEYS=1 for an isolated safe environment."
+        )
+
+    def dispatch_escape(self):
+        return self.eval_json(
+            """(() => {
+              window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 })
+              return JSON.stringify(window.__sigilDebug.snapshot().contextMenu)
+            })()"""
+        )
 
     def native_point_for(self, selector, ratio=0.5):
         # Transitional canvas-DOM helper until AOS canvas perception exposes DOM refs.
@@ -127,4 +143,3 @@ class SigilContextHarness:
         if self.rects_overlap(state["menu"], state["avatar"]):
             raise SystemExit(f"FAIL: context menu overlaps avatar for {label}: {state}")
         return state
-
