@@ -114,6 +114,7 @@ import { createSessionVitalityController } from '../session-vitality.js';
 
 const {
     buildBrowserTabAnnotationCandidate,
+    buildNativeAxAncestorAnnotationCandidates,
     buildNativeAxElementAnnotationCandidate,
     buildNativeWindowAnnotationCandidate,
 } = await import(toolkitSpecifier('workbench/annotation-candidates.js'));
@@ -2370,6 +2371,58 @@ function annotationReticleNativeBrowserContext(payload = {}) {
     return context && typeof context === 'object' ? context : null;
 }
 
+function annotationReticleWindowTitleFromBrowserContext(context = null) {
+    const textCandidates = Array.isArray(context?.text_candidates) ? context.text_candidates : [];
+    return String(
+        textCandidates.find((candidate) => String(candidate?.role || '').toLowerCase() === 'axwindow'
+            && String(candidate?.source_attribute || '').toLowerCase() === 'axtitle')?.value
+        || textCandidates.find((candidate) => String(candidate?.role || '').toLowerCase() === 'axwindow')?.value
+        || context?.active_tab_title
+        || ''
+    ).trim();
+}
+
+function annotationReticleFallbackAppNameFromBrowserContext(context = null) {
+    return String(context?.app_name || context?.browser_app_name || 'Native App').trim();
+}
+
+function annotationReticleFallbackWindowId(bounds = null, title = '') {
+    if (!bounds) return '';
+    return [
+        'fallback',
+        bounds.x,
+        bounds.y,
+        bounds.w,
+        bounds.h,
+        title,
+    ].join(':')
+        .replace(/[^a-zA-Z0-9:_-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+}
+
+function annotationReticleNativeWindowFallbackFromAxPayload(payload = {}) {
+    const context = annotationReticleNativeBrowserContext(payload);
+    const bounds = annotationReticleRectFromObject(
+        payload.window_bounds
+        || context?.window_bounds
+        || (Array.isArray(context?.text_candidates)
+            ? context.text_candidates.find((candidate) => String(candidate?.role || '').toLowerCase() === 'axwindow')?.bounds
+            : null),
+    );
+    if (!bounds) return null;
+    const title = String(payload.window_title || annotationReticleWindowTitleFromBrowserContext(context) || payload.title || '').trim();
+    return {
+        window_id: payload.window_id || annotationReticleFallbackWindowId(bounds, title),
+        app: payload.app || payload.app_name || annotationReticleFallbackAppNameFromBrowserContext(context),
+        pid: payload.pid ?? payload.app_pid ?? null,
+        bundle_id: payload.bundle_id || '',
+        title,
+        bounds,
+        browser_context: context || null,
+    };
+}
+
 function annotationReticleNativeBrowserTabContentRect(payload = {}, context = null) {
     if (context?.content_bounds) return context.content_bounds;
     const role = String(payload?.role || payload?.kind || '').toLowerCase();
@@ -2419,7 +2472,8 @@ function annotationReticleHandleNativeWindow(payload = {}) {
 
 function annotationReticleHandleNativeAxElement(payload = {}) {
     liveJs.annotationReticleTargetEvidence.latestNativeAxElementEvent = payload;
-    const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent;
+    const windowEvent = liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent
+        || annotationReticleNativeWindowFallbackFromAxPayload(payload);
     const windowCandidate = buildNativeWindowAnnotationCandidate(windowEvent || {}, {
         refreshed_at: windowEvent?.ts || new Date().toISOString(),
     });
@@ -2432,6 +2486,14 @@ function annotationReticleHandleNativeAxElement(payload = {}) {
         windowCandidate,
         refreshedAt: payload.ts || new Date().toISOString(),
     });
+    for (const candidate of buildNativeAxAncestorAnnotationCandidates(payload, {
+        selected_root: selectedRoot,
+        window: windowEvent,
+        refreshed_at: payload.ts || new Date().toISOString(),
+        source_event_id: payload.ref || payload.id || '',
+    })) {
+        annotationReticleUpsertCandidate(candidate);
+    }
     annotationReticleUpsertCandidate(buildNativeAxElementAnnotationCandidate(payload, {
         selected_root: selectedRoot,
         window: windowEvent,

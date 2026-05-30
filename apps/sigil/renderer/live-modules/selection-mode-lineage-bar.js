@@ -5,7 +5,7 @@ const BAR_DISPLAY_MARGIN = 8;
 const BAR_PADDING_X = 8;
 const BAR_ITEM_HEIGHT = 24;
 const BAR_ITEM_MIN_WIDTH = 28;
-const BAR_ITEM_MAX_WIDTH = 150;
+const BAR_ITEM_MAX_WIDTH = 180;
 const BAR_SEPARATOR_WIDTH = 12;
 const BAR_MAX_WIDTH = 720;
 
@@ -76,6 +76,25 @@ function pointInBounds(point = null, rect = null) {
         && point.y >= rect.y && point.y <= rect.y + height;
 }
 
+function intersectRect(a = null, b = null) {
+    if (!a || !b) return null;
+    const ax = Number(a.x);
+    const ay = Number(a.y);
+    const aw = Number(a.width ?? a.w);
+    const ah = Number(a.height ?? a.h);
+    const bx = Number(b.x);
+    const by = Number(b.y);
+    const bw = Number(b.width ?? b.w);
+    const bh = Number(b.height ?? b.h);
+    if (![ax, ay, aw, ah, bx, by, bw, bh].every(Number.isFinite)) return null;
+    const x = Math.max(ax, bx);
+    const y = Math.max(ay, by);
+    const right = Math.min(ax + aw, bx + bw);
+    const bottom = Math.min(ay + ah, by + bh);
+    if (right <= x || bottom <= y) return null;
+    return { x, y, width: right - x, height: bottom - y };
+}
+
 function rectCenter(rect = null) {
     if (!rect) return null;
     return {
@@ -100,15 +119,7 @@ function findDisplayForPoint(displays = [], point = null) {
         .sort((a, b) => distance(point, rectCenter(a.rect)) - distance(point, rectCenter(b.rect)))[0]?.display || null;
 }
 
-function normalizeRoleToken(node = {}) {
-    const text = [
-        node.role,
-        node.kind,
-        node.subject_kind,
-        node.label,
-        node.address,
-        node.id,
-    ].map((part) => String(part || '').toLowerCase()).join(' ');
+function roleTokenForText(text = '') {
     if (text.includes('union')) return 'union';
     if (text.includes('desktopworld') || text.includes('desktop_world') || /\bdesktop\b/.test(text)) return 'desktop';
     if (text.includes('display') || text.includes('screen')) return 'display';
@@ -116,11 +127,43 @@ function normalizeRoleToken(node = {}) {
     if (text.includes('document') || /\bdom\b/.test(text)) return 'document';
     if (/\bbody\b/.test(text) || text.includes('document body')) return 'body';
     if (text.includes('native_app') || text.includes('application') || /\bapp\b/.test(text)) return 'app';
-    if (text.includes('native_window') || /\bwindow\b/.test(text)) return 'window';
     if (text.includes('canvas')) return 'canvas';
+    if (text.includes('image')) return 'image';
+    if (text.includes('native_window') || /\bwindow\b/.test(text)) return 'window';
+    if (text.includes('split')) return 'split';
+    if (text.includes('outline')) return 'outline';
+    if (text.includes('row')) return 'row';
+    if (text.includes('editor')) return 'editor';
+    if (text.includes('sidebar') || text.includes('side bar')) return 'sidebar';
+    if (text.includes('toolbar') || text.includes('tool bar')) return 'toolbar';
+    if (text.includes('button')) return 'button';
+    if (text.includes('statictext') || text.includes('static text') || /\btext\b/.test(text)) return 'text';
     if (text.includes('layout')) return 'layout';
     if (text.includes('container') || text.includes('group')) return 'container';
     return '';
+}
+
+function normalizeRoleToken(node = {}) {
+    const structuralText = [
+        node.role,
+        node.kind,
+        node.subject_kind,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    const structuralToken = roleTokenForText(structuralText);
+    if (structuralToken) return structuralToken;
+    const labelText = [
+        node.label,
+        node.name,
+        node.title,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    const labelToken = roleTokenForText(labelText);
+    if (labelToken) return labelToken;
+    const identityText = [
+        node.address,
+        node.id,
+        node.subject_id,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    return roleTokenForText(identityText);
 }
 
 function nodeId(node = {}) {
@@ -129,7 +172,7 @@ function nodeId(node = {}) {
 
 function nodeTitle(node = {}, fallback = '') {
     const role = String(node.role || node.subject_kind || node.kind || '').trim();
-    const label = String(node.label || node.name || node.address || node.id || fallback).trim();
+    const label = labelForNode(node, { fallback });
     return role && role !== label ? `${label} (${role})` : label;
 }
 
@@ -140,20 +183,87 @@ function shortDisplayLabel(display = null) {
     return id ? `Display ${id}` : 'Display';
 }
 
-function labelForNode(node = {}, { index = 0, activeDisplay = null } = {}) {
+function compactUrlLabel(value = '') {
+    try {
+        const url = new URL(String(value));
+        const path = url.pathname && url.pathname !== '/' ? url.pathname.split('/').filter(Boolean).at(-1) : '';
+        return path ? `${url.hostname}/${path}` : url.hostname;
+    } catch {
+        return '';
+    }
+}
+
+function isGenericLabel(value = '') {
+    const normalized = String(value || '').trim().toLowerCase();
+    return !normalized
+        || normalized === 'axgroup'
+        || normalized === 'axsplitgroup'
+        || normalized === 'axoutline'
+        || normalized === 'axrow'
+        || normalized === 'group'
+        || normalized === 'container'
+        || normalized === 'layout'
+        || normalized === 'row'
+        || normalized === 'text'
+        || normalized === 'static text'
+        || normalized === 'button'
+        || normalized === 'window'
+        || normalized === 'application'
+        || normalized === 'display';
+}
+
+function metadataLabel(node = {}) {
+    const metadata = node.source_metadata || node.metadata || {};
+    const candidates = [
+        node.title,
+        node.accessible_name,
+        node.value,
+        metadata.title,
+        metadata.accessible_name,
+        metadata.value,
+        metadata.ax_title,
+        metadata.ax_description,
+        metadata.dom_label,
+        metadata.text_excerpt,
+        metadata.name,
+        metadata.identifier,
+        metadata.target_id,
+        metadata.data_aos_ref,
+        metadata.aos_ref,
+    ];
+    for (const candidate of candidates) {
+        const label = String(candidate || '').trim();
+        if (label && !isGenericLabel(label)) return label;
+    }
+    const urlLabel = compactUrlLabel(metadata.active_url || metadata.source_url || node.source_url || '');
+    if (urlLabel) return urlLabel;
+    return '';
+}
+
+function labelForNode(node = {}, { index = 0, activeDisplay = null, fallback = '' } = {}) {
     const token = normalizeRoleToken(node);
     const rawLabel = String(node.label || node.name || node.subject_id || node.address || node.id || '').trim();
+    const semanticLabel = !isGenericLabel(rawLabel) ? rawLabel : metadataLabel(node);
     if (token === 'display') return rawLabel || shortDisplayLabel(activeDisplay);
     if (token === 'desktop') return 'Desktop';
-    if (token === 'app') return rawLabel || 'App';
-    if (token === 'window') return rawLabel || 'Window';
-    if (token === 'browser_tab') return rawLabel || 'Tab';
-    if (token === 'canvas') return rawLabel || 'Canvas';
-    if (token === 'document') return rawLabel || 'DOM';
-    if (token === 'body') return rawLabel || 'Body';
-    if (token === 'layout') return rawLabel || 'Layout';
-    if (token === 'container') return rawLabel || 'Container';
-    return rawLabel || `Target ${index + 1}`;
+    if (token === 'app') return semanticLabel || 'App';
+    if (token === 'window') return semanticLabel || 'Window';
+    if (token === 'browser_tab') return semanticLabel || 'Tab';
+    if (token === 'canvas') return semanticLabel || 'Canvas';
+    if (token === 'document') return semanticLabel || 'DOM';
+    if (token === 'body') return semanticLabel || 'Body';
+    if (token === 'split') return semanticLabel || 'Split';
+    if (token === 'outline') return semanticLabel || 'Outline';
+    if (token === 'row') return semanticLabel || `Row ${index + 1}`;
+    if (token === 'editor') return semanticLabel || 'Editor';
+    if (token === 'sidebar') return semanticLabel || 'Sidebar';
+    if (token === 'toolbar') return semanticLabel || 'Toolbar';
+    if (token === 'button') return semanticLabel || 'Button';
+    if (token === 'text') return semanticLabel || 'Text';
+    if (token === 'image') return semanticLabel || 'Image';
+    if (token === 'layout') return semanticLabel || 'Layout';
+    if (token === 'container') return semanticLabel || 'Container';
+    return semanticLabel || rawLabel || fallback || `Target ${index + 1}`;
 }
 
 function syntheticDisplayNode(display = null) {
@@ -268,27 +378,6 @@ function desiredItemWidth(label = '') {
     return clamp(String(label).length * 7 + 18, BAR_ITEM_MIN_WIDTH, BAR_ITEM_MAX_WIDTH);
 }
 
-function distributeItemWidths(items = [], availableWidth = 0) {
-    if (!items.length) return [];
-    const desired = items.map((item) => desiredItemWidth(item.label));
-    const desiredTotal = desired.reduce((sum, width) => sum + width, 0);
-    if (desiredTotal <= availableWidth) return desired;
-    const minWidth = Math.max(14, Math.min(BAR_ITEM_MIN_WIDTH, Math.floor(availableWidth / items.length)));
-    const minTotal = minWidth * items.length;
-    if (minTotal >= availableWidth) {
-        const base = Math.max(10, Math.floor(availableWidth / items.length));
-        let remainder = Math.max(0, Math.floor(availableWidth - base * items.length));
-        return items.map(() => base + (remainder-- > 0 ? 1 : 0));
-    }
-    const extra = availableWidth - minTotal;
-    const desiredExtra = desired
-        .map((width) => Math.max(0, width - minWidth))
-        .reduce((sum, width) => sum + width, 0);
-    return desired.map((width) => minWidth + (desiredExtra > 0
-        ? Math.floor((Math.max(0, width - minWidth) / desiredExtra) * extra)
-        : 0));
-}
-
 function lineageBarStyle(visualStyle = null) {
     const lineage = visualStyle?.lineage || {};
     return {
@@ -321,6 +410,12 @@ function lineageBarStyle(visualStyle = null) {
     };
 }
 
+function centeredScrollOffsetForItem(item = null, { barWidth = 0, maxScrollOffset = 0 } = {}) {
+    if (!item?.localRect) return null;
+    const itemCenter = item.localRect.x + item.localRect.width / 2;
+    return clamp(itemCenter - barWidth / 2, 0, maxScrollOffset);
+}
+
 export function buildSelectionModeLineageBarModel({
     path = [],
     activeNodeId = '',
@@ -329,6 +424,8 @@ export function buildSelectionModeLineageBarModel({
     acquisitionPointer = null,
     cursor = null,
     manualPosition = null,
+    scrollOffset = 0,
+    scrollTargetNodeId = null,
     displays = [],
     overlayBounds = null,
     projectPoint = (point) => point,
@@ -369,11 +466,11 @@ export function buildSelectionModeLineageBarModel({
         leaf: nodeId(node) === leafNodeId,
         source: node.source_metadata?.synthetic_lineage_root ? 'active_display' : 'context_session_path',
     }));
-    const desiredInnerWidth = items
-        .map((item) => desiredItemWidth(item.label))
-        .reduce((sum, width) => sum + width, 0)
+    const widths = items.map((item) => desiredItemWidth(item.label));
+    const desiredInnerWidth = widths.reduce((sum, width) => sum + width, 0)
         + Math.max(0, items.length - 1) * separatorWidth;
-    const barWidth = Math.min(maxBarWidth, Math.max(Math.min(48, maxBarWidth), desiredInnerWidth + BAR_PADDING_X * 2));
+    const contentWidth = desiredInnerWidth + BAR_PADDING_X * 2;
+    const barWidth = Math.min(maxBarWidth, Math.max(Math.min(48, maxBarWidth), contentWidth));
     const explicitVisibleBounds = displayExplicitVisibleBounds(activeDisplay);
     const rawDisplayBounds = displayRawBounds(activeDisplay);
     const explicitTopInset = explicitVisibleBounds && rawDisplayBounds
@@ -405,18 +502,26 @@ export function buildSelectionModeLineageBarModel({
     const barY = useManualPosition
         ? clamp(manualY, displayRect.y + BAR_DISPLAY_MARGIN, displayRect.y + Math.max(BAR_DISPLAY_MARGIN, displayRect.height - BAR_DISPLAY_MARGIN - BAR_HEIGHT))
         : defaultBarY;
-    const availableItemWidth = Math.max(
-        items.length * 10,
-        barWidth - BAR_PADDING_X * 2 - Math.max(0, items.length - 1) * separatorWidth,
-    );
-    const widths = distributeItemWidths(items, availableItemWidth);
+    const maxScrollOffset = Math.max(0, contentWidth - barWidth);
     const itemY = Math.round(barY + (BAR_HEIGHT - BAR_ITEM_HEIGHT) / 2);
-    let x = Math.round(barX + BAR_PADDING_X);
+    const barRect = {
+        x: Math.round(barX),
+        y: Math.round(barY),
+        width: Math.round(barWidth),
+        height: BAR_HEIGHT,
+    };
+    let localX = BAR_PADDING_X;
     const separators = [];
     items.forEach((item, index) => {
         const width = widths[index] || BAR_ITEM_MIN_WIDTH;
-        item.rect = {
-            x,
+        item.localRect = {
+            x: localX,
+            y: Math.round((BAR_HEIGHT - BAR_ITEM_HEIGHT) / 2),
+            width,
+            height: BAR_ITEM_HEIGHT,
+        };
+        item.contentRect = {
+            x: Math.round(barX + localX),
             y: itemY,
             width,
             height: BAR_ITEM_HEIGHT,
@@ -425,15 +530,47 @@ export function buildSelectionModeLineageBarModel({
             separators.push({
                 id: `selection-mode-lineage-separator:${index}`,
                 label: '>',
-                rect: {
-                    x: x + width,
+                localRect: {
+                    x: localX + width,
+                    y: Math.round((BAR_HEIGHT - BAR_ITEM_HEIGHT) / 2),
+                    width: separatorWidth,
+                    height: BAR_ITEM_HEIGHT,
+                },
+                contentRect: {
+                    x: Math.round(barX + localX + width),
                     y: itemY,
                     width: separatorWidth,
                     height: BAR_ITEM_HEIGHT,
                 },
             });
         }
-        x += width + (index < items.length - 1 ? separatorWidth : 0);
+        localX += width + (index < items.length - 1 ? separatorWidth : 0);
+    });
+    const targetNodeId = scrollTargetNodeId == null
+        ? String(hoverNodeId || activeNodeId || leafNodeId || '').trim()
+        : String(scrollTargetNodeId || '').trim();
+    const targetItem = targetNodeId ? items.find((item) => item.nodeId === targetNodeId || item.address === targetNodeId) : null;
+    const requestedScrollOffset = Number(scrollOffset);
+    const normalizedManualScrollOffset = clamp(Number.isFinite(requestedScrollOffset) ? requestedScrollOffset : 0, 0, maxScrollOffset);
+    const centeredScrollOffset = centeredScrollOffsetForItem(targetItem, { barWidth, maxScrollOffset });
+    const resolvedScrollOffset = centeredScrollOffset == null ? normalizedManualScrollOffset : centeredScrollOffset;
+    items.forEach((item) => {
+        item.rect = {
+            x: Math.round(item.contentRect.x - resolvedScrollOffset),
+            y: item.contentRect.y,
+            width: item.contentRect.width,
+            height: item.contentRect.height,
+        };
+        item.visibleRect = intersectRect(item.rect, barRect);
+    });
+    separators.forEach((separator) => {
+        separator.rect = {
+            x: Math.round(separator.contentRect.x - resolvedScrollOffset),
+            y: separator.contentRect.y,
+            width: separator.contentRect.width,
+            height: separator.contentRect.height,
+        };
+        separator.visibleRect = intersectRect(separator.rect, barRect);
     });
 
     return {
@@ -450,12 +587,7 @@ export function buildSelectionModeLineageBarModel({
                 width: displayRect.width,
                 height: displayRect.height,
             },
-            rect: {
-                x: Math.round(barX),
-                y: Math.round(barY),
-                width: Math.round(barWidth),
-                height: BAR_HEIGHT,
-            },
+            rect: barRect,
             defaultRect: {
                 x: Math.round(defaultBarX),
                 y: Math.round(defaultBarY),
@@ -466,6 +598,20 @@ export function buildSelectionModeLineageBarModel({
             draggable: true,
             maxWidth: Math.round(maxBarWidth),
             itemCount: items.length,
+            contentWidth: Math.round(contentWidth),
+            viewportWidth: Math.round(barWidth),
+            scrollOffset: Math.round(resolvedScrollOffset),
+            maxScrollOffset: Math.round(maxScrollOffset),
+            scrollTargetNodeId: targetItem?.nodeId || '',
+            scroll: {
+                axis: 'x',
+                offset: Math.round(resolvedScrollOffset),
+                maxOffset: Math.round(maxScrollOffset),
+                contentWidth: Math.round(contentWidth),
+                viewportWidth: Math.round(barWidth),
+                targetNodeId: targetItem?.nodeId || '',
+                centered: centeredScrollOffset != null,
+            },
             selectedNodeId: activeNodeId || '',
             hoverNodeId: hoverNodeId || '',
             leafNodeId: leafNodeId || '',
@@ -478,6 +624,7 @@ export function buildSelectionModeLineageBarModel({
 
 export function hitTestSelectionModeLineageItem(overlay = {}, point = null) {
     if (!point || overlay?.lineageBar?.visible !== true || !Array.isArray(overlay.lineageBar.items)) return null;
+    if (!pointInBounds(point, overlay.lineageBar.rect)) return null;
     return overlay.lineageBar.items.find((item) => pointInBounds(point, item.rect)) || null;
 }
 

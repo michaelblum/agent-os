@@ -39,6 +39,8 @@ export function createDefaultSelectionModeState() {
         hover_node_id: '',
         lineage_bar_position: null,
         lineage_bar_drag: null,
+        lineage_bar_scroll_offset: 0,
+        lineage_bar_scroll_target_node_id: '',
         context_session: null,
         events: [],
         effects: [],
@@ -53,6 +55,11 @@ function defaultNowIso() {
 function finite(value, fallback = 0) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
+}
+
+function clamp(value, min, max) {
+    if (max < min) return min;
+    return Math.max(min, Math.min(max, value));
 }
 
 function normalizeRect(rect = null) {
@@ -274,23 +281,38 @@ function projectRect(rect = null, projectPoint = (point) => point) {
     };
 }
 
-function selectionModeRoleToken(node = {}) {
-    const text = [
-        node.role,
-        node.kind,
-        node.subject_kind,
-        node.label,
-        node.address,
-        node.id,
-    ].map((part) => String(part || '').toLowerCase()).join(' ');
+function selectionModeRoleTokenForText(text = '') {
     if (text.includes('browser_tab') || text.includes('browser tab') || /\btab\b/.test(text)) return 'browser_tab';
     if (text.includes('document') || /\bdom\b/.test(text)) return 'document';
     if (/\bbody\b/.test(text) || text.includes('document body')) return 'body';
     if (text.includes('native_app') || text.includes('application') || /\bapp\b/.test(text)) return 'app';
-    if (text.includes('native_window') || /\bwindow\b/.test(text)) return 'window';
     if (text.includes('canvas')) return 'canvas';
+    if (text.includes('native_window') || /\bwindow\b/.test(text)) return 'window';
     if (text.includes('display') || text.includes('screen')) return 'display';
     return '';
+}
+
+function selectionModeRoleToken(node = {}) {
+    const structuralText = [
+        node.role,
+        node.kind,
+        node.subject_kind,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    const structuralToken = selectionModeRoleTokenForText(structuralText);
+    if (structuralToken) return structuralToken;
+    const labelText = [
+        node.label,
+        node.name,
+        node.title,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    const labelToken = selectionModeRoleTokenForText(labelText);
+    if (labelToken) return labelToken;
+    const identityText = [
+        node.address,
+        node.id,
+        node.subject_id,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    return selectionModeRoleTokenForText(identityText);
 }
 
 function majorSeamAncestorFrameId(path = [], highlightedNodeId = '', leafNodeId = '') {
@@ -327,7 +349,7 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     const selectedNodeId = artifact?.active_target_node_id || selectionMode.selected_node_id || '';
     const leafNodeId = artifact?.acquisition?.leaf_node_id || path.at(-1)?.id || '';
     const hoverNodeId = selectionMode.hover_node_id || '';
-    const highlightedNodeId = hoverNodeId || leafNodeId;
+    const highlightedNodeId = hoverNodeId || selectedNodeId || leafNodeId;
     const perimeterFillNodeId = majorSeamAncestorFrameId(path, highlightedNodeId, leafNodeId);
     const frames = path.map((node, index) => {
         const rect = projectRect(
@@ -371,6 +393,8 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         acquisitionPointer: artifact?.acquisition?.pointer || null,
         cursor: selectionMode.cursor || null,
         manualPosition: selectionMode.lineage_bar_position || null,
+        scrollOffset: selectionMode.lineage_bar_scroll_offset || 0,
+        scrollTargetNodeId: selectionMode.lineage_bar_scroll_target_node_id ?? null,
         displays,
         overlayBounds,
         projectPoint,
@@ -538,6 +562,7 @@ export function createSigilSelectionModeRuntime({
         const artifact = contextSession.artifacts?.[0] || null;
         liveState.selectionMode.context_session = contextSession;
         liveState.selectionMode.selected_node_id = artifact?.active_target_node_id || '';
+        liveState.selectionMode.lineage_bar_scroll_target_node_id = liveState.selectionMode.selected_node_id || '';
         liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
         return contextSession;
     }
@@ -605,6 +630,7 @@ export function createSigilSelectionModeRuntime({
             path_candidates: pathCandidates,
             selected_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
             hover_node_id: '',
+            lineage_bar_scroll_target_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
             blocker: pathCandidates.length > 1 ? null : {
                 status: 'degraded',
                 reason: 'selection_mode_only_display_fallback_available',
@@ -631,6 +657,7 @@ export function createSigilSelectionModeRuntime({
         const context = retargetContextSession(path[wrapped].id);
         recordEvent('select_target', {
             selected_node_id: liveState.selectionMode.selected_node_id,
+            source: 'cycle',
         });
         publish({ render: true });
         return context;
@@ -723,12 +750,69 @@ export function createSigilSelectionModeRuntime({
         return true;
     }
 
+    function lineageWheelDelta(msg = {}) {
+        const scroll = msg.scroll || {};
+        const dx = finite(msg.dx ?? msg.delta_x ?? msg.deltaX ?? scroll.dx ?? scroll.delta_x ?? scroll.deltaX, 0);
+        const dy = finite(msg.dy ?? msg.delta_y ?? msg.deltaY ?? scroll.dy ?? scroll.delta_y ?? scroll.deltaY, 0);
+        if (Math.abs(dx) >= Math.abs(dy) && dx !== 0) return dx;
+        return dy;
+    }
+
+    function scrollLineageBar(point = null, msg = {}) {
+        const cursor = cursorFromPoint(point);
+        if (!cursor) return false;
+        const projected = projectPoint(cursor);
+        const overlay = buildOverlay(liveState.selectionMode);
+        const hit = hitTestSelectionModeLineageBar(overlay, projected);
+        if (!hit) return false;
+        const scroll = overlay?.lineageBar?.scroll || {};
+        const maxOffset = Math.max(0, finite(scroll.maxOffset, 0));
+        const currentOffset = clamp(finite(scroll.offset, liveState.selectionMode.lineage_bar_scroll_offset || 0), 0, maxOffset);
+        const delta = lineageWheelDelta(msg);
+        if (maxOffset <= 0 || delta === 0) {
+            recordEvent('lineage_scroll', {
+                reason: maxOffset <= 0 ? 'no_scroll_range' : 'zero_delta',
+                offset: currentOffset,
+                max_offset: maxOffset,
+                consumed: true,
+            });
+            return true;
+        }
+        const nextOffset = clamp(currentOffset + delta, 0, maxOffset);
+        liveState.selectionMode.lineage_bar_scroll_offset = nextOffset;
+        liveState.selectionMode.lineage_bar_scroll_target_node_id = '';
+        liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        recordEvent('lineage_scroll', {
+            reason: 'wheel',
+            delta,
+            offset: nextOffset,
+            prior_offset: currentOffset,
+            max_offset: maxOffset,
+            hit_kind: hit.kind || '',
+            hovered_node_id: liveState.selectionMode.hover_node_id || '',
+            selected_node_id: liveState.selectionMode.selected_node_id || '',
+        });
+        return true;
+    }
+
     function updateLineageHover(point = null) {
-        const item = point ? hitTestLineageItem(point) : null;
+        const hit = point ? hitTestLineageBar(point) : null;
+        const item = hit?.kind === 'item' ? hit.item : null;
         const nextHoverNodeId = item?.nodeId || '';
         if ((liveState.selectionMode.hover_node_id || '') === nextHoverNodeId) return false;
         liveState.selectionMode.hover_node_id = nextHoverNodeId;
+        if (nextHoverNodeId) {
+            liveState.selectionMode.lineage_bar_scroll_target_node_id = nextHoverNodeId;
+        }
         liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        recordEvent('lineage_hover', {
+            node_id: nextHoverNodeId,
+            item_id: item?.id || '',
+            lineage_index: Number.isFinite(Number(item?.lineageIndex)) ? item.lineageIndex : null,
+            hit_kind: hit?.kind || (point ? 'outside' : 'clear'),
+            selected_node_id: liveState.selectionMode.selected_node_id || '',
+            highlighted_node_id: liveState.selectionModeOverlay?.highlightedNodeId || '',
+        });
         return true;
     }
 
@@ -793,6 +877,8 @@ export function createSigilSelectionModeRuntime({
             hover_node_id: '',
             lineage_bar_position: null,
             lineage_bar_drag: null,
+            lineage_bar_scroll_offset: 0,
+            lineage_bar_scroll_target_node_id: contextSession.artifacts?.[0]?.active_target_node_id || '',
             context_session: contextSession,
             events: [],
             effects: [],
@@ -831,11 +917,16 @@ export function createSigilSelectionModeRuntime({
             scheduleRenderFrame({ structural: false });
             return true;
         }
+        if (msg.type === 'scroll_wheel' && scrollLineageBar({ x: msg.x, y: msg.y, valid: true }, msg)) {
+            scheduleRenderFrame({ structural: false });
+            return true;
+        }
         const route = resolveSelectionModeInputRoute(msg, {
             consumeSelectionModeEntryRelease,
             isOnAvatar,
             consumeAvatarDoubleClick,
             hitTestLineageItem,
+            hitTestLineageBar,
         });
         if (!route.handled) return false;
         if (route.direct === 'render_only') {

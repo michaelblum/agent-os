@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   buildBrowserTabAnnotationCandidate,
+  buildNativeAxAncestorAnnotationCandidates,
   buildNativeAxElementAnnotationCandidate,
   buildNativeWindowAnnotationCandidate,
   chooseAnnotationCandidateForScope,
@@ -212,6 +213,37 @@ test('native AX element candidate labels derive from raw ancestor chain before g
   })
 
   assert.equal(ax.label, 'Camera')
+})
+
+test('native AX ancestor candidates expose visible nested app hierarchy nodes', () => {
+  const root = buildNativeWindowAnnotationCandidate({
+    window_id: 112,
+    app: 'Visual Studio Code',
+    pid: 1234,
+    bounds: { x: -207, y: 1012, width: 1920, height: 1050 },
+  })
+  const ancestors = buildNativeAxAncestorAnnotationCandidates({
+    role: 'AXGroup',
+    label: '',
+    bounds: { x: -121, y: 1148, width: 337, height: 22 },
+    ancestor_chain: [
+      { role: 'AXOutline', label: 'Files Explorer', bounds: { x: -159, y: 1126, width: 375, height: 870 } },
+      { role: 'AXGroup', label: '', bounds: { x: -159, y: 1126, width: 375, height: 66 } },
+      { role: 'AXRow', label: 'docs', bounds: { x: -159, y: 1148, width: 375, height: 22 } },
+      { role: 'AXGroup', label: '~/Code/agent-os/docs', bounds: { x: -121, y: 1148, width: 337, height: 22 } },
+      { role: 'AXGroup', label: '', bounds: { x: -121, y: 1148, width: 337, height: 22 } },
+    ],
+  }, {
+    selected_root: root,
+    window: { window_id: 112, app: 'Visual Studio Code', pid: 1234, bounds: { x: -207, y: 1012, width: 1920, height: 1050 } },
+  })
+
+  assert.equal(ancestors.length, 4)
+  assert.deepEqual(ancestors.map((candidate) => candidate.role), ['AXOutline', 'AXGroup', 'AXRow', 'AXGroup'])
+  assert.deepEqual(ancestors.map((candidate) => candidate.label), ['Files Explorer', 'Group', 'docs', '~/Code/agent-os/docs'])
+  assert.ok(ancestors.every((candidate) => candidate.projection.can_project_display_overlay))
+  assert.equal(ancestors[0].source_metadata.adapter_scope, 'current_cursor_ax_ancestor')
+  assert.equal(ancestors[2].source_metadata.context_path.at(-1), 'docs')
 })
 
 test('native AX candidates reject stale or root-mismatched cursor context explicitly', () => {

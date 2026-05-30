@@ -124,3 +124,19 @@ test('Selection Mode routing resolves lineage item hits before reacquisition', (
   assert.equal(route.lineageItemId, 'selection-mode-lineage:ancestor')
   assert.deepEqual(route.pointer, { x: 11, y: 22, valid: true })
 })
+
+test('Selection Mode routing consumes lineage bar chrome gaps before reacquisition', () => {
+  const route = resolveSelectionModeInputRoute({ type: 'left_mouse_up', x: 11, y: 22 }, {
+    consumeSelectionModeEntryRelease: () => false,
+    isOnAvatar: () => false,
+    hitTestLineageItem: () => null,
+    hitTestLineageBar: (point) => (
+      point.x === 11 && point.y === 22
+        ? { kind: 'bar', id: 'selection-mode-lineage-bar' }
+        : null
+    ),
+  })
+
+  assert.equal(route.handled, true)
+  assert.equal(route.direct, 'lineage_bar_chrome')
+})

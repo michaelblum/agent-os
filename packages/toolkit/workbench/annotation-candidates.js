@@ -416,6 +416,26 @@ function nativeAxElementLabel(payload = {}) {
   return readableAxRole(role) || role
 }
 
+function rectsEqual(a = null, b = null) {
+  if (!a || !b) return false
+  return Number(a.x) === Number(b.x)
+    && Number(a.y) === Number(b.y)
+    && Number(a.w ?? a.width) === Number(b.w ?? b.width)
+    && Number(a.h ?? a.height) === Number(b.h ?? b.height)
+}
+
+function nativeAxAncestorMatchesElement(ancestor = {}, payload = {}) {
+  const ancestorRole = text(ancestor.role || ancestor.ax_role || ancestor.kind)
+  const payloadRole = text(payload.role || payload.ax_role || payload.kind)
+  if (ancestorRole !== payloadRole) return false
+  const ancestorBounds = normalizeAnnotationRectLike(ancestor.bounds || ancestor.rect || ancestor.frame)
+  const payloadBounds = normalizeAnnotationRectLike(payload.bounds || payload.rect || payload.frame)
+  if (!rectsEqual(ancestorBounds, payloadBounds)) return false
+  const ancestorLabel = text(ancestor.label || ancestor.title || ancestor.value)
+  const payloadLabel = text(payload.label || payload.title || payload.value)
+  return ancestorLabel === payloadLabel
+}
+
 function nativeWindowRootId(window = {}) {
   return stableId('native-window', [window.window_id || window.pid, window.app_name])
 }
@@ -1046,6 +1066,90 @@ export function buildBrowserTabAnnotationCandidate(input = {}, options = {}) {
       reveal_blocker_reason: 'browser_dom_bridge_deferred',
     },
   })
+}
+
+export function buildNativeAxAncestorAnnotationCandidates(input = {}, options = {}) {
+  if (!input || typeof input !== 'object') return []
+  const payload = input.data && typeof input.data === 'object' ? input.data : input
+  const selectedRoot = options.selected_root || options.scope || null
+  const rootEvidence = selectedNativeRootEvidence(selectedRoot || {})
+  const window = normalizeNativeWindowPayload(options.window || options.cursor_window || payload.window || {})
+  const rootMatch = nativeRootMatchesWindow(rootEvidence, window)
+  const ancestorChain = normalizeNativeAxAncestorChain(payload)
+  if (!ancestorChain.length) return []
+  const contextLabels = []
+  return ancestorChain
+    .map((ancestor, index) => {
+      const role = text(ancestor.role || ancestor.ax_role || ancestor.kind, 'ax_element')
+      if (role === 'AXWindow') return null
+      if (index === ancestorChain.length - 1 && nativeAxAncestorMatchesElement(ancestor, payload)) return null
+      const bounds = normalizeAnnotationRectLike(ancestor.bounds || ancestor.rect || ancestor.frame)
+      const label = nativeAxNodeLabel(ancestor)
+      if (label && !isGenericAxLabel(label)) contextLabels.push(label)
+      const subjectId = stableId('ax-ancestor', [
+        rootEvidence.root_id || rootEvidence.subject_id || window?.window_id,
+        index,
+        role,
+        label,
+        bounds ? `${bounds.x},${bounds.y},${bounds.w},${bounds.h}` : '',
+      ])
+      const blockerReason = !rootMatch.ok
+        ? rootMatch.reason
+        : (!bounds ? 'bounded_ax_projection_unavailable' : '')
+      const status = !rootMatch.ok ? 'stale' : (blockerReason ? 'unsupported' : 'visible')
+      const projection = {
+        adapter_id: 'macos-ax',
+        root_id: rootEvidence.root_id || rootEvidence.subject_id || nativeWindowRootId(window || {}),
+        subject_id: subjectId,
+        subject_kind: role,
+        status,
+        projectable: status === 'visible' && Boolean(bounds),
+        can_project_display_overlay: status === 'visible' && Boolean(bounds),
+        can_reveal: false,
+        reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+        display_space_rect: status === 'visible' ? bounds : null,
+        visible_display_rect: status === 'visible' ? bounds : null,
+        coordinate_space: 'native_display',
+        blocker_reason: blockerReason,
+        refreshed_at: text(options.refreshed_at || input.ts, new Date(0).toISOString()),
+      }
+      const contextPath = contextLabels.length ? [...contextLabels] : [label].filter(Boolean)
+      return normalizeAnnotationCandidate({
+        id: subjectId,
+        adapter_id: 'macos-ax',
+        root_id: projection.root_id,
+        root_label: text(selectedRoot?.root_label || selectedRoot?.label || window?.title || window?.app_name || projection.root_id, projection.root_id),
+        root_kind: 'native_window',
+        subject_id: subjectId,
+        subject_path: ['native_window', projection.root_id, 'ax_ancestor', ...contextPath, subjectId],
+        subject_kind: role,
+        role,
+        title: ancestor.title,
+        label,
+        value: ancestor.value,
+        display_space_rect: status === 'visible' ? bounds : null,
+        projection,
+        blocker_reason: blockerReason,
+        source_metadata: {
+          adapter_scope: 'current_cursor_ax_ancestor',
+          role,
+          title: text(ancestor.title),
+          label: text(ancestor.label),
+          value: text(ancestor.value),
+          bounds,
+          context_path: contextPath,
+          ancestor_index: index,
+          ancestor_count: ancestorChain.length,
+          window_id: window?.window_id || '',
+          app_name: window?.app_name || '',
+          pid: window?.pid ?? null,
+          bundle_id: window?.bundle_id || '',
+          source_event_id: text(input.ref || input.id || options.source_event_id),
+          reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+        },
+      })
+    })
+    .filter(Boolean)
 }
 
 export function buildNativeAxElementAnnotationCandidate(input = {}, options = {}) {

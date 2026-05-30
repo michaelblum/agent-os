@@ -74,6 +74,7 @@ export function resolveSelectionModeInputRoute(msg = {}, {
     isOnAvatar = () => false,
     consumeAvatarDoubleClick = () => false,
     hitTestLineageItem = () => null,
+    hitTestLineageBar = () => null,
 } = {}) {
     if (msg.type === 'key_down') {
         const key = selectionModeKeyName(msg);
@@ -122,6 +123,10 @@ export function resolveSelectionModeInputRoute(msg = {}, {
                 nodeId: lineageItem.nodeId,
                 lineageItemId: lineageItem.id || '',
             };
+        }
+        const lineageBar = hitTestLineageBar(pointer);
+        if (lineageBar) {
+            return { handled: true, direct: 'lineage_bar_chrome' };
         }
         return {
             handled: true,
