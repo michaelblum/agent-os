@@ -10,6 +10,7 @@ import {
   createSigilUxTreeCommandRegistry,
   createSigilUxTreeCommandRouteCatalog,
   createSigilUxTreeCommandRunner,
+  createSigilUxTreeCommandRuntime,
   executeSigilUxTreeCommand,
 } from '../../apps/sigil/renderer/live-modules/ux-tree-command-registry.js'
 
@@ -431,6 +432,29 @@ test('Sigil UX command adapter executes avatar press, GOTO, and radial begin han
   }
   assert.deepEqual(calls.map(([name]) => name), ['press', 'goto', 'radial'])
   assert.deepEqual(calls.map(([, seenPointer]) => seenPointer), [pointer, pointer, pointer])
+})
+
+test('Sigil avatar press runtime stores valid drag-origin points for fast-travel preview', () => {
+  const liveState = {
+    currentState: 'IDLE',
+    avatarPos: { x: 80, y: 90, valid: true },
+    mousedownPos: null,
+    mousedownAvatarPos: null,
+  }
+  const runtime = createSigilUxTreeCommandRuntime({
+    liveState,
+    getTree: () => createSigilUxTree(),
+    setInteractionState(stateName) {
+      liveState.currentState = stateName
+    },
+  })
+
+  const pointer = { x: 12, y: 24, valid: true }
+  const result = runtime.executeAvatarPressBegin({ type: 'left_mouse_down', x: 12, y: 24 }, { pointer })
+
+  assert.equal(result.executed, true)
+  assert.deepEqual(liveState.mousedownPos, { x: 12, y: 24, valid: true })
+  assert.deepEqual(liveState.mousedownAvatarPos, { x: 80, y: 90, valid: true })
 })
 
 test('Sigil UX command adapter routes radial item actions through their command handlers', () => {

@@ -430,7 +430,7 @@ function currentRenderLoopContinuationReasons(vitalityFrame = state.sessionVital
     return renderLoopContinuationReasons({
         rendererSuspended,
         visibilityTransitionActive: !!visibilityTransition.active,
-        fastTravelActive: !!liveJs.travel,
+        fastTravelActive: !!liveJs.travel || liveJs.currentState === 'FAST_TRAVEL',
         radialActivationTransitionActive: radialActivationTransition.active(),
         radialGestureActive: !!radialGesture && radialGesture.phase !== 'idle',
         contextMenuOpen: contextMenu?.isOpen?.() ?? false,
@@ -589,6 +589,13 @@ function stagePoint(point) {
     return desktopWorldToSegmentLocalPoint(point);
 }
 
+function validDesktopWorldPoint(point) {
+    const x = Number(point?.x);
+    const y = Number(point?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return { x, y, valid: true };
+}
+
 function projectRadialGestureSnapshot(radial) {
     if (!radial || typeof radial !== 'object') return null;
     return {
@@ -601,6 +608,25 @@ function projectRadialGestureSnapshot(radial) {
                 center: stagePoint(item.center),
             }))
             : [],
+    };
+}
+
+function projectDirectFastTravelGesture() {
+    if (liveJs.currentState !== 'FAST_TRAVEL') return null;
+    const originPoint = validDesktopWorldPoint(liveJs.mousedownAvatarPos);
+    const pointerPoint = validDesktopWorldPoint(liveJs.pointerPos);
+    if (!originPoint || !pointerPoint) return null;
+    const origin = stagePoint(originPoint);
+    const pointer = stagePoint(pointerPoint);
+    if (!origin || !pointer) return null;
+    return {
+        phase: 'fastTravel',
+        source: 'avatar-drag',
+        origin,
+        pointer,
+        radii: {
+            handoff: 0,
+        },
     };
 }
 
@@ -3002,12 +3028,44 @@ function syncRadialTargetSurface() {
     return radialTargetSurface.sync(liveJs.radialGestureMenu, { displays: liveJs.displays });
 }
 
+function radialClickOpenAnimation(snapshot) {
+    const config = snapshot?.visuals?.openAnimation || state.radialGestureMenu?.visuals?.openAnimation || {};
+    return {
+        ...config,
+        trigger: config.trigger || 'avatar-click',
+        startedAt: state.globalTime,
+    };
+}
+
+function radialClickTriggerLockPointer(origin) {
+    if (state.radialGestureMenu?.orientation !== 'trigger-vector') return origin;
+    const basis = Number.isFinite(Number(state.radialGestureMenu?.radiusBasis))
+        ? Number(state.radialGestureMenu.radiusBasis)
+        : liveJs.avatarHitRadius;
+    const deadZone = Math.max(1, Number(state.radialGestureMenu?.deadZoneRadius || 0.6) * Math.max(1, basis));
+    const angle = Number.isFinite(Number(state.radialGestureMenu?.startAngle))
+        ? Number(state.radialGestureMenu.startAngle)
+        : -90;
+    const radians = angle * Math.PI / 180;
+    const lockDistance = deadZone + 1;
+    return {
+        x: origin.x + Math.cos(radians) * lockDistance,
+        y: origin.y + Math.sin(radians) * lockDistance,
+        valid: true,
+    };
+}
+
 function openRadialMenuFromClick(x, y, reason = 'avatar-click-radial') {
     const origin = { ...liveJs.avatarPos, valid: true };
-    const pointer = { x, y, valid: true };
-    liveJs.radialGestureMenu = radialGestureMenu.start(origin, origin);
-    radialGestureMenu.move(pointer);
-    liveJs.radialGestureMenu = radialGestureMenu.snapshot();
+    liveJs.radialGestureMenu = radialGestureMenu.start(origin, radialClickTriggerLockPointer(origin));
+    const snapshot = radialGestureMenu.snapshot();
+    liveJs.radialGestureMenu = {
+        ...snapshot,
+        openAnimation: radialClickOpenAnimation(snapshot),
+        openedBy: 'avatar-click',
+        releasePoint: { x, y, valid: true },
+    };
+    radialGestureMenu.applySnapshot(liveJs.radialGestureMenu);
     syncRadialTargetSurface();
     emitAvatarMark();
     setInteractionState('RADIAL', reason);
@@ -3069,9 +3127,21 @@ function handleLeftMouseUp(x, y) {
                 liveJs.mousedownPos
                 && distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) >= liveJs.dragThreshold
             ) {
+                if (isOnAvatar(x, y)) {
+                    clearGestureState();
+                    fastTravel.clearGesture('press-release-on-avatar');
+                    setInteractionState('IDLE', 'press-release-on-avatar');
+                    return;
+                }
                 clearGestureState();
                 queueFastTravel(x, y);
                 setInteractionState('IDLE', 'press-release-fast-travel');
+                return;
+            }
+            if (!isOnAvatar(x, y)) {
+                clearGestureState();
+                fastTravel.clearGesture('press-release-off-avatar');
+                setInteractionState('IDLE', 'press-release-off-avatar');
                 return;
             }
             openRadialMenuFromClick(x, y);
@@ -3096,6 +3166,15 @@ function handleLeftMouseUp(x, y) {
             const releaseDistanceFromDown = liveJs.mousedownPos
                 ? distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y)
                 : 0;
+            if (isOnAvatar(x, y)) {
+                const result = radialGestureMenu.cancel('fast-travel-release-on-avatar');
+                const annotationDisposition = annotationReticleReleaseDisposition(result);
+                if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
+                clearGestureState();
+                fastTravel.clearGesture('fast-travel-release-on-avatar');
+                setInteractionState('IDLE', 'fast-travel-release-on-avatar');
+                return;
+            }
             const result = radialGestureMenu.release({ x, y, valid: true }, {
                 input: {
                     kind: 'gesture',
@@ -3188,7 +3267,7 @@ function handleInputEvent(msg) {
         });
     }
     if (typeof msg.x === 'number' && typeof msg.y === 'number') {
-        liveJs.pointerPos = { x: msg.x, y: msg.y };
+        liveJs.pointerPos = { x: msg.x, y: msg.y, valid: true };
         liveJs.cursorTarget = { x: msg.x, y: msg.y, valid: true };
         if (!liveJs.currentCursor.valid) {
             liveJs.currentCursor = { x: msg.x, y: msg.y, valid: true };
@@ -4111,6 +4190,7 @@ function animate() {
             avatarHover: liveJs.avatarHover,
             avatarHoverProgress: liveJs.avatarHoverProgress,
             radialGesture: projectRadialGestureSnapshot(liveJs.radialGestureMenu),
+            fastTravelGesture: projectDirectFastTravelGesture(),
             annotationReticle: liveJs.annotationReticle,
             annotationReticleOverlay: liveJs.annotationReticleOverlay || buildProjectedAnnotationReticleOverlay(liveJs.annotationReticle),
             selectionMode: liveJs.selectionMode,

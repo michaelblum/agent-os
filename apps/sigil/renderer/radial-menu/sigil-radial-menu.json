@@ -36,6 +36,13 @@
     "startAngle": -90,
     "orientation": "trigger-vector"
   },
+  "visuals": {
+    "openAnimation": {
+      "trigger": "avatar-click",
+      "durationMs": 1000,
+      "easing": "easeOutCubic"
+    }
+  },
   "items": [
     {
       "id": "context-menu",

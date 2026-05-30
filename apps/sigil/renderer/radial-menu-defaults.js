@@ -261,6 +261,7 @@ export function normalizeSigilRadialGestureMenu(menu = {}) {
         role: RESOLVED_SIGIL_RADIAL_MENU.role,
         logical_items: cloneConfig(RESOLVED_SIGIL_RADIAL_MENU.logical_items),
         ...cloneConfig(source),
+        visuals: mergeConfig(RESOLVED_SIGIL_RADIAL_MENU.visuals || {}, source.visuals || {}),
         items: normalizeSigilRadialItems(source.items),
     };
 }

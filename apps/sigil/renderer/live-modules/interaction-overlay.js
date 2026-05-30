@@ -543,6 +543,16 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
     ctx.restore();
 }
 
+function fastTravelLineGesture(snapshot = {}) {
+    if (snapshot.radialGesture?.phase === 'fastTravel' && snapshot.radialGesture.origin && snapshot.radialGesture.pointer) {
+        return snapshot.radialGesture;
+    }
+    if (snapshot.fastTravelGesture?.phase === 'fastTravel' && snapshot.fastTravelGesture.origin && snapshot.fastTravelGesture.pointer) {
+        return snapshot.fastTravelGesture;
+    }
+    return null;
+}
+
 export function createInteractionOverlay() {
     let canvas = null;
     let resize = null;
@@ -631,14 +641,13 @@ export function createInteractionOverlay() {
             return;
         }
 
+        const lineGesture = fastTravelLineGesture(snapshot);
         if (
             snapshot.state === 'FAST_TRAVEL'
             && snapshot.fastTravelEffect === 'line'
-            && snapshot.radialGesture?.phase === 'fastTravel'
-            && snapshot.radialGesture.origin
-            && snapshot.radialGesture.pointer
+            && lineGesture
         ) {
-            const radial = snapshot.radialGesture;
+            const radial = lineGesture;
             const origin = radial.origin;
             const pointer = radial.pointer;
             const dx = pointer.x - origin.x;

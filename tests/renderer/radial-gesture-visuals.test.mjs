@@ -196,7 +196,9 @@ const {
   DEFAULT_RADIAL_ITEM_MOTION,
   createSigilRadialGestureVisuals,
   normalizeModelScene,
+  radialItemExpansionCenter,
   radialGlyphActivationState,
+  radialOpenExpansionState,
   resolveRadialItemFacesCamera,
   resolveNestedFiberBloomTransform,
   resolveNestedFiberStemTransform,
@@ -323,6 +325,41 @@ test('radialGlyphActivationState ignores non-selected outward pointer travel', (
   assert.equal(state.directHover, false)
   assert.equal(state.selected, false)
   assert.equal(state.relation, 'outward')
+})
+
+test('radialOpenExpansionState expands avatar-click menus for the configured duration', () => {
+  const radial = {
+    origin: { x: 10, y: 20 },
+    openAnimation: {
+      trigger: 'avatar-click',
+      startedAt: 5,
+      durationMs: 1000,
+      easing: 'linear',
+    },
+  }
+
+  assert.deepEqual(radialOpenExpansionState(radial, { time: 5 }), {
+    active: true,
+    progress: 0,
+    rawProgress: 0,
+    durationMs: 1000,
+  })
+  assert.equal(radialOpenExpansionState(radial, { time: 5.5 }).progress, 0.5)
+  assert.deepEqual(radialOpenExpansionState(radial, { time: 6 }), {
+    active: false,
+    progress: 1,
+    rawProgress: 1,
+    durationMs: 1000,
+  })
+})
+
+test('radialItemExpansionCenter lerps radial items out from the avatar origin', () => {
+  const radial = { origin: { x: 10, y: 20 } }
+  const item = { center: { x: 110, y: 220 } }
+
+  assert.deepEqual(radialItemExpansionCenter(radial, item, 0), { x: 10, y: 20 })
+  assert.deepEqual(radialItemExpansionCenter(radial, item, 0.25), { x: 35, y: 70 })
+  assert.deepEqual(radialItemExpansionCenter(radial, item, 1), item.center)
 })
 
 test('resolveRadialHoverSpinSpeed uses geometry override and clamps negative values', () => {

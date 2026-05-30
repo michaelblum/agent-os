@@ -24,6 +24,17 @@ test('tracked status-item readiness stays generic with optional surface opt-in h
   assert.doesNotMatch(statusItem, /avatarVisible === true/);
 });
 
+test('status item menu exposes a generic reload action for the configured target', () => {
+  const statusItem = source('src/display/status-item.swift');
+
+  assert.match(statusItem, /NSMenuItem\(title: "Reload"/);
+  assert.match(statusItem, /#selector\(menuReload\)/);
+  assert.match(statusItem, /private func reloadCanvas\(\)/);
+  assert.match(statusItem, /removeCanvasTree\(toggleId\)/);
+  assert.match(statusItem, /waitUntilPersistentCanvasReady\(timeout: visibilityTimeout\)/);
+  assert.doesNotMatch(statusItem, /__sigilDebug/);
+});
+
 test('Sigil opts into deferred status-item readiness until avatar position is ready', () => {
   const hostRuntime = source('apps/sigil/renderer/live-modules/host-runtime.js');
   const main = source('apps/sigil/renderer/live-modules/main.js');

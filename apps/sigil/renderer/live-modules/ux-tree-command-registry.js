@@ -337,8 +337,8 @@ export function createSigilUxTreeCommandRuntime({
     const registry = createSigilUxTreeCommandRegistry({
         avatarPressBegin(pointer) {
             if (!pointer) return false;
-            liveState.mousedownPos = { x: pointer.x, y: pointer.y };
-            liveState.mousedownAvatarPos = { x: liveState.avatarPos.x, y: liveState.avatarPos.y };
+            liveState.mousedownPos = { x: pointer.x, y: pointer.y, valid: true };
+            liveState.mousedownAvatarPos = { x: liveState.avatarPos.x, y: liveState.avatarPos.y, valid: true };
             setInteractionState('PRESS', 'mousedown-on-avatar');
             return { state: liveState.currentState, pointer };
         },

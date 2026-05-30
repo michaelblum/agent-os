@@ -62,11 +62,17 @@ export function createSigilRadialGestureMenu({ state, onCommitItem } = {}) {
 
     function decorateSnapshot(nextSnapshot) {
         if (!nextSnapshot || typeof nextSnapshot !== 'object') return null;
-        if (!activeConfig?.visuals) return nextSnapshot;
-        return {
-            ...nextSnapshot,
-            visuals: activeConfig.visuals,
-        };
+        const retainedOpenAnimation = snapshot?.openAnimation && nextSnapshot.phase === 'radial'
+            ? snapshot.openAnimation
+            : null;
+        const decorated = activeConfig?.visuals
+            ? {
+                ...nextSnapshot,
+                visuals: activeConfig.visuals,
+            }
+            : { ...nextSnapshot };
+        if (retainedOpenAnimation) decorated.openAnimation = retainedOpenAnimation;
+        return decorated;
     }
 
     function start(origin, pointer = origin) {

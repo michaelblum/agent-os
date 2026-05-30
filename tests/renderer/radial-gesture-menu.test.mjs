@@ -71,6 +71,26 @@ test('Sigil radial menu preserves release context for activation adapters', () =
   assert.equal(commits[0].context.input.source, 'sigil.radial-target-surface')
 })
 
+test('Sigil click-open menu keeps trigger-vector geometry stable for item clicks', () => {
+  const { menu, commits } = createMenu()
+  const origin = { x: 200, y: 200, valid: true }
+  const opened = menu.start(origin, { x: 200, y: 169, valid: true })
+  const wikiItem = opened.items.find((item) => item.id === 'wiki-graph')
+
+  assert.equal(opened.triggerLocked, true)
+  assert.ok(wikiItem)
+
+  const moved = menu.move({ ...wikiItem.center, valid: true })
+  assert.equal(moved.snapshot.triggerLocked, true)
+  assert.equal(moved.snapshot.triggerAngle, opened.triggerAngle)
+  assert.equal(moved.snapshot.activeItemId, 'wiki-graph')
+
+  const released = menu.release({ ...wikiItem.center, valid: true })
+  assert.equal(released.phase, 'committed')
+  assert.equal(released.committed.itemId, 'wiki-graph')
+  assert.equal(commits.length, 1)
+})
+
 test('Sigil radial menu config carries native wiki model geometry', () => {
   const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
   const agentTerminalItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
@@ -144,6 +164,32 @@ test('Sigil radial menu hides camera affordance until live annotation anchors ex
   })
   const visible = menu.start({ x: 200, y: 200, valid: true })
   assert.equal(visible.items.some((item) => item.id === 'annotation-camera'), true)
+})
+
+test('Sigil radial menu carries data-driven avatar-click open animation config', () => {
+  const { menu } = createMenu()
+  const snapshot = menu.start({ x: 200, y: 200, valid: true })
+
+  assert.deepEqual(snapshot.visuals.openAnimation, {
+    trigger: 'avatar-click',
+    durationMs: 1000,
+    easing: 'easeOutCubic',
+  })
+})
+
+test('Sigil radial menu preserves click-open animation metadata while radial stays open', () => {
+  const { menu } = createMenu()
+  const started = menu.start({ x: 200, y: 200, valid: true })
+  const openAnimation = {
+    trigger: 'avatar-click',
+    startedAt: 0,
+    durationMs: 1000,
+  }
+
+  menu.applySnapshot({ ...started, openAnimation })
+  const moved = menu.move({ x: 206, y: 202, valid: true })
+
+  assert.deepEqual(moved.snapshot.openAnimation, openAnimation)
 })
 
 test('Sigil default radial geometry leaves adjacent four and five item targets separated', () => {
@@ -346,6 +392,11 @@ test('Sigil radial menu carries visual motion config into snapshots', () => {
   const started = menu.start({ x: 200, y: 200, valid: true })
 
   assert.deepEqual(started.visuals, {
+    openAnimation: {
+      trigger: 'avatar-click',
+      durationMs: 1000,
+      easing: 'easeOutCubic',
+    },
     itemMotion: {
       modelHoverSpinSpeed: 0,
     },
