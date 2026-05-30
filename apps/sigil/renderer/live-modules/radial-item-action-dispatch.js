@@ -39,6 +39,7 @@ export function createSigilRadialItemActionDispatcher({
     startActivationTransition = () => false,
     sendActivationUpdate = () => null,
     enterAnnotationReticle = () => null,
+    enterSelectionMode = () => null,
     requestAnnotationSnapshot = () => false,
     openContextMenuAt = () => false,
     toggleUtilityCanvas = () => false,
@@ -72,14 +73,14 @@ export function createSigilRadialItemActionDispatcher({
         const action = actionForItem(item);
         if (action === 'annotationMode' || item?.id === annotationReticleItemId) {
             const pointer = context.pointer || point(snapshot?.pointer) || getPointer();
-            const nextSnapshot = enterAnnotationReticle(pointer, 'radial-item');
-            post('sigil.annotation_reticle.enter', {
+            const nextSnapshot = enterSelectionMode(pointer, 'radial-reticle');
+            post('sigil.selection_mode.enter', {
                 item_id: item?.id,
-                entry_source: nextSnapshot?.entry_source,
+                entry_source: 'radial-reticle',
                 input: context.input || null,
                 snapshot: nextSnapshot,
             });
-            return { action: 'annotation_reticle_entered', item_id: item?.id || null };
+            return { action: 'selection_mode_entered', item_id: item?.id || null };
         }
         if (action === 'annotationSnapshot' || item?.id === annotationCameraItemId) {
             const reason = context.reason === 'radial-camera-target-surface-recovery'

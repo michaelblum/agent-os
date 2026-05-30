@@ -18,19 +18,26 @@ const display = {
 }
 
 function candidate(id, rect, extra = {}) {
+  const rootId = extra.root_id || 'display-1'
+  const adapterId = extra.adapter_id || 'test-selection-mode'
+  const subjectPath = extra.subject_path || ['display-1', ...String(id).split(':')]
   return {
     id,
     subject_id: id,
-    subject_path: ['display-1', ...String(id).split(':')],
+    subject_path: subjectPath,
     subject_kind: extra.kind || 'frame',
     role: extra.role || '',
     label: extra.label || id,
-    adapter_id: 'test-selection-mode',
-    root_id: 'display-1',
-    root_kind: 'display',
-    root_label: 'Display 1',
+    adapter_id: adapterId,
+    root_id: rootId,
+    root_kind: extra.root_kind || 'display',
+    root_label: extra.root_label || 'Display 1',
+    source_metadata: {
+      ...(extra.source_metadata || {}),
+    },
     projection: {
-      adapter_id: 'test-selection-mode',
+      adapter_id: adapterId,
+      root_id: rootId,
       subject_id: id,
       subject_kind: extra.kind || 'frame',
       current_render_status: 'visible',
@@ -81,7 +88,7 @@ function createRuntime(options = {}) {
     executeCommand(command, msg, commandOptions = {}) {
       commands.push({ command, msg })
       if (command === 'acquire') return runtime.acquire({ x: msg.x, y: msg.y, valid: true })
-      if (command === 'selectBadge') return runtime.selectTargetNode(commandOptions.nodeId || msg.nodeId || msg.node_id, { reason: 'badge-click' })
+      if (command === 'selectLineageNode') return runtime.selectTargetNode(commandOptions.nodeId || msg.nodeId || msg.node_id, { reason: 'lineage-click' })
       if (command === 'commit') return runtime.commit('enter')
       if (command === 'tabPreviousTarget' || command === 'arrowUpPreviousTarget') return runtime.cycleTarget(-1)
       if (command === 'arrowDownNextTarget') return runtime.cycleTarget(1)
@@ -174,11 +181,12 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   })
   assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'avatar_derived_prism_pointer')
   assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatGeometry, 'prism')
-  assert.equal(liveState.selectionModeOverlay.badgeLayout.order, 'leaf-to-root')
+  assert.equal(liveState.selectionModeOverlay.lineageBar.order, 'root-to-leaf')
+  assert.equal(liveState.selectionModeOverlay.lineageBar.activeDisplayId, 'display-1')
   assert.ok(liveState.selectionMode.events.some((entry) => entry.type === 'selection_mode_aura_spike'))
   assert.deepEqual(
-    liveState.selectionModeOverlay.badges.filter((badge) => badge.kind === 'primary').map((badge) => badge.nodeId),
-    liveState.selectionMode.context_session.artifacts[0].path.map((node) => node.id).reverse(),
+    liveState.selectionModeOverlay.lineageBar.items.map((item) => item.nodeId),
+    liveState.selectionMode.context_session.artifacts[0].path.map((node) => node.id),
   )
   assert.equal(rendererState.selectionMode, liveState.selectionMode)
 
@@ -268,126 +276,295 @@ test('Selection Mode overlay aligns semantic targets from normalized DesktopWorl
   ])
 })
 
-test('Selection Mode badge ladder chooses visible diagonal directions near corners', () => {
-  const path = [
-    candidate('display-root', { x: 0, y: 0, w: 800, h: 600 }, { kind: 'display', role: 'display', label: 'Display' }),
-    candidate('window', { x: 12, y: 12, w: 360, h: 260 }, { kind: 'window', role: 'native_window', label: 'Window' }),
-    candidate('button', { x: 24, y: 24, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
+test('Selection Mode lineage bar pins to the active display visible bounds', () => {
+  const displays = [
+    {
+      id: 'left',
+      label: 'Left Display',
+      visibleBounds: { x: -240, y: 24, w: 220, h: 160 },
+      bounds: { x: -240, y: 0, w: 220, h: 184 },
+    },
+    {
+      id: 'main',
+      label: 'Main Display',
+      visibleBounds: { x: 0, y: 25, w: 800, h: 575 },
+      bounds: { x: 0, y: 0, w: 800, h: 600 },
+    },
   ]
-  const topLeft = buildProjectedSelectionModeOverlay({
-    active: true,
-    cursor: { x: 15, y: 15, valid: true },
-    selected_node_id: 'button',
-    path_candidates: path,
-    context_session: {
-      artifacts: [{
-        path,
-        active_target_node_id: 'button',
-        acquisition: { leaf_node_id: 'button', pointer: { x: 15, y: 15, valid: true } },
-      }],
-    },
-  }, { overlayBounds: { x: 0, y: 0, w: 220, h: 180 } })
-  assert.equal(topLeft.badgeLayout.direction, 'down-right')
-  assert.ok(topLeft.badges.every((badge) => badge.rect.x >= 6 && badge.rect.y >= 6))
-  assert.ok(topLeft.badges.every((badge) => badge.rect.x + badge.rect.width <= 214))
-  assert.ok(topLeft.badges.every((badge) => badge.rect.y + badge.rect.height <= 174))
-
-  const bottomRight = buildProjectedSelectionModeOverlay({
-    active: true,
-    cursor: { x: 205, y: 165, valid: true },
-    selected_node_id: 'button',
-    path_candidates: path,
-    context_session: {
-      artifacts: [{
-        path,
-        active_target_node_id: 'button',
-        acquisition: { leaf_node_id: 'button', pointer: { x: 205, y: 165, valid: true } },
-      }],
-    },
-  }, { overlayBounds: { x: 0, y: 0, w: 220, h: 180 } })
-  assert.equal(bottomRight.badgeLayout.direction, 'up-left')
-  assert.ok(bottomRight.badges.every((badge) => badge.rect.x >= 6 && badge.rect.y >= 6))
-  assert.ok(bottomRight.badges.every((badge) => badge.rect.x + badge.rect.width <= 214))
-  assert.ok(bottomRight.badges.every((badge) => badge.rect.y + badge.rect.height <= 174))
-})
-
-function badgeOverlapArea(a, b) {
-  const left = Math.max(a.rect.x, b.rect.x)
-  const right = Math.min(a.rect.x + a.rect.width, b.rect.x + b.rect.width)
-  const top = Math.max(a.rect.y, b.rect.y)
-  const bottom = Math.min(a.rect.y + a.rect.height, b.rect.y + b.rect.height)
-  return Math.max(0, right - left) * Math.max(0, bottom - top)
-}
-
-function badgesSubstantiallyOverlap(a, b) {
-  const overlap = badgeOverlapArea(a, b)
-  const smallerArea = Math.min(a.rect.width * a.rect.height, b.rect.width * b.rect.height)
-  return a.rect.x === b.rect.x && a.rect.y === b.rect.y
-    || (smallerArea > 0 && overlap / smallerArea > 0.35)
-    || (a.rect.x < b.rect.x + b.rect.width
-    && a.rect.x + a.rect.width > b.rect.x
-    && a.rect.y < b.rect.y + b.rect.height
-    && a.rect.y + a.rect.height > b.rect.y
-    && overlap > 64)
-}
-
-test('Selection Mode grouped badge fan-out remains distinct near overlay edges', () => {
   const path = [
-    candidate('display-root', { x: 0, y: 0, w: 220, h: 180 }, { kind: 'display', role: 'display', label: 'Display' }),
-    candidate('app', { x: 20, y: 20, w: 180, h: 140 }, { kind: 'application', role: 'native_app', label: 'Example App' }),
-    candidate('group-a', { x: 36, y: 38, w: 130, h: 80 }, { kind: 'group', role: 'group', label: 'Group' }),
-    candidate('group-b', { x: 38, y: 40, w: 130, h: 80 }, { kind: 'group', role: 'group', label: 'Group' }),
-    candidate('group-c', { x: 40, y: 42, w: 130, h: 80 }, { kind: 'group', role: 'group', label: 'Group' }),
-    candidate('leaf', { x: 80, y: 60, w: 40, h: 24 }, { kind: 'button', role: 'button', label: 'Save' }),
+    candidate('display-root', { x: -240, y: 24, w: 220, h: 160 }, { kind: 'display', role: 'display', label: 'Left Display' }),
+    candidate('window', { x: -220, y: 40, w: 170, h: 120 }, { kind: 'window', role: 'native_window', label: 'Window' }),
+    candidate('button', { x: -190, y: 72, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
   ]
   const overlay = buildProjectedSelectionModeOverlay({
     active: true,
-    cursor: { x: 130, y: 20, valid: true },
+    cursor: { x: 100, y: 100, valid: true },
+    selected_node_id: 'button',
+    path_candidates: path,
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'button',
+        acquisition: { leaf_node_id: 'button', pointer: { x: -180, y: 90, valid: true } },
+      }],
+    },
+  }, {
+    displays,
+    projectPoint: (point) => point,
+    overlayBounds: { x: -240, y: 0, w: 1040, h: 600 },
+  })
+
+  const bar = overlay.lineageBar
+  assert.equal(bar.visible, true)
+  assert.equal(bar.activeDisplayId, 'left')
+  assert.equal(bar.order, 'root-to-leaf')
+  assert.equal(bar.rect.y, 34)
+  assert.equal(bar.defaultRect.y, 34)
+  assert.equal(bar.placement, 'default_menu_bar_below')
+  assert.equal(bar.draggable, true)
+  assert.ok(bar.rect.x >= -232)
+  assert.ok(bar.rect.x + bar.rect.width <= -28)
+  assert.deepEqual(bar.items.map((item) => item.nodeId), path.map((node) => node.id))
+  assert.ok(bar.items.every((item) => item.rect.x >= bar.rect.x))
+  assert.ok(bar.items.every((item) => item.rect.x + item.rect.width <= bar.rect.x + bar.rect.width))
+  assert.ok(bar.items.every((item) => item.rect.y >= bar.rect.y))
+  assert.ok(bar.items.every((item) => item.rect.y + item.rect.height <= bar.rect.y + bar.rect.height))
+})
+
+test('Selection Mode lineage bar can be dragged and resets on fresh entry', () => {
+  const windowCandidate = candidate('window', { x: 50, y: 50, w: 300, h: 220 }, {
+    kind: 'window',
+    role: 'native_window',
+    label: 'Window',
+  })
+  const buttonCandidate = candidate('button', { x: 80, y: 90, w: 80, h: 32 }, {
+    kind: 'button',
+    role: 'button',
+    label: 'Save',
+  })
+  const { runtime, liveState, scheduled } = createRuntime({
+    candidates: [buttonCandidate, windowCandidate],
+    projectPoint: (point) => point,
+  })
+
+  runtime.enter({ x: 100, y: 100, valid: true }, 'test')
+  runtime.acquire({ x: 100, y: 100, valid: true })
+  const defaultRect = { ...liveState.selectionModeOverlay.lineageBar.rect }
+
+  assert.equal(runtime.handleInput({
+    type: 'left_mouse_down',
+    x: defaultRect.x + 2,
+    y: defaultRect.y + 2,
+  }), true)
+  assert.equal(runtime.handleInput({
+    type: 'left_mouse_dragged',
+    x: defaultRect.x + 102,
+    y: defaultRect.y + 72,
+  }), true)
+  assert.equal(runtime.handleInput({
+    type: 'left_mouse_up',
+    x: defaultRect.x + 102,
+    y: defaultRect.y + 72,
+  }), true)
+
+  assert.equal(liveState.selectionMode.lineage_bar_drag, null)
+  assert.equal(liveState.selectionModeOverlay.lineageBar.placement, 'manual')
+  assert.notDeepEqual(liveState.selectionModeOverlay.lineageBar.rect, defaultRect)
+  assert.ok(scheduled.some((entry) => entry.structural === false))
+
+  runtime.exit('escape')
+  runtime.enter({ x: 100, y: 100, valid: true }, 'test-reenter')
+  runtime.acquire({ x: 100, y: 100, valid: true })
+
+  assert.deepEqual(
+    liveState.selectionModeOverlay.lineageBar.rect,
+    liveState.selectionModeOverlay.lineageBar.defaultRect,
+  )
+  assert.equal(liveState.selectionModeOverlay.lineageBar.placement, 'default_menu_bar_below')
+})
+
+test('Selection Mode lineage bar uses a menu-bar fallback when visible bounds are unavailable', () => {
+  const displays = [{
+    id: 'main',
+    label: 'Main Display',
+    visibleBounds: { x: 0, y: 0, w: 800, h: 600 },
+    bounds: { x: 0, y: 0, w: 800, h: 600 },
+  }]
+  const path = [
+    candidate('display-root', { x: 0, y: 0, w: 800, h: 600 }, {
+      kind: 'display',
+      role: 'display',
+      label: 'Display',
+    }),
+    candidate('window', { x: 40, y: 60, w: 500, h: 300 }, {
+      kind: 'window',
+      role: 'native_window',
+      label: 'Window',
+    }),
+    candidate('leaf', { x: 100, y: 110, w: 60, h: 30 }, {
+      kind: 'button',
+      role: 'button',
+      label: 'Save',
+    }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 120, y: 120, valid: true },
+    selected_node_id: 'leaf',
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 120, y: 120, valid: true } },
+      }],
+    },
+  }, {
+    displays,
+    projectPoint: (point) => point,
+    overlayBounds: { x: 0, y: 0, w: 800, h: 600 },
+  })
+
+  assert.equal(overlay.lineageBar.defaultRect.y, 34)
+  assert.equal(overlay.lineageBar.rect.y, 34)
+})
+
+test('Selection Mode frames skip interior scrim and perimeter-fill the nearest major seam ancestor', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 25, w: 800, h: 575 }, {
+      kind: 'display',
+      role: 'display',
+      label: 'Display',
+    }),
+    candidate('app', { x: 20, y: 40, w: 700, h: 500 }, {
+      kind: 'application',
+      role: 'native_app',
+      label: 'Example App',
+    }),
+    candidate('window', { x: 40, y: 60, w: 500, h: 300 }, {
+      kind: 'window',
+      role: 'native_window',
+      label: 'Window',
+    }),
+    candidate('container', { x: 80, y: 90, w: 240, h: 120 }, {
+      kind: 'group',
+      role: 'container',
+      label: 'Container',
+    }),
+    candidate('leaf', { x: 100, y: 110, w: 60, h: 30 }, {
+      kind: 'button',
+      role: 'button',
+      label: 'Save',
+    }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 120, y: 120, valid: true },
     selected_node_id: 'leaf',
     path_candidates: path,
     context_session: {
       artifacts: [{
         path,
         active_target_node_id: 'leaf',
-        acquisition: { leaf_node_id: 'leaf', pointer: { x: 130, y: 20, valid: true } },
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 120, y: 120, valid: true } },
       }],
     },
-  }, { overlayBounds: { x: 0, y: 0, w: 220, h: 180 } })
-
-  const grouped = overlay.badgeGroups.find((group) => group.groupedCount >= 2)
-  assert.ok(grouped, 'expected at least two grouped secondary badges')
-  assert.ok(overlay.badges.every((badge) => badge.rect.x >= 6 && badge.rect.y >= 6))
-  assert.ok(overlay.badges.every((badge) => badge.rect.x + badge.rect.width <= 214))
-  assert.ok(overlay.badges.every((badge) => badge.rect.y + badge.rect.height <= 174))
-  for (let i = 0; i < overlay.badges.length; i += 1) {
-    for (let j = i + 1; j < overlay.badges.length; j += 1) {
-      assert.equal(badgesSubstantiallyOverlap(overlay.badges[i], overlay.badges[j]), false, `${overlay.badges[i].id} overlaps ${overlay.badges[j].id}`)
-    }
-  }
-})
-
-test('Selection Mode groups same-size deep ancestors into horizontal badge fan-out and marks key ancestors', () => {
-  const wrapper = candidate('wrapper', { x: 40, y: 40, w: 300, h: 220 }, { kind: 'group', role: 'group', label: 'Group' })
-  const wrapperInner = candidate('wrapper-inner', { x: 42, y: 42, w: 300, h: 220 }, { kind: 'group', role: 'group', label: 'Group' })
-  const app = candidate('app', { x: 20, y: 20, w: 420, h: 320 }, { kind: 'application', role: 'native_app', label: 'Example App' })
-  const button = candidate('button', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' })
-  const { runtime, liveState } = createRuntime({
-    candidates: [app, wrapper, wrapperInner, button],
+  }, {
+    displays: [{ id: 'display-1', visibleBounds: { x: 0, y: 25, w: 800, h: 575 } }],
     projectPoint: (point) => point,
+    overlayBounds: { x: 0, y: 0, w: 800, h: 600 },
   })
 
-  runtime.enter({ x: 100, y: 100, valid: true }, 'test')
-  runtime.acquire({ x: 100, y: 100, valid: true })
+  assert.ok(overlay.frames.every((frame) => frame.style.fill === null))
+  assert.equal(overlay.perimeterFillNodeId, 'window')
+  const filled = overlay.frames.filter((frame) => frame.perimeterFill)
+  assert.equal(filled.length, 1)
+  assert.equal(filled[0].id, 'window')
+  assert.equal(filled[0].perimeterFill.mode, 'edge_band')
+  assert.equal(filled[0].perimeterFill.marginRatio, 0.15)
+})
 
-  const overlay = liveState.selectionModeOverlay
-  const grouped = overlay.badgeGroups.find((group) => group.groupedCount > 0)
-  assert.ok(grouped, 'expected same-size ancestors to group behind a primary badge')
-  const primary = overlay.badges.find((badge) => badge.id === grouped.primaryId)
-  const secondary = overlay.badges.find((badge) => badge.id === grouped.secondaryIds[0])
-  assert.equal(secondary.kind, 'secondary')
-  assert.notDeepEqual(secondary.rect, primary.rect)
-  assert.ok(overlay.badges.some((badge) => badge.token === 'display'))
-  assert.ok(overlay.badges.some((badge) => badge.token === 'app'))
+test('Selection Mode lineage bar skips union roots and preserves selectable path nodes', () => {
+  const displays = [{
+    id: 'display-1',
+    label: 'Display 1',
+    visibleBounds: { x: 0, y: 25, w: 320, h: 220 },
+  }]
+  const path = [
+    candidate('desktop-union', { x: 0, y: 0, w: 320, h: 245 }, { kind: 'desktop_world_union', role: 'desktop_union', label: 'Desktop Union' }),
+    candidate('app', { x: 20, y: 40, w: 260, h: 170 }, { kind: 'application', role: 'native_app', label: 'Example App' }),
+    candidate('tab', { x: 30, y: 50, w: 240, h: 140 }, { kind: 'browser_tab', role: 'browser_tab', label: 'Docs Tab' }),
+    candidate('dom', { x: 36, y: 62, w: 220, h: 112 }, { kind: 'document', role: 'dom_document', label: 'DOM' }),
+    candidate('leaf', { x: 80, y: 90, w: 40, h: 24 }, { kind: 'button', role: 'button', label: 'Save' }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 90, y: 96, valid: true },
+    selected_node_id: 'leaf',
+    path_candidates: path,
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 90, y: 96, valid: true } },
+      }],
+    },
+  }, {
+    displays,
+    projectPoint: (point) => point,
+    overlayBounds: { x: 0, y: 0, w: 320, h: 245 },
+  })
+
+  const bar = overlay.lineageBar
+  assert.equal(bar.activeDisplayId, 'display-1')
+  assert.equal(bar.items[0].source, 'active_display')
+  assert.equal(bar.items[0].token, 'display')
+  assert.equal(bar.items.some((item) => item.nodeId === 'desktop-union'), false)
+  assert.deepEqual(bar.items.slice(1).map((item) => item.token), ['app', 'browser_tab', 'document', ''])
+  assert.equal(bar.itemCount, path.length)
+  assert.ok(bar.items.every((item) => item.rect.x >= bar.rect.x))
+  assert.ok(bar.items.every((item) => item.rect.x + item.rect.width <= bar.rect.x + bar.rect.width))
+})
+
+test('Selection Mode lineage bar compresses long paths without spilling outside the display', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 25, w: 280, h: 190 }, { kind: 'display', role: 'display', label: 'Display' }),
+    candidate('app', { x: 10, y: 40, w: 250, h: 160 }, { kind: 'application', role: 'native_app', label: 'Example App With Long Name' }),
+    candidate('window', { x: 16, y: 46, w: 238, h: 148 }, { kind: 'window', role: 'native_window', label: 'Window' }),
+    candidate('canvas', { x: 20, y: 52, w: 226, h: 136 }, { kind: 'canvas_window', role: 'canvas', label: 'Canvas' }),
+    ...Array.from({ length: 8 }, (_, index) => candidate(`container-${index}`, {
+      x: 24 + index,
+      y: 60 + index,
+      w: 190 - index,
+      h: 96 - index,
+    }, { kind: 'group', role: 'container', label: `Container ${index + 1}` })),
+    candidate('leaf', { x: 76, y: 96, w: 42, h: 22 }, { kind: 'button', role: 'button', label: 'Save' }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 90, y: 105, valid: true },
+    selected_node_id: 'leaf',
+    path_candidates: path,
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 90, y: 105, valid: true } },
+      }],
+    },
+  }, {
+    displays: [{ id: 'display-1', visibleBounds: { x: 0, y: 25, w: 280, h: 190 } }],
+    projectPoint: (point) => point,
+    overlayBounds: { x: 0, y: 0, w: 280, h: 240 },
+  })
+
+  const bar = overlay.lineageBar
+  assert.equal(bar.itemCount, path.length)
+  assert.equal(bar.rect.x >= 8, true)
+  assert.equal(bar.rect.x + bar.rect.width <= 272, true)
+  assert.equal(bar.items.length, path.length)
+  assert.deepEqual(bar.items.map((item) => item.nodeId), path.map((node) => node.id))
+  assert.ok(bar.items.every((item) => item.rect.x >= bar.rect.x))
+  assert.ok(bar.items.every((item) => item.rect.x + item.rect.width <= bar.rect.x + bar.rect.width))
 })
 
 test('Selection Mode acquires DesktopWorld semantic leaf at visible button center', () => {
@@ -417,7 +594,167 @@ test('Selection Mode acquires DesktopWorld semantic leaf at visible button cente
   assert.equal(liveState.selectionModeOverlay.leafNodeId, liveState.selectionMode.selected_node_id)
 })
 
-test('Selection Mode badge click retargets while preserving original acquisition evidence', () => {
+test('Selection Mode acquisition keeps only the selected native-window branch', () => {
+  const point = { x: 1000, y: 320, valid: true }
+  const dockRoot = 'native-window:18376:Dock'
+  const cometRoot = 'native-window:111:Comet'
+  const settingsRoot = 'native-window:9628:System-Settings'
+  const dockWindow = candidate('native-window:18376:Dock', { x: 0, y: 0, w: 1512, h: 982 }, {
+    adapter_id: 'macos-ax',
+    root_id: dockRoot,
+    root_kind: 'native_window',
+    kind: 'native_window',
+    role: 'native_window',
+    label: 'Dock',
+    source_metadata: { window_id: '18376', pid: 772 },
+  })
+  const cometWindow = candidate('native-window:111:Comet', { x: 0, y: 158, w: 1512, h: 824 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'native_window',
+    role: 'native_window',
+    label: 'Comet',
+    source_metadata: { window_id: '111', pid: 87924 },
+  })
+  const settingsWindow = candidate('native-window:9628:System-Settings', { x: 883, y: 54, w: 723, h: 841 }, {
+    adapter_id: 'macos-ax',
+    root_id: settingsRoot,
+    root_kind: 'native_window',
+    kind: 'native_window',
+    role: 'native_window',
+    label: 'System Settings',
+    source_metadata: { window_id: '9628', pid: 63461 },
+  })
+  const cometGroup = candidate('ax-element:comet:group', { x: 420, y: 288, w: 661, h: 214 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'AXGroup',
+    role: 'AXGroup',
+    label: 'AXGroup',
+    source_metadata: { window_id: '111', pid: 87924 },
+    subject_path: ['native_window', cometRoot, 'ax_element', 'AXScrollArea', 'ax-element:comet:group'],
+  })
+  const customizeButton = candidate('ax-element:comet:customize-button', { x: 951, y: 300, w: 118, h: 32 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Customize notebook',
+    source_metadata: { window_id: '111', pid: 87924 },
+    subject_path: ['native_window', cometRoot, 'ax_element', 'AXScrollArea', 'ax-element:comet:customize-button'],
+  })
+  const customizeText = candidate('ax-element:comet:customize-text', { x: 992, y: 309, w: 60, h: 15 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'AXStaticText',
+    role: 'AXStaticText',
+    label: 'Customize',
+    source_metadata: { window_id: '111', pid: 87924 },
+    subject_path: ['native_window', cometRoot, 'ax_element', 'OpenAI Agent Builder', 'ax-element:comet:customize-text'],
+  })
+  const { runtime, liveState } = createRuntime({
+    candidates: [dockWindow, cometWindow, settingsWindow, cometGroup, customizeButton, customizeText],
+    projectPoint: (p) => p,
+  })
+
+  runtime.enter(point, 'test')
+  runtime.acquire(point)
+
+  assert.deepEqual(
+    liveState.selectionMode.path_candidates.map((item) => item.label),
+    ['Display 1', 'Comet', 'AXGroup', 'Customize notebook', 'Customize'],
+  )
+  assert.equal(liveState.selectionMode.path_candidates.some((item) => item.label === 'Dock'), false)
+  assert.equal(liveState.selectionMode.path_candidates.some((item) => item.label === 'System Settings'), false)
+  assert.deepEqual(
+    liveState.selectionMode.context_session.artifacts[0].path.map((node) => node.label),
+    ['Display 1', 'Comet', 'AXGroup', 'Customize notebook', 'Customize'],
+  )
+})
+
+test('Selection Mode browser lineage uses tab seam and drops generic AXGroup wrapper', () => {
+  const point = { x: 1000, y: 320, valid: true }
+  const cometRoot = 'native-window:111:Comet'
+  const cometWindow = candidate('native-window:111:Comet', { x: 0, y: 88, w: 1512, h: 894 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'native_window',
+    role: 'native_window',
+    label: 'Comet',
+    source_metadata: { window_id: '111', pid: 87924 },
+  })
+  const browserTab = candidate('browser-tab:comet:notebooklm', { x: 0, y: 158, w: 1512, h: 824 }, {
+    adapter_id: 'browser-content-seam',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'browser_tab',
+    role: 'browser_tab',
+    label: 'notebooklm',
+    source_metadata: {
+      window_id: '111',
+      pid: 87924,
+      active_url: 'https://notebooklm.google.com/notebook/example',
+      source_url: 'https://notebooklm.google.com/notebook/example',
+    },
+    subject_path: ['native_window', cometRoot, 'browser_tab', 'browser-tab:comet:notebooklm'],
+  })
+  const cometGroup = candidate('ax-element:comet:group', { x: 420, y: 288, w: 661, h: 214 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'AXGroup',
+    role: 'AXGroup',
+    label: 'AXGroup',
+    source_metadata: { window_id: '111', pid: 87924 },
+    subject_path: ['native_window', cometRoot, 'ax_element', 'AXScrollArea', 'ax-element:comet:group'],
+  })
+  const customizeButton = candidate('ax-element:comet:customize-button', { x: 951, y: 300, w: 118, h: 32 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'AXButton',
+    role: 'AXButton',
+    label: 'Customize notebook',
+    source_metadata: { window_id: '111', pid: 87924 },
+    subject_path: ['native_window', cometRoot, 'ax_element', 'AXScrollArea', 'ax-element:comet:customize-button'],
+  })
+  const customizeText = candidate('ax-element:comet:customize-text', { x: 992, y: 309, w: 60, h: 15 }, {
+    adapter_id: 'macos-ax',
+    root_id: cometRoot,
+    root_kind: 'native_window',
+    kind: 'AXStaticText',
+    role: 'AXStaticText',
+    label: 'Customize',
+    source_metadata: { window_id: '111', pid: 87924 },
+    subject_path: ['native_window', cometRoot, 'ax_element', 'OpenAI Agent Builder', 'ax-element:comet:customize-text'],
+  })
+  const { runtime, liveState } = createRuntime({
+    candidates: [cometWindow, browserTab, cometGroup, customizeButton, customizeText],
+    projectPoint: (p) => p,
+  })
+
+  runtime.enter(point, 'test')
+  runtime.acquire(point)
+
+  assert.deepEqual(
+    liveState.selectionMode.path_candidates.map((item) => item.label),
+    ['Display 1', 'Comet', 'notebooklm', 'Customize notebook', 'Customize'],
+  )
+  assert.equal(liveState.selectionMode.path_candidates.some((item) => item.label === 'AXGroup'), false)
+  const tabNode = liveState.selectionMode.path_candidates.find((item) => item.role === 'browser_tab')
+  assert.equal(tabNode?.source_metadata?.active_url, 'https://notebooklm.google.com/notebook/example')
+  assert.deepEqual(
+    liveState.selectionMode.context_session.artifacts[0].path.map((node) => node.label),
+    ['Display 1', 'Comet', 'notebooklm', 'Customize notebook', 'Customize'],
+  )
+})
+
+test('Selection Mode lineage click retargets while preserving original acquisition evidence', () => {
   const windowCandidate = candidate('window', { x: 50, y: 50, w: 300, h: 220 }, { kind: 'window', role: 'native_window', label: 'Window' })
   const buttonCandidate = candidate('button', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' })
   const { runtime, liveState, commands } = createRuntime({
@@ -431,47 +768,47 @@ test('Selection Mode badge click retargets while preserving original acquisition
   const acquiredPointer = structuredClone(acquiredArtifact.acquisition.pointer)
   const acquiredLeafNodeId = acquiredArtifact.acquisition.leaf_node_id
   const acquiredPathNodeIds = acquiredArtifact.path.map((node) => node.id)
-  const ancestorBadge = liveState.selectionModeOverlay.badges.find((badge) => (
-    badge.nodeId === acquiredArtifact.path[1].id
+  const ancestorItem = liveState.selectionModeOverlay.lineageBar.items.find((item) => (
+    item.nodeId === acquiredArtifact.path[1].id
   ))
-  assert.ok(ancestorBadge)
-  const originalBadgeRects = new Map(liveState.selectionModeOverlay.badges.map((badge) => [
-    badge.nodeId,
-    structuredClone(badge.rect),
+  assert.ok(ancestorItem)
+  const originalItemRects = new Map(liveState.selectionModeOverlay.lineageBar.items.map((item) => [
+    item.nodeId,
+    structuredClone(item.rect),
   ]))
   runtime.handleInput({
     type: 'left_mouse_up',
-    x: ancestorBadge.rect.x + ancestorBadge.rect.width / 2,
-    y: ancestorBadge.rect.y + ancestorBadge.rect.height / 2,
+    x: ancestorItem.rect.x + ancestorItem.rect.width / 2,
+    y: ancestorItem.rect.y + ancestorItem.rect.height / 2,
   })
 
-  assert.deepEqual(commands.map((entry) => entry.command), ['acquire', 'selectBadge'])
+  assert.deepEqual(commands.map((entry) => entry.command), ['acquire', 'selectLineageNode'])
   const retargetedArtifact = liveState.selectionMode.context_session.artifacts[0]
-  assert.equal(retargetedArtifact.active_target_node_id, ancestorBadge.nodeId)
+  assert.equal(retargetedArtifact.active_target_node_id, ancestorItem.nodeId)
   assert.deepEqual(retargetedArtifact.acquisition.pointer, acquiredPointer)
   assert.equal(retargetedArtifact.acquisition.leaf_node_id, acquiredLeafNodeId)
   assert.deepEqual(retargetedArtifact.path.map((node) => node.id), acquiredPathNodeIds)
   assert.equal(retargetedArtifact.acquisition.candidate_report.clicked_leaf.node_id, acquiredLeafNodeId)
-  assert.equal(liveState.selectionMode.selected_node_id, ancestorBadge.nodeId)
+  assert.equal(liveState.selectionMode.selected_node_id, ancestorItem.nodeId)
   assert.equal(liveState.selectionMode.hover_node_id, '')
   assert.equal(liveState.selectionModeOverlay.highlightedNodeId, acquiredLeafNodeId)
   assert.equal(liveState.selectionModeOverlay.frames.find((frame) => frame.active)?.id, acquiredLeafNodeId)
-  for (const badge of liveState.selectionModeOverlay.badges) {
-    assert.deepEqual(badge.rect, originalBadgeRects.get(badge.nodeId))
+  for (const item of liveState.selectionModeOverlay.lineageBar.items) {
+    assert.deepEqual(item.rect, originalItemRects.get(item.nodeId))
   }
   assert.notDeepEqual(liveState.selectionMode.cursor, acquiredPointer)
 
   runtime.handleInput({
     type: 'mouse_moved',
-    x: ancestorBadge.rect.x + ancestorBadge.rect.width / 2,
-    y: ancestorBadge.rect.y + ancestorBadge.rect.height / 2,
+    x: ancestorItem.rect.x + ancestorItem.rect.width / 2,
+    y: ancestorItem.rect.y + ancestorItem.rect.height / 2,
   })
-  assert.equal(liveState.selectionMode.hover_node_id, ancestorBadge.nodeId)
-  assert.equal(liveState.selectionModeOverlay.highlightedNodeId, ancestorBadge.nodeId)
-  assert.equal(liveState.selectionModeOverlay.frames.find((frame) => frame.active)?.id, ancestorBadge.nodeId)
+  assert.equal(liveState.selectionMode.hover_node_id, ancestorItem.nodeId)
+  assert.equal(liveState.selectionModeOverlay.highlightedNodeId, ancestorItem.nodeId)
+  assert.equal(liveState.selectionModeOverlay.frames.find((frame) => frame.active)?.id, ancestorItem.nodeId)
 
   runtime.handleInput({ type: 'mouse_moved', x: 1, y: 1 })
-  assert.equal(liveState.selectionMode.selected_node_id, ancestorBadge.nodeId)
+  assert.equal(liveState.selectionMode.selected_node_id, ancestorItem.nodeId)
   assert.equal(liveState.selectionMode.hover_node_id, '')
   assert.equal(liveState.selectionModeOverlay.highlightedNodeId, acquiredLeafNodeId)
   assert.equal(liveState.selectionModeOverlay.frames.find((frame) => frame.active)?.id, acquiredLeafNodeId)
@@ -647,7 +984,7 @@ test('Selection Mode entry and exit effects produce bounded renderable overlay t
   ])
 })
 
-test('Selection Mode overlay badge, frame, connector, and effect styles derive from avatar colors', () => {
+test('Selection Mode overlay lineage bar, frame, and effect styles derive from avatar colors', () => {
   const path = [
     candidate('display-root', { x: 0, y: 0, w: 800, h: 600 }, { kind: 'display', role: 'display', label: 'Display' }),
     candidate('leaf', { x: 80, y: 90, w: 80, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
@@ -681,10 +1018,10 @@ test('Selection Mode overlay badge, frame, connector, and effect styles derive f
   assert.equal(overlay.styles.source, 'sigil_avatar')
   assert.equal(overlay.styles.primary, '#123456')
   assert.equal(overlay.styles.frame.active.stroke, 'rgba(18, 52, 86, 0.58)')
-  assert.equal(overlay.styles.connector.stroke, 'rgba(254, 220, 186, 0.86)')
   assert.equal(overlay.styles.effect.primary, 'rgba(171, 205, 239, 0.96)')
   assert.equal(overlay.frames.find((frame) => frame.active).style.stroke, 'rgba(18, 52, 86, 0.58)')
-  assert.equal(overlay.badges.find((badge) => badge.active).style.stroke, 'rgba(171, 205, 239, 0.96)')
+  assert.equal(overlay.lineageBar.items.find((item) => item.selected).nodeId, 'leaf')
+  assert.equal(overlay.lineageBar.style.selected.stroke, 'rgba(171, 205, 239, 0.96)')
   assert.equal(overlay.visualEffects[0].anchor.x, 100)
 })
 

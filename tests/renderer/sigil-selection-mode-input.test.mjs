@@ -5,7 +5,7 @@ import {
   resolveSelectionModeInputRoute,
 } from '../../apps/sigil/renderer/live-modules/selection-mode-input.js'
 
-test('avatar double-click entry release does not immediately exit Selection Mode', () => {
+test('Selection Mode entry release guard does not immediately exit active mode', () => {
   let now = 0
   const tracker = createAvatarDoubleClickTracker({
     now: () => now,
@@ -14,8 +14,7 @@ test('avatar double-click entry release does not immediately exit Selection Mode
   })
   let selectionModeActive = false
 
-  function routeGotoLeftMouseDown() {
-    if (!tracker.consumeAvatarDoubleClick(100, 100)) return
+  function markSelectionModeEntered() {
     selectionModeActive = true
     tracker.resetAvatarDoubleClick()
     tracker.markSelectionModeEntryReleasePending()
@@ -27,11 +26,8 @@ test('avatar double-click entry release does not immediately exit Selection Mode
     if (tracker.consumeAvatarDoubleClick(100, 100)) selectionModeActive = false
   }
 
-  now = 100
-  assert.equal(tracker.consumeAvatarDoubleClick(100, 100), false)
-
   now = 220
-  routeGotoLeftMouseDown()
+  markSelectionModeEntered()
   routeSelectionModeInput('left_mouse_up')
   assert.equal(selectionModeActive, true)
 
@@ -110,21 +106,21 @@ test('Selection Mode routing resolves non-avatar left mouse up to acquire with p
   assert.deepEqual(route.pointer, { x: 11, y: 22, valid: true })
 })
 
-test('Selection Mode routing resolves badge hits before reacquisition', () => {
+test('Selection Mode routing resolves lineage item hits before reacquisition', () => {
   const route = resolveSelectionModeInputRoute({ type: 'left_mouse_up', x: 11, y: 22 }, {
     consumeSelectionModeEntryRelease: () => false,
     isOnAvatar: () => false,
-    hitTestBadge: (point) => (
+    hitTestLineageItem: (point) => (
       point.x === 11 && point.y === 22
-        ? { id: 'selection-mode-badge:ancestor', nodeId: 'node:ancestor' }
+        ? { id: 'selection-mode-lineage:ancestor', nodeId: 'node:ancestor' }
         : null
     ),
   })
 
   assert.equal(route.handled, true)
-  assert.equal(route.command, 'selectBadge')
-  assert.equal(route.gesture, 'pointer.badge.click')
+  assert.equal(route.command, 'selectLineageNode')
+  assert.equal(route.gesture, 'pointer.lineage.click')
   assert.equal(route.nodeId, 'node:ancestor')
-  assert.equal(route.badgeId, 'selection-mode-badge:ancestor')
+  assert.equal(route.lineageItemId, 'selection-mode-lineage:ancestor')
   assert.deepEqual(route.pointer, { x: 11, y: 22, valid: true })
 })

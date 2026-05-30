@@ -3,9 +3,10 @@ import { createDisplayAnnotationSubject } from './annotation-reticle.js';
 import { findDisplayForPoint } from './display-utils.js';
 import { resolveSelectionModeInputRoute } from './selection-mode-input.js';
 import {
-    buildSelectionModeBadgeModel,
-    hitTestSelectionModeBadge,
-} from './selection-mode-badges.js';
+    buildSelectionModeLineageBarModel,
+    hitTestSelectionModeLineageBar,
+    hitTestSelectionModeLineageItem,
+} from './selection-mode-lineage-bar.js';
 import {
     buildSelectionModeCursorGlyph,
     buildSelectionModeCursorTrailModel,
@@ -36,6 +37,8 @@ export function createDefaultSelectionModeState() {
         path_candidates: [],
         selected_node_id: '',
         hover_node_id: '',
+        lineage_bar_position: null,
+        lineage_bar_drag: null,
         context_session: null,
         events: [],
         effects: [],
@@ -88,6 +91,167 @@ function candidateArea(candidate = null) {
     return rect ? rect.w * rect.h : Number.POSITIVE_INFINITY;
 }
 
+function candidateText(value = null) {
+    return String(value ?? '').trim();
+}
+
+function candidateKey(candidate = null) {
+    return candidateText(
+        candidate?.id
+        || candidate?.subject_id
+        || candidate?.address
+        || candidate?.subject_address,
+    );
+}
+
+function candidateAdapterId(candidate = null) {
+    return candidateText(candidate?.adapter_id || candidate?.projection?.adapter_id);
+}
+
+function candidateRootId(candidate = null) {
+    return candidateText(
+        candidate?.root_id
+        || candidate?.projection?.root_id
+        || candidate?.source_metadata?.root_id,
+    );
+}
+
+function candidateWindowId(candidate = null) {
+    return candidateText(
+        candidate?.window_id
+        || candidate?.source_metadata?.window_id
+        || candidate?.source_metadata?.browser_window_id
+        || candidate?.projection?.window_id,
+    );
+}
+
+function candidatePid(candidate = null) {
+    const value = candidate?.pid
+        ?? candidate?.source_metadata?.pid
+        ?? candidate?.source_metadata?.browser_pid
+        ?? candidate?.projection?.pid;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+}
+
+function candidatePathDepth(candidate = null) {
+    const path = Array.isArray(candidate?.subject_path)
+        ? candidate.subject_path
+        : (Array.isArray(candidate?.projection?.subject_path) ? candidate.projection.subject_path : []);
+    return path.length;
+}
+
+function candidatesShareNativeWindow(left = null, right = null) {
+    const leftWindowId = candidateWindowId(left);
+    const rightWindowId = candidateWindowId(right);
+    if (leftWindowId && rightWindowId && leftWindowId === rightWindowId) return true;
+    const leftPid = candidatePid(left);
+    const rightPid = candidatePid(right);
+    return leftPid !== null && rightPid !== null && leftPid === rightPid;
+}
+
+function selectLeafCandidate(containing = []) {
+    return [...containing].sort((a, b) => {
+        const areaDelta = candidateArea(a) - candidateArea(b);
+        if (areaDelta !== 0) return areaDelta;
+        const depthDelta = candidatePathDepth(b) - candidatePathDepth(a);
+        if (depthDelta !== 0) return depthDelta;
+        return candidateKey(a).localeCompare(candidateKey(b));
+    })[0] || null;
+}
+
+function candidateBelongsToLeafBranch(candidate = null, leaf = null) {
+    if (!candidate || !leaf) return false;
+    const key = candidateKey(candidate);
+    const leafKey = candidateKey(leaf);
+    if (key && leafKey && key === leafKey) return true;
+
+    const adapter = candidateAdapterId(candidate);
+    const leafAdapter = candidateAdapterId(leaf);
+    const rootId = candidateRootId(candidate);
+    const leafRootId = candidateRootId(leaf);
+    const subjectId = candidateText(candidate?.subject_id || candidate?.projection?.subject_id || candidate?.id);
+
+    if (leafAdapter === 'macos-ax') {
+        if (adapter === 'macos-ax') return Boolean(leafRootId && (rootId === leafRootId || subjectId === leafRootId || key === leafRootId));
+        return candidatesShareNativeWindow(candidate, leaf);
+    }
+
+    if (leafRootId && (rootId === leafRootId || subjectId === leafRootId || key === leafRootId)) return true;
+    if (candidatesShareNativeWindow(candidate, leaf)) return true;
+    return false;
+}
+
+function rootToLeafCandidateSort(a = null, b = null) {
+    const areaDelta = candidateArea(b) - candidateArea(a);
+    if (areaDelta !== 0) return areaDelta;
+    const depthDelta = candidatePathDepth(a) - candidatePathDepth(b);
+    if (depthDelta !== 0) return depthDelta;
+    return candidateKey(a).localeCompare(candidateKey(b));
+}
+
+function candidateRoleText(candidate = null) {
+    return candidateText(
+        candidate?.role
+        || candidate?.kind
+        || candidate?.subject_kind
+        || candidate?.projection?.subject_kind,
+    );
+}
+
+function candidateCapabilities(candidate = null) {
+    return [
+        ...(Array.isArray(candidate?.capabilities) ? candidate.capabilities : []),
+        ...(Array.isArray(candidate?.normalized_capabilities) ? candidate.normalized_capabilities : []),
+        ...(Array.isArray(candidate?.action_names) ? candidate.action_names : []),
+    ].map((item) => candidateText(item)).filter(Boolean);
+}
+
+function candidateIsBrowserTabSeam(candidate = null) {
+    const adapter = candidateAdapterId(candidate);
+    const role = candidateRoleText(candidate).toLowerCase();
+    if (adapter === 'browser-content-seam') return true;
+    return role === 'browser_tab' || role === 'browser_content_seam' || role === 'browser_page';
+}
+
+function candidateIsGenericAxGroup(candidate = null) {
+    if (candidateAdapterId(candidate) !== 'macos-ax') return false;
+    const role = candidateRoleText(candidate);
+    if (role !== 'AXGroup' && role.toLowerCase() !== 'group') return false;
+    const label = candidateText(candidate?.label || candidate?.title || candidate?.name);
+    if (label && label !== 'AXGroup' && label.toLowerCase() !== 'group') return false;
+    return candidateCapabilities(candidate).length === 0;
+}
+
+function collapseBrowserLineageNoise(branch = []) {
+    const browserSeams = branch.filter(candidateIsBrowserTabSeam);
+    if (!browserSeams.length) return branch;
+    const browserRootIds = new Set(browserSeams.map(candidateRootId).filter(Boolean));
+    return branch.filter((candidate) => {
+        if (!candidateIsGenericAxGroup(candidate)) return true;
+        const rootId = candidateRootId(candidate);
+        return rootId && !browserRootIds.has(rootId);
+    });
+}
+
+function selectedBranchCandidates(containing = []) {
+    const leaf = selectLeafCandidate(containing);
+    if (!leaf) return [];
+    const branch = containing
+        .filter((candidate) => candidateBelongsToLeafBranch(candidate, leaf))
+        .sort(rootToLeafCandidateSort);
+    const seen = new Set();
+    const deduped = [];
+    for (const candidate of branch) {
+        const key = candidateKey(candidate);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(candidate);
+    }
+    if (!seen.has(candidateKey(leaf))) deduped.push(leaf);
+    return collapseBrowserLineageNoise(deduped);
+}
+
 function cursorFromPoint(point = null) {
     if (!point) return null;
     return {
@@ -110,9 +274,42 @@ function projectRect(rect = null, projectPoint = (point) => point) {
     };
 }
 
+function selectionModeRoleToken(node = {}) {
+    const text = [
+        node.role,
+        node.kind,
+        node.subject_kind,
+        node.label,
+        node.address,
+        node.id,
+    ].map((part) => String(part || '').toLowerCase()).join(' ');
+    if (text.includes('browser_tab') || text.includes('browser tab') || /\btab\b/.test(text)) return 'browser_tab';
+    if (text.includes('document') || /\bdom\b/.test(text)) return 'document';
+    if (/\bbody\b/.test(text) || text.includes('document body')) return 'body';
+    if (text.includes('native_app') || text.includes('application') || /\bapp\b/.test(text)) return 'app';
+    if (text.includes('native_window') || /\bwindow\b/.test(text)) return 'window';
+    if (text.includes('canvas')) return 'canvas';
+    if (text.includes('display') || text.includes('screen')) return 'display';
+    return '';
+}
+
+function majorSeamAncestorFrameId(path = [], highlightedNodeId = '', leafNodeId = '') {
+    const targetIndex = path.findIndex((node) => node.id === highlightedNodeId);
+    const index = targetIndex >= 0
+        ? targetIndex
+        : path.findIndex((node) => node.id === leafNodeId);
+    if (index <= 0) return '';
+    const seamTokens = new Set(['app', 'window', 'canvas', 'browser_tab', 'document', 'body']);
+    for (let i = index - 1; i >= 0; i -= 1) {
+        if (seamTokens.has(selectionModeRoleToken(path[i]))) return path[i].id || '';
+    }
+    return '';
+}
+
 export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     projectPoint = (point) => point,
     overlayBounds = null,
+    displays = [],
     rendererState = null,
     nowMs = Date.now(),
 } = {}) {
@@ -131,6 +328,7 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     const leafNodeId = artifact?.acquisition?.leaf_node_id || path.at(-1)?.id || '';
     const hoverNodeId = selectionMode.hover_node_id || '';
     const highlightedNodeId = hoverNodeId || leafNodeId;
+    const perimeterFillNodeId = majorSeamAncestorFrameId(path, highlightedNodeId, leafNodeId);
     const frames = path.map((node, index) => {
         const rect = projectRect(
             node.projection?.visible_display_rect
@@ -150,22 +348,32 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
             selected: node.id === selectedNodeId,
             hovered: node.id === hoverNodeId,
             leaf: node.id === leafNodeId,
-            style: highlighted
-                ? visualStyle.frame.active
-                : (node.id === leafNodeId ? visualStyle.frame.leaf : visualStyle.frame.ancestor),
+            style: {
+                ...(highlighted
+                    ? visualStyle.frame.active
+                    : (node.id === leafNodeId ? visualStyle.frame.leaf : visualStyle.frame.ancestor)),
+                fill: null,
+            },
+            perimeterFill: node.id === perimeterFillNodeId ? {
+                mode: 'edge_band',
+                marginRatio: 0.15,
+                style: visualStyle.frame.perimeter,
+            } : null,
         };
     }).filter(Boolean);
     const cursor = selectionMode.cursor ? projectPoint(selectionMode.cursor) : null;
     const rotationStartedAtMs = Number(selectionMode.rotation_started_at_ms ?? Date.parse(selectionMode.entered_at || ''));
-    const badgeAnchor = artifact?.acquisition?.pointer
-        ? projectPoint(artifact.acquisition.pointer)
-        : cursor;
-    const badgeModel = buildSelectionModeBadgeModel({
+    const lineageModel = buildSelectionModeLineageBarModel({
         path,
         activeNodeId: selectedNodeId,
+        hoverNodeId,
         leafNodeId,
-        cursor: badgeAnchor,
+        acquisitionPointer: artifact?.acquisition?.pointer || null,
+        cursor: selectionMode.cursor || null,
+        manualPosition: selectionMode.lineage_bar_position || null,
+        displays,
         overlayBounds,
+        projectPoint,
         visualStyle,
     });
     return {
@@ -177,13 +385,14 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         }),
         cursorTrail: buildSelectionModeCursorTrailModel(rendererState),
         frames,
-        ...badgeModel,
+        ...lineageModel,
         styles: visualStyle,
         visualEffects,
         activeNodeId: selectedNodeId,
         leafNodeId,
         hoverNodeId,
         highlightedNodeId,
+        perimeterFillNodeId,
         blocker: selectionMode.blocker || null,
         eventCount: Array.isArray(selectionMode.events) ? selectionMode.events.length : 0,
     };
@@ -218,6 +427,7 @@ export function createSigilSelectionModeRuntime({
         return buildProjectedSelectionModeOverlay(selectionMode, {
             projectPoint,
             overlayBounds: getOverlayBounds(),
+            displays: getDisplays(),
             rendererState,
             nowMs: nowMs(),
         });
@@ -290,11 +500,10 @@ export function createSigilSelectionModeRuntime({
         const displayRoot = displayCandidate(cursor);
         const containing = getCandidateList()
             .filter((candidate) => pointInRect(cursor, projectionRect(candidate)))
-            .sort((a, b) => candidateArea(b) - candidateArea(a));
-        const path = [displayRoot, ...containing];
+        const path = [displayRoot, ...selectedBranchCandidates(containing)];
         const seen = new Set();
         return path.filter((candidate) => {
-            const key = String(candidate?.id || candidate?.subject_id || candidate?.address || '');
+            const key = candidateKey(candidate);
             if (!key || seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -353,7 +562,7 @@ export function createSigilSelectionModeRuntime({
         return true;
     }
 
-    function enter(pointer = null, reason = 'avatar-double-click') {
+    function enter(pointer = null, reason = 'selection-mode-enter') {
         closeContextMenu('selection-mode');
         exitAnnotationReticle('selection-mode');
         clearGestureState();
@@ -427,7 +636,7 @@ export function createSigilSelectionModeRuntime({
         return context;
     }
 
-    function selectTargetNode(nodeId = '', { reason = 'badge-click' } = {}) {
+    function selectTargetNode(nodeId = '', { reason = 'lineage-click' } = {}) {
         const target = String(nodeId || '').trim();
         const path = liveState.selectionMode?.context_session?.artifacts?.[0]?.path || [];
         if (!target || !path.some((node) => node.id === target || node.address === target)) return null;
@@ -440,17 +649,83 @@ export function createSigilSelectionModeRuntime({
         return context;
     }
 
-    function hitTestBadge(point = null) {
+    function hitTestLineageBar(point = null) {
         const cursor = cursorFromPoint(point);
         if (!cursor) return null;
         const projected = projectPoint(cursor);
         const overlay = buildOverlay(liveState.selectionMode);
-        return hitTestSelectionModeBadge(overlay, projected);
+        return hitTestSelectionModeLineageBar(overlay, projected);
     }
 
-    function updateBadgeHover(point = null) {
-        const badge = point ? hitTestBadge(point) : null;
-        const nextHoverNodeId = badge?.nodeId || '';
+    function hitTestLineageItem(point = null) {
+        const cursor = cursorFromPoint(point);
+        if (!cursor) return null;
+        const projected = projectPoint(cursor);
+        const overlay = buildOverlay(liveState.selectionMode);
+        return hitTestSelectionModeLineageItem(overlay, projected);
+    }
+
+    function startLineageBarDrag(point = null) {
+        const cursor = cursorFromPoint(point);
+        if (!cursor) return false;
+        const projected = projectPoint(cursor);
+        const overlay = buildOverlay(liveState.selectionMode);
+        const hit = hitTestSelectionModeLineageBar(overlay, projected);
+        const rect = overlay?.lineageBar?.rect || null;
+        if (!hit || !rect) return false;
+        liveState.selectionMode.lineage_bar_drag = {
+            active: true,
+            moved: false,
+            start: cursor,
+            start_projected: projected,
+            offset: {
+                x: projected.x - rect.x,
+                y: projected.y - rect.y,
+            },
+            displayId: overlay.lineageBar.activeDisplayId || null,
+            item: hit.kind === 'item' ? {
+                id: hit.id || '',
+                nodeId: hit.nodeId || '',
+            } : null,
+        };
+        return true;
+    }
+
+    function updateLineageBarDrag(point = null, { release = false } = {}) {
+        const drag = liveState.selectionMode?.lineage_bar_drag;
+        if (!drag?.active) return false;
+        const cursor = cursorFromPoint(point);
+        if (!cursor) return false;
+        const projected = projectPoint(cursor);
+        const moved = drag.moved || Math.hypot(
+            projected.x - finite(drag.start_projected?.x),
+            projected.y - finite(drag.start_projected?.y),
+        ) >= 3;
+        if (moved) {
+            liveState.selectionMode.lineage_bar_position = {
+                x: projected.x - finite(drag.offset?.x),
+                y: projected.y - finite(drag.offset?.y),
+                displayId: drag.displayId || null,
+            };
+        }
+        liveState.selectionMode.lineage_bar_drag = release ? null : {
+            ...drag,
+            moved,
+        };
+        liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        if (release && !moved && drag.item?.nodeId) {
+            executeCommand('selectLineageNode', { type: 'left_mouse_up', x: cursor.x, y: cursor.y }, {
+                pointer: cursor,
+                nodeId: drag.item.nodeId,
+                lineageItemId: drag.item.id,
+            });
+        }
+        return true;
+    }
+
+    function updateLineageHover(point = null) {
+        const item = point ? hitTestLineageItem(point) : null;
+        const nextHoverNodeId = item?.nodeId || '';
         if ((liveState.selectionMode.hover_node_id || '') === nextHoverNodeId) return false;
         liveState.selectionMode.hover_node_id = nextHoverNodeId;
         liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
@@ -516,6 +791,8 @@ export function createSigilSelectionModeRuntime({
             path_candidates: input.path_candidates || input.ancestor_candidates || [],
             selected_node_id: contextSession.artifacts?.[0]?.active_target_node_id || '',
             hover_node_id: '',
+            lineage_bar_position: null,
+            lineage_bar_drag: null,
             context_session: contextSession,
             events: [],
             effects: [],
@@ -537,15 +814,32 @@ export function createSigilSelectionModeRuntime({
             liveState.selectionMode.cursor = { x: msg.x, y: msg.y, valid: true };
             liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
         }
+        if (
+            liveState.selectionMode.lineage_bar_drag?.active
+            && (msg.type === 'mouse_moved' || msg.type === 'left_mouse_dragged')
+        ) {
+            updateLineageBarDrag({ x: msg.x, y: msg.y, valid: true });
+            scheduleRenderFrame({ structural: false });
+            return true;
+        }
+        if (liveState.selectionMode.lineage_bar_drag?.active && msg.type === 'left_mouse_up') {
+            updateLineageBarDrag({ x: msg.x, y: msg.y, valid: true }, { release: true });
+            scheduleRenderFrame({ structural: false });
+            return true;
+        }
+        if (msg.type === 'left_mouse_down' && startLineageBarDrag({ x: msg.x, y: msg.y, valid: true })) {
+            scheduleRenderFrame({ structural: false });
+            return true;
+        }
         const route = resolveSelectionModeInputRoute(msg, {
             consumeSelectionModeEntryRelease,
             isOnAvatar,
             consumeAvatarDoubleClick,
-            hitTestBadge,
+            hitTestLineageItem,
         });
         if (!route.handled) return false;
         if (route.direct === 'render_only') {
-            updateBadgeHover(
+            updateLineageHover(
                 typeof msg.x === 'number' && typeof msg.y === 'number'
                     ? { x: msg.x, y: msg.y, valid: true }
                     : null,
@@ -566,7 +860,7 @@ export function createSigilSelectionModeRuntime({
         executeCommand(route.command, msg, {
             pointer: route.pointer || null,
             nodeId: route.nodeId || null,
-            badgeId: route.badgeId || null,
+            lineageItemId: route.lineageItemId || null,
         });
         return true;
     }
@@ -581,7 +875,8 @@ export function createSigilSelectionModeRuntime({
         acquire,
         cycleTarget,
         selectTargetNode,
-        hitTestBadge,
+        hitTestLineageItem,
+        hitTestLineageBar,
         commit,
         setNodeComment,
         createContextFromDebugInput,

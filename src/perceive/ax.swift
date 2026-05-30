@@ -35,6 +35,14 @@ func axValue(_ element: AXUIElement) -> String? {
     return nil
 }
 
+func axAnyString(_ element: AXUIElement, _ attribute: String) -> String? {
+    var value: AnyObject?
+    guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+    if let string = value as? String { return string }
+    if let url = value as? URL { return url.absoluteString }
+    return nil
+}
+
 func axChildren(_ element: AXUIElement) -> [AXUIElement] {
     var value: AnyObject?
     guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value) == .success,
@@ -158,6 +166,155 @@ func axElementAtPoint(pid: pid_t, point: CGPoint) -> AXHitResult? {
         capabilities: axCapabilities(role: role, actions: actions, element: el),
         contextPath: axContextPath(el)
     )
+}
+
+// MARK: - Browser AX Context
+
+private func axLooksLikeBrowserApp(appName: String, bundleID: String?) -> Bool {
+    let app = appName.lowercased()
+    let bundle = (bundleID ?? "").lowercased()
+    if app.contains("comet") || app.contains("chrome") || app.contains("safari")
+        || app.contains("arc") || app.contains("brave") || app.contains("edge")
+        || app.contains("firefox") {
+        return true
+    }
+    return bundle.contains("chrome") || bundle.contains("safari") || bundle.contains("browser")
+        || bundle.contains("brave") || bundle.contains("firefox") || bundle.contains("perplexity")
+        || bundle.contains("comet") || bundle.contains("edgemac")
+}
+
+private func axLooksLikeURL(_ value: String?) -> Bool {
+    guard let raw = value?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return false }
+    let lower = raw.lowercased()
+    return lower.hasPrefix("http://") || lower.hasPrefix("https://")
+}
+
+private func axRectPayload(_ rect: CGRect?) -> [String: Any]? {
+    guard let rect else { return nil }
+    return [
+        "x": rect.origin.x,
+        "y": rect.origin.y,
+        "width": rect.size.width,
+        "height": rect.size.height
+    ]
+}
+
+private func axRectArea(_ rect: CGRect) -> CGFloat {
+    max(0, rect.size.width) * max(0, rect.size.height)
+}
+
+private func axElementChildrenForTraversal(_ element: AXUIElement) -> [AXUIElement] {
+    var children = axChildren(element)
+    if children.isEmpty {
+        var value: AnyObject?
+        if AXUIElementCopyAttributeValue(element, "AXVisibleChildren" as CFString, &value) == .success,
+           let visible = value as? [AXUIElement] {
+            children = visible
+        }
+    }
+    return children
+}
+
+func axBrowserContext(pid: pid_t, appName: String, bundleID: String?, point: CGPoint? = nil) -> [String: Any]? {
+    guard axLooksLikeBrowserApp(appName: appName, bundleID: bundleID) else { return nil }
+
+    let axApp = AXUIElementCreateApplication(pid)
+    var roots: [AXUIElement] = []
+    var focusedWindow: AnyObject?
+    if AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute as CFString, &focusedWindow) == .success,
+       let window = focusedWindow {
+        roots.append(window as! AXUIElement)
+    }
+    var windowsValue: AnyObject?
+    if AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &windowsValue) == .success,
+       let windows = windowsValue as? [AXUIElement] {
+        roots.append(contentsOf: windows)
+    }
+    if roots.isEmpty {
+        roots = axChildren(axApp)
+    }
+
+    var activeURL = ""
+    var activeTabTitle = ""
+    var pageTitle = ""
+    var webAreaBounds: [CGRect] = []
+    var windowBounds: CGRect?
+    var queue = roots.map { ($0, 0) }
+    var visited = 0
+    let maxNodes = 700
+    let maxDepth = 10
+
+    while !queue.isEmpty && visited < maxNodes {
+        let (element, depth) = queue.removeFirst()
+        visited += 1
+
+        let role = axString(element, kAXRoleAttribute) ?? ""
+        let title = axString(element, kAXTitleAttribute) ?? ""
+        let label = axString(element, kAXDescriptionAttribute) ?? ""
+        let value = axValue(element) ?? ""
+        let bounds = axBounds(element)
+
+        if role == "AXWindow", windowBounds == nil {
+            if let point, let bounds, bounds.contains(point) {
+                windowBounds = bounds
+            } else if point == nil {
+                windowBounds = bounds
+            }
+        }
+
+        if activeURL.isEmpty {
+            let urlAttr = axAnyString(element, kAXURLAttribute)
+            if axLooksLikeURL(urlAttr) {
+                activeURL = urlAttr!.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if axLooksLikeURL(value) {
+                activeURL = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if axLooksLikeURL(title) {
+                activeURL = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        let selected = axBool(element, kAXSelectedAttribute) ?? false
+        if activeTabTitle.isEmpty && selected && (role == "AXTab" || role == "AXRadioButton" || role == "AXButton") {
+            activeTabTitle = [title, label, value].first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) ?? ""
+        }
+
+        if role == "AXWebArea" {
+            if pageTitle.isEmpty {
+                pageTitle = [title, label].first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) ?? ""
+            }
+            if let bounds, bounds.width > 0, bounds.height > 0 {
+                webAreaBounds.append(bounds)
+            }
+        }
+
+        if depth < maxDepth {
+            for child in axElementChildrenForTraversal(element) {
+                queue.append((child, depth + 1))
+            }
+        }
+    }
+
+    if windowBounds == nil, let firstWindow = roots.first {
+        windowBounds = axBounds(firstWindow)
+    }
+    let pointContainingWebAreas = point == nil
+        ? webAreaBounds
+        : webAreaBounds.filter { rect in rect.contains(point!) }
+    let contentBounds = (pointContainingWebAreas.isEmpty ? webAreaBounds : pointContainingWebAreas)
+        .max { axRectArea($0) < axRectArea($1) }
+    let tabTitle = activeTabTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ? pageTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        : activeTabTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+    if activeURL.isEmpty && tabTitle.isEmpty && contentBounds == nil && windowBounds == nil { return nil }
+
+    var payload: [String: Any] = [
+        "browser_app": true,
+        "active_url": activeURL,
+        "active_tab_title": tabTitle,
+    ]
+    if let rect = axRectPayload(contentBounds) { payload["content_bounds"] = rect }
+    if let rect = axRectPayload(windowBounds) { payload["window_bounds"] = rect }
+    return payload
 }
 
 // MARK: - Shared AX Utilities for Capture Pipeline

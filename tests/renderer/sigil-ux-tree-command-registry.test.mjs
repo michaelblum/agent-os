@@ -396,7 +396,7 @@ test('Sigil UX command adapter reports missing Selection Mode commit handler wit
   assert.equal(result.errors[0].code, 'command.handler.missing')
 })
 
-test('Sigil UX command adapter executes avatar press, GOTO, radial begin, and Selection Mode entry handlers', () => {
+test('Sigil UX command adapter executes avatar press, GOTO, and radial begin handlers', () => {
   const calls = []
   const registry = createSigilUxTreeCommandRegistry({
     avatarPressBegin(pointer) {
@@ -411,17 +411,12 @@ test('Sigil UX command adapter executes avatar press, GOTO, radial begin, and Se
       calls.push(['radial', pointer])
       return { state: 'RADIAL' }
     },
-    selectionModeEnter(pointer) {
-      calls.push(['selection', pointer])
-      return { active: true }
-    },
   })
   const pointer = { x: 10, y: 20, valid: true }
   const cases = [
     [SIGIL_AVATAR_COMMAND_INPUTS.pressBegin, 'sigil.avatar.press.begin', 'sigil.avatar.press.left_press'],
     [SIGIL_AVATAR_COMMAND_INPUTS.gotoBegin, 'sigil.avatar.goto.begin', 'sigil.avatar.goto.left_release'],
     [SIGIL_AVATAR_COMMAND_INPUTS.radialBegin, 'sigil.radial.begin', 'sigil.avatar.radial.drag_threshold'],
-    [SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter, 'sigil.selection_mode.enter', 'sigil.avatar.selection_mode.double_click'],
   ]
 
   for (const [input, commandId, bindingId] of cases) {
@@ -434,8 +429,8 @@ test('Sigil UX command adapter executes avatar press, GOTO, radial begin, and Se
     assert.equal(result.command_id, commandId)
     assert.equal(result.binding_id, bindingId)
   }
-  assert.deepEqual(calls.map(([name]) => name), ['press', 'goto', 'radial', 'selection'])
-  assert.deepEqual(calls.map(([, seenPointer]) => seenPointer), [pointer, pointer, pointer, pointer])
+  assert.deepEqual(calls.map(([name]) => name), ['press', 'goto', 'radial'])
+  assert.deepEqual(calls.map(([, seenPointer]) => seenPointer), [pointer, pointer, pointer])
 })
 
 test('Sigil UX command adapter routes radial item actions through their command handlers', () => {
@@ -449,8 +444,8 @@ test('Sigil UX command adapter routes radial item actions through their command 
       calls.push(['agent', kind, payload.context.item.id])
       return { canvas: 'agent-terminal' }
     },
-    annotationReticleEnter(pointer, payload) {
-      calls.push(['reticle', pointer, payload.context.item.id])
+    selectionModeEnter(pointer, payload) {
+      calls.push(['selection', pointer, payload.context.item.id])
       return { active: true }
     },
     annotationCameraCaptureBundle(reason, payload) {
@@ -466,7 +461,7 @@ test('Sigil UX command adapter routes radial item actions through their command 
   const cases = [
     ['context-menu', 'sigil.context_menu.open'],
     ['agent-terminal', 'sigil.agent_terminal.open'],
-    ['annotation-mode', 'sigil.annotation_reticle.enter'],
+    ['annotation-mode', 'sigil.selection_mode.enter'],
     ['annotation-camera', 'sigil.annotation_camera.capture_bundle'],
     ['wiki-graph', 'sigil.wiki_graph.open'],
   ]
@@ -491,7 +486,7 @@ test('Sigil UX command adapter routes radial item actions through their command 
     assert.equal(result.binding_id, `sigil.radial.item.release.${itemId}`, itemId)
   }
 
-  assert.deepEqual(calls.map(([kind]) => kind), ['context', 'agent', 'reticle', 'camera', 'wiki'])
+  assert.deepEqual(calls.map(([kind]) => kind), ['context', 'agent', 'selection', 'camera', 'wiki'])
 })
 
 test('Sigil UX command runner records fail-closed command declines without fallback execution', () => {
@@ -520,7 +515,7 @@ test('Sigil UX command route catalog is derived from adapter-resolved command in
 
   assert.equal(catalog.length, tree.bindings.length)
   assert.ok(routeIds.has('sigil.avatar.context_menu.right_click'))
-  assert.ok(routeIds.has('sigil.avatar.selection_mode.double_click'))
   assert.ok(routeIds.has('sigil.selection_mode.left_click_acquire'))
+  assert.ok(routeIds.has('sigil.radial.item.release.annotation-mode'))
   assert.ok([...routeIds].some((id) => id.startsWith('sigil.radial.item.release.')))
 })

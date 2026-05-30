@@ -189,6 +189,25 @@ test('Selection Mode effect frames redraw overlay without structural sync or sta
   });
 });
 
+test('Selection Mode perimeter fill redraws overlay without structural sync or state publish', () => {
+  assert.deepEqual(renderLoopContinuationReasons({
+    currentState: 'IDLE',
+    selectionModeActive: true,
+    selectionModePerimeterFillActive: true,
+  }), ['selection-mode', 'selection-mode-perimeter-fill']);
+
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['avatar-motion', 'selection-mode', 'selection-mode-perimeter-fill'],
+    structuralDirty: false,
+  }), {
+    continuationReasons: ['avatar-motion', 'selection-mode', 'selection-mode-perimeter-fill'],
+    structural: false,
+    overlay: true,
+    publishState: false,
+    visualOnly: false,
+  });
+});
+
 test('dirty or interactive frames keep structural sync and state publish active', () => {
   assert.equal(classifyRenderLoopWork({
     continuationReasons: ['avatar-motion'],

@@ -64,11 +64,6 @@ export const SIGIL_AVATAR_COMMAND_INPUTS = Object.freeze({
         mode: 'press',
         gesture: 'pointer.left.drag_threshold',
     }),
-    selectionModeEnter: Object.freeze({
-        nodeId: 'sigil.avatar.body',
-        mode: 'goto',
-        gesture: 'pointer.left.double_click',
-    }),
 });
 
 export const SIGIL_RADIAL_COMMAND_INPUTS = Object.freeze({
@@ -88,7 +83,6 @@ export const SIGIL_UX_TREE_STATIC_COMMAND_INPUTS = Object.freeze([
     SIGIL_AVATAR_COMMAND_INPUTS.pressBegin,
     SIGIL_AVATAR_COMMAND_INPUTS.gotoBegin,
     SIGIL_AVATAR_COMMAND_INPUTS.radialBegin,
-    SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.escape,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.commit,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.tabPreviousTarget,
@@ -329,7 +323,6 @@ export function createSigilUxTreeCommandRuntime({
     clearGestureState = () => {},
     consumeAvatarDoubleClick = () => false,
     resetAvatarDoubleClick = () => {},
-    markSelectionModeEntryReleasePending = () => {},
     setInteractionState = () => {},
     applyRadialGestureMove = () => false,
     enterSelectionMode = () => null,
@@ -371,10 +364,9 @@ export function createSigilUxTreeCommandRuntime({
             return { state: liveState.currentState, snapshot: liveState.radialGestureMenu };
         },
         radialReleaseItem: radialItemActionDispatcher?.commandHandlers?.radialReleaseItem,
-        selectionModeEnter(pointer) {
-            enterSelectionMode(pointer, 'avatar-double-click');
+        selectionModeEnter(pointer, payload = {}) {
+            enterSelectionMode(pointer, payload.context?.reason || 'radial-reticle');
             resetAvatarDoubleClick();
-            markSelectionModeEntryReleasePending();
             setInteractionState('IDLE', 'selection-mode-enter');
             return liveState.selectionMode;
         },
@@ -419,9 +411,6 @@ export function createSigilUxTreeCommandRuntime({
         },
         executeAvatarRadialBegin(msg = {}, context = {}) {
             return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.radialBegin, msg, context);
-        },
-        executeSelectionModeEnter(msg = {}, context = {}) {
-            return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.selectionModeEnter, msg, context);
         },
         executeContextMenuRightClick(route = {}, msg = {}) {
             return executeWithContext(route.input || {}, msg, {

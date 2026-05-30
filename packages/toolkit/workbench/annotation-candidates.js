@@ -1,4 +1,5 @@
 import {
+  BROWSER_CONTENT_SEAM_ADAPTER_ID,
   normalizeAnnotationProjectionStatus,
   normalizeAnnotationRectLike,
 } from './annotation-projection.js'
@@ -12,6 +13,21 @@ const CANDIDATE_ADAPTER_PRIORITY = new Map([
 ])
 const ACTIONABLE_CAPABILITIES = new Set(['press', 'focus', 'set_value', 'scroll', 'increment', 'decrement'])
 const NOISY_SUBJECT_KINDS = new Set(['group', 'container', 'region', 'main', 'section', 'generic', 'div'])
+const GENERIC_AX_LABELS = new Set([
+  'AXGroup',
+  'AXUnknown',
+  'AXSplitGroup',
+  'AXScrollArea',
+  'AXLayoutArea',
+  'AXWebArea',
+  'group',
+  'unknown',
+  'split group',
+  'scroll area',
+  'layout area',
+  'web area',
+])
+const COMMON_HOST_PREFIXES = new Set(['www', 'm', 'mobile', 'app'])
 const IMPLICIT_ROOT_ID_PATTERNS = [
   /^desktop[-_]world$/i,
   /^aos-desktop-world-stage$/i,
@@ -64,7 +80,103 @@ function normalizeNativeWindowPayload(input = {}) {
     bundle_id: text(payload.bundle_id || payload.bundleID),
     title: text(payload.title || payload.window_title),
     bounds,
+    browser_context: normalizeBrowserContextPayload(payload.browser_context),
   }
+}
+
+function normalizeBrowserContextPayload(input = {}) {
+  if (!input || typeof input !== 'object') return null
+  const payload = input.data && typeof input.data === 'object' ? input.data : input
+  const activeUrl = text(payload.active_url || payload.url || payload.source_url)
+  const activeTabTitle = text(payload.active_tab_title || payload.tab_title || payload.title || payload.page_title)
+  const contentBounds = normalizeAnnotationRectLike(payload.content_bounds || payload.browser_content_rect || payload.content_rect)
+  const windowBounds = normalizeAnnotationRectLike(payload.window_bounds || payload.window_rect)
+  if (!activeUrl && !activeTabTitle && !contentBounds && !windowBounds && payload.browser_app !== true) return null
+  return {
+    browser_app: payload.browser_app === true,
+    active_url: activeUrl,
+    active_tab_title: activeTabTitle,
+    content_bounds: contentBounds,
+    window_bounds: windowBounds,
+  }
+}
+
+function browserTabLabel(context = {}) {
+  const urlLabel = siteLabelFromUrl(context.active_url)
+  if (urlLabel) return urlLabel
+  const title = text(context.active_tab_title)
+  if (title) return title
+  return 'Active tab'
+}
+
+function siteLabelFromUrl(url = '') {
+  const raw = text(url)
+  if (!raw) return ''
+  try {
+    const host = new URL(raw).hostname.replace(/^www\./i, '').toLowerCase()
+    const parts = host.split('.').filter(Boolean)
+    if (!parts.length) return host
+    const firstMeaningful = parts.find((part, index) => index < parts.length - 1 && !COMMON_HOST_PREFIXES.has(part))
+    if (firstMeaningful && parts.length > 2) return firstMeaningful
+    return parts.length >= 2 ? parts[parts.length - 2] : parts[0]
+  } catch {
+    return raw.replace(/^https?:\/\//i, '').split(/[/?#]/)[0].replace(/^www\./i, '')
+  }
+}
+
+function rectWidth(rect = null) {
+  return Number(rect?.w ?? rect?.width) || 0
+}
+
+function rectHeight(rect = null) {
+  return Number(rect?.h ?? rect?.height) || 0
+}
+
+function browserTabRect(context = {}, options = {}, payload = {}, window = {}) {
+  const content = normalizeAnnotationRectLike(context.content_bounds)
+  const fallback = normalizeAnnotationRectLike(options.content_rect || payload.bounds || payload.rect)
+  const windowRect = normalizeAnnotationRectLike(context.window_bounds || window.bounds)
+  const candidates = [content, fallback].filter(Boolean)
+  for (const candidate of candidates) {
+    if (!windowRect) return candidate
+    const widthRatio = rectWidth(candidate) / Math.max(1, rectWidth(windowRect))
+    const heightRatio = rectHeight(candidate) / Math.max(1, rectHeight(windowRect))
+    if (widthRatio >= 0.55 && heightRatio >= 0.35) return candidate
+  }
+  return windowRect || candidates[0] || null
+}
+
+function readableAxRole(role = '') {
+  const raw = text(role)
+  if (!raw) return ''
+  return raw
+    .replace(/^AX/, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function isGenericAxLabel(value = '') {
+  const normalized = text(value)
+  if (!normalized) return true
+  return GENERIC_AX_LABELS.has(normalized) || GENERIC_AX_LABELS.has(normalized.toLowerCase())
+}
+
+function nativeAxElementLabel(payload = {}) {
+  const role = text(payload.role || payload.ax_role || payload.kind, 'ax_element')
+  const direct = [
+    payload.title,
+    payload.label,
+    payload.value,
+    payload.accessible_name,
+    payload.name,
+  ].map((part) => text(part)).find((part) => part && !isGenericAxLabel(part))
+  if (direct) return direct
+  const contextPath = Array.isArray(payload.context_path) ? payload.context_path : []
+  const contextLabel = [...contextPath].reverse().map((part) => text(part)).find((part) => part && !isGenericAxLabel(part))
+  if (contextLabel) return contextLabel
+  return readableAxRole(role) || role
 }
 
 function nativeWindowRootId(window = {}) {
@@ -626,8 +738,75 @@ export function buildNativeWindowAnnotationCandidate(input = {}, options = {}) {
       bundle_id: window.bundle_id,
       title: window.title,
       bounds: rect,
+      browser_context: clone(window.browser_context),
       source_event_id: text(input.ref || input.id || options.source_event_id),
       reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
+    },
+  })
+}
+
+export function buildBrowserTabAnnotationCandidate(input = {}, options = {}) {
+  if (!input || typeof input !== 'object') return null
+  const payload = input.data && typeof input.data === 'object' ? input.data : input
+  const window = normalizeNativeWindowPayload(options.window || payload.window || payload)
+  if (!window) return null
+  const context = normalizeBrowserContextPayload(payload.browser_context || payload)
+  if (!context) return null
+
+  const rect = browserTabRect(context, options, payload, window)
+  if (!rect) return null
+  const rootId = text(options.root_id, nativeWindowRootId(window))
+  const rootLabel = text(options.root_label || window.title || window.app_name || rootId, rootId)
+  const label = text(options.label, browserTabLabel(context))
+  const subjectId = text(options.subject_id || payload.subject_id, stableId('browser-tab', [
+    rootId,
+    context.active_url || label,
+  ]))
+  const projection = {
+    adapter_id: BROWSER_CONTENT_SEAM_ADAPTER_ID,
+    root_id: rootId,
+    subject_id: subjectId,
+    subject_kind: 'browser_tab',
+    status: 'visible',
+    projectable: true,
+    can_project_display_overlay: true,
+    can_reveal: false,
+    reveal_blocker_reason: 'browser_dom_bridge_deferred',
+    display_space_rect: rect,
+    visible_display_rect: rect,
+    coordinate_space: 'native_display',
+    refreshed_at: text(options.refreshed_at || input.ts, new Date(0).toISOString()),
+  }
+  return normalizeAnnotationCandidate({
+    id: subjectId,
+    adapter_id: BROWSER_CONTENT_SEAM_ADAPTER_ID,
+    root_id: rootId,
+    root_label: rootLabel,
+    root_kind: 'native_window',
+    subject_id: subjectId,
+    subject_path: ['native_window', rootId, 'browser_tab', subjectId],
+    subject_kind: 'browser_tab',
+    role: 'browser_tab',
+    title: context.active_tab_title || label,
+    label,
+    display_space_rect: rect,
+    projection,
+    source_metadata: {
+      adapter_scope: 'native_browser_tab',
+      provenance: 'native_ax_browser_context',
+      window_id: window.window_id,
+      app_name: window.app_name,
+      pid: window.pid,
+      bundle_id: window.bundle_id,
+      browser_context: clone(context),
+      browser_site_label: siteLabelFromUrl(context.active_url),
+      active_url: context.active_url,
+      source_url: context.active_url,
+      active_tab_title: context.active_tab_title,
+      browser_content_rect: rect,
+      bounds: rect,
+      source_event_id: text(input.ref || input.id || options.source_event_id),
+      reveal_blocker_reason: 'browser_dom_bridge_deferred',
     },
   })
 }
@@ -640,8 +819,9 @@ export function buildNativeAxElementAnnotationCandidate(input = {}, options = {}
   const window = normalizeNativeWindowPayload(options.window || options.cursor_window || payload.window || {})
   const rootMatch = nativeRootMatchesWindow(rootEvidence, window)
   const bounds = normalizeAnnotationRectLike(payload.bounds || payload.frame || payload.rect)
+  const browserContext = normalizeBrowserContextPayload(payload.browser_context)
   const role = text(payload.role || payload.ax_role || payload.kind, 'ax_element')
-  const label = text(payload.label || payload.title || payload.value || role, role)
+  const label = nativeAxElementLabel(payload)
   const contextPath = Array.isArray(payload.context_path) ? payload.context_path.map((part) => text(part)).filter(Boolean) : []
   const subjectId = text(payload.subject_id || payload.id, stableId('ax-element', [
     rootEvidence.root_id || rootEvidence.subject_id || window?.window_id,
@@ -704,6 +884,7 @@ export function buildNativeAxElementAnnotationCandidate(input = {}, options = {}
       app_name: window?.app_name || '',
       pid: window?.pid ?? null,
       bundle_id: window?.bundle_id || '',
+      browser_context: clone(browserContext),
       source_event_id: text(input.ref || input.id || options.source_event_id),
       reveal_blocker_reason: 'bounded_ax_reveal_unavailable',
     },

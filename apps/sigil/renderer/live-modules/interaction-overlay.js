@@ -1,4 +1,148 @@
-function drawFrame(ctx, frame = {}, style = {}) {
+function selectionWave(position = 0, time = 0, seed = 0) {
+    return (
+        Math.sin(position * 0.047 + time * 2.3 + seed) * 0.55
+        + Math.sin(position * 0.113 - time * 3.1 + seed * 1.7) * 0.32
+        + Math.sin(position * 0.019 + time * 1.2 + seed * 2.3) * 0.22
+    ) / 1.09;
+}
+
+function gradientWithAlpha(ctx, x0, y0, x1, y1, color = 'rgba(94, 252, 210, 0.11)') {
+    const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(0.58, color.replace(/rgba\(([^)]+),\s*[\d.]+\)/, 'rgba($1, 0.045)'));
+    gradient.addColorStop(1, color.replace(/rgba\(([^)]+),\s*[\d.]+\)/, 'rgba($1, 0)'));
+    return gradient;
+}
+
+function drawWavyPerimeterFill(ctx, rect = {}, perimeter = {}, {
+    time = 0,
+} = {}) {
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    const maxInset = Math.max(1, Math.min(width, height) * Number(perimeter.marginRatio || 0.15));
+    const segmentCount = Math.max(10, Math.ceil((width + height) / 56));
+    const amplitude = Math.min(maxInset * 0.42, 18);
+    const fill = perimeter.style?.fill || 'rgba(94, 252, 210, 0.11)';
+    const line = perimeter.style?.line || 'rgba(142, 221, 255, 0.42)';
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    function waveDepth(position, seed = 0) {
+        return maxInset * (0.56 + ((selectionWave(position, time, seed) + 1) / 2) * 0.44);
+    }
+
+    function ringWave(position, seed = 0, ringAmplitude = amplitude) {
+        return selectionWave(position, time, seed) * ringAmplitude;
+    }
+
+    function clampInsideMargin(value) {
+        return Math.max(1, Math.min(maxInset, value));
+    }
+
+    function drawTop() {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + width, y);
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            ctx.lineTo(px, y + clampInsideMargin(waveDepth(px, 0.2)));
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x, y, x, y + maxInset, fill);
+        ctx.fill();
+    }
+
+    function drawBottom() {
+        ctx.beginPath();
+        ctx.moveTo(x + width, y + height);
+        ctx.lineTo(x, y + height);
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            ctx.lineTo(px, y + height - clampInsideMargin(waveDepth(px, 1.6)));
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x, y + height, x, y + height - maxInset, fill);
+        ctx.fill();
+    }
+
+    function drawLeft() {
+        ctx.beginPath();
+        ctx.moveTo(x, y + height);
+        ctx.lineTo(x, y);
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            ctx.lineTo(x + clampInsideMargin(waveDepth(py, 2.4)), py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x, y, x + maxInset, y, fill);
+        ctx.fill();
+    }
+
+    function drawRight() {
+        ctx.beginPath();
+        ctx.moveTo(x + width, y);
+        ctx.lineTo(x + width, y + height);
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            ctx.lineTo(x + width - clampInsideMargin(waveDepth(py, 3.3)), py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x + width, y, x + width - maxInset, y, fill);
+        ctx.fill();
+    }
+
+    drawTop();
+    drawRight();
+    drawBottom();
+    drawLeft();
+
+    ctx.globalAlpha = 0.36;
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1;
+    for (let ring = 0; ring < 3; ring += 1) {
+        const offset = maxInset * (0.28 + ring * 0.22);
+        const ringAmplitude = amplitude * (0.55 - ring * 0.12);
+        ctx.beginPath();
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            const py = y + clampInsideMargin(offset + ringWave(px, 5 + ring, ringAmplitude));
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            const px = x + width - clampInsideMargin(offset + ringWave(py, 9 + ring, ringAmplitude));
+            ctx.lineTo(px, py);
+        }
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            const py = y + height - clampInsideMargin(offset + ringWave(px, 13 + ring, ringAmplitude));
+            ctx.lineTo(px, py);
+        }
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            const px = x + clampInsideMargin(offset + ringWave(py, 17 + ring, ringAmplitude));
+            ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawFrame(ctx, frame = {}, style = {}, options = {}) {
     const rect = frame.rect || {};
     const x = Number(rect.x);
     const y = Number(rect.y);
@@ -10,10 +154,13 @@ function drawFrame(ctx, frame = {}, style = {}) {
     ctx.setLineDash(style.dash || []);
     ctx.lineWidth = style.lineWidth || 1.5;
     ctx.strokeStyle = style.stroke || 'rgba(255, 224, 120, 0.9)';
-    ctx.fillStyle = style.fill || 'rgba(255, 224, 120, 0.04)';
+    const fill = style.fill === null ? null : (style.fill || 'rgba(255, 224, 120, 0.04)');
+    const perimeterFill = frame.perimeterFill || style.perimeterFill || null;
+    if (perimeterFill) drawWavyPerimeterFill(ctx, { x, y, width, height }, perimeterFill, options);
+    if (fill) ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.rect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(width), Math.round(height));
-    ctx.fill();
+    if (fill) ctx.fill();
     ctx.stroke();
     ctx.restore();
 }
@@ -223,53 +370,92 @@ function drawSelectionModeEffect(ctx, effect = {}, styles = {}, {
     ctx.restore();
 }
 
-function drawSelectionBadge(ctx, badge = {}, styles = {}) {
-    const rect = badge.rect || {};
+function fitLineageText(ctx, text = '', maxWidth = 0) {
+    const source = String(text || '');
+    if (maxWidth <= 0) return '';
+    if (ctx.measureText(source).width <= maxWidth) return source;
+    if (maxWidth < 16) return source.slice(0, 1);
+    const ellipsis = '...';
+    let next = source;
+    while (next.length > 1 && ctx.measureText(`${next}${ellipsis}`).width > maxWidth) {
+        next = next.slice(0, -1);
+    }
+    return next.length > 1 ? `${next}${ellipsis}` : source.slice(0, 1);
+}
+
+function drawSelectionLineageBar(ctx, lineageBar = {}) {
+    if (lineageBar?.visible !== true) return;
+    const rect = lineageBar.rect || {};
     const x = Number(rect.x);
     const y = Number(rect.y);
     const width = Number(rect.width);
     const height = Number(rect.height);
     if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
-    const active = badge.active === true;
-    const leaf = badge.leaf === true;
-    const token = badge.token || '';
-    const key = token === 'display' || token === 'body' || token === 'app' || token === 'window';
-    const badgeStyle = active
-        ? styles.badge?.active
-        : (leaf ? { ...styles.badge?.inactive, ...styles.badge?.leaf } : styles.badge?.inactive);
+    const style = lineageBar.style || {};
     ctx.save();
     ctx.lineJoin = 'round';
-    ctx.shadowColor = badgeStyle?.shadow || (active ? 'rgba(94, 252, 210, 0.84)' : (key ? 'rgba(142, 221, 255, 0.52)' : 'rgba(94, 252, 210, 0.42)'));
-    ctx.shadowBlur = active ? 16 : 8;
-    ctx.fillStyle = badgeStyle?.fill || (active
-        ? 'rgba(8, 24, 26, 0.88)'
-        : (leaf ? 'rgba(29, 27, 18, 0.82)' : 'rgba(11, 17, 26, 0.78)'));
-    ctx.strokeStyle = badgeStyle?.stroke || (active
-        ? 'rgba(94, 252, 210, 0.96)'
-        : (key ? 'rgba(142, 221, 255, 0.9)' : 'rgba(170, 210, 255, 0.72)'));
-    ctx.lineWidth = active ? 2.3 : 1.4;
+    ctx.shadowColor = style.surface?.shadow || 'rgba(94, 252, 210, 0.24)';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = style.surface?.fill || 'rgba(8, 12, 18, 0.72)';
+    ctx.strokeStyle = style.surface?.stroke || 'rgba(142, 221, 255, 0.54)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, width, height, 8);
+    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, width, height, 10);
     ctx.fill();
     ctx.stroke();
+    ctx.shadowBlur = 0;
 
-    if (leaf || active) {
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = active ? 0.92 : 0.72;
-        ctx.beginPath();
-        ctx.strokeStyle = leaf ? (badgeStyle?.ring || styles.badge?.leaf?.ring || 'rgba(255, 224, 120, 0.88)') : (styles.highlight?.stroke || 'rgba(255, 255, 255, 0.82)');
-        ctx.lineWidth = 1;
-        ctx.roundRect(Math.round(x - 3) + 0.5, Math.round(y - 3) + 0.5, width + 6, height + 6, 10);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.rect(x, y, width, height);
+    ctx.clip();
+
+    ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textBaseline = 'middle';
+
+    for (const separator of lineageBar.separators || []) {
+        const separatorRect = separator.rect || {};
+        const sx = Number(separatorRect.x);
+        const sy = Number(separatorRect.y);
+        const sw = Number(separatorRect.width);
+        const sh = Number(separatorRect.height);
+        if (![sx, sy, sw, sh].every(Number.isFinite)) continue;
+        ctx.fillStyle = style.separator?.text || 'rgba(238, 248, 255, 0.36)';
+        ctx.textAlign = 'center';
+        ctx.fillText(separator.label || '>', sx + sw / 2, sy + sh / 2 + 0.5);
     }
 
-    ctx.shadowBlur = 0;
-    ctx.font = `${badge.kind === 'secondary' ? 10 : 12}px system-ui, -apple-system, BlinkMacSystemFont, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = badgeStyle?.text || (active ? 'rgba(214, 255, 245, 0.98)' : 'rgba(238, 248, 255, 0.94)');
-    ctx.fillText(String(badge.label || ''), x + width / 2, y + height / 2 + 0.5);
+    for (const item of lineageBar.items || []) {
+        const itemRect = item.rect || {};
+        const ix = Number(itemRect.x);
+        const iy = Number(itemRect.y);
+        const iw = Number(itemRect.width);
+        const ih = Number(itemRect.height);
+        if (![ix, iy, iw, ih].every(Number.isFinite) || iw <= 0 || ih <= 0) continue;
+        const itemStyle = item.hovered
+            ? style.hovered
+            : (item.selected ? style.selected : style.item);
+        ctx.fillStyle = itemStyle?.fill || 'rgba(255, 255, 255, 0.065)';
+        ctx.strokeStyle = itemStyle?.stroke || 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = item.selected || item.hovered ? 1.3 : 1;
+        ctx.beginPath();
+        ctx.roundRect(Math.round(ix) + 0.5, Math.round(iy) + 0.5, Math.round(iw), Math.round(ih), 7);
+        ctx.fill();
+        ctx.stroke();
+
+        if (item.leaf && !item.selected && !item.hovered) {
+            ctx.globalAlpha = 0.74;
+            ctx.strokeStyle = style.leaf?.stroke || 'rgba(142, 221, 255, 0.82)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(Math.round(ix + 2) + 0.5, Math.round(iy + 2) + 0.5, Math.max(1, Math.round(iw - 4)), Math.max(1, Math.round(ih - 4)), 5);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.fillStyle = itemStyle?.text || 'rgba(238, 248, 255, 0.9)';
+        ctx.textAlign = 'center';
+        ctx.fillText(fitLineageText(ctx, item.label || '', Math.max(4, iw - 12)), ix + iw / 2, iy + ih / 2 + 0.5);
+    }
     ctx.restore();
 }
 
@@ -317,32 +503,13 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
         const leaf = frame.leaf === true;
         drawFrame(ctx, frame, {
             stroke: frame.style?.stroke || (active ? 'rgba(94, 252, 210, 0.58)' : (leaf ? 'rgba(255, 224, 120, 0.48)' : 'rgba(170, 210, 255, 0.22)')),
-            fill: frame.style?.fill || (active ? 'rgba(94, 252, 210, 0.035)' : 'rgba(170, 210, 255, 0.018)'),
+            fill: frame.style?.fill ?? null,
             dash: active || leaf ? [] : [5, 10],
             lineWidth: active ? 1.8 : 1,
-        });
+        }, { time });
     }
 
-    for (const group of overlay.badgeGroups || []) {
-        const primary = (overlay.badges || []).find((badge) => badge.id === group.primaryId);
-        if (!primary || !group.secondaryIds?.length) continue;
-        for (const secondaryId of group.secondaryIds) {
-            const secondary = overlay.badges.find((badge) => badge.id === secondaryId);
-            if (!secondary) continue;
-            ctx.save();
-            ctx.globalAlpha = 0.5;
-            ctx.strokeStyle = styles.connector?.stroke || 'rgba(142, 221, 255, 0.42)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(primary.rect.x + primary.rect.width / 2, primary.rect.y + primary.rect.height / 2);
-            ctx.lineTo(secondary.rect.x + secondary.rect.width / 2, secondary.rect.y + secondary.rect.height / 2);
-            ctx.stroke();
-            ctx.restore();
-        }
-    }
-    for (const badge of overlay.badges || []) {
-        drawSelectionBadge(ctx, badge, styles);
-    }
+    drawSelectionLineageBar(ctx, overlay.lineageBar);
 
     if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) && selectionCursorShouldUseCanvasProjection(glyph)) {
         for (let i = repeatCount; i >= 1; i -= 1) {

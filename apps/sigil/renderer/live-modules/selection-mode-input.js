@@ -73,7 +73,7 @@ export function resolveSelectionModeInputRoute(msg = {}, {
     consumeSelectionModeEntryRelease = () => false,
     isOnAvatar = () => false,
     consumeAvatarDoubleClick = () => false,
-    hitTestBadge = () => null,
+    hitTestLineageItem = () => null,
 } = {}) {
     if (msg.type === 'key_down') {
         const key = selectionModeKeyName(msg);
@@ -112,15 +112,15 @@ export function resolveSelectionModeInputRoute(msg = {}, {
             }
             return { handled: true, direct: 'avatar_click' };
         }
-        const badge = hitTestBadge(pointer);
-        if (badge?.nodeId) {
+        const lineageItem = hitTestLineageItem(pointer);
+        if (lineageItem?.nodeId) {
             return {
                 handled: true,
-                command: 'selectBadge',
-                gesture: 'pointer.badge.click',
+                command: 'selectLineageNode',
+                gesture: 'pointer.lineage.click',
                 pointer,
-                nodeId: badge.nodeId,
-                badgeId: badge.id || '',
+                nodeId: lineageItem.nodeId,
+                lineageItemId: lineageItem.id || '',
             };
         }
         return {

@@ -11,6 +11,7 @@ export function renderLoopContinuationReasons(frame = {}) {
     if (frame.annotationReticleActive) reasons.push('annotation-reticle');
     if (frame.selectionModeActive) reasons.push('selection-mode');
     if (frame.selectionModeEffectActive) reasons.push('selection-mode-effect');
+    if (frame.selectionModePerimeterFillActive) reasons.push('selection-mode-perimeter-fill');
     if (frame.avatarMotionActive) reasons.push('avatar-motion');
     if (frame.currentState && frame.currentState !== 'IDLE') reasons.push('interaction-state');
     const hoverProgress = Number(frame.avatarHoverProgress);
@@ -36,7 +37,7 @@ export function classifyRenderLoopWork(frame = {}) {
         : renderLoopContinuationReasons(frame);
     const structuralDirty = !!frame.structuralDirty;
     const visualOnlyReasons = new Set(['avatar-motion', 'selection-mode']);
-    const overlayOnlyReasons = new Set(['selection-mode-effect']);
+    const overlayOnlyReasons = new Set(['selection-mode-effect', 'selection-mode-perimeter-fill']);
     const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons]);
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0

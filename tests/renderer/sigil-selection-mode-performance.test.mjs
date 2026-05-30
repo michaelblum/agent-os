@@ -54,7 +54,7 @@ test('Selection Mode dirty frames still request lifecycle work while effect fram
 test('Sigil debug snapshot reads cached Selection Mode cursor model state', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const refreshStart = source.indexOf('function refreshSelectionModeCursorModelSnapshot')
-  const refreshEnd = source.indexOf('function annotationReticleItemMetrics', refreshStart)
+  const refreshEnd = source.indexOf('function pointInRadialTargetSurface', refreshStart)
   const refreshBlock = source.slice(refreshStart, refreshEnd)
   const debugStart = source.indexOf('window.__sigilDebug = {')
   const refreshDebugStart = source.indexOf('refreshSelectionModeCursorModel()', debugStart)

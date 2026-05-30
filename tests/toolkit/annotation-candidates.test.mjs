@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildBrowserTabAnnotationCandidate,
   buildNativeAxElementAnnotationCandidate,
   buildNativeWindowAnnotationCandidate,
   chooseAnnotationCandidateForScope,
@@ -148,6 +149,53 @@ test('native AX element candidate is scoped to the selected native window root',
   assert.equal(ax.blocker_reason, '')
   assert.equal(ax.source_metadata.reveal_blocker_reason, 'bounded_ax_reveal_unavailable')
   assert.deepEqual(ax.source_metadata.context_path, ['Privacy & Security', 'Allow'])
+})
+
+test('native browser tab candidate labels by compact URL site and rejects pane-sized content rects', () => {
+  const tab = buildBrowserTabAnnotationCandidate({
+    window_id: 111,
+    app: 'Comet',
+    pid: 87924,
+    bundle_id: 'ai.perplexity.comet',
+    bounds: { x: 0, y: 44, width: 1512, height: 938 },
+    browser_context: {
+      browser_app: true,
+      active_url: 'https://notebooklm.google.com/notebook/example',
+      active_tab_title: 'OpenAI Agent Builder Complete Course',
+      content_bounds: { x: 1378, y: 206, width: 586, height: 1069 },
+      window_bounds: { x: 0, y: 44, width: 1512, height: 938 },
+    },
+  })
+
+  assert.equal(tab.adapter_id, 'browser-content-seam')
+  assert.equal(tab.role, 'browser_tab')
+  assert.equal(tab.label, 'notebooklm')
+  assert.equal(tab.title, 'OpenAI Agent Builder Complete Course')
+  assert.equal(tab.source_metadata.browser_site_label, 'notebooklm')
+  assert.equal(tab.source_metadata.active_url, 'https://notebooklm.google.com/notebook/example')
+  assert.deepEqual(tab.display_space_rect, { x: 0, y: 44, w: 1512, h: 938 })
+})
+
+test('native AX element candidate labels fall back through context path before generic AX role', () => {
+  const root = buildNativeWindowAnnotationCandidate({
+    window_id: 918,
+    app: 'System Settings',
+    pid: 1234,
+    bounds: { x: 40, y: 80, width: 900, height: 680 },
+  })
+  const ax = buildNativeAxElementAnnotationCandidate({
+    role: 'AXGroup',
+    title: '',
+    label: 'AXGroup',
+    value: '',
+    bounds: { x: 100, y: 120, width: 300, height: 200 },
+    context_path: ['Privacy & Security', 'AXGroup', 'Camera'],
+  }, {
+    selected_root: root,
+    window: { window_id: 918, app: 'System Settings', pid: 1234, bounds: { x: 40, y: 80, width: 900, height: 680 } },
+  })
+
+  assert.equal(ax.label, 'Camera')
 })
 
 test('native AX candidates reject stale or root-mismatched cursor context explicitly', () => {

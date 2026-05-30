@@ -268,7 +268,7 @@ function buildSelectionCursorObjects(rendererState = {}) {
             transform: IDENTITY_TRANSFORM,
             descriptors: {
                 geometry: 'Selection Mode cursor sidecar derived from the Sigil avatar style source.',
-                animation_effects: 'Owns the pointer prism projection, trail echoes, target hotspot, and ancestor ladder cursor affordance.',
+                animation_effects: 'Owns the pointer prism projection, trail echoes, target hotspot, and lineage bar cursor affordance.',
             },
             metadata: {
                 role: 'selection-cursor-root',

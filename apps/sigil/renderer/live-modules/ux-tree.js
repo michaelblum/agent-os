@@ -99,7 +99,7 @@ function radialItemNodeId(itemId) {
 function radialItemCommandId(item = {}) {
     if (item.action === 'contextMenu') return 'sigil.context_menu.open';
     if (item.action === 'agentTerminal' || item.action === 'codexTerminal') return 'sigil.agent_terminal.open';
-    if (item.action === 'annotationMode') return 'sigil.annotation_reticle.enter';
+    if (item.id === 'annotation-mode' || item.action === 'annotationMode') return 'sigil.selection_mode.enter';
     if (item.action === 'annotationSnapshot') return 'sigil.annotation_camera.capture_bundle';
     if (item.action === 'wikiGraph') return 'sigil.wiki_graph.open';
     return 'sigil.radial.release_item';
@@ -126,7 +126,7 @@ function commandList() {
         command('sigil.avatar.goto.begin', 'Begin GOTO', 'Begin the existing avatar GOTO behavior.'),
         command('sigil.radial.begin', 'Begin radial gesture', 'Begin the existing radial gesture path.'),
         command('sigil.radial.release_item', 'Release radial item', 'Release the active radial item through the current activation path.'),
-        command('sigil.selection_mode.enter', 'Enter Selection Mode', 'Enter Selection Mode from the avatar double-click path.'),
+        command('sigil.selection_mode.enter', 'Enter Selection Mode', 'Enter Selection Mode from the radial reticle item.'),
         command('sigil.selection_mode.cancel', 'Cancel Selection Mode', 'Cancel active Selection Mode.'),
         command('sigil.selection_mode.commit', 'Commit Selection Mode', 'Commit the active Selection Mode context.'),
         command('sigil.selection_mode.cycle_target', 'Cycle Selection Mode target', 'Cycle the active target in Selection Mode.'),
@@ -199,7 +199,7 @@ function nodeList(radialMenu) {
             settings_ref: 'settings.selection_mode',
             children: [
                 'sigil.avatar.selection_mode.cursor_overlay',
-                'sigil.avatar.selection_mode.ancestor_badges',
+                'sigil.avatar.selection_mode.lineage_bar',
             ],
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js', {
                 state_ref: 'liveJs.selectionMode',
@@ -210,9 +210,9 @@ function nodeList(radialMenu) {
             settings_ref: 'settings.visual_overlays.selection_mode.cursor',
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js'),
         }),
-        node('sigil.avatar.selection_mode.ancestor_badges', 'Selection Ancestor Badges', 'overlay', 'visual_overlay', {
+        node('sigil.avatar.selection_mode.lineage_bar', 'Selection Lineage Bar', 'overlay', 'visual_overlay', {
             parent_id: 'sigil.avatar.selection_mode',
-            settings_ref: 'settings.visual_overlays.selection_mode.ancestor_badges',
+            settings_ref: 'settings.visual_overlays.selection_mode.lineage_bar',
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js'),
         }),
         node('sigil.avatar.annotation_reticle', 'Annotation Reticle', 'tool', 'reticle', {
@@ -271,9 +271,6 @@ function bindingList(radialMenu) {
         binding('sigil.avatar.radial.drag_threshold', 'sigil.avatar.body', 'press', 'pointer.left.drag_threshold', 'sigil.radial.begin', {
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js', { event_type: 'left_mouse_dragged' }),
         }),
-        binding('sigil.avatar.selection_mode.double_click', 'sigil.avatar.body', 'goto', 'pointer.left.double_click', 'sigil.selection_mode.enter', {
-            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/selection-mode-input.js'),
-        }),
         binding('sigil.selection_mode.escape', 'sigil.avatar.selection_mode', 'selection_mode', 'key.escape', 'sigil.selection_mode.cancel'),
         binding('sigil.selection_mode.enter', 'sigil.avatar.selection_mode', 'selection_mode', 'key.enter', 'sigil.selection_mode.commit'),
         binding('sigil.selection_mode.tab', 'sigil.avatar.selection_mode', 'selection_mode', 'key.tab', 'sigil.selection_mode.cycle_target', {
@@ -312,13 +309,14 @@ function relationList() {
                 gesture: 'pointer.left.drag_threshold',
             },
         }),
-        relation('sigil.avatar.body.triggers_selection_mode', 'triggers', 'sigil.avatar.body', 'sigil.avatar.selection_mode', {
-            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/selection-mode-input.js', {
-                binding_id: 'sigil.avatar.selection_mode.double_click',
+        relation('sigil.avatar.radial_reticle.triggers_selection_mode', 'triggers', 'sigil.avatar.radial_menu.item.annotation-mode', 'sigil.avatar.selection_mode', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/ux-tree.js', {
+                binding_id: 'sigil.radial.item.release.annotation-mode',
                 command_id: 'sigil.selection_mode.enter',
             }),
             metadata: {
-                gesture: 'pointer.left.double_click',
+                gesture: 'pointer.left.release',
+                mode: 'radial',
             },
         }),
         relation('sigil.avatar.anchors_radial_menu', 'anchors', 'sigil.avatar', 'sigil.avatar.radial_menu', {
@@ -411,7 +409,7 @@ function settingsFor(radialMenu, state = {}) {
             selection_mode: {
                 cursor: cloneJson(state.selectionModeOverlay?.cursor || null),
                 cursor_model: cloneJson(state.selectionModeCursorModel || null),
-                ancestor_badges: cloneJson(state.selectionModeOverlay?.badges || []),
+                lineage_bar: cloneJson(state.selectionModeOverlay?.lineageBar || null),
             },
             annotation_reticle: cloneJson(state.annotationReticleOverlay || null),
         },

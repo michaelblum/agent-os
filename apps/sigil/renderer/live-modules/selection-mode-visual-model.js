@@ -251,7 +251,7 @@ export function buildSelectionModeVisualStyle(rendererState = null) {
         source: 'sigil_avatar',
         primary: primaryColor,
         aura,
-        badge: {
+        lineage: {
             active: {
                 shadow: aura.primary,
                 fill: aura.core,
@@ -280,6 +280,11 @@ export function buildSelectionModeVisualStyle(rendererState = null) {
             ancestor: {
                 stroke: hexToRgba(primaryColor, 0.22),
                 fill: hexToRgba(primaryColor, 0.018),
+            },
+            perimeter: {
+                fill: hexToRgba(primaryColor, 0.11),
+                line: aura.secondary,
+                glow: aura.glow,
             },
         },
         connector: {

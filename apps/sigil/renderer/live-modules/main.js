@@ -43,7 +43,6 @@ import {
 } from './surface-render-state.js';
 import { createFastTravelController } from './fast-travel.js';
 import { createSigilRadialGestureMenu } from './radial-gesture-menu.js';
-import { radialItemPointerMetrics } from './radial-gesture-runtime.js';
 import { createRadialActivationTransitionController } from './radial-activation-transition.js';
 import { createRadialMenuTargetSurface } from './radial-menu-target-surface.js';
 import { createSigilRadialGestureVisuals } from './radial-gesture-visuals.js';
@@ -52,12 +51,10 @@ import {
     annotationReticleReleaseDisposition,
     buildAnnotationReticleOverlayModel,
     clearAnnotationReticleSemanticCandidatesForCanvas,
-    createAnnotationReticleAcquisitionState,
     createAnnotationReticleTargetEvidenceCache,
     CANVAS_INSPECTOR_ANNOTATION_OPEN_EVENT,
     createSigilAnnotationReticleController,
     recordAnnotationReticleSemanticCandidateIds,
-    reticleOuterMarginExit,
     SIGIL_ANNOTATION_CAMERA_ITEM_ID,
     SIGIL_ANNOTATION_RETICLE_ITEM_ID,
 } from './annotation-reticle.js';
@@ -116,6 +113,7 @@ import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
 
 const {
+    buildBrowserTabAnnotationCandidate,
     buildNativeAxElementAnnotationCandidate,
     buildNativeWindowAnnotationCandidate,
 } = await import(toolkitSpecifier('workbench/annotation-candidates.js'));
@@ -439,6 +437,9 @@ function currentRenderLoopContinuationReasons(vitalityFrame = state.sessionVital
         annotationReticleActive: !!annotationReticle.active,
         selectionModeActive: liveJs.selectionMode?.active === true,
         selectionModeEffectActive: selectionModeOverlayHasActiveEffects(liveJs.selectionModeOverlay, Date.now()),
+        selectionModePerimeterFillActive: liveJs.selectionModeOverlay?.active === true
+            && Array.isArray(liveJs.selectionModeOverlay?.frames)
+            && liveJs.selectionModeOverlay.frames.some((frame) => !!frame?.perimeterFill),
         avatarMotionActive: liveJs.avatarVisible
             && !state.isPaused
             && Number(vitalityFrame?.rotationMultiplier ?? 1) !== 0,
@@ -1467,8 +1468,6 @@ function clearGestureState() {
     liveJs.mousedownPos = null;
     liveJs.mousedownAvatarPos = null;
     liveJs.radialGestureMenu = null;
-    annotationReticleAcquisition?.reset?.();
-    radialReticleItemWasActive = false;
     syncRadialTargetSurface();
     setAvatarHover(false);
 }
@@ -1499,9 +1498,7 @@ const annotationReticle = createSigilAnnotationReticleController({
     getAvatarHitRadius: () => liveJs.avatarHitRadius,
     getAnnotationCandidates: () => annotationReticleCandidateList(),
 });
-const annotationReticleAcquisition = createAnnotationReticleAcquisitionState();
 let radialTargetSurfaceDragActive = false;
-let radialReticleItemWasActive = false;
 liveJs.annotationReticle = annotationReticle.snapshot();
 liveJs.annotationReticleOverlay = null;
 const radialActivationTransition = createRadialActivationTransitionController({
@@ -1552,6 +1549,7 @@ const radialItemActionDispatcher = createSigilRadialItemActionDispatcher({
     ),
     sendActivationUpdate,
     enterAnnotationReticle,
+    enterSelectionMode,
     requestAnnotationSnapshot,
     openContextMenuAt,
     toggleUtilityCanvas,
@@ -1568,7 +1566,6 @@ sigilUxCommandRuntime = createSigilUxTreeCommandRuntime({
     clearGestureState,
     consumeAvatarDoubleClick,
     resetAvatarDoubleClick,
-    markSelectionModeEntryReleasePending,
     setInteractionState,
     applyRadialGestureMove,
     enterSelectionMode,
@@ -2341,12 +2338,57 @@ function annotationReticleRequestBrowserDomTarget(pointer = null, reason = 'prev
     return true;
 }
 
+function annotationReticleNativeBrowserContext(payload = {}) {
+    const source = payload?.data && typeof payload.data === 'object' ? payload.data : payload;
+    const context = source?.browser_context || source?.source_metadata?.browser_context || null;
+    return context && typeof context === 'object' ? context : null;
+}
+
+function annotationReticleNativeBrowserTabContentRect(payload = {}, context = null) {
+    if (context?.content_bounds) return context.content_bounds;
+    const role = String(payload?.role || payload?.kind || '').toLowerCase();
+    if ((role === 'axgroup' || role === 'axwebarea') && payload?.bounds) return payload.bounds;
+    return null;
+}
+
+function annotationReticleUpsertNativeBrowserTab(payload = {}, {
+    windowEvent = null,
+    windowCandidate = null,
+    refreshedAt = new Date().toISOString(),
+} = {}) {
+    const context = annotationReticleNativeBrowserContext(payload)
+        || annotationReticleNativeBrowserContext(windowEvent || {})
+        || annotationReticleNativeBrowserContext(windowCandidate || {});
+    if (!context) return;
+    const windowPayload = {
+        ...(windowEvent || {}),
+        ...(windowCandidate?.source_metadata || {}),
+        browser_context: context,
+    };
+    const candidate = buildBrowserTabAnnotationCandidate(windowPayload, {
+        window: windowPayload,
+        root_id: windowCandidate?.root_id || windowCandidate?.subject_id,
+        root_label: windowCandidate?.label || windowCandidate?.root_label,
+        content_rect: annotationReticleNativeBrowserTabContentRect(payload, context),
+        refreshed_at: refreshedAt,
+        source_event_id: payload?.ref || payload?.id || windowEvent?.ref || windowEvent?.id || '',
+    });
+    annotationReticleUpsertCandidate(candidate);
+}
+
 function annotationReticleHandleNativeWindow(payload = {}) {
     liveJs.annotationReticleTargetEvidence.latestNativeWindowEvent = payload;
-    annotationReticleUpsertCandidate(buildNativeWindowAnnotationCandidate(payload, {
-        refreshed_at: payload.ts || new Date().toISOString(),
+    const refreshedAt = payload.ts || new Date().toISOString();
+    const windowCandidate = buildNativeWindowAnnotationCandidate(payload, {
+        refreshed_at: refreshedAt,
         source_event_id: payload.ref || payload.id || '',
-    }));
+    });
+    annotationReticleUpsertCandidate(windowCandidate);
+    annotationReticleUpsertNativeBrowserTab(payload, {
+        windowEvent: payload,
+        windowCandidate,
+        refreshedAt,
+    });
 }
 
 function annotationReticleHandleNativeAxElement(payload = {}) {
@@ -2359,6 +2401,11 @@ function annotationReticleHandleNativeAxElement(payload = {}) {
     const selectedRoot = activeScope?.adapter_id === 'macos-ax' || activeScope?.root_kind === 'native_window'
         ? activeScope
         : windowCandidate;
+    annotationReticleUpsertNativeBrowserTab(payload, {
+        windowEvent,
+        windowCandidate,
+        refreshedAt: payload.ts || new Date().toISOString(),
+    });
     annotationReticleUpsertCandidate(buildNativeAxElementAnnotationCandidate(payload, {
         selected_root: selectedRoot,
         window: windowEvent,
@@ -2548,7 +2595,7 @@ function appendContextRecordingEvent(event = {}) {
     return contextRecordingRuntime.appendContextRecordingEvent(event);
 }
 
-function enterSelectionMode(pointer = null, reason = 'avatar-double-click') {
+function enterSelectionMode(pointer = null, reason = 'selection-mode-enter') {
     return selectionModeRuntime.enter(pointer, reason);
 }
 
@@ -2583,9 +2630,9 @@ function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
 }
 
 function executeSelectionModeRouteCommand(command = '', msg = {}, options = {}) {
-    if (command === 'selectBadge') {
+    if (command === 'selectLineageNode') {
         return selectionModeRuntime.selectTargetNode(options.nodeId || msg.nodeId || msg.node_id || '', {
-            reason: 'badge-click',
+            reason: 'lineage-click',
         });
     }
     return sigilUxCommandRuntime?.executeSelectionModeRoute(command, msg, options) || null;
@@ -2630,17 +2677,6 @@ function refreshSelectionModeCursorModelSnapshot(overlay = liveJs.selectionModeO
         nowMs: Date.now(),
     });
     return readSelectionModeCursorModelSnapshot();
-}
-
-function annotationReticleItemMetrics(radial = liveJs.radialGestureMenu) {
-    const item = radial?.items?.find((candidate) => candidate.id === SIGIL_ANNOTATION_RETICLE_ITEM_ID);
-    if (!item) return null;
-    return radialItemPointerMetrics(radial, item);
-}
-
-function updateAnnotationReticleAcquisition(radial = liveJs.radialGestureMenu) {
-    const metrics = annotationReticleItemMetrics(radial);
-    return annotationReticleAcquisition.update(radial, metrics);
 }
 
 function pointInRadialTargetSurface(point = null, surface = radialTargetSurface.snapshot()) {
@@ -2890,10 +2926,6 @@ function resetAvatarDoubleClick() {
     avatarDoubleClickTracker.resetAvatarDoubleClick();
 }
 
-function markSelectionModeEntryReleasePending() {
-    avatarDoubleClickTracker.markSelectionModeEntryReleasePending();
-}
-
 function clearSelectionModeEntryReleasePending() {
     avatarDoubleClickTracker.clearSelectionModeEntryReleasePending();
 }
@@ -2970,31 +3002,24 @@ function syncRadialTargetSurface() {
     return radialTargetSurface.sync(liveJs.radialGestureMenu, { displays: liveJs.displays });
 }
 
+function openRadialMenuFromClick(x, y, reason = 'avatar-click-radial') {
+    const origin = { ...liveJs.avatarPos, valid: true };
+    const pointer = { x, y, valid: true };
+    liveJs.radialGestureMenu = radialGestureMenu.start(origin, origin);
+    radialGestureMenu.move(pointer);
+    liveJs.radialGestureMenu = radialGestureMenu.snapshot();
+    syncRadialTargetSurface();
+    emitAvatarMark();
+    setInteractionState('RADIAL', reason);
+    if (!rendererSuspended) scheduleRenderFrame();
+    return liveJs.radialGestureMenu;
+}
+
 function applyRadialGestureMove(update, x, y) {
     liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
     syncRadialTargetSurface();
     emitAvatarMark();
-    const reticleAcquisition = updateAnnotationReticleAcquisition(liveJs.radialGestureMenu);
-    if (liveJs.radialGestureMenu?.phase === 'radial') {
-        if (liveJs.radialGestureMenu.activeItemId === SIGIL_ANNOTATION_RETICLE_ITEM_ID) {
-            radialReticleItemWasActive = true;
-        } else {
-            const metrics = annotationReticleItemMetrics(liveJs.radialGestureMenu);
-            if (metrics && metrics.relation !== 'outward') radialReticleItemWasActive = false;
-        }
-    }
-    const reticleMetrics = annotationReticleItemMetrics(liveJs.radialGestureMenu);
-    const crossedReticleAtHandoff = update?.enteredFastTravel
-        && update?.priorActiveItemId === SIGIL_ANNOTATION_RETICLE_ITEM_ID
-        && reticleOuterMarginExit(reticleMetrics, liveJs.radialGestureMenu);
-    const liveReticleHandoff = radialReticleItemWasActive
-        && liveJs.radialGestureMenu?.phase === 'fastTravel'
-        && reticleOuterMarginExit(reticleMetrics, liveJs.radialGestureMenu);
-    if (liveJs.radialGestureMenu?.phase === 'fastTravel' && (reticleAcquisition.acquire || crossedReticleAtHandoff || liveReticleHandoff)) {
-        radialReticleItemWasActive = false;
-        if (!annotationReticle.active) enterAnnotationReticle({ x, y, valid: true }, 'drag-through-reticle');
-        else updateAnnotationReticlePreview({ x, y, valid: true });
-    } else if (annotationReticle.active) {
+    if (annotationReticle.active) {
         updateAnnotationReticlePreview({ x, y, valid: true });
     }
     if (update?.enteredFastTravel) {
@@ -3025,12 +3050,7 @@ function handleLeftMouseDown(x, y) {
             return;
         case 'GOTO':
             if (isOnAvatar(x, y)) {
-                if (consumeAvatarDoubleClick(x, y)) {
-                    sigilUxCommandRuntime.executeSelectionModeEnter({ type: 'left_mouse_down', x, y }, {
-                        pointer: { x, y, valid: true },
-                    });
-                    return;
-                }
+                resetAvatarDoubleClick();
                 clearGestureState();
                 setInteractionState('IDLE', 'goto-click-on-avatar');
                 return;
@@ -3054,9 +3074,7 @@ function handleLeftMouseUp(x, y) {
                 setInteractionState('IDLE', 'press-release-fast-travel');
                 return;
             }
-            sigilUxCommandRuntime.executeAvatarGotoBegin({ type: 'left_mouse_up', x, y }, {
-                pointer: { x, y, valid: true },
-            });
+            openRadialMenuFromClick(x, y);
             return;
         case 'RADIAL': {
             const result = radialGestureMenu.release({ x, y, valid: true }, {
@@ -3125,16 +3143,22 @@ function handleLeftMouseUp(x, y) {
 }
 
 function handleMouseMove(x, y) {
-    if (liveJs.currentState === 'RADIAL' || liveJs.currentState === 'FAST_TRAVEL') {
+    if (liveJs.currentState === 'RADIAL') {
         const update = radialGestureMenu.move({ x, y, valid: true });
         applyRadialGestureMove(update, x, y);
         return;
     }
+    if (liveJs.currentState === 'FAST_TRAVEL') {
+        fastTravel.updateGesture({ x, y, valid: true });
+        if (!rendererSuspended) scheduleRenderFrame();
+        return;
+    }
     if (liveJs.currentState !== 'PRESS' || !liveJs.mousedownPos) return;
     if (distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y) < liveJs.dragThreshold) return;
-    sigilUxCommandRuntime.executeAvatarRadialBegin({ type: 'left_mouse_dragged', x, y }, {
-        pointer: { x, y, valid: true },
-    });
+    fastTravel.beginGesture({ ...liveJs.mousedownAvatarPos, valid: true });
+    fastTravel.updateGesture({ x, y, valid: true });
+    setInteractionState('FAST_TRAVEL', 'press-drag-fast-travel');
+    if (!rendererSuspended) scheduleRenderFrame();
 }
 
 function handleInputEvent(msg) {

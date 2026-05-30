@@ -29,7 +29,7 @@ test('Sigil UX tree exposes avatar, radial, selection mode, reticle, camera, and
   assert.ok(nodeIds.has('sigil.avatar.context_menu'))
   assert.ok(nodeIds.has('sigil.avatar.selection_mode'))
   assert.ok(nodeIds.has('sigil.avatar.selection_mode.cursor_overlay'))
-  assert.ok(nodeIds.has('sigil.avatar.selection_mode.ancestor_badges'))
+  assert.ok(nodeIds.has('sigil.avatar.selection_mode.lineage_bar'))
   assert.ok(nodeIds.has('sigil.avatar.annotation_reticle'))
   assert.ok(nodeIds.has('sigil.avatar.annotation_camera'))
   assert.ok(nodeIds.has('sigil.avatar.radial_menu.item.context-menu'))
@@ -88,7 +88,9 @@ test('Sigil UX tree exposes generic trigger, open, anchor, and target relations'
   })
   assert.equal(relations.get('sigil.avatar.body.triggers_radial_menu').relation_type, 'triggers')
   assert.equal(relations.get('sigil.avatar.body.triggers_radial_menu').to_node_id, 'sigil.avatar.radial_menu')
-  assert.equal(relations.get('sigil.avatar.body.triggers_selection_mode').to_node_id, 'sigil.avatar.selection_mode')
+  assert.equal(relations.get('sigil.avatar.radial_reticle.triggers_selection_mode').from_node_id, 'sigil.avatar.radial_menu.item.annotation-mode')
+  assert.equal(relations.get('sigil.avatar.radial_reticle.triggers_selection_mode').to_node_id, 'sigil.avatar.selection_mode')
+  assert.equal(relations.get('sigil.avatar.radial_reticle.triggers_selection_mode').metadata.gesture, 'pointer.left.release')
   assert.equal(relations.get('sigil.avatar.anchors_radial_menu').from_node_id, 'sigil.avatar')
   assert.equal(relations.get('sigil.avatar.body.anchors_context_menu').relation_type, 'anchors')
   assert.equal(relations.get('sigil.avatar.radial_menu.targets_items').to_node_id, 'sigil.avatar.radial_menu.item.*')
@@ -127,11 +129,6 @@ test('Sigil shadow resolver maps avatar and Selection Mode gestures to current c
     mode: 'press',
     gesture: 'pointer.left.release',
   }), 'sigil.avatar.goto.begin')
-  assert.equal(commandFor({
-    nodeId: 'sigil.avatar.body',
-    mode: 'goto',
-    gesture: 'pointer.left.double_click',
-  }), 'sigil.selection_mode.enter')
   assert.equal(commandFor({
     nodeId: 'sigil.avatar.body',
     mode: 'press',
@@ -182,10 +179,16 @@ test('Sigil shadow resolver maps radial item release using the item id', () => {
     gesture: 'pointer.left.release',
     itemId: 'agent-terminal',
   })
+  const reticle = resolver.resolve({
+    mode: 'radial',
+    gesture: 'pointer.left.release',
+    itemId: 'annotation-mode',
+  })
 
   assert.equal(context.matched, true)
   assert.equal(context.item_id, 'context-menu')
   assert.equal(context.binding.parameters.release_command_id, 'sigil.radial.release_item')
   assert.equal(context.command_id, 'sigil.context_menu.open')
   assert.equal(terminal.command_id, 'sigil.agent_terminal.open')
+  assert.equal(reticle.command_id, 'sigil.selection_mode.enter')
 })
