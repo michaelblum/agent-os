@@ -309,17 +309,108 @@ function isGenericAxLabel(value = '') {
   return GENERIC_AX_LABELS.has(normalized) || GENERIC_AX_LABELS.has(normalized.toLowerCase())
 }
 
-function nativeAxElementLabel(payload = {}) {
-  const role = text(payload.role || payload.ax_role || payload.kind, 'ax_element')
-  const direct = [
+function normalizeStringList(input = []) {
+  return (Array.isArray(input) ? input : [])
+    .map((part) => text(part).trim())
+    .filter(Boolean)
+}
+
+function nativeAxDirectLabel(payload = {}) {
+  return [
     payload.title,
     payload.label,
     payload.value,
     payload.accessible_name,
     payload.name,
   ].map((part) => text(part)).find((part) => part && !isGenericAxLabel(part))
+}
+
+function nativeAxNodeLabel(payload = {}) {
+  const role = text(payload.role || payload.ax_role || payload.kind)
+  const direct = nativeAxDirectLabel(payload)
+  return direct || readableAxRole(role) || role
+}
+
+function normalizeNativeAxAncestorChain(payload = {}) {
+  const raw = Array.isArray(payload.ancestor_chain) ? payload.ancestor_chain : []
+  return raw
+    .map((entry) => {
+      if (entry === null || entry === undefined) return null
+      if (typeof entry !== 'object') {
+        const label = text(entry).trim()
+        return label ? { label } : null
+      }
+      const role = text(entry.role || entry.ax_role || entry.kind)
+      const bounds = normalizeAnnotationRectLike(entry.bounds || entry.rect || entry.frame)
+      const node = {
+        role,
+        title: text(entry.title),
+        label: text(entry.label),
+        value: text(entry.value),
+      }
+      if (bounds) node.bounds = bounds
+      return node
+    })
+    .filter(Boolean)
+}
+
+function nativeAxContextPath(payload = {}) {
+  const legacy = normalizeStringList(payload.context_path)
+  if (legacy.length) return legacy
+  return normalizeNativeAxAncestorChain(payload)
+    .map((node) => nativeAxNodeLabel(node))
+    .filter((part) => part && !isGenericAxLabel(part))
+}
+
+function nativeAxCapabilities(payload = {}) {
+  const role = text(payload.role || payload.ax_role || payload.kind)
+  const actions = new Set(normalizeStringList(payload.action_names || payload.actions || payload.ax_actions))
+  const settable = new Set(normalizeStringList(payload.settable_attributes || payload.settable_attribute_names))
+  const capabilities = new Set(normalizeStringList(payload.capabilities || payload.normalized_capabilities))
+
+  if (actions.has('AXPress') || actions.has('AXShowMenu')) capabilities.add('press')
+  if (actions.has('AXIncrement')) capabilities.add('increment')
+  if (actions.has('AXDecrement')) capabilities.add('decrement')
+
+  switch (role) {
+    case 'AXButton':
+    case 'AXCheckBox':
+    case 'AXRadioButton':
+    case 'AXPopUpButton':
+    case 'AXMenuItem':
+    case 'AXMenuBarItem':
+    case 'AXLink':
+      capabilities.add('press')
+      break
+    case 'AXTextField':
+    case 'AXTextArea':
+    case 'AXComboBox':
+      capabilities.add('focus')
+      capabilities.add('set_value')
+      break
+    case 'AXSlider':
+    case 'AXIncrementor':
+      capabilities.add('focus')
+      capabilities.add('increment')
+      capabilities.add('decrement')
+      break
+    case 'AXScrollArea':
+      capabilities.add('scroll')
+      break
+    default:
+      break
+  }
+
+  if (settable.has('AXValue')) capabilities.add('set_value')
+  if (settable.has('AXFocused')) capabilities.add('focus')
+  return [...capabilities].sort()
+}
+
+function nativeAxElementLabel(payload = {}) {
+  const role = text(payload.role || payload.ax_role || payload.kind, 'ax_element')
+  const direct = nativeAxDirectLabel(payload)
   if (direct) return direct
-  const contextPath = Array.isArray(payload.context_path) ? payload.context_path : []
+  const contextPath = nativeAxContextPath(payload)
   const contextLabel = [...contextPath].reverse().map((part) => text(part)).find((part) => part && !isGenericAxLabel(part))
   if (contextLabel) return contextLabel
   return readableAxRole(role) || role
@@ -968,7 +1059,11 @@ export function buildNativeAxElementAnnotationCandidate(input = {}, options = {}
   const browserContext = normalizeBrowserContextPayload(payload.browser_context)
   const role = text(payload.role || payload.ax_role || payload.kind, 'ax_element')
   const label = nativeAxElementLabel(payload)
-  const contextPath = Array.isArray(payload.context_path) ? payload.context_path.map((part) => text(part)).filter(Boolean) : []
+  const contextPath = nativeAxContextPath(payload)
+  const actionNames = normalizeStringList(payload.action_names || payload.actions || payload.ax_actions)
+  const settableAttributes = normalizeStringList(payload.settable_attributes || payload.settable_attribute_names)
+  const capabilities = nativeAxCapabilities({ ...payload, role, action_names: actionNames, settable_attributes: settableAttributes })
+  const ancestorChain = normalizeNativeAxAncestorChain(payload)
   const subjectId = text(payload.subject_id || payload.id, stableId('ax-element', [
     rootEvidence.root_id || rootEvidence.subject_id || window?.window_id,
     role,
@@ -1011,8 +1106,8 @@ export function buildNativeAxElementAnnotationCandidate(input = {}, options = {}
     enabled: payload.enabled,
     display_space_rect: status === 'visible' ? bounds : null,
     local_space_rect: normalizeAnnotationRectLike(payload.local_space_rect),
-    action_names: payload.action_names || payload.actions || payload.ax_actions || [],
-    capabilities: payload.capabilities || payload.normalized_capabilities || [],
+    action_names: actionNames,
+    capabilities,
     projection,
     blocker_reason: blockerReason,
     source_metadata: {
@@ -1024,8 +1119,10 @@ export function buildNativeAxElementAnnotationCandidate(input = {}, options = {}
       enabled: payload.enabled,
       bounds,
       context_path: contextPath,
-      action_names: Array.isArray(payload.action_names) ? [...payload.action_names] : [],
-      capabilities: Array.isArray(payload.capabilities) ? [...payload.capabilities] : [],
+      ancestor_chain: ancestorChain,
+      action_names: actionNames,
+      settable_attributes: settableAttributes,
+      capabilities,
       window_id: window?.window_id || '',
       app_name: window?.app_name || '',
       pid: window?.pid ?? null,

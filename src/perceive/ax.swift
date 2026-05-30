@@ -75,59 +75,63 @@ func axActions(_ element: AXUIElement) -> [String] {
     return arr
 }
 
-func axCapabilities(role: String, actions: [String], element: AXUIElement? = nil) -> [String] {
-    var capabilities = Set<String>()
-    if actions.contains(kAXPressAction as String) { capabilities.insert("press") }
-    if actions.contains(kAXIncrementAction as String) { capabilities.insert("increment") }
-    if actions.contains(kAXDecrementAction as String) { capabilities.insert("decrement") }
-    if actions.contains(kAXShowMenuAction as String) { capabilities.insert("press") }
-
-    switch role {
-    case "AXButton", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenuItem", "AXMenuBarItem", "AXLink":
-        capabilities.insert("press")
-    case "AXTextField", "AXTextArea", "AXComboBox":
-        capabilities.insert("focus")
-        capabilities.insert("set_value")
-    case "AXSlider", "AXIncrementor":
-        capabilities.insert("focus")
-        capabilities.insert("increment")
-        capabilities.insert("decrement")
-    case "AXScrollArea":
-        capabilities.insert("scroll")
-    default:
-        break
-    }
-
-    if let element {
+func axSettableAttributes(_ element: AXUIElement) -> [String] {
+    let attributes = [kAXValueAttribute as String, kAXFocusedAttribute as String]
+    return attributes.filter { attribute in
         var settable = DarwinBoolean(false)
-        if AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success, settable.boolValue {
-            capabilities.insert("set_value")
-        }
-        if AXUIElementIsAttributeSettable(element, kAXFocusedAttribute as CFString, &settable) == .success, settable.boolValue {
-            capabilities.insert("focus")
-        }
+        return AXUIElementIsAttributeSettable(element, attribute as CFString, &settable) == .success && settable.boolValue
     }
-
-    return Array(capabilities).sorted()
 }
 
-// MARK: - Context Path
+struct AXAncestorEvidence {
+    let role: String
+    let title: String?
+    let label: String?
+    let value: String?
+    let bounds: CGRect?
+}
 
-/// Walk up the AX tree to build a breadcrumb path like ["Finder", "Main Window", "Toolbar", "Open"].
-func axContextPath(_ element: AXUIElement, maxDepth: Int = 6) -> [String] {
-    var path: [String] = []
+// MARK: - Raw Ancestor Evidence
+
+func axAncestorChain(_ element: AXUIElement, maxDepth: Int = 6) -> [AXAncestorEvidence] {
+    var chain: [AXAncestorEvidence] = []
     var current: AXUIElement? = element
     var depth = 0
     while let el = current, depth < maxDepth {
-        let role = axString(el, kAXRoleAttribute) ?? ""
-        let title = axString(el, kAXTitleAttribute)
-        let label = axString(el, kAXDescriptionAttribute)
-        let name = title ?? label ?? role
-        if !name.isEmpty { path.insert(name, at: 0) }
+        chain.insert(AXAncestorEvidence(
+            role: axString(el, kAXRoleAttribute) ?? "",
+            title: axString(el, kAXTitleAttribute),
+            label: axString(el, kAXDescriptionAttribute),
+            value: axValue(el),
+            bounds: axBounds(el)
+        ), at: 0)
         current = axParent(el)
         depth += 1
     }
-    return path
+    return chain
+}
+
+func axAncestorPayloads(_ chain: [AXAncestorEvidence]) -> [[String: Any]] {
+    chain.map { item in
+        var payload: [String: Any] = ["role": item.role]
+        if let title = item.title { payload["title"] = title }
+        if let label = item.label { payload["label"] = label }
+        if let value = item.value { payload["value"] = value }
+        if let bounds = axRectPayload(item.bounds) { payload["bounds"] = bounds }
+        return payload
+    }
+}
+
+func axAncestorJSONs(_ chain: [AXAncestorEvidence]) -> [AXAncestorJSON] {
+    chain.map { item in
+        AXAncestorJSON(
+            role: item.role,
+            title: item.title,
+            label: item.label,
+            value: item.value,
+            bounds: item.bounds.map { Bounds(from: $0) }
+        )
+    }
 }
 
 // MARK: - Element at Point
@@ -141,8 +145,8 @@ struct AXHitResult {
     let enabled: Bool
     let bounds: CGRect?
     let actionNames: [String]
-    let capabilities: [String]
-    let contextPath: [String]
+    let settableAttributeNames: [String]
+    let ancestorChain: [AXAncestorEvidence]
 }
 
 /// Hit-test the AX tree at a global CG point for a given app PID.
@@ -163,25 +167,12 @@ func axElementAtPoint(pid: pid_t, point: CGPoint) -> AXHitResult? {
         enabled: axBool(el, kAXEnabledAttribute) ?? true,
         bounds: axBounds(el),
         actionNames: actions,
-        capabilities: axCapabilities(role: role, actions: actions, element: el),
-        contextPath: axContextPath(el)
+        settableAttributeNames: axSettableAttributes(el),
+        ancestorChain: axAncestorChain(el)
     )
 }
 
-// MARK: - Browser AX Context
-
-private func axLooksLikeBrowserApp(appName: String, bundleID: String?) -> Bool {
-    let app = appName.lowercased()
-    let bundle = (bundleID ?? "").lowercased()
-    if app.contains("comet") || app.contains("chrome") || app.contains("safari")
-        || app.contains("arc") || app.contains("brave") || app.contains("edge")
-        || app.contains("firefox") {
-        return true
-    }
-    return bundle.contains("chrome") || bundle.contains("safari") || bundle.contains("browser")
-        || bundle.contains("brave") || bundle.contains("firefox") || bundle.contains("perplexity")
-        || bundle.contains("comet") || bundle.contains("edgemac")
-}
+// MARK: - Browser/Web AX Context
 
 private func axRectPayload(_ rect: CGRect?) -> [String: Any]? {
     guard let rect else { return nil }
@@ -215,8 +206,6 @@ private func axElementChildrenForTraversal(_ element: AXUIElement) -> [AXUIEleme
 }
 
 func axBrowserContext(pid: pid_t, appName: String, bundleID: String?, point: CGPoint? = nil) -> [String: Any]? {
-    guard axLooksLikeBrowserApp(appName: appName, bundleID: bundleID) else { return nil }
-
     let axApp = AXUIElementCreateApplication(pid)
     var roots: [AXUIElement] = []
     var focusedWindow: AnyObject?
@@ -322,19 +311,9 @@ func axBrowserContext(pid: pid_t, appName: String, bundleID: String?, point: CGP
 /// Alias for axBounds — used by capture pipeline code that calls it axFrame.
 func axFrame(_ element: AXUIElement) -> CGRect? { axBounds(element) }
 
-/// Roles considered actionable for agent consumption (--xray, channel traversal).
-let xrayWhitelistRoles: Set<String> = [
-    "AXButton", "AXTextField", "AXTextArea", "AXCheckBox",
-    "AXRadioButton", "AXPopUpButton", "AXComboBox", "AXMenuItem",
-    "AXMenuBarItem", "AXLink", "AXSlider", "AXIncrementor",
-    "AXColorWell", "AXDisclosureTriangle", "AXTab", "AXStaticText",
-    "AXSwitch", "AXToggle", "AXSearchField", "AXSecureTextField",
-    "AXScrollArea", "AXTable", "AXOutline", "AXGroup"
-]
-
 // MARK: - AX Traversal (--xray)
 
-/// Recursively traverse AX tree, emitting whitelisted elements as a flat array.
+/// Recursively traverse AX tree, emitting visible bounded elements as a flat raw array.
 func traverseAXElements(
     _ element: AXUIElement,
     mapper: CoordinateMapper,
@@ -364,24 +343,22 @@ func traverseAXElements(
 
     let enabled = axBool(element, kAXEnabledAttribute) ?? true
 
-    // Spatial check + emit if whitelisted
+    // Spatial check + emit raw visible elements. Consumers own semantic filtering.
     if !hidden, let frame = axFrame(element), frame.width > 0, frame.height > 0 {
-        if xrayWhitelistRoles.contains(role) {
-            if let lcsRect = mapper.toLCS(globalRect: frame, imageSize: imageSize) {
-                results.append(AXElementJSON(
-                    role: role,
-                    title: title,
-                    label: label,
-                    value: valueStr,
-                    enabled: enabled,
-                    context_path: contextPath,
-                    bounds: BoundsJSON(
-                        x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
-                        width: max(1, Int(lcsRect.width)), height: max(1, Int(lcsRect.height))
-                    ),
-                    ref: nil
-                ))
-            }
+        if let lcsRect = mapper.toLCS(globalRect: frame, imageSize: imageSize) {
+            results.append(AXElementJSON(
+                role: role,
+                title: title,
+                label: label,
+                value: valueStr,
+                enabled: enabled,
+                context_path: contextPath,
+                bounds: BoundsJSON(
+                    x: Int(lcsRect.origin.x), y: Int(lcsRect.origin.y),
+                    width: max(1, Int(lcsRect.width)), height: max(1, Int(lcsRect.height))
+                ),
+                ref: nil
+            ))
         }
     }
 

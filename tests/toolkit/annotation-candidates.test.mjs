@@ -125,8 +125,11 @@ test('native AX element candidate is scoped to the selected native window root',
     enabled: true,
     bounds: { x: 620, y: 700, width: 92, height: 32 },
     action_names: ['AXPress'],
-    capabilities: ['press'],
-    context_path: ['Privacy & Security', 'Allow'],
+    settable_attributes: [],
+    ancestor_chain: [
+      { role: 'AXWindow', title: 'Privacy & Security' },
+      { role: 'AXButton', title: 'Allow', label: 'Allow' },
+    ],
   }, {
     selected_root: root,
     window: {
@@ -149,6 +152,7 @@ test('native AX element candidate is scoped to the selected native window root',
   assert.equal(ax.blocker_reason, '')
   assert.equal(ax.source_metadata.reveal_blocker_reason, 'bounded_ax_reveal_unavailable')
   assert.deepEqual(ax.source_metadata.context_path, ['Privacy & Security', 'Allow'])
+  assert.equal(ax.source_metadata.ancestor_chain[1].role, 'AXButton')
 })
 
 test('native browser tab candidate labels by compact URL site and rejects pane-sized content rects', () => {
@@ -184,7 +188,7 @@ test('native browser tab candidate labels by compact URL site and rejects pane-s
   assert.equal(tab.source_metadata.browser_context.url_candidates[0].source_attribute, 'AXURL')
 })
 
-test('native AX element candidate labels fall back through context path before generic AX role', () => {
+test('native AX element candidate labels derive from raw ancestor chain before generic AX role', () => {
   const root = buildNativeWindowAnnotationCandidate({
     window_id: 918,
     app: 'System Settings',
@@ -197,7 +201,11 @@ test('native AX element candidate labels fall back through context path before g
     label: 'AXGroup',
     value: '',
     bounds: { x: 100, y: 120, width: 300, height: 200 },
-    context_path: ['Privacy & Security', 'AXGroup', 'Camera'],
+    ancestor_chain: [
+      { role: 'AXWindow', title: 'Privacy & Security' },
+      { role: 'AXGroup', title: '', label: 'AXGroup' },
+      { role: 'AXGroup', title: 'Camera' },
+    ],
   }, {
     selected_root: root,
     window: { window_id: 918, app: 'System Settings', pid: 1234, bounds: { x: 40, y: 80, width: 900, height: 680 } },
@@ -230,7 +238,10 @@ test('native AX candidates reject stale or root-mismatched cursor context explic
   const unbounded = buildNativeAxElementAnnotationCandidate({
     role: 'AXGroup',
     title: 'Sidebar',
-    context_path: ['Privacy & Security', 'Sidebar'],
+    ancestor_chain: [
+      { role: 'AXWindow', title: 'Privacy & Security' },
+      { role: 'AXGroup', title: 'Sidebar' },
+    ],
   }, {
     selected_root: root,
     window: { window_id: 918, app: 'System Settings', pid: 1234, bounds: { x: 40, y: 80, width: 900, height: 680 } },

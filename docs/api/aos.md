@@ -463,16 +463,20 @@ stable object reference or cache key.
 `aos see cursor` returns the cursor point, display ordinal, the frontmost
 visible window under the cursor when available, and an optional AX `element`.
 When present, the element includes `role`, `title`, `label`, `value`, `enabled`,
-`bounds`, `context_path`, `action_names`, and normalized `capabilities` such as
-`press`, `focus`, `set_value`, `scroll`, `increment`, or `decrement`. The
-capture-pipeline cursor response uses the same AX element fields when it can
+`bounds`, raw `action_names`, raw `settable_attributes`, and raw
+`ancestor_chain` entries. It does not synthesize user-facing capability labels
+or breadcrumb vocabulary in the binary. Toolkit and app layers derive labels,
+lineage, and normalized capabilities such as `press`, `focus`, `set_value`,
+`scroll`, `increment`, or `decrement` from those raw AX facts. The
+capture-pipeline cursor response uses the same raw AX element fields when it can
 resolve the element explicitly under the cursor.
 
-`--xray` returns AX-derived interactive elements in `elements`. For AOS-owned
-canvas captures, `aos see capture --canvas <id> --xray` also runs a fixed
-semantic target probe inside that canvas and returns `semantic_targets`. Those
-entries project standard DOM/AX/ARIA facts plus thin AOS ownership metadata such
-as `canvas_id`, `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
+`--xray` returns raw visible bounded AX elements in `elements`; the daemon does
+not role-whitelist them into an "interactive" vocabulary. For AOS-owned canvas
+captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
+target probe inside that canvas and returns `semantic_targets`. Those entries
+project standard DOM/AX/ARIA facts plus thin AOS ownership metadata such as
+`canvas_id`, `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
 `data-semantic-target-id`. Entries with both `canvas_id` and `ref` also include
 `do_target`, the exact `canvas:<canvas-id>/<ref>` string accepted by
 `aos do click`. The probe does not use caller-supplied JavaScript; `show eval`

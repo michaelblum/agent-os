@@ -27,6 +27,14 @@ struct CursorWindow: Encodable {
     let bounds: Bounds
 }
 
+struct AXAncestorJSON: Encodable {
+    let role: String
+    let title: String?
+    let label: String?
+    let value: String?
+    let bounds: Bounds?
+}
+
 struct CursorElement: Encodable {
     let role: String
     let title: String?
@@ -35,8 +43,8 @@ struct CursorElement: Encodable {
     let enabled: Bool
     let bounds: Bounds?
     let action_names: [String]
-    let capabilities: [String]
-    let context_path: [String]
+    let settable_attributes: [String]
+    let ancestor_chain: [AXAncestorJSON]
 }
 
 // MARK: - Display Info
@@ -196,9 +204,9 @@ struct CursorElementJSON: Encodable {
     let value: String?
     let enabled: Bool
     let action_names: [String]
-    let capabilities: [String]
+    let settable_attributes: [String]
     let bounds: STBounds?
-    let context_path: [String]
+    let ancestor_chain: [AXAncestorJSON]
 }
 
 /// Capture pipeline's cursor response (distinct from the aos cursorCommand response).

@@ -516,8 +516,8 @@ class PerceptionEngine {
                     role: hit.role, title: hit.title, label: hit.label, value: hit.value,
                     bounds: hit.bounds.map { Bounds(from: $0) },
                     action_names: hit.actionNames,
-                    capabilities: hit.capabilities,
-                    context_path: hit.contextPath)
+                    settable_attributes: hit.settableAttributeNames,
+                    ancestor_chain: axAncestorPayloads(hit.ancestorChain))
                 if let app = appLookup[lastAppPID],
                    let browserContext = axBrowserContext(pid: lastAppPID, appName: app.name, bundleID: app.bundleID, point: point) {
                     data["browser_context"] = browserContext
@@ -563,8 +563,23 @@ func axElementTelemetrySignature(_ hit: AXHitResult) -> String {
         hit.label ?? "",
         hit.value ?? "",
         bounds,
-        hit.contextPath.joined(separator: "\u{1f}"),
         hit.actionNames.joined(separator: "\u{1f}"),
-        hit.capabilities.joined(separator: "\u{1f}"),
+        hit.settableAttributeNames.joined(separator: "\u{1f}"),
+        hit.ancestorChain.map { item in
+            [
+                item.role,
+                item.title ?? "",
+                item.label ?? "",
+                item.value ?? "",
+                item.bounds.map { rect in
+                    [
+                        Int(rect.origin.x.rounded()),
+                        Int(rect.origin.y.rounded()),
+                        Int(rect.size.width.rounded()),
+                        Int(rect.size.height.rounded()),
+                    ].map(String.init).joined(separator: ",")
+                } ?? "",
+            ].joined(separator: "\u{1f}")
+        }.joined(separator: "\u{1d}"),
     ].joined(separator: "\u{1e}")
 }
