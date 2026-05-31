@@ -3,6 +3,10 @@ import {
     getContextMenuControlDescriptor,
 } from '../context-menu/descriptors.js';
 import {
+    createVisualObjectDescriptor,
+    VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
+} from '../../../packages/toolkit/workbench/visual-object-contract.js';
+import {
     AVATAR_AURA_OBJECT_ID,
     AVATAR_LIGHTNING_OBJECT_ID,
     AVATAR_MAGNETIC_OBJECT_ID,
@@ -370,6 +374,7 @@ function controlForDescriptor(descriptor, group, state) {
         state_path: statePathText(descriptor.statePath),
         value: readPath(state, descriptor.statePath),
         route: descriptor.route,
+        coerce: descriptor.coerce,
         persistence: descriptor.persistence,
         renderer_sync: [...(descriptor.rendererSync || [])],
         object_ids: [...group.objectIds],
@@ -424,6 +429,35 @@ function projectionOnlyControls(state) {
             }
             return control;
         });
+}
+
+function visualDescriptorForControl(control) {
+    return createVisualObjectDescriptor({
+        ...control,
+        kind: control.type,
+        projection: { classification: 'editable' },
+        evidence_contracts: [
+            'sigil.avatar.editor.read',
+            control.route,
+            'json_serializable',
+        ].filter(Boolean),
+    });
+}
+
+function visualDescriptorForProjectionControl(control) {
+    return createVisualObjectDescriptor({
+        ...control,
+        kind: control.type,
+        projection: {
+            classification: 'projection_only',
+            reason: control.reason,
+        },
+        evidence_contracts: [
+            control.route,
+            'json_serializable',
+            'projection_only_explicit',
+        ].filter(Boolean),
+    });
 }
 
 function groupReference(group) {
@@ -490,6 +524,11 @@ export function classifySigilAvatarControlSurfaceDescriptors() {
 export function buildSigilAvatarEditorModel(state = {}, options = {}) {
     const groups = GROUP_DEFINITIONS.map((group) => groupModel(group, state));
     const controls = groups.flatMap((group) => group.controls);
+    const projectionControls = projectionOnlyControls(state);
+    const visualObjectDescriptors = [
+        ...controls.map(visualDescriptorForControl),
+        ...projectionControls.map(visualDescriptorForProjectionControl),
+    ];
     const surfaceLayouts = buildSurfaceLayouts(groups);
     const objectGraph = {
         kind: 'sigil.avatar.object_graph',
@@ -517,6 +556,8 @@ export function buildSigilAvatarEditorModel(state = {}, options = {}) {
         ],
         groups,
         controls,
+        visual_object_contract: VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
+        visual_object_descriptors: visualObjectDescriptors,
         surface_layouts: surfaceLayouts,
         projection: {
             compact_control_surface: {
@@ -524,13 +565,14 @@ export function buildSigilAvatarEditorModel(state = {}, options = {}) {
                 themed_surface: 'sigil.avatar-control-surface',
                 surface_layout: surfaceLayouts.compact_control_surface,
                 legacy_descriptor_source: 'apps/sigil/context-menu/descriptors.js',
-                projection_only_controls: projectionOnlyControls(state),
+                projection_only_controls: projectionControls,
             },
         },
         metadata: {
             source: 'apps/sigil/avatar-editor/model.js',
             canonical_model: 'sigil.avatar.object_graph',
             descriptor_source: 'apps/sigil/context-menu/descriptors.js',
+            visual_object_contract: VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
             compatibility_descriptor_ids: controls.flatMap((control) => control.compatibility_ids),
         },
     };

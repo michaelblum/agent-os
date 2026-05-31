@@ -1,5 +1,6 @@
 import { createWorkbenchSubject } from './subject.js';
 import { createWikiPageSubject } from './wiki-subject.js';
+import { VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID } from './visual-object-contract.js';
 
 const MARKDOWN_WORKBENCH_URL = 'aos://toolkit/components/markdown-workbench/index.html';
 const SIGIL_RENDERER_URL = 'aos://sigil/renderer/index.html';
@@ -225,6 +226,7 @@ export function createSigilAvatarSubject(options = {}) {
       'sigil.avatar.preview',
       'sigil.avatar.object_graph.read',
       'sigil.avatar.compact_control_surface.projection',
+      VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
       'canvas_object.registry',
       'canvas_object.transform.patch',
       'canvas_object.effects.patch',
@@ -299,6 +301,7 @@ export function createSigilAvatarSubject(options = {}) {
       avatar_id: avatarId,
       canonical_model: 'sigil.avatar.object_graph',
       editor_model: options.editorModelSource || 'apps/sigil/avatar-editor/model.js',
+      visual_object_contract: VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
       projection_only_control_ids: [...DEFAULT_COMPACT_SURFACE_PROJECTION_ONLY_IDS],
       agent_subject_separate: true,
     },

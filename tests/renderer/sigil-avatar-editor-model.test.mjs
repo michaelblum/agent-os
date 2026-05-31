@@ -10,6 +10,10 @@ import {
   SIGIL_AVATAR_SUBJECT_TYPE,
 } from '../../apps/sigil/avatar-editor/model.js';
 import rendererState from '../../apps/sigil/renderer/state.js';
+import {
+  validateVisualObjectDescriptors,
+  VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
+} from '../../packages/toolkit/workbench/visual-object-contract.js';
 
 function avatarState(overrides = {}) {
   const avatar = {
@@ -186,6 +190,9 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   assert.equal(model.object_graph.root_object_id, SIGIL_AVATAR_CHILD_OBJECT_IDS.root);
   assert.equal(model.object_graph.node_ids.primaryShape, SIGIL_AVATAR_CHILD_OBJECT_IDS.primaryShape);
   assert.ok(model.contracts.includes('sigil.avatar.object_graph.read'));
+  assert.equal(model.visual_object_contract, VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID);
+  assert.equal(model.metadata.visual_object_contract, VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID);
+  assert.equal(validateVisualObjectDescriptors(model.visual_object_descriptors).ok, true);
   assert.ok(model.object_graph.edges.some((edge) => edge.from === SIGIL_AVATAR_CHILD_OBJECT_IDS.root
     && edge.to === SIGIL_AVATAR_CHILD_OBJECT_IDS.lightning
     && edge.relationship === 'owns_effect_node'));
@@ -270,11 +277,37 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   assert.ok(lightningColor.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.magnetic));
 });
 
+test('Sigil avatar model exposes reusable visual object descriptors for canonical controls', () => {
+  const model = buildSigilAvatarEditorModel(avatarState());
+  const descriptors = new Map(model.visual_object_descriptors.map((descriptor) => [descriptor.id, descriptor]));
+
+  const alphaGeometry = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-menu-shape-select').id);
+  assert.equal(alphaGeometry.contract, VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID);
+  assert.equal(alphaGeometry.technology, 'threejs-3d');
+  assert.equal(alphaGeometry.projection.classification, 'editable');
+  assert.equal(alphaGeometry.state_path, 'avatar.shape.type');
+  assert.equal(alphaGeometry.route, 'canvas_object.transform.patch');
+  assert.deepEqual(alphaGeometry.renderer_sync, ['updateGeometry']);
+  assert.ok(alphaGeometry.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.primaryShape));
+  assert.ok(alphaGeometry.options.some((option) => option.value === 12 && option.label === 'Dodecahedron'));
+
+  const omegaGeometry = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-menu-omega-shape').id);
+  assert.equal(omegaGeometry.state_path, 'avatar.effects.omega.shape.type');
+  assert.equal(omegaGeometry.route, 'canvas_object.transform.patch');
+  assert.deepEqual(omegaGeometry.renderer_sync, ['updateOmegaGeometry']);
+  assert.ok(omegaGeometry.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.omegaShape));
+
+  const lightning = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-menu-lightning').id);
+  assert.equal(lightning.route, 'canvas_object.effects.patch');
+  assert.ok(lightning.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.lightning));
+});
+
 test('compact control surface projection keeps shortcuts out of canonical avatar editor controls', () => {
   const model = buildSigilAvatarEditorModel(avatarState());
   const canonicalIds = new Set(model.controls.flatMap((control) => control.compatibility_ids));
   const projection = model.projection.compact_control_surface;
   const projectionIds = projection.projection_only_controls.map((control) => control.id);
+  const visualDescriptors = new Map(model.visual_object_descriptors.map((descriptor) => [descriptor.id, descriptor]));
 
   assert.equal(projection.role, 'compact-tabbed-control-surface-projection');
   assert.equal(projection.themed_surface, 'sigil.avatar-control-surface');
@@ -294,5 +327,7 @@ test('compact control surface projection keeps shortcuts out of canonical avatar
   ]) {
     assert.equal(canonicalIds.has(id), false, id);
     assert.ok(projectionIds.includes(id), id);
+    assert.equal(visualDescriptors.get(id).projection.classification, 'projection_only', id);
+    assert.ok(visualDescriptors.get(id).projection.reason, id);
   }
 });

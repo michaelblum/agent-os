@@ -11,6 +11,7 @@ export * from './radial-menu-subject.js';
 export * from './ux-tree-subject.js';
 export * from './subject-controls.js';
 export * from './subject-graph.js';
+export * from './visual-object-contract.js';
 export * from './artifact-bundle-subject.js';
 export * from './wiki-subject.js';
 export * from './wiki-subject-opening.js';

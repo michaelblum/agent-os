@@ -13,6 +13,7 @@ import {
   subjectHosts,
   subjectReferences,
 } from '../../packages/toolkit/workbench/subject.js';
+import { VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID } from '../../packages/toolkit/workbench/visual-object-contract.js';
 
 test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki document', () => {
   const subject = createSigilAgentSubject({
@@ -109,6 +110,7 @@ test('createSigilAvatarSubject builds a canonical avatar editor subject without 
   assert.ok(subjectContracts(subject).includes('sigil.avatar.editor.read'));
   assert.ok(subjectContracts(subject).includes('sigil.avatar.control.patch'));
   assert.ok(subjectContracts(subject).includes('sigil.avatar.object_graph.read'));
+  assert.ok(subjectContracts(subject).includes(VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID));
   assert.ok(subjectContracts(subject).includes('canvas_object.registry'));
   assert.equal(subject.source.canvas_id, 'avatar-main');
   assert.equal(subject.state.object_ids.root, 'avatar.main');
@@ -130,6 +132,7 @@ test('createSigilAvatarSubject builds a canonical avatar editor subject without 
   assert.equal(subject.state.surface_layouts.wiki_browser_object_graph.layout, 'object_graph_drilldown');
   assert.equal(subject.state.surface_layouts.wiki_browser_object_graph.root_object_id, 'avatar.main');
   assert.equal(subject.metadata.canonical_model, 'sigil.avatar.object_graph');
+  assert.equal(subject.metadata.visual_object_contract, VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID);
   assert.ok(subjectReferences(subject).some((reference) => reference.handle === 'avatar.primary.shape'));
   assert.ok(subjectReferences(subject).some((reference) => reference.handle === 'avatar.omega.shape'));
   assert.ok(subjectReferences(subject).some((reference) => reference.handle === 'avatar.effects.lightning'));
