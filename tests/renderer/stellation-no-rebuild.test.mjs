@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import THREE from '../../apps/sigil/renderer/vendor/three.min.js';
 import state, { syncAvatarAliasesFromGraph } from '../../apps/sigil/renderer/state.js';
-import { updateGeometry, updatePrimaryStellation } from '../../apps/sigil/renderer/geometry.js';
+import { updateGeometry, updatePrimaryAppearance, updatePrimaryStellation } from '../../apps/sigil/renderer/geometry.js';
 
 globalThis.THREE = THREE;
 
@@ -17,6 +17,9 @@ function configurePrimaryShape({ tesseron = false } = {}) {
     primaryStellationReplacementGeometriesDisposed: 0,
     primaryStellationRetainedGeometries: 0,
     primaryStellationMaxRetainedGeometries: 0,
+    primaryAppearanceUpdates: 0,
+    primaryAppearanceSuppressed: 0,
+    primaryAppearanceMaterialsMutated: 0,
     omegaFullRebuilds: 0,
   };
   state.avatar.shape.type = 20;
@@ -136,6 +139,96 @@ test('primary tesseron suppresses stellation geometry updates without erasing st
   assert.equal(state.tesseronChildCoreMesh, childCoreMesh);
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationSuppressed, 1);
+  assert.doesNotThrow(() => JSON.stringify(state.avatar));
+});
+
+test('primary appearance edits mutate materials without rebuilding non-tesseron hierarchy', () => {
+  configurePrimaryShape();
+  updateGeometry(20);
+
+  const stats = state.__sigilGeometryStats;
+  const depthMesh = state.depthMesh;
+  const coreMesh = state.coreMesh;
+  const wireframeMesh = state.wireframeMesh;
+  const depthGeometry = depthMesh.geometry;
+  const coreGeometry = coreMesh.geometry;
+  const wireGeometry = wireframeMesh.geometry;
+  const depthMaterial = depthMesh.material;
+  const coreMaterial = coreMesh.material;
+  const wireMaterial = wireframeMesh.material;
+  const initialFullRebuilds = stats.primaryFullRebuilds;
+
+  state.avatar.appearance.opacity = 0.25;
+  state.avatar.appearance.edgeOpacity = 0.2;
+  state.avatar.appearance.interiorEdges = true;
+  state.avatar.appearance.specular = false;
+  syncAvatarAliasesFromGraph(state);
+  const result = updatePrimaryAppearance();
+
+  assert.equal(result.updated, true);
+  assert.equal(result.rebuilt, false);
+  assert.equal(state.depthMesh, depthMesh);
+  assert.equal(state.coreMesh, coreMesh);
+  assert.equal(state.wireframeMesh, wireframeMesh);
+  assert.equal(state.depthMesh.geometry, depthGeometry);
+  assert.equal(state.coreMesh.geometry, coreGeometry);
+  assert.equal(state.wireframeMesh.geometry, wireGeometry);
+  assert.equal(state.depthMesh.material, depthMaterial);
+  assert.equal(state.coreMesh.material, coreMaterial);
+  assert.equal(state.wireframeMesh.material, wireMaterial);
+  assert.equal(state.coreMesh.material.opacity, 0.25);
+  assert.equal(state.coreMesh.material.transparent, true);
+  assert.equal(state.coreMesh.material.depthWrite, false);
+  assert.equal(state.coreMesh.material.shininess, 0);
+  assert.equal(state.wireframeMesh.material.opacity, 0.2);
+  assert.equal(state.depthMesh.visible, false);
+  assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
+  assert.equal(stats.primaryAppearanceUpdates, 1);
+  assert.doesNotThrow(() => JSON.stringify(state.avatar));
+});
+
+test('primary appearance edits update skin uniforms without replacing skin material', () => {
+  configurePrimaryShape();
+  state.avatar.appearance.skin = 'rocky';
+  syncAvatarAliasesFromGraph(state);
+  updateGeometry(20);
+
+  const stats = state.__sigilGeometryStats;
+  const coreMesh = state.coreMesh;
+  const skinMaterial = coreMesh.material;
+  const initialFullRebuilds = stats.primaryFullRebuilds;
+
+  state.avatar.appearance.opacity = 0.55;
+  state.avatar.appearance.specular = false;
+  syncAvatarAliasesFromGraph(state);
+  const result = updatePrimaryAppearance();
+
+  assert.equal(result.updated, true);
+  assert.equal(state.coreMesh, coreMesh);
+  assert.equal(state.coreMesh.material, skinMaterial);
+  assert.equal(skinMaterial.uniforms.uOpacity.value, 0.55);
+  assert.equal(skinMaterial.uniforms.uSpecular.value, 0);
+  assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
+  assert.doesNotThrow(() => JSON.stringify(state.avatar));
+});
+
+test('primary skin rebuilds dispose shader ramp textures once', () => {
+  configurePrimaryShape();
+  state.avatar.appearance.skin = 'rocky';
+  syncAvatarAliasesFromGraph(state);
+  updateGeometry(20);
+
+  const oldRamp = state.skinColorRamp;
+  let disposed = 0;
+  oldRamp.dispose = () => {
+    disposed += 1;
+  };
+
+  updateGeometry(20);
+
+  assert.equal(disposed, 1);
+  assert.notEqual(state.skinColorRamp, oldRamp);
+  assert.equal(oldRamp.userData.__sigilDisposed, true);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
 

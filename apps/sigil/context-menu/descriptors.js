@@ -215,10 +215,10 @@ const CONTROL_DESCRIPTORS = [
     descriptor({ id: 'sigil-menu-tesseron-proportion', panel: 'shape', label: 'Child Proportion', type: 'slider', path: 'avatar.shape.tesseron.proportion', coerce: NUMBER, route: 'canvas_object.transform.patch', rendererSync: 'updateGeometry' }),
     descriptor({ id: 'sigil-menu-tesseron-match', panel: 'shape', label: 'Match Mother', type: 'checkbox', path: 'avatar.shape.tesseron.matchMother', coerce: BOOLEAN, route: 'canvas_object.transform.patch', rendererSync: 'updateGeometry' }),
     descriptor({ id: 'sigil-menu-stellation', panel: 'shape', label: 'Stellation', type: 'slider', path: 'avatar.shape.stellationFactor', coerce: NUMBER, route: 'canvas_object.transform.patch', rendererSync: 'updatePrimaryStellation' }),
-    descriptor({ id: 'sigil-menu-opacity', panel: 'shape', label: 'Face Opacity', type: 'slider', path: 'avatar.appearance.opacity', coerce: NUMBER, route: 'canvas_object.effects.patch', rendererSync: 'updateGeometry' }),
-    descriptor({ id: 'sigil-menu-edge-opacity', panel: 'shape', label: 'Edge Opacity', type: 'slider', path: 'avatar.appearance.edgeOpacity', coerce: NUMBER, route: 'canvas_object.effects.patch', rendererSync: 'updateGeometry' }),
-    descriptor({ id: 'sigil-menu-xray', panel: 'shape', label: 'X-Ray', type: 'checkbox', path: 'avatar.appearance.interiorEdges', coerce: BOOLEAN, route: 'canvas_object.effects.patch', rendererSync: 'updateGeometry' }),
-    descriptor({ id: 'sigil-menu-specular', panel: 'shape', label: 'Specular', type: 'checkbox', path: 'avatar.appearance.specular', coerce: BOOLEAN, route: 'canvas_object.effects.patch', rendererSync: 'updateGeometry' }),
+    descriptor({ id: 'sigil-menu-opacity', panel: 'shape', label: 'Face Opacity', type: 'slider', path: 'avatar.appearance.opacity', coerce: NUMBER, route: 'canvas_object.effects.patch', rendererSync: 'updatePrimaryAppearance' }),
+    descriptor({ id: 'sigil-menu-edge-opacity', panel: 'shape', label: 'Edge Opacity', type: 'slider', path: 'avatar.appearance.edgeOpacity', coerce: NUMBER, route: 'canvas_object.effects.patch', rendererSync: 'updatePrimaryAppearance' }),
+    descriptor({ id: 'sigil-menu-xray', panel: 'shape', label: 'X-Ray', type: 'checkbox', path: 'avatar.appearance.interiorEdges', coerce: BOOLEAN, route: 'canvas_object.effects.patch', rendererSync: 'updatePrimaryAppearance' }),
+    descriptor({ id: 'sigil-menu-specular', panel: 'shape', label: 'Specular', type: 'checkbox', path: 'avatar.appearance.specular', coerce: BOOLEAN, route: 'canvas_object.effects.patch', rendererSync: 'updatePrimaryAppearance' }),
     descriptor({ id: 'sigil-menu-primary-color', panel: 'look', label: 'Primary Color', type: 'color', path: ['avatar', 'appearance', 'colors', 'face', 0], coerce: STRING, route: 'canvas_object.effects.patch', rendererSync: 'updateAllColors' }),
     descriptor({ id: 'sigil-menu-edge-color', panel: 'look', label: 'Edge Color', type: 'color', path: ['avatar', 'appearance', 'colors', 'edge', 0], coerce: STRING, route: 'canvas_object.effects.patch', rendererSync: 'updateAllColors' }),
     descriptor({ id: 'sigil-menu-face1', panel: 'look', card: 'core-colors', label: 'Face 1', type: 'color', path: ['avatar', 'appearance', 'colors', 'face', 0], coerce: STRING, route: 'canvas_object.effects.patch', rendererSync: 'updateAllColors' }),
@@ -343,6 +343,7 @@ function syncRenderer(descriptor, value, context) {
     for (const hook of descriptor.rendererSync || []) {
         if (hook === 'updateGeometry') context.updateGeometry?.(context.state?.avatar?.shape?.type ?? context.state?.currentGeometryType ?? context.state?.currentType);
         else if (hook === 'updatePrimaryStellation') context.updatePrimaryStellation?.(value);
+        else if (hook === 'updatePrimaryAppearance') context.updatePrimaryAppearance?.();
         else if (hook === 'updateOmegaGeometry') context.updateOmegaGeometry?.(context.state?.avatar?.effects?.omega?.shape?.type ?? context.state?.omegaGeometryType ?? context.state?.omegaType);
         else if (hook === 'updateAllColors') context.updateAllColors?.();
         else if (hook === 'updatePulsars') context.updatePulsars?.(context.state?.pulsarRayCount);

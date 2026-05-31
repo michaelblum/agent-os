@@ -268,6 +268,38 @@ test('descriptor routing applies primary stellation through minimal sync hook', 
   assert.deepEqual(calls, [['stellation', 1.25]])
 })
 
+test('descriptor routing applies primary appearance controls through minimal sync hook', () => {
+  for (const [id, rawValue, expectedPath, expectedValue] of [
+    ['sigil-menu-opacity', '0.35', ['appearance', 'opacity'], 0.35],
+    ['sigil-menu-edge-opacity', '0.2', ['appearance', 'edgeOpacity'], 0.2],
+    ['sigil-menu-xray', true, ['appearance', 'interiorEdges'], true],
+    ['sigil-menu-specular', false, ['appearance', 'specular'], false],
+  ]) {
+    const calls = []
+    const state = {
+      avatar: {
+        shape: { type: 20, tesseron: { enabled: false } },
+        appearance: {
+          opacity: 0.8,
+          edgeOpacity: 0.6,
+          interiorEdges: false,
+          specular: true,
+        },
+        effects: {},
+      },
+    }
+    const result = applyContextMenuDescriptorUpdate(id, rawValue, {
+      state,
+      updateGeometry(value) { calls.push(['geometry', value]) },
+      updatePrimaryAppearance() { calls.push(['appearance']) },
+    })
+
+    assert.equal(result.route, 'canvas_object.effects.patch')
+    assert.equal(state.avatar[expectedPath[0]][expectedPath[1]], expectedValue)
+    assert.deepEqual(calls, [['appearance']])
+  }
+})
+
 test('descriptor routing applies shape-specific prism parameters through shared geometry sync', () => {
   const calls = []
   const state = {

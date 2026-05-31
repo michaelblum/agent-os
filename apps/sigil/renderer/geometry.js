@@ -36,6 +36,9 @@ function geometryStats() {
         primaryStellationReplacementGeometriesDisposed: 0,
         primaryStellationRetainedGeometries: 0,
         primaryStellationMaxRetainedGeometries: 0,
+        primaryAppearanceUpdates: 0,
+        primaryAppearanceSuppressed: 0,
+        primaryAppearanceMaterialsMutated: 0,
         omegaFullRebuilds: 0,
     };
     state.__sigilGeometryStats ??= {};
@@ -173,6 +176,116 @@ export function updateGeometry(type) {
         tesseron: avatar.shape.tesseron,
         isOmega: false
     });
+}
+
+function setMaterialOpacity(material, opacity) {
+    if (!material) return false;
+    const isSolid = opacity >= 0.99;
+    let changed = false;
+    if ('opacity' in material && material.opacity !== opacity) {
+        material.opacity = opacity;
+        changed = true;
+    }
+    if ('transparent' in material && material.transparent !== !isSolid) {
+        material.transparent = !isSolid;
+        changed = true;
+    }
+    if ('depthWrite' in material && material.depthWrite !== isSolid) {
+        material.depthWrite = isSolid;
+        changed = true;
+    }
+    if ('side' in material) {
+        const side = isSolid ? THREE.FrontSide : THREE.DoubleSide;
+        if (material.side !== side) {
+            material.side = side;
+            changed = true;
+        }
+    }
+    if (material.uniforms?.uOpacity && material.uniforms.uOpacity.value !== opacity) {
+        material.uniforms.uOpacity.value = opacity;
+        changed = true;
+    }
+    if (changed) material.needsUpdate = true;
+    return changed;
+}
+
+function setMaterialSpecular(material, enabled) {
+    if (!material) return false;
+    let changed = false;
+    const shininess = enabled ? 80 : 0;
+    if ('shininess' in material && material.shininess !== shininess) {
+        material.shininess = shininess;
+        changed = true;
+    }
+    if (material.specular?.setHex) {
+        const hex = enabled ? 0x333333 : 0x000000;
+        material.specular.setHex(hex);
+        changed = true;
+    }
+    if (material.uniforms?.uSpecular) {
+        const specular = enabled ? 1.0 : 0.0;
+        if (material.uniforms.uSpecular.value !== specular) {
+            material.uniforms.uSpecular.value = specular;
+            changed = true;
+        }
+    }
+    if (changed) material.needsUpdate = true;
+    return changed;
+}
+
+function countMutated(...results) {
+    return results.filter(Boolean).length;
+}
+
+export function updatePrimaryAppearance() {
+    const avatar = state.avatar;
+    const type = avatar?.shape?.type ?? state.currentGeometryType ?? state.currentType;
+    const tesseronActive = !!avatar?.shape?.tesseron?.enabled && isTesseronSupportedShape(type);
+    const stats = geometryStats();
+
+    if (!state.depthMesh?.material || !state.coreMesh?.material || !state.wireframeMesh?.material) {
+        updateGeometry(type);
+        return { updated: false, rebuilt: true };
+    }
+
+    const opacity = Number(avatar.appearance.opacity);
+    const edgeOpacity = Number(avatar.appearance.edgeOpacity);
+    const faceOpacity = Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
+    const lineOpacity = Number.isFinite(edgeOpacity) ? Math.max(0, Math.min(1, edgeOpacity)) : 1;
+    const interiorEdges = !!avatar.appearance.interiorEdges;
+    const maskEnabled = !!avatar.appearance.maskEnabled;
+    const specular = !!avatar.appearance.specular;
+
+    let mutated = 0;
+    mutated += countMutated(setMaterialOpacity(state.coreMesh.material, faceOpacity));
+    mutated += countMutated(setMaterialSpecular(state.coreMesh.material, specular));
+    if (state.tesseronChildCoreMesh?.material) {
+        mutated += countMutated(setMaterialOpacity(state.tesseronChildCoreMesh.material, faceOpacity));
+        mutated += countMutated(setMaterialSpecular(state.tesseronChildCoreMesh.material, specular));
+    }
+    if (state.wireframeMesh.material.opacity !== lineOpacity) {
+        state.wireframeMesh.material.opacity = lineOpacity;
+        state.wireframeMesh.material.needsUpdate = true;
+        mutated += 1;
+    }
+    if (state.tesseronChildWireframeMesh?.material && state.tesseronChildWireframeMesh.material.opacity !== lineOpacity) {
+        state.tesseronChildWireframeMesh.material.opacity = lineOpacity;
+        state.tesseronChildWireframeMesh.material.needsUpdate = true;
+        mutated += 1;
+    }
+
+    state.depthMesh.visible = !interiorEdges;
+    state.coreMesh.visible = !maskEnabled;
+    state.wireframeMesh.visible = lineOpacity > 0.001;
+    if (state.tesseronChildDepthMesh) state.tesseronChildDepthMesh.visible = tesseronActive && !interiorEdges;
+    if (state.tesseronChildCoreMesh) state.tesseronChildCoreMesh.visible = tesseronActive && !maskEnabled;
+    if (state.tesseronChildWireframeMesh) state.tesseronChildWireframeMesh.visible = tesseronActive && lineOpacity > 0.001;
+    updateInnerEdgePulse(false);
+
+    stats.primaryAppearanceUpdates += 1;
+    stats.primaryAppearanceMaterialsMutated += mutated;
+    if (!mutated) stats.primaryAppearanceSuppressed += 1;
+    return { updated: true, rebuilt: false, materialsMutated: mutated };
 }
 
 export function updatePrimaryStellation(value = state.avatar?.shape?.stellationFactor) {

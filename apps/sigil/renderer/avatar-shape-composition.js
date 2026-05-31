@@ -163,13 +163,25 @@ function createTesseronDepthGeometryAround(THREE, sourceGeometry, proportion, sc
     return geometry;
 }
 
+function disposeResourceOnce(resource) {
+    if (!resource || typeof resource.dispose !== 'function') return;
+    resource.userData ??= {};
+    if (resource.userData.__sigilDisposed) return;
+    resource.userData.__sigilDisposed = true;
+    resource.dispose();
+}
+
 function disposeMaterial(material) {
     if (Array.isArray(material)) {
         material.forEach((entry) => disposeMaterial(entry));
         return;
     }
-    material?.map?.dispose?.();
-    material?.dispose?.();
+    for (const uniform of Object.values(material?.uniforms || {})) {
+        const value = uniform?.value;
+        if (value && value !== material.map) disposeResourceOnce(value);
+    }
+    disposeResourceOnce(material?.map);
+    disposeResourceOnce(material);
 }
 
 function disposeMesh(mesh, group = null) {
