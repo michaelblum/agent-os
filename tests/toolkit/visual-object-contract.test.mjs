@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createVisualObjectContractExample,
   createVisualObjectDescriptor,
+  createToolkitSliderVisualObjectDescriptor,
   validateVisualObjectDescriptor,
   validateVisualObjectDescriptors,
   VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
@@ -73,4 +74,27 @@ test('visual object contract examples cover 3D, 2D canvas, and DOM toolkit surfa
   assert.deepEqual(examples.map((example) => example.technology), ['threejs-3d', 'canvas-2d', 'dom-toolkit']);
   assert.equal(examples[2].projection.classification, 'projection_only');
   assert.equal(validateVisualObjectDescriptors(examples).ok, true);
+});
+
+test('toolkit slider descriptor proves editable DOM controls use the same contract', () => {
+  const descriptor = createToolkitSliderVisualObjectDescriptor({
+    id: 'toolkit-slider-opacity',
+    label: 'Opacity',
+    state_path: 'toolkit.controls.opacity.value',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    object_ids: ['dom.aos-slider.opacity'],
+  });
+  const roundTrip = JSON.parse(JSON.stringify(descriptor));
+
+  assert.equal(roundTrip.contract, VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID);
+  assert.equal(roundTrip.technology, 'dom-toolkit');
+  assert.equal(roundTrip.projection.classification, 'editable');
+  assert.equal(roundTrip.state_path, 'toolkit.controls.opacity.value');
+  assert.equal(roundTrip.route, 'dom_toolkit.control.value.patch');
+  assert.deepEqual(roundTrip.range, { min: 0, max: 1, step: 0.05 });
+  assert.ok(roundTrip.evidence_contracts.includes('dom_toolkit_control_value'));
+  assert.ok(roundTrip.evidence_contracts.includes('non_avatar_visual_object'));
+  assert.equal(validateVisualObjectDescriptor(roundTrip).ok, true);
 });

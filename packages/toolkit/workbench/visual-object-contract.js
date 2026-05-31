@@ -153,3 +153,36 @@ export function createVisualObjectContractExample({ technology, id, label, route
     evidence_contracts: ['json_serializable', 'deterministic_descriptor_validation'],
   });
 }
+
+export function createToolkitSliderVisualObjectDescriptor({
+  id,
+  label,
+  state_path,
+  route = 'dom_toolkit.control.value.patch',
+  min = 0,
+  max = 1,
+  step = 0.01,
+  object_ids = [],
+} = {}) {
+  return createVisualObjectDescriptor({
+    id,
+    label,
+    kind: 'slider',
+    technology: 'dom-toolkit',
+    state_path,
+    route,
+    coerce: 'number',
+    min,
+    max,
+    step,
+    renderer_sync: ['syncDomControlValue'],
+    group_key: 'toolkit.controls.slider',
+    object_ids,
+    evidence_contracts: [
+      'json_serializable',
+      'deterministic_descriptor_validation',
+      'dom_toolkit_control_value',
+      'non_avatar_visual_object',
+    ],
+  });
+}

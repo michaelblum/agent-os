@@ -49,6 +49,16 @@ Polyhedron composition, tesseron geometry, aura, omega, lightning, magnetic,
 path-trail effects, fast-travel visuals, and live renderer internals stay in
 `apps/sigil/`.
 
+Phase 5 adds two non-avatar proofs:
+
+- `packages/toolkit/workbench/radial-menu-subject.js` projects resolved radial
+  menu workbench state into `visual_object_descriptors` for selected item
+  config, object transform, visibility, effect controls, and projection-only
+  preview/export affordances.
+- `createToolkitSliderVisualObjectDescriptor()` proves an editable
+  `dom-toolkit` control can use the same descriptor envelope without migrating
+  the controls package.
+
 ## Technology Examples
 
 Three.js 3D object:
@@ -86,9 +96,20 @@ createVisualObjectContractExample({
 });
 ```
 
+DOM/toolkit editable control:
+
+```js
+createToolkitSliderVisualObjectDescriptor({
+  id: 'toolkit-slider-opacity',
+  label: 'Opacity',
+  state_path: 'toolkit.controls.opacity.value',
+  object_ids: ['dom.aos-slider.opacity'],
+});
+```
+
 ## Phase 5 Target
 
-The next broad slice should validate a non-avatar visual against this contract,
-preferably a small toolkit-owned radial menu or DOM control surface. That slice
-should prove descriptor validation, projection-only classification, and patch
-routing without migrating Sigil renderer internals.
+The first broad Phase 5 slice validates non-avatar visuals against this
+contract. Radial menu descriptors prove descriptor validation, projection-only
+classification, patch routing, JSON serialization, technology identity, and
+non-avatar evidence contracts without migrating Sigil renderer internals.
