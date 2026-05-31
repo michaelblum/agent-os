@@ -91,6 +91,40 @@ test('Sigil click-open menu keeps trigger-vector geometry stable for item clicks
   assert.equal(commits.length, 1)
 })
 
+test('Sigil radial menu keeps its egress vector stable and adjusts it to fit the active display', () => {
+  const displays = [
+    {
+      id: 'main',
+      visibleBounds: { x: 0, y: 0, w: 640, h: 480 },
+      bounds: { x: 0, y: 0, w: 640, h: 480 },
+    },
+    {
+      id: 'secondary',
+      visibleBounds: { x: 640, y: 0, w: 640, h: 480 },
+      bounds: { x: 640, y: 0, w: 640, h: 480 },
+    },
+  ]
+  const { menu } = createMenu({
+    state: {
+      radialGestureMenu: {
+        orientation: 'trigger-vector',
+      },
+      displays,
+    },
+  })
+  const origin = { x: 612, y: 240, valid: true }
+  const opened = menu.start(origin, { x: 760, y: 240, valid: true })
+  const moved = menu.move({ x: 220, y: 80, valid: true })
+
+  assert.equal(opened.triggerAngle, moved.snapshot.triggerAngle)
+  assert.deepEqual(
+    moved.snapshot.items.map((item) => item.center),
+    opened.items.map((item) => item.center),
+  )
+  assert.ok(opened.items.every((item) => item.center.x >= 24 && item.center.x <= 616))
+  assert.ok(opened.items.every((item) => item.center.y >= 24 && item.center.y <= 456))
+})
+
 test('Sigil radial menu config carries native wiki model geometry', () => {
   const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
   const agentTerminalItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')

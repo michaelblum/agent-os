@@ -258,17 +258,6 @@ export function createRadialGestureModel(options = {}) {
     if (phase === 'idle' || phase === 'committed' || phase === 'cancelled') return snapshot()
     pointer = point(nextPointer)
     lastTransition = null
-    const m = metrics()
-
-    if (config.orientation === 'trigger-vector') {
-      if (m.distance <= config.deadZoneRadiusPx) {
-        triggerLocked = false
-      } else if (!triggerLocked) {
-        triggerAngle = m.angle
-        triggerLocked = true
-        lastTransition = 'trigger_vector_lock'
-      }
-    }
 
     activeItemId = phase === 'radial' ? hitItem(pointer)?.id || null : null
     return snapshot()
