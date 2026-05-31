@@ -71,6 +71,7 @@ import {
     resolveSigilAvatarIdleRotation,
     selectionModeOverlayHasActiveEffects,
 } from './selection-mode-runtime.js';
+import { createSelectionModeNativeFrameResolver } from './selection-mode-native-frame.js';
 import { createSelectionModeCursorModelRenderer } from './selection-mode-cursor-model-renderer.js';
 import {
     createDefaultActiveContextState,
@@ -306,6 +307,21 @@ const INPUT_POINTER_EVENT_TYPES = new Set([
 ]);
 
 let sigilInputRegions = null;
+const selectionModeNativeFrameResolver = createSelectionModeNativeFrameResolver(() => {
+    const bounds = liveJs.visibleBounds?.w > 0 && liveJs.visibleBounds?.h > 0
+        ? liveJs.visibleBounds
+        : liveJs.globalBounds;
+    if (!bounds || bounds.w <= 0 || bounds.h <= 0) return null;
+    const origin = desktopWorldToNativePoint({ x: bounds.x, y: bounds.y, valid: true }, liveJs.displays)
+        || { x: bounds.x, y: bounds.y };
+    const opposite = desktopWorldToNativePoint({ x: bounds.x + bounds.w, y: bounds.y + bounds.h, valid: true }, liveJs.displays)
+        || { x: bounds.x + bounds.w, y: bounds.y + bounds.h };
+    const x = Math.round(Math.min(origin.x, opposite.x));
+    const y = Math.round(Math.min(origin.y, opposite.y));
+    const w = Math.max(1, Math.round(Math.abs(opposite.x - origin.x) || bounds.w));
+    const h = Math.max(1, Math.round(Math.abs(opposite.y - origin.y) || bounds.h));
+    return [x, y, w, h];
+});
 
 function nativeFrameForAvatar() {
     if (!liveJs.avatarPos.valid) return null;
@@ -321,19 +337,7 @@ function nativeFrameForAvatar() {
 }
 
 function nativeFrameForSelectionMode() {
-    const bounds = liveJs.visibleBounds?.w > 0 && liveJs.visibleBounds?.h > 0
-        ? liveJs.visibleBounds
-        : liveJs.globalBounds;
-    if (!bounds || bounds.w <= 0 || bounds.h <= 0) return null;
-    const origin = desktopWorldToNativePoint({ x: bounds.x, y: bounds.y, valid: true }, liveJs.displays)
-        || { x: bounds.x, y: bounds.y };
-    const opposite = desktopWorldToNativePoint({ x: bounds.x + bounds.w, y: bounds.y + bounds.h, valid: true }, liveJs.displays)
-        || { x: bounds.x + bounds.w, y: bounds.y + bounds.h };
-    const x = Math.round(Math.min(origin.x, opposite.x));
-    const y = Math.round(Math.min(origin.y, opposite.y));
-    const w = Math.max(1, Math.round(Math.abs(opposite.x - origin.x) || bounds.w));
-    const h = Math.max(1, Math.round(Math.abs(opposite.y - origin.y) || bounds.h));
-    return [x, y, w, h];
+    return selectionModeNativeFrameResolver.resolve();
 }
 
 function removeSigilInputRegions() {
@@ -2696,7 +2700,9 @@ function enterSelectionMode(pointer = null, reason = 'selection-mode-enter') {
 }
 
 function exitSelectionMode(reason = 'cancel') {
-    return selectionModeRuntime.exit(reason);
+    const result = selectionModeRuntime.exit(reason);
+    selectionModeNativeFrameResolver.reset();
+    return result;
 }
 
 function recordUxCommandRuntime(result = {}, { fallback = false } = {}) {
