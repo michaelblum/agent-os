@@ -28,22 +28,46 @@ function defaultAvatarBaseSize() {
 }
 
 function geometryStats() {
-    state.__sigilGeometryStats ??= {
+    const defaults = {
         primaryFullRebuilds: 0,
         primaryStellationUpdates: 0,
         primaryStellationSuppressed: 0,
+        primaryStellationReplacementGeometriesCreated: 0,
+        primaryStellationReplacementGeometriesDisposed: 0,
+        primaryStellationRetainedGeometries: 0,
+        primaryStellationMaxRetainedGeometries: 0,
         omegaFullRebuilds: 0,
     };
+    state.__sigilGeometryStats ??= {};
+    for (const [key, value] of Object.entries(defaults)) {
+        state.__sigilGeometryStats[key] ??= value;
+    }
     return state.__sigilGeometryStats;
 }
 
 function disposeUniqueGeometries(...geometries) {
     const seen = new Set();
+    let disposed = 0;
     for (const geometry of geometries) {
         if (!geometry || seen.has(geometry)) continue;
         seen.add(geometry);
         geometry.dispose?.();
+        disposed += 1;
     }
+    return disposed;
+}
+
+function countUniqueGeometries(...geometries) {
+    return new Set(geometries.filter(Boolean)).size;
+}
+
+function recordPrimaryStellationRetainedGeometries(stats, ...geometries) {
+    const retained = countUniqueGeometries(...geometries);
+    stats.primaryStellationRetainedGeometries = retained;
+    stats.primaryStellationMaxRetainedGeometries = Math.max(
+        stats.primaryStellationMaxRetainedGeometries || 0,
+        retained,
+    );
 }
 
 /**
@@ -181,6 +205,7 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
     const edgeGeometry = typeof THREE_NS.EdgesGeometry === 'function'
         ? new THREE_NS.EdgesGeometry(finalGeometry)
         : finalGeometry;
+    stats.primaryStellationReplacementGeometriesCreated += countUniqueGeometries(finalGeometry, edgeGeometry);
 
     const oldDepthGeometry = depthMesh.geometry;
     const oldCoreGeometry = coreMesh.geometry;
@@ -193,7 +218,8 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
     applyGradientVertexColors(wireframeMesh, avatar.appearance.colors.edge);
 
     baseGeometry.dispose?.();
-    disposeUniqueGeometries(oldDepthGeometry, oldCoreGeometry, oldWireGeometry);
+    stats.primaryStellationReplacementGeometriesDisposed += disposeUniqueGeometries(oldDepthGeometry, oldCoreGeometry, oldWireGeometry);
+    recordPrimaryStellationRetainedGeometries(stats, depthMesh.geometry, coreMesh.geometry, wireframeMesh.geometry);
     stats.primaryStellationUpdates += 1;
     return { updated: true, suppressed: false };
 }

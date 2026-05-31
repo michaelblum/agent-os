@@ -13,6 +13,10 @@ function configurePrimaryShape({ tesseron = false } = {}) {
     primaryFullRebuilds: 0,
     primaryStellationUpdates: 0,
     primaryStellationSuppressed: 0,
+    primaryStellationReplacementGeometriesCreated: 0,
+    primaryStellationReplacementGeometriesDisposed: 0,
+    primaryStellationRetainedGeometries: 0,
+    primaryStellationMaxRetainedGeometries: 0,
     omegaFullRebuilds: 0,
   };
   state.avatar.shape.type = 20;
@@ -70,6 +74,46 @@ test('primary stellation edits reuse the existing shape hierarchy', () => {
   assert.notEqual(state.coreMesh.geometry, firstCoreGeometry);
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationUpdates, 2);
+  assert.doesNotThrow(() => JSON.stringify(state.avatar));
+});
+
+test('100 primary stellation-only edits keep renderer resources bounded', () => {
+  configurePrimaryShape();
+  updateGeometry(20);
+
+  const stats = state.__sigilGeometryStats;
+  const depthMesh = state.depthMesh;
+  const coreMesh = state.coreMesh;
+  const wireframeMesh = state.wireframeMesh;
+  const depthMaterial = depthMesh.material;
+  const coreMaterial = coreMesh.material;
+  const wireMaterial = wireframeMesh.material;
+  const initialFullRebuilds = stats.primaryFullRebuilds;
+
+  for (let index = 0; index < 100; index += 1) {
+    const value = ((index % 25) + 1) / 20;
+    state.avatar.shape.stellationFactor = value;
+    const result = updatePrimaryStellation(value);
+
+    assert.deepEqual(result, { updated: true, suppressed: false });
+    assert.equal(state.depthMesh, depthMesh);
+    assert.equal(state.coreMesh, coreMesh);
+    assert.equal(state.wireframeMesh, wireframeMesh);
+    assert.equal(state.depthMesh.material, depthMaterial);
+    assert.equal(state.coreMesh.material, coreMaterial);
+    assert.equal(state.wireframeMesh.material, wireMaterial);
+    assert.equal(hasFinitePositions(state.depthMesh.geometry), true);
+    assert.equal(hasFinitePositions(state.coreMesh.geometry), true);
+    assert.equal(hasFinitePositions(state.wireframeMesh.geometry), true);
+  }
+
+  assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
+  assert.equal(stats.primaryStellationUpdates, 100);
+  assert.equal(stats.primaryStellationSuppressed, 0);
+  assert.equal(stats.primaryStellationReplacementGeometriesCreated, 200);
+  assert.equal(stats.primaryStellationReplacementGeometriesDisposed, 200);
+  assert.equal(stats.primaryStellationRetainedGeometries, 2);
+  assert.equal(stats.primaryStellationMaxRetainedGeometries, 2);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
 
