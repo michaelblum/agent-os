@@ -212,6 +212,96 @@ test('primary appearance edits update skin uniforms without replacing skin mater
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
 
+test('primary appearance edits preserve tesseron child overrides when child does not match mother', () => {
+  configurePrimaryShape({ tesseron: true });
+  state.avatar.shape.tesseron = {
+    enabled: true,
+    proportion: 0.5,
+    matchMother: false,
+    child: {
+      opacity: 0.8,
+      edgeOpacity: 0.7,
+      maskEnabled: true,
+      interiorEdges: true,
+      specular: true,
+    },
+  };
+  syncAvatarAliasesFromGraph(state);
+  updateGeometry(20);
+
+  const stats = state.__sigilGeometryStats;
+  const childDepthMesh = state.tesseronChildDepthMesh;
+  const childCoreMesh = state.tesseronChildCoreMesh;
+  const childWireframeMesh = state.tesseronChildWireframeMesh;
+  const childDepthGeometry = childDepthMesh.geometry;
+  const childCoreGeometry = childCoreMesh.geometry;
+  const childWireGeometry = childWireframeMesh.geometry;
+  const childDepthMaterial = childDepthMesh.material;
+  const childCoreMaterial = childCoreMesh.material;
+  const childWireMaterial = childWireframeMesh.material;
+  const initialFullRebuilds = stats.primaryFullRebuilds;
+
+  assert.equal(childCoreMesh.material.opacity, 0.8);
+  assert.equal(childWireframeMesh.material.opacity, 0.7);
+  assert.equal(childCoreMesh.visible, false);
+  assert.equal(childDepthMesh.visible, false);
+  assert.equal(childCoreMesh.material.shininess, 80);
+
+  state.avatar.appearance.opacity = 0.2;
+  state.avatar.appearance.edgeOpacity = 0.1;
+  state.avatar.appearance.maskEnabled = false;
+  state.avatar.appearance.interiorEdges = false;
+  state.avatar.appearance.specular = false;
+  syncAvatarAliasesFromGraph(state);
+  const result = updatePrimaryAppearance();
+
+  assert.equal(result.updated, true);
+  assert.equal(result.rebuilt, false);
+  assert.equal(state.tesseronChildDepthMesh, childDepthMesh);
+  assert.equal(state.tesseronChildCoreMesh, childCoreMesh);
+  assert.equal(state.tesseronChildWireframeMesh, childWireframeMesh);
+  assert.equal(state.tesseronChildDepthMesh.geometry, childDepthGeometry);
+  assert.equal(state.tesseronChildCoreMesh.geometry, childCoreGeometry);
+  assert.equal(state.tesseronChildWireframeMesh.geometry, childWireGeometry);
+  assert.equal(state.tesseronChildDepthMesh.material, childDepthMaterial);
+  assert.equal(state.tesseronChildCoreMesh.material, childCoreMaterial);
+  assert.equal(state.tesseronChildWireframeMesh.material, childWireMaterial);
+  assert.equal(state.coreMesh.material.opacity, 0.2);
+  assert.equal(state.wireframeMesh.material.opacity, 0.1);
+  assert.equal(state.coreMesh.material.shininess, 0);
+  assert.equal(state.tesseronChildCoreMesh.material.opacity, 0.8);
+  assert.equal(state.tesseronChildWireframeMesh.material.opacity, 0.7);
+  assert.equal(state.tesseronChildCoreMesh.material.shininess, 80);
+  assert.equal(state.tesseronChildCoreMesh.visible, false);
+  assert.equal(state.tesseronChildDepthMesh.visible, false);
+  assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
+  assert.doesNotThrow(() => JSON.stringify(state.avatar));
+});
+
+test('primary appearance edits keep tesseron child matched to mother when configured', () => {
+  configurePrimaryShape({ tesseron: true });
+  updateGeometry(20);
+
+  const childCoreMesh = state.tesseronChildCoreMesh;
+  const childWireframeMesh = state.tesseronChildWireframeMesh;
+  const initialFullRebuilds = state.__sigilGeometryStats.primaryFullRebuilds;
+
+  state.avatar.appearance.opacity = 0.2;
+  state.avatar.appearance.edgeOpacity = 0.1;
+  state.avatar.appearance.specular = false;
+  syncAvatarAliasesFromGraph(state);
+  const result = updatePrimaryAppearance();
+
+  assert.equal(result.updated, true);
+  assert.equal(result.rebuilt, false);
+  assert.equal(state.tesseronChildCoreMesh, childCoreMesh);
+  assert.equal(state.tesseronChildWireframeMesh, childWireframeMesh);
+  assert.equal(state.tesseronChildCoreMesh.material.opacity, 0.2);
+  assert.equal(state.tesseronChildWireframeMesh.material.opacity, 0.1);
+  assert.equal(state.tesseronChildCoreMesh.material.shininess, 0);
+  assert.equal(state.__sigilGeometryStats.primaryFullRebuilds, initialFullRebuilds);
+});
+
 test('primary skin rebuilds dispose shader ramp textures once', () => {
   configurePrimaryShape();
   state.avatar.appearance.skin = 'rocky';

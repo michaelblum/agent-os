@@ -9,6 +9,7 @@ import {
 } from './avatar-shape-composition.js';
 import {
     isTesseronSupportedShape,
+    normalizeTesseronConfig,
 } from './tesseron.js';
 
 export function createStellatedGeometry(baseGeometry, factor) {
@@ -237,6 +238,23 @@ function countMutated(...results) {
     return results.filter(Boolean).length;
 }
 
+function clampUnit(value, fallback = 1) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : fallback;
+}
+
+function tesseronChildAppearance(avatar, mother) {
+    const tesseron = normalizeTesseronConfig(avatar?.shape?.tesseron);
+    if (tesseron.matchMother) return mother;
+    return {
+        faceOpacity: clampUnit(tesseron.child.opacity, mother.faceOpacity),
+        lineOpacity: clampUnit(tesseron.child.edgeOpacity, mother.lineOpacity),
+        interiorEdges: tesseron.child.interiorEdges ?? mother.interiorEdges,
+        maskEnabled: tesseron.child.maskEnabled ?? mother.maskEnabled,
+        specular: tesseron.child.specular ?? mother.specular,
+    };
+}
+
 export function updatePrimaryAppearance() {
     const avatar = state.avatar;
     const type = avatar?.shape?.type ?? state.currentGeometryType ?? state.currentType;
@@ -250,26 +268,33 @@ export function updatePrimaryAppearance() {
 
     const opacity = Number(avatar.appearance.opacity);
     const edgeOpacity = Number(avatar.appearance.edgeOpacity);
-    const faceOpacity = Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
-    const lineOpacity = Number.isFinite(edgeOpacity) ? Math.max(0, Math.min(1, edgeOpacity)) : 1;
+    const faceOpacity = clampUnit(opacity);
+    const lineOpacity = clampUnit(edgeOpacity);
     const interiorEdges = !!avatar.appearance.interiorEdges;
     const maskEnabled = !!avatar.appearance.maskEnabled;
     const specular = !!avatar.appearance.specular;
+    const childAppearance = tesseronChildAppearance(avatar, {
+        faceOpacity,
+        lineOpacity,
+        interiorEdges,
+        maskEnabled,
+        specular,
+    });
 
     let mutated = 0;
     mutated += countMutated(setMaterialOpacity(state.coreMesh.material, faceOpacity));
     mutated += countMutated(setMaterialSpecular(state.coreMesh.material, specular));
     if (state.tesseronChildCoreMesh?.material) {
-        mutated += countMutated(setMaterialOpacity(state.tesseronChildCoreMesh.material, faceOpacity));
-        mutated += countMutated(setMaterialSpecular(state.tesseronChildCoreMesh.material, specular));
+        mutated += countMutated(setMaterialOpacity(state.tesseronChildCoreMesh.material, childAppearance.faceOpacity));
+        mutated += countMutated(setMaterialSpecular(state.tesseronChildCoreMesh.material, childAppearance.specular));
     }
     if (state.wireframeMesh.material.opacity !== lineOpacity) {
         state.wireframeMesh.material.opacity = lineOpacity;
         state.wireframeMesh.material.needsUpdate = true;
         mutated += 1;
     }
-    if (state.tesseronChildWireframeMesh?.material && state.tesseronChildWireframeMesh.material.opacity !== lineOpacity) {
-        state.tesseronChildWireframeMesh.material.opacity = lineOpacity;
+    if (state.tesseronChildWireframeMesh?.material && state.tesseronChildWireframeMesh.material.opacity !== childAppearance.lineOpacity) {
+        state.tesseronChildWireframeMesh.material.opacity = childAppearance.lineOpacity;
         state.tesseronChildWireframeMesh.material.needsUpdate = true;
         mutated += 1;
     }
@@ -277,9 +302,9 @@ export function updatePrimaryAppearance() {
     state.depthMesh.visible = !interiorEdges;
     state.coreMesh.visible = !maskEnabled;
     state.wireframeMesh.visible = lineOpacity > 0.001;
-    if (state.tesseronChildDepthMesh) state.tesseronChildDepthMesh.visible = tesseronActive && !interiorEdges;
-    if (state.tesseronChildCoreMesh) state.tesseronChildCoreMesh.visible = tesseronActive && !maskEnabled;
-    if (state.tesseronChildWireframeMesh) state.tesseronChildWireframeMesh.visible = tesseronActive && lineOpacity > 0.001;
+    if (state.tesseronChildDepthMesh) state.tesseronChildDepthMesh.visible = tesseronActive && !childAppearance.interiorEdges;
+    if (state.tesseronChildCoreMesh) state.tesseronChildCoreMesh.visible = tesseronActive && !childAppearance.maskEnabled;
+    if (state.tesseronChildWireframeMesh) state.tesseronChildWireframeMesh.visible = tesseronActive && childAppearance.lineOpacity > 0.001;
     updateInnerEdgePulse(false);
 
     stats.primaryAppearanceUpdates += 1;
