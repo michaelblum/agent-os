@@ -23,6 +23,10 @@ function createBaseGeometry(type, size) {
     return createAvatarBaseGeometry(globalThis.THREE || THREE, type, size, state);
 }
 
+function defaultAvatarBaseSize() {
+    return 1;
+}
+
 function geometryStats() {
     state.__sigilGeometryStats ??= {
         primaryFullRebuilds: 0,
@@ -168,7 +172,7 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
     }
 
     const THREE_NS = globalThis.THREE || THREE;
-    const baseGeometry = createBaseGeometry(type, undefined);
+    const baseGeometry = createBaseGeometry(type, defaultAvatarBaseSize());
     const finalGeometry = createSharedStellatedGeometry(THREE_NS, baseGeometry, value);
     finalGeometry.userData = {
         ...(baseGeometry?.userData || {}),

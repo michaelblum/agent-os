@@ -32,6 +32,15 @@ function configurePrimaryShape({ tesseron = false } = {}) {
   syncAvatarAliasesFromGraph(state);
 }
 
+function hasFinitePositions(geometry) {
+  const attribute = geometry?.getAttribute?.('position');
+  if (!attribute?.array?.length) return false;
+  for (const value of attribute.array) {
+    if (!Number.isFinite(value)) return false;
+  }
+  return true;
+}
+
 test('primary stellation edits reuse the existing shape hierarchy', () => {
   configurePrimaryShape();
   updateGeometry(20);
@@ -84,4 +93,21 @@ test('primary tesseron suppresses stellation geometry updates without erasing st
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationSuppressed, 1);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
+});
+
+test('primary stellation replacement geometries stay finite for editable shapes', () => {
+  for (const type of [6, 92, 93]) {
+    configurePrimaryShape();
+    state.avatar.shape.type = type;
+    syncAvatarAliasesFromGraph(state);
+    updateGeometry(type);
+
+    state.avatar.shape.stellationFactor = 0.5;
+    const result = updatePrimaryStellation(0.5);
+
+    assert.deepEqual(result, { updated: true, suppressed: false });
+    assert.equal(hasFinitePositions(state.depthMesh.geometry), true, `depth geometry should be finite for type ${type}`);
+    assert.equal(hasFinitePositions(state.coreMesh.geometry), true, `core geometry should be finite for type ${type}`);
+    assert.equal(hasFinitePositions(state.wireframeMesh.geometry), true, `wire geometry should be finite for type ${type}`);
+  }
 });
