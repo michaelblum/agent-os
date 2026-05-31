@@ -189,6 +189,20 @@ test('Selection Mode effect frames redraw overlay and publish state without stru
   });
 });
 
+test('Selection Mode effect state transitions force a cleanup redraw even without an active effect reason', () => {
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['selection-mode'],
+    structuralDirty: false,
+    selectionModeEffectStateChanged: true,
+  }), {
+    continuationReasons: ['selection-mode'],
+    structural: false,
+    overlay: true,
+    publishState: true,
+    visualOnly: true,
+  });
+});
+
 test('Selection Mode perimeter fill redraws overlay without structural sync or state publish', () => {
   assert.deepEqual(renderLoopContinuationReasons({
     currentState: 'IDLE',

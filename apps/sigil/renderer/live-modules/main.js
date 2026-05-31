@@ -4252,13 +4252,14 @@ function animate() {
     const work = classifyRenderLoopWork({
         continuationReasons,
         structuralDirty: structuralFrameDirty || selectionModeOverlayCleanupFrame,
+        selectionModeEffectStateChanged,
     });
     structuralFrameDirty = false;
     liveJs.renderLoop.work = {
         visualOnly: work.visualOnly,
         structural: work.structural,
         overlay: work.overlay,
-        publishState: work.publishState || selectionModeEffectStateChanged,
+        publishState: work.publishState,
         idleMotionDelayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,
     };
     lastSelectionModeEffectActive = selectionModeEffectActive;

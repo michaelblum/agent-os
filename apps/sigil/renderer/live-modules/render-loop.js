@@ -36,6 +36,7 @@ export function classifyRenderLoopWork(frame = {}) {
         ? frame.continuationReasons
         : renderLoopContinuationReasons(frame);
     const structuralDirty = !!frame.structuralDirty;
+    const selectionModeEffectStateChanged = !!frame.selectionModeEffectStateChanged;
     const visualOnlyReasons = new Set(['avatar-motion', 'selection-mode']);
     const overlayOnlyReasons = new Set(['selection-mode-effect', 'selection-mode-perimeter-fill']);
     const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons]);
@@ -52,8 +53,14 @@ export function classifyRenderLoopWork(frame = {}) {
     return {
         continuationReasons,
         structural: structuralDirty || (!cheapFrame && continuationReasons.length > 0),
-        overlay: structuralDirty || overlayOnly || (!cheapFrame && continuationReasons.length > 0),
-        publishState: structuralDirty || publishSelectionEffectState || (!cheapFrame && continuationReasons.length > 0),
+        overlay: structuralDirty
+            || selectionModeEffectStateChanged
+            || overlayOnly
+            || (!cheapFrame && continuationReasons.length > 0),
+        publishState: structuralDirty
+            || selectionModeEffectStateChanged
+            || publishSelectionEffectState
+            || (!cheapFrame && continuationReasons.length > 0),
         visualOnly,
     };
 }
