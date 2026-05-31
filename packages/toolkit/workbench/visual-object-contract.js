@@ -47,6 +47,14 @@ function cloneOptions(options) {
   return options.map((option) => ({ ...option }));
 }
 
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isStateContainer(value) {
+  return isPlainObject(value) || Array.isArray(value);
+}
+
 function normalizeRange(source = {}) {
   const range = {};
   for (const key of ['min', 'max', 'step']) {
@@ -131,6 +139,106 @@ export function validateVisualObjectDescriptors(descriptors = []) {
     ok: results.every((result) => result.ok),
     results,
     errors: results.flatMap((result) => result.errors.map((error) => ({ id: result.id, ...error }))),
+  };
+}
+
+export function coerceVisualObjectDescriptorValue(descriptor = {}, value) {
+  switch (descriptor.coerce) {
+    case 'number': {
+      const number = Number(value);
+      if (!Number.isFinite(number)) {
+        throw new TypeError(`Visual object descriptor ${descriptor.id || '(unknown)'} requires a finite number.`);
+      }
+      return number;
+    }
+    case 'boolean':
+      return Boolean(value);
+    case 'boolean_inverse':
+      return !Boolean(value);
+    case 'string':
+      return String(value ?? '');
+    default:
+      return value;
+  }
+}
+
+function resolveStatePathParent(root, statePath) {
+  const parts = text(statePath).split('.').filter(Boolean);
+  if (parts.length === 0) {
+    throw new TypeError('Visual object descriptor mutation requires a state_path.');
+  }
+
+  let node = root;
+  for (let index = 0; index < parts.length - 1;) {
+    if (!isStateContainer(node)) {
+      throw new TypeError(`Cannot traverse non-object state at ${parts.slice(0, index).join('.') || '(root)'}.`);
+    }
+
+    let matchedKey = null;
+    let matchedEnd = index;
+    for (let end = parts.length - 1; end > index; end -= 1) {
+      const candidate = parts.slice(index, end).join('.');
+      if (Object.prototype.hasOwnProperty.call(node, candidate)) {
+        matchedKey = candidate;
+        matchedEnd = end;
+        break;
+      }
+    }
+
+    if (!matchedKey) {
+      matchedKey = parts[index];
+      matchedEnd = index + 1;
+      node[matchedKey] = {};
+    }
+
+    node = node[matchedKey];
+    index = matchedEnd;
+  }
+
+  if (!isStateContainer(node)) {
+    throw new TypeError(`Cannot write visual object descriptor state_path ${statePath}.`);
+  }
+
+  for (let index = parts.length - 1; index > 0; index -= 1) {
+    const candidate = parts.slice(index).join('.');
+    if (Object.prototype.hasOwnProperty.call(node, candidate)) {
+      return { parent: node, key: candidate };
+    }
+  }
+
+  return { parent: node, key: parts[parts.length - 1] };
+}
+
+export function applyVisualObjectDescriptorMutation(state, descriptor = {}, value, {
+  validate = true,
+} = {}) {
+  if (!isPlainObject(state)) {
+    throw new TypeError('Visual object descriptor mutation requires a plain JSON state object.');
+  }
+  if (descriptor.projection?.classification === 'projection_only') {
+    throw new TypeError(`Projection-only descriptor ${descriptor.id || '(unknown)'} cannot mutate canonical state.`);
+  }
+  if (validate) {
+    const result = validateVisualObjectDescriptor(descriptor);
+    if (!result.ok) {
+      throw new TypeError(`Invalid visual object descriptor ${descriptor.id || '(unknown)'}: ${result.errors.map((error) => error.code).join(', ')}`);
+    }
+  }
+  if (!text(descriptor.route)) {
+    throw new TypeError(`Visual object descriptor ${descriptor.id || '(unknown)'} requires a route.`);
+  }
+
+  const { parent, key } = resolveStatePathParent(state, descriptor.state_path);
+  const previousValue = parent[key];
+  const nextValue = coerceVisualObjectDescriptorValue(descriptor, value);
+  parent[key] = nextValue;
+  return {
+    descriptor_id: descriptor.id || null,
+    state_path: descriptor.state_path,
+    route: descriptor.route,
+    renderer_sync: normalizedArray(descriptor.renderer_sync),
+    previous_value: previousValue,
+    value: nextValue,
   };
 }
 

@@ -25,6 +25,7 @@ import {
   subjectReferences,
 } from '../../packages/toolkit/workbench/subject.js'
 import {
+  applyVisualObjectDescriptorMutation,
   validateVisualObjectDescriptors,
   VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
 } from '../../packages/toolkit/workbench/visual-object-contract.js'
@@ -134,6 +135,54 @@ test('radial menu visual descriptors validate and serialize as non-avatar contra
   assert.equal(exportAction.projection.classification, 'projection_only')
   assert.equal(exportAction.projection.reason, 'app-action-shortcut')
   assert.equal(exportAction.action_id, 'aos.radial_menu.export')
+})
+
+test('radial menu descriptors patch representative non-avatar JSON state', () => {
+  const menu = resolvedSigilMenu()
+  const descriptors = createRadialMenuVisualObjectDescriptors({
+    menu,
+    selectedItemId: 'wiki-graph',
+  })
+  const byId = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]))
+  const state = {
+    radial_menu: {
+      'sigil.radial.main': {
+        selected_item_id: 'wiki-graph',
+        items: {
+          'wiki-graph': {
+            geometry: { radiusScale: 1 },
+            hidden: false,
+            effects: [{ enabled: true }],
+          },
+        },
+      },
+    },
+  }
+
+  const radius = applyVisualObjectDescriptorMutation(
+    state,
+    byId.get('radial-menu-sigil.radial.main-wiki-graph-radius-scale'),
+    '1.35',
+  )
+  const visible = applyVisualObjectDescriptorMutation(
+    state,
+    byId.get('radial-menu-sigil.radial.main-wiki-graph-visible'),
+    false,
+  )
+  const effect = applyVisualObjectDescriptorMutation(
+    state,
+    byId.get('radial-menu-sigil.radial.main-wiki-graph-effect-enabled'),
+    false,
+  )
+  const roundTrip = JSON.parse(JSON.stringify(state))
+
+  assert.equal(state.radial_menu['sigil.radial.main'].items['wiki-graph'].geometry.radiusScale, 1.35)
+  assert.equal(state.radial_menu['sigil.radial.main'].items['wiki-graph'].hidden, true)
+  assert.equal(state.radial_menu['sigil.radial.main'].items['wiki-graph'].effects[0].enabled, false)
+  assert.equal(radius.route, 'canvas_object.transform.patch')
+  assert.equal(visible.route, 'canvas_object.visibility.patch')
+  assert.equal(effect.route, 'canvas_object.effects.patch')
+  assert.deepEqual(roundTrip, state)
 })
 
 test('radial menu entry handles address resources without graph-node promotion', () => {

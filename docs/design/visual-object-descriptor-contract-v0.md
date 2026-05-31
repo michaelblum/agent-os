@@ -58,6 +58,11 @@ Phase 5 adds two non-avatar proofs:
 - `createToolkitSliderVisualObjectDescriptor()` proves an editable
   `dom-toolkit` control can use the same descriptor envelope without migrating
   the controls package.
+- `applyVisualObjectDescriptorMutation()` applies an editable descriptor's
+  `state_path`, `route`, and `coerce` metadata to a plain JSON state graph. It
+  returns the route and renderer sync labels for the caller's in-place update
+  path, and rejects `projection_only` descriptors instead of mutating canonical
+  state.
 
 ## Technology Examples
 
@@ -113,3 +118,15 @@ The first broad Phase 5 slice validates non-avatar visuals against this
 contract. Radial menu descriptors prove descriptor validation, projection-only
 classification, patch routing, JSON serialization, technology identity, and
 non-avatar evidence contracts without migrating Sigil renderer internals.
+
+The follow-up mutation/update proof covers the full deterministic loop:
+
+```text
+canonical state graph -> descriptor -> routed mutation -> minimal update
+```
+
+The shared mutation helper stays technology-neutral. Tests use radial menu
+descriptors to patch transform, visibility, and effect JSON paths; a
+DesktopWorld 2D fixture to re-run `applyWorldTransform()` on the same target
+node; and a toolkit slider descriptor to route the patched value through the
+existing `setValue()` path while preserving root element identity.

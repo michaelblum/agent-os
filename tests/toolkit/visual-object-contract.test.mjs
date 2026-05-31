@@ -4,6 +4,7 @@ import {
   createVisualObjectContractExample,
   createVisualObjectDescriptor,
   createToolkitSliderVisualObjectDescriptor,
+  applyVisualObjectDescriptorMutation,
   validateVisualObjectDescriptor,
   validateVisualObjectDescriptors,
   VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
@@ -97,4 +98,85 @@ test('toolkit slider descriptor proves editable DOM controls use the same contra
   assert.ok(roundTrip.evidence_contracts.includes('dom_toolkit_control_value'));
   assert.ok(roundTrip.evidence_contracts.includes('non_avatar_visual_object'));
   assert.equal(validateVisualObjectDescriptor(roundTrip).ok, true);
+});
+
+test('descriptor-addressed mutation applies coerced values into plain JSON state', () => {
+  const descriptor = createVisualObjectDescriptor({
+    id: 'overlay-opacity',
+    label: 'Overlay opacity',
+    kind: 'slider',
+    technology: 'canvas-2d',
+    state_path: 'overlays.heatmap.opacity',
+    route: 'canvas_object.effects.patch',
+    coerce: 'number',
+    renderer_sync: ['syncOverlayOpacity'],
+    group_key: 'overlays.heatmap',
+    object_ids: ['overlay.heatmap'],
+  });
+  const state = { overlays: { heatmap: { opacity: 0.25 } } };
+
+  const result = applyVisualObjectDescriptorMutation(state, descriptor, '0.75');
+
+  assert.equal(state.overlays.heatmap.opacity, 0.75);
+  assert.deepEqual(result, {
+    descriptor_id: 'overlay-opacity',
+    state_path: 'overlays.heatmap.opacity',
+    route: 'canvas_object.effects.patch',
+    renderer_sync: ['syncOverlayOpacity'],
+    previous_value: 0.25,
+    value: 0.75,
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(state)), state);
+});
+
+test('descriptor-addressed mutation resolves existing dotted object keys', () => {
+  const descriptor = createVisualObjectDescriptor({
+    id: 'radial-radius-scale',
+    label: 'Radius scale',
+    kind: 'slider',
+    technology: 'threejs-3d',
+    state_path: 'radial_menu.sigil.radial.main.items.wiki-graph.geometry.radiusScale',
+    route: 'canvas_object.transform.patch',
+    coerce: 'number',
+    renderer_sync: ['renderRadialMenuPreview'],
+    group_key: 'radial-menu.geometry',
+    object_ids: ['radial-menu.sigil.radial.main.item.wiki-graph'],
+  });
+  const state = {
+    radial_menu: {
+      'sigil.radial.main': {
+        items: {
+          'wiki-graph': {
+            geometry: { radiusScale: 1 },
+          },
+        },
+      },
+    },
+  };
+
+  const result = applyVisualObjectDescriptorMutation(state, descriptor, 1.5);
+
+  assert.equal(state.radial_menu['sigil.radial.main'].items['wiki-graph'].geometry.radiusScale, 1.5);
+  assert.equal(result.previous_value, 1);
+  assert.equal(result.value, 1.5);
+});
+
+test('projection-only descriptors cannot silently mutate canonical state', () => {
+  const descriptor = createVisualObjectDescriptor({
+    id: 'preview-resource',
+    label: 'Preview',
+    kind: 'resource',
+    technology: 'threejs-3d',
+    projection: {
+      classification: 'projection_only',
+      reason: 'runtime-or-world-projection',
+    },
+  });
+  const state = { preview: { visible: true } };
+
+  assert.throws(
+    () => applyVisualObjectDescriptorMutation(state, descriptor, false),
+    /Projection-only descriptor preview-resource cannot mutate canonical state/,
+  );
+  assert.deepEqual(state, { preview: { visible: true } });
 });

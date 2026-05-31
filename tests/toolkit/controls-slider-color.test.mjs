@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createColorField, createSlider, renderColorFieldHtml, renderSliderHtml } from '../../packages/toolkit/controls/index.js';
+import {
+  applyVisualObjectDescriptorMutation,
+  createToolkitSliderVisualObjectDescriptor,
+} from '../../packages/toolkit/workbench/visual-object-contract.js';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
 import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs';
 
@@ -38,6 +42,40 @@ test('createSlider exposes single-thumb value through Zag slider semantics', () 
   assert.equal(slider.getValue(), 0.75);
   assert.deepEqual(changes, [0.75]);
   assert.equal(output.textContent, '0.75 x');
+});
+
+test('slider descriptor mutation syncs through setValue without replacing the root element', () => {
+  const document = createPatchedDocument();
+  const slider = createSlider({
+    document,
+    id: 'opacity-control',
+    label: 'Opacity',
+    value: 0.2,
+    min: 0,
+    max: 1,
+    step: 0.05,
+  });
+  const descriptor = createToolkitSliderVisualObjectDescriptor({
+    id: 'toolkit-slider-opacity',
+    label: 'Opacity',
+    state_path: 'toolkit.controls.opacity.value',
+    min: 0,
+    max: 1,
+    step: 0.05,
+    object_ids: ['dom.aos-slider.opacity'],
+  });
+  const state = { toolkit: { controls: { opacity: { value: 0.2 } } } };
+  const root = slider.el;
+
+  const result = applyVisualObjectDescriptorMutation(state, descriptor, '0.65');
+  slider.setValue(result.value);
+
+  assert.equal(result.route, 'dom_toolkit.control.value.patch');
+  assert.equal(state.toolkit.controls.opacity.value, 0.65);
+  assert.equal(slider.el, root);
+  assert.equal(slider.getValue(), 0.65);
+  assert.equal(slider.el.querySelector('[data-aos-slider-output]').textContent, '0.65');
+  assert.deepEqual(JSON.parse(JSON.stringify(state)), state);
 });
 
 test('createSlider preserves array value shape for two-thumb sliders', () => {
