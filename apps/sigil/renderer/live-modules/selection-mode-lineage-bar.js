@@ -322,6 +322,28 @@ function selectablePath(path = [], activeDisplay = null) {
     return next.filter((node) => nodeId(node));
 }
 
+function lineageNodeKey(node = {}) {
+    return [
+        nodeId(node),
+        String(node.address || '').trim(),
+        String(node.subject_id || '').trim(),
+    ].filter(Boolean).join('|');
+}
+
+function collapseAdjacentDuplicateNodes(path = []) {
+    if (!Array.isArray(path) || !path.length) return [];
+    const collapsed = [];
+    let priorKey = '';
+    for (const node of path) {
+        const key = lineageNodeKey(node);
+        if (!key) continue;
+        if (key === priorKey) continue;
+        collapsed.push(node);
+        priorKey = key;
+    }
+    return collapsed;
+}
+
 function projectBounds(bounds = null, projectPoint = (point) => point) {
     if (!bounds) return null;
     const origin = projectPoint({ x: bounds.x, y: bounds.y, valid: true });
@@ -466,7 +488,7 @@ export function buildSelectionModeLineageBarModel({
         path,
     });
     const displayRect = activeDisplayProjectedRect({ activeDisplay, path, overlayBounds, projectPoint });
-    const lineagePath = selectablePath(path, activeDisplay);
+    const lineagePath = collapseAdjacentDuplicateNodes(selectablePath(path, activeDisplay));
     if (!displayRect || !lineagePath.length) {
         return {
             lineageBar: {

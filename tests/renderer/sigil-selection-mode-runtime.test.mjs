@@ -686,6 +686,37 @@ test('Selection Mode lineage bar skips union roots and preserves selectable path
   assert.ok(bar.items.filter((item) => item.visibleRect).every((item) => item.visibleRect.x + item.visibleRect.width <= bar.rect.x + bar.rect.width))
 })
 
+test('Selection Mode lineage bar collapses consecutive duplicate nodes', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 25, w: 320, h: 220 }, { kind: 'display', role: 'display', label: 'Display 1' }),
+    candidate('window', { x: 20, y: 40, w: 240, h: 160 }, { kind: 'window', role: 'native_window', label: 'Scroll Area' }),
+    candidate('window', { x: 20, y: 40, w: 240, h: 160 }, { kind: 'window', role: 'native_window', label: 'Scroll Area' }),
+    candidate('leaf', { x: 40, y: 70, w: 120, h: 32 }, { kind: 'button', role: 'button', label: 'Save' }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 100, y: 90, valid: true },
+    selected_node_id: 'leaf',
+    path_candidates: path,
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 100, y: 90, valid: true } },
+      }],
+    },
+  }, {
+    displays: [{ id: 'display-1', visibleBounds: { x: 0, y: 25, w: 320, h: 220 } }],
+    projectPoint: (point) => point,
+    overlayBounds: { x: 0, y: 0, w: 320, h: 260 },
+  })
+
+  const bar = overlay.lineageBar
+  assert.deepEqual(bar.items.map((item) => item.nodeId), ['display-root', 'window', 'leaf'])
+  assert.equal(bar.itemCount, 3)
+  assert.equal(bar.separators.length, 2)
+})
+
 test('Selection Mode lineage bar scrolls long paths without compressing target pills', () => {
   const path = [
     candidate('display-root', { x: 0, y: 25, w: 280, h: 190 }, { kind: 'display', role: 'display', label: 'Display' }),
