@@ -257,11 +257,32 @@ export function createForm(container, fields = [], options = {}) {
     }
   };
 
-  const emitChange = () => {
+  const fieldChangePayload = (record) => {
+    if (!record) return null;
+    return {
+      id: record.field.id,
+      field_id: record.field.id,
+      value: record.control.getValue(),
+      field: record.field,
+      binding: record.field.binding && typeof record.field.binding === 'object'
+        ? { ...record.field.binding }
+        : null,
+      metadata: { ...record.el.dataset },
+      values: currentValues(),
+    };
+  };
+
+  const emitChange = (record = null) => {
     evaluateVisibility();
     const values = currentValues();
+    const fieldChange = fieldChangePayload(record);
     options.onChange?.(values);
     hub.emit('change', values);
+    if (fieldChange) {
+      options.onFieldChange?.(fieldChange);
+      hub.emit('field-change', fieldChange);
+      dispatchDomEvent(formEl, 'field-change', { value: fieldChange });
+    }
     dispatchDomEvent(formEl, 'change', { value: values });
   };
 
@@ -277,7 +298,7 @@ export function createForm(container, fields = [], options = {}) {
       fieldEl.appendChild(labelEl);
     }
     const control = controlForField(doc, field);
-    control.on?.('change', emitChange);
+    control.on?.('change', () => emitChange(records.get(field.id)));
     setControlDisabled(control, disabled);
     fieldEl.appendChild(control.el);
     parentEl.appendChild(fieldEl);
@@ -373,10 +394,13 @@ export function createForm(container, fields = [], options = {}) {
       }
     },
     on(type, callback) {
-      return type === 'change' ? hub.on(type, callback) : () => {};
+      return ['change', 'field-change'].includes(type) ? hub.on(type, callback) : () => {};
     },
     onChange(callback) {
       return hub.on('change', callback);
+    },
+    onFieldChange(callback) {
+      return hub.on('field-change', callback);
     },
     destroy() {
       if (destroyed) return;

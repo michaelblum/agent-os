@@ -187,6 +187,40 @@ test('onChange callback receives current values on field change', () => {
   assert.equal(changes.length, 1);
 });
 
+test('onFieldChange callback receives field-level binding payloads without changing onChange values', () => {
+  const valueChanges = [];
+  const fieldChanges = [];
+  const document = createPatchedDocument();
+  const container = document.createElement('section');
+  document.body.appendChild(container);
+  const form = createForm(container, [{
+    id: 'opacity',
+    descriptor_id: 'toolkit-slider-opacity',
+    kind: 'slider',
+    value: 0.25,
+    min: 0,
+    max: 1,
+    step: 0.05,
+    binding: {
+      state_path: 'toolkit.controls.opacity.value',
+      route: 'dom_toolkit.control.value.patch',
+    },
+  }], {
+    onChange: (values) => valueChanges.push(values),
+    onFieldChange: (change) => fieldChanges.push(change),
+  });
+
+  form.getField('opacity').control.setValue(0.5, { emit: true });
+
+  assert.deepEqual(valueChanges, [{ opacity: 0.5 }]);
+  assert.equal(fieldChanges.length, 1);
+  assert.equal(fieldChanges[0].field_id, 'opacity');
+  assert.equal(fieldChanges[0].value, 0.5);
+  assert.equal(fieldChanges[0].field.descriptor_id, 'toolkit-slider-opacity');
+  assert.equal(fieldChanges[0].binding.state_path, 'toolkit.controls.opacity.value');
+  assert.equal(fieldChanges[0].metadata.descriptorId, 'toolkit-slider-opacity');
+});
+
 test('createForm renders sectioned data-editor fields with binding metadata', () => {
   const { form } = mount([
     {

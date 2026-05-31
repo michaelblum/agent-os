@@ -68,6 +68,11 @@ Phase 5 adds two non-avatar proofs:
   dispatches the descriptor `route`, then invokes `renderer_sync` handlers in
   descriptor order. The helper is generic and accepts caller-owned route and
   sync handler maps.
+- `packages/toolkit/workbench/visual-object-form-binding.js` binds workbench
+  form field changes to the controller adapter. It resolves a descriptor from
+  field `descriptor_id`, field id, or explicit binding metadata such as
+  `state_path` plus `route`, rejects missing bindings and projection-only
+  descriptors, and returns the deterministic controller update result.
 
 ## Technology Examples
 
@@ -141,3 +146,32 @@ Descriptor boolean coercion is explicit. `boolean` accepts booleans, `1`/`0`,
 and the strings `true`, `false`, `on`, `off`, `yes`, `no`, and the empty
 string. `boolean_inverse` accepts the same vocabulary and inverts the result.
 Ambiguous strings throw instead of relying on JavaScript truthiness.
+
+## Workbench Form Binding Loop
+
+Workbench editor surfaces own form construction and live handlers. The shared
+contract boundary is:
+
+- Descriptor contract: declares editable state address, route, coercion,
+  renderer sync labels, grouping, and projection classification.
+- Controller adapter: applies the descriptor update to a caller-owned JSON state
+  object, invokes route handlers, and invokes renderer sync handlers.
+- Form binding helper: translates a form field-change payload into the
+  descriptor addressed controller update.
+- Surface or app code: owns concrete route handlers, renderer sync handlers,
+  product state, and any live renderer behavior.
+
+The intended field loop is:
+
+```text
+workbench form field change
+  -> descriptor lookup from descriptor_id/field id/binding metadata
+  -> applyVisualObjectControllerUpdate()
+  -> route handler
+  -> renderer_sync handler
+  -> stable target update
+```
+
+Projection-only descriptors remain read-only from this path. They can describe
+runtime affordances, app actions, or derived views, but form binding must not
+turn them into canonical state mutation.
