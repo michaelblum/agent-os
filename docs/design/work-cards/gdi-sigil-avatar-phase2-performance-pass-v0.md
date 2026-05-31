@@ -78,13 +78,28 @@ Use judgment from the code, but cover this broad Phase 2 surface:
 
 3. Remaining active minimal-update coverage
    - Inspect active avatar descriptors that still route through `updateGeometry`.
-     Leave true structural controls, such as shape type and tesseron topology,
-     as rebuild paths.
+     Leave true structural controls, such as shape type and tesseron
+     enable/disable topology, as rebuild paths.
    - Convert non-structural active controls to a minimal renderer sync hook when
      that can be done without changing product behavior.
    - Make any retained rebuild boundary explicit in the completion report.
 
-4. Stability and serialization
+4. Tesseron modifier framing
+   - Treat tesseron as a shape modifier or derived visual layer, not ordinary
+     base geometry. Keep canonical state near shape semantics; the current
+     `state.avatar.shape.tesseron` path is acceptable for this slice, and a
+     future `state.avatar.shape.modifiers.tesseron` migration is not required.
+   - Prefer effect-style renderer behavior for tesseron parameters: child/link
+     coordinate buffers should be derived from mother geometry and updated in
+     place for proportion, link opacity/pulse, and child appearance where this
+     is locally achievable.
+   - Enabling or disabling tesseron may remain structural. Parameter edits inside
+     an already-enabled tesseron should be considered minimal-update candidates.
+   - Do not force a full tesseron migration if it would dominate the Phase 2
+     pass. If only the conceptual boundary is recorded, state the follow-up
+     clearly in the completion report.
+
+5. Stability and serialization
    - Existing stellation no-rebuild and memory-stability behavior must remain
      intact.
    - `state.avatar` must remain JSON-serializable after deterministic update
@@ -103,7 +118,7 @@ extract platform contracts, rewrite the workbench, or pursue non-avatar visuals.
 
 - Do not introduce morph targets or GPU stellation uniforms unless they are the
   smallest safe way to complete the pass.
-- Do not change shape/tesseron structural semantics.
+- Do not change shape/tesseron enable-disable structural semantics.
 - Do not optimize omega unless sharing a small helper is safer than primary-only
   duplication.
 - Do not create GitHub issues or PRs.
@@ -115,6 +130,7 @@ Likely paths:
 
 - `apps/sigil/renderer/geometry.js`
 - `apps/sigil/renderer/avatar-shape-composition.js`
+- `apps/sigil/renderer/tesseron.js`
 - `apps/sigil/renderer/colors.js`
 - `apps/sigil/renderer/skins.js`
 - `apps/sigil/context-menu/descriptors.js`
@@ -173,6 +189,8 @@ Include:
 - files changed;
 - exact tests run and results;
 - deterministic no-full-rebuild evidence for covered non-structural controls;
+- tesseron modifier boundary: what became minimal, what remains structural, and
+  what should be routed as a follow-up;
 - resource reuse/disposal evidence, including any cache/pool bounds;
 - live AOS result or readiness blocker;
 - JSON serialization result;
