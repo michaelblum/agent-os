@@ -180,7 +180,14 @@ function descriptor({
     };
 }
 
-function shapeParamDescriptor({ id, label, statePath, shape, selector = 'sigil-menu-shape-select' }) {
+function shapeParamDescriptor({
+    id,
+    label,
+    statePath,
+    shape,
+    selector = 'sigil-menu-shape-select',
+    rendererSync = ['updateGeometry'],
+}) {
     return descriptor({
         id,
         panel: 'shape',
@@ -190,7 +197,7 @@ function shapeParamDescriptor({ id, label, statePath, shape, selector = 'sigil-m
         path: statePath,
         coerce: NUMBER,
         route: 'canvas_object.transform.patch',
-        rendererSync: ['updateGeometry', 'updateOmegaGeometry'],
+        rendererSync,
         visibleWhen: { field: selector, equals: shape },
     });
 }
@@ -282,19 +289,19 @@ const CONTROL_DESCRIPTORS = [
     descriptor({ id: 'sigil-menu-avatar-above-menu', panel: 'world', label: 'Avatar Above Menu Bar', type: 'checkbox', path: 'avatarWindowLevel', coerce: BOOLEAN, route: 'world-context.patch', rendererSync: 'onAvatarWindowLevelChange', afterApply: 'avatarWindowLevel' }),
     descriptor({ id: 'sigil-menu-omega-enabled', panel: 'shape', card: 'omega', label: 'Enable Omega', type: 'checkbox', path: 'avatar.effects.omega.enabled', coerce: BOOLEAN, route: 'canvas_object.transform.patch' }),
     descriptor({ id: 'sigil-menu-omega-shape', panel: 'shape', card: 'omega', label: 'Omega Geometry', type: 'select', path: 'avatar.effects.omega.shape.type', coerce: GEOMETRY, route: 'canvas_object.transform.patch', rendererSync: 'updateOmegaGeometry' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-tetartoid-a', label: 'Omega Tetartoid A', statePath: 'avatar.shape.params.tetartoid.a', shape: 90, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-tetartoid-b', label: 'Omega Tetartoid B', statePath: 'avatar.shape.params.tetartoid.b', shape: 90, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-tetartoid-c', label: 'Omega Tetartoid C', statePath: 'avatar.shape.params.tetartoid.c', shape: 90, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-torus-radius', label: 'Omega Torus Radius', statePath: 'avatar.shape.params.torus.radius', shape: 92, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-torus-tube', label: 'Omega Torus Tube', statePath: 'avatar.shape.params.torus.tube', shape: 92, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-torus-arc', label: 'Omega Torus Arc', statePath: 'avatar.shape.params.torus.arc', shape: 92, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-top-radius', label: 'Omega Prism Top Radius', statePath: 'avatar.shape.params.cylinder.topRadius', shape: 93, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-bottom-radius', label: 'Omega Prism Bottom Radius', statePath: 'avatar.shape.params.cylinder.bottomRadius', shape: 93, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-height', label: 'Omega Prism Height', statePath: 'avatar.shape.params.cylinder.height', shape: 93, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-sides', label: 'Omega Prism Sides', statePath: 'avatar.shape.params.cylinder.sides', shape: 93, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-box-width', label: 'Omega Box Width', statePath: 'avatar.shape.params.box.width', shape: 6, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-box-height', label: 'Omega Box Height', statePath: 'avatar.shape.params.box.height', shape: 6, selector: 'sigil-menu-omega-shape' }),
-    shapeParamDescriptor({ id: 'sigil-menu-omega-box-depth', label: 'Omega Box Depth', statePath: 'avatar.shape.params.box.depth', shape: 6, selector: 'sigil-menu-omega-shape' }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-tetartoid-a', label: 'Omega Tetartoid A', statePath: 'avatar.effects.omega.shape.params.tetartoid.a', shape: 90, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-tetartoid-b', label: 'Omega Tetartoid B', statePath: 'avatar.effects.omega.shape.params.tetartoid.b', shape: 90, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-tetartoid-c', label: 'Omega Tetartoid C', statePath: 'avatar.effects.omega.shape.params.tetartoid.c', shape: 90, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-torus-radius', label: 'Omega Torus Radius', statePath: 'avatar.effects.omega.shape.params.torus.radius', shape: 92, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-torus-tube', label: 'Omega Torus Tube', statePath: 'avatar.effects.omega.shape.params.torus.tube', shape: 92, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-torus-arc', label: 'Omega Torus Arc', statePath: 'avatar.effects.omega.shape.params.torus.arc', shape: 92, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-top-radius', label: 'Omega Prism Top Radius', statePath: 'avatar.effects.omega.shape.params.cylinder.topRadius', shape: 93, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-bottom-radius', label: 'Omega Prism Bottom Radius', statePath: 'avatar.effects.omega.shape.params.cylinder.bottomRadius', shape: 93, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-height', label: 'Omega Prism Height', statePath: 'avatar.effects.omega.shape.params.cylinder.height', shape: 93, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-prism-sides', label: 'Omega Prism Sides', statePath: 'avatar.effects.omega.shape.params.cylinder.sides', shape: 93, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-box-width', label: 'Omega Box Width', statePath: 'avatar.effects.omega.shape.params.box.width', shape: 6, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-box-height', label: 'Omega Box Height', statePath: 'avatar.effects.omega.shape.params.box.height', shape: 6, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
+    shapeParamDescriptor({ id: 'sigil-menu-omega-box-depth', label: 'Omega Box Depth', statePath: 'avatar.effects.omega.shape.params.box.depth', shape: 6, selector: 'sigil-menu-omega-shape', rendererSync: ['updateOmegaGeometry'] }),
     descriptor({ id: 'sigil-menu-omega-tesseron', panel: 'shape', card: 'omega', label: 'Omega Tesseron', type: 'checkbox', path: 'avatar.effects.omega.shape.tesseron.enabled', coerce: BOOLEAN, route: 'canvas_object.transform.patch', rendererSync: 'updateOmegaGeometry' }),
     descriptor({ id: 'sigil-menu-omega-tesseron-proportion', panel: 'shape', card: 'omega', label: 'Omega Child Proportion', type: 'slider', path: 'avatar.effects.omega.shape.tesseron.proportion', coerce: NUMBER, route: 'canvas_object.transform.patch', rendererSync: 'updateOmegaGeometry' }),
     descriptor({ id: 'sigil-menu-omega-tesseron-match', panel: 'shape', card: 'omega', label: 'Omega Match Mother', type: 'checkbox', path: 'avatar.effects.omega.shape.tesseron.matchMother', coerce: BOOLEAN, route: 'canvas_object.transform.patch', rendererSync: 'updateOmegaGeometry' }),

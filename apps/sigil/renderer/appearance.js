@@ -94,6 +94,12 @@ function avatarFromAppearanceBlob(blob) {
                 shape: {
                     type: blob.omega.shape,
                     stellationFactor: blob.omega.stellation,
+                    params: {
+                        box: { ...blob.shapeParams.box },
+                        torus: { ...blob.shapeParams.torus },
+                        cylinder: { ...blob.shapeParams.cylinder },
+                        tetartoid: { ...blob.shapeParams.tetartoid },
+                    },
                     tesseron: blob.omega.tesseron,
                 },
                 scale: blob.omega.scale,

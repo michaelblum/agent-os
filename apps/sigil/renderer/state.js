@@ -135,6 +135,12 @@ export function createDefaultAvatarState() {
                 shape: {
                     type: 4,
                     stellationFactor: 0,
+                    params: {
+                        box: { width: 1.0, height: 1.0, depth: 1.0 },
+                        torus: { radius: 1.0, tube: 0.4, arc: 1.0 },
+                        cylinder: { topRadius: 1.0, bottomRadius: 1.0, height: 2.0, sides: 32 },
+                        tetartoid: { a: 1.0, b: 1.0, c: 1.0 },
+                    },
                     tesseron: {
                         enabled: false,
                         proportion: 0.5,

@@ -35,6 +35,12 @@ function avatarState(overrides = {}) {
           enabled: true,
           shape: {
             type: 8,
+            params: {
+              tetartoid: { a: 1.8, b: 1.4, c: 1.2 },
+              torus: { radius: 0.9, tube: 0.35, arc: 0.5 },
+              cylinder: { topRadius: 0.6, bottomRadius: 1.1, height: 1.8, sides: 7 },
+              box: { width: 0.9, height: 1.2, depth: 1.7 },
+            },
             tesseron: { enabled: false, proportion: 0.45, matchMother: true },
           },
         },
@@ -116,7 +122,8 @@ test('compact avatar surface view model maps object graph tabs to toolkit form c
   const omegaGeometry = omegaControls.find((control) => control.descriptor_id === 'sigil-menu-omega-shape');
   const omegaTetartoidB = omegaControls.find((control) => control.descriptor_id === 'sigil-menu-omega-tetartoid-b');
   assert.equal(omegaTetartoidB.kind, 'slider');
-  assert.equal(omegaTetartoidB.binding.state_path, 'avatar.shape.params.tetartoid.b');
+  assert.equal(omegaTetartoidB.binding.state_path, 'avatar.effects.omega.shape.params.tetartoid.b');
+  assert.equal(omegaTetartoidB.value, 1.4);
   assert.equal(omegaTetartoidB.visible_when.field, omegaGeometry.id);
   assert.equal(omegaTetartoidB.visible_when.equals, 90);
 

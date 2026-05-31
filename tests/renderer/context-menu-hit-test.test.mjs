@@ -320,7 +320,38 @@ test('descriptor routing applies shape-specific prism parameters through shared 
 
   assert.equal(result.route, 'canvas_object.transform.patch')
   assert.equal(state.avatar.shape.params.cylinder.sides, 12)
-  assert.deepEqual(calls, [['alpha', 93], ['omega', 93]])
+  assert.deepEqual(calls, [['alpha', 93]])
+})
+
+test('descriptor routing applies omega shape parameters through omega canonical graph only', () => {
+  const calls = []
+  const state = {
+    avatar: {
+      shape: {
+        type: 93,
+        params: { cylinder: { sides: 32 } },
+      },
+      appearance: {},
+      effects: {
+        omega: {
+          shape: {
+            type: 93,
+            params: { cylinder: { sides: 16 } },
+          },
+        },
+      },
+    },
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-omega-prism-sides', '12', {
+    state,
+    updateGeometry(value) { calls.push(['alpha', value]) },
+    updateOmegaGeometry(value) { calls.push(['omega', value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.params.cylinder.sides, 32)
+  assert.equal(state.avatar.effects.omega.shape.params.cylinder.sides, 12)
+  assert.deepEqual(calls, [['omega', 93]])
 })
 
 test('descriptor routing applies a tesseron control and preserves child overrides', () => {

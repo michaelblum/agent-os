@@ -54,6 +54,12 @@ function avatarState(overrides = {}) {
         enabled: true,
         shape: {
           type: 8,
+          params: {
+            tetartoid: { a: 1.8, b: 1.4, c: 1.2 },
+            torus: { radius: 0.9, tube: 0.35, arc: 0.5 },
+            cylinder: { topRadius: 0.6, bottomRadius: 1.1, height: 1.8, sides: 7 },
+            box: { width: 0.9, height: 1.2, depth: 1.7 },
+          },
           tesseron: { enabled: false, proportion: 0.45, matchMother: true },
           stellationFactor: 0.1,
         },
@@ -233,7 +239,7 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   assert.equal(prismSides.max, 64);
   assert.equal(prismSides.step, 1);
   assert.deepEqual(prismSides.visible_when, { field: alphaGeometry.id, equals: 93 });
-  assert.deepEqual(prismSides.renderer_sync, ['updateGeometry', 'updateOmegaGeometry']);
+  assert.deepEqual(prismSides.renderer_sync, ['updateGeometry']);
 
   const tetartoidA = getSigilAvatarEditorControl(model, 'sigil-menu-tetartoid-a');
   assert.equal(tetartoidA.state_path, 'avatar.shape.params.tetartoid.a');
@@ -245,8 +251,9 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   assert.equal(omegaGeometry.value, 8);
   assert.equal(omegaGeometry.object_ids[0], SIGIL_AVATAR_CHILD_OBJECT_IDS.omegaShape);
   const omegaTorusTube = getSigilAvatarEditorControl(model, 'sigil-menu-omega-torus-tube');
-  assert.equal(omegaTorusTube.state_path, 'avatar.shape.params.torus.tube');
-  assert.equal(omegaTorusTube.value, 0.25);
+  assert.equal(omegaTorusTube.state_path, 'avatar.effects.omega.shape.params.torus.tube');
+  assert.equal(omegaTorusTube.value, 0.35);
+  assert.deepEqual(omegaTorusTube.renderer_sync, ['updateOmegaGeometry']);
   assert.deepEqual(omegaTorusTube.visible_when, { field: omegaGeometry.id, equals: 92 });
 
   const lightning = getSigilAvatarEditorControl(model, 'sigil-menu-lightning');

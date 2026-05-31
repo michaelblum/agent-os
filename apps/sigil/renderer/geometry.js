@@ -20,8 +20,26 @@ export function createTetartoid(size, a, b, c) {
     return createSharedTetartoid(globalThis.THREE || THREE, size, a, b, c);
 }
 
-function createBaseGeometry(type, size) {
-    return createAvatarBaseGeometry(globalThis.THREE || THREE, type, size, state);
+function shapeParamSource(params = {}) {
+    return {
+        boxWidth: params.box?.width ?? state.boxWidth,
+        boxHeight: params.box?.height ?? state.boxHeight,
+        boxDepth: params.box?.depth ?? state.boxDepth,
+        torusRadius: params.torus?.radius ?? state.torusRadius,
+        torusTube: params.torus?.tube ?? state.torusTube,
+        torusArc: params.torus?.arc ?? state.torusArc,
+        cylinderTopRadius: params.cylinder?.topRadius ?? state.cylinderTopRadius,
+        cylinderBottomRadius: params.cylinder?.bottomRadius ?? state.cylinderBottomRadius,
+        cylinderHeight: params.cylinder?.height ?? state.cylinderHeight,
+        cylinderSides: params.cylinder?.sides ?? state.cylinderSides,
+        tetartoidA: params.tetartoid?.a ?? state.tetartoidA,
+        tetartoidB: params.tetartoid?.b ?? state.tetartoidB,
+        tetartoidC: params.tetartoid?.c ?? state.tetartoidC,
+    };
+}
+
+function createBaseGeometry(type, size, params = state.avatar?.shape?.params) {
+    return createAvatarBaseGeometry(globalThis.THREE || THREE, type, size, shapeParamSource(params));
 }
 
 function defaultAvatarBaseSize() {
@@ -95,7 +113,7 @@ function buildShapeHierarchy(type, config) {
             childCoreKey: config.childCoreKey,
             childWireKey: config.childWireKey,
         },
-        baseGeometryFactory: (shapeType, size) => createBaseGeometry(shapeType, size),
+        baseGeometryFactory: (shapeType, size) => createBaseGeometry(shapeType, size, config.shapeParams),
         tesseronScaleOrigin: 'origin',
         applyGradientVertexColors,
         applySkin,
@@ -175,6 +193,7 @@ export function updateGeometry(type) {
         edgeColors: avatar.appearance.colors.edge,
         skin: avatar.appearance.skin,
         tesseron: avatar.shape.tesseron,
+        shapeParams: avatar.shape.params,
         isOmega: false
     });
 }
@@ -334,7 +353,7 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
     }
 
     const THREE_NS = globalThis.THREE || THREE;
-    const baseGeometry = createBaseGeometry(type, defaultAvatarBaseSize());
+    const baseGeometry = createBaseGeometry(type, defaultAvatarBaseSize(), shape.params);
     const finalGeometry = createSharedStellatedGeometry(THREE_NS, baseGeometry, value);
     finalGeometry.userData = {
         ...(baseGeometry?.userData || {}),
@@ -385,6 +404,7 @@ export function updateOmegaGeometry(type) {
         edgeColors: state.avatar.appearance.colors.omegaEdge,
         skin: omega.skin,
         tesseron: omega.shape.tesseron,
+        shapeParams: omega.shape.params,
         isOmega: true
     });
 }
