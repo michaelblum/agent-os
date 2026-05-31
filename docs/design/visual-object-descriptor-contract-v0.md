@@ -73,6 +73,15 @@ Phase 5 adds two non-avatar proofs:
   field `descriptor_id`, field id, or explicit binding metadata such as
   `state_path` plus `route`, rejects missing bindings and projection-only
   descriptors, and returns the deterministic controller update result.
+- `apps/sigil/avatar-editor/compact-surface.js` is the first real surface
+  adoption. Its canonical avatar section forms can opt into
+  `bindVisualObjectForm()` with caller-owned `visualObjectBinding` options:
+  mutable JSON state, route handlers, renderer sync handlers, and optional
+  validation. The compact view model carries the model's
+  `visual_object_descriptors`; the surface does not create a parallel
+  descriptor map or import live renderer internals. Without those binding
+  options, legacy `onControlChange`, `onSectionChange`, and projection shortcut
+  callbacks remain the only side effects.
 
 ## Technology Examples
 

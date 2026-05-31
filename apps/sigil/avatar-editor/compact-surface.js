@@ -10,6 +10,9 @@ const { createButton } = await import(toolkitSpecifier('controls/button.js', {
 const { createForm } = await import(toolkitSpecifier('panel/form.js', {
   local: '../../../packages/toolkit/panel/form.js',
 }));
+const { bindVisualObjectForm } = await import(toolkitSpecifier('workbench/visual-object-form-binding.js', {
+  local: '../../../packages/toolkit/workbench/visual-object-form-binding.js',
+}));
 
 const COMPACT_SURFACE_VIEW_MODEL_TYPE = 'sigil.avatar.compact_control_surface.view_model';
 
@@ -64,6 +67,36 @@ function projectionFormFields(controls = []) {
     label: 'Surface Shortcuts',
     controls,
   }];
+}
+
+function objectValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function visualObjectBindingOptions({ input, viewModel, options }) {
+  const binding = objectValue(options.visualObjectBinding);
+  const state = binding.state || options.visualObjectState;
+  const hasHandlers = binding.routeHandlers || binding.rendererSyncHandlers
+    || options.visualObjectRouteHandlers || options.visualObjectRendererSyncHandlers;
+  if (!state && !hasHandlers && !options.visualObjectBinding) return null;
+  const descriptors = arrayValue(binding.descriptors).length
+    ? binding.descriptors
+    : arrayValue(viewModel.visual_object_descriptors).length
+      ? viewModel.visual_object_descriptors
+      : arrayValue(input.visual_object_descriptors);
+  if (!state) {
+    throw new TypeError('Sigil avatar compact visualObjectBinding requires caller-owned state.');
+  }
+  if (!descriptors.length) {
+    throw new TypeError('Sigil avatar compact visualObjectBinding requires visual object descriptors from the model or view model.');
+  }
+  return {
+    descriptors,
+    state,
+    routeHandlers: binding.routeHandlers || options.visualObjectRouteHandlers || {},
+    rendererSyncHandlers: binding.rendererSyncHandlers || options.visualObjectRendererSyncHandlers || {},
+    validate: binding.validate ?? options.visualObjectValidate ?? true,
+  };
 }
 
 function createHub() {
@@ -182,6 +215,8 @@ function createSection({
   section,
   viewModel,
   forms,
+  visualObjectBinding,
+  visualObjectBindingDisposers,
   options,
   emit,
 }) {
@@ -210,6 +245,9 @@ function createSection({
       emit('section-change', payload);
     },
   });
+  if (visualObjectBinding) {
+    visualObjectBindingDisposers.add(bindVisualObjectForm(form, visualObjectBinding));
+  }
 
   forms.set(formKey, {
     key: formKey,
@@ -257,6 +295,8 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
   const projectionButtons = new Map();
   const panelEls = new Map();
   const triggerEls = new Map();
+  const visualObjectBinding = visualObjectBindingOptions({ input, viewModel, options });
+  const visualObjectBindingDisposers = new Set();
   let destroyed = false;
 
   rootEl.setAttribute('data-sigil-avatar-control-surface', '');
@@ -327,6 +367,8 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         section,
         viewModel,
         forms,
+        visualObjectBinding,
+        visualObjectBindingDisposers,
         options,
         emit: hub.emit,
       });
@@ -398,6 +440,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
       if (destroyed) return;
       destroyed = true;
       for (const { form } of forms.values()) form.destroy();
+      for (const dispose of visualObjectBindingDisposers) dispose();
       for (const form of projectionForms.values()) form.destroy();
       for (const button of projectionButtons.values()) button.destroy();
       tabsAdapter.destroy();
@@ -406,6 +449,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
       projectionButtons.clear();
       panelEls.clear();
       triggerEls.clear();
+      visualObjectBindingDisposers.clear();
       hub.clear();
       rootEl.remove?.();
     },

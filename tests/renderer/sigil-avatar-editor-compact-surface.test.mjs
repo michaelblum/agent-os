@@ -215,6 +215,54 @@ test('compact avatar control surface reports form changes with tab, section, and
   assert.equal(changes[0].values[alphaOpacity.id], 0.45);
 });
 
+test('compact avatar control surface can bind a real canonical control through visual object descriptors', () => {
+  const state = avatarState();
+  const viewModel = buildSigilAvatarCompactSurfaceViewModel(state);
+  const routeCalls = [];
+  const syncCalls = [];
+  const controlChanges = [];
+  const { surface } = mount(viewModel, {
+    visualObjectBinding: {
+      state,
+      routeHandlers: {
+        'canvas_object.effects.patch': ({ mutation }) => routeCalls.push({
+          descriptor_id: mutation.descriptor_id,
+          state_path: mutation.state_path,
+          value: mutation.value,
+        }),
+      },
+      rendererSyncHandlers: {
+        updatePrimaryAppearance: ({ mutation }) => syncCalls.push({
+          descriptor_id: mutation.descriptor_id,
+          value: mutation.value,
+        }),
+      },
+    },
+    onControlChange: (payload) => controlChanges.push(payload),
+  });
+  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-menu-opacity');
+  const form = surface.getForm('alpha:primary-polyhedron');
+  const field = form.getField(alphaOpacity.id);
+  const root = field.control.el;
+
+  field.control.setValue(0.42, { emit: true });
+
+  assert.equal(state.avatar.appearance.opacity, 0.42);
+  assert.deepEqual(routeCalls, [{
+    descriptor_id: 'sigil.avatar.primary-polyhedron.avatar.appearance.opacity',
+    state_path: 'avatar.appearance.opacity',
+    value: 0.42,
+  }]);
+  assert.deepEqual(syncCalls, [{
+    descriptor_id: 'sigil.avatar.primary-polyhedron.avatar.appearance.opacity',
+    value: 0.42,
+  }]);
+  assert.equal(form.getField(alphaOpacity.id).control.el, root);
+  assert.equal(JSON.parse(JSON.stringify(state.avatar)).appearance.opacity, 0.42);
+  assert.equal(controlChanges.length, 1);
+  assert.equal(controlChanges[0].values[alphaOpacity.id], 0.42);
+});
+
 test('compact avatar control surface reveals geometry parameter sliders for the selected shape', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const { surface } = mount(viewModel);

@@ -143,6 +143,7 @@ export function buildSigilAvatarCompactSurfaceViewModel(input = {}, options = {}
         source_model: model.type,
         avatar_id: model.avatar_id,
         object_graph: cloneJson(model.object_graph),
+        visual_object_descriptors: cloneJson(model.visual_object_descriptors) || [],
         invocation: layout.invocation || 'avatar_right_click',
         layout: layout.layout || 'tabs',
         tabs: arrayValue(layout.tabs).map((tab) => ({
