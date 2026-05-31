@@ -78,13 +78,8 @@ Shallow path scan only; these paths contain HTML/control-like markup or direct U
 - `apps/sigil/renderer/index.html`
 - `apps/sigil/renderer/live-modules/main.js`
 - `apps/sigil/renderer/radial-menu-surface.html`
-- `apps/sigil/_sequestered/studio/index.html`
-- `apps/sigil/_sequestered/studio/js/agent-actions.js`
-- `apps/sigil/_sequestered/studio/js/chip-menu.js`
-- `apps/sigil/_sequestered/studio/js/modal.js`
-- `apps/sigil/_sequestered/studio/js/reroll.js`
-- `apps/sigil/_sequestered/studio/js/roster.js`
-- `apps/sigil/_sequestered/studio/js/ui.js`
+- retired avatar configuration surface HTML and JS files under the old
+  sequestered tree
 - `apps/sigil/tests/agent-loader-test.html`
 - `apps/sigil/tests/appearance-roundtrip.html`
 - `apps/sigil/tests/birthplace-resolver-test.html`

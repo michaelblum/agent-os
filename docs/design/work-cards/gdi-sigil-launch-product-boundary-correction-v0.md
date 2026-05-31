@@ -11,7 +11,8 @@
   follow-up instead of cementing `aos launch sigil` as a normal app launch.
 - Source artifact: Foreman review of
   `823d3b170a933a739e02c7e08e972d3c60cf3a0a` plus Michael's clarification that
-  current Sigil Studio and current Sigil Workbench should not be treated as the
+  the legacy avatar configuration surface and the current Sigil Workbench
+  should not be treated as the
   Sigil product architecture. A future Sigil workbench, if any, should be a
   themed composition of toolkit workbench/browser primitives plus avatar, radial
   menu, settings surface, and 3D viewer/editor capabilities.
@@ -129,7 +130,8 @@ Make these statements true, preferring the experience model over the app model:
   concepts, or source namespaces as part of this correction.
 - Historical workbench launch, if retained, is explicitly legacy/dev-only and
   invoked by an explicit entry such as `legacy-workbench` or `dev-workbench`.
-- Sigil Studio remains sequestered/decommissioned and is not reintroduced.
+- The legacy avatar configuration surface remains sequestered/decommissioned
+  and is not reintroduced.
 - The old Sigil context menu is also source material. Sequester it if needed,
   but do not delete it; it should remain available for later theme extraction
   and toolkit/Zag rebuild work.
@@ -278,7 +280,7 @@ Add a short durable note in the most relevant existing doc or a small
   behavior;
 - active experiences may white-label forward-facing UI; Sigil can be what normal
   users see while AOS remains the internal/developer control plane;
-- current Studio is decommissioned/sequestered;
+- the legacy avatar configuration surface is decommissioned/sequestered;
 - current workbench is legacy/dev-only;
 - current context menu, if present, is sequestered source material and should
   later be rebuilt on toolkit/Zag primitives;
@@ -409,7 +411,7 @@ Then stop with `human_needed`. After the human returns with `finished`, run:
   tiny explicit wrapper and the removal/packaging boundary is documented.
 - Do not build a full experience marketplace/plugin system; model the boundary
   narrowly enough to prevent the current Sigil-as-normal-app mistake.
-- Do not resurrect Studio.
+- Do not resurrect the legacy avatar configuration surface.
 - Do not add a TUI.
 - Do not broaden into recipe-language redesign.
 - Do not migrate unrelated app/toolkit launchers.

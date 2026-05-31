@@ -13,7 +13,7 @@ Categories found:
 - Diagnostic compatibility: bounded global status-item inventory remains only
   as diagnostic evidence for duplicate menu-bar ownership or live repo status
   item selection.
-- Test harness residue: stale Studio/workbench paths and neutral names for
+- Test harness residue: stale legacy config/workbench paths and neutral names for
   global menu-bar scans were still present in active tests/docs.
 - Deferred findings: broad historical docs and future work cards still contain
   legacy vocabulary, but they are not active test contracts.
@@ -28,19 +28,18 @@ Migrated:
   `aos_global_status_item_diagnostic_unambiguous_pid`.
 - `tests/lib/visual-harness.sh` now calls those diagnostic names and keeps the
   normal real click path PID-scoped through `click_aos_status_item_real`.
-- Sequestered Studio unit tests under `tests/studio/*.test.mjs` now import from
-  `apps/sigil/_sequestered/studio/...` instead of the removed
-  `apps/sigil/studio/...` path.
+- Retired avatar-configuration helper tests were removed with the decommissioned
+  surface.
 - `apps/sigil/scripts/launch-common.sh` no longer describes current shared
   launch setup as old-harness compatibility.
-- `docs/dev/reports/toolkit-surface-audit.md` now points at the sequestered
-  Studio path.
+- `docs/dev/reports/toolkit-surface-audit.md` now points at the retired
+  configuration surface.
 
 Removed:
 
-- `tests/sigil-workbench-studio-restage.sh` was deleted. It asserted the old
-  Sigil Workbench Studio-tab restaging path, while the current workbench marks
-  Studio as sequestered and should not expose a Studio tab as the current
+- `tests/sigil-workbench-restage.sh` was deleted. It asserted the old Sigil
+  workbench restaging path, while the current workbench marks the legacy
+  configuration surface as sequestered and should not expose it as the current
   product proof.
 - `tests/README.md` no longer recommends the removed restage test.
 
@@ -55,11 +54,9 @@ Removed:
   Contract: they test the explicit `legacy-workbench` entry and Knowledge Base
   behavior, not canonical Sigil activation. Removal gate: delete with the
   `legacy-workbench` manifest entry.
-- `tests/studio/*.test.mjs` remain as pure helper tests for the sequestered
-  Studio source material. Contract: those modules are retained only for future
-  theme/control extraction and are not launch or product activation tests.
-  Removal gate: delete or migrate when the future Sigil theme/control work
-  extracts the useful helpers or retires the sequestered tree.
+- No dedicated helper-test loop remains for the retired avatar configuration
+  surface. Contract: any future helper coverage should live with the current
+  product surface or toolkit owner that actually consumes it.
 
 ## Diagnostic Compatibility Retained
 
@@ -77,12 +74,10 @@ Removed:
 ## Deferred Findings
 
 - Historical work cards and archive/reference docs still contain old
-  `aos launch sigil`, Studio, workbench, `ready`, and compatibility vocabulary.
+  `aos launch sigil`, workbench, `ready`, and compatibility vocabulary.
   They are intentionally deferred because the card excludes turning historical
   and archive docs into current product requirements.
-- `apps/sigil/_sequestered/studio/` still contains Studio wording internally.
-  That is acceptable while the directory is explicitly sequestered and retained
-  as source material.
+- The retired avatar configuration surface no longer has live repo paths.
 - Some app/toolkit component launch scripts still use remove/create behavior.
   Those are broad lifecycle/product surfaces, not low-risk test-harness residue
   for this audit round.

@@ -7,10 +7,11 @@
 // `snapshotAppearance()` is the inverse — returns a blob that, fed back through
 // applyAppearance, produces an equivalent state (roundtrip-stable).
 //
-// Neither function touches the DOM. Studio's existing UI listeners continue to
-// write `state.x = value` directly on every input event (that flow is unchanged);
-// on load, Studio calls `applyAppearance(DEFAULT_APPEARANCE)` then
-// `syncUIFromState()` (ui.js) to mirror state back into DOM input values.
+// Neither function touches the DOM. The active configuration surface's UI
+// listeners continue to write `state.x = value` directly on every input event
+// (that flow is unchanged); on load, the surface calls
+// `applyAppearance(DEFAULT_APPEARANCE)` then `syncUIFromState()` (ui.js) to
+// mirror state back into DOM input values.
 
 import state from './state.js';
 import { updateAllColors } from './colors.js';
@@ -582,8 +583,9 @@ export function applyAppearance(blob) {
 
     // Trigger renderer update hooks that need mesh/material rebuilds.
     // Guarded: in headless/test contexts groups/materials may not exist yet,
-    // and in pre-init contexts (e.g. Studio applyAppearance(DEFAULT) called
-    // before scene.js initScene()) the Three.js groups aren't wired either.
+    // and in pre-init contexts (e.g. the active configuration surface calling
+    // `applyAppearance(DEFAULT)` before `scene.js` initScene()) the Three.js
+    // groups aren't wired either.
     // Errors surface at console.debug so real regressions are visible in
     // devtools without breaking the headless-safety behavior.
     try { updateGeometry(state.currentGeometryType); }

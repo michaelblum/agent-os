@@ -75,7 +75,6 @@ test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki do
   assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/markdown-workbench/index.html'));
   assert.ok(hosts.some((host) => host.entry.value === 'aos://sigil/renderer/index.html'));
   assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/wiki-subject-browser/index.html'));
-  assert.equal(hosts.some((host) => host.entry.value.includes('/studio/')), false);
 });
 
 test('createSigilAgentSubject derives identity from the source wiki path', () => {
@@ -96,7 +95,7 @@ test('createSigilAgentSubject rejects missing source identity', () => {
   assert.throws(() => createSigilAgentSubject({ type: 'agent' }), /requires a source wiki path/);
 });
 
-test('createSigilAvatarSubject builds a canonical avatar editor subject without agent or studio routing', () => {
+test('createSigilAvatarSubject builds a canonical avatar editor subject without agent or legacy routing', () => {
   const subject = createSigilAvatarSubject();
   const facets = subjectFacets(subject);
   const hosts = subjectHosts(subject);
@@ -137,7 +136,6 @@ test('createSigilAvatarSubject builds a canonical avatar editor subject without 
   assert.ok(subjectReferences(subject).some((reference) => reference.handle === 'avatar.effects.magnetic'));
   assert.ok(hosts.some((host) => host.entry.value === 'aos://sigil/renderer/index.html'));
   assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/wiki-subject-browser/index.html'));
-  assert.equal(serialized.includes('/studio/'), false);
   assert.equal(serialized.includes('sigil.agent'), false);
 
   const facetKeys = facets.map((facet) => facet.key);

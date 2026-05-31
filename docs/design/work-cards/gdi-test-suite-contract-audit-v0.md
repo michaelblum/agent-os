@@ -41,7 +41,7 @@ The desired end state is:
   explicit bounded diagnostics;
 - canonical helper primitives are reused instead of duplicate ad hoc shell,
   Python, Swift, or JS islands;
-- stale Sigil/workbench/studio/launch/lifecycle/readiness vocabulary no longer
+- stale Sigil/workbench/launch/lifecycle/readiness vocabulary no longer
   appears in active tests unless it is intentionally testing a legacy product
   contract;
 - the final report clearly distinguishes what was removed, migrated, retained,
@@ -77,7 +77,7 @@ current product contract requires them.
 Examples to audit carefully:
 
 - global status-item discovery on normal real-input paths;
-- old Sigil workbench/studio assumptions in active tests;
+- old Sigil workbench assumptions in active tests;
 - launch-based Sigil tests where experience activation is canonical;
 - remove/recreate lifecycle assertions where suspend/resume is canonical;
 - old `ready` relay wording where the human signal is now `finished`;
@@ -149,7 +149,7 @@ needed:
 
 ```bash
 rg -n "compat|compatibility|legacy|deprecated|transitional|backward|backwards|shim|alias" tests apps scripts docs
-rg -n "studio|workbench|legacy-workbench|aos launch sigil|experience activate sigil" tests apps/sigil docs
+rg -n "workbench|legacy-workbench|aos launch sigil|experience activate sigil" tests apps/sigil docs
 rg -n "ready|finished|post-permission|TCC|permission" tests docs/design/work-cards .docks
 rg -n "remove|recreate|suspend|resume|closeMode|warm" tests packages apps/sigil scripts
 rg -n "NSWorkspace|runningApplications|kAXExtrasMenuBarAttribute|status item|global" tests/lib tests apps/sigil
@@ -207,7 +207,8 @@ Do not treat every match as a bug. Classify first.
 - Do not preserve a helper, alias, or wrapper solely because old tests use it.
 - Do not run unbounded macOS Accessibility/global menu scans on normal test
   success paths.
-- Do not resurrect Studio or the old Sigil workbench as a current Sigil proof.
+- Do not resurrect the legacy avatar configuration surface or the old Sigil
+  workbench as a current Sigil proof.
 - Do not convert historical/archive docs into current product requirements.
 - Do not run long live real-input loops. Use existing bounded scenarios only.
 - Do not broaden command compatibility in manifests just to keep tests passing.

@@ -253,7 +253,7 @@ agent-os/
 | `cli` / `daemon` packages | Packaging | JS/TS + assets | `packages/cli/`, `packages/daemon/` | Active | Package roots for CLI verbs and daemon-adjacent runtime surfaces that sit around the unified Swift primitive |
 | `design-tokens` | Design system | CSS | `packages/design-tokens/` | Active | Shared token source consumed by toolkit and app surfaces |
 | `toolkit` | Toolkit/default surface system | JS/HTML/CSS | `packages/toolkit/` | Active | Opt-in reusable AOS surface policy and stock surfaces: `runtime/`, `controls/`, `adapters/zag`, `panel/`, `workbench/`, and `components/` |
-| Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), Studio control surface, chat canvas. Consumer of `aos` display subsystem. |
+| Sigil | Track 2 app | HTML/JS | `apps/sigil/` | Active | Avatar presence system: renderer (Three.js state machine), avatar configuration surface, chat canvas. Consumer of `aos` display subsystem. |
 
 ---
 

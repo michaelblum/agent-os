@@ -14,7 +14,7 @@ Sigil launch is status-item-first: activation makes the menu/status icon
 available, and the user docks or undocks the avatar through that icon. The
 avatar is the Sigil entry point after activation.
 
-Current Studio remains decommissioned under `apps/sigil/_sequestered/studio/`.
+The legacy avatar configuration surface has been removed from the repo.
 The current multi-tab workbench remains legacy/dev-only as
 `aos launch sigil legacy-workbench`. The current context menu remains source
 material under `apps/sigil/context-menu/` for later theme extraction and a

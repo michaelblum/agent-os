@@ -171,7 +171,7 @@ test('native browser tab candidate labels by compact URL site and rejects pane-s
         { value: 'OpenAI Agent Builder Complete Course', source_attribute: 'AXTitle', role: 'AXButton', selected: true },
       ],
       web_area_bounds: [
-        { bounds: { x: 1378, y: 206, width: 586, height: 1069 }, title: 'Studio pane' },
+        { bounds: { x: 1378, y: 206, width: 586, height: 1069 }, title: 'Config pane' },
         { bounds: { x: 0, y: 158, width: 1512, height: 824 }, title: 'NotebookLM page' },
       ],
       window_bounds: { x: 0, y: 44, width: 1512, height: 938 },

@@ -33,7 +33,7 @@ was either:
 | 6 | Global canvas crosses displays | PASS (programmatic); visual confirmation requires operator eyeball |
 | 7 | Live reload on wiki edit | PASS |
 | 8 | Live reload deferred mid-gesture | PASS |
-| 9 | Studio save round-trip | PASS |
+| 9 | Avatar config save round-trip | PASS |
 | 10 | Birthplace off-screen fallback | PASS |
 | 11 | Cascade cleanup unchanged | PASS |
 | 12 | Sigil-1 spec annotation | PASS |

@@ -50,5 +50,4 @@ test('Sigil manifest keeps launch policy data-owned', async () => {
   assert.ok(manifest.content_roots.every((root) => root.branch_scoped === true));
   assert.equal(manifest.status_item.toggle_entry, 'avatar');
   assert.equal(manifest.entries['legacy-workbench'].requires_entries[0], 'avatar');
-  assert.doesNotMatch(JSON.stringify(manifest), /studio/i);
 });

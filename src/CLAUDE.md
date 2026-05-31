@@ -29,7 +29,7 @@ automation around an in-flight build, but the normal developer control surface i
 Examples that usually do **not** need `bash build.sh`:
 
 ```bash
-node --test tests/studio/*.test.mjs
+node --test tests/renderer/*.test.mjs
 node --test tests/renderer/*.test.mjs
 cd packages/gateway && npm test
 cd packages/host && npm test
