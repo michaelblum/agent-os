@@ -262,6 +262,17 @@ function candidateWindowId(candidate = null) {
     );
 }
 
+function candidateSurfaceId(candidate = null) {
+    return candidateText(
+        candidate?.surface_id
+        || candidate?.surfaceId
+        || candidate?.source_metadata?.surface_id
+        || candidate?.source_metadata?.surfaceId
+        || candidate?.projection?.surface_id
+        || candidate?.projection?.surfaceId,
+    );
+}
+
 function candidatePid(candidate = null) {
     const value = candidate?.pid
         ?? candidate?.source_metadata?.pid
@@ -276,6 +287,22 @@ function candidatePathDepth(candidate = null) {
         ? candidate.subject_path
         : (Array.isArray(candidate?.projection?.subject_path) ? candidate.projection.subject_path : []);
     return path.length;
+}
+
+function candidateSubjectPath(candidate = null) {
+    const path = Array.isArray(candidate?.subject_path)
+        ? candidate.subject_path
+        : (Array.isArray(candidate?.projection?.subject_path) ? candidate.projection.subject_path : []);
+    return path.map((part) => candidateText(part)).filter(Boolean);
+}
+
+function subjectPathsShareBranch(left = null, right = null) {
+    const leftPath = candidateSubjectPath(left);
+    const rightPath = candidateSubjectPath(right);
+    if (!leftPath.length || !rightPath.length) return false;
+    const shorter = leftPath.length <= rightPath.length ? leftPath : rightPath;
+    const longer = shorter === leftPath ? rightPath : leftPath;
+    return shorter.every((part, index) => part === longer[index]);
 }
 
 function candidatesShareNativeWindow(left = null, right = null) {
@@ -308,6 +335,8 @@ function candidateBelongsToLeafBranch(candidate = null, leaf = null) {
     const rootId = candidateRootId(candidate);
     const leafRootId = candidateRootId(leaf);
     const subjectId = candidateText(candidate?.subject_id || candidate?.projection?.subject_id || candidate?.id);
+    const surfaceId = candidateSurfaceId(candidate);
+    const leafSurfaceId = candidateSurfaceId(leaf);
 
     if (leafAdapter === 'macos-ax') {
         if (adapter === 'macos-ax') return Boolean(leafRootId && (rootId === leafRootId || subjectId === leafRootId || key === leafRootId));
@@ -315,6 +344,10 @@ function candidateBelongsToLeafBranch(candidate = null, leaf = null) {
     }
 
     if (leafRootId && (rootId === leafRootId || subjectId === leafRootId || key === leafRootId)) return true;
+    if (surfaceId && leafSurfaceId && surfaceId === leafSurfaceId) return true;
+    if (surfaceId && (leafRootId === surfaceId || subjectId === surfaceId || key === surfaceId)) return true;
+    if (leafSurfaceId && (rootId === leafSurfaceId || subjectId === leafSurfaceId || key === leafSurfaceId)) return true;
+    if (subjectPathsShareBranch(candidate, leaf)) return true;
     if (candidatesShareNativeWindow(candidate, leaf)) return true;
     return false;
 }
@@ -798,6 +831,16 @@ export function createSigilSelectionModeRuntime({
         liveState.selectionMode = {
             ...liveState.selectionMode,
             active: false,
+            leaf_candidate: null,
+            path_candidates: [],
+            display_owner: null,
+            selected_node_id: '',
+            hover_node_id: '',
+            lineage_bar_position: null,
+            lineage_bar_drag: null,
+            lineage_bar_scroll_offset: 0,
+            lineage_bar_scroll_target_node_id: '',
+            context_session: null,
             blocker: reason === 'cancel' ? { status: 'cancelled', reason } : liveState.selectionMode.blocker,
         };
         publish({ inputRegions: true, render: true });

@@ -1005,6 +1005,42 @@ test('Selection Mode acquisition keeps only the selected native-window branch', 
   )
 })
 
+test('Selection Mode acquisition retains AOS surface ancestors from shared subject paths', () => {
+  const point = { x: 120, y: 100, valid: true }
+  const aosSurface = candidate('aos-surface:preview', { x: 40, y: 40, w: 260, h: 180 }, {
+    kind: 'aos_surface',
+    role: 'surface',
+    label: 'Preview Surface',
+    root_id: 'surface-root',
+    root_kind: 'canvas',
+    subject_path: ['display-1', 'surface-root'],
+  })
+  const surfaceButton = candidate('aos-surface:preview:save', { x: 80, y: 84, w: 80, h: 32 }, {
+    kind: 'button',
+    role: 'button',
+    label: 'Save',
+    root_id: 'button-root',
+    root_kind: 'surface',
+    subject_path: ['display-1', 'surface-root', 'aos-surface:preview:save'],
+  })
+  const { runtime, liveState } = createRuntime({
+    candidates: [aosSurface, surfaceButton],
+    projectPoint: (p) => p,
+  })
+
+  runtime.enter(point, 'test')
+  runtime.acquire(point)
+
+  assert.deepEqual(
+    liveState.selectionMode.path_candidates.map((item) => item.label),
+    ['Display 1', 'Preview Surface', 'Save'],
+  )
+  assert.deepEqual(
+    liveState.selectionMode.context_session.artifacts[0].path.map((item) => item.label),
+    ['Display 1', 'Preview Surface', 'Save'],
+  )
+})
+
 test('Selection Mode browser lineage uses tab seam and drops generic AXGroup wrapper', () => {
   const point = { x: 1000, y: 320, valid: true }
   const cometRoot = 'native-window:111:Comet'
@@ -1422,6 +1458,9 @@ test('Selection Mode entry and exit effects produce bounded renderable overlay t
   assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).duration_ms, 340)
   assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).profile.source, 'celestial-v1-supernova-release')
   assert.equal(liveState.selectionModeOverlay.visualEffects.at(-1).active, true)
+  assert.equal(liveState.selectionModeOverlay.lineageBar.visible, false)
+  assert.equal(liveState.selectionModeOverlay.lineageBar.items.length, 0)
+  assert.equal(liveState.selectionMode.context_session, null)
 
   clock += liveState.selectionModeOverlay.visualEffects.at(-1).duration_ms + 1
   assert.equal(liveState.selectionModeOverlay.visible, true)
