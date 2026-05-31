@@ -82,6 +82,19 @@ Phase 5 adds two non-avatar proofs:
   descriptor map or import live renderer internals. Without those binding
   options, legacy `onControlChange`, `onSectionChange`, and projection shortcut
   callbacks remain the only side effects.
+- `apps/sigil/radial-item-editor/model.js` and
+  `apps/sigil/radial-item-workbench/index.js` are the first non-avatar
+  real-surface adoption. The radial item workbench consumes
+  `visual_object_descriptors` from `createRadialMenuWorkbenchSubject()` and
+  routes descriptor edits through `applyVisualObjectControllerUpdate()`. Sigil
+  owns the adapter that exposes the selected radial item as the descriptor state
+  graph, then translates routed transform, visibility, and effects updates into
+  the existing editor patch handlers. `applyEditorObjectPatch()` and
+  `applyEditorEffectsPatch()` remain authoritative for radial object mutation;
+  the visual-object layer does not replace `canvas_object.*.patch` semantics.
+  Workbench renderer sync labels call the existing registry/preview sync path
+  so the object transform panel, exported subject state, and preview snapshot
+  observe the same selected-item JSON mutation.
 
 ## Technology Examples
 
@@ -184,3 +197,24 @@ workbench form field change
 Projection-only descriptors remain read-only from this path. They can describe
 runtime affordances, app actions, or derived views, but form binding must not
 turn them into canonical state mutation.
+
+## Radial Workbench Descriptor Loop
+
+The Sigil radial item workbench uses the controller adapter directly because
+its active controls are patch-message driven, not form-field driven. The loop
+is:
+
+```text
+radial workbench descriptor update
+  -> descriptor lookup from createRadialMenuWorkbenchSubject()
+  -> applyVisualObjectControllerUpdate()
+  -> Sigil radial descriptor adapter state
+  -> applyEditorObjectPatch() or applyEditorEffectsPatch()
+  -> syncPanelRegistry() / preview snapshot / exported subject state
+```
+
+Visibility descriptors keep their descriptor route as
+`canvas_object.visibility.patch`, but the Sigil adapter applies them through
+the existing transform patch handler with a `visible` patch because that is the
+current radial object-control contract. This preserves the route as evidence
+while keeping mutation authority in the established editor handler.

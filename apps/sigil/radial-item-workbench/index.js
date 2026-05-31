@@ -3,6 +3,7 @@ import { createSigilRadialGestureVisuals } from '../renderer/live-modules/radial
 import {
     applyEditorEffectsPatch,
     applyEditorObjectPatch,
+    applyRadialItemVisualObjectDescriptorUpdate,
     buildEditorObjectRegistry,
     buildEditorRadialSnapshot,
     createRadialItemEditorState,
@@ -11,6 +12,7 @@ import {
     selectRadialItem,
     selectedRadialItem,
     setRadialMenuWorkbenchSubjectFactory,
+    setVisualObjectControllerUpdate,
     setSelectedItemHoverSpin,
 } from '../radial-item-editor/model.js';
 
@@ -35,7 +37,9 @@ addStylesheet(`/${toolkitRoot}/components/object-transform-panel/styles.css`, { 
 
 const { default: ObjectTransformPanel } = await import(`/${toolkitRoot}/components/object-transform-panel/index.js`);
 const { createRadialMenuWorkbenchSubject } = await import(`/${toolkitRoot}/workbench/radial-menu-subject.js`);
+const { applyVisualObjectControllerUpdate } = await import(`/${toolkitRoot}/workbench/visual-object-controller.js`);
 setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject);
+setVisualObjectControllerUpdate(applyVisualObjectControllerUpdate);
 const { createPanelWindowController, createSplitPane, syncMaximizeButton } = await import(`/${toolkitRoot}/panel/index.js`);
 
 const workbenchShell = document.querySelector('.aos-workbench-shell');
@@ -383,6 +387,45 @@ function applyEffectsPatch(message) {
     return result;
 }
 
+function applyVisualObjectDescriptorUpdate(message = {}) {
+    const routeResults = [];
+    const syncResults = [];
+    const result = applyRadialItemVisualObjectDescriptorUpdate(editorState, {
+        descriptor: message.descriptor,
+        descriptorId: message.descriptor_id || message.descriptorId,
+        value: message.value,
+        requestId: message.request_id,
+        onRouteResult({ message: routedMessage, result: routeResult }) {
+            routeResults.push(routeResult);
+            if (routedMessage?.type === 'canvas_object.effects.patch') {
+                panelContent.onMessage(routeResult, panelHost);
+                post('canvas_object.effects.result', routeResult);
+            } else {
+                panelContent.onMessage(routeResult, panelHost);
+                post('canvas_object.transform.result', routeResult);
+            }
+            return routeResult;
+        },
+        onSync({ label }) {
+            const snapshot = syncPanelRegistry();
+            const sync = { label, status: 'called', registry: snapshot };
+            syncResults.push(sync);
+            return sync;
+        },
+    });
+    if (syncResults.length === 0) syncPanelRegistry();
+    post('visual_object.descriptor.result', {
+        type: 'visual_object.descriptor.result',
+        request_id: message.request_id || null,
+        descriptor_id: result.descriptor_id,
+        route: result.route,
+        value: result.value,
+        route_results: routeResults,
+        sync_results: syncResults,
+    });
+    return result;
+}
+
 function handlePanelDelivery(delivery = {}) {
     if (delivery.type !== 'canvas.send') {
         post(delivery.type, delivery.payload);
@@ -392,8 +435,14 @@ function handlePanelDelivery(delivery = {}) {
     if (message?.type === 'canvas_object.transform.patch') {
         return applyPatch(message);
     }
+    if (message?.type === 'canvas_object.visibility.patch') {
+        return applyPatch({ ...message, type: 'canvas_object.transform.patch' });
+    }
     if (message?.type === 'canvas_object.effects.patch') {
         return applyEffectsPatch(message);
+    }
+    if (message?.type === 'visual_object.descriptor.update') {
+        return applyVisualObjectDescriptorUpdate(message);
     }
     return null;
 }
@@ -445,8 +494,16 @@ function handleMessage(message = {}) {
         applyPatch(payload);
         return;
     }
+    if (payload?.type === 'canvas_object.visibility.patch') {
+        applyPatch({ ...payload, type: 'canvas_object.transform.patch' });
+        return;
+    }
     if (payload?.type === 'canvas_object.effects.patch') {
         applyEffectsPatch(payload);
+        return;
+    }
+    if (payload?.type === 'visual_object.descriptor.update') {
+        applyVisualObjectDescriptorUpdate(payload);
     }
 }
 
@@ -563,8 +620,8 @@ syncOrbit();
 syncPanelRegistry();
 post('ready', {
     name: 'sigil-radial-item-workbench',
-    accepts: ['canvas_object.transform.patch', 'canvas_object.effects.patch'],
-    emits: ['canvas_object.registry', 'canvas_object.transform.result', 'canvas_object.effects.result', 'sigil.radial_item_editor.lock_in'],
+    accepts: ['canvas_object.transform.patch', 'canvas_object.effects.patch', 'canvas_object.visibility.patch', 'visual_object.descriptor.update'],
+    emits: ['canvas_object.registry', 'canvas_object.transform.result', 'canvas_object.effects.result', 'visual_object.descriptor.result', 'sigil.radial_item_editor.lock_in'],
 });
 
 window.__sigilRadialItemWorkbench = {
@@ -587,6 +644,7 @@ window.__sigilRadialItemWorkbench = {
     },
     applyPatch,
     applyEffectsPatch,
+    applyVisualObjectDescriptorUpdate,
     undoChange,
     redoChange,
     exportItemDefinition(options) {
