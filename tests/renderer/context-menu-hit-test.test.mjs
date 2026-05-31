@@ -248,6 +248,26 @@ test('descriptor routing applies a shape control through geometry sync', () => {
   assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-menu-shape-select', 8]])
 })
 
+test('descriptor routing applies primary stellation through minimal sync hook', () => {
+  const calls = []
+  const state = {
+    avatar: {
+      shape: { type: 20, stellationFactor: 0.2, tesseron: { enabled: false } },
+      appearance: {},
+      effects: {},
+    },
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-stellation', '1.25', {
+    state,
+    updateGeometry(value) { calls.push(['geometry', value]) },
+    updatePrimaryStellation(value) { calls.push(['stellation', value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.stellationFactor, 1.25)
+  assert.deepEqual(calls, [['stellation', 1.25]])
+})
+
 test('descriptor routing applies shape-specific prism parameters through shared geometry sync', () => {
   const calls = []
   const state = {

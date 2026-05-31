@@ -23,6 +23,25 @@ function createBaseGeometry(type, size) {
     return createAvatarBaseGeometry(globalThis.THREE || THREE, type, size, state);
 }
 
+function geometryStats() {
+    state.__sigilGeometryStats ??= {
+        primaryFullRebuilds: 0,
+        primaryStellationUpdates: 0,
+        primaryStellationSuppressed: 0,
+        omegaFullRebuilds: 0,
+    };
+    return state.__sigilGeometryStats;
+}
+
+function disposeUniqueGeometries(...geometries) {
+    const seen = new Set();
+    for (const geometry of geometries) {
+        if (!geometry || seen.has(geometry)) continue;
+        seen.add(geometry);
+        geometry.dispose?.();
+    }
+}
+
 /**
  * DRY: Shared builder for poly geometries (depth + core + wireframe).
  * Config: { group, depthKey, coreKey, wireKey, innerWireKey, innerHighlightWireKey, childDepthKey, childCoreKey,
@@ -102,6 +121,7 @@ export function updateInnerEdgePulse(isOmega = false) {
 }
 
 export function updateGeometry(type) {
+    geometryStats().primaryFullRebuilds += 1;
     const avatar = state.avatar;
     buildShapeHierarchy(type, {
         group: state.polyGroup,
@@ -127,7 +147,55 @@ export function updateGeometry(type) {
     });
 }
 
+export function updatePrimaryStellation(value = state.avatar?.shape?.stellationFactor) {
+    const avatar = state.avatar;
+    const shape = avatar?.shape || {};
+    const type = shape.type ?? state.currentGeometryType ?? state.currentType;
+    const tesseronActive = !!shape.tesseron?.enabled && isTesseronSupportedShape(type);
+    const stats = geometryStats();
+
+    if (tesseronActive) {
+        stats.primaryStellationSuppressed += 1;
+        return { updated: false, suppressed: true };
+    }
+
+    const depthMesh = state.depthMesh;
+    const coreMesh = state.coreMesh;
+    const wireframeMesh = state.wireframeMesh;
+    if (!depthMesh?.geometry || !coreMesh?.geometry || !wireframeMesh?.geometry) {
+        updateGeometry(type);
+        return { updated: false, rebuilt: true };
+    }
+
+    const THREE_NS = globalThis.THREE || THREE;
+    const baseGeometry = createBaseGeometry(type, undefined);
+    const finalGeometry = createSharedStellatedGeometry(THREE_NS, baseGeometry, value);
+    finalGeometry.userData = {
+        ...(baseGeometry?.userData || {}),
+        ...(finalGeometry.userData || {}),
+    };
+    const edgeGeometry = typeof THREE_NS.EdgesGeometry === 'function'
+        ? new THREE_NS.EdgesGeometry(finalGeometry)
+        : finalGeometry;
+
+    const oldDepthGeometry = depthMesh.geometry;
+    const oldCoreGeometry = coreMesh.geometry;
+    const oldWireGeometry = wireframeMesh.geometry;
+
+    depthMesh.geometry = finalGeometry;
+    coreMesh.geometry = finalGeometry;
+    wireframeMesh.geometry = edgeGeometry;
+    applyGradientVertexColors(coreMesh, avatar.appearance.colors.face);
+    applyGradientVertexColors(wireframeMesh, avatar.appearance.colors.edge);
+
+    baseGeometry.dispose?.();
+    disposeUniqueGeometries(oldDepthGeometry, oldCoreGeometry, oldWireGeometry);
+    stats.primaryStellationUpdates += 1;
+    return { updated: true, suppressed: false };
+}
+
 export function updateOmegaGeometry(type) {
+    geometryStats().omegaFullRebuilds += 1;
     const omega = state.avatar.effects.omega;
     buildShapeHierarchy(type, {
         group: state.omegaGroup,
