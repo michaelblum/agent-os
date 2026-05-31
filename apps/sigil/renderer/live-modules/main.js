@@ -3885,6 +3885,7 @@ function handleHostMessage(rawMsg) {
             ?? computeDesktopWorldBounds(liveJs.displays);
         liveJs.visibleBounds = boundsWithMinMax(msg.visible_desktop_world_bounds)
             ?? computeVisibleDesktopWorldBounds(liveJs.displays);
+        selectionModeRuntime.refreshDisplayGeometry('display_geometry');
         annotationReticleRefreshCanvasCandidates();
         syncSigilInputRegions();
         if (typeof liveJs._resolveFirstDisplayGeometry === 'function') {

@@ -35,6 +35,7 @@ export function createDefaultSelectionModeState() {
         cursor: null,
         leaf_candidate: null,
         path_candidates: [],
+        display_owner: null,
         selected_node_id: '',
         hover_node_id: '',
         lineage_bar_position: null,
@@ -83,6 +84,135 @@ function projectionRect(candidate = null) {
     return rect
         ? { x: rect.x, y: rect.y, w: rect.width, h: rect.height }
         : null;
+}
+
+function displayId(display = null, fallback = '') {
+    const value = display?.display_id ?? display?.id ?? display?.cgID ?? display?.uuid ?? fallback;
+    return String(value || '');
+}
+
+function displayLabel(display = null) {
+    const label = String(display?.label || display?.name || '').trim();
+    return label || (displayId(display) ? `Display ${displayId(display)}` : 'Display');
+}
+
+function displayBounds(display = null) {
+    return normalizeRect(
+        display?.visibleBounds
+        || display?.visible_bounds
+        || display?.visible_desktop_world_bounds
+        || display?.desktop_world_visible_bounds
+        || display?.bounds
+        || display?.desktop_world_bounds
+    );
+}
+
+function displayRawBounds(display = null) {
+    return normalizeRect(
+        display?.bounds
+        || display?.desktop_world_bounds
+    );
+}
+
+function displayOwnerId(owner = null) {
+    if (!owner || typeof owner !== 'object') return '';
+    return String(owner.display_id ?? owner.displayId ?? owner.id ?? owner.display?.display_id ?? owner.display?.id ?? '').trim();
+}
+
+function rectSignature(rect = null) {
+    const normalized = normalizeRect(rect);
+    return normalized
+        ? [normalized.x, normalized.y, normalized.width, normalized.height].join(':')
+        : '';
+}
+
+function displayGeometrySignature(displays = []) {
+    return displays.map((display, index) => {
+        const bounds = displayBounds(display);
+        const rawBounds = displayRawBounds(display);
+        const id = displayId(display, `index:${index}`);
+        const label = displayLabel(display);
+        const scale = Number(display?.scale_factor ?? display?.scaleFactor ?? display?.backingScaleFactor ?? 1);
+        return [
+            id,
+            label,
+            rectSignature(bounds),
+            rectSignature(rawBounds),
+            rectSignature(display?.native_bounds || display?.nativeBounds),
+            Number.isFinite(scale) ? scale : 1,
+        ].join(':');
+    }).join('|');
+}
+
+function createDisplayGeometrySnapshotReader(getDisplays = () => []) {
+    let cachedSignature = null;
+    let cachedSnapshot = {
+        displays: [],
+        byId: new Map(),
+        epoch: 0,
+        signature: '',
+    };
+    let initialized = false;
+    function refresh(reason = 'display_geometry') {
+        const rawDisplays = getDisplays();
+        const displays = (Array.isArray(rawDisplays) ? rawDisplays : [])
+            .filter((display) => display && typeof display === 'object');
+        const signature = displayGeometrySignature(displays);
+        if (initialized && signature === cachedSignature) return {
+            ...cachedSnapshot,
+            reason,
+            changed: false,
+        };
+        const byId = new Map();
+        displays.forEach((display, index) => {
+            const id = displayId(display, `index:${index}`);
+            if (id && !byId.has(id)) byId.set(id, display);
+        });
+        cachedSignature = signature;
+        initialized = true;
+        cachedSnapshot = {
+            displays,
+            byId,
+            epoch: cachedSnapshot.epoch + 1,
+            signature,
+        };
+        return {
+            ...cachedSnapshot,
+            reason,
+            changed: true,
+        };
+    }
+    function read() {
+        return initialized ? cachedSnapshot : refresh('initial');
+    }
+    return { read, refresh };
+}
+
+function displayOwnerRecord(display = null, pointer = null, {
+    reason = 'selection_mode_display_owner',
+    snapshot = null,
+} = {}) {
+    const id = displayId(display);
+    if (!id) return null;
+    const bounds = displayBounds(display);
+    const cursor = cursorFromPoint(pointer);
+    return {
+        source: 'selection_mode_display_owner',
+        display_id: id,
+        display_label: displayLabel(display),
+        reason,
+        display_geometry_epoch: Number.isFinite(Number(snapshot?.epoch)) ? Number(snapshot.epoch) : null,
+        pointer: cursor,
+        visible_bounds: bounds
+            ? { x: bounds.x, y: bounds.y, w: bounds.width, h: bounds.height }
+            : null,
+    };
+}
+
+function selectionModeDisplayOwner(selectionMode = {}) {
+    return selectionMode?.display_owner
+        || selectionMode?.context_session?.artifacts?.[0]?.acquisition?.source_metadata?.display_owner
+        || null;
 }
 
 function pointInRect(point = null, rect = null) {
@@ -332,6 +462,9 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     projectPoint = (point) => point,
     overlayBounds = null,
     displays = [],
+    activeDisplay = null,
+    activeDisplayId = '',
+    displayOwner = null,
     rendererState = null,
     nowMs = Date.now(),
 } = {}) {
@@ -351,6 +484,7 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
     const hoverNodeId = selectionMode.hover_node_id || '';
     const highlightedNodeId = hoverNodeId || selectedNodeId || leafNodeId;
     const perimeterFillNodeId = majorSeamAncestorFrameId(path, highlightedNodeId, leafNodeId);
+    const explicitDisplayOwner = displayOwner || selectionModeDisplayOwner(selectionMode);
     const frames = path.map((node, index) => {
         const rect = projectRect(
             node.projection?.visible_display_rect
@@ -396,6 +530,9 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         scrollOffset: selectionMode.lineage_bar_scroll_offset || 0,
         scrollTargetNodeId: selectionMode.lineage_bar_scroll_target_node_id ?? null,
         displays,
+        activeDisplay,
+        activeDisplayId,
+        displayOwner: explicitDisplayOwner,
         overlayBounds,
         projectPoint,
         visualStyle,
@@ -447,11 +584,52 @@ export function createSigilSelectionModeRuntime({
     if (!liveState.selectionMode) liveState.selectionMode = createDefaultSelectionModeState();
     if (liveState.selectionModeOverlay === undefined) liveState.selectionModeOverlay = null;
 
+    const displayGeometrySnapshot = createDisplayGeometrySnapshotReader(getDisplays);
+
+    function readDisplayGeometrySnapshot() {
+        return displayGeometrySnapshot.read();
+    }
+
+    function displayFromOwner(owner = null, snapshot = readDisplayGeometrySnapshot()) {
+        const id = displayOwnerId(owner);
+        return id ? snapshot.byId.get(id) || null : null;
+    }
+
+    function refreshDisplayGeometry(reason = 'display_geometry', { render = true } = {}) {
+        const snapshot = displayGeometrySnapshot.refresh(reason);
+        if (liveState.selectionMode?.active === true || liveState.selectionModeOverlay?.visible === true) {
+            liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+            if (rendererState) rendererState.selectionMode = liveState.selectionMode;
+            if (render && snapshot.changed) scheduleRenderFrame();
+        }
+        return snapshot;
+    }
+
+    function resolveDisplayOwner(point = null, reason = 'selection_mode_display_owner') {
+        const cursor = cursorFromPoint(point || getPointer()) || { x: 0, y: 0, valid: true };
+        const snapshot = readDisplayGeometrySnapshot();
+        const display = findDisplayForPoint(snapshot.displays, cursor.x, cursor.y)
+            || snapshot.displays[0]
+            || null;
+        return {
+            cursor,
+            display,
+            owner: displayOwnerRecord(display, cursor, { reason, snapshot }),
+            snapshot,
+        };
+    }
+
     function buildOverlay(selectionMode = liveState.selectionMode) {
+        const snapshot = readDisplayGeometrySnapshot();
+        const displayOwner = selectionModeDisplayOwner(selectionMode);
+        const activeDisplay = displayFromOwner(displayOwner, snapshot);
         return buildProjectedSelectionModeOverlay(selectionMode, {
             projectPoint,
             overlayBounds: getOverlayBounds(),
-            displays: getDisplays(),
+            displays: snapshot.displays,
+            activeDisplay,
+            activeDisplayId: displayOwnerId(displayOwner),
+            displayOwner,
             rendererState,
             nowMs: nowMs(),
         });
@@ -508,20 +686,19 @@ export function createSigilSelectionModeRuntime({
         });
     }
 
-    function displayCandidate(point = null) {
-        const cursor = cursorFromPoint(point || getPointer()) || { x: 0, y: 0, valid: true };
-        const displays = Array.isArray(getDisplays()) ? getDisplays() : [];
-        const display = findDisplayForPoint(displays, cursor.x, cursor.y)
-            || displays[0]
-            || null;
+    function displayCandidate(point = null, ownerResolution = null) {
+        const resolved = ownerResolution || resolveDisplayOwner(point, 'selection_mode_display_root');
+        const cursor = cursorFromPoint(point || resolved.cursor || getPointer()) || { x: 0, y: 0, valid: true };
+        const display = resolved.display || null;
         return createDisplayAnnotationSubject(display, cursor, {
             role: 'selection-root',
         });
     }
 
-    function candidatesAtPoint(point = null) {
-        const cursor = cursorFromPoint(point || getPointer()) || { x: 0, y: 0, valid: true };
-        const displayRoot = displayCandidate(cursor);
+    function candidatesAtPoint(point = null, ownerResolution = null) {
+        const resolved = ownerResolution || resolveDisplayOwner(point, 'selection_mode_acquire');
+        const cursor = cursorFromPoint(point || resolved.cursor || getPointer()) || { x: 0, y: 0, valid: true };
+        const displayRoot = displayCandidate(cursor, resolved);
         const containing = getCandidateList()
             .filter((candidate) => pointInRect(cursor, projectionRect(candidate)))
         const path = [displayRoot, ...selectedBranchCandidates(containing)];
@@ -547,6 +724,9 @@ export function createSigilSelectionModeRuntime({
         const acquisitionPointer = retargeting
             ? priorArtifact.acquisition.pointer
             : liveState.selectionMode.cursor;
+        const displayOwner = selectionModeDisplayOwner(liveState.selectionMode)
+            || priorArtifact?.acquisition?.source_metadata?.display_owner
+            || null;
         const contextSession = createSelectionModeContextSession({
             id: liveState.selectionMode.context_session?.id,
             updated_at: nowIso(),
@@ -555,6 +735,9 @@ export function createSigilSelectionModeRuntime({
             path_candidates: pathCandidates,
             selected_target_id: selectedNodeId || liveState.selectionMode.selected_node_id || pathCandidates.at(-1)?.id,
             adapter_blockers: liveState.selectionMode.blocker ? [liveState.selectionMode.blocker] : [],
+            source_metadata: {
+                display_owner: displayOwner,
+            },
             session_metadata: {
                 source: 'sigil_selection_mode_runtime',
             },
@@ -592,12 +775,14 @@ export function createSigilSelectionModeRuntime({
         exitAnnotationReticle('selection-mode');
         clearGestureState();
         const cursor = cursorFromPoint(pointer || getPointer());
+        const ownerResolution = resolveDisplayOwner(cursor, 'selection_mode_enter');
         liveState.selectionMode = {
             ...createDefaultSelectionModeState(),
             active: true,
             entered_at: nowIso(),
             rotation_started_at_ms: nowMs(),
             cursor,
+            display_owner: ownerResolution.owner,
         };
         recordEffect('enter', reason);
         recordEvent('enter', { reason, cursor });
@@ -620,14 +805,16 @@ export function createSigilSelectionModeRuntime({
     }
 
     function acquire(point = null) {
-        const cursor = cursorFromPoint(point || getPointer()) || { x: 0, y: 0, valid: true };
-        const pathCandidates = candidatesAtPoint(cursor);
+        const ownerResolution = resolveDisplayOwner(point, 'selection_mode_acquire');
+        const cursor = ownerResolution.cursor;
+        const pathCandidates = candidatesAtPoint(cursor, ownerResolution);
         const leaf = pathCandidates.at(-1) || null;
         liveState.selectionMode = {
             ...liveState.selectionMode,
             cursor,
             leaf_candidate: leaf,
             path_candidates: pathCandidates,
+            display_owner: ownerResolution.owner,
             selected_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
             hover_node_id: '',
             lineage_bar_scroll_target_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
@@ -638,6 +825,7 @@ export function createSigilSelectionModeRuntime({
         };
         recordEvent('acquire', {
             cursor,
+            display_owner_id: ownerResolution.owner?.display_id || '',
             path_candidate_count: pathCandidates.length,
             leaf_candidate_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
         });
@@ -873,6 +1061,10 @@ export function createSigilSelectionModeRuntime({
             cursor: input.pointer || input.cursor || null,
             leaf_candidate: input.clicked_leaf_candidate || input.leaf_candidate || null,
             path_candidates: input.path_candidates || input.ancestor_candidates || [],
+            display_owner: input.display_owner
+                || input.source_metadata?.display_owner
+                || contextSession.artifacts?.[0]?.acquisition?.source_metadata?.display_owner
+                || null,
             selected_node_id: contextSession.artifacts?.[0]?.active_target_node_id || '',
             hover_node_id: '',
             lineage_bar_position: null,
@@ -958,6 +1150,7 @@ export function createSigilSelectionModeRuntime({
 
     return {
         buildContextSession,
+        refreshDisplayGeometry,
         reconcileOverlayLifecycle,
         buildProjectedOverlay: buildOverlay,
         candidatesAtPoint,

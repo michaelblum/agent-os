@@ -66,13 +66,18 @@ function createRuntime(options = {}) {
   let syncedRegions = 0
   let nowIndex = 0
   let runtime
+  const resolveDisplays = () => {
+    if (typeof options.getDisplays === 'function') return options.getDisplays()
+    if (Array.isArray(options.displays)) return options.displays
+    return [display]
+  }
   runtime = createSigilSelectionModeRuntime({
     liveState,
     rendererState,
     nowIso: () => `2026-05-28T12:00:0${nowIndex++}.000Z`,
     nowMs: options.nowMs || (() => 100000 + nowIndex * 1000),
     getPointer: () => ({ x: 40, y: 40, valid: true }),
-    getDisplays: () => [display],
+    getDisplays: resolveDisplays,
     getCandidateList: () => options.candidates || [],
     projectPoint: options.projectPoint || ((point) => ({ x: point.x + 1, y: point.y + 2, valid: point.valid })),
     getOverlayBounds: () => options.overlayBounds || { x: 0, y: 0, w: 800, h: 600 },
@@ -333,6 +338,158 @@ test('Selection Mode lineage bar pins to the active display visible bounds', () 
   assert.ok(bar.items.filter((item) => item.visibleRect).every((item) => item.visibleRect.x + item.visibleRect.width <= bar.rect.x + bar.rect.width))
   assert.ok(bar.items.every((item) => item.rect.y >= bar.rect.y))
   assert.ok(bar.items.every((item) => item.rect.y + item.rect.height <= bar.rect.y + bar.rect.height))
+})
+
+test('Selection Mode carries the acquisition display owner after the cursor crosses displays', () => {
+  const displays = [
+    {
+      id: 'left',
+      label: 'Left Display',
+      visibleBounds: { x: -320, y: 24, w: 300, h: 180 },
+      bounds: { x: -320, y: 0, w: 300, h: 204 },
+    },
+    {
+      id: 'main',
+      label: 'Main Display',
+      visibleBounds: { x: 0, y: 25, w: 800, h: 575 },
+      bounds: { x: 0, y: 0, w: 800, h: 600 },
+    },
+  ]
+  const { runtime, liveState } = createRuntime({
+    getDisplays: () => displays,
+    projectPoint: (point) => point,
+    overlayBounds: { x: -320, y: 0, w: 1120, h: 600 },
+  })
+
+  runtime.enter({ x: -140, y: 90, valid: true }, 'test')
+  runtime.acquire({ x: -140, y: 90, valid: true })
+
+  assert.equal(liveState.selectionMode.display_owner.display_id, 'left')
+  assert.equal(
+    liveState.selectionMode.context_session.artifacts[0].acquisition.source_metadata.display_owner.display_id,
+    'left',
+  )
+  assert.equal(liveState.selectionModeOverlay.lineageBar.activeDisplayId, 'left')
+  const acquiredDisplayRect = structuredClone(liveState.selectionModeOverlay.lineageBar.displayRect)
+
+  runtime.handleInput({ type: 'mouse_moved', x: 280, y: 120 })
+
+  assert.equal(liveState.selectionMode.cursor.x, 280)
+  assert.equal(liveState.selectionModeOverlay.lineageBar.activeDisplayId, 'left')
+  assert.deepEqual(liveState.selectionModeOverlay.lineageBar.displayRect, acquiredDisplayRect)
+})
+
+test('Selection Mode display owner resolves against refreshed display geometry by id', () => {
+  let displays = [
+    {
+      id: 'left',
+      label: 'Left Display',
+      visibleBounds: { x: -300, y: 24, w: 260, h: 160 },
+      bounds: { x: -300, y: 0, w: 260, h: 184 },
+    },
+    {
+      id: 'main',
+      label: 'Main Display',
+      visibleBounds: { x: 0, y: 25, w: 800, h: 575 },
+      bounds: { x: 0, y: 0, w: 800, h: 600 },
+    },
+  ]
+  const { runtime, liveState } = createRuntime({
+    getDisplays: () => displays,
+    projectPoint: (point) => point,
+    overlayBounds: { x: -500, y: 0, w: 1300, h: 700 },
+  })
+
+  runtime.enter({ x: -180, y: 90, valid: true }, 'test')
+  runtime.acquire({ x: -180, y: 90, valid: true })
+  assert.deepEqual(liveState.selectionModeOverlay.lineageBar.displayRect, {
+    x: -300,
+    y: 24,
+    width: 260,
+    height: 160,
+  })
+
+  displays = [
+    {
+      id: 'left',
+      label: 'Left Display',
+      visibleBounds: { x: -460, y: 30, w: 320, h: 220 },
+      bounds: { x: -460, y: 0, w: 320, h: 250 },
+    },
+    displays[1],
+  ]
+  runtime.refreshDisplayGeometry('display_geometry')
+  const overlay = runtime.buildProjectedOverlay(liveState.selectionMode)
+
+  assert.equal(overlay.lineageBar.activeDisplayId, 'left')
+  assert.deepEqual(overlay.lineageBar.displayRect, {
+    x: -460,
+    y: 30,
+    width: 320,
+    height: 220,
+  })
+})
+
+test('Selection Mode uses display geometry as the cache boundary for visual frames', () => {
+  let displayReadCount = 0
+  let displays = [
+    {
+      id: 'left',
+      label: 'Left Display',
+      visibleBounds: { x: -320, y: 24, w: 300, h: 180 },
+      bounds: { x: -320, y: 0, w: 300, h: 204 },
+    },
+    {
+      id: 'main',
+      label: 'Main Display',
+      visibleBounds: { x: 0, y: 25, w: 800, h: 575 },
+      bounds: { x: 0, y: 0, w: 800, h: 600 },
+    },
+  ]
+  const { runtime, liveState } = createRuntime({
+    getDisplays: () => {
+      displayReadCount += 1
+      return displays
+    },
+    projectPoint: (point) => point,
+    overlayBounds: { x: -500, y: 0, w: 1300, h: 700 },
+  })
+
+  runtime.enter({ x: -150, y: 90, valid: true }, 'test')
+  runtime.acquire({ x: -150, y: 90, valid: true })
+  const readsAfterAcquire = displayReadCount
+  assert.equal(readsAfterAcquire, 1)
+
+  runtime.handleInput({ type: 'mouse_moved', x: 60, y: 120 })
+  runtime.handleInput({ type: 'mouse_moved', x: 120, y: 140 })
+  runtime.handleInput({ type: 'mouse_moved', x: 180, y: 160 })
+
+  assert.equal(displayReadCount, readsAfterAcquire)
+  assert.equal(liveState.selectionModeOverlay.lineageBar.activeDisplayId, 'left')
+
+  displays = [
+    {
+      id: 'left',
+      label: 'Left Display',
+      visibleBounds: { x: -460, y: 30, w: 320, h: 220 },
+      bounds: { x: -460, y: 0, w: 320, h: 250 },
+    },
+    displays[1],
+  ]
+  const refresh = runtime.refreshDisplayGeometry('display_geometry')
+
+  assert.equal(refresh.changed, true)
+  assert.equal(displayReadCount, readsAfterAcquire + 1)
+  assert.equal(liveState.selectionModeOverlay.lineageBar.activeDisplayId, 'left')
+  assert.deepEqual(liveState.selectionModeOverlay.lineageBar.displayRect, {
+    x: -460,
+    y: 30,
+    width: 320,
+    height: 220,
+  })
+
+  runtime.handleInput({ type: 'mouse_moved', x: 240, y: 180 })
+  assert.equal(displayReadCount, readsAfterAcquire + 1)
 })
 
 test('Selection Mode lineage bar can be dragged and resets on fresh entry', () => {

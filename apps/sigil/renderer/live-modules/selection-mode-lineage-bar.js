@@ -41,6 +41,18 @@ function displayId(display = null, fallback = '') {
     return String(value || '');
 }
 
+function displayOwnerId(owner = null) {
+    if (!owner || typeof owner !== 'object') return '';
+    return String(owner.display_id ?? owner.displayId ?? owner.id ?? owner.display?.display_id ?? owner.display?.id ?? '').trim();
+}
+
+function findDisplayById(displays = [], id = '') {
+    const target = String(id || '').trim();
+    if (!target) return null;
+    return (Array.isArray(displays) ? displays : [])
+        .find((display, index) => displayId(display, `index:${index}`) === target) || null;
+}
+
 function displayVisibleBounds(display = null) {
     return rectToBounds(
         display?.visibleBounds
@@ -342,19 +354,29 @@ function overlayBoundsRect(overlayBounds = null) {
 
 function activeDisplayForLineage({
     displays = [],
+    activeDisplay = null,
+    activeDisplayId = '',
+    displayOwner = null,
     acquisitionPointer = null,
     cursor = null,
     path = [],
 } = {}) {
-    return findDisplayForPoint(displays, acquisitionPointer)
-        || findDisplayForPoint(displays, cursor)
+    const entries = Array.isArray(displays) ? displays : [];
+    const explicitId = displayOwnerId(displayOwner)
+        || displayOwnerId(activeDisplay)
+        || String(activeDisplayId || '').trim();
+    const explicitDisplay = findDisplayById(entries, explicitId);
+    if (explicitDisplay) return explicitDisplay;
+    if (!entries.length && activeDisplay && displayVisibleBounds(activeDisplay)) return activeDisplay;
+    return findDisplayForPoint(entries, acquisitionPointer)
+        || findDisplayForPoint(entries, cursor)
         || (() => {
             const displayNode = pathDisplayNode(path);
             const displayNodeBounds = nodeProjectionBounds(displayNode);
             if (!displayNodeBounds) return null;
-            return findDisplayForPoint(displays, rectCenter(displayNodeBounds));
+            return findDisplayForPoint(entries, rectCenter(displayNodeBounds));
         })()
-        || (Array.isArray(displays) ? displays[0] : null)
+        || entries[0]
         || null;
 }
 
@@ -427,11 +449,22 @@ export function buildSelectionModeLineageBarModel({
     scrollOffset = 0,
     scrollTargetNodeId = null,
     displays = [],
+    activeDisplay: explicitActiveDisplay = null,
+    activeDisplayId: explicitActiveDisplayId = '',
+    displayOwner = null,
     overlayBounds = null,
     projectPoint = (point) => point,
     visualStyle = null,
 } = {}) {
-    const activeDisplay = activeDisplayForLineage({ displays, acquisitionPointer, cursor, path });
+    const activeDisplay = activeDisplayForLineage({
+        displays,
+        activeDisplay: explicitActiveDisplay,
+        activeDisplayId: explicitActiveDisplayId,
+        displayOwner,
+        acquisitionPointer,
+        cursor,
+        path,
+    });
     const displayRect = activeDisplayProjectedRect({ activeDisplay, path, overlayBounds, projectPoint });
     const lineagePath = selectablePath(path, activeDisplay);
     if (!displayRect || !lineagePath.length) {

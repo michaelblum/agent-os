@@ -35,6 +35,20 @@ test('Selection Mode visual frames do not request structural or publication work
   assert.equal(work.publishState, false)
 })
 
+test('display_geometry is the Selection Mode display cache boundary', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const displayGeometryStart = source.indexOf("if (msg.type === 'display_geometry')")
+  const displayGeometryEnd = source.indexOf("if (msg.type === 'bootstrap')", displayGeometryStart)
+  const displayGeometryBlock = source.slice(displayGeometryStart, displayGeometryEnd)
+
+  assert.match(displayGeometryBlock, /liveJs\.displays = normalizeDisplays\(msg\.displays \|\| \[\]\)/)
+  assert.match(displayGeometryBlock, /selectionModeRuntime\.refreshDisplayGeometry\('display_geometry'\)/)
+  assert.match(
+    displayGeometryBlock,
+    /liveJs\.visibleBounds[\s\S]*selectionModeRuntime\.refreshDisplayGeometry\('display_geometry'\)[\s\S]*annotationReticleRefreshCanvasCandidates\(\)/,
+  )
+})
+
 test('Selection Mode dirty frames still request lifecycle work while effect frames publish without structural work', () => {
   assert.equal(classifyRenderLoopWork({
     continuationReasons: ['selection-mode', 'avatar-motion'],
