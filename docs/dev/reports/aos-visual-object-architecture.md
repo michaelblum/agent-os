@@ -4,6 +4,23 @@
 **Status**: Planning  
 **Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 
+## Implementation Slicing
+
+This report describes the full target architecture. It should not be treated as
+one implementation stroke. The first GDI slice is intentionally narrower:
+
+1. Establish a canonical, JSON-serializable `state.avatar.*` graph.
+2. Migrate active Sigil avatar callers and controls to read/write that graph.
+3. Preserve current rendering behavior while making the new state shape the
+   source of truth.
+4. Add enough deterministic coverage to prove active callers use
+   `state.avatar.*` and `JSON.stringify(state.avatar)` succeeds.
+
+GPU morph targets, uniform-only stellation updates, material pooling, complete
+descriptor coverage, and non-avatar visual extraction are follow-up slices. They
+should build on the canonical state graph instead of being mixed into the first
+state migration.
+
 ## Vision
 
 Establish a **unified data-driven architecture for all AOS visual objects**—whether 3D WebGL, 2D Canvas, or DOM-based—where interactive elements expose addressable state, respond to mutations without full rebuilds, and integrate seamlessly with toolkit, agents, and temporal capture systems.
@@ -287,6 +304,9 @@ mesh.morphTargetInfluences[0] = stellationFactor;
 
 ## Success Criteria
 
+The criteria below describe the full architecture. Use the "First Slice
+Acceptance" section for the initial GDI round.
+
 ### Performance
 
 1. **60fps parameter updates**: User drags stellation slider → avatar morphs smoothly without frame drops
@@ -312,6 +332,23 @@ mesh.morphTargetInfluences[0] = stellationFactor;
 12. **Documentation**: Pattern documented with examples for 3D, 2D, DOM use cases
 13. **Validation**: Pattern successfully applied to at least one non-avatar visual (radial menu or toolkit control)
 
+### First Slice Acceptance
+
+The first implementation slice is accepted when:
+
+1. `state.avatar` exists as the canonical avatar configuration object.
+2. Shape, appearance, effect, and transform parameters that active Sigil avatar
+   controls or renderer paths use are represented under `state.avatar.*`.
+3. Active in-repo callers touched by the slice read/write the new paths; avoid
+   adding old-path compatibility shims unless an external boundary cannot be
+   updated in the same slice.
+4. `JSON.stringify(state.avatar)` succeeds in deterministic tests and in a live
+   `avatar-main` canvas when AOS readiness permits.
+5. Existing renderer behavior still boots and exposes the avatar through
+   `window.__sigilDebug.snapshot()`.
+6. Any known stale tests, docs, or inactive callers left behind are recorded in
+   `BROKE.md` with a concrete follow-up checkbox.
+
 ## Migration Strategy
 
 ### Phase 1: Avatar State Unification (Foundation)
@@ -321,8 +358,17 @@ mesh.morphTargetInfluences[0] = stellationFactor;
 - Extract effect parameters into `state.avatar.effects.*`
 - Consolidate geometry params into `state.avatar.shape.*`
 - Move appearance settings into `state.avatar.appearance.*`
+- Move transform and other runtime-editable avatar configuration into an
+  appropriate `state.avatar.*` child while keeping renderer-only Three.js/DOM
+  objects outside the serializable graph
+- Migrate active controls, context-menu descriptors, subject/adapter projections,
+  and renderer reads/writes that currently consume those parameters
 - Ensure all state is serializable (no closures, no circular refs)
-- **Deliverable**: Single source of truth for avatar configuration
+- **Deliverable**: Single source of truth for avatar configuration, with current
+  rendering behavior preserved
+- **Out of scope for Phase 1**: eliminating all geometry rebuilds, adding morph
+  targets, proving 60fps slider edits, extracting platform packages, and
+  completing all descriptor/workbench coverage
 
 ### Phase 2: GPU-Optimized Parameter Updates (Performance)
 

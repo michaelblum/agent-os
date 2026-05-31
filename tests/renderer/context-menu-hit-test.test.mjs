@@ -233,7 +233,7 @@ test('context menu descriptors carry toolkit form metadata for compact avatar su
 
 test('descriptor routing applies a shape control through geometry sync', () => {
   const calls = []
-  const state = { currentGeometryType: 4, currentType: 4, tesseron: { enabled: false } }
+  const state = { avatar: { shape: { type: 4, tesseron: { enabled: false } }, appearance: {}, effects: {} } }
   const result = applyContextMenuDescriptorUpdate('sigil-menu-shape-select', '8', {
     state,
     updateGeometry(value) { calls.push(['geometry', value]) },
@@ -242,8 +242,8 @@ test('descriptor routing applies a shape control through geometry sync', () => {
   })
 
   assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.type, 8)
   assert.equal(state.currentGeometryType, 8)
-  assert.equal(state.currentType, 8)
   assert.deepEqual(calls.filter(([kind]) => kind === 'geometry'), [['geometry', 8]])
   assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-menu-shape-select', 8]])
 })
@@ -251,11 +251,14 @@ test('descriptor routing applies a shape control through geometry sync', () => {
 test('descriptor routing applies shape-specific prism parameters through shared geometry sync', () => {
   const calls = []
   const state = {
-    currentGeometryType: 93,
-    currentType: 93,
-    omegaGeometryType: 93,
-    omegaType: 93,
-    cylinderSides: 32,
+    avatar: {
+      shape: {
+        type: 93,
+        params: { cylinder: { sides: 32 } },
+      },
+      appearance: {},
+      effects: { omega: { shape: { type: 93 } } },
+    },
   }
   const result = applyContextMenuDescriptorUpdate('sigil-menu-prism-sides', '12', {
     state,
@@ -264,41 +267,53 @@ test('descriptor routing applies shape-specific prism parameters through shared 
   })
 
   assert.equal(result.route, 'canvas_object.transform.patch')
-  assert.equal(state.cylinderSides, 12)
+  assert.equal(state.avatar.shape.params.cylinder.sides, 12)
   assert.deepEqual(calls, [['alpha', 93], ['omega', 93]])
 })
 
 test('descriptor routing applies a tesseron control and preserves child overrides', () => {
   const state = {
-    currentGeometryType: 4,
-    currentType: 4,
-    currentOpacity: 0.4,
-    currentEdgeOpacity: 0.7,
-    isMaskEnabled: true,
-    isInteriorEdgesEnabled: false,
-    isSpecularEnabled: true,
-    tesseron: { enabled: true, proportion: 0.5, matchMother: true, child: {} },
+    avatar: {
+      shape: {
+        type: 4,
+        tesseron: { enabled: true, proportion: 0.5, matchMother: true, child: {} },
+      },
+      appearance: {
+        opacity: 0.4,
+        edgeOpacity: 0.7,
+        maskEnabled: true,
+        interiorEdges: false,
+        specular: true,
+      },
+      effects: {},
+    },
   }
   const result = applyContextMenuDescriptorUpdate('sigil-menu-tesseron-match', false, { state })
 
   assert.equal(result.route, 'canvas_object.transform.patch')
-  assert.equal(state.tesseron.matchMother, false)
-  assert.equal(state.tesseron.child.opacity, 0.4)
-  assert.equal(state.tesseron.child.edgeOpacity, 0.7)
-  assert.equal(state.tesseron.child.maskEnabled, true)
-  assert.equal(state.tesseron.child.specular, true)
+  assert.equal(state.avatar.shape.tesseron.matchMother, false)
+  assert.equal(state.avatar.shape.tesseron.child.opacity, 0.4)
+  assert.equal(state.avatar.shape.tesseron.child.edgeOpacity, 0.7)
+  assert.equal(state.avatar.shape.tesseron.child.maskEnabled, true)
+  assert.equal(state.avatar.shape.tesseron.child.specular, true)
 })
 
 test('descriptor routing applies an effect control through effect patch sync', () => {
   const calls = []
-  const state = { isPulsarEnabled: false, pulsarRayCount: 0 }
+  const state = {
+    avatar: {
+      shape: {},
+      appearance: {},
+      effects: { phenomena: { pulsar: { enabled: false, count: 0 } } },
+    },
+  }
   const result = applyContextMenuDescriptorUpdate('sigil-menu-pulsar', true, {
     state,
     updatePulsars(count) { calls.push(count) },
   })
 
   assert.equal(result.route, 'canvas_object.effects.patch')
-  assert.equal(state.isPulsarEnabled, true)
+  assert.equal(state.avatar.effects.phenomena.pulsar.enabled, true)
   assert.equal(state.pulsarRayCount, 1)
   assert.deepEqual(calls, [1])
 })

@@ -54,8 +54,10 @@ function buildShapeHierarchy(type, config) {
 export function updateInnerEdgePulse(isOmega = false) {
     const wireKey = isOmega ? 'omegaInnerWireframeMesh' : 'innerWireframeMesh';
     const highlightKey = isOmega ? 'omegaInnerHighlightWireframeMesh' : 'innerHighlightWireframeMesh';
-    const opacityKey = isOmega ? 'omegaEdgeOpacity' : 'currentEdgeOpacity';
-    const colors = isOmega ? state.colors.omegaEdge : state.colors.edge;
+    const edgeOpacity = isOmega
+        ? state.avatar.effects.omega.edgeOpacity
+        : state.avatar.appearance.edgeOpacity;
+    const colors = isOmega ? state.avatar.appearance.colors.omegaEdge : state.avatar.appearance.colors.edge;
     const mesh = state[wireKey];
     const highlightMesh = state[highlightKey];
     if (!mesh?.material) return;
@@ -79,13 +81,13 @@ export function updateInnerEdgePulse(isOmega = false) {
     const flickerBoost = peakPulse > 0
         ? ((1 - state.innerEdgeFlickerAmount) + (flickerNoise * state.innerEdgeFlickerAmount))
         : 0;
-    const tesseron = isOmega ? state.omegaTesseron : state.tesseron;
-    const geometryType = isOmega ? state.omegaGeometryType : state.currentGeometryType;
+    const tesseron = isOmega ? state.avatar.effects.omega.shape.tesseron : state.avatar.shape.tesseron;
+    const geometryType = isOmega ? state.avatar.effects.omega.shape.type : state.avatar.shape.type;
     const geometryActive = !!tesseron?.enabled && isTesseronSupportedShape(geometryType);
-    const visible = state[opacityKey] > 0.001 && geometryActive;
+    const visible = edgeOpacity > 0.001 && geometryActive;
     const baseColor = new THREE.Color(colors[0]).lerp(new THREE.Color(colors[1]), 0.35);
     mesh.material.color.setHex(0xffffff);
-    mesh.material.opacity = visible ? Math.min(1, state[opacityKey]) : 0;
+    mesh.material.opacity = visible ? Math.min(1, edgeOpacity) : 0;
     mesh.visible = visible;
     mesh.scale.setScalar(1);
 
@@ -93,13 +95,14 @@ export function updateInnerEdgePulse(isOmega = false) {
     const highlightColor = baseColor.clone().lerp(new THREE.Color(0xffffff), 0.5);
     highlightMesh.material.color.copy(highlightColor);
     highlightMesh.material.opacity = visible
-        ? Math.min(1, state[opacityKey] * peakPulse * activity * flickerBoost * (state.innerEdgePulseAmount * 0.65))
+        ? Math.min(1, edgeOpacity * peakPulse * activity * flickerBoost * (state.innerEdgePulseAmount * 0.65))
         : 0;
     highlightMesh.visible = visible && peakPulse > 0.001;
     highlightMesh.scale.setScalar(state.innerEdgeHighlightInsetScale);
 }
 
 export function updateGeometry(type) {
+    const avatar = state.avatar;
     buildShapeHierarchy(type, {
         group: state.polyGroup,
         depthKey: 'depthMesh',
@@ -110,21 +113,22 @@ export function updateGeometry(type) {
         childDepthKey: 'tesseronChildDepthMesh',
         childCoreKey: 'tesseronChildCoreMesh',
         childWireKey: 'tesseronChildWireframeMesh',
-        opacity: state.currentOpacity,
-        edgeOpacity: state.currentEdgeOpacity,
-        stellation: state.stellationFactor,
-        isInterior: state.isInteriorEdgesEnabled,
-        isSpecular: state.isSpecularEnabled,
-        isMask: state.isMaskEnabled,
-        faceColors: state.colors.face,
-        edgeColors: state.colors.edge,
-        skin: state.currentSkin,
-        tesseron: state.tesseron,
+        opacity: avatar.appearance.opacity,
+        edgeOpacity: avatar.appearance.edgeOpacity,
+        stellation: avatar.shape.stellationFactor,
+        isInterior: avatar.appearance.interiorEdges,
+        isSpecular: avatar.appearance.specular,
+        isMask: avatar.appearance.maskEnabled,
+        faceColors: avatar.appearance.colors.face,
+        edgeColors: avatar.appearance.colors.edge,
+        skin: avatar.appearance.skin,
+        tesseron: avatar.shape.tesseron,
         isOmega: false
     });
 }
 
 export function updateOmegaGeometry(type) {
+    const omega = state.avatar.effects.omega;
     buildShapeHierarchy(type, {
         group: state.omegaGroup,
         depthKey: 'omegaDepthMesh',
@@ -135,16 +139,16 @@ export function updateOmegaGeometry(type) {
         childDepthKey: 'omegaTesseronChildDepthMesh',
         childCoreKey: 'omegaTesseronChildCoreMesh',
         childWireKey: 'omegaTesseronChildWireframeMesh',
-        opacity: state.omegaOpacity,
-        edgeOpacity: state.omegaEdgeOpacity,
-        stellation: state.omegaStellationFactor,
-        isInterior: state.omegaIsInteriorEdgesEnabled,
-        isSpecular: state.omegaIsSpecularEnabled,
-        isMask: state.omegaIsMaskEnabled,
-        faceColors: state.colors.omegaFace,
-        edgeColors: state.colors.omegaEdge,
-        skin: state.omegaSkin,
-        tesseron: state.omegaTesseron,
+        opacity: omega.opacity,
+        edgeOpacity: omega.edgeOpacity,
+        stellation: omega.shape.stellationFactor,
+        isInterior: omega.interiorEdges,
+        isSpecular: omega.specular,
+        isMask: omega.maskEnabled,
+        faceColors: state.avatar.appearance.colors.omegaFace,
+        edgeColors: state.avatar.appearance.colors.omegaEdge,
+        skin: omega.skin,
+        tesseron: omega.shape.tesseron,
         isOmega: true
     });
 }

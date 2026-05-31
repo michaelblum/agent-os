@@ -21,7 +21,58 @@ function createPatchedDocument() {
 }
 
 function avatarState(overrides = {}) {
+  const avatar = {
+    shape: {
+      type: 12,
+      size: { base: 153, min: 40, max: 400 },
+      tesseron: { enabled: false, proportion: 0.5, matchMother: true },
+      stellationFactor: 0.25,
+      params: {
+        tetartoid: { a: 0.8, b: 1.2, c: 1.6 },
+        torus: { radius: 1.1, tube: 0.25, arc: 0.75 },
+        cylinder: { topRadius: 0.4, bottomRadius: 1.3, height: 2.4, sides: 9 },
+        box: { width: 1.4, height: 0.8, depth: 2.1 },
+      },
+    },
+    appearance: {
+      opacity: 0.8,
+      edgeOpacity: 0.6,
+      interiorEdges: false,
+      specular: true,
+      colors: {
+        face: ['#112233', '#445566'],
+        edge: ['#ffffff', '#88ccff'],
+        aura: ['#4488ff', '#0044aa'],
+        lightning: ['#ffffff', '#00ffff'],
+        magnetic: ['#4488ff', '#0044aa'],
+      },
+    },
+    effects: {
+      aura: { reach: 1.4, intensity: 1.2 },
+      phenomena: {
+        pulsar: { enabled: false },
+        accretion: { enabled: false },
+        gamma: { enabled: true },
+        neutrino: { enabled: false },
+      },
+      lightning: { enabled: true },
+      magnetic: { enabled: true },
+      trail: { enabled: true, length: 12, opacity: 0.45, fadeMs: 800, style: 'omega' },
+      omega: {
+        enabled: true,
+        shape: {
+          type: 8,
+          tesseron: { enabled: false, proportion: 0.45, matchMother: true },
+          stellationFactor: 0.1,
+        },
+        scale: 1.75,
+        counterSpin: true,
+        lockPosition: false,
+      },
+    },
+  };
   return {
+    avatar,
     currentGeometryType: 12,
     currentType: 12,
     avatarBase: 153,

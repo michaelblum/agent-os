@@ -9,9 +9,62 @@ import {
   SIGIL_AVATAR_SUBJECT_ID,
   SIGIL_AVATAR_SUBJECT_TYPE,
 } from '../../apps/sigil/avatar-editor/model.js';
+import rendererState from '../../apps/sigil/renderer/state.js';
 
 function avatarState(overrides = {}) {
+  const avatar = {
+    shape: {
+      type: 12,
+      size: { base: 153, min: 40, max: 400 },
+      tesseron: { enabled: false, proportion: 0.5, matchMother: true },
+      stellationFactor: 0.25,
+      params: {
+        tetartoid: { a: 0.8, b: 1.2, c: 1.6 },
+        torus: { radius: 1.1, tube: 0.25, arc: 0.75 },
+        cylinder: { topRadius: 0.4, bottomRadius: 1.3, height: 2.4, sides: 9 },
+        box: { width: 1.4, height: 0.8, depth: 2.1 },
+      },
+    },
+    appearance: {
+      opacity: 0.8,
+      edgeOpacity: 0.6,
+      interiorEdges: false,
+      specular: true,
+      colors: {
+        face: ['#112233', '#445566'],
+        edge: ['#ffffff', '#88ccff'],
+        aura: ['#4488ff', '#0044aa'],
+        lightning: ['#ffffff', '#00ffff'],
+        magnetic: ['#4488ff', '#0044aa'],
+        grid: ['#224488', '#001133'],
+      },
+    },
+    effects: {
+      aura: { reach: 1.4, intensity: 1.2 },
+      phenomena: {
+        pulsar: { enabled: false },
+        accretion: { enabled: false },
+        gamma: { enabled: true },
+        neutrino: { enabled: false },
+      },
+      lightning: { enabled: true },
+      magnetic: { enabled: true },
+      trail: { enabled: true, length: 12, opacity: 0.45, fadeMs: 800, style: 'omega' },
+      omega: {
+        enabled: true,
+        shape: {
+          type: 8,
+          tesseron: { enabled: false, proportion: 0.45, matchMother: true },
+          stellationFactor: 0.1,
+        },
+        scale: 1.75,
+        counterSpin: true,
+        lockPosition: false,
+      },
+    },
+  };
   return {
+    avatar,
     currentGeometryType: 12,
     currentType: 12,
     avatarBase: 153,
@@ -103,6 +156,16 @@ test('classifies every compact surface descriptor as canonical avatar editing or
   assert.ok(classification.projection_only.includes('sigil-menu-avatar-above-menu'));
 });
 
+test('renderer state exposes a canonical JSON-serializable avatar graph', () => {
+  const serialized = JSON.stringify(rendererState.avatar);
+  const parsed = JSON.parse(serialized);
+
+  assert.equal(parsed.shape.type, 12);
+  assert.equal(parsed.appearance.skin, 'none');
+  assert.equal(parsed.effects.lightning.enabled, false);
+  assert.equal(parsed.transform.scale, 1);
+});
+
 test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups, and routed controls', () => {
   const model = buildSigilAvatarEditorModel(avatarState());
   const groups = new Map(model.groups.map((group) => [group.key, group]));
@@ -155,7 +218,7 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   );
 
   const alphaGeometry = getSigilAvatarEditorControl(model, 'sigil-menu-shape-select');
-  assert.equal(alphaGeometry.state_path, 'currentGeometryType');
+  assert.equal(alphaGeometry.state_path, 'avatar.shape.type');
   assert.equal(alphaGeometry.value, 12);
   assert.equal(alphaGeometry.route, 'canvas_object.transform.patch');
   assert.equal(alphaGeometry.object_ids[0], SIGIL_AVATAR_CHILD_OBJECT_IDS.primaryShape);
@@ -164,7 +227,7 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
 
   const prismSides = getSigilAvatarEditorControl(model, 'sigil-menu-prism-sides');
   assert.equal(prismSides.kind ?? prismSides.type, 'slider');
-  assert.equal(prismSides.state_path, 'cylinderSides');
+  assert.equal(prismSides.state_path, 'avatar.shape.params.cylinder.sides');
   assert.equal(prismSides.value, 9);
   assert.equal(prismSides.min, 3);
   assert.equal(prismSides.max, 64);
@@ -173,16 +236,16 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   assert.deepEqual(prismSides.renderer_sync, ['updateGeometry', 'updateOmegaGeometry']);
 
   const tetartoidA = getSigilAvatarEditorControl(model, 'sigil-menu-tetartoid-a');
-  assert.equal(tetartoidA.state_path, 'tetartoidA');
+  assert.equal(tetartoidA.state_path, 'avatar.shape.params.tetartoid.a');
   assert.equal(tetartoidA.value, 0.8);
   assert.deepEqual(tetartoidA.visible_when, { field: alphaGeometry.id, equals: 90 });
 
   const omegaGeometry = getSigilAvatarEditorControl(model, 'sigil-menu-omega-shape');
-  assert.equal(omegaGeometry.state_path, 'omegaGeometryType');
+  assert.equal(omegaGeometry.state_path, 'avatar.effects.omega.shape.type');
   assert.equal(omegaGeometry.value, 8);
   assert.equal(omegaGeometry.object_ids[0], SIGIL_AVATAR_CHILD_OBJECT_IDS.omegaShape);
   const omegaTorusTube = getSigilAvatarEditorControl(model, 'sigil-menu-omega-torus-tube');
-  assert.equal(omegaTorusTube.state_path, 'torusTube');
+  assert.equal(omegaTorusTube.state_path, 'avatar.shape.params.torus.tube');
   assert.equal(omegaTorusTube.value, 0.25);
   assert.deepEqual(omegaTorusTube.visible_when, { field: omegaGeometry.id, equals: 92 });
 
