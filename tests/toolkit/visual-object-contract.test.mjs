@@ -5,10 +5,12 @@ import {
   createVisualObjectDescriptor,
   createToolkitSliderVisualObjectDescriptor,
   applyVisualObjectDescriptorMutation,
+  coerceVisualObjectDescriptorValue,
   validateVisualObjectDescriptor,
   validateVisualObjectDescriptors,
   VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
 } from '../../packages/toolkit/workbench/visual-object-contract.js';
+import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbench/visual-object-controller.js';
 
 test('visual object descriptor contract validates editable descriptors', () => {
   const descriptor = createVisualObjectDescriptor({
@@ -127,6 +129,96 @@ test('descriptor-addressed mutation applies coerced values into plain JSON state
     value: 0.75,
   });
   assert.deepEqual(JSON.parse(JSON.stringify(state)), state);
+});
+
+test('descriptor boolean coercion uses explicit vocabulary instead of truthiness', () => {
+  const enabled = createVisualObjectDescriptor({
+    id: 'effect-enabled',
+    label: 'Effect enabled',
+    kind: 'toggle',
+    technology: 'canvas-2d',
+    state_path: 'effects.enabled',
+    route: 'canvas_object.effects.patch',
+    coerce: 'boolean',
+    renderer_sync: ['syncEffects'],
+    group_key: 'effects',
+    object_ids: ['effect.primary'],
+  });
+  const visible = createVisualObjectDescriptor({
+    ...enabled,
+    id: 'object-visible',
+    state_path: 'object.hidden',
+    coerce: 'boolean_inverse',
+  });
+
+  assert.equal(coerceVisualObjectDescriptorValue(enabled, 'false'), false);
+  assert.equal(coerceVisualObjectDescriptorValue(enabled, '0'), false);
+  assert.equal(coerceVisualObjectDescriptorValue(enabled, 'off'), false);
+  assert.equal(coerceVisualObjectDescriptorValue(enabled, 'yes'), true);
+  assert.equal(coerceVisualObjectDescriptorValue(visible, 'false'), true);
+  assert.equal(coerceVisualObjectDescriptorValue(visible, '0'), true);
+  assert.equal(coerceVisualObjectDescriptorValue(visible, 'off'), true);
+  assert.throws(
+    () => coerceVisualObjectDescriptorValue(enabled, 'disabled'),
+    /requires an explicit boolean value/,
+  );
+});
+
+test('controller adapter mutates state, dispatches route, and syncs renderers deterministically', () => {
+  const descriptor = createVisualObjectDescriptor({
+    id: 'overlay-opacity',
+    label: 'Overlay opacity',
+    kind: 'slider',
+    technology: 'canvas-2d',
+    state_path: 'overlays.heatmap.opacity',
+    route: 'canvas_object.effects.patch',
+    coerce: 'number',
+    renderer_sync: ['resolveOverlay', 'syncOverlayOpacity'],
+    group_key: 'overlays.heatmap',
+    object_ids: ['overlay.heatmap'],
+  });
+  const state = { overlays: { heatmap: { opacity: 0.25 } } };
+  const calls = [];
+
+  const result = applyVisualObjectControllerUpdate(descriptor, '0.75', state, {
+    routeHandlers: {
+      'canvas_object.effects.patch': ({ mutation }) => {
+        calls.push(['route', mutation.route, mutation.value]);
+        return 'routed';
+      },
+    },
+    rendererSyncHandlers: {
+      resolveOverlay: ({ mutation }) => {
+        calls.push(['sync', 'resolveOverlay', mutation.value]);
+      },
+      syncOverlayOpacity: ({ mutation }) => {
+        calls.push(['sync', 'syncOverlayOpacity', mutation.value]);
+      },
+    },
+  });
+
+  assert.equal(state.overlays.heatmap.opacity, 0.75);
+  assert.deepEqual(calls, [
+    ['route', 'canvas_object.effects.patch', 0.75],
+    ['sync', 'resolveOverlay', 0.75],
+    ['sync', 'syncOverlayOpacity', 0.75],
+  ]);
+  assert.deepEqual(result, {
+    descriptor_id: 'overlay-opacity',
+    state_path: 'overlays.heatmap.opacity',
+    route: 'canvas_object.effects.patch',
+    value: 0.75,
+    previous_value: 0.25,
+    route_outcome: {
+      route: 'canvas_object.effects.patch',
+      status: 'called',
+      value: 'routed',
+    },
+    sync_outcomes: [
+      { label: 'resolveOverlay', status: 'called', value: undefined },
+      { label: 'syncOverlayOpacity', status: 'called', value: undefined },
+    ],
+  });
 });
 
 test('descriptor-addressed mutation resolves existing dotted object keys', () => {

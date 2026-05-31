@@ -25,10 +25,10 @@ import {
   subjectReferences,
 } from '../../packages/toolkit/workbench/subject.js'
 import {
-  applyVisualObjectDescriptorMutation,
   validateVisualObjectDescriptors,
   VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
 } from '../../packages/toolkit/workbench/visual-object-contract.js'
+import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbench/visual-object-controller.js'
 
 function resolvedSigilMenu() {
   return resolveRadialMenuConfig(sigilMenu, {
@@ -137,7 +137,7 @@ test('radial menu visual descriptors validate and serialize as non-avatar contra
   assert.equal(exportAction.action_id, 'aos.radial_menu.export')
 })
 
-test('radial menu descriptors patch representative non-avatar JSON state', () => {
+test('radial menu descriptors route representative non-avatar JSON state and renderer sync', () => {
   const menu = resolvedSigilMenu()
   const descriptors = createRadialMenuVisualObjectDescriptors({
     menu,
@@ -159,20 +159,33 @@ test('radial menu descriptors patch representative non-avatar JSON state', () =>
     },
   }
 
-  const radius = applyVisualObjectDescriptorMutation(
-    state,
+  const calls = []
+  const routeHandlers = {
+    'canvas_object.transform.patch': ({ mutation }) => calls.push(['route', mutation.route, mutation.descriptor_id, mutation.value]),
+    'canvas_object.visibility.patch': ({ mutation }) => calls.push(['route', mutation.route, mutation.descriptor_id, mutation.value]),
+    'canvas_object.effects.patch': ({ mutation }) => calls.push(['route', mutation.route, mutation.descriptor_id, mutation.value]),
+  }
+  const rendererSyncHandlers = {
+    resolveRadialMenuConfig: ({ mutation }) => calls.push(['sync', 'resolveRadialMenuConfig', mutation.descriptor_id]),
+    renderRadialMenuPreview: ({ mutation }) => calls.push(['sync', 'renderRadialMenuPreview', mutation.descriptor_id]),
+  }
+  const radius = applyVisualObjectControllerUpdate(
     byId.get('radial-menu-sigil.radial.main-wiki-graph-radius-scale'),
     '1.35',
-  )
-  const visible = applyVisualObjectDescriptorMutation(
     state,
+    { routeHandlers, rendererSyncHandlers },
+  )
+  const visible = applyVisualObjectControllerUpdate(
     byId.get('radial-menu-sigil.radial.main-wiki-graph-visible'),
-    false,
-  )
-  const effect = applyVisualObjectDescriptorMutation(
+    'false',
     state,
+    { routeHandlers, rendererSyncHandlers },
+  )
+  const effect = applyVisualObjectControllerUpdate(
     byId.get('radial-menu-sigil.radial.main-wiki-graph-effect-enabled'),
-    false,
+    'off',
+    state,
+    { routeHandlers, rendererSyncHandlers },
   )
   const roundTrip = JSON.parse(JSON.stringify(state))
 
@@ -182,6 +195,21 @@ test('radial menu descriptors patch representative non-avatar JSON state', () =>
   assert.equal(radius.route, 'canvas_object.transform.patch')
   assert.equal(visible.route, 'canvas_object.visibility.patch')
   assert.equal(effect.route, 'canvas_object.effects.patch')
+  assert.deepEqual(calls, [
+    ['route', 'canvas_object.transform.patch', 'radial-menu-sigil.radial.main-wiki-graph-radius-scale', 1.35],
+    ['sync', 'resolveRadialMenuConfig', 'radial-menu-sigil.radial.main-wiki-graph-radius-scale'],
+    ['sync', 'renderRadialMenuPreview', 'radial-menu-sigil.radial.main-wiki-graph-radius-scale'],
+    ['route', 'canvas_object.visibility.patch', 'radial-menu-sigil.radial.main-wiki-graph-visible', true],
+    ['sync', 'resolveRadialMenuConfig', 'radial-menu-sigil.radial.main-wiki-graph-visible'],
+    ['sync', 'renderRadialMenuPreview', 'radial-menu-sigil.radial.main-wiki-graph-visible'],
+    ['route', 'canvas_object.effects.patch', 'radial-menu-sigil.radial.main-wiki-graph-effect-enabled', false],
+    ['sync', 'resolveRadialMenuConfig', 'radial-menu-sigil.radial.main-wiki-graph-effect-enabled'],
+    ['sync', 'renderRadialMenuPreview', 'radial-menu-sigil.radial.main-wiki-graph-effect-enabled'],
+  ])
+  assert.deepEqual(radius.sync_outcomes.map((outcome) => outcome.label), [
+    'resolveRadialMenuConfig',
+    'renderRadialMenuPreview',
+  ])
   assert.deepEqual(roundTrip, state)
 })
 

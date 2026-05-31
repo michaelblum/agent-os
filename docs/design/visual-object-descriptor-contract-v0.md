@@ -63,6 +63,11 @@ Phase 5 adds two non-avatar proofs:
   returns the route and renderer sync labels for the caller's in-place update
   path, and rejects `projection_only` descriptors instead of mutating canonical
   state.
+- `applyVisualObjectControllerUpdate()` is the reusable workbench/controller
+  adapter for descriptor edit events. It applies the descriptor mutation,
+  dispatches the descriptor `route`, then invokes `renderer_sync` handlers in
+  descriptor order. The helper is generic and accepts caller-owned route and
+  sync handler maps.
 
 ## Technology Examples
 
@@ -125,8 +130,14 @@ The follow-up mutation/update proof covers the full deterministic loop:
 canonical state graph -> descriptor -> routed mutation -> minimal update
 ```
 
-The shared mutation helper stays technology-neutral. Tests use radial menu
-descriptors to patch transform, visibility, and effect JSON paths; a
-DesktopWorld 2D fixture to re-run `applyWorldTransform()` on the same target
-node; and a toolkit slider descriptor to route the patched value through the
-existing `setValue()` path while preserving root element identity.
+The shared mutation helper and controller adapter stay technology-neutral.
+Tests use radial menu descriptors to patch transform, visibility, and effect
+JSON paths through route handlers; a DesktopWorld 2D fixture to re-run
+`applyWorldTransform()` on the same target node; and a toolkit slider descriptor
+to route the patched value through the existing `setValue()` path while
+preserving root element identity.
+
+Descriptor boolean coercion is explicit. `boolean` accepts booleans, `1`/`0`,
+and the strings `true`, `false`, `on`, `off`, `yes`, `no`, and the empty
+string. `boolean_inverse` accepts the same vocabulary and inverts the result.
+Ambiguous strings throw instead of relying on JavaScript truthiness.

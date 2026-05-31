@@ -152,14 +152,28 @@ export function coerceVisualObjectDescriptorValue(descriptor = {}, value) {
       return number;
     }
     case 'boolean':
-      return Boolean(value);
+      return coerceDescriptorBoolean(descriptor, value);
     case 'boolean_inverse':
-      return !Boolean(value);
+      return !coerceDescriptorBoolean(descriptor, value);
     case 'string':
       return String(value ?? '');
     default:
       return value;
   }
+}
+
+function coerceDescriptorBoolean(descriptor = {}, value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'on', 'yes'].includes(normalized)) return true;
+    if (['false', '0', 'off', 'no', ''].includes(normalized)) return false;
+  }
+  throw new TypeError(`Visual object descriptor ${descriptor.id || '(unknown)'} requires an explicit boolean value.`);
 }
 
 function resolveStatePathParent(root, statePath) {

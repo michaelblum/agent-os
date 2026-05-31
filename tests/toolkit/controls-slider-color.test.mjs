@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createColorField, createSlider, renderColorFieldHtml, renderSliderHtml } from '../../packages/toolkit/controls/index.js';
 import {
-  applyVisualObjectDescriptorMutation,
   createToolkitSliderVisualObjectDescriptor,
 } from '../../packages/toolkit/workbench/visual-object-contract.js';
+import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbench/visual-object-controller.js';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
 import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs';
 
@@ -67,10 +67,18 @@ test('slider descriptor mutation syncs through setValue without replacing the ro
   const state = { toolkit: { controls: { opacity: { value: 0.2 } } } };
   const root = slider.el;
 
-  const result = applyVisualObjectDescriptorMutation(state, descriptor, '0.65');
-  slider.setValue(result.value);
+  const result = applyVisualObjectControllerUpdate(descriptor, '0.65', state, {
+    routeHandlers: {
+      'dom_toolkit.control.value.patch': ({ mutation }) => mutation.state_path,
+    },
+    rendererSyncHandlers: {
+      syncDomControlValue: ({ mutation }) => slider.setValue(mutation.value),
+    },
+  });
 
   assert.equal(result.route, 'dom_toolkit.control.value.patch');
+  assert.equal(result.route_outcome.status, 'called');
+  assert.deepEqual(result.sync_outcomes, [{ label: 'syncDomControlValue', status: 'called', value: undefined }]);
   assert.equal(state.toolkit.controls.opacity.value, 0.65);
   assert.equal(slider.el, root);
   assert.equal(slider.getValue(), 0.65);
