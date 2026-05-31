@@ -2,9 +2,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   buildProjectedSelectionModeOverlay,
+  buildSelectionModeSnapshotPayload,
   createSigilSelectionModeRuntime,
   resolveSigilAvatarIdleRotation,
 } from '../../apps/sigil/renderer/live-modules/selection-mode-runtime.js'
+import { copyTextToClipboard } from '../../apps/sigil/renderer/live-modules/clipboard-utils.js'
 import {
   hitTestSelectionModeLineageBar,
   hitTestSelectionModeLineageItem,
@@ -39,6 +41,7 @@ function candidate(id, rect, extra = {}) {
     source_metadata: {
       ...(extra.source_metadata || {}),
     },
+    comments: Array.isArray(extra.comments) ? extra.comments.map((comment) => ({ ...comment })) : [],
     projection: {
       adapter_id: adapterId,
       root_id: rootId,
@@ -157,39 +160,10 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   )
   assert.equal(liveState.selectionModeOverlay.visible, true)
   assert.equal(liveState.selectionModeOverlay.cursor.x, 101)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.model_kind, 'sigil_model')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.source, 'avatar_render_state')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.material_source, 'current_avatar_render_model')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.shape, 'avatar_derived_prism_pointer')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.primitive, 'prism')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.geometry_type, 93)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.top_radius, 0)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.bottom_radius, 0.8)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.height, 2)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.sides, 3)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.cross_section, 'triangular')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.faces_visible, false)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.face_opacity, 0.25)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.edge_opacity, 0.8)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.tesseron_enabled, true)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.tesseron_proportion, 0.42)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.long_axis, 'screen_north_west')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.base_screen_quadrant, 'down_right')
-  assert.deepEqual(liveState.selectionModeOverlay.cursorGlyph.geometry.orientation_degrees, { x: 0, y: 0, z: 45 })
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.geometry.spin_axis, 'local_y')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.source, 'selection_mode_pointer_single_axis')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.axis, 'local_y')
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.rotation_speed, 0.1)
-  assert.equal(liveState.selectionModeOverlay.cursorGlyph.animation.rotation_started_at_ms, 101000)
-  assert.deepEqual(liveState.selectionModeOverlay.cursorGlyph.hotspot, {
-    kind: 'tip',
-    x: 101,
-    y: 102,
-    local: { x: 0, y: 0, z: 0 },
-  })
-  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatShape, 'avatar_derived_prism_pointer')
-  assert.equal(liveState.selectionModeOverlay.cursorTrail.repeatGeometry, 'prism')
+  assert.equal(
+    Object.keys(liveState.selectionModeOverlay).some((key) => key.startsWith('cursor') && key !== 'cursor'),
+    false,
+  )
   assert.equal(liveState.selectionModeOverlay.lineageBar.order, 'root-to-leaf')
   assert.equal(liveState.selectionModeOverlay.lineageBar.activeDisplayId, 'display-1')
   assert.ok(liveState.selectionMode.events.some((entry) => entry.type === 'selection_mode_aura_spike'))
@@ -234,6 +208,91 @@ test('Selection Mode pointer movement updates overlay and schedules visual-only 
   assert.equal(liveState.selectionModeOverlay.cursor.x, 121)
   assert.equal(liveState.selectionModeOverlay.cursor.y, 132)
   assert.deepEqual(scheduled.at(-1), { structural: false })
+})
+
+test('Selection Mode right click opens the lineage context menu on the clicked node', () => {
+  const windowCandidate = candidate('window', { x: 50, y: 50, w: 260, h: 180 }, { kind: 'window', label: 'Window' })
+  const leafCandidate = candidate('leaf', { x: 80, y: 92, w: 90, h: 26 }, {
+    kind: 'button',
+    role: 'button',
+    label: 'Save',
+  })
+  const { runtime, liveState } = createRuntime({
+    candidates: [windowCandidate, leafCandidate],
+    projectPoint: (point) => point,
+  })
+
+  runtime.enter({ x: 96, y: 104, valid: true }, 'test')
+  runtime.acquire({ x: 96, y: 104, valid: true })
+
+  const leafItem = liveState.selectionModeOverlay.lineageBar.items.find((item) => item.label === 'Save')
+  assert.ok(leafItem)
+  const handled = runtime.handleInput({
+    type: 'right_mouse_down',
+    x: leafItem.rect.x + 2,
+    y: leafItem.rect.y + 2,
+  })
+
+  assert.equal(handled, true)
+  assert.equal(liveState.selectionMode.lineage_context_menu.node_id, leafItem.nodeId)
+  assert.deepEqual(liveState.selectionModeOverlay.lineageContextMenu.items.map((item) => item.action), ['snapshot', 'record', 'add_comment'])
+})
+
+test('Selection Mode lineage context menu shows hover and pressed state before closing', () => {
+  const windowCandidate = candidate('window', { x: 50, y: 50, w: 260, h: 180 }, { kind: 'window', label: 'Window' })
+  const leafCandidate = candidate('leaf', { x: 80, y: 92, w: 90, h: 26 }, {
+    kind: 'button',
+    role: 'button',
+    label: 'Save',
+  })
+  const { runtime, liveState, commands } = createRuntime({
+    candidates: [windowCandidate, leafCandidate],
+    projectPoint: (point) => point,
+  })
+
+  runtime.enter({ x: 96, y: 104, valid: true }, 'test')
+  runtime.acquire({ x: 96, y: 104, valid: true })
+
+  const leafItem = liveState.selectionModeOverlay.lineageBar.items.find((item) => item.label === 'Save')
+  assert.ok(leafItem)
+
+  runtime.handleInput({
+    type: 'right_mouse_down',
+    x: leafItem.rect.x + 2,
+    y: leafItem.rect.y + 2,
+  })
+
+  const snapshotMenuItem = liveState.selectionModeOverlay.lineageContextMenu.items.find((item) => item.id === 'snapshot')
+  assert.ok(snapshotMenuItem)
+
+  runtime.handleInput({
+    type: 'mouse_moved',
+    x: snapshotMenuItem.rect.x + 2,
+    y: snapshotMenuItem.rect.y + 2,
+  })
+
+  assert.equal(liveState.selectionMode.lineage_context_menu.hovered_item_id, 'snapshot')
+  assert.equal(liveState.selectionModeOverlay.lineageContextMenu.items.find((item) => item.id === 'snapshot')?.hovered, true)
+
+  runtime.handleInput({
+    type: 'left_mouse_down',
+    x: snapshotMenuItem.rect.x + 2,
+    y: snapshotMenuItem.rect.y + 2,
+  })
+
+  assert.equal(liveState.selectionMode.lineage_context_menu.pressed_item_id, 'snapshot')
+  assert.equal(liveState.selectionModeOverlay.lineageContextMenu.items.find((item) => item.id === 'snapshot')?.pressed, true)
+  assert.equal(liveState.selectionMode.lineage_context_menu.visible, true)
+
+  runtime.handleInput({
+    type: 'left_mouse_up',
+    x: snapshotMenuItem.rect.x + 2,
+    y: snapshotMenuItem.rect.y + 2,
+  })
+
+  assert.equal(commands.at(-1)?.command, 'snapshot')
+  assert.equal(liveState.selectionMode.lineage_context_menu.visible, true)
+  assert.equal(liveState.selectionModeOverlay.lineageContextMenu.items.find((item) => item.id === 'snapshot')?.pressed, true)
 })
 
 test('Selection Mode overlay aligns semantic targets from normalized DesktopWorld canvas frames', () => {
@@ -715,6 +774,173 @@ test('Selection Mode lineage bar collapses consecutive duplicate nodes', () => {
   assert.deepEqual(bar.items.map((item) => item.nodeId), ['display-root', 'window', 'leaf'])
   assert.equal(bar.itemCount, 3)
   assert.equal(bar.separators.length, 2)
+})
+
+test('Selection Mode lineage bar decorates commented nodes and exposes a node context menu', () => {
+  const path = [
+    candidate('display-root', { x: 0, y: 25, w: 320, h: 220 }, { kind: 'display', role: 'display', label: 'Display 1' }),
+    candidate('window', { x: 20, y: 40, w: 240, h: 160 }, { kind: 'window', role: 'native_window', label: 'Scroll Area' }),
+    candidate('leaf', {
+      x: 40,
+      y: 70,
+      w: 120,
+      h: 32,
+    }, {
+      kind: 'button',
+      role: 'button',
+      label: 'Save',
+      comments: [{ id: 'comment:1', text: 'Use this ancestor scope.' }],
+    }),
+  ]
+  const overlay = buildProjectedSelectionModeOverlay({
+    active: true,
+    cursor: { x: 100, y: 90, valid: true },
+    selected_node_id: 'leaf',
+    path_candidates: path,
+    context_session: {
+      artifacts: [{
+        path,
+        active_target_node_id: 'leaf',
+        acquisition: { leaf_node_id: 'leaf', pointer: { x: 100, y: 90, valid: true } },
+      }],
+    },
+  }, {
+    displays: [{ id: 'display-1', visibleBounds: { x: 0, y: 25, w: 320, h: 220 } }],
+    projectPoint: (point) => point,
+    overlayBounds: { x: 0, y: 0, w: 320, h: 260 },
+  })
+
+  const bar = overlay.lineageBar
+  const leaf = bar.items.find((item) => item.nodeId === 'leaf')
+  assert.ok(leaf.hasComment)
+  assert.ok(leaf.commentIconVisibleRect)
+  const iconPoint = {
+    x: leaf.commentIconVisibleRect.x + (leaf.commentIconVisibleRect.width / 2),
+    y: leaf.commentIconVisibleRect.y + (leaf.commentIconVisibleRect.height / 2),
+  }
+  assert.equal(hitTestSelectionModeLineageBar(overlay, iconPoint).kind, 'comment')
+})
+
+test('Selection Mode snapshot payload captures the live selection mode state and active context', () => {
+  const payload = buildSelectionModeSnapshotPayload({
+    selectionMode: {
+      active: true,
+      selected_node_id: 'leaf',
+      context_session: {
+        schema: 'aos_context_session',
+        id: 'context-session:test',
+      },
+    },
+    selectionModeOverlay: {
+      visible: true,
+      lineageBar: { visible: true },
+    },
+  }, {
+    activeContext: {
+      source: 'selection_mode',
+      context_session: {
+        schema: 'aos_context_session',
+        id: 'context-session:test',
+      },
+    },
+    capturedAt: '2026-05-30T00:00:00.000Z',
+  })
+
+  assert.equal(payload.schema, 'sigil_selection_mode_snapshot')
+  assert.equal(payload.version, '0.1.0')
+  assert.equal(payload.captured_at, '2026-05-30T00:00:00.000Z')
+  assert.equal(payload.selection_mode.selected_node_id, 'leaf')
+  assert.equal(payload.selection_mode.context_session.id, 'context-session:test')
+  assert.equal(payload.selection_mode_overlay.visible, true)
+  assert.equal(payload.active_context.source, 'selection_mode')
+})
+
+test('Selection Mode clipboard helper copies immediately with execCommand before async fallback', async () => {
+  const calls = []
+  const document = {
+    body: {
+      appendChild(node) {
+        calls.push(['append', node.value])
+      },
+    },
+    createElement(tag) {
+      assert.equal(tag, 'textarea')
+      return {
+        style: {},
+        setAttribute(name, value) {
+          calls.push(['attr', name, value])
+        },
+        focus() {
+          calls.push(['focus'])
+        },
+        select() {
+          calls.push(['select'])
+        },
+        remove() {
+          calls.push(['remove'])
+        },
+      }
+    },
+    execCommand(command) {
+      calls.push(['exec', command])
+      return true
+    },
+  }
+  let asyncCalls = 0
+
+  const result = await copyTextToClipboard('snapshot payload', {
+    document,
+    asyncWrite: async () => {
+      asyncCalls += 1
+    },
+  })
+
+  assert.equal(result, true)
+  assert.equal(asyncCalls, 0)
+  assert.deepEqual(calls, [
+    ['attr', 'readonly', ''],
+    ['append', 'snapshot payload'],
+    ['focus'],
+    ['select'],
+    ['exec', 'copy'],
+    ['remove'],
+  ])
+})
+
+test('Selection Mode clipboard helper falls back to async write when execCommand is unavailable', async () => {
+  const calls = []
+  const document = {
+    body: {
+      appendChild(node) {
+        calls.push(['append', node.value])
+      },
+    },
+    createElement() {
+      return {
+        style: {},
+        setAttribute() {},
+        remove() {},
+      }
+    },
+    execCommand(command) {
+      calls.push(['exec', command])
+      return false
+    },
+  }
+
+  const result = await copyTextToClipboard('snapshot payload', {
+    document,
+    asyncWrite: async (text) => {
+      calls.push(['async', text])
+    },
+  })
+
+  assert.equal(result, true)
+  assert.deepEqual(calls, [
+    ['append', 'snapshot payload'],
+    ['exec', 'copy'],
+    ['async', 'snapshot payload'],
+  ])
 })
 
 test('Selection Mode lineage bar scrolls long paths without compressing target pills', () => {
@@ -1371,34 +1597,7 @@ test('Selection Mode cursor model exposes current avatar effect descriptors, tra
     },
   })
 
-  assert.equal(overlay.cursorGlyph.source, 'avatar_render_state')
-  assert.equal(overlay.cursorGlyph.appearance_source, 'current_live_sigil_avatar')
-  assert.equal(overlay.cursorGlyph.material_source, 'current_avatar_render_model')
-  assert.equal(overlay.cursorGlyph.effects_source, 'current_avatar_effect_descriptors')
-  assert.equal(overlay.cursorGlyph.color, undefined)
-  assert.equal(overlay.cursorGlyph.aura, undefined)
-  assert.equal(overlay.cursorGlyph.avatar_effects.source, 'current_avatar_effect_descriptors')
-  assert.equal(overlay.cursorGlyph.avatar_effects.appearance_source, 'current_live_sigil_avatar')
-  assert.deepEqual(overlay.cursorGlyph.avatar_effects.rendered_pointer_families, ['aura_glow', 'aura_core'])
-  assert.deepEqual(overlay.cursorGlyph.avatar_effects.inherited_descriptor_families, ['pulsar'])
-  assert.deepEqual(overlay.cursorGlyph.avatar_effects.aura, {
-    enabled: true,
-    primary: '#778899',
-    secondary: '#aabbcc',
-    reach: 1.7,
-    intensity: 1.4,
-    pulseRate: 0.005,
-    wobbleCount: 0,
-  })
-  assert.equal(overlay.cursorGlyph.trail.style, 'line')
-  assert.equal(overlay.cursorGlyph.trail.count, 12)
-  assert.equal(overlay.cursorGlyph.trail.opacity, 0.7)
-  assert.equal(overlay.cursorGlyph.animation.source, 'selection_mode_pointer_single_axis')
-  assert.equal(overlay.cursorGlyph.animation.axis, 'local_y')
-  assert.equal(overlay.cursorGlyph.animation.rotation_speed, 0.1)
-  assert.equal(overlay.cursorGlyph.animation.session_vitality_multiplier, 1.25)
-  assert.equal(overlay.cursorGlyph.animation.visible_avatar_y_speed, 0)
-  assert.equal(overlay.cursorGlyph.animation.visible_avatar_x_speed, 0)
+  assert.equal(Object.keys(overlay).some((key) => key.startsWith('cursor') && key !== 'cursor'), false)
   assert.deepEqual(resolveSigilAvatarIdleRotation({ idleSpinSpeed: 0.08 }), {
     source: 'sigil_avatar_idle_rotation',
     base_speed: 0.08,
@@ -1440,18 +1639,7 @@ test('Selection Mode cursor trail uses Selection Mode trail settings instead of 
     },
   })
 
-  assert.equal(overlay.cursorTrail.timingSource, 'selection_mode_trail')
-  assert.deepEqual(overlay.cursorTrail.timing, {
-    source: 'selection_mode_trail',
-    interDimensional: true,
-    duration: 0.33,
-    delay: 0.04,
-    repeatCount: 4,
-    repeatDuration: 1.25,
-    trailMode: 'hold',
-    lag: 0.11,
-    scale: 1.9,
-  })
+  assert.equal(Object.keys(overlay).some((key) => key.startsWith('cursor') && key !== 'cursor'), false)
 })
 
 test('Selection Mode entry and exit effects produce bounded renderable overlay transitions', () => {

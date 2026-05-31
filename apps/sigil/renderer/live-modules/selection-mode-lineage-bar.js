@@ -8,6 +8,11 @@ const BAR_ITEM_MIN_WIDTH = 28;
 const BAR_ITEM_MAX_WIDTH = 180;
 const BAR_SEPARATOR_WIDTH = 12;
 const BAR_MAX_WIDTH = 720;
+const BAR_COMMENT_ICON_SIZE = 10;
+const BAR_COMMENT_ICON_GAP = 4;
+const BAR_CONTEXT_MENU_WIDTH = 138;
+const BAR_CONTEXT_MENU_ITEM_HEIGHT = 22;
+const BAR_CONTEXT_MENU_PADDING = 4;
 
 function finite(value, fallback = 0) {
     const n = Number(value);
@@ -422,6 +427,13 @@ function desiredItemWidth(label = '') {
     return clamp(String(label).length * 7 + 18, BAR_ITEM_MIN_WIDTH, BAR_ITEM_MAX_WIDTH);
 }
 
+function commentCountForNode(node = {}) {
+    if (!node || typeof node !== 'object') return 0;
+    if (Number.isFinite(Number(node.comment_count))) return Math.max(0, Number(node.comment_count));
+    if (Number.isFinite(Number(node.commentCount))) return Math.max(0, Number(node.commentCount));
+    return Array.isArray(node.comments) ? node.comments.filter((comment) => comment && comment.status !== 'removed').length : 0;
+}
+
 function lineageBarStyle(visualStyle = null) {
     const lineage = visualStyle?.lineage || {};
     return {
@@ -451,6 +463,21 @@ function lineageBarStyle(visualStyle = null) {
         separator: {
             text: 'rgba(238, 248, 255, 0.36)',
         },
+        comment: {
+            fill: lineage.action?.fill || 'rgba(255, 255, 255, 0.08)',
+            stroke: lineage.action?.stroke || 'rgba(255, 255, 255, 0.16)',
+            icon: lineage.action?.text || 'rgba(238, 248, 255, 0.92)',
+            badgeFill: lineage.action?.mutedFill || 'rgba(255, 255, 255, 0.04)',
+            badgeStroke: lineage.action?.mutedStroke || 'rgba(255, 255, 255, 0.08)',
+            badgeIcon: lineage.action?.mutedIcon || 'rgba(238, 248, 255, 0.42)',
+        },
+        menu: {
+            fill: lineage.action?.fill || 'rgba(14, 18, 24, 0.94)',
+            stroke: lineage.action?.stroke || 'rgba(142, 221, 255, 0.34)',
+            text: lineage.action?.text || 'rgba(238, 248, 255, 0.94)',
+            mutedText: lineage.action?.mutedIcon || 'rgba(238, 248, 255, 0.5)',
+            hoverFill: lineage.action?.mutedFill || 'rgba(255, 255, 255, 0.08)',
+        },
     };
 }
 
@@ -458,6 +485,78 @@ function centeredScrollOffsetForItem(item = null, { barWidth = 0, maxScrollOffse
     if (!item?.localRect) return null;
     const itemCenter = item.localRect.x + item.localRect.width / 2;
     return clamp(itemCenter - barWidth / 2, 0, maxScrollOffset);
+}
+
+function commentIconRectForItem(item = null) {
+    const rect = item?.rect || null;
+    if (!rect || !item?.hasComment) return null;
+    const size = BAR_COMMENT_ICON_SIZE;
+    const x = Math.round(rect.x + rect.width - size - 6);
+    const y = Math.round(rect.y + ((rect.height - size) / 2));
+    return {
+        x,
+        y,
+        width: size,
+        height: size,
+    };
+}
+
+function contextMenuRectForAnchor(anchorRect = null, barRect = null) {
+    if (!anchorRect || !barRect) return null;
+    const width = BAR_CONTEXT_MENU_WIDTH;
+    const itemCount = 3;
+    const height = (BAR_CONTEXT_MENU_ITEM_HEIGHT * itemCount) + (BAR_CONTEXT_MENU_PADDING * 2);
+    const preferredX = Math.round(anchorRect.x + anchorRect.width + 8);
+    const preferredY = Math.round(anchorRect.y - 2);
+    const x = clamp(
+        preferredX,
+        Math.round(barRect.x + BAR_CONTEXT_MENU_PADDING),
+        Math.round(barRect.x + barRect.width - width - BAR_CONTEXT_MENU_PADDING),
+    );
+    const y = clamp(
+        preferredY,
+        Math.round(barRect.y + BAR_CONTEXT_MENU_PADDING),
+        Math.round(barRect.y + barRect.height - height - BAR_CONTEXT_MENU_PADDING),
+    );
+    return { x, y, width, height };
+}
+
+function makeLineageContextMenu(menuState = null, items = [], barRect = null) {
+    if (!menuState?.visible || !Array.isArray(items) || !items.length || !barRect) return null;
+    const anchorNodeId = String(menuState.node_id || menuState.anchor_node_id || '').trim();
+    const anchorItem = items.find((item) => item.nodeId === anchorNodeId || item.id === menuState.item_id) || items[0] || null;
+    if (!anchorItem?.rect) return null;
+    const rect = contextMenuRectForAnchor(anchorItem.rect, barRect);
+    if (!rect) return null;
+    const menuItems = [
+        { id: 'snapshot', action: 'snapshot', label: 'Snapshot', enabled: true },
+        { id: 'record', action: 'record', label: 'Record', enabled: true },
+        { id: 'add_comment', action: 'add_comment', label: 'Add comment', enabled: true },
+    ].map((entry, index) => {
+        const itemRect = {
+            x: rect.x + BAR_CONTEXT_MENU_PADDING,
+            y: rect.y + BAR_CONTEXT_MENU_PADDING + (index * BAR_CONTEXT_MENU_ITEM_HEIGHT),
+            width: rect.width - (BAR_CONTEXT_MENU_PADDING * 2),
+            height: BAR_CONTEXT_MENU_ITEM_HEIGHT,
+        };
+        return {
+            ...entry,
+            rect: itemRect,
+            visibleRect: intersectRect(itemRect, barRect),
+            anchorNodeId,
+            hovered: String(menuState.hovered_item_id || '') === entry.id,
+            pressed: String(menuState.pressed_item_id || '') === entry.id,
+        };
+    });
+    return {
+        visible: true,
+        nodeId: anchorNodeId,
+        itemId: anchorItem.id,
+        pointer: menuState.pointer || null,
+        rect,
+        items: menuItems,
+        style: lineageBarStyle().menu,
+    };
 }
 
 export function buildSelectionModeLineageBarModel({
@@ -477,6 +576,7 @@ export function buildSelectionModeLineageBarModel({
     overlayBounds = null,
     projectPoint = (point) => point,
     visualStyle = null,
+    lineageContextMenu = null,
 } = {}) {
     const activeDisplay = activeDisplayForLineage({
         displays,
@@ -494,6 +594,7 @@ export function buildSelectionModeLineageBarModel({
             lineageBar: {
                 visible: false,
                 items: [],
+                lineageContextMenu: null,
                 activeDisplayId: displayId(activeDisplay) || null,
                 selectedNodeId: activeNodeId || '',
                 hoverNodeId: hoverNodeId || '',
@@ -506,7 +607,9 @@ export function buildSelectionModeLineageBarModel({
     const displayWidth = Math.max(1, displayRect.width);
     const maxBarWidth = Math.max(1, Math.min(BAR_MAX_WIDTH, displayWidth - BAR_DISPLAY_MARGIN * 2));
     const separatorWidth = lineagePath.length > 8 ? Math.max(6, Math.floor(BAR_SEPARATOR_WIDTH * 0.65)) : BAR_SEPARATOR_WIDTH;
-    const items = lineagePath.map((node, index) => ({
+    const items = lineagePath.map((node, index) => {
+        const commentCount = commentCountForNode(node);
+        return {
         id: `selection-mode-lineage:${nodeId(node)}`,
         kind: 'lineage_item',
         nodeId: nodeId(node),
@@ -520,8 +623,12 @@ export function buildSelectionModeLineageBarModel({
         hovered: nodeId(node) === hoverNodeId,
         leaf: nodeId(node) === leafNodeId,
         source: node.source_metadata?.synthetic_lineage_root ? 'active_display' : 'context_session_path',
-    }));
-    const widths = items.map((item) => desiredItemWidth(item.label));
+        commentCount,
+        hasComment: commentCount > 0,
+        comments: Array.isArray(node.comments) ? node.comments.filter((comment) => comment && comment.status !== 'removed') : [],
+    };
+    });
+    const widths = items.map((item) => desiredItemWidth(item.label) + (item.hasComment ? BAR_COMMENT_ICON_SIZE + BAR_COMMENT_ICON_GAP + 4 : 0));
     const desiredInnerWidth = widths.reduce((sum, width) => sum + width, 0)
         + Math.max(0, items.length - 1) * separatorWidth;
     const contentWidth = desiredInnerWidth + BAR_PADDING_X * 2;
@@ -617,6 +724,8 @@ export function buildSelectionModeLineageBarModel({
             height: item.contentRect.height,
         };
         item.visibleRect = intersectRect(item.rect, barRect);
+        item.commentIconRect = commentIconRectForItem(item);
+        item.commentIconVisibleRect = item.commentIconRect ? intersectRect(item.commentIconRect, barRect) : null;
     });
     separators.forEach((separator) => {
         separator.rect = {
@@ -627,6 +736,7 @@ export function buildSelectionModeLineageBarModel({
         };
         separator.visibleRect = intersectRect(separator.rect, barRect);
     });
+    const contextMenu = makeLineageContextMenu(lineageContextMenu, items, barRect);
 
     return {
         lineageBar: {
@@ -672,6 +782,7 @@ export function buildSelectionModeLineageBarModel({
             leafNodeId: leafNodeId || '',
             items,
             separators,
+            lineageContextMenu: contextMenu,
             style: lineageBarStyle(visualStyle),
         },
     };
@@ -683,8 +794,41 @@ export function hitTestSelectionModeLineageItem(overlay = {}, point = null) {
     return overlay.lineageBar.items.find((item) => pointInBounds(point, item.rect)) || null;
 }
 
+export function hitTestSelectionModeLineageMenu(overlay = {}, point = null) {
+    if (!point || overlay?.lineageBar?.visible !== true) return null;
+    const menu = overlay.lineageBar.lineageContextMenu;
+    if (!menu?.visible || !Array.isArray(menu.items)) return null;
+    const menuItem = menu.items.find((item) => pointInBounds(point, item.rect));
+    if (menuItem) return { kind: 'menu_item', id: menuItem.id, action: menuItem.action, item: menuItem, rect: menuItem.rect };
+    if (pointInBounds(point, menu.rect)) {
+        return {
+            kind: 'menu',
+            id: menu.nodeId || menu.itemId || 'selection-mode-lineage-menu',
+            rect: menu.rect,
+        };
+    }
+    return null;
+}
+
 export function hitTestSelectionModeLineageBar(overlay = {}, point = null) {
     if (!point || overlay?.lineageBar?.visible !== true) return null;
+    const menuHit = hitTestSelectionModeLineageMenu(overlay, point);
+    if (menuHit) return menuHit;
+    const commentItem = Array.isArray(overlay.lineageBar.items)
+        ? overlay.lineageBar.items.find((entry) => entry.commentIconVisibleRect && pointInBounds(point, entry.commentIconVisibleRect))
+        : null;
+    if (commentItem) {
+        const latestComment = Array.isArray(commentItem.comments) ? commentItem.comments.at(-1) || null : null;
+        return {
+            kind: 'comment',
+            id: `selection-mode-lineage-comment:${commentItem.nodeId}`,
+            nodeId: commentItem.nodeId,
+            item: commentItem,
+            commentId: latestComment?.id || '',
+            comment: latestComment,
+            rect: commentItem.commentIconRect || null,
+        };
+    }
     const item = hitTestSelectionModeLineageItem(overlay, point);
     if (item) return { kind: 'item', id: item.id, nodeId: item.nodeId, item };
     if (pointInBounds(point, overlay.lineageBar.rect)) {

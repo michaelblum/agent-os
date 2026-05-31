@@ -201,6 +201,27 @@ function configFromState(state) {
     };
 }
 
+function openAnimationForSnapshot(snapshot = {}) {
+    const config = snapshot?.visuals?.openAnimation || {};
+    const durationMs = Math.max(
+        0,
+        Number.isFinite(Number(config.durationMs ?? config.duration_ms))
+            ? Number(config.durationMs ?? config.duration_ms)
+            : 333,
+    );
+    return {
+        ...config,
+        trigger: config.trigger || 'radial-start',
+        durationMs,
+        easing: config.easing || 'easeOutCubic',
+        startedAt: Number.isFinite(Number(snapshot?.globalTime))
+            ? Number(snapshot.globalTime)
+            : Number.isFinite(Number(snapshot?.state?.globalTime))
+                ? Number(snapshot.state.globalTime)
+                : 0,
+    };
+}
+
 export function createSigilRadialGestureMenu({ state, onCommitItem } = {}) {
     let model = null;
     let snapshot = null;
@@ -208,16 +229,17 @@ export function createSigilRadialGestureMenu({ state, onCommitItem } = {}) {
 
     function decorateSnapshot(nextSnapshot) {
         if (!nextSnapshot || typeof nextSnapshot !== 'object') return null;
-        const retainedOpenAnimation = snapshot?.openAnimation && nextSnapshot.phase === 'radial'
-            ? snapshot.openAnimation
-            : null;
         const decorated = activeConfig?.visuals
             ? {
                 ...nextSnapshot,
                 visuals: activeConfig.visuals,
             }
             : { ...nextSnapshot };
-        if (retainedOpenAnimation) decorated.openAnimation = retainedOpenAnimation;
+        if (nextSnapshot.phase === 'radial') {
+            decorated.openAnimation = nextSnapshot.openAnimation || snapshot?.openAnimation || openAnimationForSnapshot(state || {});
+        } else if (nextSnapshot.openAnimation) {
+            decorated.openAnimation = nextSnapshot.openAnimation;
+        }
         return decorated;
     }
 

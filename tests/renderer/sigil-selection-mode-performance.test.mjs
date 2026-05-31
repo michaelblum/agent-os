@@ -14,6 +14,12 @@ import { hideTrailSprites } from '../../apps/sigil/renderer/particles.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '../..')
+const deletedCursorModelPattern = new RegExp([
+  ['selection', 'Mode', 'Cursor', 'Model'].join(''),
+  ['read', 'Selection', 'Mode', 'Cursor', 'Model', 'Snapshot'].join(''),
+  ['refresh', 'Selection', 'Mode', 'Cursor', 'Model', 'Snapshot'].join(''),
+  ['create', 'Selection', 'Mode', 'Cursor', 'Model', 'Renderer'].join(''),
+].join('|'))
 
 test('Selection Mode visual frames do not request structural or publication work when unchanged', () => {
   const reasons = renderLoopContinuationReasons({
@@ -33,6 +39,21 @@ test('Selection Mode visual frames do not request structural or publication work
   assert.equal(work.structural, false)
   assert.equal(work.overlay, false)
   assert.equal(work.publishState, false)
+})
+
+test('Selection Mode rides the native pointer and does not expose the prism cursor model', () => {
+  const mainSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  assert.match(mainSource, /selectionModeAvatarPositionFromPointer\(point\)/)
+  assert.match(mainSource, /updateSelectionModeAvatarRide\(\{ x: msg\.x, y: msg\.y \}\)/)
+  assert.match(mainSource, /liveJs\.avatarSize = liveJs\.selectionMode\?\.active \? Number\(state\.selectionModeAvatarScale \|\| 0\.5\) : 1\.0;/)
+  assert.match(mainSource, /state\.polyGroup\.scale\.setScalar\(state\.baseScale \* state\.z_depth \* state\.appScale \* vitalityScale \* liveJs\.avatarSize \* \(1 \+ liveJs\.avatarHoverProgress \* 0\.055\)\);/)
+  assert.doesNotMatch(mainSource, deletedCursorModelPattern)
+
+  const overlaySource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/interaction-overlay.js'), 'utf8')
+  const drawStart = overlaySource.indexOf('function drawSelectionMode(')
+  const drawEnd = overlaySource.indexOf('function fastTravelLineGesture', drawStart)
+  const drawBlock = overlaySource.slice(drawStart, drawEnd)
+  assert.doesNotMatch(drawBlock, /drawSelectionCursorModel\(/)
 })
 
 test('display_geometry is the Selection Mode display cache boundary', () => {
@@ -65,28 +86,18 @@ test('Selection Mode dirty frames still request lifecycle work while effect fram
   assert.equal(exitEffect.publishState, true)
 })
 
-test('Sigil debug snapshot reads cached Selection Mode cursor model state', () => {
+test('Sigil debug snapshot no longer exposes cursor model refresh helpers', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
-  const refreshStart = source.indexOf('function refreshSelectionModeCursorModelSnapshot')
-  const refreshEnd = source.indexOf('function pointInRadialTargetSurface', refreshStart)
-  const refreshBlock = source.slice(refreshStart, refreshEnd)
-  const debugStart = source.indexOf('window.__sigilDebug = {')
-  const refreshDebugStart = source.indexOf('refreshSelectionModeCursorModel()', debugStart)
-  const snapshotBlock = source.slice(debugStart, refreshDebugStart)
-
-  assert.match(refreshBlock, /selectionModeCursorModelRenderer\?\.update\(overlay \|\| null/)
-  assert.doesNotMatch(refreshBlock, /buildProjectedOverlay|buildProjectedSelectionModeOverlay/)
-  assert.match(snapshotBlock, /selectionModeCursorModel: readSelectionModeCursorModelSnapshot\(\)/)
-  assert.doesNotMatch(snapshotBlock, /refreshSelectionModeCursorModelSnapshot\(|selectionModeCursorModelRenderer\?\.update|buildProjectedOverlay/)
+  assert.doesNotMatch(source, deletedCursorModelPattern)
 })
 
-test('Sigil visual cursor refresh uses owned overlay cache instead of rebuilding projection', () => {
+test('Sigil visual selection path no longer refreshes a cursor model snapshot', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const animateStart = source.indexOf('function animate()')
   const radialUpdateStart = source.indexOf('if (work.structural || activeRadialActivationTransition)', animateStart)
   const cursorRefreshBlock = source.slice(animateStart, radialUpdateStart)
 
-  assert.match(cursorRefreshBlock, /refreshSelectionModeCursorModelSnapshot\(liveJs\.selectionModeOverlay \|\| null\)/)
+  assert.doesNotMatch(cursorRefreshBlock, deletedCursorModelPattern)
   assert.doesNotMatch(cursorRefreshBlock, /selectionModeRuntime\.buildProjectedOverlay\(\)/)
 })
 
@@ -111,7 +122,7 @@ test('Selection Mode surface snapshots are reprojected on secondary display segm
   assert.match(surfaceApplyBlock, /snapshot\.selectionMode && typeof snapshot\.selectionMode === 'object'[\s\S]*liveJs\.selectionMode = snapshot\.selectionMode[\s\S]*liveJs\.selectionModeOverlay = selectionModeRuntime\.buildProjectedOverlay\(liveJs\.selectionMode\)/)
 })
 
-test('hidden Sigil cleanup clears overlay canvases and cursor model before publishing hidden state', () => {
+test('hidden Sigil cleanup clears overlay canvases without refreshing a cursor model', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const clearStart = source.indexOf('function clearHiddenFrame')
   const clearEnd = source.indexOf('function animate()', clearStart)
@@ -120,7 +131,7 @@ test('hidden Sigil cleanup clears overlay canvases and cursor model before publi
   assert.match(clearBlock, /overlay\.clear\(\)/)
   assert.match(clearBlock, /hideAuraObjects\(\)/)
   assert.match(clearBlock, /hideTrailSprites\(\)/)
-  assert.match(clearBlock, /refreshSelectionModeCursorModelSnapshot\(null\)/)
+  assert.doesNotMatch(clearBlock, deletedCursorModelPattern)
   assert.match(clearBlock, /visibilityTransition\.clear\(\)/)
   assert.match(clearBlock, /fastTravel\.clear\?\.\(\)/)
   assert.match(clearBlock, /state\.renderer\.clear\(true,\s*true,\s*true\)/)

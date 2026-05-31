@@ -1,3 +1,8 @@
+import {
+    radialDismissExpansionState,
+    radialOpenExpansionState,
+} from './radial-gesture-visuals.js';
+
 function selectionWave(position = 0, time = 0, seed = 0) {
     return (
         Math.sin(position * 0.047 + time * 2.3 + seed) * 0.55
@@ -187,95 +192,11 @@ function selectionCursorProjectionPoints(glyph = {}, time = 0) {
     ];
 }
 
-function drawSelectionCursorModel(ctx, glyph = {}, {
-    x = 0,
-    y = 0,
-    scale = 1,
-    alpha = 1,
-    pulse = 0,
-    time = 0,
-    fill = true,
-} = {}) {
-    const points = selectionCursorProjectionPoints(glyph, time);
-    if (!points.length) return;
-    const aura = glyph.aura || {};
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.globalAlpha = alpha;
-
-    ctx.shadowColor = aura.primary || glyph.color?.aura_primary || 'rgba(94, 252, 210, 0.96)';
-    ctx.shadowBlur = 15 + (pulse * 8);
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
-    ctx.closePath();
-    if (fill) {
-        ctx.fillStyle = aura.core || 'rgba(12, 22, 28, 0.58)';
-        ctx.fill();
-    }
-    ctx.strokeStyle = aura.primary || glyph.color?.aura_primary || 'rgba(94, 252, 210, 0.96)';
-    ctx.lineWidth = 2.2;
-    ctx.stroke();
-
-    if (glyph.model_kind === 'sigil_model') {
-        const base = points.slice(1);
-        ctx.globalAlpha = alpha * 0.58;
-        ctx.beginPath();
-        ctx.moveTo(points[0].x, points[0].y);
-        for (const point of base) {
-            ctx.lineTo(point.x - 5, point.y - 2);
-            ctx.moveTo(points[0].x, points[0].y);
-        }
-        ctx.strokeStyle = aura.secondary || glyph.color?.aura_secondary || 'rgba(142, 221, 255, 0.86)';
-        ctx.lineWidth = 1.1;
-        ctx.stroke();
-    }
-
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = alpha * 0.78;
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
-    ctx.closePath();
-    ctx.strokeStyle = aura.highlight || 'rgba(255, 255, 255, 0.88)';
-    ctx.lineWidth = 0.85;
-    ctx.stroke();
-    ctx.restore();
-}
-
-export function selectionCursorShouldUseCanvasProjection(glyph = null) {
-    return !!glyph && glyph.model_kind !== 'sigil_model';
-}
-
 export function avatarHoverDecorationVisible(snapshot = {}) {
     return snapshot.avatarVisible === true
         && snapshot.avatarHover === true
         && Number(snapshot.avatarHoverProgress) > 0.01
         && snapshot.avatarPos?.valid === true;
-}
-
-function trailPointForAge(history = [], ageSeconds = 0, fallback = null) {
-    if (!history.length) return fallback;
-    const targetTime = history.at(-1).time - ageSeconds;
-    for (let i = history.length - 1; i >= 0; i -= 1) {
-        if (history[i].time <= targetTime) return history[i];
-    }
-    return history[0] || fallback;
-}
-
-function recordSelectionCursorTrail(history = [], cursor = null, time = 0, maxAge = 3) {
-    if (!cursor || !Number.isFinite(cursor.x) || !Number.isFinite(cursor.y)) {
-        history.length = 0;
-        return;
-    }
-    const prior = history.at(-1);
-    if (!prior || Math.hypot(prior.x - cursor.x, prior.y - cursor.y) >= 1 || time - prior.time >= 0.024) {
-        history.push({ x: cursor.x, y: cursor.y, time });
-    }
-    while (history.length && time - history[0].time > maxAge) history.shift();
 }
 
 function clamp01(value) {
@@ -483,6 +404,126 @@ function fitLineageText(ctx, text = '', maxWidth = 0) {
     return next.length > 1 ? `${next}${ellipsis}` : source.slice(0, 1);
 }
 
+function drawLineageActionButtonIcon(ctx, button = {}, rect = {}, style = {}) {
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const action = String(button.action || button.icon || '').toLowerCase();
+    const iconColor = button.disabled ? (style.mutedIcon || style.icon) : (style.icon || 'rgba(238, 248, 255, 0.92)');
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = iconColor;
+    ctx.fillStyle = iconColor;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = button.disabled ? 0.55 : 1;
+    if (action === 'record') {
+        ctx.beginPath();
+        ctx.arc(0, 0, Math.max(2, Math.min(width, height) * 0.22), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        return;
+    }
+    ctx.beginPath();
+    ctx.roundRect(-Math.max(2, width * 0.28), -Math.max(2, height * 0.28), Math.max(4, width * 0.56), Math.max(4, height * 0.56), 1.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-Math.max(2, width * 0.18), -Math.max(2, height * 0.05));
+    ctx.lineTo(Math.max(2, width * 0.18), -Math.max(2, height * 0.05));
+    ctx.lineTo(Math.max(2, width * 0.18), Math.max(2, height * 0.18));
+    ctx.lineTo(-Math.max(2, width * 0.18), Math.max(2, height * 0.18));
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(Math.max(1, width * 0.07), Math.max(1, height * 0.06), Math.max(1.5, Math.min(width, height) * 0.1), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawLineageCommentIcon(ctx, item = {}, style = {}) {
+    const rect = item.commentIconRect || {};
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    ctx.save();
+    ctx.fillStyle = style.fill || 'rgba(255, 255, 255, 0.08)';
+    ctx.strokeStyle = style.stroke || 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(width), Math.round(height), 2.5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = style.icon || 'rgba(238, 248, 255, 0.92)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 2.5, y + 3);
+    ctx.lineTo(x + width - 2.5, y + 3);
+    ctx.lineTo(x + width - 2.5, y + height - 3.5);
+    ctx.lineTo(x + 4.5, y + height - 3.5);
+    ctx.lineTo(x + 2.5, y + height - 1.5);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + width / 2 - 2, y + height / 2 + 0.25, 0.9, 0, Math.PI * 2);
+    ctx.arc(x + width / 2, y + height / 2 + 0.25, 0.9, 0, Math.PI * 2);
+    ctx.arc(x + width / 2 + 2, y + height / 2 + 0.25, 0.9, 0, Math.PI * 2);
+    ctx.fillStyle = style.icon || 'rgba(238, 248, 255, 0.92)';
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawLineageContextMenu(ctx, lineageMenu = {}, style = {}) {
+    if (!lineageMenu?.visible || !Array.isArray(lineageMenu.items) || lineageMenu.items.length === 0) return;
+    const rect = lineageMenu.rect || {};
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    ctx.save();
+    ctx.fillStyle = style.fill || 'rgba(14, 18, 24, 0.94)';
+    ctx.strokeStyle = style.stroke || 'rgba(142, 221, 255, 0.34)';
+    ctx.shadowColor = 'rgba(94, 252, 210, 0.18)';
+    ctx.shadowBlur = 6;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(width), Math.round(height), 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    for (const item of lineageMenu.items) {
+        const itemRect = item.rect || {};
+        const ix = Number(itemRect.x);
+        const iy = Number(itemRect.y);
+        const iw = Number(itemRect.width);
+        const ih = Number(itemRect.height);
+        if (![ix, iy, iw, ih].every(Number.isFinite) || iw <= 0 || ih <= 0) continue;
+        ctx.fillStyle = item.enabled === false
+            ? 'rgba(255, 255, 255, 0.04)'
+            : (item.pressed
+                ? (style.pressedFill || 'rgba(255, 255, 255, 0.16)')
+                : (item.hovered ? (style.hoverFill || 'rgba(255, 255, 255, 0.08)') : 'rgba(255, 255, 255, 0.05)'));
+        ctx.beginPath();
+        ctx.roundRect(Math.round(ix) + 0.5, Math.round(iy) + 0.5, Math.round(iw), Math.round(ih), 4);
+        ctx.fill();
+        ctx.fillStyle = item.enabled === false
+            ? (style.mutedText || 'rgba(238, 248, 255, 0.5)')
+            : (style.text || 'rgba(238, 248, 255, 0.94)');
+        ctx.fillText(item.label || item.action || '', ix + 8, iy + ih / 2 + 0.5);
+    }
+    ctx.restore();
+}
+
 function drawSelectionLineageBar(ctx, lineageBar = {}) {
     if (lineageBar?.visible !== true) return;
     const rect = lineageBar.rect || {};
@@ -554,9 +595,14 @@ function drawSelectionLineageBar(ctx, lineageBar = {}) {
 
         ctx.fillStyle = itemStyle?.text || 'rgba(238, 248, 255, 0.9)';
         ctx.textAlign = 'center';
-        ctx.fillText(fitLineageText(ctx, item.label || '', Math.max(4, iw - 12)), ix + iw / 2, iy + ih / 2 + 0.5);
+        const labelWidth = Math.max(4, iw - (item.hasComment ? 18 : 10));
+        ctx.fillText(fitLineageText(ctx, item.label || '', labelWidth), ix + iw / 2, iy + ih / 2 + 0.5);
+        if (item.hasComment && item.commentIconRect) {
+            drawLineageCommentIcon(ctx, item, lineageBar.style?.comment || {});
+        }
     }
     ctx.restore();
+    drawLineageContextMenu(ctx, lineageBar.lineageContextMenu || {}, lineageBar.style?.menu || {});
 }
 
 function activeSelectionModeVisualEffects(overlay = {}, nowMs = Date.now()) {
@@ -569,30 +615,19 @@ function activeSelectionModeVisualEffects(overlay = {}, nowMs = Date.now()) {
     });
 }
 
-function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) {
+function drawSelectionMode(ctx, overlay = {}, snapshot = {}, {
+    drawLineageBar = true,
+} = {}) {
     const nowMs = Number(snapshot.wallTimeMs) || Date.now();
     const visualEffects = activeSelectionModeVisualEffects(overlay, nowMs);
     const modeVisible = overlay?.active === true || (overlay?.active !== false && overlay?.visible === true);
     if (!modeVisible && !visualEffects.length) return;
-    const time = Number(snapshot.time) || 0;
-    const trail = overlay.cursorTrail?.timing || snapshot.selectionModeTrail || snapshot.selectionTrail || {};
-    const trailScale = Math.max(0.4, Number(trail.scale) || 1);
-    const repeatCount = Math.max(0, Math.min(24, Math.round(Number(trail.repeatCount) || 0)));
-    const duration = Math.max(0.05, Number(trail.duration) || 0.22);
-    const delay = Math.max(0, Number(trail.delay) || 0);
-    const lag = Math.max(0.01, Math.min(0.5, Number(trail.lag) || 0.05));
-    const repeatDuration = Math.max(duration, Number(trail.repeatDuration) || 2);
-    const pulse = 0.5 + (0.5 * Math.sin(time * 7));
-    const cursor = overlay.cursor;
-    const glyph = overlay.cursorGlyph;
     const styles = overlay.styles || {};
-
-    recordSelectionCursorTrail(trailHistory, cursor, time, Math.max(1, repeatDuration + 0.5));
 
     ctx.save();
     ctx.lineJoin = 'round';
     for (const effect of visualEffects) {
-        drawSelectionModeEffect(ctx, effect, styles, { time, nowMs });
+        drawSelectionModeEffect(ctx, effect, styles, { time: Number(snapshot.time) || 0, nowMs });
     }
     if (!modeVisible) {
         ctx.restore();
@@ -609,36 +644,8 @@ function drawSelectionMode(ctx, overlay = {}, snapshot = {}, trailHistory = []) 
         }, { time });
     }
 
-    drawSelectionLineageBar(ctx, overlay.lineageBar);
-
-    if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) && selectionCursorShouldUseCanvasProjection(glyph)) {
-        for (let i = repeatCount; i >= 1; i -= 1) {
-            const age = delay + (duration * lag * i);
-            const sample = trailPointForAge(trailHistory, age, cursor);
-            const progress = i / Math.max(1, repeatCount);
-            const mode = String(trail.trailMode || 'fade');
-            const alpha = mode === 'hold'
-                ? 0.18 + (0.25 * (1 - progress))
-                : Math.max(0.04, 0.38 * (1 - progress));
-            drawSelectionCursorModel(ctx, glyph, {
-                x: sample.x,
-                y: sample.y,
-                scale: Math.max(0.36, trailScale * (0.58 + (1 - progress) * 0.2)),
-                alpha,
-                pulse: 0,
-                time: sample.time,
-                fill: false,
-            });
-        }
-        drawSelectionCursorModel(ctx, glyph, {
-            x: cursor.x,
-            y: cursor.y,
-            scale: Math.max(0.42, trailScale * 0.62),
-            alpha: 0.96,
-            pulse,
-            time,
-            fill: true,
-        });
+    if (drawLineageBar) {
+        drawSelectionLineageBar(ctx, overlay.lineageBar);
     }
     ctx.restore();
 }
@@ -655,8 +662,9 @@ function fastTravelLineGesture(snapshot = {}) {
 
 export function createInteractionOverlay() {
     let canvas = null;
+    let lineageCanvas = null;
     let resize = null;
-    const selectionCursorTrail = [];
+    let lineageResize = null;
 
     function ensureCanvas() {
         if (canvas) return canvas;
@@ -681,10 +689,49 @@ export function createInteractionOverlay() {
         return canvas;
     }
 
+    function ensureLineageCanvas() {
+        if (lineageCanvas) return lineageCanvas;
+        lineageCanvas = document.createElement('canvas');
+        lineageCanvas.style.position = 'absolute';
+        lineageCanvas.style.inset = '0';
+        lineageCanvas.style.zIndex = '0';
+        lineageCanvas.style.pointerEvents = 'none';
+        document.body.appendChild(lineageCanvas);
+
+        lineageResize = () => {
+            const dpr = window.devicePixelRatio || 1;
+            lineageCanvas.width = Math.floor(window.innerWidth * dpr);
+            lineageCanvas.height = Math.floor(window.innerHeight * dpr);
+            lineageCanvas.style.width = window.innerWidth + 'px';
+            lineageCanvas.style.height = window.innerHeight + 'px';
+            const ctx = lineageCanvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        };
+        lineageResize();
+        window.addEventListener('resize', lineageResize);
+        return lineageCanvas;
+    }
+
+    function drawSelectionModeLineageLayer(snapshot) {
+        const lineageBar = snapshot?.selectionModeOverlay?.lineageBar;
+        if (!lineageBar?.visible) {
+            if (lineageCanvas) {
+                const ctx = lineageCanvas.getContext('2d');
+                ctx.clearRect(0, 0, lineageCanvas.width, lineageCanvas.height);
+            }
+            return;
+        }
+        const layer = ensureLineageCanvas();
+        const ctx = layer.getContext('2d');
+        ctx.clearRect(0, 0, layer.width, layer.height);
+        drawSelectionLineageBar(ctx, lineageBar);
+    }
+
     function draw(snapshot) {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawSelectionModeLineageLayer(snapshot);
 
         if (snapshot.state === 'GOTO' && snapshot.avatarPos?.valid) {
             ctx.beginPath();
@@ -715,25 +762,37 @@ export function createInteractionOverlay() {
             ctx.restore();
         }
 
-        if (snapshot.radialGesture?.phase === 'radial' && snapshot.radialGesture.origin) {
+        if (
+            snapshot.radialGesture?.origin
+            && ['radial', 'fastTravel', 'closing'].includes(snapshot.radialGesture?.phase)
+        ) {
             const radial = snapshot.radialGesture;
             const origin = radial.origin;
             const menuRadius = radial.radii?.menu ?? snapshot.menuRingRadius;
             const handoffRadius = radial.radii?.handoff ?? menuRadius;
+            const openExpansion = radialOpenExpansionState(radial, { time: snapshot.time });
+            const dismissExpansion = radial.phase === 'closing'
+                ? radialDismissExpansionState(radial, { time: snapshot.time })
+                : { progress: null };
+            const ringProgress = dismissExpansion.progress == null
+                ? (openExpansion.progress == null
+                    ? Math.max(0, Math.min(1, radial.menuProgress || 0))
+                    : Number(openExpansion.progress))
+                : Number(dismissExpansion.progress);
 
             ctx.save();
-            ctx.globalAlpha = 0.9;
+            ctx.globalAlpha = 0.9 * Math.max(0.16, ringProgress);
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(130, 220, 255, 0.55)';
             ctx.lineWidth = 1.5;
-            ctx.arc(origin.x, origin.y, menuRadius * radial.menuProgress, 0, Math.PI * 2);
+            ctx.arc(origin.x, origin.y, menuRadius * ringProgress, 0, Math.PI * 2);
             ctx.stroke();
 
             ctx.beginPath();
             ctx.setLineDash([5, 8]);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             ctx.lineWidth = 1;
-            ctx.arc(origin.x, origin.y, handoffRadius, 0, Math.PI * 2);
+            ctx.arc(origin.x, origin.y, handoffRadius * ringProgress, 0, Math.PI * 2);
             ctx.stroke();
             ctx.setLineDash([]);
 
@@ -873,7 +932,9 @@ export function createInteractionOverlay() {
             ctx.restore();
         }
 
-        drawSelectionMode(ctx, snapshot.selectionModeOverlay, snapshot, selectionCursorTrail);
+        drawSelectionMode(ctx, snapshot.selectionModeOverlay, snapshot, {
+            drawLineageBar: false,
+        });
 
     }
 
@@ -882,7 +943,10 @@ export function createInteractionOverlay() {
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
-        selectionCursorTrail.length = 0;
+        if (lineageCanvas) {
+            const ctx = lineageCanvas.getContext('2d');
+            ctx.clearRect(0, 0, lineageCanvas.width, lineageCanvas.height);
+        }
     }
 
     function destroy() {
@@ -890,11 +954,18 @@ export function createInteractionOverlay() {
             window.removeEventListener('resize', resize);
             resize = null;
         }
+        if (lineageResize) {
+            window.removeEventListener('resize', lineageResize);
+            lineageResize = null;
+        }
         if (canvas) {
             canvas.remove();
             canvas = null;
         }
-        selectionCursorTrail.length = 0;
+        if (lineageCanvas) {
+            lineageCanvas.remove();
+            lineageCanvas = null;
+        }
     }
 
     return {

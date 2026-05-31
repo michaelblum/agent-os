@@ -5,7 +5,6 @@ import {
     contractTransformFromEffect,
 } from './radial-object-control.js';
 import { isTesseronSupportedShape, normalizeTesseronConfig } from '../tesseron.js';
-import { resolveSelectionModeCursorPrism } from './selection-mode-visual-model.js';
 
 export const AVATAR_ROOT_OBJECT_ID = 'avatar.main';
 export const AVATAR_PRIMARY_OBJECT_ID = 'avatar.primary.shape';
@@ -18,8 +17,6 @@ export const AVATAR_TRAIL_OBJECT_ID = 'avatar.effects.trail';
 export const AVATAR_TRAVEL_OBJECT_ID = 'avatar.effects.travel';
 export const AVATAR_OMEGA_OBJECT_ID = 'avatar.omega.shape';
 export const AVATAR_OMEGA_TESSERON_OBJECT_ID = 'avatar.omega.tesseron';
-export const SELECTION_CURSOR_ROOT_OBJECT_ID = 'selection-mode.cursor.model-root';
-export const SELECTION_CURSOR_PRIMARY_OBJECT_ID = 'selection-mode.cursor.sigil-model';
 
 const CONTRACT_UNITS = {
     position: 'scene',
@@ -123,14 +120,26 @@ function effectsResultFor(message, status, fields = {}) {
 
 function avatarRootTransform(rendererState = {}, options = {}) {
     const pos = options.avatarPos || rendererState.polyGroup?.position || {};
+    const selectionModeActive = bool(rendererState.selectionMode?.active, false);
+    const rideOffset = options.selectionModeAvatarOffset || rendererState.selectionModeAvatarOffset || {};
+    const avatarScale = selectionModeActive
+        ? finite(
+            options.selectionModeAvatarScale ?? options.avatarScale,
+            finite(rendererState.selectionModeAvatarScale ?? rendererState.avatarSize, 0.5),
+        )
+        : 1;
     const scale = finite(rendererState.z_depth, 1) * finite(rendererState.appScale, 1);
     return {
         position: {
-            x: finite(pos.x, 0),
-            y: finite(pos.y, 0),
-            z: finite(pos.z, 0),
+            x: finite(pos.x, 0) + (selectionModeActive ? finite(rideOffset.x, 0) : 0),
+            y: finite(pos.y, 0) + (selectionModeActive ? finite(rideOffset.y, 0) : 0),
+            z: finite(pos.z, 0) + (selectionModeActive ? finite(rideOffset.z, 0) : 0),
         },
-        scale: { x: scale, y: scale, z: scale },
+        scale: {
+            x: scale * avatarScale,
+            y: scale * avatarScale,
+            z: scale * avatarScale,
+        },
         rotationDegrees: { x: 0, y: 0, z: 0 },
     };
 }
@@ -246,71 +255,6 @@ function buildPrimaryObjects(rendererState = {}, options = {}) {
         }));
     }
     return objects;
-}
-
-function selectionCursorTransform(rendererState = {}) {
-    const cursor = resolveSelectionModeCursorPrism(rendererState);
-    return {
-        position: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 },
-        rotationDegrees: cursor.rotationDegrees,
-    };
-}
-
-function buildSelectionCursorObjects(rendererState = {}) {
-    const cursor = resolveSelectionModeCursorPrism(rendererState);
-    return [
-        registryObject({
-            objectId: SELECTION_CURSOR_ROOT_OBJECT_ID,
-            parentObjectId: AVATAR_ROOT_OBJECT_ID,
-            name: 'Selection Cursor Sidecar',
-            visible: bool(rendererState.selectionMode?.active, false),
-            transform: IDENTITY_TRANSFORM,
-            descriptors: {
-                geometry: 'Selection Mode cursor sidecar derived from the Sigil avatar style source.',
-                animation_effects: 'Owns the pointer prism projection, trail echoes, target hotspot, and lineage bar cursor affordance.',
-            },
-            metadata: {
-                role: 'selection-cursor-root',
-                control_domain: 'object-graph',
-                sidecar_for: AVATAR_ROOT_OBJECT_ID,
-                source_refs: {
-                    overlay: 'liveState.selectionModeOverlay',
-                    renderer_snapshot: 'liveState.selectionModeCursorModel',
-                },
-            },
-        }),
-        registryObject({
-            objectId: SELECTION_CURSOR_PRIMARY_OBJECT_ID,
-            parentObjectId: SELECTION_CURSOR_ROOT_OBJECT_ID,
-            name: 'Selection Pointer Projection',
-            visible: bool(rendererState.selectionMode?.active, false),
-            transform: selectionCursorTransform(rendererState),
-            descriptors: {
-                geometry: 'Avatar-derived prism pointer. Defaults mirror the live avatar style while the cursor owns face count, orientation, and rotation.',
-                animation_effects: 'Only the local long axis spins during Selection Mode; x/y/z rotation is the fixed orientation edit surface.',
-            },
-            controls: effectControls([
-                effectControl({ id: 'cursor.prism.topRadius', label: 'Front radius', type: 'slider', value: cursor.topRadius, min: 0, max: 2, step: 0.01 }),
-                effectControl({ id: 'cursor.prism.bottomRadius', label: 'Rear radius', type: 'slider', value: cursor.bottomRadius, min: 0.1, max: 2, step: 0.01 }),
-                effectControl({ id: 'cursor.prism.height', label: 'Length', type: 'slider', value: cursor.height, min: 0.2, max: 4, step: 0.01 }),
-                effectControl({ id: 'cursor.prism.sides', label: 'Face count', type: 'number', value: cursor.sides, min: 3, max: 64, step: 1 }),
-                effectControl({ id: 'cursor.spin.speed', label: 'Long-axis spin', type: 'slider', value: cursor.spinSpeed, min: 0, max: 0.2, step: 0.001 }),
-            ]),
-            metadata: {
-                role: 'selection-cursor-primary',
-                control_domain: 'object-effect',
-                geometry_type: 93,
-                shape: 'avatar_derived_prism_pointer',
-                source_refs: {
-                    geometry: 'state.selectionModeCursor.geometry',
-                    rotation: 'state.selectionModeCursor.rotationDegrees',
-                    style: 'current_live_sigil_avatar',
-                },
-            },
-            capabilities: ['transform.read', 'transform.patch', 'visibility.read', 'effects.read', 'effects.patch'],
-        }),
-    ];
 }
 
 function buildEffectObjects(rendererState = {}) {
@@ -543,7 +487,6 @@ export function buildAvatarObjectRegistry(rendererState = {}, options = {}) {
     const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
     const objects = [
         ...buildPrimaryObjects(rendererState, options),
-        ...buildSelectionCursorObjects(rendererState),
         ...buildEffectObjects(rendererState),
         ...buildOmegaObjects(rendererState),
     ];
@@ -572,31 +515,6 @@ export function buildAvatarObjectRegistry(rendererState = {}, options = {}) {
     };
 }
 
-function ensureSelectionCursorState(rendererState = {}) {
-    if (!rendererState.selectionModeCursor || typeof rendererState.selectionModeCursor !== 'object') {
-        rendererState.selectionModeCursor = {};
-    }
-    if (!rendererState.selectionModeCursor.geometry || typeof rendererState.selectionModeCursor.geometry !== 'object') {
-        rendererState.selectionModeCursor.geometry = {};
-    }
-    if (!rendererState.selectionModeCursor.rotationDegrees || typeof rendererState.selectionModeCursor.rotationDegrees !== 'object') {
-        rendererState.selectionModeCursor.rotationDegrees = { x: 0, y: 0, z: 45 };
-    }
-    return rendererState.selectionModeCursor;
-}
-
-function selectionCursorPatchTransform(rendererState = {}) {
-    return contractTransformFromEffect(selectionCursorTransform(rendererState));
-}
-
-function mergeRotationDegrees(current = {}, patch = {}) {
-    return {
-        x: patch.x === undefined ? finite(current.x, 0) : finite(patch.x, finite(current.x, 0)),
-        y: patch.y === undefined ? finite(current.y, 0) : finite(patch.y, finite(current.y, 0)),
-        z: patch.z === undefined ? finite(current.z, 45) : finite(patch.z, finite(current.z, 45)),
-    };
-}
-
 export function applyAvatarObjectTransformPatch(rendererState = {}, message = {}, options = {}) {
     const canvasId = text(options.canvasId, SIGIL_OBJECT_CONTROL_CANVAS_ID);
     if (message.type && message.type !== 'canvas_object.transform.patch') {
@@ -617,50 +535,10 @@ export function applyAvatarObjectTransformPatch(rendererState = {}, message = {}
             message: `target canvas ${message.target.canvas_id} is not ${canvasId}`,
         });
     }
-    if (message.target.object_id !== SELECTION_CURSOR_PRIMARY_OBJECT_ID) {
-        return resultFor(message, 'stale', {
-            reason: 'unknown_object',
-            message: `unknown avatar object ${message.target.object_id}`,
-        });
-    }
-    const rotationPatch = message.patch?.rotation_degrees;
-    if (!rotationPatch || typeof rotationPatch !== 'object') {
-        return resultFor(message, 'rejected', {
-            reason: 'invalid_patch',
-            message: 'selection cursor transform patch requires patch.rotation_degrees',
-        });
-    }
-    const cursor = ensureSelectionCursorState(rendererState);
-    cursor.rotationDegrees = mergeRotationDegrees(cursor.rotationDegrees, rotationPatch);
-    cursor.geometry.rotationDegrees = { ...cursor.rotationDegrees };
-    return resultFor(message, 'applied', {
-        transform: selectionCursorPatchTransform(rendererState),
-        visible: bool(rendererState.selectionMode?.active, false),
+    return resultFor(message, 'stale', {
+        reason: 'unknown_object',
+        message: `unknown avatar object ${message.target.object_id}`,
     });
-}
-
-function setCursorControl(rendererState = {}, controlId = '', value) {
-    const cursor = ensureSelectionCursorState(rendererState);
-    const geometry = cursor.geometry;
-    const applied = {};
-    const n = Number(value);
-    if (controlId === 'cursor.prism.topRadius' && Number.isFinite(n)) {
-        geometry.topRadius = Math.max(0, Math.min(2, n));
-        applied[controlId] = geometry.topRadius;
-    } else if (controlId === 'cursor.prism.bottomRadius' && Number.isFinite(n)) {
-        geometry.bottomRadius = Math.max(0.1, Math.min(2, n));
-        applied[controlId] = geometry.bottomRadius;
-    } else if (controlId === 'cursor.prism.height' && Number.isFinite(n)) {
-        geometry.height = Math.max(0.2, Math.min(4, n));
-        applied[controlId] = geometry.height;
-    } else if (controlId === 'cursor.prism.sides' && Number.isFinite(n)) {
-        geometry.sides = Math.max(3, Math.min(64, Math.round(n)));
-        applied[controlId] = geometry.sides;
-    } else if (controlId === 'cursor.spin.speed' && Number.isFinite(n)) {
-        geometry.spinSpeed = Math.max(0, Math.min(0.2, n));
-        applied[controlId] = geometry.spinSpeed;
-    }
-    return applied;
 }
 
 export function applyAvatarObjectEffectsPatch(rendererState = {}, message = {}, options = {}) {
@@ -683,30 +561,8 @@ export function applyAvatarObjectEffectsPatch(rendererState = {}, message = {}, 
             message: `target canvas ${message.target.canvas_id} is not ${canvasId}`,
         });
     }
-    if (message.target.object_id !== SELECTION_CURSOR_PRIMARY_OBJECT_ID) {
-        return effectsResultFor(message, 'stale', {
-            reason: 'unknown_object',
-            message: `unknown avatar object ${message.target.object_id}`,
-        });
-    }
-    const controls = message.patch?.controls;
-    if (!controls || typeof controls !== 'object' || Array.isArray(controls)) {
-        return effectsResultFor(message, 'rejected', {
-            reason: 'invalid_patch',
-            message: 'effects patch requires patch.controls object',
-        });
-    }
-    const applied = {};
-    for (const [controlId, value] of Object.entries(controls)) {
-        Object.assign(applied, setCursorControl(rendererState, controlId, value));
-    }
-    if (Object.keys(applied).length === 0) {
-        return effectsResultFor(message, 'rejected', {
-            reason: 'invalid_patch',
-            message: 'no supported selection cursor controls in patch',
-        });
-    }
-    return effectsResultFor(message, 'applied', {
-        controls: applied,
+    return effectsResultFor(message, 'stale', {
+        reason: 'unknown_object',
+        message: `unknown avatar object ${message.target.object_id}`,
     });
 }

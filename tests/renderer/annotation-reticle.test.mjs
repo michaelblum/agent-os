@@ -26,6 +26,11 @@ import {
 } from '../../apps/sigil/renderer/live-modules/host-runtime.js'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+const deletedSelectionModeCursorPattern = new RegExp([
+  ['selection', 'Mode', 'Cursor', 'Model'].join(''),
+  ['read', 'Selection', 'Mode', 'Cursor', 'Model', 'Snapshot'].join(''),
+  ['refresh', 'Selection', 'Mode', 'Cursor', 'Model', 'Snapshot'].join(''),
+].join('|'))
 
 const display = {
   id: 'main',
@@ -813,7 +818,7 @@ test('Sigil applies annotation item-click lifecycle guard to avatar and target-s
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const uses = source.match(/annotationReticleReleaseDisposition\(result\)/g) || []
 
-  assert.equal(uses.length, 2)
+  assert.equal(uses.length, 3)
   assert.match(source, /function handleRadialTargetSurfaceEvent[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
   assert.match(source, /case 'RADIAL': \{[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
 })
@@ -898,11 +903,9 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   assert.match(source, /selectionModeIsActive: \(\) => liveJs\.selectionMode\?\.active === true/)
   assert.match(source, /selectionModeOverlay: liveJs\.selectionModeOverlay \|\| buildProjectedSelectionModeOverlay/)
   assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)
-  assert.match(source, /function readSelectionModeCursorModelSnapshot\(\)/)
-  assert.match(source, /function refreshSelectionModeCursorModelSnapshot\(overlay = liveJs\.selectionModeOverlay\)/)
+  assert.doesNotMatch(source, deletedSelectionModeCursorPattern)
   assert.match(debugBlock, /selectionMode: liveJs\.selectionMode/)
-  assert.match(debugBlock, /selectionModeCursorModel: readSelectionModeCursorModelSnapshot\(\)/)
-  assert.doesNotMatch(debugBlock.slice(0, debugBlock.indexOf('refreshSelectionModeCursorModel()')), /refreshSelectionModeCursorModelSnapshot\(/)
+  assert.doesNotMatch(debugBlock, deletedSelectionModeCursorPattern)
   assert.match(debugBlock, /activeContext: liveJs\.activeContext/)
   assert.match(debugBlock, /contextRecording: liveJs\.contextRecording/)
   assert.match(debugBlock, /createSelectionModeContext\(input = \{\}\) \{[\s\S]*createSelectionModeContextFromDebugInput\(input\)/)

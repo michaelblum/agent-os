@@ -361,6 +361,45 @@ test('Sigil UX command adapter executes Selection Mode cycle handler with tree b
   assert.deepEqual(calls, [-1, -1, 1])
 })
 
+test('Sigil UX command adapter executes Selection Mode snapshot and record handlers', () => {
+  const calls = []
+  const registry = createSigilUxTreeCommandRegistry({
+    selectionModeSnapshot(pointer, payload) {
+      calls.push(['snapshot', pointer, payload.context?.source || null, payload.context?.nodeId || null])
+      return { copied: true }
+    },
+    selectionModeRecord(pointer, payload) {
+      calls.push(['record', pointer, payload.context?.source || null, payload.context?.nodeId || null])
+      return false
+    },
+  })
+  const pointer = { x: 8, y: 9, valid: true }
+
+  const snapshotResult = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_SELECTION_MODE_COMMAND_INPUTS.snapshot,
+    registry,
+    context: { pointer, source: 'lineage-button', nodeId: 'node:ancestor' },
+  })
+  const recordResult = executeSigilUxTreeCommand(createSigilUxTree(), {
+    input: SIGIL_SELECTION_MODE_COMMAND_INPUTS.record,
+    registry,
+    context: { pointer, source: 'lineage-button', nodeId: 'node:ancestor' },
+  })
+
+  assert.equal(snapshotResult.command_id, 'sigil.selection_mode.snapshot')
+  assert.equal(snapshotResult.binding_id, 'sigil.selection_mode.snapshot_button')
+  assert.equal(snapshotResult.executed, true)
+  assert.deepEqual(snapshotResult.handler_result, { copied: true })
+  assert.equal(recordResult.command_id, 'sigil.selection_mode.record')
+  assert.equal(recordResult.binding_id, 'sigil.selection_mode.record_button')
+  assert.equal(recordResult.executed, true)
+  assert.equal(recordResult.handler_result, false)
+  assert.deepEqual(calls, [
+    ['snapshot', pointer, 'lineage-button', 'node:ancestor'],
+    ['record', pointer, 'lineage-button', 'node:ancestor'],
+  ])
+})
+
 test('Sigil UX command adapter executes Selection Mode acquire handler with pointer context', () => {
   const pointer = { x: 12, y: 34, valid: true }
   let seenPointer = null
@@ -540,6 +579,8 @@ test('Sigil UX command route catalog is derived from adapter-resolved command in
   assert.equal(catalog.length, tree.bindings.length)
   assert.ok(routeIds.has('sigil.avatar.context_menu.right_click'))
   assert.ok(routeIds.has('sigil.selection_mode.left_click_acquire'))
+  assert.ok(routeIds.has('sigil.selection_mode.snapshot_button'))
+  assert.ok(routeIds.has('sigil.selection_mode.record_button'))
   assert.ok(routeIds.has('sigil.radial.item.release.annotation-mode'))
   assert.ok([...routeIds].some((id) => id.startsWith('sigil.radial.item.release.')))
 })

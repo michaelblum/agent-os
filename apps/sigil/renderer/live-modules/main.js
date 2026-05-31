@@ -64,15 +64,14 @@ import {
     createAvatarDoubleClickTracker,
     selectionModeKeyName,
 } from './selection-mode-input.js';
-import { currentAvatarRenderSource } from './avatar-render-model-adapter.js';
 import {
     createDefaultSelectionModeState,
     createSigilSelectionModeRuntime,
+    buildSelectionModeSnapshotPayload,
     resolveSigilAvatarIdleRotation,
     selectionModeOverlayHasActiveEffects,
 } from './selection-mode-runtime.js';
 import { createSelectionModeNativeFrameResolver } from './selection-mode-native-frame.js';
-import { createSelectionModeCursorModelRenderer } from './selection-mode-cursor-model-renderer.js';
 import {
     createDefaultActiveContextState,
     createDefaultContextRecordingState,
@@ -113,6 +112,7 @@ import {
 import { createSigilContextMenu } from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
+import { copyTextToClipboard } from './clipboard-utils.js';
 
 const {
     buildBrowserTabAnnotationCandidate,
@@ -191,7 +191,6 @@ const liveJs = {
     annotationReticle: null,
     selectionMode: createDefaultSelectionModeState(),
     selectionModeOverlay: null,
-    selectionModeCursorModel: null,
     uxCommandRuntime: {
         lastExecution: null,
         executedCount: 0,
@@ -264,6 +263,8 @@ const selectionModeRuntime = createSigilSelectionModeRuntime({
     isOnAvatar,
     consumeAvatarDoubleClick,
     setActiveContextProvider: contextRecordingRuntime.setActiveContextProvider,
+    openLineageCommentEditor: (config = {}) => openSelectionModeCommentEditor(config),
+    closeLineageCommentEditor: () => closeSelectionModeCommentEditor(),
     executeCommand: executeSelectionModeRouteCommand,
 });
 
@@ -283,7 +284,8 @@ const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
 const IDLE_AVATAR_MOTION_FRAME_DELAY_MS = 33;
 let structuralFrameDirty = true;
 let radialGestureVisuals = null;
-let selectionModeCursorModelRenderer = null;
+let selectionModeCommentEditor = null;
+let selectionModeCommentEditorEl = null;
 let lastSelectionModeEffectActive = false;
 let lastRenderPerformanceFrameAt = null;
 let lastRenderPerformanceSampleAt = 0;
@@ -1603,6 +1605,7 @@ sigilUxCommandRuntime = createSigilUxTreeCommandRuntime({
     getRadialGestureMenu: () => radialGestureMenu,
     fastTravel,
     clearGestureState,
+    clearRadialGestureDismissTimer,
     consumeAvatarDoubleClick,
     resetAvatarDoubleClick,
     setInteractionState,
@@ -1612,6 +1615,8 @@ sigilUxCommandRuntime = createSigilUxTreeCommandRuntime({
     acquireSelectionModeCandidates,
     cycleSelectionModeTarget,
     commitSelectionMode,
+    selectionModeSnapshot,
+    selectionModeRecord,
     contextMenu,
     cancelInteraction,
     wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
@@ -2752,6 +2757,170 @@ function commitSelectionMode(reason = 'selection-mode-commit') {
     return selectionModeRuntime.commit(reason);
 }
 
+function clampSelectionModeCommentEditorPosition(left, top, width, height) {
+    const maxLeft = Math.max(12, window.innerWidth - width - 12);
+    const maxTop = Math.max(12, window.innerHeight - height - 12);
+    return {
+        left: Math.round(Math.max(12, Math.min(maxLeft, left))),
+        top: Math.round(Math.max(12, Math.min(maxTop, top))),
+    };
+}
+
+function closeSelectionModeCommentEditor() {
+    selectionModeCommentEditor = null;
+    if (selectionModeCommentEditorEl) {
+        selectionModeCommentEditorEl.remove();
+        selectionModeCommentEditorEl = null;
+    }
+    return true;
+}
+
+function renderSelectionModeCommentEditor() {
+    if (!selectionModeCommentEditor) {
+        closeSelectionModeCommentEditor();
+        return false;
+    }
+    const state = selectionModeCommentEditor;
+    const width = 320;
+    const height = state.mode === 'edit' ? 170 : 150;
+    const anchor = state.anchorRect || {};
+    const pointerX = Number(state.pointer?.x);
+    const pointerY = Number(state.pointer?.y);
+    const left = Number.isFinite(Number(anchor.x))
+        ? Number(anchor.x + (Number(anchor.width) || 0) + 12)
+        : (Number.isFinite(pointerX) ? pointerX + 12 : 40);
+    const top = Number.isFinite(Number(anchor.y))
+        ? Number(anchor.y - 8)
+        : (Number.isFinite(pointerY) ? pointerY - 18 : 40);
+    const position = clampSelectionModeCommentEditorPosition(left, top, width, height);
+    if (!selectionModeCommentEditorEl) {
+        const el = document.createElement('div');
+        el.className = 'selection-mode-comment-editor';
+        el.style.position = 'fixed';
+        el.style.zIndex = '25';
+        el.style.pointerEvents = 'auto';
+        el.style.background = 'rgba(10, 14, 20, 0.96)';
+        el.style.border = '1px solid rgba(142, 221, 255, 0.34)';
+        el.style.borderRadius = '8px';
+        el.style.boxShadow = '0 12px 32px rgba(0, 0, 0, 0.32)';
+        el.style.padding = '10px';
+        el.style.color = 'rgba(238, 248, 255, 0.96)';
+        el.style.font = '12px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+        el.style.width = `${width}px`;
+        document.body.appendChild(el);
+        selectionModeCommentEditorEl = el;
+        el.addEventListener('click', (event) => {
+            const button = event.target?.closest?.('button');
+            if (!button) return;
+            if (button.dataset.action === 'cancel') {
+                closeSelectionModeCommentEditor();
+                return;
+            }
+            if (button.dataset.action === 'delete') {
+                if (selectionModeCommentEditor?.nodeId && selectionModeCommentEditor?.commentId) {
+                    selectionModeRuntime.deleteNodeComment(selectionModeCommentEditor.nodeId, selectionModeCommentEditor.commentId);
+                }
+                closeSelectionModeCommentEditor();
+                return;
+            }
+            if (button.dataset.action === 'save') {
+                const textarea = selectionModeCommentEditorEl?.querySelector('textarea');
+                const text = String(textarea?.value || '').trim();
+                if (!text || !selectionModeCommentEditor?.nodeId) return;
+                if (selectionModeCommentEditor.mode === 'edit' && selectionModeCommentEditor.commentId) {
+                    selectionModeRuntime.setNodeComment(selectionModeCommentEditor.nodeId, text, {
+                        id: selectionModeCommentEditor.commentId,
+                        updated_at: new Date().toISOString(),
+                    });
+                } else {
+                    selectionModeRuntime.setNodeComment(selectionModeCommentEditor.nodeId, text, {
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                    });
+                }
+                closeSelectionModeCommentEditor();
+            }
+        });
+        el.addEventListener('input', (event) => {
+            if (!event.target?.matches?.('textarea')) return;
+            if (selectionModeCommentEditor) {
+                selectionModeCommentEditor.text = event.target.value;
+            }
+        });
+    }
+    selectionModeCommentEditorEl.style.left = `${position.left}px`;
+    selectionModeCommentEditorEl.style.top = `${position.top}px`;
+    selectionModeCommentEditorEl.innerHTML = `
+        <div style="font-weight:600;margin-bottom:8px;">${state.mode === 'edit' ? 'Edit comment' : 'Add comment'}</div>
+        <textarea
+            rows="4"
+            style="width:100%;box-sizing:border-box;resize:vertical;min-height:72px;padding:8px;border-radius:6px;border:1px solid rgba(142,221,255,0.24);background:rgba(4,8,14,0.9);color:inherit;outline:none;"
+            placeholder="Leave a comment"
+        >${escapeHtml(state.text || '')}</textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+            ${state.mode === 'edit' && state.commentId ? '<button type="button" data-action="delete" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,112,112,0.3);background:rgba(134,22,32,0.18);color:rgba(255,166,166,0.96);">Delete</button>' : ''}
+            <button type="button" data-action="cancel" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.04);color:inherit;">Cancel</button>
+            <button type="button" data-action="save" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(94,252,210,0.24);background:rgba(94,252,210,0.14);color:inherit;">${state.mode === 'edit' ? 'Update' : 'Add Comment'}</button>
+        </div>
+    `;
+    const textarea = selectionModeCommentEditorEl.querySelector('textarea');
+    if (textarea && textarea.value !== (state.text || '')) textarea.value = state.text || '';
+    textarea?.focus?.();
+    textarea?.setSelectionRange?.(textarea.value.length, textarea.value.length);
+    return true;
+}
+
+function escapeHtml(value = '') {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function openSelectionModeCommentEditor(config = {}) {
+    selectionModeCommentEditor = {
+        nodeId: String(config.nodeId || '').trim(),
+        commentId: String(config.commentId || '').trim(),
+        text: String(config.text || ''),
+        mode: config.mode === 'edit' ? 'edit' : 'new',
+        pointer: config.pointer || null,
+        anchorRect: config.anchorRect || null,
+        itemId: String(config.itemId || '').trim(),
+    };
+    return renderSelectionModeCommentEditor();
+}
+
+function selectionModeSnapshot(pointer = null, payload = {}) {
+    if (payload?.context?.nodeId) {
+        selectionModeRuntime.selectTargetNode(payload.context.nodeId, { reason: 'selection-mode-snapshot' });
+    }
+    const snapshot = selectionModeRuntime.snapshot();
+    const snapshotPayload = buildSelectionModeSnapshotPayload(snapshot, {
+        activeContext: contextRecordingRuntime.snapshot?.().activeContext || null,
+        capturedAt: new Date().toISOString(),
+    });
+    const text = `${JSON.stringify(snapshotPayload, null, 2)}\n`;
+    void copyTextToClipboard(text, { asyncWrite: writeClipboardText }).then((didCopy) => {
+        if (!didCopy) {
+            console.warn('[sigil] selection mode snapshot clipboard write failed; showing JSON fallback');
+            window.prompt('Copy Selection Mode snapshot JSON', text);
+        }
+    }).catch((error) => {
+        console.warn('[sigil] selection mode snapshot clipboard write failed; showing JSON fallback:', error);
+        window.prompt('Copy Selection Mode snapshot JSON', text);
+    });
+    return snapshotPayload;
+}
+
+function selectionModeRecord(pointer = null, payload = {}) {
+    if (payload?.context?.nodeId) {
+        selectionModeRuntime.selectTargetNode(payload.context.nodeId, { reason: 'selection-mode-record' });
+    }
+    return false;
+}
+
 function setSelectionModeNodeComment(nodeId = '', text = '', options = {}) {
     return selectionModeRuntime.setNodeComment(nodeId, text, options);
 }
@@ -2762,23 +2931,6 @@ function createSelectionModeContextFromDebugInput(input = {}) {
 
 function handleSelectionModeInput(msg = {}) {
     return selectionModeRuntime.handleInput(msg);
-}
-
-function readSelectionModeCursorModelSnapshot() {
-    liveJs.selectionModeCursorModel = selectionModeCursorModelRenderer?.snapshot?.() || null;
-    return liveJs.selectionModeCursorModel;
-}
-
-function currentAvatarRenderSourceForSelectionPointer() {
-    return currentAvatarRenderSource(state);
-}
-
-function refreshSelectionModeCursorModelSnapshot(overlay = liveJs.selectionModeOverlay) {
-    selectionModeCursorModelRenderer?.update(overlay || null, {
-        time: state.globalTime,
-        nowMs: Date.now(),
-    });
-    return readSelectionModeCursorModelSnapshot();
 }
 
 function pointInRadialTargetSurface(point = null, surface = radialTargetSurface.snapshot()) {
@@ -2843,6 +2995,8 @@ function emitRadialMenuObjectRegistry() {
         canvasId: SIGIL_OBJECT_CONTROL_CANVAS_ID,
         avatarPos: liveJs.avatarPos,
         avatarVisible: liveJs.avatarVisible,
+        avatarScale: liveJs.avatarSize,
+        selectionModeAvatarOffset: state.selectionModeAvatarOffset,
     });
     host.post('canvas_object.registry', registry);
 }
@@ -2944,9 +3098,11 @@ function setAvatarVisibility(visible) {
     if (liveJs.avatarVisible === next && !visibilityTransition.active) return;
     liveJs.avatarVisible = next;
     if (!next) {
+        const radialSnapshot = liveJs.radialGestureMenu;
         contextMenu.close('avatar-hidden');
-        radialGestureMenu.cancel('avatar-hidden');
+        const result = radialGestureMenu.cancel('avatar-hidden');
         clearGestureState();
+        beginRadialGestureDismissal(result, radialSnapshot);
         liveJs.currentState = 'IDLE';
         liveJs.state = 'IDLE';
     }
@@ -2988,6 +3144,23 @@ function setAvatarPosition(x, y) {
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
+function selectionModeAvatarPositionFromPointer(point = null) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
+    const offset = state.selectionModeAvatarOffset || {};
+    return {
+        x: point.x + (Number(offset.x) || 0),
+        y: point.y + (Number(offset.y) || 0),
+    };
+}
+
+function updateSelectionModeAvatarRide(point = null) {
+    if (!liveJs.selectionMode?.active || !liveJs.avatarVisible) return false;
+    const next = selectionModeAvatarPositionFromPointer(point);
+    if (!next) return false;
+    setAvatarPosition(next.x, next.y);
+    return true;
+}
+
 function syncHitTargetToAvatar() {
     if (!isPrimarySurfaceSegment() || !liveJs.avatarPos.valid) return;
     hitTarget.setSize(state.avatarHitRadius * 2);
@@ -3001,9 +3174,11 @@ function syncHitTargetToAvatar() {
 function cancelInteraction(reason) {
     if (liveJs.currentState === 'IDLE') return;
     recordInteraction('interaction:cancel', { reason });
-    radialGestureMenu.cancel(reason);
+    const radialSnapshot = liveJs.radialGestureMenu;
+    const result = radialGestureMenu.cancel(reason);
     exitAnnotationReticle(reason);
     clearGestureState();
+    beginRadialGestureDismissal(result, radialSnapshot);
     fastTravel.clearGesture(reason);
     setInteractionState('IDLE', reason);
 }
@@ -3113,6 +3288,60 @@ function radialClickOpenAnimation(snapshot) {
     };
 }
 
+let radialGestureDismissTimer = null;
+let radialGestureDismissGeneration = 0;
+
+function clearRadialGestureDismissTimer() {
+    radialGestureDismissGeneration += 1;
+    if (radialGestureDismissTimer != null) {
+        window.clearTimeout(radialGestureDismissTimer);
+        radialGestureDismissTimer = null;
+    }
+}
+
+function beginRadialGestureDismissal(result, sourceSnapshot = liveJs.radialGestureMenu) {
+    const source = sourceSnapshot && typeof sourceSnapshot === 'object' ? sourceSnapshot : null;
+    const openAnimation = source?.openAnimation || radialClickOpenAnimation(source || {});
+    const durationMs = Number.isFinite(Number(openAnimation.durationMs ?? openAnimation.duration_ms))
+        ? Number(openAnimation.durationMs ?? openAnimation.duration_ms)
+        : 333;
+    if (!result || !source) return null;
+
+    clearRadialGestureDismissTimer();
+
+    const closingSnapshot = {
+        ...result,
+        phase: 'closing',
+        openAnimation,
+        dismissAnimation: {
+            ...openAnimation,
+            startedAt: state.globalTime,
+            durationMs,
+        },
+        openedBy: source.openedBy ?? result.openedBy ?? null,
+        releasePoint: source.releasePoint ?? result.releasePoint ?? null,
+    };
+
+    liveJs.radialGestureMenu = closingSnapshot;
+    radialGestureMenu.applySnapshot(closingSnapshot);
+    syncRadialTargetSurface();
+
+    const generation = radialGestureDismissGeneration;
+    radialGestureDismissTimer = window.setTimeout(() => {
+        if (generation !== radialGestureDismissGeneration) return;
+        radialGestureDismissTimer = null;
+        if (liveJs.radialGestureMenu?.phase !== 'closing') return;
+        liveJs.radialGestureMenu = null;
+        radialGestureMenu.applySnapshot(null);
+        radialGestureVisuals?.reset?.();
+        syncRadialTargetSurface();
+        if (!rendererSuspended) scheduleRenderFrame();
+    }, Math.max(0, durationMs));
+
+    if (!rendererSuspended) scheduleRenderFrame();
+    return closingSnapshot;
+}
+
 function radialClickTriggerLockPointer(origin) {
     if (state.radialGestureMenu?.orientation !== 'trigger-vector') return origin;
     const basis = Number.isFinite(Number(state.radialGestureMenu?.radiusBasis))
@@ -3132,6 +3361,7 @@ function radialClickTriggerLockPointer(origin) {
 }
 
 function openRadialMenuFromClick(x, y, reason = 'avatar-click-radial') {
+    clearRadialGestureDismissTimer();
     const origin = { ...liveJs.avatarPos, valid: true };
     liveJs.radialGestureMenu = radialGestureMenu.start(origin, radialClickTriggerLockPointer(origin));
     const snapshot = radialGestureMenu.snapshot();
@@ -3150,6 +3380,9 @@ function openRadialMenuFromClick(x, y, reason = 'avatar-click-radial') {
 }
 
 function applyRadialGestureMove(update, x, y) {
+    if (update?.snapshot?.phase && update.snapshot.phase !== 'closing') {
+        clearRadialGestureDismissTimer();
+    }
     liveJs.radialGestureMenu = update?.snapshot ?? radialGestureMenu.snapshot();
     syncRadialTargetSurface();
     emitAvatarMark();
@@ -3223,6 +3456,7 @@ function handleLeftMouseUp(x, y) {
             openRadialMenuFromClick(x, y);
             return;
         case 'RADIAL': {
+            const radialSnapshot = liveJs.radialGestureMenu;
             const result = radialGestureMenu.release({ x, y, valid: true }, {
                 input: {
                     kind: 'gesture',
@@ -3234,6 +3468,7 @@ function handleLeftMouseUp(x, y) {
             const annotationDisposition = annotationReticleReleaseDisposition(result);
             if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
             clearGestureState();
+            beginRadialGestureDismissal(result, radialSnapshot);
             if (result?.committed?.type === 'fastTravel') {
                 queueFastTravel(x, y);
                 setInteractionState('IDLE', 'radial-release-fast-travel');
@@ -3248,14 +3483,17 @@ function handleLeftMouseUp(x, y) {
                 ? distance(x, y, liveJs.mousedownPos.x, liveJs.mousedownPos.y)
                 : 0;
             if (isOnAvatar(x, y)) {
+                const radialSnapshot = liveJs.radialGestureMenu;
                 const result = radialGestureMenu.cancel('fast-travel-release-on-avatar');
                 const annotationDisposition = annotationReticleReleaseDisposition(result);
                 if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
                 clearGestureState();
+                beginRadialGestureDismissal(result, radialSnapshot);
                 fastTravel.clearGesture('fast-travel-release-on-avatar');
                 setInteractionState('IDLE', 'fast-travel-release-on-avatar');
                 return;
             }
+            const radialSnapshot = liveJs.radialGestureMenu;
             const result = radialGestureMenu.release({ x, y, valid: true }, {
                 input: {
                     kind: 'gesture',
@@ -3266,6 +3504,7 @@ function handleLeftMouseUp(x, y) {
             });
             const annotationCommit = commitAnnotationReticleRelease(x, y);
             clearGestureState();
+            beginRadialGestureDismissal(result, radialSnapshot);
             if (annotationCommit?.placement?.point) {
                 const point = annotationCommit.placement.point;
                 queueFastTravel(point.x, point.y);
@@ -3352,6 +3591,9 @@ function handleInputEvent(msg) {
         liveJs.cursorTarget = { x: msg.x, y: msg.y, valid: true };
         if (!liveJs.currentCursor.valid) {
             liveJs.currentCursor = { x: msg.x, y: msg.y, valid: true };
+        }
+        if (liveJs.selectionMode?.active) {
+            updateSelectionModeAvatarRide({ x: msg.x, y: msg.y });
         }
         if (msg.type === 'mouse_moved') updateAvatarHoverFromPoint(msg.x, msg.y);
         rememberDaemonPointerEvent(msg);
@@ -3574,9 +3816,11 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
         return;
     }
     if (payload.kind === 'radial_cancel') {
-        radialGestureMenu.cancel('radial-surface-cancel');
+        const radialSnapshot = liveJs.radialGestureMenu;
+        const result = radialGestureMenu.cancel('radial-surface-cancel');
         exitAnnotationReticle('radial-surface-cancel');
         clearGestureState();
+        beginRadialGestureDismissal(result, radialSnapshot);
         fastTravel.clearGesture('radial-surface-cancel');
         setInteractionState('IDLE', 'radial-surface-cancel');
         return;
@@ -3639,7 +3883,9 @@ function handleRadialTargetSurfaceEvent(payload = {}) {
     });
     const annotationDisposition = annotationReticleReleaseDisposition(result);
     if (annotationDisposition.exit) exitAnnotationReticle(annotationDisposition.reason);
+    const radialSnapshot = liveJs.radialGestureMenu;
     clearGestureState();
+    beginRadialGestureDismissal(result, radialSnapshot);
     if (result?.committed?.type === 'fastTravel') {
         queueFastTravel(item.center.x, item.center.y);
         setInteractionState('IDLE', 'radial-surface-fast-travel');
@@ -4066,19 +4312,6 @@ async function init() {
             },
         });
     });
-    runBootStep('createSelectionModeCursorModelRenderer', () => {
-        selectionModeCursorModelRenderer = createSelectionModeCursorModelRenderer({
-            scene: state.scene,
-            projectPoint: (point) => point?.valid === false ? null : projectStageLocalToScene(point.x, point.y),
-            projectRadius(point, radius) {
-                if (!point || point.valid === false) return null;
-                const center = projectStageLocalToScene(point.x, point.y);
-                const edge = projectStageLocalToScene(point.x + radius, point.y);
-                return center.distanceTo(edge);
-            },
-            getAvatarRenderSource: currentAvatarRenderSourceForSelectionPointer,
-        });
-    });
     runBootStep('createAuraObjects', () => createAuraObjects());
     runBootStep('createParticleObjects', () => createParticleObjects());
     runBootStep('createPhenomena', () => createPhenomena());
@@ -4104,7 +4337,6 @@ function clearHiddenFrame(renderAvatarPos, frameStartedAt) {
         removeSigilInputRegions();
     }
     overlay.clear();
-    refreshSelectionModeCursorModelSnapshot(null);
     radialActivationTransition.clear();
     radialGestureVisuals?.reset?.();
     visibilityTransition.clear();
@@ -4138,6 +4370,7 @@ function animate() {
     const frameStartedAt = performance.now();
     const dt = 0.016;
     const primarySegment = isPrimarySurfaceSegment();
+    liveJs.avatarSize = liveJs.selectionMode?.active ? Number(state.selectionModeAvatarScale || 0.5) : 1.0;
     if (
         primarySegment
         || !Number.isFinite(liveJs.surfaceRenderSnapshot?.globalTime)
@@ -4307,15 +4540,6 @@ function animate() {
             dragCancelRadius: liveJs.dragCancelRadius,
         });
     }
-    if (
-        liveJs.selectionModeOverlay?.visible === true
-        || liveJs.selectionModeOverlay?.active === true
-        || liveJs.selectionModeCursorModel?.visible === true
-    ) {
-        refreshSelectionModeCursorModelSnapshot(liveJs.selectionModeOverlay || null);
-    } else {
-        readSelectionModeCursorModelSnapshot();
-    }
     if (work.structural || activeRadialActivationTransition) {
         radialGestureVisuals?.update(liveJs.radialGestureMenu, {
             time: state.globalTime,
@@ -4334,7 +4558,7 @@ function animate() {
         recordBoot('boot:firstFrame', { boot_elapsed_ms: bootElapsedMs() });
     }
     const vitalityScale = Number.isFinite(vitalityFrame.scaleMultiplier) ? vitalityFrame.scaleMultiplier : 1;
-    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * vitalityScale * (1 + liveJs.avatarHoverProgress * 0.055));
+    state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * vitalityScale * liveJs.avatarSize * (1 + liveJs.avatarHoverProgress * 0.055));
     if (desktopWorldSurface?.isPrimary && work.publishState) {
         desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
     }
@@ -4395,7 +4619,6 @@ window.__sigilDebug = {
             annotationReticle: liveJs.annotationReticle,
             selectionMode: liveJs.selectionMode,
             selectionModeOverlay: liveJs.selectionModeOverlay,
-            selectionModeCursorModel: readSelectionModeCursorModelSnapshot(),
             uxCommandRuntime: liveJs.uxCommandRuntime,
             activeContext: liveJs.activeContext,
             contextRecording: liveJs.contextRecording,
@@ -4429,9 +4652,6 @@ window.__sigilDebug = {
                 latency: desktopWorldSurface.stateLatencySnapshot(),
             } : null,
         };
-    },
-    refreshSelectionModeCursorModel() {
-        return refreshSelectionModeCursorModelSnapshot(liveJs.selectionModeOverlay || null);
     },
     avatarDefinition,
     importAvatarDefinitionText,

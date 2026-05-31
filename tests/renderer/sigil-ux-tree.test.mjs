@@ -53,6 +53,8 @@ test('Sigil UX tree represents current command allowlist and plain radial settin
     'sigil.selection_mode.enter',
     'sigil.selection_mode.cancel',
     'sigil.selection_mode.commit',
+    'sigil.selection_mode.snapshot',
+    'sigil.selection_mode.record',
     'sigil.selection_mode.cycle_target',
     'sigil.selection_mode.acquire',
     'sigil.annotation_reticle.enter',

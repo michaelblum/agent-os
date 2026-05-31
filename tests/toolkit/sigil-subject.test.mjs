@@ -3,11 +3,8 @@ import assert from 'node:assert/strict';
 import {
   createSigilAgentSubject,
   createSigilAvatarSubject,
-  createSigilSelectionCursorSubject,
   SIGIL_AVATAR_SUBJECT_ID,
   SIGIL_AVATAR_SUBJECT_TYPE,
-  SIGIL_SELECTION_CURSOR_SUBJECT_ID,
-  SIGIL_SELECTION_CURSOR_SUBJECT_TYPE,
 } from '../../packages/toolkit/workbench/sigil-subject.js';
 import {
   subjectCapabilities,
@@ -138,10 +135,6 @@ test('createSigilAvatarSubject builds a canonical avatar editor subject without 
   assert.ok(subjectReferences(subject).some((reference) => reference.handle === 'avatar.omega.shape'));
   assert.ok(subjectReferences(subject).some((reference) => reference.handle === 'avatar.effects.lightning'));
   assert.ok(subjectReferences(subject).some((reference) => reference.handle === 'avatar.effects.magnetic'));
-  assert.ok(subjectReferences(subject).some((reference) => reference.handle === SIGIL_SELECTION_CURSOR_SUBJECT_ID
-    && reference.relationship === 'sidecar_projection'));
-  assert.equal(subject.state.sidecars.selection_cursor, SIGIL_SELECTION_CURSOR_SUBJECT_ID);
-  assert.deepEqual(subject.metadata.sidecar_subject_ids, [SIGIL_SELECTION_CURSOR_SUBJECT_ID]);
   assert.ok(hosts.some((host) => host.entry.value === 'aos://sigil/renderer/index.html'));
   assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/wiki-subject-browser/index.html'));
   assert.equal(serialized.includes('/studio/'), false);
@@ -181,100 +174,4 @@ test('createSigilAvatarSubject keeps projection-only shortcuts outside canonical
   assert.ok(projectionIds.includes('save'));
   assert.ok(projectionIds.includes('import'));
   assert.equal(canonicalFacets.some((facet) => facet.metadata?.projection_only_control_ids), false);
-});
-
-test('createSigilSelectionCursorSubject builds a side-car object graph for avatar-derived cursor projection', () => {
-  const subject = createSigilSelectionCursorSubject();
-  const facets = subjectFacets(subject);
-  const hosts = subjectHosts(subject);
-  const references = subjectReferences(subject);
-  const serialized = JSON.stringify(subject);
-
-  assert.equal(subject.type, 'aos.workbench.subject');
-  assert.equal(subject.id, SIGIL_SELECTION_CURSOR_SUBJECT_ID);
-  assert.equal(subject.subject_type, SIGIL_SELECTION_CURSOR_SUBJECT_TYPE);
-  assert.equal(subject.owner, 'sigil');
-  assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable', 'verifier-target', 'exportable']);
-  assert.ok(subjectContracts(subject).includes('sigil.selection_cursor.object_graph.read'));
-  assert.ok(subjectContracts(subject).includes('sigil.selection_cursor.render_model.read'));
-  assert.ok(subjectContracts(subject).includes('sigil.selection_cursor.trail_model.read'));
-  assert.ok(subjectContracts(subject).includes('sigil.selection_mode.ancestor_ladder.read'));
-  assert.ok(subjectContracts(subject).includes('sigil.avatar.appearance.inherit'));
-  assert.ok(subjectContracts(subject).includes('canvas_object.transform.patch'));
-  assert.ok(subjectContracts(subject).includes('canvas_object.effects.patch'));
-  assert.equal(subject.source.kind, 'runtime_projection');
-  assert.equal(subject.source.avatar_subject_id, SIGIL_AVATAR_SUBJECT_ID);
-  assert.equal(subject.state.avatar_subject_id, SIGIL_AVATAR_SUBJECT_ID);
-  assert.equal(subject.state.object_ids.root, 'selection-mode.cursor.model-root');
-  assert.equal(subject.state.object_ids.primary, 'selection-mode.cursor.sigil-model');
-  assert.equal(subject.state.object_ids.trail, 'selection-mode.cursor.trail-model');
-  assert.equal(subject.state.object_ids.effects, 'selection-mode.cursor.sigil-model.effects');
-  assert.equal(subject.state.object_ids.target, 'selection-mode.cursor.target');
-  assert.equal(subject.state.object_ids.ancestorLadder, 'selection-mode.cursor.ancestor-ladder');
-  assert.equal(subject.state.object_graph.kind, 'sigil.selection_cursor.object_graph');
-  assert.equal(subject.state.object_graph.root_object_id, 'selection-mode.cursor.model-root');
-  assert.ok(subject.state.object_graph.edges.some((edge) => edge.from === 'selection-mode.cursor.target'
-    && edge.to === 'selection-mode.cursor.ancestor-ladder'
-    && edge.relationship === 'derives_ancestor_ladder'));
-  assert.ok(subject.state.object_graph.edges.some((edge) => edge.from === 'selection-mode.cursor.sigil-model'
-    && edge.to === 'selection-mode.cursor.sigil-model.effects'
-    && edge.relationship === 'adapts_avatar_effect_descriptors'));
-  assert.equal(subject.state.surface_layouts.wiki_browser_object_graph.layout, 'object_graph_drilldown');
-  assert.equal(subject.state.render_model.kind, 'selection_mode_cursor');
-  assert.equal(subject.state.render_model.model_kind, 'sigil_model');
-  assert.equal(subject.state.render_model.shape, 'avatar_derived_prism_pointer');
-  assert.equal(subject.state.render_model.geometry.primitive, 'prism');
-  assert.equal(subject.state.render_model.geometry.geometry_type, 93);
-  assert.equal(subject.state.render_model.geometry.top_radius, 0);
-  assert.equal(subject.state.render_model.geometry.bottom_radius, 0.8);
-  assert.equal(subject.state.render_model.geometry.height, 2);
-  assert.equal(subject.state.render_model.geometry.sides, 3);
-  assert.equal(subject.state.render_model.geometry.cross_section, 'triangular');
-  assert.equal(subject.state.render_model.geometry.source_policy, 'mirror_current_avatar_except_faces_rotation_orientation');
-  assert.equal(subject.state.render_model.geometry.long_axis, 'screen_north_west');
-  assert.deepEqual(subject.state.render_model.geometry.orientation_degrees, { x: 0, y: 0, z: 45 });
-  assert.equal(subject.state.render_model.hotspot.kind, 'tip');
-  assert.equal(subject.state.render_model.animation.axis, 'local_y');
-  assert.equal(subject.state.render_model.animation.rotates_on_axis, 'long_axis');
-  assert.deepEqual(subject.state.render_model.controls.rotation_degrees, { x: 0, y: 0, z: 45 });
-  assert.deepEqual(subject.state.render_model.controls.geometry_controls.map((control) => control.id), [
-    'cursor.prism.topRadius',
-    'cursor.prism.bottomRadius',
-    'cursor.prism.height',
-    'cursor.prism.sides',
-    'cursor.spin.speed',
-  ]);
-  assert.ok(subject.state.render_model.cursor_overrides.includes('single_axis_rotation'));
-  assert.equal(subject.state.trail_model.shape, 'avatar_derived_prism_pointer');
-  assert.equal(subject.state.trail_model.repeat_geometry, 'prism');
-  assert.equal(subject.state.trail_model.policy.max_visible_instances, 8);
-  assert.equal(subject.state.style_source.appearance_source, 'current_live_sigil_avatar');
-  assert.equal(subject.state.style_source.material_source, 'current_avatar_render_model');
-  assert.equal(subject.state.style_source.effects_source, 'current_avatar_effect_descriptors');
-  assert.equal(subject.state.selection_target.badge_order, 'leaf-to-root');
-  assert.equal(subject.metadata.sidecar_for, SIGIL_AVATAR_SUBJECT_ID);
-  assert.equal(subject.metadata.canonical_model, 'sigil.selection_cursor.object_graph');
-  assert.equal(subject.metadata.projection_only, true);
-  assert.ok(references.some((reference) => reference.handle === SIGIL_AVATAR_SUBJECT_ID
-    && reference.relationship === 'sidecar_of'));
-  assert.ok(references.some((reference) => reference.handle === 'selection-mode.cursor.sigil-model'
-    && reference.role === 'primary'));
-  assert.ok(references.some((reference) => reference.handle === 'selection-mode.cursor.ancestor-ladder'
-    && reference.subject_type === 'runtime.selection_mode'));
-
-  const facetKeys = facets.map((facet) => facet.key);
-  assert.deepEqual(facetKeys, [
-    'cursor-object-graph',
-    'cursor-render-model',
-    'cursor-trail-model',
-    'selection-target',
-    'ancestor-ladder',
-    'avatar-style-source',
-  ]);
-  const graphFacet = facets.find((facet) => facet.key === 'cursor-object-graph');
-  assert.equal(graphFacet.metadata.surface_layout.kind, 'sigil.selection_cursor.wiki_browser_object_graph_view');
-  assert.ok(hosts.some((host) => host.entry.value === 'aos://sigil/renderer/index.html'));
-  assert.ok(hosts.some((host) => host.entry.value === 'aos://toolkit/components/wiki-subject-browser/index.html'));
-  assert.equal(serialized.includes('/studio/'), false);
-  assert.equal(serialized.includes('sigil.agent'), false);
 });

@@ -13,8 +13,6 @@ import {
   AVATAR_ROOT_OBJECT_ID,
   AVATAR_TRAIL_OBJECT_ID,
   AVATAR_TRAVEL_OBJECT_ID,
-  SELECTION_CURSOR_PRIMARY_OBJECT_ID,
-  SELECTION_CURSOR_ROOT_OBJECT_ID,
   applyAvatarObjectEffectsPatch,
   applyAvatarObjectTransformPatch,
   buildAvatarObjectRegistry,
@@ -101,18 +99,6 @@ function rendererState(overrides = {}) {
     omegaGhostCount: 13,
     omegaGhostDuration: 2.5,
     omegaInterDimensional: true,
-    selectionModeCursor: {
-      geometry: {
-        topRadius: 0,
-        bottomRadius: 0.8,
-        height: 2,
-        sides: 3,
-        rotationDegrees: { x: 0, y: 0, z: 45 },
-        spinAxis: 'local_y',
-        spinSpeed: 0.1,
-      },
-      rotationDegrees: { x: 0, y: 0, z: 45 },
-    },
     radialGestureMenu: {
       items: structuredClone(DEFAULT_SIGIL_RADIAL_ITEMS),
     },
@@ -274,71 +260,36 @@ test('avatar object registry omits unsupported tesseron and disabled omega nodes
   assert.equal(registry.objects.some((object) => object.object_id === AVATAR_OMEGA_TESSERON_OBJECT_ID), false)
 })
 
-test('avatar object registry publishes editable selection cursor prism sidecar', () => {
-  const registry = buildAvatarObjectRegistry(rendererState({
-    selectionMode: { active: true },
-  }), { canvasId: 'avatar-main' })
+test('avatar object registry rejects stale cursor patches after cursor removal', () => {
+  const registry = buildAvatarObjectRegistry(rendererState(), { canvasId: 'avatar-main' })
+  const deletedCursorPrefix = ['selection-mode', 'cursor'].join('.') + '.'
+  const deletedCursorObjectId = ['selection-mode', 'cursor', 'sigil-model'].join('.')
 
-  const cursorRoot = byId(registry, SELECTION_CURSOR_ROOT_OBJECT_ID)
-  assert.equal(cursorRoot.parent_object_id, AVATAR_ROOT_OBJECT_ID)
-  assert.equal(cursorRoot.metadata.role, 'selection-cursor-root')
-
-  const pointer = byId(registry, SELECTION_CURSOR_PRIMARY_OBJECT_ID)
-  assert.equal(pointer.parent_object_id, SELECTION_CURSOR_ROOT_OBJECT_ID)
-  assert.equal(pointer.metadata.shape, 'avatar_derived_prism_pointer')
-  assert.equal(pointer.metadata.geometry_type, 93)
-  assert.ok(pointer.capabilities.includes('transform.patch'))
-  assert.ok(pointer.capabilities.includes('effects.patch'))
-  assert.deepEqual(pointer.transform.rotation_degrees, { x: 0, y: 0, z: 45 })
-  assert.deepEqual(
-    Object.fromEntries(pointer.controls.animation_effects.map((control) => [control.id, control.value])),
-    {
-      'cursor.prism.topRadius': 0,
-      'cursor.prism.bottomRadius': 0.8,
-      'cursor.prism.height': 2,
-      'cursor.prism.sides': 3,
-      'cursor.spin.speed': 0.1,
-    },
+  assert.equal(
+    registry.objects.some((object) => String(object.object_id || '').startsWith(deletedCursorPrefix)),
+    false,
   )
-})
 
-test('selection cursor object patches update rotation and prism geometry controls', () => {
-  const state = rendererState()
-  const transform = applyAvatarObjectTransformPatch(state, {
+  const transform = applyAvatarObjectTransformPatch(rendererState(), {
     type: 'canvas_object.transform.patch',
     request_id: 'rotate-cursor',
-    target: { canvas_id: 'avatar-main', object_id: SELECTION_CURSOR_PRIMARY_OBJECT_ID },
+    target: { canvas_id: 'avatar-main', object_id: deletedCursorObjectId },
     patch: { rotation_degrees: { x: 12, z: 36 } },
   }, { canvasId: 'avatar-main' })
+  assert.equal(transform.status, 'stale')
+  assert.equal(transform.reason, 'unknown_object')
 
-  assert.equal(transform.status, 'applied')
-  assert.deepEqual(state.selectionModeCursor.rotationDegrees, { x: 12, y: 0, z: 36 })
-  assert.deepEqual(state.selectionModeCursor.geometry.rotationDegrees, { x: 12, y: 0, z: 36 })
-  assert.deepEqual(transform.transform.rotation_degrees, { x: 12, y: 0, z: 36 })
-
-  const effects = applyAvatarObjectEffectsPatch(state, {
+  const effects = applyAvatarObjectEffectsPatch(rendererState(), {
     type: 'canvas_object.effects.patch',
     request_id: 'shape-cursor',
-    target: { canvas_id: 'avatar-main', object_id: SELECTION_CURSOR_PRIMARY_OBJECT_ID },
+    target: { canvas_id: 'avatar-main', object_id: deletedCursorObjectId },
     patch: {
       controls: {
-        'cursor.prism.topRadius': 0.2,
-        'cursor.prism.height': 3.2,
-        'cursor.prism.sides': 12,
-        'cursor.spin.speed': 0.1,
+        [['cursor', 'prism', 'topRadius'].join('.')]: 0.2,
+        [['cursor', 'prism', 'height'].join('.')]: 3.2,
       },
     },
   }, { canvasId: 'avatar-main' })
-
-  assert.equal(effects.status, 'applied')
-  assert.deepEqual(effects.controls, {
-    'cursor.prism.topRadius': 0.2,
-    'cursor.prism.height': 3.2,
-    'cursor.prism.sides': 12,
-    'cursor.spin.speed': 0.1,
-  })
-  assert.equal(state.selectionModeCursor.geometry.topRadius, 0.2)
-  assert.equal(state.selectionModeCursor.geometry.height, 3.2)
-  assert.equal(state.selectionModeCursor.geometry.sides, 12)
-  assert.equal(state.selectionModeCursor.geometry.spinSpeed, 0.1)
+  assert.equal(effects.status, 'stale')
+  assert.equal(effects.reason, 'unknown_object')
 })

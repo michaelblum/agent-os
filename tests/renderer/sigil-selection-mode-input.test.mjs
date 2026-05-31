@@ -125,6 +125,74 @@ test('Selection Mode routing resolves lineage item hits before reacquisition', (
   assert.deepEqual(route.pointer, { x: 11, y: 22, valid: true })
 })
 
+test('Selection Mode routing resolves lineage menu items before bar chrome', () => {
+  const route = resolveSelectionModeInputRoute({ type: 'left_mouse_up', x: 11, y: 22 }, {
+    consumeSelectionModeEntryRelease: () => false,
+    isOnAvatar: () => false,
+    hitTestLineageItem: () => null,
+    hitTestLineageBar: (point) => (
+      point.x === 11 && point.y === 22
+        ? {
+            kind: 'menu_item',
+            id: 'selection-mode-lineage-menu:snapshot',
+            action: 'snapshot',
+            item: { id: 'selection-mode-lineage-menu:snapshot', anchorNodeId: 'node:ancestor' },
+          }
+        : null
+    ),
+  })
+
+  assert.equal(route.handled, true)
+  assert.equal(route.command, 'snapshot')
+  assert.equal(route.gesture, 'pointer.lineage.menu.snapshot')
+  assert.equal(route.lineageMenuItemId, 'selection-mode-lineage-menu:snapshot')
+  assert.equal(route.lineageMenuAction, 'snapshot')
+  assert.equal(route.nodeId, 'node:ancestor')
+  assert.deepEqual(route.pointer, { x: 11, y: 22, valid: true })
+})
+
+test('Selection Mode routing resolves comment icon hits to the comment editor overlay', () => {
+  const route = resolveSelectionModeInputRoute({ type: 'left_mouse_up', x: 11, y: 22 }, {
+    consumeSelectionModeEntryRelease: () => false,
+    isOnAvatar: () => false,
+    hitTestLineageItem: () => null,
+    hitTestLineageBar: (point) => (
+      point.x === 11 && point.y === 22
+        ? {
+            kind: 'comment',
+            id: 'selection-mode-lineage-comment:ancestor',
+            nodeId: 'node:ancestor',
+            commentId: 'comment:1',
+            item: { id: 'selection-mode-lineage:ancestor', nodeId: 'node:ancestor' },
+          }
+        : null
+    ),
+  })
+
+  assert.equal(route.handled, true)
+  assert.equal(route.command, 'openLineageCommentEditor')
+  assert.equal(route.gesture, 'pointer.lineage.comment')
+  assert.equal(route.nodeId, 'node:ancestor')
+  assert.equal(route.commentId, 'comment:1')
+})
+
+test('Selection Mode right click on a lineage node opens the node context menu', () => {
+  const route = resolveSelectionModeInputRoute({ type: 'right_mouse_down', x: 11, y: 22 }, {
+    consumeSelectionModeEntryRelease: () => false,
+    isOnAvatar: () => false,
+    hitTestLineageBar: (point) => (
+      point.x === 11 && point.y === 22
+        ? { kind: 'item', id: 'selection-mode-lineage:ancestor', nodeId: 'node:ancestor', item: { id: 'selection-mode-lineage:ancestor' } }
+        : null
+    ),
+  })
+
+  assert.equal(route.handled, true)
+  assert.equal(route.command, 'openLineageContextMenu')
+  assert.equal(route.gesture, 'pointer.lineage.context_menu')
+  assert.equal(route.nodeId, 'node:ancestor')
+})
+
 test('Selection Mode routing consumes lineage bar chrome gaps before reacquisition', () => {
   const route = resolveSelectionModeInputRoute({ type: 'left_mouse_up', x: 11, y: 22 }, {
     consumeSelectionModeEntryRelease: () => false,

@@ -237,8 +237,6 @@ test('selection mode registers an active-only capture region', () => {
       app: 'sigil',
       surface: 'avatar-main',
       purpose: 'selection-mode-pointer-capture',
-      cursor_suppression: 'hide_native',
-      cursor_suppression_owner: 'selection_mode',
     },
   })
   assert.equal(host.calls[1].method, 'remove')

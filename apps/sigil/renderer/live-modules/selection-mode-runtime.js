@@ -6,10 +6,9 @@ import {
     buildSelectionModeLineageBarModel,
     hitTestSelectionModeLineageBar,
     hitTestSelectionModeLineageItem,
+    hitTestSelectionModeLineageMenu,
 } from './selection-mode-lineage-bar.js';
 import {
-    buildSelectionModeCursorGlyph,
-    buildSelectionModeCursorTrailModel,
     buildSelectionModeVisualEffects,
     buildSelectionModeVisualStyle,
     normalizeSelectionModeEffects,
@@ -42,6 +41,7 @@ export function createDefaultSelectionModeState() {
         lineage_bar_drag: null,
         lineage_bar_scroll_offset: 0,
         lineage_bar_scroll_target_node_id: '',
+        lineage_context_menu: null,
         context_session: null,
         events: [],
         effects: [],
@@ -551,7 +551,6 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         };
     }).filter(Boolean);
     const cursor = selectionMode.cursor ? projectPoint(selectionMode.cursor) : null;
-    const rotationStartedAtMs = Number(selectionMode.rotation_started_at_ms ?? Date.parse(selectionMode.entered_at || ''));
     const lineageModel = buildSelectionModeLineageBarModel({
         path,
         activeNodeId: selectedNodeId,
@@ -569,15 +568,12 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         overlayBounds,
         projectPoint,
         visualStyle,
+        lineageContextMenu: selectionMode.lineage_context_menu || null,
     });
     return {
         visible: selectionMode.active === true || effectsActive,
         active: selectionMode.active === true,
         cursor,
-        cursorGlyph: buildSelectionModeCursorGlyph(cursor, rendererState, {
-            rotationStartedAtMs: Number.isFinite(rotationStartedAtMs) ? rotationStartedAtMs : null,
-        }),
-        cursorTrail: buildSelectionModeCursorTrailModel(rendererState),
         frames,
         ...lineageModel,
         styles: visualStyle,
@@ -588,7 +584,28 @@ export function buildProjectedSelectionModeOverlay(selectionMode = {}, {
         highlightedNodeId,
         perimeterFillNodeId,
         blocker: selectionMode.blocker || null,
+        lineageContextMenu: lineageModel.lineageBar?.lineageContextMenu || null,
         eventCount: Array.isArray(selectionMode.events) ? selectionMode.events.length : 0,
+    };
+}
+
+function cloneJson(value) {
+    return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+export function buildSelectionModeSnapshotPayload(snapshot = {}, {
+    activeContext = null,
+    capturedAt = defaultNowIso(),
+} = {}) {
+    const selectionMode = snapshot?.selectionMode || snapshot?.selection_mode || snapshot || null;
+    const selectionModeOverlay = snapshot?.selectionModeOverlay || snapshot?.selection_mode_overlay || null;
+    return {
+        schema: 'sigil_selection_mode_snapshot',
+        version: '0.1.0',
+        captured_at: capturedAt,
+        selection_mode: cloneJson(selectionMode),
+        selection_mode_overlay: cloneJson(selectionModeOverlay),
+        active_context: cloneJson(activeContext),
     };
 }
 
@@ -604,6 +621,8 @@ export function createSigilSelectionModeRuntime({
     getOverlayBounds = () => null,
     closeContextMenu = () => {},
     exitAnnotationReticle = () => {},
+    openLineageCommentEditor = () => {},
+    closeLineageCommentEditor = () => {},
     clearGestureState = () => {},
     syncInputRegions = () => {},
     scheduleRenderFrame = () => {},
@@ -616,6 +635,7 @@ export function createSigilSelectionModeRuntime({
 } = {}) {
     if (!liveState.selectionMode) liveState.selectionMode = createDefaultSelectionModeState();
     if (liveState.selectionModeOverlay === undefined) liveState.selectionModeOverlay = null;
+    let lineageContextMenuCloseTimer = null;
 
     const displayGeometrySnapshot = createDisplayGeometrySnapshotReader(getDisplays);
 
@@ -719,6 +739,13 @@ export function createSigilSelectionModeRuntime({
         });
     }
 
+    function clearLineageContextMenuCloseTimer() {
+        if (lineageContextMenuCloseTimer != null) {
+            clearTimeout(lineageContextMenuCloseTimer);
+            lineageContextMenuCloseTimer = null;
+        }
+    }
+
     function displayCandidate(point = null, ownerResolution = null) {
         const resolved = ownerResolution || resolveDisplayOwner(point, 'selection_mode_display_root');
         const cursor = cursorFromPoint(point || resolved.cursor || getPointer()) || { x: 0, y: 0, valid: true };
@@ -806,6 +833,8 @@ export function createSigilSelectionModeRuntime({
     function enter(pointer = null, reason = 'selection-mode-enter') {
         closeContextMenu('selection-mode');
         exitAnnotationReticle('selection-mode');
+        closeLineageContextMenu('selection-mode-enter');
+        closeLineageCommentEditor('selection-mode-enter');
         clearGestureState();
         const cursor = cursorFromPoint(pointer || getPointer());
         const ownerResolution = resolveDisplayOwner(cursor, 'selection_mode_enter');
@@ -826,6 +855,8 @@ export function createSigilSelectionModeRuntime({
     function exit(reason = 'cancel') {
         if (!liveState.selectionMode?.active) return liveState.selectionMode;
         clearSelectionModeEntryReleasePending();
+        closeLineageContextMenu('exit');
+        closeLineageCommentEditor('exit');
         recordEffect('exit', reason);
         recordEvent('exit', { reason });
         liveState.selectionMode = {
@@ -840,6 +871,7 @@ export function createSigilSelectionModeRuntime({
             lineage_bar_drag: null,
             lineage_bar_scroll_offset: 0,
             lineage_bar_scroll_target_node_id: '',
+            lineage_context_menu: null,
             context_session: null,
             blocker: reason === 'cancel' ? { status: 'cancelled', reason } : liveState.selectionMode.blocker,
         };
@@ -852,6 +884,8 @@ export function createSigilSelectionModeRuntime({
         const cursor = ownerResolution.cursor;
         const pathCandidates = candidatesAtPoint(cursor, ownerResolution);
         const leaf = pathCandidates.at(-1) || null;
+        closeLineageContextMenu('acquire');
+        closeLineageCommentEditor('acquire');
         liveState.selectionMode = {
             ...liveState.selectionMode,
             cursor,
@@ -861,6 +895,7 @@ export function createSigilSelectionModeRuntime({
             selected_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
             hover_node_id: '',
             lineage_bar_scroll_target_node_id: leaf?.id || leaf?.subject_id || leaf?.address || '',
+            lineage_context_menu: null,
             blocker: pathCandidates.length > 1 ? null : {
                 status: 'degraded',
                 reason: 'selection_mode_only_display_fallback_available',
@@ -882,6 +917,8 @@ export function createSigilSelectionModeRuntime({
         const contextSession = liveState.selectionMode?.context_session;
         const path = contextSession?.artifacts?.[0]?.path || [];
         if (!path.length) return null;
+        closeLineageContextMenu('cycle-target');
+        closeLineageCommentEditor('cycle-target');
         const current = path.findIndex((node) => node.id === liveState.selectionMode.selected_node_id);
         const nextIndex = (current >= 0 ? current : path.length - 1) + delta;
         const wrapped = ((nextIndex % path.length) + path.length) % path.length;
@@ -898,6 +935,8 @@ export function createSigilSelectionModeRuntime({
         const target = String(nodeId || '').trim();
         const path = liveState.selectionMode?.context_session?.artifacts?.[0]?.path || [];
         if (!target || !path.some((node) => node.id === target || node.address === target)) return null;
+        closeLineageContextMenu('selection-target-changed');
+        closeLineageCommentEditor('selection-target-changed');
         const context = retargetContextSession(target);
         recordEvent('select_target', {
             reason,
@@ -923,6 +962,113 @@ export function createSigilSelectionModeRuntime({
         return hitTestSelectionModeLineageItem(overlay, projected);
     }
 
+    function hitTestLineageContextMenu(point = null) {
+        const cursor = cursorFromPoint(point);
+        if (!cursor) return null;
+        const projected = projectPoint(cursor);
+        const overlay = buildOverlay(liveState.selectionMode);
+        return hitTestSelectionModeLineageMenu(overlay, projected);
+    }
+
+    function closeLineageContextMenu(reason = 'context-menu-close') {
+        if (!liveState.selectionMode?.lineage_context_menu) return false;
+        clearLineageContextMenuCloseTimer();
+        liveState.selectionMode.lineage_context_menu = null;
+        liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        recordEvent('lineage_context_menu_close', { reason });
+        scheduleRenderFrame({ structural: false });
+        return true;
+    }
+
+    function openLineageContextMenu(hit = null, point = null) {
+        const item = hit?.item || null;
+        const nodeId = String(hit?.nodeId || item?.nodeId || '').trim();
+        if (!nodeId || !item?.rect) return false;
+        clearLineageContextMenuCloseTimer();
+        closeLineageCommentEditor('context-menu-open');
+        liveState.selectionMode.lineage_context_menu = {
+            visible: true,
+            node_id: nodeId,
+            item_id: item.id || '',
+            comment_id: hit?.commentId || '',
+            pointer: cursorFromPoint(point) || liveState.selectionMode.cursor || null,
+            anchor_rect: item.rect,
+            opened_at: nowIso(),
+            hovered_item_id: '',
+            pressed_item_id: '',
+        };
+        liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        recordEvent('lineage_context_menu_open', {
+            node_id: nodeId,
+            item_id: item.id || '',
+            comment_id: hit?.commentId || '',
+        });
+        scheduleRenderFrame({ structural: false });
+        return true;
+    }
+
+    function setLineageContextMenuHover(hit = null) {
+        const menu = liveState.selectionMode?.lineage_context_menu;
+        if (!menu?.visible) return false;
+        const nextHoverItemId = hit?.kind === 'menu_item' ? String(hit.id || '') : '';
+        if ((menu.hovered_item_id || '') === nextHoverItemId) return false;
+        menu.hovered_item_id = nextHoverItemId;
+        liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        scheduleRenderFrame({ structural: false });
+        return true;
+    }
+
+    function setLineageContextMenuPressed(itemId = '') {
+        const menu = liveState.selectionMode?.lineage_context_menu;
+        if (!menu?.visible) return false;
+        const nextPressedItemId = String(itemId || '');
+        if ((menu.pressed_item_id || '') === nextPressedItemId) return false;
+        menu.pressed_item_id = nextPressedItemId;
+        liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        scheduleRenderFrame({ structural: false });
+        return true;
+    }
+
+    function scheduleLineageContextMenuClose(reason = 'context-menu-action', delayMs = 120) {
+        clearLineageContextMenuCloseTimer();
+        lineageContextMenuCloseTimer = globalThis.setTimeout(() => {
+            lineageContextMenuCloseTimer = null;
+            closeLineageContextMenu(reason);
+        }, Math.max(0, Number(delayMs) || 0));
+    }
+
+    function openCommentEditorForNode(nodeId = '', commentOrId = null, { mode = 'new' } = {}) {
+        const targetNodeId = String(nodeId || '').trim() || liveState.selectionMode?.selected_node_id || '';
+        if (!targetNodeId) return false;
+        closeLineageContextMenu('comment_editor_open');
+        const commentId = typeof commentOrId === 'string' ? String(commentOrId || '').trim() : String(commentOrId?.id || '').trim();
+        const candidate = (Array.isArray(liveState.selectionMode.path_candidates) ? liveState.selectionMode.path_candidates : [])
+            .find((entry) => {
+                const key = String(entry.id || entry.node_id || entry.subject_id || entry.address || '').trim();
+                return key === targetNodeId;
+            }) || null;
+        const resolvedComment = commentOrId && typeof commentOrId === 'object'
+            ? commentOrId
+            : (commentId && Array.isArray(candidate?.comments)
+                ? candidate.comments.find((entry) => String(entry?.id || '') === commentId) || null
+                : null);
+        openLineageCommentEditor({
+            nodeId: targetNodeId,
+            commentId: resolvedComment?.id || commentId || '',
+            text: String(resolvedComment?.text || ''),
+            mode,
+            itemId: resolvedComment?.pin_id || '',
+            anchorRect: null,
+            pointer: liveState.selectionMode?.cursor || null,
+        });
+        recordEvent('lineage_comment_editor_open', {
+            node_id: targetNodeId,
+            comment_id: resolvedComment?.id || commentId || '',
+            mode,
+        });
+        return true;
+    }
+
     function startLineageBarDrag(point = null) {
         const cursor = cursorFromPoint(point);
         if (!cursor) return false;
@@ -930,7 +1076,7 @@ export function createSigilSelectionModeRuntime({
         const overlay = buildOverlay(liveState.selectionMode);
         const hit = hitTestSelectionModeLineageBar(overlay, projected);
         const rect = overlay?.lineageBar?.rect || null;
-        if (!hit || !rect) return false;
+        if (!hit || (hit.kind !== 'item' && hit.kind !== 'bar') || !rect) return false;
         liveState.selectionMode.lineage_bar_drag = {
             active: true,
             moved: false,
@@ -995,7 +1141,7 @@ export function createSigilSelectionModeRuntime({
         const projected = projectPoint(cursor);
         const overlay = buildOverlay(liveState.selectionMode);
         const hit = hitTestSelectionModeLineageBar(overlay, projected);
-        if (!hit) return false;
+        if (!hit || hit.kind === 'menu_item' || hit.kind === 'menu' || hit.kind === 'comment') return false;
         const scroll = overlay?.lineageBar?.scroll || {};
         const maxOffset = Math.max(0, finite(scroll.maxOffset, 0));
         const currentOffset = clamp(finite(scroll.offset, liveState.selectionMode.lineage_bar_scroll_offset || 0), 0, maxOffset);
@@ -1050,6 +1196,8 @@ export function createSigilSelectionModeRuntime({
     function commit(reason = 'selection-mode-commit') {
         const contextSession = liveState.selectionMode?.context_session || buildContextSession();
         if (!contextSession) return null;
+        closeLineageContextMenu('commit');
+        closeLineageCommentEditor('commit');
         const activeContext = setActiveContextProvider({
             source: 'selection_mode',
             contextSession,
@@ -1070,27 +1218,65 @@ export function createSigilSelectionModeRuntime({
         const path = liveState.selectionMode?.path_candidates || [];
         const contextPath = liveState.selectionMode?.context_session?.artifacts?.[0]?.path || [];
         const targetIndex = contextPath.findIndex((node) => node.id === target || node.address === target);
+        const commentId = String(options.id || '').trim();
         const nextPath = path.map((candidate, index) => {
             const key = String(candidate.id || candidate.node_id || candidate.subject_id || candidate.address || '').trim();
             if (key !== target && index !== targetIndex) return candidate;
-            return {
-                ...candidate,
-                comments: [
-                    ...(Array.isArray(candidate.comments) ? candidate.comments : []),
+            const existingComments = Array.isArray(candidate.comments) ? candidate.comments : [];
+            const nextComments = commentId
+                ? existingComments.map((comment) => (
+                    String(comment?.id || '') === commentId
+                        ? {
+                            ...comment,
+                            text,
+                            updated_at: options.updated_at || nowIso(),
+                            actor: options.actor || comment.actor || { role: 'operator', id: 'human' },
+                        }
+                        : comment
+                ))
+                : existingComments;
+            const nextCommentList = commentId && nextComments.some((comment) => String(comment?.id || '') === commentId)
+                ? nextComments
+                : [
+                    ...nextComments,
                     {
-                        id: options.id || `comment:selection-mode:${Date.now()}`,
+                        id: commentId || options.id || `comment:selection-mode:${Date.now()}`,
                         text,
                         actor: options.actor || { role: 'operator', id: 'human' },
                         created_at: options.created_at || nowIso(),
                         updated_at: options.updated_at || nowIso(),
                     },
-                ],
+                ];
+            return {
+                ...candidate,
+                comments: nextCommentList,
             };
         });
         liveState.selectionMode.path_candidates = nextPath;
         const context = retargetContextSession(liveState.selectionMode.selected_node_id);
-        publish();
+        publish({ render: true });
         return context;
+    }
+
+    function deleteNodeComment(nodeId = '', commentId = '') {
+        const target = String(nodeId || liveState.selectionMode?.selected_node_id || '').trim();
+        const commentKey = String(commentId || '').trim();
+        if (!target || !commentKey) return false;
+        const nextPath = (Array.isArray(liveState.selectionMode.path_candidates) ? liveState.selectionMode.path_candidates : []).map((candidate) => {
+            const key = String(candidate.id || candidate.node_id || candidate.subject_id || candidate.address || '').trim();
+            if (key !== target) return candidate;
+            return {
+                ...candidate,
+                comments: Array.isArray(candidate.comments)
+                    ? candidate.comments.filter((comment) => String(comment?.id || '') !== commentKey)
+                    : [],
+            };
+        });
+        liveState.selectionMode.path_candidates = nextPath;
+        retargetContextSession(liveState.selectionMode.selected_node_id);
+        publish({ render: true });
+        recordEvent('lineage_comment_deleted', { node_id: target, comment_id: commentKey });
+        return true;
     }
 
     function createContextFromDebugInput(input = {}) {
@@ -1114,6 +1300,7 @@ export function createSigilSelectionModeRuntime({
             lineage_bar_drag: null,
             lineage_bar_scroll_offset: 0,
             lineage_bar_scroll_target_node_id: contextSession.artifacts?.[0]?.active_target_node_id || '',
+            lineage_context_menu: null,
             context_session: contextSession,
             events: [],
             effects: [],
@@ -1131,30 +1318,55 @@ export function createSigilSelectionModeRuntime({
 
     function handleInput(msg = {}) {
         if (!liveState.selectionMode?.active) return false;
+        const pointer = typeof msg.x === 'number' && typeof msg.y === 'number'
+            ? { x: msg.x, y: msg.y, valid: true }
+            : null;
         if (typeof msg.x === 'number' && typeof msg.y === 'number') {
-            liveState.selectionMode.cursor = { x: msg.x, y: msg.y, valid: true };
+            liveState.selectionMode.cursor = pointer;
             liveState.selectionModeOverlay = buildOverlay(liveState.selectionMode);
+        }
+        if (liveState.selectionMode.lineage_context_menu?.visible && pointer) {
+            const menuHit = hitTestLineageContextMenu(pointer);
+            if (msg.type === 'mouse_moved' || msg.type === 'left_mouse_dragged') {
+                setLineageContextMenuHover(menuHit);
+            }
+            if (msg.type === 'left_mouse_down') {
+                if (menuHit?.kind === 'menu_item') {
+                    setLineageContextMenuHover(menuHit);
+                    setLineageContextMenuPressed(menuHit.id);
+                } else {
+                    setLineageContextMenuHover(menuHit);
+                }
+                return true;
+            }
         }
         if (
             liveState.selectionMode.lineage_bar_drag?.active
             && (msg.type === 'mouse_moved' || msg.type === 'left_mouse_dragged')
         ) {
-            updateLineageBarDrag({ x: msg.x, y: msg.y, valid: true });
+            updateLineageBarDrag(pointer);
             scheduleRenderFrame({ structural: false });
             return true;
         }
         if (liveState.selectionMode.lineage_bar_drag?.active && msg.type === 'left_mouse_up') {
-            updateLineageBarDrag({ x: msg.x, y: msg.y, valid: true }, { release: true });
+            updateLineageBarDrag(pointer, { release: true });
             scheduleRenderFrame({ structural: false });
             return true;
         }
-        if (msg.type === 'left_mouse_down' && startLineageBarDrag({ x: msg.x, y: msg.y, valid: true })) {
+        if (msg.type === 'left_mouse_down' && startLineageBarDrag(pointer)) {
             scheduleRenderFrame({ structural: false });
             return true;
         }
-        if (msg.type === 'scroll_wheel' && scrollLineageBar({ x: msg.x, y: msg.y, valid: true }, msg)) {
+        if (msg.type === 'scroll_wheel' && scrollLineageBar(pointer, msg)) {
             scheduleRenderFrame({ structural: false });
             return true;
+        }
+        const menuHit = pointer ? hitTestLineageContextMenu(pointer) : null;
+        if (msg.type === 'left_mouse_up' && liveState.selectionMode.lineage_context_menu?.visible) {
+            setLineageContextMenuHover(menuHit);
+            if (!menuHit || menuHit.kind !== 'menu_item') {
+                closeLineageContextMenu('outside-click');
+            }
         }
         const route = resolveSelectionModeInputRoute(msg, {
             consumeSelectionModeEntryRelease,
@@ -1183,10 +1395,32 @@ export function createSigilSelectionModeRuntime({
         }
         if (!route.command) return true;
 
+        if (route.command === 'openLineageContextMenu') {
+            const hit = pointer ? hitTestLineageBar(pointer) : null;
+            if (hit) openLineageContextMenu(hit, pointer);
+            return true;
+        }
+        if (route.command === 'openLineageCommentEditor') {
+            closeLineageContextMenu('open-comment-editor');
+            return openCommentEditorForNode(route.nodeId, route.commentId || null, {
+                mode: route.commentId ? 'edit' : 'new',
+            });
+        }
+        if (route.command === 'selectLineageNode') {
+            closeLineageContextMenu('select-node');
+        }
+        if (route.command === 'snapshot' || route.command === 'record') {
+            if (route.lineageMenuItemId) setLineageContextMenuPressed(route.lineageMenuItemId);
+            scheduleLineageContextMenuClose(route.command);
+        }
+
         executeCommand(route.command, msg, {
-            pointer: route.pointer || null,
+            pointer: route.pointer || pointer || null,
             nodeId: route.nodeId || null,
             lineageItemId: route.lineageItemId || null,
+            commentId: route.commentId || null,
+            lineageMenuItemId: route.lineageMenuItemId || null,
+            lineageMenuAction: route.lineageMenuAction || null,
         });
         return true;
     }
@@ -1204,8 +1438,15 @@ export function createSigilSelectionModeRuntime({
         selectTargetNode,
         hitTestLineageItem,
         hitTestLineageBar,
+        hitTestLineageContextMenu,
+        openLineageContextMenu,
+        closeLineageContextMenu,
+        setLineageContextMenuHover,
+        setLineageContextMenuPressed,
+        openCommentEditorForNode,
         commit,
         setNodeComment,
+        deleteNodeComment,
         createContextFromDebugInput,
         handleInput,
         snapshot() {

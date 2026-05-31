@@ -13,6 +13,16 @@ export const SIGIL_SELECTION_MODE_COMMAND_INPUTS = Object.freeze({
         mode: 'selection_mode',
         gesture: 'key.enter',
     }),
+    snapshot: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'pointer.lineage.snapshot',
+    }),
+    record: Object.freeze({
+        nodeId: 'sigil.avatar.selection_mode',
+        mode: 'selection_mode',
+        gesture: 'pointer.lineage.record',
+    }),
     tabPreviousTarget: Object.freeze({
         nodeId: 'sigil.avatar.selection_mode',
         mode: 'selection_mode',
@@ -85,6 +95,8 @@ export const SIGIL_UX_TREE_STATIC_COMMAND_INPUTS = Object.freeze([
     SIGIL_AVATAR_COMMAND_INPUTS.radialBegin,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.escape,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.commit,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.snapshot,
+    SIGIL_SELECTION_MODE_COMMAND_INPUTS.record,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.tabPreviousTarget,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowUpPreviousTarget,
     SIGIL_SELECTION_MODE_COMMAND_INPUTS.arrowDownNextTarget,
@@ -218,6 +230,8 @@ export function createSigilUxTreeCommandRegistry({
     selectionModeEnter,
     selectionModeCancel,
     selectionModeCommit,
+    selectionModeSnapshot,
+    selectionModeRecord,
     selectionModeCycleTarget,
     selectionModeAcquire,
     contextMenuOpen,
@@ -258,6 +272,12 @@ export function createSigilUxTreeCommandRegistry({
     }
     if (typeof selectionModeCommit === 'function') {
         registry['sigil.selection_mode.commit'] = () => selectionModeCommit('enter');
+    }
+    if (typeof selectionModeSnapshot === 'function') {
+        registry['sigil.selection_mode.snapshot'] = (payload = {}) => selectionModeSnapshot(payload.context?.pointer || null, payload);
+    }
+    if (typeof selectionModeRecord === 'function') {
+        registry['sigil.selection_mode.record'] = (payload = {}) => selectionModeRecord(payload.context?.pointer || null, payload);
     }
     if (typeof selectionModeCycleTarget === 'function') {
         registry['sigil.selection_mode.cycle_target'] = ({ binding } = {}) => {
@@ -302,10 +322,27 @@ export function createSigilUxTreeCommandRunner({
 
     return Object.freeze({
         execute,
-        executeSelectionModeRoute(command = '', msg = {}, { pointer = null, source = 'handleSelectionModeInput' } = {}) {
+        executeSelectionModeRoute(command = '', msg = {}, {
+            pointer = null,
+            source = 'handleSelectionModeInput',
+            nodeId = null,
+            lineageItemId = null,
+            commentId = null,
+            lineageMenuItemId = null,
+            lineageMenuAction = null,
+        } = {}) {
             const input = selectionModeInputForRoute(command);
             if (!input) return null;
-            return execute(input, { source, msg, pointer });
+            return execute(input, {
+                source,
+                msg,
+                pointer,
+                nodeId,
+                lineageItemId,
+                commentId,
+                lineageMenuItemId,
+                lineageMenuAction,
+            });
         },
         routeCatalog() {
             return createSigilUxTreeCommandRouteCatalog(getTree());
@@ -321,6 +358,7 @@ export function createSigilUxTreeCommandRuntime({
     getRadialGestureMenu = () => null,
     fastTravel = null,
     clearGestureState = () => {},
+    clearRadialGestureDismissTimer = () => {},
     consumeAvatarDoubleClick = () => false,
     resetAvatarDoubleClick = () => {},
     setInteractionState = () => {},
@@ -352,6 +390,7 @@ export function createSigilUxTreeCommandRuntime({
         },
         radialBegin(pointer) {
             if (!pointer) return false;
+            clearRadialGestureDismissTimer();
             const radialGestureMenu = getRadialGestureMenu();
             liveState.radialGestureMenu = radialGestureMenu.start(
                 { ...liveState.avatarPos, valid: true },
@@ -372,6 +411,8 @@ export function createSigilUxTreeCommandRuntime({
         },
         selectionModeCancel: () => exitSelectionMode('escape'),
         selectionModeCommit: (reason) => commitSelectionMode(reason),
+        selectionModeSnapshot: (pointer, payload = {}) => selectionModeSnapshot(pointer, payload),
+        selectionModeRecord: (pointer, payload = {}) => selectionModeRecord(pointer, payload),
         selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
         selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
         contextMenuOpen: radialItemActionDispatcher?.commandHandlers?.contextMenuOpen,
@@ -397,6 +438,11 @@ export function createSigilUxTreeCommandRuntime({
             input: context.input || null,
             reason: context.reason || '',
             path: context.path || wikiPath,
+            nodeId: context.nodeId || null,
+            lineageItemId: context.lineageItemId || null,
+            commentId: context.commentId || null,
+            lineageMenuItemId: context.lineageMenuItemId || null,
+            lineageMenuAction: context.lineageMenuAction || null,
         });
     }
 

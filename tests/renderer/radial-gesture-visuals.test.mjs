@@ -198,6 +198,7 @@ const {
   normalizeModelScene,
   radialItemExpansionCenter,
   radialGlyphActivationState,
+  radialDismissExpansionState,
   radialOpenExpansionState,
   resolveRadialItemFacesCamera,
   resolveNestedFiberBloomTransform,
@@ -362,6 +363,31 @@ test('radialItemExpansionCenter lerps radial items out from the avatar origin', 
   assert.deepEqual(radialItemExpansionCenter(radial, item, 1), item.center)
 })
 
+test('radialDismissExpansionState reverses the open animation over its duration', () => {
+  const radial = {
+    origin: { x: 10, y: 20 },
+    dismissAnimation: {
+      startedAt: 5,
+      durationMs: 333,
+      easing: 'linear',
+    },
+  }
+
+  assert.deepEqual(radialDismissExpansionState(radial, { time: 5 }), {
+    active: true,
+    progress: 1,
+    rawProgress: 0,
+    durationMs: 333,
+  })
+  assert.ok(Math.abs(radialDismissExpansionState(radial, { time: 5.1665 }).progress - 0.5) < 1e-6)
+  assert.deepEqual(radialDismissExpansionState(radial, { time: 6 }), {
+    active: false,
+    progress: 0,
+    rawProgress: 1,
+    durationMs: 333,
+  })
+})
+
 test('resolveRadialHoverSpinSpeed uses geometry override and clamps negative values', () => {
   assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: 0 } }, { nativeGeometry: true }), 0)
   assert.equal(resolveRadialHoverSpinSpeed({ geometry: { hoverSpinSpeed: -2 } }, { nativeGeometry: true }), 0)
@@ -433,6 +459,52 @@ test('camera-facing reticle keeps its face toward the viewer instead of radial-a
   assert.equal(glyph.rotation.x, 0)
   assert.equal(glyph.rotation.y, 0)
   assert.ok(glyph.rotation.z > 0)
+})
+
+test('closing radial visuals reverse their ingress animation before disappearing', () => {
+  const scene = new Object3D()
+  const visuals = createSigilRadialGestureVisuals({
+    scene,
+    projectPoint: (point) => new Vector3(point.x, point.y, 0),
+    projectRadius: () => 0.3,
+  })
+  const item = {
+    id: 'test-item',
+    center: { x: 100, y: 0 },
+    hitRadius: 20,
+    visualRadius: 20,
+    geometry: { type: 'glyph' },
+  }
+  const radial = {
+    phase: 'closing',
+    origin: { x: 0, y: 0 },
+    pointer: { x: 0, y: 0 },
+    menuProgress: 1,
+    openAnimation: {
+      startedAt: 0,
+      durationMs: 333,
+      easing: 'linear',
+    },
+    dismissAnimation: {
+      startedAt: 0,
+      durationMs: 333,
+      easing: 'linear',
+    },
+    items: [item],
+  }
+
+  visuals.update(radial, { time: 0 })
+  const glyph = visuals.group.children[0]
+  assert.equal(visuals.group.visible, true)
+  const initialScale = glyph.scale.x
+
+  visuals.update(radial, { time: 0.1665 })
+  const halfwayScale = glyph.scale.x
+  assert.ok(halfwayScale < initialScale)
+  assert.ok(halfwayScale > 0)
+
+  visuals.update(radial, { time: 0.333 })
+  assert.equal(visuals.group.visible, false)
 })
 
 test('Sigil radial item modules own fallback glyph creation hooks', async () => {

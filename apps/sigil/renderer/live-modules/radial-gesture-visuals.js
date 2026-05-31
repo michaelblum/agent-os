@@ -753,7 +753,7 @@ function easeRadialOpenProgress(progress, easing = 'easeOutCubic') {
 
 export function radialOpenExpansionState(radial = {}, { time = 0 } = {}) {
     const animation = radial?.openAnimation;
-    if (!animation || animation.trigger !== 'avatar-click') {
+    if (!animation) {
         return { active: false, progress: null, rawProgress: null };
     }
     const durationMs = Math.max(0, finite(animation.durationMs ?? animation.duration_ms, DEFAULT_RADIAL_OPEN_ANIMATION_MS));
@@ -765,6 +765,25 @@ export function radialOpenExpansionState(radial = {}, { time = 0 } = {}) {
     return {
         active: rawProgress < 1,
         progress: easeRadialOpenProgress(rawProgress, animation.easing),
+        rawProgress,
+        durationMs,
+    };
+}
+
+export function radialDismissExpansionState(radial = {}, { time = 0 } = {}) {
+    const animation = radial?.dismissAnimation || radial?.openAnimation;
+    if (!animation) {
+        return { active: false, progress: null, rawProgress: null };
+    }
+    const durationMs = Math.max(0, finite(animation.durationMs ?? animation.duration_ms, DEFAULT_RADIAL_OPEN_ANIMATION_MS));
+    const durationSeconds = durationMs / 1000;
+    const startedAt = finite(animation.startedAt ?? animation.started_at, time);
+    const rawProgress = durationSeconds <= 0
+        ? 1
+        : clamp01((finite(time, startedAt) - startedAt) / durationSeconds);
+    return {
+        active: rawProgress < 1,
+        progress: easeRadialOpenProgress(1 - rawProgress, animation.easing),
         rawProgress,
         durationMs,
     };
@@ -914,18 +933,29 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
         lastUpdateTime = time;
         const transitionRadial = activationTransition?.radial || null;
         const radialSource = transitionRadial || radial;
-        const visualRadial = radialSource?.phase === 'radial' || radialSource?.phase === 'fastTravel' ? radialSource : null;
+        const visualRadial = radialSource?.phase === 'radial'
+            || radialSource?.phase === 'fastTravel'
+            || radialSource?.phase === 'closing'
+            ? radialSource
+            : null;
         const activeRadial = radial?.phase === 'radial' ? radial : null;
         if (visualRadial) lastRadial = visualRadial;
         const source = visualRadial || lastRadial;
         const openExpansion = visualRadial ? radialOpenExpansionState(visualRadial, { time }) : { progress: null };
-        const openExpansionProgress = Number.isFinite(Number(openExpansion.progress))
-            ? Number(openExpansion.progress)
-            : null;
+        const dismissExpansion = visualRadial?.phase === 'closing'
+            ? radialDismissExpansionState(visualRadial, { time })
+            : { progress: null };
+        const openExpansionProgress = openExpansion.progress == null
+            ? null
+            : Number(openExpansion.progress);
+        const dismissExpansionProgress = dismissExpansion.progress == null
+            ? null
+            : Number(dismissExpansion.progress);
+        const animatedProgress = dismissExpansionProgress ?? openExpansionProgress;
         const targetProgress = visualRadial
-            ? Math.max(0.08, openExpansionProgress ?? (Number(visualRadial.menuProgress) || 0))
+            ? animatedProgress ?? (Number(visualRadial.menuProgress) || 0)
             : 0;
-        if (openExpansionProgress != null) {
+        if (animatedProgress != null) {
             displayProgress = targetProgress;
         } else {
             const smoothing = visualRadial ? 0.42 : 0.28;
@@ -935,7 +965,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
         if (!source || displayProgress <= 0.015) {
             group.visible = false;
             displayProgress = 0;
-            if (!visualRadial) lastRadial = null;
+            if (!visualRadial || visualRadial.phase === 'closing') lastRadial = null;
             lastState = { visible: false, count: 0, itemIds: [], scales: {} };
             return lastState;
         }
@@ -953,7 +983,7 @@ export function createSigilRadialGestureVisuals({ scene, projectPoint, projectRa
             const glyph = ensureGlyph(item);
             syncRadialItemModelConfig(glyph, item);
             syncRadialEffectConfig(glyph, item);
-            const expandedCenter = radialItemExpansionCenter(source, item, openExpansionProgress ?? 1);
+            const expandedCenter = radialItemExpansionCenter(source, item, animatedProgress ?? 1);
             const projected = projectPoint?.(expandedCenter);
             glyph.visible = !!projected;
             if (!projected) continue;

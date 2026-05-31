@@ -161,10 +161,6 @@ export function createSigilInputRegionAdapter({
             semanticLabel: 'Sigil Selection Mode input claim',
             priority: 110,
             purpose: 'selection-mode-pointer-capture',
-            metadata: {
-                cursor_suppression: 'hide_native',
-                cursor_suppression_owner: 'selection_mode',
-            },
         }));
     }
 

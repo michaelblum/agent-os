@@ -129,6 +129,8 @@ function commandList() {
         command('sigil.selection_mode.enter', 'Enter Selection Mode', 'Enter Selection Mode from the radial reticle item.'),
         command('sigil.selection_mode.cancel', 'Cancel Selection Mode', 'Cancel active Selection Mode.'),
         command('sigil.selection_mode.commit', 'Commit Selection Mode', 'Commit the active Selection Mode context.'),
+        command('sigil.selection_mode.snapshot', 'Snapshot Selection Mode', 'Copy the current Selection Mode annotation snapshot to the clipboard.', 'captures_snapshot'),
+        command('sigil.selection_mode.record', 'Record Selection Mode', 'Stubbed record action for Selection Mode snapshots.', 'existing_runtime_path'),
         command('sigil.selection_mode.cycle_target', 'Cycle Selection Mode target', 'Cycle the active target in Selection Mode.'),
         command('sigil.selection_mode.acquire', 'Acquire Selection Mode target', 'Acquire selection candidates from the current pointer.'),
         command('sigil.annotation_reticle.enter', 'Enter annotation reticle', 'Enter the existing annotation reticle flow.'),
@@ -273,6 +275,8 @@ function bindingList(radialMenu) {
         }),
         binding('sigil.selection_mode.escape', 'sigil.avatar.selection_mode', 'selection_mode', 'key.escape', 'sigil.selection_mode.cancel'),
         binding('sigil.selection_mode.enter', 'sigil.avatar.selection_mode', 'selection_mode', 'key.enter', 'sigil.selection_mode.commit'),
+        binding('sigil.selection_mode.snapshot_button', 'sigil.avatar.selection_mode', 'selection_mode', 'pointer.lineage.snapshot', 'sigil.selection_mode.snapshot'),
+        binding('sigil.selection_mode.record_button', 'sigil.avatar.selection_mode', 'selection_mode', 'pointer.lineage.record', 'sigil.selection_mode.record'),
         binding('sigil.selection_mode.tab', 'sigil.avatar.selection_mode', 'selection_mode', 'key.tab', 'sigil.selection_mode.cycle_target', {
             parameters: { delta: -1 },
         }),
@@ -408,7 +412,6 @@ function settingsFor(radialMenu, state = {}) {
         visual_overlays: {
             selection_mode: {
                 cursor: cloneJson(state.selectionModeOverlay?.cursor || null),
-                cursor_model: cloneJson(state.selectionModeCursorModel || null),
                 lineage_bar: cloneJson(state.selectionModeOverlay?.lineageBar || null),
             },
             annotation_reticle: cloneJson(state.annotationReticleOverlay || null),
