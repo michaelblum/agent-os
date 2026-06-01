@@ -258,6 +258,29 @@ export function createRadialGestureModel(options = {}) {
     if (phase === 'idle' || phase === 'committed' || phase === 'cancelled') return snapshot()
     pointer = point(nextPointer)
     lastTransition = null
+    const m = metrics()
+
+    if (config.orientation === 'trigger-vector') {
+      if (triggerLocked && m.distance <= config.deadZoneRadiusPx) {
+        triggerLocked = false
+      } else if (!triggerLocked && m.distance > config.deadZoneRadiusPx) {
+        triggerAngle = m.angle
+        triggerLocked = true
+        lastTransition = 'trigger_vector_lock'
+      }
+    }
+
+    if (phase === 'radial' && m.distance >= config.handoffRadiusPx) {
+      phase = 'fastTravel'
+      activeItemId = null
+      lastTransition = 'handoff_fast_travel'
+      return snapshot()
+    }
+
+    if (phase === 'fastTravel' && m.distance <= config.reentryRadiusPx) {
+      phase = 'radial'
+      lastTransition = 'reenter_radial'
+    }
 
     activeItemId = phase === 'radial' ? hitItem(pointer)?.id || null : null
     return snapshot()
@@ -298,7 +321,7 @@ export function createRadialGestureModel(options = {}) {
       }
 
       const m = metrics()
-      if (phase === 'radial' && m.distance >= config.handoffRadiusPx) {
+      if ((phase === 'radial' && m.distance >= config.handoffRadiusPx) || phase === 'fastTravel') {
         phase = 'committed'
         activeItemId = null
         committed = { type: 'fastTravel', origin: { ...origin }, destination: { ...pointer } }

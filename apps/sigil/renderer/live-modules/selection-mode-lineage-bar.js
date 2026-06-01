@@ -14,6 +14,8 @@ const BAR_CONTEXT_MENU_WIDTH = 138;
 const BAR_CONTEXT_MENU_ITEM_HEIGHT = 22;
 const BAR_CONTEXT_MENU_PADDING = 4;
 
+import { findDisplayForPoint as findToolkitDisplayForPoint } from './display-utils.js';
+
 function finite(value, fallback = 0) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
@@ -120,20 +122,10 @@ function rectCenter(rect = null) {
     };
 }
 
-function distance(a = null, b = null) {
-    if (!a || !b) return Number.POSITIVE_INFINITY;
-    return Math.hypot(finite(a.x) - finite(b.x), finite(a.y) - finite(b.y));
-}
-
-function findDisplayForPoint(displays = [], point = null) {
+function displayForPoint(displays = [], point = null) {
     const entries = Array.isArray(displays) ? displays : [];
     if (!entries.length || !point) return null;
-    const containing = entries.find((display) => pointInBounds(point, displayVisibleBounds(display)));
-    if (containing) return containing;
-    return entries
-        .map((display) => ({ display, rect: displayVisibleBounds(display) }))
-        .filter((entry) => entry.rect)
-        .sort((a, b) => distance(point, rectCenter(a.rect)) - distance(point, rectCenter(b.rect)))[0]?.display || null;
+    return findToolkitDisplayForPoint(entries, finite(point.x), finite(point.y));
 }
 
 function roleTokenForText(text = '') {
@@ -395,13 +387,13 @@ function activeDisplayForLineage({
     const explicitDisplay = findDisplayById(entries, explicitId);
     if (explicitDisplay) return explicitDisplay;
     if (!entries.length && activeDisplay && displayVisibleBounds(activeDisplay)) return activeDisplay;
-    return findDisplayForPoint(entries, acquisitionPointer)
-        || findDisplayForPoint(entries, cursor)
+    return displayForPoint(entries, acquisitionPointer)
+        || displayForPoint(entries, cursor)
         || (() => {
             const displayNode = pathDisplayNode(path);
             const displayNodeBounds = nodeProjectionBounds(displayNode);
             if (!displayNodeBounds) return null;
-            return findDisplayForPoint(entries, rectCenter(displayNodeBounds));
+            return displayForPoint(entries, rectCenter(displayNodeBounds));
         })()
         || entries[0]
         || null;
