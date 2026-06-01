@@ -3,9 +3,10 @@
 **Date**: 2026-05-31  
 **Status**: Accepted architecture. Phase 5 consolidation and Phase 6 closure
 now provide reusable descriptor/update contracts, resource-lifecycle evidence,
-representative deterministic and live proofs, and a primary stellation
-positive-factor morph-target subset. Remaining work is split into separate
-future tracks below rather than kept as active Phase 6 scope.
+representative deterministic and live proofs, a profiler-backed primary
+stellation leak/resource window, and a primary stellation positive-factor
+morph-target subset. Remaining work is split into separate future tracks below
+rather than kept as active Phase 6 scope.
 **Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 
 ## Implementation Status
@@ -51,7 +52,8 @@ Implemented capabilities:
   authorities.
 - `packages/toolkit/workbench/visual-object-resource-lifecycle.js` provides the
   reusable renderer-agnostic resource/update lifecycle evidence contract for
-  descriptor-driven update proofs.
+  descriptor-driven update proofs, including optional profiler-backed window
+  metadata for representative leak/resource observations.
 
 Implemented representative proofs and retained limits:
 
@@ -64,9 +66,11 @@ Implemented representative proofs and retained limits:
   vertex topology at zero. The deterministic 1,000-edit proof-window record
   retains 2 unique geometries, creates/disposes 4 temporary morph setup
   geometries, performs 0 replacement-geometry swaps, updates
-  `morphTargetInfluences`, and serializes `state.avatar` successfully. The
-  live stellation smoke hook now supports a bounded minimum-duration proof
-  window and reports the same lifecycle counts.
+  `morphTargetInfluences`, serializes `state.avatar` successfully, and now
+  carries a profiler-backed window record over the same representative path.
+  The live stellation smoke hook now supports a bounded minimum-duration proof
+  window, emits `aos.visual_object.resource_lifecycle.v0` evidence, and
+  reports the same lifecycle counts plus profiler window metadata.
   Primary tesseron proportion edits update child and link geometry buffers in
   place through `updatePrimaryTesseronProportion()` instead of routing the
   descriptor to a full primary hierarchy rebuild. The 100-edit deterministic
@@ -94,7 +98,9 @@ Future tracks:
 
 - **Profiler-backed leak proof**: convert the current deterministic and bounded
   runtime-duration lifecycle evidence into profiler-backed memory/resource
-  evidence where product risk warrants it.
+  evidence where product risk warrants it. The primary stellation path now has
+  a representative profiler-backed window; broader leak safety remains a
+  separate follow-on concern.
 - **Observe-mode snapshot product integration**: integrate descriptor-adjacent
   state into the existing observe/session/snapshot product flow without
   replacing the session contract or absorbing `snapshot_count` into
@@ -414,7 +420,7 @@ state graph -> descriptor -> route/controller -> renderer sync/minimal update
 
 | Surface | State graph | Descriptor/route | Sync or minimal update evidence | Focused verification |
 | --- | --- | --- | --- | --- |
-| Sigil avatar / Three.js | `state.avatar.*` shape, appearance, effects, and transform data | Avatar editor model exposes `visual_object_descriptors`; compact surface can opt into `bindVisualObjectForm()` | Caller-owned route/sync handlers mutate canonical avatar JSON and preserve compact form/root identity; stellation/tesseron focused tests express 100-edit no-rebuild, retained resource bounds, temporary create/dispose balance, finite geometry, and serialization through `aos.visual_object.resource_lifecycle.v0` | `node --test tests/renderer/sigil-avatar-editor-compact-surface.test.mjs tests/renderer/sigil-avatar-editor-model.test.mjs tests/renderer/sigil-avatar-editor-surface-view-model.test.mjs`; `node --test tests/renderer/stellation-no-rebuild.test.mjs tests/renderer/tesseron.test.mjs` |
+| Sigil avatar / Three.js | `state.avatar.*` shape, appearance, effects, and transform data | Avatar editor model exposes `visual_object_descriptors`; compact surface can opt into `bindVisualObjectForm()` | Caller-owned route/sync handlers mutate canonical avatar JSON and preserve compact form/root identity; stellation/tesseron focused tests express 100-edit no-rebuild, retained resource bounds, temporary create/dispose balance, finite geometry, serialization, and profiler-backed primary stellation window metadata through `aos.visual_object.resource_lifecycle.v0` | `node --test tests/renderer/sigil-avatar-editor-compact-surface.test.mjs tests/renderer/sigil-avatar-editor-model.test.mjs tests/renderer/sigil-avatar-editor-surface-view-model.test.mjs`; `node --test tests/renderer/stellation-no-rebuild.test.mjs tests/renderer/tesseron.test.mjs` |
 | Sigil radial item workbench / non-avatar 3D | `radial_menu.<menu>.items.<item>.*` selected item JSON and editor state | `createRadialMenuWorkbenchSubject()` descriptors route through `canvas_object.transform.patch`, `canvas_object.visibility.patch`, and `canvas_object.effects.patch`; workbench posts `visual_object.descriptor.update` | `applyVisualObjectControllerUpdate()` dispatches to existing `applyEditorObjectPatch()` / `applyEditorEffectsPatch()` and syncs registry/preview/exported subject state; radial transform proof now records route, renderer sync labels, retained selected-item identity, and serializable exported state with the lifecycle helper | `node --test tests/renderer/radial-item-editor.test.mjs tests/renderer/radial-object-control.test.mjs`; `node --test tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/object-transform-panel-model.test.mjs` |
 | Toolkit DOM slider proof | `toolkit.controls.opacity.value` JSON fixture state | `createToolkitSliderVisualObjectDescriptor()` uses `dom-toolkit` and `dom_toolkit.control.value.patch`; the live smoke surface is `aos://toolkit/components/visual-object-live-proof/index.html` | Controller/form binding calls the existing slider `setValue()` path, preserves root element identity, validates serializable state with the lifecycle helper, and live `window.__visualObjectLiveProof.runDomControlProof()` returns `live_dom_control_edit_loop` evidence | `node --test tests/toolkit/visual-object-form-binding.test.mjs tests/toolkit/visual-object-contract.test.mjs tests/toolkit/panel-form.test.mjs`; live `./aos show eval --id visual-object-live-proof-dom --js 'JSON.stringify(window.__visualObjectLiveProof.runDomControlProof())'` |
 | 2D/DesktopWorld or canvas-style proof | DesktopWorld/canvas-style transform fixture state and DesktopWorld stage layer frame state | `canvas-2d` descriptor routes through `canvas_object.transform.patch` or `canvas_object.effects.patch`; the live DesktopWorld stage exposes `window.__desktopWorldStageVisualObjectProof.run()` | Controller update applies state in place and reruns the existing transform/sync path on the same target node/object; live DesktopWorld stage proof mutates the retained stage layer target, preserves root/layer identity, serializes state, and removes the proof layer after recording cleanup evidence | `node --test tests/toolkit/desktop-world-surface-2d.test.mjs tests/toolkit/runtime-canvas.test.mjs tests/toolkit/controls-slider-color.test.mjs`; live `./aos show eval --id visual-object-live-proof-stage --js 'JSON.stringify(window.__desktopWorldStageVisualObjectProof.run())'` |
@@ -474,11 +480,12 @@ performance or platform-wide adoption work.
    zero-to-positive or all-shape stellation remains a separate topology-stable
    model track.
 2. **Memory stability**: Implemented for the focused lifecycle evidence matrix.
-   Focused no-rebuild tests and
-   longer deterministic edit loops now prove retained/replacement/temporary
-   resource counts across the validation matrix; complete GPU-level
-   material/geometry pooling and profiler-backed leak proof remain separate
-   future tracks.
+  Focused no-rebuild tests and
+  longer deterministic edit loops now prove retained/replacement/temporary
+  resource counts across the validation matrix, and the primary stellation
+  smoke path now records profiler-backed window metadata; complete GPU-level
+  material/geometry pooling and broader leak safety remain separate future
+  tracks.
 3. **Instant agent changes**: Implemented for descriptor-addressed state writes
    and deterministic sync handlers; broader live agent mutation proof remains
    future work.

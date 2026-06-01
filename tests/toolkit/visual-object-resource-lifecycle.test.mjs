@@ -49,6 +49,21 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
       decision: 'renderer-local',
       rationale: 'Three.js geometry and material reuse depends on renderer-owned topology and disposal semantics.',
     },
+    profilerMeasurement: {
+      kind: 'deterministic_heap_window',
+      source: 'performance.memory',
+      metric: 'usedJSHeapSize',
+      window_ms: 250,
+      sample_count: 4,
+      available: true,
+      before: 1024,
+      after: 1536,
+      peak: 1792,
+      delta: 512,
+      limit: 4096,
+      within_limit: true,
+      resource_counts: { geometries: 2, textures: 0, programs: 1, draw_calls: 12 },
+    },
   });
 
   assert.equal(evidence.contract, VISUAL_OBJECT_RESOURCE_LIFECYCLE_CONTRACT_ID);
@@ -68,6 +83,21 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
     owner: 'sigil-renderer',
     decision: 'renderer-local',
     rationale: 'Three.js geometry and material reuse depends on renderer-owned topology and disposal semantics.',
+  });
+  assert.deepEqual(evidence.profiler_measurement, {
+    source: 'performance.memory',
+    kind: 'deterministic_heap_window',
+    metric: 'usedJSHeapSize',
+    window_ms: 250,
+    sample_count: 4,
+    available: true,
+    before: 1024,
+    after: 1536,
+    peak: 1792,
+    delta: 512,
+    limit: 4096,
+    within_limit: true,
+    resource_counts: { geometries: 2, textures: 0, programs: 1, draw_calls: 12 },
   });
   assert.deepEqual(validateVisualObjectResourceLifecycleEvidence(evidence), { ok: true, errors: [] });
 });
@@ -133,6 +163,7 @@ test('resource lifecycle vocabulary is explicit and stable', () => {
     'identity_stable',
     'json_serializable_state',
     'pooling_boundary',
+    'profiler_measurement',
   ]);
 });
 
@@ -155,6 +186,89 @@ test('resource lifecycle validation requires complete pooling boundary metadata 
     validateVisualObjectResourceLifecycleEvidence(evidence).errors.map((error) => error.field),
     ['pooling_boundary.owner', 'pooling_boundary.decision'],
   );
+});
+
+test('resource lifecycle validation accepts profiler-backed measurement metadata when present', () => {
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'profiler-window',
+      state_path: 'avatar.shape.stellationFactor',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryStellation'],
+    },
+    profilerMeasurement: {
+      kind: 'heap_and_renderer_window',
+      source: 'performance.memory',
+      metric: 'usedJSHeapSize',
+      window_ms: 500,
+      sample_count: 8,
+      available: true,
+      before: 2048,
+      after: 3072,
+      peak: 3328,
+      delta: 1024,
+      limit: 8192,
+      resource_counts: { geometries: 2, textures: 0, programs: 1, draw_calls: 6 },
+    },
+  });
+
+  assert.deepEqual(validateVisualObjectResourceLifecycleEvidence(evidence), { ok: true, errors: [] });
+  assert.equal(evidence.profiler_measurement.resource_counts.draw_calls, 6);
+});
+
+test('resource lifecycle profiler measurement uses canonical snake_case input only', () => {
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'profiler-window-canonical',
+      state_path: 'avatar.shape.stellationFactor',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryStellation'],
+    },
+    profilerMeasurement: {
+      kind: 'heap_and_renderer_window',
+      source: 'performance.memory',
+      metric: 'usedJSHeapSize',
+      windowMs: 500,
+      sampleCount: 8,
+      resource_counts: { drawCalls: 6 },
+    },
+  });
+
+  assert.equal(evidence.profiler_measurement.window_ms, 0);
+  assert.equal(evidence.profiler_measurement.sample_count, 0);
+  assert.equal(evidence.profiler_measurement.resource_counts.draw_calls, null);
+});
+
+test('resource lifecycle profiler measurement preserves unavailable numeric fields as null', () => {
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'renderer-only-profiler-window',
+      state_path: 'avatar.shape.stellationFactor',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryStellation'],
+    },
+    profilerMeasurement: {
+      kind: 'renderer_resource_window',
+      source: 'renderer.info',
+      metric: 'renderer_resource_counts',
+      window_ms: 1000,
+      sample_count: 5,
+      available: true,
+      before: null,
+      after: null,
+      peak: null,
+      delta: null,
+      limit: null,
+      resource_counts: { geometries: 3, textures: 2, programs: 1, draw_calls: 9 },
+    },
+  });
+
+  assert.equal(evidence.profiler_measurement.before, null);
+  assert.equal(evidence.profiler_measurement.after, null);
+  assert.equal(evidence.profiler_measurement.peak, null);
+  assert.equal(evidence.profiler_measurement.delta, null);
+  assert.equal(evidence.profiler_measurement.limit, null);
+  assert.deepEqual(validateVisualObjectResourceLifecycleEvidence(evidence), { ok: true, errors: [] });
 });
 
 test('visual object lifecycle evidence stays separate from annotation snapshot sessions', () => {
