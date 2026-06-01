@@ -271,6 +271,7 @@ assert "buildArgs.push('--no-restart')" in source
 assert "build_wrapper: 'build.sh'" in source
 assert "build_source: 'repo-root/build.sh'" in source
 assert "next: null" in source
+assert "post_build_checkpoint: binaryRebuilt ? checkpointContract() : null" in source
 assert "permission_note" not in source
 assert "Next: ./aos ready" not in source
 PY
@@ -293,9 +294,9 @@ assert data["resume_command"] == "/goal resume", data
 assert data["return_signal"] == "finished", data
 commands = data["commands"]
 assert commands["reset_runtime"] == "./aos permissions reset-runtime --mode repo", commands
-assert commands["setup_once"] == "./aos permissions setup --once", commands
 assert commands["post_permission_ready"] == "./aos ready --post-permission", commands
 assert "goal_pause_required: repo-mode AOS permission repair" in data["post_tool_system_message"], data
+assert "rebuilt the repo-mode AOS binary" in data["post_tool_system_message"], data
 assert "dev_build_checkpoint_already_completed" in data["repeated_build_system_message"], data
 assert data["canvas"]["title"] == "AOS permission reset needed", data
 PY

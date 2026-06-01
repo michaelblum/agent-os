@@ -16,7 +16,6 @@ function error(message, code = 'UNKNOWN_FLAG') {
 function checkpointContract() {
   const prefix = './aos';
   const resetCommand = `${prefix} permissions reset-runtime --mode repo`;
-  const setupCommand = `${prefix} permissions setup --once`;
   const readyCommand = `${prefix} ready --post-permission`;
   const pauseCommand = '/goal pause';
   const resumeCommand = '/goal resume';
@@ -24,8 +23,8 @@ function checkpointContract() {
 
   const repeatedBuildMessage = `dev_build_checkpoint_already_completed
 
-${prefix} dev build already completed successfully for this checkpoint.
-Do not run ${prefix} dev build again.
+The repo-mode ${prefix} binary was rebuilt successfully for this checkpoint.
+Do not run ${prefix} dev build again before the permission recovery handoff.
 
 Run exactly:
 ${readyCommand}
@@ -36,16 +35,16 @@ completed build.
 
   const postToolMessage = `goal_pause_required: repo-mode AOS permission repair
 
-${prefix} dev build completed successfully. Treat the build step as complete for
-this checkpoint. Do not run ${prefix} dev build again after the human return
-signal unless a human explicitly asks for another rebuild.
+${prefix} dev build rebuilt the repo-mode AOS binary. That is the rare path
+that invalidates macOS TCC grants, so stop now for permission repair. Do not
+run ${prefix} dev build again after the human return signal unless a human
+explicitly asks for another rebuild.
 
 Pause the active goal now by sending:
 ${pauseCommand}
 
 The hook has already requested:
-1. ${resetCommand}
-2. ${setupCommand}
+${resetCommand}
 
 Human action:
 1. Grant the requested macOS Accessibility/Input Monitoring permission for the repo-mode AOS runtime in System Settings.
@@ -63,11 +62,10 @@ Do not run ready/repair/status/helper loops before pausing.
 
   const stopAfterBuildMessage = `GDI stopped for repo-mode AOS permission repair.
 
-Checkpoint: ${prefix} dev build already completed successfully. Do not run ${prefix} dev build again for this checkpoint after the human return signal.
+Checkpoint: the repo-mode ${prefix} binary was rebuilt successfully. Do not run ${prefix} dev build again for this checkpoint after the human return signal.
 
 The hook/helper has already requested:
-1. ${resetCommand}
-2. ${setupCommand}
+${resetCommand}
 
 Human action:
 1. Grant the requested macOS Accessibility/Input Monitoring permission for the repo-mode AOS runtime in System Settings.
@@ -82,8 +80,7 @@ If ready=true, continue with the next planned step after the completed build. Ke
   const stopMessage = `GDI stopped for repo-mode AOS permission repair.
 
 The hook/helper has already requested:
-1. ${resetCommand}
-2. ${setupCommand}
+${resetCommand}
 
 Human action:
 1. Grant the requested macOS Accessibility/Input Monitoring permission for the repo-mode AOS runtime in System Settings.
@@ -95,7 +92,7 @@ After the human says ${returnSignal}, GDI runs: ${readyCommand}
 Keep using the same GDI session rather than starting a new goal for the same work.
 `;
 
-  const canvasBody = `AOS already requested repo-mode reset/setup. Complete the macOS permission grant for Accessibility, Input Monitoring, and Screen & System Audio Recording if prompted. If no prompt appears or the grant stays stale, physically remove and re-add the repo-mode aos runtime in System Settings, then return to the waiting session and say: ${returnSignal}.`;
+  const canvasBody = `AOS rebuilt the repo-mode binary and requested a repo-mode permission reset. Complete the macOS permission grant for Accessibility, Input Monitoring, and Screen & System Audio Recording if prompted. If no prompt appears or the grant stays stale, physically remove and re-add the repo-mode aos runtime in System Settings, then return to the waiting session and say: ${returnSignal}.`;
 
   return {
     schema: 'aos.dev_build.post_build_checkpoint.v1',
@@ -105,12 +102,10 @@ Keep using the same GDI session rather than starting a new goal for the same wor
     return_signal: returnSignal,
     commands: {
       reset_runtime: resetCommand,
-      setup_once: setupCommand,
       post_permission_ready: readyCommand,
     },
     human_actions: [
       { kind: 'agent_run', command: resetCommand },
-      { kind: 'agent_run', command: setupCommand },
       { kind: 'grant', permissions: ['Accessibility', 'Input Monitoring'] },
       { kind: 'manual_regrant_if_needed', target: 'repo-mode aos runtime' },
       { kind: 'return', message: returnSignal },
@@ -164,7 +159,7 @@ function buildCommand(args) {
       build_wrapper: 'build.sh',
       build_source: 'repo-root/build.sh',
       binary_rebuilt: binaryRebuilt,
-      post_build_checkpoint: checkpointContract(),
+      post_build_checkpoint: binaryRebuilt ? checkpointContract() : null,
       exit_code: exitCode,
       stdout,
       stderr,
