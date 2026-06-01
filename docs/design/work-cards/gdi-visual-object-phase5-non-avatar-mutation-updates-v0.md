@@ -1,5 +1,10 @@
 # GDI: Visual Object Phase 5 Non-Avatar Mutation Updates V0
 
+> **Historical status:** Closed Phase 5 mutation/update slice. Current
+> implementation guidance is the accepted descriptor route/controller loop and
+> resource-lifecycle vocabulary documented in
+> `docs/design/visual-object-descriptor-contract-v0.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

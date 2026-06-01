@@ -1,5 +1,10 @@
 # GDI: Visual Object Phase 6 Stellation GPU Resource Pass V0
 
+> **Historical status:** Superseded Phase 6 renderer-resource slice. The
+> accepted closure now keeps positive-factor non-tesseron stellation on a
+> renderer-local morph-target subset, factor-zero topology as a retained limit,
+> and uniform-only stellation as future work.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

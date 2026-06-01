@@ -1,5 +1,10 @@
 # Studio UX Rework
 
+> **Archive status:** Historical Studio/Sigil design. It predates the accepted
+> visual-object descriptor/resource-lifecycle closure; use current
+> contract/status docs for avatar state, descriptors, stellation, and resource
+> guidance.
+
 **Date:** 2026-04-12
 **Session:** studio-ux-rework
 **Scope:** `apps/sigil/studio/` — HTML, CSS, JS. Minor extensions to `apps/sigil/renderer/` for fork helpers. No Swift changes.

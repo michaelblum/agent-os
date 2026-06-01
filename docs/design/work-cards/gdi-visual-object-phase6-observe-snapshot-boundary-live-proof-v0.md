@@ -1,5 +1,9 @@
 # GDI: Visual Object Phase 6 Observe Snapshot Boundary And Live Proof V0
 
+> **Historical status:** Closed boundary/proof slice. Current guidance keeps
+> visual-object lifecycle evidence separate from observe-mode snapshot/session
+> evidence; full observe/snapshot product integration remains a future track.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

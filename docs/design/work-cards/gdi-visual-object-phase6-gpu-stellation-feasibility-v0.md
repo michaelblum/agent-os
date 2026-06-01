@@ -1,5 +1,10 @@
 # GDI: Visual Object Phase 6 GPU Stellation Feasibility V0
 
+> **Historical status:** Closed feasibility/implementation slice. The accepted
+> result is the safe positive-factor non-tesseron morph-target subset; zero to
+> positive topology-stable stellation and uniform-only stellation remain future
+> tracks.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

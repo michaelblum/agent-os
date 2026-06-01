@@ -1,5 +1,9 @@
 # GDI: Visual Object Phase 6 Resource Lifecycle Contract V0
 
+> **Historical status:** Closed contract extraction slice. Current lifecycle
+> guidance is the accepted `aos.visual_object.resource_lifecycle.v0` contract in
+> `docs/design/visual-object-descriptor-contract-v0.md` and ADR 0014.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

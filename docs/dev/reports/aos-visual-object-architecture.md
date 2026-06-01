@@ -703,8 +703,16 @@ All share the same DNA:
 
 ## Conclusion
 
-This refactor transforms Sigil's avatar from an imperative rendering implementation into **the reference architecture for how AOS builds all interactive visual objects**. By solving the hardest case first (real-time 3D with GPU optimization), we establish patterns that generalize across the entire platform.
+This refactor transformed Sigil's avatar from an imperative rendering
+implementation into the accepted reference architecture for AOS interactive
+visual objects. The current answer to "How do we build interactive visuals?" is
+the descriptor/controller/resource-lifecycle loop documented here and in
+`docs/design/visual-object-descriptor-contract-v0.md`: canonical state graph,
+visual-object descriptors, routed mutation, caller-owned renderer sync, and
+resource lifecycle evidence.
 
-The avatar becomes more than visually responsive—it becomes **architecturally exemplary**, proving that data-driven rendering, toolkit integration, agent addressing, and temporal capture can coexist in a unified, performant system.
-
-When complete, AOS will have a clear answer to "How do we build interactive visuals?"—and that answer will be the same whether we're rendering a 3D polyhedron, a radial menu, or a workbench slider.
+The accepted architecture is representative, not universal. It is proven for
+the validation matrix above and intentionally leaves profiler-backed leak proof,
+topology-stable zero-factor stellation, omega tesseron optimization, broad live
+surface migration, and full observe/snapshot product integration as separate
+future tracks.

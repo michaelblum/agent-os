@@ -1,5 +1,10 @@
 # GDI: Visual Object Phase 6 Resource Pooling And Broad Proof V0
 
+> **Historical status:** Superseded Phase 6 proof slice. Current guidance keeps
+> material and geometry pooling renderer-local unless a future profiler-backed
+> track proves shared pooling is needed. Use the accepted closure docs rather
+> than treating this card as open Phase 6 scope.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

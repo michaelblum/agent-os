@@ -1,5 +1,9 @@
 # GDI: Sigil Avatar Tesseron Child Appearance Correction V0
 
+> **Historical status:** Closed Phase 2 correction slice. It remains useful as
+> evidence for primary/tesseron appearance behavior, but current architecture
+> guidance is the accepted visual-object descriptor/resource-lifecycle closure.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

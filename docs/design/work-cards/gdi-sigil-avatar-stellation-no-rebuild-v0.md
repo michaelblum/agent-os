@@ -1,5 +1,12 @@
 # GDI: Sigil Avatar Stellation No-Rebuild V0
 
+> **Historical status:** Closed Phase 2 delivery slice. Current implementation
+> guidance lives in `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md`. This card explains the
+> original no-full-rebuild stellation target; it is not an active prompt to
+> extend Phase 2 or replace the accepted descriptor/resource-lifecycle closure.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

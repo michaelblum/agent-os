@@ -1,5 +1,9 @@
 # GDI: Visual Object Phase 5 Consolidation V0
 
+> **Historical status:** Closed Phase 5 consolidation slice. The current status
+> record is `docs/dev/reports/aos-visual-object-architecture.md`; the current
+> contract is `docs/design/visual-object-descriptor-contract-v0.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

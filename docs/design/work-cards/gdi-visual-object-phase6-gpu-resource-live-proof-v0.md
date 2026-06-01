@@ -1,5 +1,12 @@
 # GDI: Visual Object Phase 6 GPU Resource Live Proof V0
 
+> **Historical status:** Superseded Phase 6 implementation slice. Phase 6 is
+> now closed for the visual-object workstream. Use
+> `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md` for current closure,
+> retained limits, and future tracks.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

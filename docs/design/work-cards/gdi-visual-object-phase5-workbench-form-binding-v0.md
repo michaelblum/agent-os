@@ -1,5 +1,9 @@
 # GDI: Visual Object Phase 5 Workbench Form Binding V0
 
+> **Historical status:** Closed Phase 5 form-binding slice. Current authority is
+> `bindVisualObjectForm()` and the descriptor/controller/form-binding loop in
+> `docs/design/visual-object-descriptor-contract-v0.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

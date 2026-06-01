@@ -1,5 +1,9 @@
 # GDI: Sigil Avatar State Tesseron Correction V0
 
+> **Historical status:** Closed Phase 1 correction slice. It remains useful as
+> evidence for the canonical `state.avatar.*` migration, but current
+> visual-object guidance is the accepted descriptor/resource-lifecycle contract.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

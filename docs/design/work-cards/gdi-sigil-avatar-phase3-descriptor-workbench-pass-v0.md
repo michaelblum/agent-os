@@ -1,5 +1,10 @@
 # GDI: Sigil Avatar Phase 3 Descriptor Workbench Pass V0
 
+> **Historical status:** Closed descriptor/workbench delivery slice. Current
+> descriptor guidance is `aos.visual_object.descriptor.v0` plus the toolkit
+> descriptor/controller/form-binding helpers documented in
+> `docs/design/visual-object-descriptor-contract-v0.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

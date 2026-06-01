@@ -1,5 +1,9 @@
 # GDI: Visual Object Phase 5 Non-Avatar Validation V0
 
+> **Historical status:** Closed Phase 5 validation slice. Current guidance for
+> non-avatar descriptor coverage is the accepted descriptor/controller/form
+> contract in `docs/design/visual-object-descriptor-contract-v0.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

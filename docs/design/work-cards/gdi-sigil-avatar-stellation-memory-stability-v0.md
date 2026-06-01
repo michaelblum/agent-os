@@ -1,5 +1,11 @@
 # GDI: Sigil Avatar Stellation Memory Stability V0
 
+> **Historical status:** Closed Phase 2 hardening/proof slice. Current
+> stellation guidance is the accepted Phase 6 status: positive-factor
+> non-tesseron edits use a renderer-local morph-target subset, factor-zero
+> topology remains a retained limit, and resource evidence uses
+> `aos.visual_object.resource_lifecycle.v0`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

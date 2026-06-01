@@ -1,5 +1,11 @@
 # Sigil Avatar Context Menu
 
+> **Archive status:** Historical context-menu plan. It predates the accepted
+> visual-object descriptor/resource-lifecycle closure, so do not treat its live
+> geometry or stellation tasks as current guidance. Current authority is
+> `docs/design/visual-object-descriptor-contract-v0.md` and
+> `docs/dev/reports/aos-visual-object-architecture.md`.
+
 ## Goal
 
 Replace the failed workbench/home-ui direction with an avatar context menu that

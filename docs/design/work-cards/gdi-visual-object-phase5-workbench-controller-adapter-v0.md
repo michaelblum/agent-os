@@ -1,5 +1,9 @@
 # GDI: Visual Object Phase 5 Workbench Controller Adapter V0
 
+> **Historical status:** Closed Phase 5 controller-adapter slice. Current
+> authority is `applyVisualObjectControllerUpdate()` and the contract described
+> in `docs/design/visual-object-descriptor-contract-v0.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

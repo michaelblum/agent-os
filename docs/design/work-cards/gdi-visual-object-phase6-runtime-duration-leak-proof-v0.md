@@ -1,5 +1,10 @@
 # GDI: Visual Object Phase 6 Runtime Duration Leak Proof V0
 
+> **Historical status:** Superseded Phase 6 durability slice. Current closure
+> treats profiler-backed leak proof as a separate future track, while accepted
+> lifecycle evidence remains bounded deterministic and representative live
+> proof under `aos.visual_object.resource_lifecycle.v0`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

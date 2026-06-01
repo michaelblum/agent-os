@@ -1,5 +1,11 @@
 # GDI: Sigil Avatar Stellation Size Correction V0
 
+> **Historical status:** Closed correction slice for the earlier no-rebuild
+> helper. Current authority is the accepted descriptor/resource-lifecycle
+> contract in `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

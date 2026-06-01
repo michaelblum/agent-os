@@ -1,5 +1,9 @@
 # GDI: Visual Object Phase 5 Sigil Compact Surface Adoption V0
 
+> **Historical status:** Closed Phase 5 real-surface adoption slice. Current
+> Sigil avatar compact-surface guidance is covered by the accepted
+> descriptor/controller/form-binding contract and the status report.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

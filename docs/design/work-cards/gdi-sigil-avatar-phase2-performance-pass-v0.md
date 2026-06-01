@@ -1,5 +1,12 @@
 # GDI: Sigil Avatar Phase 2 Performance Pass V0
 
+> **Historical status:** Closed avatar performance delivery slice. Do not read
+> this as current broad Phase 2 scope. Current visual-object guidance is the
+> accepted descriptor/controller/resource-lifecycle contract in
+> `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md`.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

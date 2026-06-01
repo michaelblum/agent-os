@@ -1,5 +1,10 @@
 # GDI: Visual Object Phase 6 Non-Avatar Live Coverage V0
 
+> **Historical status:** Closed representative live-coverage slice. Current
+> guidance is that live proof exists for bounded avatar, radial workbench,
+> toolkit DOM slider, and DesktopWorld stage paths; it is not a claim that every
+> visual surface has migrated.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

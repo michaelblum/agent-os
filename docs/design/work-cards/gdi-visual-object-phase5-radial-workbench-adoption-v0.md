@@ -1,5 +1,10 @@
 # GDI: Visual Object Phase 5 Radial Workbench Adoption V0
 
+> **Historical status:** Closed Phase 5 non-avatar adoption slice. Current
+> radial workbench guidance is the accepted descriptor/controller path in
+> `docs/design/visual-object-descriptor-contract-v0.md` and the architecture
+> status report.
+
 ## Tracker
 
 - Source report: `docs/dev/reports/aos-visual-object-architecture.md`

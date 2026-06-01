@@ -1,5 +1,10 @@
 # Sigil-1 — Avatar state machine, gesture, fast-travel, goto-mode
 
+> **Archive status:** Historical Sigil interaction design. It predates the
+> accepted visual-object descriptor/resource-lifecycle closure; use current
+> contract/status docs for avatar state, stellation, descriptor, and resource
+> guidance.
+
 > **Superseded 2026-04-12:** Acceptance criterion #2 (idle cursor-follow) was the wrong default. See `docs/superpowers/specs/2026-04-12-sigil-foundation-agents-and-global-canvas.md` for the parked-idle model that replaces it.
 
 **Status:** spec
