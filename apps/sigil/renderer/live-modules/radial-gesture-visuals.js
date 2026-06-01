@@ -830,7 +830,12 @@ function forEachMaterial(material, visit) {
     }
 }
 
-const highlightColor = new THREE.Color('#ffffff');
+let highlightColor = null;
+
+function getHighlightColor() {
+    if (!highlightColor) highlightColor = new THREE.Color('#ffffff');
+    return highlightColor;
+}
 
 function updateMaterialHighlight(material, { active, progress }) {
     forEachMaterial(material, (mat) => {
@@ -842,11 +847,11 @@ function updateMaterialHighlight(material, { active, progress }) {
 
         if (mat.color?.isColor) {
             if (!mat.userData.baseColor) mat.userData.baseColor = mat.color.clone();
-            mat.color.copy(mat.userData.baseColor).lerp(highlightColor, active ? 0.2 : 0);
+            mat.color.copy(mat.userData.baseColor).lerp(getHighlightColor(), active ? 0.2 : 0);
         }
         if (mat.emissive?.isColor) {
             if (!mat.userData.baseEmissive) mat.userData.baseEmissive = mat.emissive.clone();
-            mat.emissive.copy(mat.userData.baseEmissive).lerp(highlightColor, active ? 0.16 : 0);
+            mat.emissive.copy(mat.userData.baseEmissive).lerp(getHighlightColor(), active ? 0.16 : 0);
         }
     });
 }
