@@ -2,10 +2,7 @@ import {
     contextMenuControlDescriptors,
     getContextMenuControlDescriptor,
 } from '../context-menu/descriptors.js';
-import {
-    createVisualObjectDescriptor,
-    VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
-} from '../../../packages/toolkit/workbench/visual-object-contract.js';
+import { toolkitSpecifier } from '../renderer/live-modules/content-roots.js';
 import {
     AVATAR_AURA_OBJECT_ID,
     AVATAR_LIGHTNING_OBJECT_ID,
@@ -19,6 +16,13 @@ import {
     AVATAR_TRAIL_OBJECT_ID,
     AVATAR_TRAVEL_OBJECT_ID,
 } from '../renderer/live-modules/avatar-object-control.js';
+
+const {
+    createVisualObjectDescriptor,
+    VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
+} = await import(toolkitSpecifier('workbench/visual-object-contract.js', {
+    local: '../../../packages/toolkit/workbench/visual-object-contract.js',
+}));
 
 export const SIGIL_AVATAR_SUBJECT_ID = 'sigil.avatar:avatar-main';
 export const SIGIL_AVATAR_SUBJECT_TYPE = 'sigil.avatar';

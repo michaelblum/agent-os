@@ -13,6 +13,7 @@ import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/t
 import {
     applyContextMenuDescriptorUpdate,
 } from './descriptors.js';
+import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
 
 let compactSurfaceModulePromise = null;
 
@@ -49,6 +50,26 @@ function rectContainsPoint(rect, point) {
         && point.y >= rect.top
         && point.x < rect.right
         && point.y < rect.bottom;
+}
+
+function elementContains(parent, child) {
+    if (!parent || !child) return false;
+    if (typeof parent.contains === 'function') return parent.contains(child);
+    for (let cursor = child; cursor; cursor = cursor.parentElement) {
+        if (cursor === parent) return true;
+    }
+    return false;
+}
+
+function closestAny(element, selectors = []) {
+    if (!element) return null;
+    const combinedSelector = selectors.join(', ');
+    const combined = element.closest?.(combinedSelector);
+    if (combined) return combined;
+    for (let cursor = element; cursor; cursor = cursor.parentElement) {
+        if (selectors.some((selector) => cursor.matches?.(selector))) return cursor;
+    }
+    return null;
 }
 
 function displayVisibleBoundsForPoint(displays = [], point) {
@@ -151,25 +172,30 @@ export function resolveContextMenuOrigin(point, options = {}) {
 export function findContextMenuElementAt(anchor, point, doc = document) {
     if (!anchor || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
     const viewportHit = doc?.elementFromPoint?.(point.x, point.y);
-    if (viewportHit && anchor.contains(viewportHit)) return viewportHit;
+    if (viewportHit && elementContains(anchor, viewportHit)) return viewportHit;
 
-    const candidates = Array.from(anchor.querySelectorAll(
-        [
-            'button',
-            'input',
-            'select',
-            'textarea',
-            'label',
-            '.sigil-avatar-control-surface',
-            '.aos-form-field',
-            '[data-aos-select-content]',
-            '[data-aos-select-item]',
-            '[data-aos-slider-root]',
-            '[data-aos-slider-control]',
-            '[data-aos-slider-track]',
-            '[data-aos-slider-thumb]',
-        ].join(', ')
-    ));
+    const selectors = [
+        'button',
+        'input',
+        'select',
+        'textarea',
+        'label',
+        '.sigil-avatar-control-surface',
+        '.aos-form-field',
+        '[data-aos-select-content]',
+        '[data-aos-select-item]',
+        '[data-aos-slider-root]',
+        '[data-aos-slider-control]',
+        '[data-aos-slider-track]',
+        '[data-aos-slider-thumb]',
+    ];
+    const combinedSelector = selectors.join(', ');
+    const combinedCandidates = Array.from(anchor.querySelectorAll(combinedSelector) || []);
+    const candidates = combinedCandidates.length
+        ? combinedCandidates
+        : Array.from(new Set(selectors.flatMap((selector) => (
+            Array.from(anchor.querySelectorAll(selector) || [])
+        ))));
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
         const element = candidates[i];
         if (element.hidden) continue;
@@ -220,6 +246,8 @@ export function createSigilContextMenu({
     projectPoint,
     updateGeometry,
     updatePrimaryStellation,
+    updatePrimaryAppearance,
+    updatePrimaryTesseronProportion,
     updateOmegaGeometry,
     updateAllColors,
     updatePulsars,
@@ -234,13 +262,29 @@ export function createSigilContextMenu({
     onBoundsChange,
     onClose,
     trace,
+    allowTestAnchorFallback = false,
 } = {}) {
     const layer = document.createElement('div');
     layer.className = 'sigil-context-menu-layer';
     layer.innerHTML = menuMarkup();
     document.body.appendChild(layer);
 
-    const anchor = layer.querySelector('#sigil-context-menu');
+    let anchor = layer.querySelector('#sigil-context-menu');
+    if (!anchor) {
+        if (allowTestAnchorFallback) {
+            anchor = document.createElement('div');
+            anchor.id = 'sigil-context-menu';
+            anchor.className = 'ctx-anchor sigil-context-menu';
+            anchor.setAttribute('role', 'dialog');
+            anchor.setAttribute('aria-modal', 'false');
+            anchor.setAttribute('aria-label', 'Sigil avatar control surface');
+            anchor.setAttribute('aria-hidden', 'true');
+            layer.appendChild(anchor);
+        }
+    }
+    if (!anchor) {
+        throw new TypeError('Sigil context menu markup must include #sigil-context-menu.');
+    }
     let menuState = {
         open: false,
         bounds: null,
@@ -326,6 +370,8 @@ export function createSigilContextMenu({
             liveJs,
             updateGeometry,
             updatePrimaryStellation,
+            updatePrimaryAppearance,
+            updatePrimaryTesseronProportion,
             updateOmegaGeometry,
             updateAllColors,
             updatePulsars,
@@ -352,6 +398,11 @@ export function createSigilContextMenu({
         });
         return result;
     }
+
+    const visualObjectBinding = createVisualObjectBindingAdapter({
+        descriptorContext,
+        recordTrace,
+    });
 
     function cacheKey(value) {
         if (value === undefined) return 'undefined';
@@ -423,8 +474,16 @@ export function createSigilContextMenu({
         compactSurface = createSigilAvatarCompactControlSurface(anchor, state || {}, {
             document,
             defaultTab: activeTab || compactSurface?.getActiveTab?.() || undefined,
-            onControlChange(payload = {}) {
-                routeChangedControls(payload.section?.controls || [], payload.values || {});
+            visualObjectBinding: {
+                state,
+                routeHandlers: visualObjectBinding.routeHandlers,
+                rendererSyncHandlers: visualObjectBinding.rendererSyncHandlers,
+            },
+            onControlChange() {
+                queueMicrotask(() => {
+                    syncFromState();
+                    syncSnapshot();
+                });
             },
             onProjectionChange(payload = {}) {
                 routeChangedControls(payload.controls || [], payload.values || {});
@@ -462,16 +521,16 @@ export function createSigilContextMenu({
     }
 
     function compactFieldRecordForElement(element) {
-        const fieldEl = element?.closest?.('.aos-form-field');
+        const fieldEl = closestAny(element, ['.aos-form-field']);
         const fieldId = fieldEl?.dataset?.aosFieldId;
         if (!fieldId || !compactSurface) return null;
         for (const entry of compactSurface.forms.values()) {
-            if (!entry.el.contains(fieldEl)) continue;
+            if (!elementContains(entry.el, fieldEl)) continue;
             const field = entry.form.getField(fieldId);
             if (field) return { ...field, form: entry.form, section: entry.section, tab: entry.tab };
         }
         for (const form of compactSurface.projectionForms.values()) {
-            if (!form.el.contains(fieldEl)) continue;
+            if (!elementContains(form.el, fieldEl)) continue;
             const field = form.getField(fieldId);
             if (field) return { ...field, form };
         }
@@ -498,7 +557,10 @@ export function createSigilContextMenu({
         const max = Number.isFinite(Number(record.field.max)) ? Number(record.field.max) : 100;
         const ratio = clamp((local.x - rect.left) / rect.width, 0, 1);
         const value = snappedSliderValue(min + ((max - min) * ratio), record.field);
-        record.control.setValue(value, { emit: true });
+        const current = Number(record.control.getValue?.());
+        if (!Number.isFinite(current) || current !== value) {
+            record.control.setValue(value, { emit: true });
+        }
         if (options.commit) record.control.el?.dispatchEvent?.(new Event('commit', { bubbles: true }));
         return true;
     }
@@ -744,7 +806,7 @@ export function createSigilContextMenu({
     function containsDesktopPoint(point) {
         if (!point) return false;
         const target = elementAt(point);
-        if (target && anchor.contains(target)) return true;
+        if (target && elementContains(anchor, target)) return true;
         const b = surfaceBounds() || menuState.bounds;
         return !!(b
             && point.x >= b.x
@@ -765,14 +827,14 @@ export function createSigilContextMenu({
     }
 
     function activeScrollableSurface(target) {
-        return target?.closest?.('.sigil-avatar-control-surface')
+        return closestAny(target, ['.sigil-avatar-control-surface'])
             || anchor.querySelector('.sigil-avatar-control-surface');
     }
 
     function scrollSurfaceAt(point, event = {}) {
         const target = elementAt(point);
         let surface = null;
-        if (target && anchor.contains(target)) {
+        if (target && elementContains(anchor, target)) {
             surface = activeScrollableSurface(target);
         } else {
             const b = surfaceBounds() || menuState.bounds;
@@ -821,11 +883,11 @@ export function createSigilContextMenu({
         if (kind !== 'left_mouse_down' && kind !== 'left_mouse_up') return true;
 
         const target = elementAt(point);
-        if (!target || !anchor.contains(target)) {
+        if (!target || !elementContains(anchor, target)) {
             recordTrace('pointer:no-target', { kind, point, target: describeElement(target) });
             return true;
         }
-        const input = target.closest?.([
+        const input = closestAny(target, [
             'input',
             'button',
             'label',
@@ -835,7 +897,7 @@ export function createSigilContextMenu({
             '[data-aos-slider-control]',
             '[data-aos-slider-track]',
             '[data-aos-slider-thumb]',
-        ].join(', '));
+        ]);
         recordTrace('pointer:target', {
             kind,
             point,
@@ -844,7 +906,7 @@ export function createSigilContextMenu({
         });
         if (!input) return true;
 
-        const sliderRoot = input.closest?.('[data-aos-slider-root]');
+        const sliderRoot = closestAny(input, ['[data-aos-slider-root]']);
         if (kind === 'left_mouse_down' && sliderRoot) {
             menuState.activeSlider = { sliderRoot };
             return updateCompactSliderAt(sliderRoot, point);

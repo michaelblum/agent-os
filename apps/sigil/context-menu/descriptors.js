@@ -351,6 +351,7 @@ function syncRenderer(descriptor, value, context) {
         if (hook === 'updateGeometry') context.updateGeometry?.(context.state?.avatar?.shape?.type ?? context.state?.currentGeometryType ?? context.state?.currentType);
         else if (hook === 'updatePrimaryStellation') context.updatePrimaryStellation?.(value);
         else if (hook === 'updatePrimaryAppearance') context.updatePrimaryAppearance?.();
+        else if (hook === 'updatePrimaryTesseronProportion') context.updatePrimaryTesseronProportion?.(value);
         else if (hook === 'updateOmegaGeometry') context.updateOmegaGeometry?.(context.state?.avatar?.effects?.omega?.shape?.type ?? context.state?.omegaGeometryType ?? context.state?.omegaType);
         else if (hook === 'updateAllColors') context.updateAllColors?.();
         else if (hook === 'updatePulsars') context.updatePulsars?.(context.state?.pulsarRayCount);
