@@ -175,6 +175,24 @@ JSON paths through route handlers; a DesktopWorld 2D fixture to re-run
 to route the patched value through the existing `setValue()` path while
 preserving root element identity.
 
+Phase 6 live non-avatar coverage adds two narrow AOS proof hooks without
+changing the renderer-agnostic contract:
+
+- `aos://toolkit/components/visual-object-live-proof/index.html` exposes
+  `window.__visualObjectLiveProof.runDomControlProof()`, which drives a real
+  toolkit slider through `dom_toolkit.control.value.patch`, preserves the
+  slider root, records route/sync evidence, and returns
+  `aos.visual_object.resource_lifecycle.v0` evidence.
+- `aos://toolkit/components/desktop-world-stage/index.html` exposes
+  `window.__desktopWorldStageVisualObjectProof.run()`, which upserts one
+  DesktopWorld stage layer, mutates its frame width through
+  `canvas_object.transform.patch`, preserves the stage root and layer object,
+  records lifecycle evidence, then removes the proof layer and reports cleanup.
+
+These hooks are representative live proof surfaces. They do not imply every DOM
+control, every DesktopWorld stage layer kind, or every canvas-style renderer has
+been migrated to descriptor-driven live updates.
+
 Descriptor boolean coercion is explicit. `boolean` accepts booleans, `1`/`0`,
 and the strings `true`, `false`, `on`, `off`, `yes`, `no`, and the empty
 string. `boolean_inverse` accepts the same vocabulary and inverts the result.
