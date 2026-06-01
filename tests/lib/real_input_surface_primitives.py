@@ -83,6 +83,190 @@ def wait_until(predicate, timeout=6.0, interval=0.08, label="condition"):
     raise TimeoutError(f"timed out waiting for {label}; last={last!r}")
 
 
+def js_json(value):
+    return json.dumps(value)
+
+
+def aos_native_control_helper_js():
+    return r"""
+const AOSNativeControls = (() => {
+  const esc = (value) => {
+    const text = String(value ?? '')
+    if (globalThis.CSS?.escape) return globalThis.CSS.escape(text)
+    return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  }
+  const snapshot = () => window.__sigilDebug.snapshot()
+  const desktopWorldBounds = () => snapshot().surface?.segment?.dw_bounds || [0, 0, 0, 0]
+  const nativeBounds = () => snapshot().surface?.segment?.native_bounds || desktopWorldBounds()
+  const toNative = (point) => {
+    const dw = desktopWorldBounds()
+    const native = nativeBounds()
+    return { x: native[0] + point.x - dw[0], y: native[1] + point.y - dw[1] }
+  }
+  const visibleRect = (element) => {
+    if (!element) return null
+    const rect = element.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    return rect
+  }
+  const pointFor = (element, ratio = 0.5) => {
+    const rect = visibleRect(element)
+    if (!rect) return null
+    const dw = desktopWorldBounds()
+    return {
+      x: dw[0] + rect.left + rect.width * ratio,
+      y: dw[1] + rect.top + rect.height / 2,
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+    }
+  }
+  const tab = (value) => document.querySelector(`[data-aos-tabs-trigger][data-value="${esc(value)}"]`)
+  const field = (descriptorId) => document.querySelector(`.aos-form-field[data-descriptor-id="${esc(descriptorId)}"]`)
+  const segmentedButton = (descriptorId, value) => field(descriptorId)?.querySelector(`.aos-segmented button[data-value="${esc(value)}"]`)
+  const sliderControl = (descriptorId) => field(descriptorId)?.querySelector('[data-aos-slider-control]')
+  const clickPoint = (hitCanvasId, point) => {
+    if (!point) return null
+    const nativePoint = toNative(point)
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_down', screenX: nativePoint.x, screenY: nativePoint.y }
+    })
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }
+    })
+    return nativePoint
+  }
+  const dragPoints = (hitCanvasId, start, end) => {
+    const startNative = toNative(start)
+    const endNative = toNative(end)
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_down', screenX: startNative.x, screenY: startNative.y }
+    })
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: endNative.x, screenY: endNative.y }
+    })
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_up', screenX: endNative.x, screenY: endNative.y }
+    })
+    return { startNative, endNative }
+  }
+  const selected = (button) => button?.getAttribute('aria-pressed') === 'true' || button?.classList.contains('active')
+  const tabReady = (value) => {
+    const element = tab(value)
+    const point = pointFor(element)
+    if (!point) return { __pending: true, error: `missing or hidden tab ${value}` }
+    return { ok: true, role: 'AXTab', ref: `aos.tab:${value}`, value, point }
+  }
+  const clickTab = (hitCanvasId, value) => {
+    const ready = tabReady(value)
+    if (!ready.ok) return ready
+    return { ...ready, nativePoint: clickPoint(hitCanvasId, ready.point) }
+  }
+  const segmentedReady = (descriptorId, value) => {
+    const container = field(descriptorId)
+    if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
+    container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
+    const button = segmentedButton(descriptorId, value)
+    const point = pointFor(button)
+    if (!point) return { __pending: true, error: `missing or hidden option ${descriptorId}:${value}` }
+    return {
+      ok: true,
+      id: descriptorId,
+      ref: `aos.control:${descriptorId}`,
+      role: 'AXRadioGroup',
+      name: container.querySelector('.aos-control-label')?.textContent?.trim() || descriptorId,
+      value,
+      selected: selected(button),
+      point
+    }
+  }
+  const clickSegmented = (hitCanvasId, descriptorId, value) => {
+    const ready = segmentedReady(descriptorId, value)
+    if (!ready.ok) return ready
+    const nativePoint = clickPoint(hitCanvasId, ready.point)
+    const button = segmentedButton(descriptorId, value)
+    return { ...ready, nativePoint, selected: selected(button) }
+  }
+  const sliderReady = (descriptorId) => {
+    const container = field(descriptorId)
+    if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
+    container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
+    const control = sliderControl(descriptorId)
+    const point = pointFor(control)
+    if (!point) return { __pending: true, error: `missing or hidden slider ${descriptorId}` }
+    return {
+      ok: true,
+      id: descriptorId,
+      ref: `aos.control:${descriptorId}`,
+      role: 'AXSlider',
+      name: container.querySelector('.aos-control-label')?.textContent?.trim() || descriptorId,
+      point
+    }
+  }
+  const dragSlider = (hitCanvasId, descriptorId, startRatio = 0.15, endRatio = 0.85) => {
+    const ready = sliderReady(descriptorId)
+    if (!ready.ok) return ready
+    const control = sliderControl(descriptorId)
+    const start = pointFor(control, startRatio)
+    const end = pointFor(control, endRatio)
+    if (!start || !end) return { __pending: true, error: `missing slider drag points ${descriptorId}` }
+    return { ...ready, start, end, ...dragPoints(hitCanvasId, start, end) }
+  }
+  return { tabReady, clickTab, segmentedReady, clickSegmented, sliderReady, dragSlider }
+})()
+"""
+
+
+def aos_native_tab_ready_js(value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.tabReady({js_json(value)}))
+}})()"""
+
+
+def aos_native_click_tab_js(hit_canvas_id, value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.clickTab({js_json(hit_canvas_id)}, {js_json(value)}))
+}})()"""
+
+
+def aos_native_segmented_ready_js(descriptor_id, value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.segmentedReady({js_json(descriptor_id)}, {js_json(value)}))
+}})()"""
+
+
+def aos_native_click_segmented_js(hit_canvas_id, descriptor_id, value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.clickSegmented({js_json(hit_canvas_id)}, {js_json(descriptor_id)}, {js_json(value)}))
+}})()"""
+
+
+def aos_native_slider_ready_js(descriptor_id):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.sliderReady({js_json(descriptor_id)}))
+}})()"""
+
+
+def aos_native_drag_slider_js(hit_canvas_id, descriptor_id, start_ratio=0.15, end_ratio=0.85):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.dragSlider({js_json(hit_canvas_id)}, {js_json(descriptor_id)}, {float(start_ratio)}, {float(end_ratio)}))
+}})()"""
+
+
 def node_primitive(action, **payload):
     completed = subprocess.run(
         ["node", str(NODE_HELPER), action],
