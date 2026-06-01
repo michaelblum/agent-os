@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { DEFAULT_SIGIL_RADIAL_ITEMS } from '../../apps/sigil/renderer/live-modules/radial-gesture-menu.js'
 import {
   AVATAR_AURA_OBJECT_ID,
+  AVATAR_LIGHTNING_OBJECT_ID,
+  AVATAR_MAGNETIC_OBJECT_ID,
   AVATAR_OMEGA_OBJECT_ID,
   AVATAR_OMEGA_TESSERON_OBJECT_ID,
   AVATAR_PHENOMENA_OBJECT_ID,
@@ -11,6 +13,8 @@ import {
   AVATAR_ROOT_OBJECT_ID,
   AVATAR_TRAIL_OBJECT_ID,
   AVATAR_TRAVEL_OBJECT_ID,
+  applyAvatarObjectEffectsPatch,
+  applyAvatarObjectTransformPatch,
   buildAvatarObjectRegistry,
 } from '../../apps/sigil/renderer/live-modules/avatar-object-control.js'
 import {
@@ -62,6 +66,14 @@ function rendererState(overrides = {}) {
     trailOpacity: 0.6,
     trailFadeMs: 640,
     trailStyle: 'omega',
+    isLightningEnabled: true,
+    lightningBoltLength: 100,
+    lightningFrequency: 3,
+    lightningBrightness: 1.2,
+    isMagneticEnabled: true,
+    magneticTentacleCount: 9,
+    magneticTentacleSpeed: 1.5,
+    magneticWander: 2.5,
     transitionFastTravelEffect: 'wormhole',
     fastTravelLineRepeatCount: 12,
     wormholeObjectEnabled: true,
@@ -188,6 +200,16 @@ test('avatar object registry covers primary tesseron, phenomena, trails, and tra
     },
   )
 
+  const lightning = byId(registry, AVATAR_LIGHTNING_OBJECT_ID)
+  assert.equal(lightning.visible, true)
+  assert.equal(lightning.metadata.source_refs.frequency, 'state.lightningFrequency')
+  assert.equal(lightning.controls.animation_effects.find((control) => control.id === 'lightning.length').value, 100)
+
+  const magnetic = byId(registry, AVATAR_MAGNETIC_OBJECT_ID)
+  assert.equal(magnetic.visible, true)
+  assert.equal(magnetic.metadata.source_refs.tentacles, 'state.magneticTentacleCount')
+  assert.equal(magnetic.controls.animation_effects.find((control) => control.id === 'magnetic.tentacleCount').value, 9)
+
   const trail = byId(registry, AVATAR_TRAIL_OBJECT_ID)
   assert.equal(trail.visible, true)
   assert.equal(trail.controls.animation_effects.find((control) => control.id === 'trails.count').value, 8)
@@ -236,4 +258,38 @@ test('avatar object registry omits unsupported tesseron and disabled omega nodes
   assert.equal(registry.objects.some((object) => object.object_id === AVATAR_PRIMARY_TESSERON_OBJECT_ID), false)
   assert.equal(registry.objects.some((object) => object.object_id === AVATAR_OMEGA_OBJECT_ID), false)
   assert.equal(registry.objects.some((object) => object.object_id === AVATAR_OMEGA_TESSERON_OBJECT_ID), false)
+})
+
+test('avatar object registry rejects stale cursor patches after cursor removal', () => {
+  const registry = buildAvatarObjectRegistry(rendererState(), { canvasId: 'avatar-main' })
+  const deletedCursorPrefix = ['selection-mode', 'cursor'].join('.') + '.'
+  const deletedCursorObjectId = ['selection-mode', 'cursor', 'sigil-model'].join('.')
+
+  assert.equal(
+    registry.objects.some((object) => String(object.object_id || '').startsWith(deletedCursorPrefix)),
+    false,
+  )
+
+  const transform = applyAvatarObjectTransformPatch(rendererState(), {
+    type: 'canvas_object.transform.patch',
+    request_id: 'rotate-cursor',
+    target: { canvas_id: 'avatar-main', object_id: deletedCursorObjectId },
+    patch: { rotation_degrees: { x: 12, z: 36 } },
+  }, { canvasId: 'avatar-main' })
+  assert.equal(transform.status, 'stale')
+  assert.equal(transform.reason, 'unknown_object')
+
+  const effects = applyAvatarObjectEffectsPatch(rendererState(), {
+    type: 'canvas_object.effects.patch',
+    request_id: 'shape-cursor',
+    target: { canvas_id: 'avatar-main', object_id: deletedCursorObjectId },
+    patch: {
+      controls: {
+        [['cursor', 'prism', 'topRadius'].join('.')]: 0.2,
+        [['cursor', 'prism', 'height'].join('.')]: 3.2,
+      },
+    },
+  }, { canvasId: 'avatar-main' })
+  assert.equal(effects.status, 'stale')
+  assert.equal(effects.reason, 'unknown_object')
 })

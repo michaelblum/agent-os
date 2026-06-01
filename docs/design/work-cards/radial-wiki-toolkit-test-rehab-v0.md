@@ -238,15 +238,16 @@ Required rehab tasks:
 - Re-enable or repair tests that are skipped, stale, impossible to run, or
   testing old launch paths.
 - Add missing tests where a current product contract has no coverage.
-- Remove or rewrite tests that only preserve retired Studio/workbench behavior,
+- Remove or rewrite tests that only preserve retired avatar-configuration or
+  workbench behavior,
   unless they are explicitly legacy and sequestered.
 - Update `tests/README.md` with the command groups and prerequisite gates needed
   to rerun this surface family.
 
 ## Hard Boundaries
 
-- Do not revive old Sigil Studio or make Studio/legacy workbench the current
-  product path.
+- Do not revive the retired avatar configuration surface or make the legacy
+  workbench the current product path.
 - Do not use direct DOM/eval activation as the acceptance proof for live user
   behavior. Eval is allowed for observation after native or realistic input.
 - Do not add another one-off radial test harness if existing primitives can be

@@ -10,6 +10,8 @@ export function renderLoopContinuationReasons(frame = {}) {
     if (frame.contextMenuOpen) reasons.push('context-menu');
     if (frame.annotationReticleActive) reasons.push('annotation-reticle');
     if (frame.selectionModeActive) reasons.push('selection-mode');
+    if (frame.selectionModeEffectActive) reasons.push('selection-mode-effect');
+    if (frame.selectionModePerimeterFillActive) reasons.push('selection-mode-perimeter-fill');
     if (frame.avatarMotionActive) reasons.push('avatar-motion');
     if (frame.currentState && frame.currentState !== 'IDLE') reasons.push('interaction-state');
     const hoverProgress = Number(frame.avatarHoverProgress);
@@ -34,16 +36,31 @@ export function classifyRenderLoopWork(frame = {}) {
         ? frame.continuationReasons
         : renderLoopContinuationReasons(frame);
     const structuralDirty = !!frame.structuralDirty;
-    const visualOnlyReasons = new Set(['avatar-motion']);
+    const selectionModeEffectStateChanged = !!frame.selectionModeEffectStateChanged;
+    const visualOnlyReasons = new Set(['avatar-motion', 'selection-mode']);
+    const overlayOnlyReasons = new Set(['selection-mode-effect', 'selection-mode-perimeter-fill']);
+    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons]);
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => visualOnlyReasons.has(reason));
+    const cheapFrame = !structuralDirty
+        && continuationReasons.length > 0
+        && continuationReasons.every((reason) => cheapFrameReasons.has(reason));
+    const overlayOnly = cheapFrame
+        && continuationReasons.some((reason) => overlayOnlyReasons.has(reason));
+    const publishSelectionEffectState = continuationReasons.includes('selection-mode-effect');
 
     return {
         continuationReasons,
-        structural: structuralDirty || (!visualOnly && continuationReasons.length > 0),
-        overlay: structuralDirty || (!visualOnly && continuationReasons.length > 0),
-        publishState: structuralDirty || (!visualOnly && continuationReasons.length > 0),
+        structural: structuralDirty || (!cheapFrame && continuationReasons.length > 0),
+        overlay: structuralDirty
+            || selectionModeEffectStateChanged
+            || overlayOnly
+            || (!cheapFrame && continuationReasons.length > 0),
+        publishState: structuralDirty
+            || selectionModeEffectStateChanged
+            || publishSelectionEffectState
+            || (!cheapFrame && continuationReasons.length > 0),
         visualOnly,
     };
 }

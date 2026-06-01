@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/lib/visual-harness.sh"
+source "$(dirname "$0")/lib/sigil/visual-harness.sh"
 
 PREFIX="aos-sigil-hit-target-drag-fast-travel"
 aos_test_cleanup_prefix "$PREFIX"

@@ -57,7 +57,8 @@ contract, or would need private test plumbing that already exists one level up.
 - Visual harness tests: use when canvas placement, Surface Inspector visibility,
   app launch composition, stale content roots, or visual diagnostics need a
   repeatable workspace. They do not replace assertions for product semantics or
-  real input. Reuse `tests/lib/visual-harness.sh`,
+  real input. Reuse generic helpers in `tests/lib/visual-harness.sh`,
+  app-specific compositions such as `tests/lib/sigil/visual-harness.sh`,
   `tests/visual-harness-content-preflight.sh`, and named visual launch helpers
   such as `aos_visual_launch_canvas_inspector` and
   `aos_visual_launch_sigil_with_inspector`. Escalate when a human must judge a
@@ -125,7 +126,6 @@ Stay in the local package or Node loop when the work does not depend on a fresh
 
 Examples:
 
-- `node --test tests/studio/*.test.mjs` for sequestered Studio pure helpers only.
 - `node --test tests/renderer/*.test.mjs`
 - `node --test tests/toolkit/*.test.mjs`
 - `cd packages/gateway && npm test`
@@ -253,12 +253,6 @@ Focused proof:
 bash tests/harness-composability-contracts.sh
 ```
 
-## Sequestered Studio Helper Tests
-
-Studio is defunct as a current Sigil product and launch surface. The
-`tests/studio/*.test.mjs` files remain only as pure-helper coverage for
-`apps/sigil/_sequestered/studio/...`; they are not Sigil MVP activation tests,
-status-item tests, radial-menu tests, or current product launch proof.
 
 ## Mixed Work
 
@@ -344,15 +338,30 @@ commands over ad hoc polling:
 - `aos content wait --root <name> ...`
 - `aos show wait --id <canvas> [--manifest <name>] [--js <condition>]`
 
-For tests or manual harnesses that need visual context, use the shared fixture
-in `tests/lib/visual-harness.sh` instead of reimplementing canvas setup. It
-wraps the isolated daemon helpers and provides named launch steps for common
+For tests or manual harnesses that need visual context, use shared harness
+fixtures instead of reimplementing canvas setup. Generic AOS/canvas primitives
+live in `tests/lib/visual-harness.sh`. App-specific compositions live under
+`tests/lib/<app>/`, such as `tests/lib/sigil/visual-harness.sh`. Together they
+wrap the isolated daemon helpers and provide named launch steps for common
 surfaces:
 
 - `aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil`
+- `aos_visual_toolkit_url <path> [query]`
+- `aos_visual_sigil_renderer_url`
 - `aos_visual_launch_canvas_inspector surface-inspector`
 - `aos_visual_launch_sigil_avatar avatar-main`
 - `aos_visual_launch_sigil_with_inspector avatar-main surface-inspector`
+
+Visual URL helpers own the canonical `aos://...` launch/update contract. Runtime
+evidence may contain resolved localhost URLs; compare those with
+`aos_visual_assert_url_equivalent` instead of raw string equality. Reload
+URL-backed canvases with `aos_visual_update_canvas_url`, which rejects resolved
+localhost inputs by default. In the single-worktree dev workflow, visual helpers
+use canonical `sigil` and `toolkit` root keys; branch-scoped keys are for
+explicit overrides or true parallel worktree/session isolation. Use
+`aos_visual_assert_canvas_worktree` for owner metadata and
+`aos_visual_assert_sigil_renderer_fresh` when a live Sigil smoke must prove the
+loaded page is newer than or equal to the commit under test.
 
 Visual Sigil scenarios should default to launching `surface-inspector` beside the
 surface under test unless the test is specifically measuring canvas lifecycle,
@@ -454,7 +463,7 @@ before escalating to screenshots, pixel checks, or HITL inspection.
 
 For live or manual Sigil checks after source edits, do not trust an already-open
 `avatar-main` unless its debug runtime snapshot proves it was reloaded after the
-change. Relaunch the surface or use `tests/lib/visual-harness.sh`; stale
+change. Relaunch the surface or use `tests/lib/sigil/visual-harness.sh`; stale
 WKWebView canvases can retain old JS modules and create false failures during
 real-input verification.
 

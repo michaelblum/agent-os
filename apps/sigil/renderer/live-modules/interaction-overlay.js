@@ -1,4 +1,153 @@
-function drawFrame(ctx, frame = {}, style = {}) {
+import {
+    radialDismissExpansionState,
+    radialOpenExpansionState,
+} from './radial-gesture-visuals.js';
+
+function selectionWave(position = 0, time = 0, seed = 0) {
+    return (
+        Math.sin(position * 0.047 + time * 2.3 + seed) * 0.55
+        + Math.sin(position * 0.113 - time * 3.1 + seed * 1.7) * 0.32
+        + Math.sin(position * 0.019 + time * 1.2 + seed * 2.3) * 0.22
+    ) / 1.09;
+}
+
+function gradientWithAlpha(ctx, x0, y0, x1, y1, color = 'rgba(94, 252, 210, 0.11)') {
+    const gradient = ctx.createLinearGradient(x0, y0, x1, y1);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(0.58, color.replace(/rgba\(([^)]+),\s*[\d.]+\)/, 'rgba($1, 0.045)'));
+    gradient.addColorStop(1, color.replace(/rgba\(([^)]+),\s*[\d.]+\)/, 'rgba($1, 0)'));
+    return gradient;
+}
+
+function drawWavyPerimeterFill(ctx, rect = {}, perimeter = {}, {
+    time = 0,
+} = {}) {
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    const maxInset = Math.max(1, Math.min(width, height) * Number(perimeter.marginRatio || 0.15));
+    const segmentCount = Math.max(10, Math.ceil((width + height) / 56));
+    const amplitude = Math.min(maxInset * 0.42, 18);
+    const fill = perimeter.style?.fill || 'rgba(94, 252, 210, 0.11)';
+    const line = perimeter.style?.line || 'rgba(142, 221, 255, 0.42)';
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    function waveDepth(position, seed = 0) {
+        return maxInset * (0.56 + ((selectionWave(position, time, seed) + 1) / 2) * 0.44);
+    }
+
+    function ringWave(position, seed = 0, ringAmplitude = amplitude) {
+        return selectionWave(position, time, seed) * ringAmplitude;
+    }
+
+    function clampInsideMargin(value) {
+        return Math.max(1, Math.min(maxInset, value));
+    }
+
+    function drawTop() {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + width, y);
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            ctx.lineTo(px, y + clampInsideMargin(waveDepth(px, 0.2)));
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x, y, x, y + maxInset, fill);
+        ctx.fill();
+    }
+
+    function drawBottom() {
+        ctx.beginPath();
+        ctx.moveTo(x + width, y + height);
+        ctx.lineTo(x, y + height);
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            ctx.lineTo(px, y + height - clampInsideMargin(waveDepth(px, 1.6)));
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x, y + height, x, y + height - maxInset, fill);
+        ctx.fill();
+    }
+
+    function drawLeft() {
+        ctx.beginPath();
+        ctx.moveTo(x, y + height);
+        ctx.lineTo(x, y);
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            ctx.lineTo(x + clampInsideMargin(waveDepth(py, 2.4)), py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x, y, x + maxInset, y, fill);
+        ctx.fill();
+    }
+
+    function drawRight() {
+        ctx.beginPath();
+        ctx.moveTo(x + width, y);
+        ctx.lineTo(x + width, y + height);
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            ctx.lineTo(x + width - clampInsideMargin(waveDepth(py, 3.3)), py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = gradientWithAlpha(ctx, x + width, y, x + width - maxInset, y, fill);
+        ctx.fill();
+    }
+
+    drawTop();
+    drawRight();
+    drawBottom();
+    drawLeft();
+
+    ctx.globalAlpha = 0.36;
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 1;
+    for (let ring = 0; ring < 3; ring += 1) {
+        const offset = maxInset * (0.28 + ring * 0.22);
+        const ringAmplitude = amplitude * (0.55 - ring * 0.12);
+        ctx.beginPath();
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            const py = y + clampInsideMargin(offset + ringWave(px, 5 + ring, ringAmplitude));
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        for (let i = 0; i <= segmentCount; i += 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            const px = x + width - clampInsideMargin(offset + ringWave(py, 9 + ring, ringAmplitude));
+            ctx.lineTo(px, py);
+        }
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const px = x + width * t;
+            const py = y + height - clampInsideMargin(offset + ringWave(px, 13 + ring, ringAmplitude));
+            ctx.lineTo(px, py);
+        }
+        for (let i = segmentCount; i >= 0; i -= 1) {
+            const t = i / segmentCount;
+            const py = y + height * t;
+            const px = x + clampInsideMargin(offset + ringWave(py, 17 + ring, ringAmplitude));
+            ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
+function drawFrame(ctx, frame = {}, style = {}, options = {}) {
     const rect = frame.rect || {};
     const x = Number(rect.x);
     const y = Number(rect.y);
@@ -10,105 +159,519 @@ function drawFrame(ctx, frame = {}, style = {}) {
     ctx.setLineDash(style.dash || []);
     ctx.lineWidth = style.lineWidth || 1.5;
     ctx.strokeStyle = style.stroke || 'rgba(255, 224, 120, 0.9)';
-    ctx.fillStyle = style.fill || 'rgba(255, 224, 120, 0.04)';
+    const fill = style.fill === null ? null : (style.fill || 'rgba(255, 224, 120, 0.04)');
+    const perimeterFill = frame.perimeterFill || style.perimeterFill || null;
+    if (perimeterFill) drawWavyPerimeterFill(ctx, { x, y, width, height }, perimeterFill, options);
+    if (fill) ctx.fillStyle = fill;
     ctx.beginPath();
     ctx.rect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(width), Math.round(height));
-    ctx.fill();
+    if (fill) ctx.fill();
     ctx.stroke();
     ctx.restore();
 }
 
-function drawSelectionMode(ctx, overlay = {}, snapshot = {}) {
-    if (!overlay?.visible) return;
-    const time = Number(snapshot.time) || 0;
-    const trail = snapshot.selectionTrail || {};
-    const trailScale = Math.max(0.4, Number(trail.scale) || 1);
-    const lag = Math.max(0, Math.min(0.5, Number(trail.lag) || 0.05));
-    const pulse = 0.5 + (0.5 * Math.sin(time * 7));
+function selectionCursorProjectionPoints(glyph = {}, time = 0) {
+    if (Array.isArray(glyph.outline) && glyph.outline.length) {
+        return glyph.outline;
+    }
+    const geometry = glyph.geometry || {};
+    const length = Math.max(8, Number(geometry.length) || 44);
+    const base = Math.max(4, Number(geometry.base) || length / 2);
+    const axis = { x: Math.SQRT1_2, y: Math.SQRT1_2 };
+    const perp = { x: -Math.SQRT1_2, y: Math.SQRT1_2 };
+    const rotationSpeed = Math.abs(Number(glyph.animation?.rotation_speed) || 0.1);
+    const vitality = Math.max(0.1, Number(glyph.animation?.session_vitality_multiplier) || 1);
+    const rotationPhase = 0.72 + (0.28 * Math.sin(time * rotationSpeed * vitality * 120));
+    const baseCenter = { x: axis.x * length, y: axis.y * length };
+    const halfBase = (base / 2) * rotationPhase;
+    return [
+        { x: 0, y: 0 },
+        { x: baseCenter.x + perp.x * halfBase, y: baseCenter.y + perp.y * halfBase },
+        { x: baseCenter.x + axis.x * 7, y: baseCenter.y + axis.y * 7 },
+        { x: baseCenter.x - perp.x * halfBase, y: baseCenter.y - perp.y * halfBase },
+    ];
+}
 
-    ctx.save();
-    ctx.lineJoin = 'round';
-    for (const frame of overlay.frames || []) {
-        const active = frame.active === true;
-        const leaf = frame.leaf === true;
-        drawFrame(ctx, frame, {
-            stroke: active ? 'rgba(94, 252, 210, 0.96)' : (leaf ? 'rgba(255, 224, 120, 0.88)' : 'rgba(170, 210, 255, 0.62)'),
-            fill: active ? 'rgba(94, 252, 210, 0.07)' : 'rgba(170, 210, 255, 0.035)',
-            dash: active ? [] : [7, 7],
-            lineWidth: active ? 2.5 : 1.4,
-        });
-        const rect = frame.rect || {};
-        if (Number.isFinite(rect.x) && Number.isFinite(rect.y)) {
-            const label = `${frame.index + 1}`;
-            ctx.save();
-            ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
-            ctx.textBaseline = 'middle';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = active ? 'rgba(94, 252, 210, 0.96)' : 'rgba(20, 30, 42, 0.86)';
-            ctx.strokeStyle = active ? 'rgba(8, 18, 24, 0.94)' : 'rgba(170, 210, 255, 0.74)';
-            ctx.lineWidth = 1.5;
-            const bx = rect.x + 12;
-            const by = rect.y - 10;
-            ctx.beginPath();
-            ctx.roundRect(bx - 9, by - 9, 18, 18, 5);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = active ? 'rgba(8, 18, 24, 0.96)' : 'rgba(255, 255, 255, 0.92)';
-            ctx.fillText(label, bx, by + 0.5);
-            ctx.restore();
-        }
+export function avatarHoverDecorationVisible(snapshot = {}) {
+    return snapshot.avatarVisible === true
+        && snapshot.avatarHover === true
+        && Number(snapshot.avatarHoverProgress) > 0.01
+        && snapshot.avatarPos?.valid === true;
+}
+
+function clamp01(value) {
+    return Math.max(0, Math.min(1, Number(value) || 0));
+}
+
+function easeOutCubic(value) {
+    const t = clamp01(value);
+    return 1 - Math.pow(1 - t, 3);
+}
+
+function easeOutExpo(value) {
+    const t = clamp01(value);
+    return t >= 1 ? 1 : 1 - Math.pow(2, -10 * t);
+}
+
+function seededUnit(seed = 0, index = 0, salt = 0) {
+    const value = Math.sin((seed + 1) * 12.9898 + (index + 1) * 78.233 + (salt + 1) * 37.719) * 43758.5453123;
+    return value - Math.floor(value);
+}
+
+function drawGlowDisk(ctx, x, y, radius, {
+    alpha = 1,
+    center = 'rgba(255,255,255,0.9)',
+    middle = 'rgba(255,255,255,0.24)',
+    edge = 'rgba(255,255,255,0)',
+} = {}) {
+    if (radius <= 0 || alpha <= 0) return;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    gradient.addColorStop(0, center);
+    gradient.addColorStop(0.42, middle);
+    gradient.addColorStop(1, edge);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function drawSupernovaParticleCloud(ctx, {
+    x,
+    y,
+    seed,
+    timelineT,
+    primary,
+    secondary,
+    highlight,
+}) {
+    const outward = easeOutExpo(timelineT);
+    const inverse = 1 - timelineT;
+    const whiteCount = 92;
+    for (let i = 0; i < whiteCount; i += 1) {
+        const angle = ((i * 2.399963229728653) + seed * 0.021 + seededUnit(seed, i, 2) * 0.22) % (Math.PI * 2);
+        const speed = 44 + seededUnit(seed, i, 3) * 130;
+        const drift = speed * outward;
+        const jitter = (seededUnit(seed, i, 4) - 0.5) * 10 * Math.sin(timelineT * Math.PI);
+        const px = x + Math.cos(angle) * (drift + jitter);
+        const py = y + Math.sin(angle) * (drift + jitter);
+        const tail = 4 + 16 * inverse;
+        const alpha = Math.max(0, 1 - timelineT * 0.82)
+            * (0.18 + seededUnit(seed, i, 5) * 0.42);
+        if (alpha <= 0.002) continue;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = i % 5 === 0 ? highlight : 'rgba(255,255,255,0.92)';
+        ctx.lineWidth = i % 11 === 0 ? 1.8 : 1;
+        ctx.beginPath();
+        ctx.moveTo(px - Math.cos(angle) * tail, py - Math.sin(angle) * tail);
+        ctx.lineTo(px, py);
+        ctx.stroke();
     }
 
-    const cursor = overlay.cursor;
-    if (cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y)) {
-        const tail = 18 * trailScale;
-        const tailX = cursor.x - (tail * (0.65 + lag));
-        const tailY = cursor.y + (tail * 0.34);
-        const gradient = ctx.createLinearGradient(tailX, tailY, cursor.x, cursor.y);
-        gradient.addColorStop(0, 'rgba(94, 252, 210, 0)');
-        gradient.addColorStop(1, 'rgba(94, 252, 210, 0.82)');
-        ctx.lineCap = 'round';
-        ctx.globalAlpha = 0.84;
+    const coloredCount = 118;
+    for (let i = 0; i < coloredCount; i += 1) {
+        const angle = ((i * 2.399963229728653) + Math.PI * 0.17 + seed * 0.015 + seededUnit(seed, i, 8) * 0.3) % (Math.PI * 2);
+        const frictionStop = 0.62 + seededUnit(seed, i, 9) * 0.42;
+        const maxDistance = 56 + seededUnit(seed, i, 10) * 170;
+        const frictionTravel = 1 - Math.pow(1 - timelineT, 2.8);
+        const distance = maxDistance * frictionStop * frictionTravel;
+        const px = x + Math.cos(angle) * distance;
+        const py = y + Math.sin(angle) * distance * (0.82 + seededUnit(seed, i, 11) * 0.36);
+        const tail = 5 + 18 * Math.max(0.12, 1 - timelineT);
+        const alpha = Math.max(0, 1 - timelineT * 0.62)
+            * (0.14 + seededUnit(seed, i, 12) * 0.5);
+        if (alpha <= 0.002) continue;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = i % 3 === 0 ? primary : (i % 3 === 1 ? secondary : highlight);
+        ctx.lineWidth = i % 13 === 0 ? 2 : 1;
         ctx.beginPath();
-        ctx.strokeStyle = gradient;
-        ctx.lineWidth = 4 + pulse;
-        ctx.moveTo(tailX, tailY);
-        ctx.lineTo(cursor.x, cursor.y);
+        ctx.moveTo(px - Math.cos(angle) * tail, py - Math.sin(angle) * tail);
+        ctx.lineTo(px, py);
         ctx.stroke();
+    }
+}
 
-        ctx.globalAlpha = 0.9;
-        ctx.strokeStyle = 'rgba(94, 252, 210, 0.96)';
-        ctx.fillStyle = 'rgba(12, 22, 28, 0.45)';
-        ctx.lineWidth = 2;
+function drawSelectionModeEffect(ctx, effect = {}, styles = {}, {
+    time = 0,
+    nowMs = Date.now(),
+} = {}) {
+    const anchor = effect.anchor || {};
+    const x = Number(anchor.x);
+    const y = Number(anchor.y);
+    if (![x, y].every(Number.isFinite)) return;
+    const startedAtMs = Number(effect.started_at_ms);
+    const durationMs = Math.max(80, Number(effect.duration_ms) || 720);
+    const progress = Number.isFinite(startedAtMs)
+        ? Math.max(0, Math.min(1, (Number(nowMs) - startedAtMs) / durationMs))
+        : Math.max(0, Math.min(1, Number(effect.progress) || 0));
+    if (progress >= 1) return;
+
+    const reverse = effect.effect === 'reverse_supernova' || effect.phase === 'exit';
+    const timelineT = reverse ? 1 - progress : progress;
+    const primary = styles.effect?.primary || styles.aura?.primary || 'rgba(94, 252, 210, 0.96)';
+    const secondary = styles.effect?.secondary || styles.aura?.secondary || 'rgba(142, 221, 255, 0.86)';
+    const highlight = styles.effect?.highlight || styles.aura?.highlight || 'rgba(255, 255, 255, 0.88)';
+    const glow = styles.effect?.glow || styles.aura?.glow || 'rgba(94, 252, 210, 0.34)';
+    const shockT = Math.min(1, timelineT / 0.42);
+    const shockAlpha = Math.max(0, 1 - Math.pow(shockT, 2));
+    const coreT = 1 - timelineT * 0.68;
+    const seed = String(effect.id || `${effect.phase}:${effect.started_at_ms || effect.at || ''}`)
+        .split('')
+        .reduce((acc, char) => (acc + char.charCodeAt(0)) % 997, 0);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 28;
+
+    const haloRadius = 46 + 120 * easeOutCubic(timelineT);
+    drawGlowDisk(ctx, x, y, haloRadius, {
+        alpha: Math.max(0, 0.38 * (1 - timelineT * 0.72)),
+        center: highlight,
+        middle: primary,
+    });
+
+    const shockSphereRadius = Math.max(1, shockT * 190);
+    ctx.globalAlpha = 0.55 * shockAlpha;
+    ctx.strokeStyle = highlight;
+    ctx.lineWidth = Math.max(1, 3.2 * (1 - shockT));
+    ctx.beginPath();
+    ctx.arc(x, y, shockSphereRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const diskRadius = Math.max(1, shockT * 126);
+    ctx.globalAlpha = 0.86 * shockAlpha;
+    ctx.strokeStyle = primary;
+    ctx.lineWidth = Math.max(1, 5.4 * (1 - shockT));
+    ctx.beginPath();
+    ctx.ellipse(x, y, diskRadius, diskRadius * 0.22, -0.08, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const beamCount = 10;
+    for (let i = 0; i < beamCount; i += 1) {
+        const angle = (i / beamCount) * Math.PI * 2 + time * 0.35 + seed * 0.009;
+        const inner = 8 + 14 * (1 - timelineT);
+        const outer = 52 + 138 * easeOutCubic(timelineT) * (0.72 + seededUnit(seed, i, 20) * 0.5);
+        const alpha = Math.max(0, Math.sin(timelineT * Math.PI) * 0.22);
+        if (alpha <= 0.002) continue;
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = i % 2 === 0 ? secondary : primary;
+        ctx.lineWidth = i % 3 === 0 ? 2.4 : 1.4;
         ctx.beginPath();
-        ctx.moveTo(cursor.x, cursor.y - (14 * trailScale));
-        ctx.lineTo(cursor.x + (10 * trailScale), cursor.y + (10 * trailScale));
-        ctx.lineTo(cursor.x + (1 * trailScale), cursor.y + (7 * trailScale));
-        ctx.lineTo(cursor.x - (7 * trailScale), cursor.y + (15 * trailScale));
-        ctx.closePath();
+        ctx.moveTo(x + Math.cos(angle) * inner, y + Math.sin(angle) * inner);
+        ctx.lineTo(x + Math.cos(angle) * outer, y + Math.sin(angle) * outer);
+        ctx.stroke();
+    }
+
+    drawSupernovaParticleCloud(ctx, {
+        x,
+        y,
+        seed,
+        timelineT,
+        primary,
+        secondary,
+        highlight,
+    });
+
+    const dwarfRadius = Math.max(2, 8 + 24 * Math.max(0, coreT));
+    drawGlowDisk(ctx, x, y, dwarfRadius * 2.1, {
+        alpha: Math.max(0, 0.82 * (1 - timelineT * 0.48)),
+        center: 'rgba(255,255,255,1)',
+        middle: highlight,
+    });
+
+    ctx.globalAlpha = Math.max(0, 0.95 * (1 - timelineT * 0.38));
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.arc(x, y, dwarfRadius * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function fitLineageText(ctx, text = '', maxWidth = 0) {
+    const source = String(text || '');
+    if (maxWidth <= 0) return '';
+    if (ctx.measureText(source).width <= maxWidth) return source;
+    if (maxWidth < 16) return source.slice(0, 1);
+    const ellipsis = '...';
+    let next = source;
+    while (next.length > 1 && ctx.measureText(`${next}${ellipsis}`).width > maxWidth) {
+        next = next.slice(0, -1);
+    }
+    return next.length > 1 ? `${next}${ellipsis}` : source.slice(0, 1);
+}
+
+function drawLineageActionButtonIcon(ctx, button = {}, rect = {}, style = {}) {
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const action = String(button.action || button.icon || '').toLowerCase();
+    const iconColor = button.disabled ? (style.mutedIcon || style.icon) : (style.icon || 'rgba(238, 248, 255, 0.92)');
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = iconColor;
+    ctx.fillStyle = iconColor;
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = button.disabled ? 0.55 : 1;
+    if (action === 'record') {
+        ctx.beginPath();
+        ctx.arc(0, 0, Math.max(2, Math.min(width, height) * 0.22), 0, Math.PI * 2);
         ctx.fill();
-        ctx.stroke();
+        ctx.restore();
+        return;
+    }
+    ctx.beginPath();
+    ctx.roundRect(-Math.max(2, width * 0.28), -Math.max(2, height * 0.28), Math.max(4, width * 0.56), Math.max(4, height * 0.56), 1.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-Math.max(2, width * 0.18), -Math.max(2, height * 0.05));
+    ctx.lineTo(Math.max(2, width * 0.18), -Math.max(2, height * 0.05));
+    ctx.lineTo(Math.max(2, width * 0.18), Math.max(2, height * 0.18));
+    ctx.lineTo(-Math.max(2, width * 0.18), Math.max(2, height * 0.18));
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(Math.max(1, width * 0.07), Math.max(1, height * 0.06), Math.max(1.5, Math.min(width, height) * 0.1), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+}
 
-        ctx.globalAlpha = 0.34 + (0.18 * pulse);
+function drawLineageCommentIcon(ctx, item = {}, style = {}) {
+    const rect = item.commentIconRect || {};
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    ctx.save();
+    ctx.fillStyle = style.fill || 'rgba(255, 255, 255, 0.08)';
+    ctx.strokeStyle = style.stroke || 'rgba(255, 255, 255, 0.18)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(width), Math.round(height), 2.5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = style.icon || 'rgba(238, 248, 255, 0.92)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 2.5, y + 3);
+    ctx.lineTo(x + width - 2.5, y + 3);
+    ctx.lineTo(x + width - 2.5, y + height - 3.5);
+    ctx.lineTo(x + 4.5, y + height - 3.5);
+    ctx.lineTo(x + 2.5, y + height - 1.5);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + width / 2 - 2, y + height / 2 + 0.25, 0.9, 0, Math.PI * 2);
+    ctx.arc(x + width / 2, y + height / 2 + 0.25, 0.9, 0, Math.PI * 2);
+    ctx.arc(x + width / 2 + 2, y + height / 2 + 0.25, 0.9, 0, Math.PI * 2);
+    ctx.fillStyle = style.icon || 'rgba(238, 248, 255, 0.92)';
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawLineageContextMenu(ctx, lineageMenu = {}, style = {}) {
+    if (!lineageMenu?.visible || !Array.isArray(lineageMenu.items) || lineageMenu.items.length === 0) return;
+    const rect = lineageMenu.rect || {};
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    ctx.save();
+    ctx.fillStyle = style.fill || 'rgba(14, 18, 24, 0.94)';
+    ctx.strokeStyle = style.stroke || 'rgba(142, 221, 255, 0.34)';
+    ctx.shadowColor = 'rgba(94, 252, 210, 0.18)';
+    ctx.shadowBlur = 6;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, Math.round(width), Math.round(height), 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    for (const item of lineageMenu.items) {
+        const itemRect = item.rect || {};
+        const ix = Number(itemRect.x);
+        const iy = Number(itemRect.y);
+        const iw = Number(itemRect.width);
+        const ih = Number(itemRect.height);
+        if (![ix, iy, iw, ih].every(Number.isFinite) || iw <= 0 || ih <= 0) continue;
+        ctx.fillStyle = item.enabled === false
+            ? 'rgba(255, 255, 255, 0.04)'
+            : (item.pressed
+                ? (style.pressedFill || 'rgba(255, 255, 255, 0.16)')
+                : (item.hovered ? (style.hoverFill || 'rgba(255, 255, 255, 0.08)') : 'rgba(255, 255, 255, 0.05)'));
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.88)';
-        ctx.lineWidth = 1.2;
-        ctx.arc(cursor.x, cursor.y, 18 + (pulse * 4), 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.roundRect(Math.round(ix) + 0.5, Math.round(iy) + 0.5, Math.round(iw), Math.round(ih), 4);
+        ctx.fill();
+        ctx.fillStyle = item.enabled === false
+            ? (style.mutedText || 'rgba(238, 248, 255, 0.5)')
+            : (style.text || 'rgba(238, 248, 255, 0.94)');
+        ctx.fillText(item.label || item.action || '', ix + 8, iy + ih / 2 + 0.5);
     }
     ctx.restore();
 }
 
+function drawSelectionLineageBar(ctx, lineageBar = {}) {
+    if (lineageBar?.visible !== true) return;
+    const rect = lineageBar.rect || {};
+    const x = Number(rect.x);
+    const y = Number(rect.y);
+    const width = Number(rect.width);
+    const height = Number(rect.height);
+    if (![x, y, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return;
+    const style = lineageBar.style || {};
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = style.surface?.shadow || 'rgba(94, 252, 210, 0.24)';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = style.surface?.fill || 'rgba(8, 12, 18, 0.72)';
+    ctx.strokeStyle = style.surface?.stroke || 'rgba(142, 221, 255, 0.54)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(Math.round(x) + 0.5, Math.round(y) + 0.5, width, height, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.beginPath();
+    ctx.rect(x, y, width, height);
+    ctx.clip();
+
+    ctx.font = '11px system-ui, -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textBaseline = 'middle';
+
+    for (const separator of lineageBar.separators || []) {
+        const separatorRect = separator.rect || {};
+        const sx = Number(separatorRect.x);
+        const sy = Number(separatorRect.y);
+        const sw = Number(separatorRect.width);
+        const sh = Number(separatorRect.height);
+        if (![sx, sy, sw, sh].every(Number.isFinite)) continue;
+        ctx.fillStyle = style.separator?.text || 'rgba(238, 248, 255, 0.36)';
+        ctx.textAlign = 'center';
+        ctx.fillText(separator.label || '>', sx + sw / 2, sy + sh / 2 + 0.5);
+    }
+
+    for (const item of lineageBar.items || []) {
+        const itemRect = item.rect || {};
+        const ix = Number(itemRect.x);
+        const iy = Number(itemRect.y);
+        const iw = Number(itemRect.width);
+        const ih = Number(itemRect.height);
+        if (![ix, iy, iw, ih].every(Number.isFinite) || iw <= 0 || ih <= 0) continue;
+        const itemStyle = item.hovered
+            ? style.hovered
+            : (item.selected ? style.selected : style.item);
+        ctx.fillStyle = itemStyle?.fill || 'rgba(255, 255, 255, 0.065)';
+        ctx.strokeStyle = itemStyle?.stroke || 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = item.selected || item.hovered ? 1.3 : 1;
+        ctx.beginPath();
+        ctx.roundRect(Math.round(ix) + 0.5, Math.round(iy) + 0.5, Math.round(iw), Math.round(ih), 7);
+        ctx.fill();
+        ctx.stroke();
+
+        if (item.leaf && !item.selected && !item.hovered) {
+            ctx.globalAlpha = 0.74;
+            ctx.strokeStyle = style.leaf?.stroke || 'rgba(142, 221, 255, 0.82)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(Math.round(ix + 2) + 0.5, Math.round(iy + 2) + 0.5, Math.max(1, Math.round(iw - 4)), Math.max(1, Math.round(ih - 4)), 5);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+
+        ctx.fillStyle = itemStyle?.text || 'rgba(238, 248, 255, 0.9)';
+        ctx.textAlign = 'center';
+        const labelWidth = Math.max(4, iw - (item.hasComment ? 18 : 10));
+        ctx.fillText(fitLineageText(ctx, item.label || '', labelWidth), ix + iw / 2, iy + ih / 2 + 0.5);
+        if (item.hasComment && item.commentIconRect) {
+            drawLineageCommentIcon(ctx, item, lineageBar.style?.comment || {});
+        }
+    }
+    ctx.restore();
+    drawLineageContextMenu(ctx, lineageBar.lineageContextMenu || {}, lineageBar.style?.menu || {});
+}
+
+function activeSelectionModeVisualEffects(overlay = {}, nowMs = Date.now()) {
+    if (!Array.isArray(overlay.visualEffects)) return [];
+    return overlay.visualEffects.filter((effect) => {
+        const startedAtMs = Number(effect?.started_at_ms);
+        const durationMs = Number(effect?.duration_ms);
+        if (!Number.isFinite(startedAtMs) || !Number.isFinite(durationMs)) return effect?.active === true;
+        return Number(nowMs) - startedAtMs < durationMs;
+    });
+}
+
+function drawSelectionMode(ctx, overlay = {}, snapshot = {}, {
+    drawLineageBar = true,
+} = {}) {
+    const nowMs = Number(snapshot.wallTimeMs) || Date.now();
+    const visualEffects = activeSelectionModeVisualEffects(overlay, nowMs);
+    const modeVisible = overlay?.active === true || (overlay?.active !== false && overlay?.visible === true);
+    if (!modeVisible && !visualEffects.length) return;
+    const styles = overlay.styles || {};
+
+    ctx.save();
+    ctx.lineJoin = 'round';
+    for (const effect of visualEffects) {
+        drawSelectionModeEffect(ctx, effect, styles, { time: Number(snapshot.time) || 0, nowMs });
+    }
+    if (!modeVisible) {
+        ctx.restore();
+        return;
+    }
+    for (const frame of overlay.frames || []) {
+        const active = frame.active === true;
+        const leaf = frame.leaf === true;
+        drawFrame(ctx, frame, {
+            stroke: frame.style?.stroke || (active ? 'rgba(94, 252, 210, 0.58)' : (leaf ? 'rgba(255, 224, 120, 0.48)' : 'rgba(170, 210, 255, 0.22)')),
+            fill: frame.style?.fill ?? null,
+            dash: active || leaf ? [] : [5, 10],
+            lineWidth: active ? 1.8 : 1,
+        }, { time });
+    }
+
+    if (drawLineageBar) {
+        drawSelectionLineageBar(ctx, overlay.lineageBar);
+    }
+    ctx.restore();
+}
+
+function fastTravelLineGesture(snapshot = {}) {
+    if (snapshot.radialGesture?.phase === 'fastTravel' && snapshot.radialGesture.origin && snapshot.radialGesture.pointer) {
+        return snapshot.radialGesture;
+    }
+    if (snapshot.fastTravelGesture?.phase === 'fastTravel' && snapshot.fastTravelGesture.origin && snapshot.fastTravelGesture.pointer) {
+        return snapshot.fastTravelGesture;
+    }
+    return null;
+}
+
 export function createInteractionOverlay() {
     let canvas = null;
+    let lineageCanvas = null;
     let resize = null;
+    let lineageResize = null;
 
     function ensureCanvas() {
         if (canvas) return canvas;
         canvas = document.createElement('canvas');
         canvas.style.position = 'absolute';
         canvas.style.inset = '0';
-        canvas.style.zIndex = '0';
+        canvas.style.zIndex = '3';
         canvas.style.pointerEvents = 'none';
         document.body.appendChild(canvas);
 
@@ -126,10 +689,49 @@ export function createInteractionOverlay() {
         return canvas;
     }
 
+    function ensureLineageCanvas() {
+        if (lineageCanvas) return lineageCanvas;
+        lineageCanvas = document.createElement('canvas');
+        lineageCanvas.style.position = 'absolute';
+        lineageCanvas.style.inset = '0';
+        lineageCanvas.style.zIndex = '0';
+        lineageCanvas.style.pointerEvents = 'none';
+        document.body.appendChild(lineageCanvas);
+
+        lineageResize = () => {
+            const dpr = window.devicePixelRatio || 1;
+            lineageCanvas.width = Math.floor(window.innerWidth * dpr);
+            lineageCanvas.height = Math.floor(window.innerHeight * dpr);
+            lineageCanvas.style.width = window.innerWidth + 'px';
+            lineageCanvas.style.height = window.innerHeight + 'px';
+            const ctx = lineageCanvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        };
+        lineageResize();
+        window.addEventListener('resize', lineageResize);
+        return lineageCanvas;
+    }
+
+    function drawSelectionModeLineageLayer(snapshot) {
+        const lineageBar = snapshot?.selectionModeOverlay?.lineageBar;
+        if (!lineageBar?.visible) {
+            if (lineageCanvas) {
+                const ctx = lineageCanvas.getContext('2d');
+                ctx.clearRect(0, 0, lineageCanvas.width, lineageCanvas.height);
+            }
+            return;
+        }
+        const layer = ensureLineageCanvas();
+        const ctx = layer.getContext('2d');
+        ctx.clearRect(0, 0, layer.width, layer.height);
+        drawSelectionLineageBar(ctx, lineageBar);
+    }
+
     function draw(snapshot) {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawSelectionModeLineageLayer(snapshot);
 
         if (snapshot.state === 'GOTO' && snapshot.avatarPos?.valid) {
             ctx.beginPath();
@@ -142,7 +744,7 @@ export function createInteractionOverlay() {
             return;
         }
 
-        if (snapshot.avatarHoverProgress > 0.01 && snapshot.avatarPos?.valid) {
+        if (avatarHoverDecorationVisible(snapshot)) {
             const progress = Math.max(0, Math.min(1, snapshot.avatarHoverProgress));
             const radius = (snapshot.avatarHitRadius || 40) + (7 * progress);
             ctx.save();
@@ -160,25 +762,37 @@ export function createInteractionOverlay() {
             ctx.restore();
         }
 
-        if (snapshot.radialGesture?.phase === 'radial' && snapshot.radialGesture.origin) {
+        if (
+            snapshot.radialGesture?.origin
+            && ['radial', 'fastTravel', 'closing'].includes(snapshot.radialGesture?.phase)
+        ) {
             const radial = snapshot.radialGesture;
             const origin = radial.origin;
             const menuRadius = radial.radii?.menu ?? snapshot.menuRingRadius;
             const handoffRadius = radial.radii?.handoff ?? menuRadius;
+            const openExpansion = radialOpenExpansionState(radial, { time: snapshot.time });
+            const dismissExpansion = radial.phase === 'closing'
+                ? radialDismissExpansionState(radial, { time: snapshot.time })
+                : { progress: null };
+            const ringProgress = dismissExpansion.progress == null
+                ? (openExpansion.progress == null
+                    ? Math.max(0, Math.min(1, radial.menuProgress || 0))
+                    : Number(openExpansion.progress))
+                : Number(dismissExpansion.progress);
 
             ctx.save();
-            ctx.globalAlpha = 0.9;
+            ctx.globalAlpha = 0.9 * Math.max(0.16, ringProgress);
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(130, 220, 255, 0.55)';
             ctx.lineWidth = 1.5;
-            ctx.arc(origin.x, origin.y, menuRadius * radial.menuProgress, 0, Math.PI * 2);
+            ctx.arc(origin.x, origin.y, menuRadius * ringProgress, 0, Math.PI * 2);
             ctx.stroke();
 
             ctx.beginPath();
             ctx.setLineDash([5, 8]);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
             ctx.lineWidth = 1;
-            ctx.arc(origin.x, origin.y, handoffRadius, 0, Math.PI * 2);
+            ctx.arc(origin.x, origin.y, handoffRadius * ringProgress, 0, Math.PI * 2);
             ctx.stroke();
             ctx.setLineDash([]);
 
@@ -186,14 +800,13 @@ export function createInteractionOverlay() {
             return;
         }
 
+        const lineGesture = fastTravelLineGesture(snapshot);
         if (
             snapshot.state === 'FAST_TRAVEL'
             && snapshot.fastTravelEffect === 'line'
-            && snapshot.radialGesture?.phase === 'fastTravel'
-            && snapshot.radialGesture.origin
-            && snapshot.radialGesture.pointer
+            && lineGesture
         ) {
-            const radial = snapshot.radialGesture;
+            const radial = lineGesture;
             const origin = radial.origin;
             const pointer = radial.pointer;
             const dx = pointer.x - origin.x;
@@ -319,8 +932,21 @@ export function createInteractionOverlay() {
             ctx.restore();
         }
 
-        drawSelectionMode(ctx, snapshot.selectionModeOverlay, snapshot);
+        drawSelectionMode(ctx, snapshot.selectionModeOverlay, snapshot, {
+            drawLineageBar: false,
+        });
 
+    }
+
+    function clear() {
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        if (lineageCanvas) {
+            const ctx = lineageCanvas.getContext('2d');
+            ctx.clearRect(0, 0, lineageCanvas.width, lineageCanvas.height);
+        }
     }
 
     function destroy() {
@@ -328,15 +954,24 @@ export function createInteractionOverlay() {
             window.removeEventListener('resize', resize);
             resize = null;
         }
+        if (lineageResize) {
+            window.removeEventListener('resize', lineageResize);
+            lineageResize = null;
+        }
         if (canvas) {
             canvas.remove();
             canvas = null;
+        }
+        if (lineageCanvas) {
+            lineageCanvas.remove();
+            lineageCanvas = null;
         }
     }
 
     return {
         mount: ensureCanvas,
         draw,
+        clear,
         destroy,
     };
 }

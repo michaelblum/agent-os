@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildBrowserTabAnnotationCandidate,
+  buildNativeAxAncestorAnnotationCandidates,
   buildNativeAxElementAnnotationCandidate,
   buildNativeWindowAnnotationCandidate,
   chooseAnnotationCandidateForScope,
@@ -124,8 +126,11 @@ test('native AX element candidate is scoped to the selected native window root',
     enabled: true,
     bounds: { x: 620, y: 700, width: 92, height: 32 },
     action_names: ['AXPress'],
-    capabilities: ['press'],
-    context_path: ['Privacy & Security', 'Allow'],
+    settable_attributes: [],
+    ancestor_chain: [
+      { role: 'AXWindow', title: 'Privacy & Security' },
+      { role: 'AXButton', title: 'Allow', label: 'Allow' },
+    ],
   }, {
     selected_root: root,
     window: {
@@ -148,6 +153,97 @@ test('native AX element candidate is scoped to the selected native window root',
   assert.equal(ax.blocker_reason, '')
   assert.equal(ax.source_metadata.reveal_blocker_reason, 'bounded_ax_reveal_unavailable')
   assert.deepEqual(ax.source_metadata.context_path, ['Privacy & Security', 'Allow'])
+  assert.equal(ax.source_metadata.ancestor_chain[1].role, 'AXButton')
+})
+
+test('native browser tab candidate labels by compact URL site and rejects pane-sized content rects', () => {
+  const tab = buildBrowserTabAnnotationCandidate({
+    window_id: 111,
+    app: 'Comet',
+    pid: 87924,
+    bundle_id: 'ai.perplexity.comet',
+    bounds: { x: 0, y: 44, width: 1512, height: 938 },
+    browser_context: {
+      browser_app: true,
+      pointer: { x: 1000, y: 320 },
+      text_candidates: [
+        { value: 'https://notebooklm.google.com/notebook/example', source_attribute: 'AXURL', role: 'AXWebArea' },
+        { value: 'OpenAI Agent Builder Complete Course', source_attribute: 'AXTitle', role: 'AXButton', selected: true },
+      ],
+      web_area_bounds: [
+        { bounds: { x: 1378, y: 206, width: 586, height: 1069 }, title: 'Config pane' },
+        { bounds: { x: 0, y: 158, width: 1512, height: 824 }, title: 'NotebookLM page' },
+      ],
+      window_bounds: { x: 0, y: 44, width: 1512, height: 938 },
+    },
+  })
+
+  assert.equal(tab.adapter_id, 'browser-content-seam')
+  assert.equal(tab.role, 'browser_tab')
+  assert.equal(tab.label, 'notebooklm')
+  assert.equal(tab.title, 'OpenAI Agent Builder Complete Course')
+  assert.equal(tab.source_metadata.browser_site_label, 'notebooklm')
+  assert.equal(tab.source_metadata.active_url, 'https://notebooklm.google.com/notebook/example')
+  assert.deepEqual(tab.display_space_rect, { x: 0, y: 158, w: 1512, h: 824 })
+  assert.deepEqual(tab.source_metadata.browser_context.selected_content_bounds_candidate.bounds, { x: 0, y: 158, w: 1512, h: 824 })
+  assert.equal(tab.source_metadata.browser_context.url_candidates[0].source_attribute, 'AXURL')
+})
+
+test('native AX element candidate labels derive from raw ancestor chain before generic AX role', () => {
+  const root = buildNativeWindowAnnotationCandidate({
+    window_id: 918,
+    app: 'System Settings',
+    pid: 1234,
+    bounds: { x: 40, y: 80, width: 900, height: 680 },
+  })
+  const ax = buildNativeAxElementAnnotationCandidate({
+    role: 'AXGroup',
+    title: '',
+    label: 'AXGroup',
+    value: '',
+    bounds: { x: 100, y: 120, width: 300, height: 200 },
+    ancestor_chain: [
+      { role: 'AXWindow', title: 'Privacy & Security' },
+      { role: 'AXGroup', title: '', label: 'AXGroup' },
+      { role: 'AXGroup', title: 'Camera' },
+    ],
+  }, {
+    selected_root: root,
+    window: { window_id: 918, app: 'System Settings', pid: 1234, bounds: { x: 40, y: 80, width: 900, height: 680 } },
+  })
+
+  assert.equal(ax.label, 'Camera')
+})
+
+test('native AX ancestor candidates expose visible nested app hierarchy nodes', () => {
+  const root = buildNativeWindowAnnotationCandidate({
+    window_id: 112,
+    app: 'Visual Studio Code',
+    pid: 1234,
+    bounds: { x: -207, y: 1012, width: 1920, height: 1050 },
+  })
+  const ancestors = buildNativeAxAncestorAnnotationCandidates({
+    role: 'AXGroup',
+    label: '',
+    bounds: { x: -121, y: 1148, width: 337, height: 22 },
+    ancestor_chain: [
+      { role: 'AXOutline', label: 'Files Explorer', bounds: { x: -159, y: 1126, width: 375, height: 870 } },
+      { role: 'AXGroup', label: '', bounds: { x: -159, y: 1126, width: 375, height: 66 } },
+      { role: 'AXRow', label: 'docs', bounds: { x: -159, y: 1148, width: 375, height: 22 } },
+      { role: 'AXGroup', label: '~/Code/agent-os/docs', bounds: { x: -121, y: 1148, width: 337, height: 22 } },
+      { role: 'AXGroup', label: '', bounds: { x: -121, y: 1148, width: 337, height: 22 } },
+    ],
+  }, {
+    selected_root: root,
+    window: { window_id: 112, app: 'Visual Studio Code', pid: 1234, bounds: { x: -207, y: 1012, width: 1920, height: 1050 } },
+  })
+
+  assert.equal(ancestors.length, 4)
+  assert.deepEqual(ancestors.map((candidate) => candidate.role), ['AXOutline', 'AXGroup', 'AXRow', 'AXGroup'])
+  assert.deepEqual(ancestors.map((candidate) => candidate.label), ['Files Explorer', 'Group', 'docs', '~/Code/agent-os/docs'])
+  assert.ok(ancestors.every((candidate) => candidate.projection.can_project_display_overlay))
+  assert.equal(ancestors[0].source_metadata.adapter_scope, 'current_cursor_ax_ancestor')
+  assert.equal(ancestors[2].source_metadata.context_path.at(-1), 'docs')
 })
 
 test('native AX candidates reject stale or root-mismatched cursor context explicitly', () => {
@@ -174,7 +270,10 @@ test('native AX candidates reject stale or root-mismatched cursor context explic
   const unbounded = buildNativeAxElementAnnotationCandidate({
     role: 'AXGroup',
     title: 'Sidebar',
-    context_path: ['Privacy & Security', 'Sidebar'],
+    ancestor_chain: [
+      { role: 'AXWindow', title: 'Privacy & Security' },
+      { role: 'AXGroup', title: 'Sidebar' },
+    ],
   }, {
     selected_root: root,
     window: { window_id: 918, app: 'System Settings', pid: 1234, bounds: { x: 40, y: 80, width: 900, height: 680 } },

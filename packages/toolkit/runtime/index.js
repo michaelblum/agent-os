@@ -132,6 +132,8 @@ export {
   globalToUnionLocalPoint,
   globalToDisplayLocalPoint,
   globalToCanvasLocalPoint,
+  normalizeCanvasFrameToDesktopWorld,
+  canvasLocalRectToDesktopWorld,
   displayContainsPoint,
   displayContainsRect,
   findContainingDisplayForPoint,

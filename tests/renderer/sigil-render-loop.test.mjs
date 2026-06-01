@@ -163,6 +163,65 @@ test('idle avatar motion is classified as visual-only when no structural inputs 
   });
 });
 
+test('unchanged Selection Mode cursor frames stay visual-only', () => {
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['avatar-motion', 'selection-mode'],
+    structuralDirty: false,
+  }), {
+    continuationReasons: ['avatar-motion', 'selection-mode'],
+    structural: false,
+    overlay: false,
+    publishState: false,
+    visualOnly: true,
+  });
+});
+
+test('Selection Mode effect frames redraw overlay and publish state without structural sync', () => {
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['avatar-motion', 'selection-mode-effect'],
+    structuralDirty: false,
+  }), {
+    continuationReasons: ['avatar-motion', 'selection-mode-effect'],
+    structural: false,
+    overlay: true,
+    publishState: true,
+    visualOnly: false,
+  });
+});
+
+test('Selection Mode effect state transitions force a cleanup redraw even without an active effect reason', () => {
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['selection-mode'],
+    structuralDirty: false,
+    selectionModeEffectStateChanged: true,
+  }), {
+    continuationReasons: ['selection-mode'],
+    structural: false,
+    overlay: true,
+    publishState: true,
+    visualOnly: true,
+  });
+});
+
+test('Selection Mode perimeter fill redraws overlay without structural sync or state publish', () => {
+  assert.deepEqual(renderLoopContinuationReasons({
+    currentState: 'IDLE',
+    selectionModeActive: true,
+    selectionModePerimeterFillActive: true,
+  }), ['selection-mode', 'selection-mode-perimeter-fill']);
+
+  assert.deepEqual(classifyRenderLoopWork({
+    continuationReasons: ['avatar-motion', 'selection-mode', 'selection-mode-perimeter-fill'],
+    structuralDirty: false,
+  }), {
+    continuationReasons: ['avatar-motion', 'selection-mode', 'selection-mode-perimeter-fill'],
+    structural: false,
+    overlay: true,
+    publishState: false,
+    visualOnly: false,
+  });
+});
+
 test('dirty or interactive frames keep structural sync and state publish active', () => {
   assert.equal(classifyRenderLoopWork({
     continuationReasons: ['avatar-motion'],
@@ -193,6 +252,11 @@ test('transitions and interaction states keep render loop continuous', () => {
     currentState: 'IDLE',
     selectionModeActive: true,
   }), ['selection-mode']);
+
+  assert.deepEqual(renderLoopContinuationReasons({
+    currentState: 'IDLE',
+    selectionModeEffectActive: true,
+  }), ['selection-mode-effect']);
 
   assert.ok(shouldContinueRenderLoop({
     currentState: 'IDLE',

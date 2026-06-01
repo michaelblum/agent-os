@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/../../../lib/visual-harness.sh"
+source "$(dirname "$0")/../../../lib/sigil/visual-harness.sh"
 
 AVATAR_ID="${AOS_SIGIL_AVATAR_ID:-sigil-session-vitality-avatar}"
 LAB_ID="${AOS_SIGIL_VITALITY_LAB_ID:-sigil-session-vitality-lab}"

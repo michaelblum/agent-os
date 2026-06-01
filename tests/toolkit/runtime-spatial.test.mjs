@@ -12,7 +12,10 @@ import {
   globalToDisplayLocalPoint,
   globalToUnionLocalPoint,
   nativeToDesktopWorldPoint,
+  nativeToDesktopWorldRect,
   normalizeDisplays,
+  normalizeCanvasFrameToDesktopWorld,
+  canvasLocalRectToDesktopWorld,
 } from '../../packages/toolkit/runtime/spatial.js'
 
 test('computeDesktopWorldBounds uses the full arranged union while visible space stays separate', () => {
@@ -197,4 +200,95 @@ test('native/DesktopWorld point conversion round-trips through the native bounda
   assert.deepEqual(worldPoint, { x: 1641, y: 300 })
   assert.deepEqual(desktopWorldToNativePoint(worldPoint, displays), { x: 1450, y: 300 })
   assert.deepEqual(computeNativeDesktopBounds(displays), { x: -191, y: 0, w: 3432, h: 1080, minX: -191, minY: 0, maxX: 3241, maxY: 1080 })
+})
+
+test('normalizeCanvasFrameToDesktopWorld projects native frames once and preserves resolved DesktopWorld frames', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'left',
+      bounds: { x: -207, y: 0, w: 207, h: 900 },
+      visible_bounds: { x: -207, y: 0, w: 207, h: 900 },
+    },
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+    },
+  ])
+  const nativeRect = { x: 120, y: 120, w: 360, h: 260 }
+  const desktopRect = { x: 327, y: 120, w: 360, h: 260 }
+
+  assert.deepEqual(nativeToDesktopWorldRect(nativeRect, displays), desktopRect)
+  assert.deepEqual(
+    normalizeCanvasFrameToDesktopWorld({ id: 'native-canvas', at: [120, 120, 360, 260] }, displays).rect,
+    desktopRect,
+  )
+  assert.deepEqual(
+    normalizeCanvasFrameToDesktopWorld({
+      id: 'resolved-canvas',
+      at: [120, 120, 360, 260],
+      atResolved: [327, 120, 360, 260],
+      at_resolved_coordinate_space: 'desktop_world',
+    }, displays).rect,
+    desktopRect,
+  )
+  assert.deepEqual(
+    normalizeCanvasFrameToDesktopWorld({
+      id: 'inferred-resolved-canvas',
+      at: [120, 120, 360, 260],
+      atResolved: [327, 120, 360, 260],
+    }, displays).rect,
+    desktopRect,
+  )
+  assert.deepEqual(
+    canvasLocalRectToDesktopWorld({
+      id: 'semantic-canvas',
+      at: [120, 120, 360, 260],
+      atResolved: [327, 120, 360, 260],
+      at_resolved_coordinate_space: 'desktop_world',
+    }, { x: 20, y: 30, w: 80, h: 40 }, displays),
+    { x: 347, y: 150, w: 80, h: 40 },
+  )
+})
+
+test('normalizeCanvasFrameToDesktopWorld blocks conflicting unknown atResolved frames', () => {
+  const displays = normalizeDisplays([
+    {
+      id: 'left',
+      bounds: { x: -207, y: 0, w: 207, h: 900 },
+      visible_bounds: { x: -207, y: 0, w: 207, h: 900 },
+    },
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+    },
+  ])
+
+  const frame = normalizeCanvasFrameToDesktopWorld({
+    id: 'ambiguous-canvas',
+    at: [120, 120, 360, 260],
+    atResolved: [500, 120, 360, 260],
+  }, displays)
+
+  assert.equal(frame.status, 'blocked')
+  assert.equal(frame.projectable, false)
+  assert.equal(frame.can_project_display_overlay, false)
+  assert.equal(frame.rect, null)
+  assert.equal(frame.blocker_reason, 'ambiguous_canvas_frame_coordinate_space')
+  assert.deepEqual(frame.ambiguity, {
+    frame: 'atResolved',
+    reason: 'missing_or_unknown_coordinate_space',
+    rect: { x: 500, y: 120, w: 360, h: 260 },
+  })
+  assert.equal(
+    canvasLocalRectToDesktopWorld({
+      id: 'ambiguous-canvas',
+      at: [120, 120, 360, 260],
+      atResolved: [500, 120, 360, 260],
+    }, { x: 20, y: 30, w: 80, h: 40 }, displays),
+    null,
+  )
 })

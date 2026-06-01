@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/lib/visual-harness.sh"
+source "$(dirname "$0")/lib/sigil/visual-harness.sh"
 source "$(dirname "$0")/lib/harness-contracts.sh"
 
 PREFIX="aos-sigil-real-input-status-avatar"

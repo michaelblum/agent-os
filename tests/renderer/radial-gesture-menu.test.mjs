@@ -71,6 +71,60 @@ test('Sigil radial menu preserves release context for activation adapters', () =
   assert.equal(commits[0].context.input.source, 'sigil.radial-target-surface')
 })
 
+test('Sigil click-open menu keeps trigger-vector geometry stable for item clicks', () => {
+  const { menu, commits } = createMenu()
+  const origin = { x: 200, y: 200, valid: true }
+  const opened = menu.start(origin, { x: 200, y: 169, valid: true })
+  const wikiItem = opened.items.find((item) => item.id === 'wiki-graph')
+
+  assert.equal(opened.triggerLocked, true)
+  assert.ok(wikiItem)
+
+  const moved = menu.move({ ...wikiItem.center, valid: true })
+  assert.equal(moved.snapshot.triggerLocked, true)
+  assert.equal(moved.snapshot.triggerAngle, opened.triggerAngle)
+  assert.equal(moved.snapshot.activeItemId, 'wiki-graph')
+
+  const released = menu.release({ ...wikiItem.center, valid: true })
+  assert.equal(released.phase, 'committed')
+  assert.equal(released.committed.itemId, 'wiki-graph')
+  assert.equal(commits.length, 1)
+})
+
+test('Sigil radial menu keeps its egress vector stable and adjusts it to fit the active display', () => {
+  const displays = [
+    {
+      id: 'main',
+      visibleBounds: { x: 0, y: 0, w: 640, h: 480 },
+      bounds: { x: 0, y: 0, w: 640, h: 480 },
+    },
+    {
+      id: 'secondary',
+      visibleBounds: { x: 640, y: 0, w: 640, h: 480 },
+      bounds: { x: 640, y: 0, w: 640, h: 480 },
+    },
+  ]
+  const { menu } = createMenu({
+    state: {
+      radialGestureMenu: {
+        orientation: 'trigger-vector',
+      },
+      displays,
+    },
+  })
+  const origin = { x: 612, y: 240, valid: true }
+  const opened = menu.start(origin, { x: 760, y: 240, valid: true })
+  const moved = menu.move({ x: 220, y: 80, valid: true })
+
+  assert.equal(opened.triggerAngle, moved.snapshot.triggerAngle)
+  assert.deepEqual(
+    moved.snapshot.items.map((item) => item.center),
+    opened.items.map((item) => item.center),
+  )
+  assert.ok(opened.items.every((item) => item.center.x >= 24 && item.center.x <= 616))
+  assert.ok(opened.items.every((item) => item.center.y >= 24 && item.center.y <= 456))
+})
+
 test('Sigil radial menu config carries native wiki model geometry', () => {
   const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
   const agentTerminalItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
@@ -144,6 +198,32 @@ test('Sigil radial menu hides camera affordance until live annotation anchors ex
   })
   const visible = menu.start({ x: 200, y: 200, valid: true })
   assert.equal(visible.items.some((item) => item.id === 'annotation-camera'), true)
+})
+
+test('Sigil radial menu carries data-driven avatar-click open animation config', () => {
+  const { menu } = createMenu()
+  const snapshot = menu.start({ x: 200, y: 200, valid: true })
+
+  assert.deepEqual(snapshot.visuals.openAnimation, {
+    trigger: 'avatar-click',
+    durationMs: 333,
+    easing: 'easeOutCubic',
+  })
+})
+
+test('Sigil radial menu preserves click-open animation metadata while radial stays open', () => {
+  const { menu } = createMenu()
+  const started = menu.start({ x: 200, y: 200, valid: true })
+  const openAnimation = {
+    trigger: 'avatar-click',
+    startedAt: 0,
+    durationMs: 333,
+  }
+
+  menu.applySnapshot({ ...started, openAnimation })
+  const moved = menu.move({ x: 206, y: 202, valid: true })
+
+  assert.deepEqual(moved.snapshot.openAnimation, openAnimation)
 })
 
 test('Sigil default radial geometry leaves adjacent four and five item targets separated', () => {
@@ -346,32 +426,33 @@ test('Sigil radial menu carries visual motion config into snapshots', () => {
   const started = menu.start({ x: 200, y: 200, valid: true })
 
   assert.deepEqual(started.visuals, {
+    openAnimation: {
+      trigger: 'avatar-click',
+      durationMs: 333,
+      easing: 'easeOutCubic',
+    },
     itemMotion: {
       modelHoverSpinSpeed: 0,
     },
   })
 })
 
-test('Sigil radial menu reports fast-travel handoff and reentry', () => {
+test('Sigil radial menu keeps the menu radial while hovering outside the handoff radius', () => {
   const { menu } = createMenu()
   menu.start({ x: 0, y: 0, valid: true })
 
-  const handoff = menu.move({ x: 190, y: 0, valid: true })
-  assert.equal(handoff.enteredFastTravel, true)
-  assert.equal(handoff.priorActiveItemId, null)
-  assert.equal(handoff.snapshot.phase, 'fastTravel')
+  const hover = menu.move({ x: 190, y: 0, valid: true })
+  assert.equal(hover.enteredFastTravel, false)
+  assert.equal(hover.reenteredRadial, false)
+  assert.equal(hover.priorActiveItemId, null)
+  assert.equal(hover.snapshot.phase, 'radial')
 
-  const stillFast = menu.move({ x: 160, y: 0, valid: true })
-  assert.equal(stillFast.enteredFastTravel, false)
-  assert.equal(stillFast.reenteredRadial, false)
-  assert.equal(stillFast.snapshot.phase, 'fastTravel')
-
-  const reentered = menu.move({ x: 140, y: 0, valid: true })
-  assert.equal(reentered.reenteredRadial, true)
-  assert.equal(reentered.snapshot.phase, 'radial')
+  const released = menu.release({ x: 220, y: 25, valid: true })
+  assert.equal(released.phase, 'committed')
+  assert.equal(released.committed.type, 'fastTravel')
 })
 
-test('Sigil radial menu reports active item crossed at fast-travel handoff', () => {
+test('Sigil radial menu keeps active item state while hovering past the outer radius', () => {
   const { menu } = createMenu()
   const started = menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
   const annotationItem = started.items.find((item) => item.id === 'annotation-mode')
@@ -389,17 +470,18 @@ test('Sigil radial menu reports active item crossed at fast-travel handoff', () 
     valid: true,
   })
 
-  assert.equal(handoff.enteredFastTravel, true)
+  assert.equal(handoff.enteredFastTravel, false)
   assert.equal(handoff.priorActiveItemId, 'annotation-mode')
+  assert.equal(handoff.snapshot.phase, 'radial')
 })
 
-test('Sigil radial menu commits item when release lands on item after fast-travel handoff', () => {
+test('Sigil radial menu commits item when release lands on item after hovering outside the handoff radius', () => {
   const { menu, commits } = createMenu()
   menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
 
   const handoff = menu.move({ x: 390, y: 200, valid: true })
-  assert.equal(handoff.enteredFastTravel, true)
-  assert.equal(handoff.snapshot.phase, 'fastTravel')
+  assert.equal(handoff.enteredFastTravel, false)
+  assert.equal(handoff.snapshot.phase, 'radial')
   const wikiItem = handoff.snapshot.items.find((item) => item.id === 'wiki-graph')
 
   const released = menu.release({ ...wikiItem.center, valid: true }, {
@@ -416,10 +498,9 @@ test('Sigil radial menu commits item when release lands on item after fast-trave
   assert.deepEqual(commits[0].context.pointer, { ...wikiItem.center, valid: true })
 })
 
-test('Sigil radial menu commits fast travel only outside the handoff radius', () => {
+test('Sigil radial menu commits fast travel on release outside the handoff radius', () => {
   const { menu, commits } = createMenu()
   menu.start({ x: 0, y: 0, valid: true })
-  menu.move({ x: 190, y: 0, valid: true })
 
   const released = menu.release({ x: 220, y: 25, valid: true })
   assert.equal(released.phase, 'committed')

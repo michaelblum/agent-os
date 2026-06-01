@@ -1,5 +1,11 @@
 # Sigil Foundation — Agent Documents and Global Canvas
 
+> **Archive status:** Historical pre-descriptor Sigil design. Use it only for
+> origin context; current visual-object contracts and retained limits are in
+> `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md`.
+
 **Status:** draft
 **Date:** 2026-04-12
 **Layer:** Sigil (application)

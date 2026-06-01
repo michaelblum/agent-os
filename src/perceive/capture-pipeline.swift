@@ -1658,9 +1658,9 @@ func seeCursorCommand() {
             value: hit.value,
             enabled: hit.enabled,
             action_names: hit.actionNames,
-            capabilities: hit.capabilities,
+            settable_attributes: hit.settableAttributeNames,
             bounds: hit.bounds.map { STBounds(x: $0.origin.x, y: $0.origin.y, width: $0.size.width, height: $0.size.height) },
-            context_path: hit.contextPath
+            ancestor_chain: axAncestorJSONs(hit.ancestorChain)
         )
     }
 

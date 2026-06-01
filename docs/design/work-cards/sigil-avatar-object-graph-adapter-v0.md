@@ -61,7 +61,7 @@ then add patch support only for the smallest safe set if it is needed by tests.
 - Do not move Three.js rendering out of Sigil.
 - Do not add Sigil/avatar branches to the daemon.
 - Do not change avatar defaults, persisted appearance shape, or seed docs.
-- Do not make `apps/sigil/studio/` the new implementation path.
+- Do not make a retired configuration surface the new implementation path.
 
 ## Acceptance Criteria
 

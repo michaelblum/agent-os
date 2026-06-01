@@ -4,12 +4,11 @@ import {
   computeVisibleDesktopWorldBounds,
   computeUnionBounds,
   nativeToDesktopWorldPoint,
-  nativeToDesktopWorldRect,
   labelDisplays,
   normalizeDisplays,
+  normalizeCanvasFrameToDesktopWorld,
   ownerLabelForPoint,
   ownerLabelForRect,
-  rectFromAt,
   resolveCanvasFrames,
   translatePoint,
   translateRect,
@@ -24,6 +23,7 @@ export {
   nativeToDesktopWorldPoint,
   nativeToDesktopWorldRect,
   normalizeDisplays,
+  normalizeCanvasFrameToDesktopWorld,
   rectFromAt,
   resolveCanvasFrames,
   translatePoint,
@@ -69,10 +69,14 @@ export function buildSpatialTelemetrySnapshot({
     label,
     bounds: display.bounds,
   }));
-  const resolvedCanvases = resolveCanvasFrames(canvases || []).map((canvas) => ({
-    ...canvas,
-    worldRect: nativeToDesktopWorldRect(rectFromAt(canvas.atResolved ?? canvas.at), nativeDesktopBounds),
-  }));
+  const resolvedCanvases = resolveCanvasFrames(canvases || []).map((canvas) => {
+    const worldFrame = normalizeCanvasFrameToDesktopWorld(canvas, normalizedDisplays);
+    return {
+      ...canvas,
+      worldFrame,
+      worldRect: worldFrame?.rect ?? null,
+    };
+  });
   const canvasById = new Map(resolvedCanvases.map((canvas) => [canvas.id, canvas]));
 
   const displayRows = labeledDisplays.map(({ label, display }) => ({

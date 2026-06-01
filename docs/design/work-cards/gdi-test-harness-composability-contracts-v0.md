@@ -87,7 +87,6 @@ Required outcomes:
 - `tests/scenarios/sigil/radial-menu/real-input.sh`
 - `tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh`
 - `tests/lib/sigil/radial-menu.sh`
-- `tests/studio/*.test.mjs`
 
 ## Rediscover State
 
@@ -189,19 +188,12 @@ Do one of these, whichever is lower risk:
 
 Do not do a large helper migration if it would obscure the guard work.
 
-### 4. Clarify `tests/studio`
+### 4. Retire the legacy helper loop
 
-Do not delete Studio helper tests in this slice. Make the catalog wording hard
-to misread:
-
-- Studio is defunct as a current product/launch surface;
-- `tests/studio/*.test.mjs` are retained only as pure-helper coverage for
-  `apps/sigil/_sequestered/studio/...`;
-- they are not current Sigil MVP/product activation tests.
-
-If a low-risk rename to `tests/sequestered/studio` is obvious, you may do it
-only if adjacent docs and test commands stay simple. Otherwise document the
-status and leave the rename as a follow-up.
+The retired avatar-configuration helper tests are no longer part of the active
+surface contract. Keep the catalog wording explicit that they are historical
+only, and do not reintroduce a dedicated helper-test path for the decommissioned
+surface.
 
 ### 5. Add A Negative Composition Proof
 
@@ -224,7 +216,8 @@ The test should demonstrate the class:
 - Do not make every test serial by default.
 - Do not weaken `./aos ready`, input-tap safety checks, or isolated daemon
   cleanup.
-- Do not delete sequestered Studio source/tests in this slice.
+  - Do not reintroduce the retired avatar-configuration helper loop in this
+    slice.
 - Do not run unbounded live real-input loops.
 - Do not use raw daemon HTTP, state-file surgery, or process kills unless an
   `./aos` command is broken; if bypassing AOS is necessary, report why.
@@ -237,7 +230,6 @@ Minimum:
 git diff --check
 bash -n tests/lib/*.sh tests/lib/sigil/*.sh tests/*.sh tests/scenarios/sigil/radial-menu/*.sh
 python3 -m py_compile tests/lib/*.py
-node --test tests/studio/*.test.mjs
 bash tests/help-contract.sh
 bash tests/external-parser-flags.sh
 ```
@@ -276,7 +268,7 @@ Include:
 - unsafe composition proof result;
 - whether repo service stop/restore is centralized;
 - what changed, if anything, in `tests/lib/visual-harness.sh` organization;
-- explicit statement about `tests/studio` status;
+- explicit statement about the retired helper-loop status;
 - exact tests run and pass/fail results;
 - final runtime hygiene summaries;
 - `new_test_artifact_candidates`: helper(s) or contract docs Foreman should

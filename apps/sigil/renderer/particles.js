@@ -67,8 +67,24 @@ export function animateParticles(dt) {
     }
 }
 
+export function hideTrailSprites() {
+    state.trailPositions = [];
+    for (const sprite of state.trailSprites || []) {
+        if (!sprite) continue;
+        sprite.visible = false;
+        if (sprite.material) sprite.material.opacity = 0;
+        sprite.scale?.set?.(0, 0, 1);
+    }
+}
+
 export function animateTrails(dt) {
     const isMotionPaused = state.isPaused || state.isMenuOpen || state.isDraggingObject;
+    const avatarRenderable = state.appScale > 0.001;
+
+    if (!avatarRenderable) {
+        hideTrailSprites();
+        return;
+    }
 
     if (state.isTrailEnabled && !isMotionPaused) {
         state.trailPositions.unshift(state.polyGroup.position.clone());

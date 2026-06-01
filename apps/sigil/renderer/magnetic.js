@@ -4,8 +4,8 @@ const SEGMENTS = 25;
 
 // Reusable scratch vectors (avoid per-frame allocations).
 // Lazy-init so the module is import-safe when THREE isn't loaded
-// (e.g. Studio imports this file transitively via colors.js but never
-// instantiates tentacles — it has no 3D scene).
+// (e.g. a non-3D config surface imports this file transitively via colors.js
+// but never instantiates tentacles — it has no 3D scene).
 let _dir, _target;
 function _ensureScratch() {
     if (!_dir) { _dir = new THREE.Vector3(); _target = new THREE.Vector3(); }

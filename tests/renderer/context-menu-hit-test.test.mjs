@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  contextMenuSurfaceScrollDelta,
   contextMenuContentProps,
   findContextMenuElementAt,
   menuMarkup,
@@ -16,14 +17,13 @@ function fakeElement(id, rect, selector = '*') {
   return {
     id,
     selector,
-    parentCard: null,
     classList: {
       contains(name) {
         return selector.includes(`.${name}`)
       },
     },
     closest(query) {
-      if (query === '.ctx-menu-card' && this.parentCard) return this.parentCard
+      if (selector.includes(query)) return this
       return null
     },
     getBoundingClientRect() {
@@ -86,16 +86,16 @@ test('context menu origin chooses another side when right side would overlap aft
 })
 
 test('context menu hit test falls back to off-viewport geometry', () => {
-  const range = fakeElement('sigil-menu-line-duration', { x: 600, y: 1450, w: 180, h: 24 }, 'input')
-  const card = fakeElement('sigil-menu-line-card', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  const anchor = fakeAnchor([card, range])
+  const slider = fakeElement('sigil-menu-line-duration-slider', { x: 600, y: 1450, w: 180, h: 24 }, '[data-aos-slider-root]')
+  const surface = fakeElement('sigil-avatar-control-surface', { x: 560, y: 1380, w: 292, h: 448 }, '.sigil-avatar-control-surface')
+  const anchor = fakeAnchor([surface, slider])
   const doc = {
     elementFromPoint() {
       return null
     },
   }
 
-  assert.equal(findContextMenuElementAt(anchor, { x: 620, y: 1460 }, doc), range)
+  assert.equal(findContextMenuElementAt(anchor, { x: 620, y: 1460 }, doc), slider)
 })
 
 test('context menu hit test prefers viewport hit when available', () => {
@@ -112,9 +112,9 @@ test('context menu hit test prefers viewport hit when available', () => {
 })
 
 test('context menu hit test includes checkbox labels in projected fallback', () => {
-  const label = fakeElement('line-interdim-label', { x: 600, y: 1450, w: 180, h: 24 }, 'label.checkbox-label')
-  const card = fakeElement('sigil-menu-effects', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  const anchor = fakeAnchor([card, label])
+  const label = fakeElement('line-interdim-label', { x: 600, y: 1450, w: 180, h: 24 }, 'label')
+  const surface = fakeElement('sigil-avatar-control-surface', { x: 560, y: 1380, w: 292, h: 448 }, '.sigil-avatar-control-surface')
+  const anchor = fakeAnchor([surface, label])
   const doc = {
     elementFromPoint() {
       return null
@@ -124,13 +124,11 @@ test('context menu hit test includes checkbox labels in projected fallback', () 
   assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1460 }, doc), label)
 })
 
-test('context menu hit test includes select popover options in projected fallback', () => {
-  const popover = fakeElement('shape-popover', { x: 600, y: 1450, w: 180, h: 88 }, '.ctx-select-popover')
-  const option = fakeElement('octahedron-option', { x: 604, y: 1478, w: 172, h: 24 }, 'button')
-  const card = fakeElement('sigil-menu-root', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  option.parentCard = card
-  popover.parentCard = card
-  const anchor = fakeAnchor([card, popover, option])
+test('context menu hit test includes toolkit select options in projected fallback', () => {
+  const content = fakeElement('shape-listbox', { x: 600, y: 1450, w: 180, h: 88 }, '[data-aos-select-content]')
+  const option = fakeElement('octahedron-option', { x: 604, y: 1478, w: 172, h: 24 }, '[data-aos-select-item]')
+  const surface = fakeElement('sigil-avatar-control-surface', { x: 560, y: 1380, w: 292, h: 448 }, '.sigil-avatar-control-surface')
+  const anchor = fakeAnchor([surface, content, option])
   const doc = {
     elementFromPoint() {
       return null
@@ -140,56 +138,31 @@ test('context menu hit test includes select popover options in projected fallbac
   assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1484 }, doc), option)
 })
 
-test('context menu hit test skips controls inside departing cards', () => {
-  const activeCard = fakeElement('sigil-menu-root', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.active')
-  const departingCard = fakeElement('sigil-menu-line-card', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.departing')
-  const departingButton = fakeElement('edge-scatter', { x: 600, y: 1450, w: 180, h: 24 }, 'button')
-  const activeButton = fakeElement('wormhole-settings', { x: 600, y: 1450, w: 180, h: 24 }, 'button')
-  departingButton.parentCard = departingCard
-  activeButton.parentCard = activeCard
-  const anchor = fakeAnchor([activeCard, departingCard, departingButton, activeButton])
+test('context menu hit test returns the topmost compact toolkit control', () => {
+  const field = fakeElement('field', { x: 600, y: 1450, w: 180, h: 48 }, '.aos-form-field')
+  const button = fakeElement('surface-shortcut', { x: 610, y: 1460, w: 120, h: 24 }, 'button')
+  const anchor = fakeAnchor([field, button])
   const doc = {
     elementFromPoint() {
       return null
     },
   }
 
-  assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1460 }, doc), activeButton)
-})
-
-test('context menu hit test does not return only a departing control', () => {
-  const departingCard = fakeElement('sigil-menu-line-card', { x: 560, y: 1380, w: 292, h: 448 }, '.ctx-menu-card.departing')
-  const departingButton = fakeElement('edge-scatter', { x: 600, y: 1450, w: 180, h: 24 }, 'button')
-  departingButton.parentCard = departingCard
-  const anchor = fakeAnchor([departingCard, departingButton])
-  const doc = {
-    elementFromPoint() {
-      return null
-    },
-  }
-
-  assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1460 }, doc), null)
+  assert.equal(findContextMenuElementAt(anchor, { x: 640, y: 1464 }, doc), button)
 })
 
 test('context menu markup exposes standard accessibility structure', () => {
   const html = menuMarkup()
 
-  assert.match(html, /id="sigil-context-menu"[^>]*role="dialog"[^>]*aria-label="Sigil avatar context menu"/)
-  assert.match(html, /id="sigil-menu-root"[^>]*role="region"[^>]*aria-label="Sigil context menu root"/)
-  assert.match(html, /class="ctx-tabs"[^>]*role="tablist"[^>]*aria-label="Sigil context menu sections"/)
-  assert.match(html, /id="sigil-menu-tab-effects"[^>]*role="tab"[^>]*aria-label="Effects"[^>]*aria-selected="false"[^>]*aria-controls="sigil-menu-effects"[^>]*data-ctx-tab="sigil-menu-effects"/)
-  assert.match(html, /id="sigil-menu-effects"[^>]*role="tabpanel"[^>]*aria-labelledby="sigil-menu-tab-effects"/)
-  assert.match(html, /<label for="sigil-menu-line-duration">Travel Duration<\/label>/)
-  assert.match(html, /id="sigil-menu-line-duration"[^>]*aria-describedby="sigil-menu-line-duration-value"/)
-  assert.match(html, /id="sigil-menu-line-card"[^>]*role="region"[^>]*aria-label="Line trail settings"/)
-  assert.match(html, /role="radiogroup"[^>]*aria-labelledby="sigil-menu-line-trail-effect-label"/)
-  assert.match(html, /role="radio"[^>]*aria-checked="false"[^>]*data-sigil-line-trail-mode="shrink"/)
-  assert.match(html, /data-sigil-action="toggle-render-performance">Render Performance<\/button>/)
+  assert.match(html, /id="sigil-context-menu"[^>]*role="dialog"[^>]*aria-label="Sigil avatar control surface"/)
+  assert.doesNotMatch(html, /ctx-menu-card/)
+  assert.doesNotMatch(html, /ctx-select-popover/)
+  assert.doesNotMatch(html, /data-ctx-/)
 })
 
-test('context menu content props preserve visible open state through Zag binding', () => {
+test('context menu content props preserve visible open state', () => {
   assert.deepEqual(contextMenuContentProps(true), {
-    'aria-label': 'Sigil avatar context menu',
+    'aria-label': 'Sigil avatar control surface',
     'aria-hidden': 'false',
     'data-state': 'open',
     class: 'ctx-anchor sigil-context-menu visible',
@@ -198,38 +171,46 @@ test('context menu content props preserve visible open state through Zag binding
 
 test('context menu content props clear visible state when closed', () => {
   assert.deepEqual(contextMenuContentProps(false), {
-    'aria-label': 'Sigil avatar context menu',
+    'aria-label': 'Sigil avatar control surface',
     'aria-hidden': 'true',
     'data-state': 'closed',
     class: 'ctx-anchor sigil-context-menu',
   })
 })
 
-test('context menu descriptors cover rendered controls and Sigil-owned actions', () => {
-  const html = menuMarkup()
-  const ids = [...html.matchAll(/id="([^"]+)"/g)]
-    .map((match) => match[1])
-    .filter((id) => id.startsWith('sigil-menu-'))
-    .filter((id) => !id.startsWith('sigil-menu-tab-'))
-    .filter((id) => !id.endsWith('-value'))
-    .filter((id) => !id.endsWith('-label'))
-    .filter((id) => ![
-      'sigil-menu-root',
-      'sigil-menu-shape',
-      'sigil-menu-look',
-      'sigil-menu-effects',
-      'sigil-menu-world',
-      'sigil-menu-core-colors',
-      'sigil-menu-effect-colors',
-      'sigil-menu-lightning-card',
-      'sigil-menu-magnetic-card',
-      'sigil-menu-line-card',
-      'sigil-menu-wormhole-card',
-      'sigil-menu-path-card',
-    ].includes(id))
+test('context menu scroll deltas follow native input and preserve canvas-origin synthetic direction', () => {
+  assert.deepEqual(contextMenuSurfaceScrollDelta({ dy: -8 }), {
+    dy: 8,
+    dx: 0,
+    rawY: -8,
+    rawX: 0,
+    sourceOrigin: null,
+  })
+  assert.deepEqual(contextMenuSurfaceScrollDelta({
+    dy: 120,
+    dx: 4,
+    sourceIdentity: { sourceOrigin: 'canvas' },
+  }), {
+    dy: 120,
+    dx: 4,
+    rawY: 120,
+    rawX: 4,
+    sourceOrigin: 'canvas',
+  })
+})
 
+test('context menu descriptors expose compact avatar surface controls and Sigil-owned actions', () => {
   assert.equal(contextMenuControlDescriptors.length > 0, true)
-  assert.deepEqual(ids.filter((id) => !getContextMenuControlDescriptor(id)), [])
+  for (const id of [
+    'sigil-menu-shape-select',
+    'sigil-menu-omega-shape',
+    'sigil-menu-opacity',
+    'sigil-menu-fast-travel-effect',
+    'sigil-menu-line-trail-mode',
+    'sigil-menu-grid-mode',
+  ]) {
+    assert.ok(getContextMenuControlDescriptor(id), id)
+  }
   for (const action of ['toggle-inspector', 'toggle-trace', 'toggle-render-performance', 'toggle-log', 'copy', 'save', 'import']) {
     const descriptor = getContextMenuControlDescriptor(action)
     assert.equal(descriptor?.type, 'action')
@@ -237,9 +218,22 @@ test('context menu descriptors cover rendered controls and Sigil-owned actions',
   }
 })
 
+test('context menu descriptors carry toolkit form metadata for compact avatar surface controls', () => {
+  const opacity = getContextMenuControlDescriptor('sigil-menu-opacity')
+  const fastTravel = getContextMenuControlDescriptor('sigil-menu-fast-travel-effect')
+  const grid = getContextMenuControlDescriptor('sigil-menu-grid-mode')
+
+  assert.equal(opacity.type, 'slider')
+  assert.equal(opacity.min, 0)
+  assert.equal(opacity.max, 1)
+  assert.equal(opacity.step, 0.01)
+  assert.ok(fastTravel.options.some((option) => option.value === 'line'))
+  assert.deepEqual(grid.options.map((option) => option.value), ['off', 'flat', '3d'])
+})
+
 test('descriptor routing applies a shape control through geometry sync', () => {
   const calls = []
-  const state = { currentGeometryType: 4, currentType: 4, tesseron: { enabled: false } }
+  const state = { avatar: { shape: { type: 4, tesseron: { enabled: false } }, appearance: {}, effects: {} } }
   const result = applyContextMenuDescriptorUpdate('sigil-menu-shape-select', '8', {
     state,
     updateGeometry(value) { calls.push(['geometry', value]) },
@@ -248,43 +242,161 @@ test('descriptor routing applies a shape control through geometry sync', () => {
   })
 
   assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.type, 8)
   assert.equal(state.currentGeometryType, 8)
-  assert.equal(state.currentType, 8)
   assert.deepEqual(calls.filter(([kind]) => kind === 'geometry'), [['geometry', 8]])
   assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-menu-shape-select', 8]])
 })
 
+test('descriptor routing applies primary stellation through minimal sync hook', () => {
+  const calls = []
+  const state = {
+    avatar: {
+      shape: { type: 20, stellationFactor: 0.2, tesseron: { enabled: false } },
+      appearance: {},
+      effects: {},
+    },
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-stellation', '1.25', {
+    state,
+    updateGeometry(value) { calls.push(['geometry', value]) },
+    updatePrimaryStellation(value) { calls.push(['stellation', value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.stellationFactor, 1.25)
+  assert.deepEqual(calls, [['stellation', 1.25]])
+})
+
+test('descriptor routing applies primary appearance controls through minimal sync hook', () => {
+  for (const [id, rawValue, expectedPath, expectedValue] of [
+    ['sigil-menu-opacity', '0.35', ['appearance', 'opacity'], 0.35],
+    ['sigil-menu-edge-opacity', '0.2', ['appearance', 'edgeOpacity'], 0.2],
+    ['sigil-menu-xray', true, ['appearance', 'interiorEdges'], true],
+    ['sigil-menu-specular', false, ['appearance', 'specular'], false],
+  ]) {
+    const calls = []
+    const state = {
+      avatar: {
+        shape: { type: 20, tesseron: { enabled: false } },
+        appearance: {
+          opacity: 0.8,
+          edgeOpacity: 0.6,
+          interiorEdges: false,
+          specular: true,
+        },
+        effects: {},
+      },
+    }
+    const result = applyContextMenuDescriptorUpdate(id, rawValue, {
+      state,
+      updateGeometry(value) { calls.push(['geometry', value]) },
+      updatePrimaryAppearance() { calls.push(['appearance']) },
+    })
+
+    assert.equal(result.route, 'canvas_object.effects.patch')
+    assert.equal(state.avatar[expectedPath[0]][expectedPath[1]], expectedValue)
+    assert.deepEqual(calls, [['appearance']])
+  }
+})
+
+test('descriptor routing applies shape-specific prism parameters through shared geometry sync', () => {
+  const calls = []
+  const state = {
+    avatar: {
+      shape: {
+        type: 93,
+        params: { cylinder: { sides: 32 } },
+      },
+      appearance: {},
+      effects: { omega: { shape: { type: 93 } } },
+    },
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-prism-sides', '12', {
+    state,
+    updateGeometry(value) { calls.push(['alpha', value]) },
+    updateOmegaGeometry(value) { calls.push(['omega', value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.params.cylinder.sides, 12)
+  assert.deepEqual(calls, [['alpha', 93]])
+})
+
+test('descriptor routing applies omega shape parameters through omega canonical graph only', () => {
+  const calls = []
+  const state = {
+    avatar: {
+      shape: {
+        type: 93,
+        params: { cylinder: { sides: 32 } },
+      },
+      appearance: {},
+      effects: {
+        omega: {
+          shape: {
+            type: 93,
+            params: { cylinder: { sides: 16 } },
+          },
+        },
+      },
+    },
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-omega-prism-sides', '12', {
+    state,
+    updateGeometry(value) { calls.push(['alpha', value]) },
+    updateOmegaGeometry(value) { calls.push(['omega', value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.params.cylinder.sides, 32)
+  assert.equal(state.avatar.effects.omega.shape.params.cylinder.sides, 12)
+  assert.deepEqual(calls, [['omega', 93]])
+})
+
 test('descriptor routing applies a tesseron control and preserves child overrides', () => {
   const state = {
-    currentGeometryType: 4,
-    currentType: 4,
-    currentOpacity: 0.4,
-    currentEdgeOpacity: 0.7,
-    isMaskEnabled: true,
-    isInteriorEdgesEnabled: false,
-    isSpecularEnabled: true,
-    tesseron: { enabled: true, proportion: 0.5, matchMother: true, child: {} },
+    avatar: {
+      shape: {
+        type: 4,
+        tesseron: { enabled: true, proportion: 0.5, matchMother: true, child: {} },
+      },
+      appearance: {
+        opacity: 0.4,
+        edgeOpacity: 0.7,
+        maskEnabled: true,
+        interiorEdges: false,
+        specular: true,
+      },
+      effects: {},
+    },
   }
   const result = applyContextMenuDescriptorUpdate('sigil-menu-tesseron-match', false, { state })
 
   assert.equal(result.route, 'canvas_object.transform.patch')
-  assert.equal(state.tesseron.matchMother, false)
-  assert.equal(state.tesseron.child.opacity, 0.4)
-  assert.equal(state.tesseron.child.edgeOpacity, 0.7)
-  assert.equal(state.tesseron.child.maskEnabled, true)
-  assert.equal(state.tesseron.child.specular, true)
+  assert.equal(state.avatar.shape.tesseron.matchMother, false)
+  assert.equal(state.avatar.shape.tesseron.child.opacity, 0.4)
+  assert.equal(state.avatar.shape.tesseron.child.edgeOpacity, 0.7)
+  assert.equal(state.avatar.shape.tesseron.child.maskEnabled, true)
+  assert.equal(state.avatar.shape.tesseron.child.specular, true)
 })
 
 test('descriptor routing applies an effect control through effect patch sync', () => {
   const calls = []
-  const state = { isPulsarEnabled: false, pulsarRayCount: 0 }
+  const state = {
+    avatar: {
+      shape: {},
+      appearance: {},
+      effects: { phenomena: { pulsar: { enabled: false, count: 0 } } },
+    },
+  }
   const result = applyContextMenuDescriptorUpdate('sigil-menu-pulsar', true, {
     state,
     updatePulsars(count) { calls.push(count) },
   })
 
   assert.equal(result.route, 'canvas_object.effects.patch')
-  assert.equal(state.isPulsarEnabled, true)
+  assert.equal(state.avatar.effects.phenomena.pulsar.enabled, true)
   assert.equal(state.pulsarRayCount, 1)
   assert.deepEqual(calls, [1])
 })

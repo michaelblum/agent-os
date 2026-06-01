@@ -37,7 +37,7 @@ fi
 
 ./aos show wait \
   --id sigil-workbench \
-  --js 'window.__sigilWorkbenchState && window.__sigilWorkbenchState.activationCount === 1 && window.__sigilWorkbenchState.lastActivation && window.__sigilWorkbenchState.lastActivation.title === "Knowledge Base" && window.__sigilWorkbenchState.sequesteredStudio === true && document.querySelector(".aos-title")?.textContent === "SIGIL" && !document.body.textContent.includes("Studio")' \
+  --js 'window.__sigilWorkbenchState && window.__sigilWorkbenchState.activationCount === 1 && window.__sigilWorkbenchState.lastActivation && window.__sigilWorkbenchState.lastActivation.title === "Knowledge Base" && window.__sigilWorkbenchState.legacyConfigSurfaceSequestered === true && document.querySelector(".aos-title")?.textContent === "SIGIL"' \
   --timeout 10s >/dev/null
 
 python3 - "$LAUNCH_OUT" <<'PY'
@@ -128,8 +128,8 @@ workbench_state = run(
 state = json.loads(workbench_state["result"])
 if state.get("activationCount") != 1 or (state.get("lastActivation") or {}).get("title") != "Knowledge Base":
     raise SystemExit(f"FAIL: workbench state did not initialize on Knowledge Base tab: {state}")
-if state.get("sequesteredStudio") is not True:
-    raise SystemExit(f"FAIL: workbench did not mark Studio as sequestered: {state}")
+if state.get("legacyConfigSurfaceSequestered") is not True:
+    raise SystemExit(f"FAIL: workbench did not mark the legacy config surface as sequestered: {state}")
 
 print("PASS")
 PY

@@ -36,6 +36,7 @@ import {
   CONTROLLED_BROWSER_DOM_FIXTURE_PATH,
   createControlledBrowserDomSurfacePublisher,
 } from '../../packages/toolkit/workbench/controlled-browser-dom-surface.js';
+import { computeInspectorTree } from '../../packages/toolkit/components/surface-inspector/tree.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const inspectorSource = readFileSync(path.join(repoRoot, 'packages/toolkit/components/surface-inspector/index.js'), 'utf8');
@@ -366,6 +367,45 @@ test('computeMinimapLayout aligns global native child canvas frames with Desktop
   assert.ok(avatarMark.x <= avatarHit.x + avatarHit.w);
   assert.ok(avatarMark.y >= avatarHit.y);
   assert.ok(avatarMark.y <= avatarHit.y + avatarHit.h);
+});
+
+test('Surface Inspector tree uses canonical DesktopWorld canvas frames', () => {
+  const liveDisplays = [
+    {
+      id: 'left',
+      bounds: { x: -207, y: 0, w: 207, h: 900 },
+      visible_bounds: { x: -207, y: 0, w: 207, h: 900 },
+    },
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1512, h: 982 },
+      visible_bounds: { x: 0, y: 25, w: 1512, h: 919 },
+    },
+  ];
+  const tree = computeInspectorTree({
+    displays: liveDisplays,
+    canvases: [
+      { id: 'native-canvas', at: [120, 120, 360, 260] },
+      {
+        id: 'resolved-desktop-world-canvas',
+        at: [120, 120, 360, 260],
+        atResolved: [327, 120, 360, 260],
+        at_resolved_coordinate_space: 'desktop_world',
+      },
+      {
+        id: 'ambiguous-canvas',
+        at: [120, 120, 360, 260],
+        atResolved: [500, 120, 360, 260],
+      },
+    ],
+  });
+
+  const mainNode = tree.children.find((node) => node.id === 'main');
+  const leftNode = tree.children.find((node) => node.id === 'left');
+  assert.deepEqual(mainNode.children.map((node) => node.id).sort(), ['native-canvas', 'resolved-desktop-world-canvas']);
+  assert.deepEqual(leftNode.children.map((node) => node.id), []);
+  assert.equal(tree.children.some((node) => node.id === 'ambiguous-canvas'), true);
 });
 
 test('computeMinimapLayout keeps daemon DesktopWorld display bounds authoritative', () => {
@@ -1175,6 +1215,14 @@ test('Surface Inspector action-control sync is idempotent for unchanged hover ca
 });
 
 test('Surface Inspector scoped hit regions expose root and nested immediate children only', () => {
+  const scopedDisplays = [
+    {
+      id: 'main',
+      is_main: true,
+      bounds: { x: 0, y: 0, w: 1000, h: 800 },
+      visible_bounds: { x: 0, y: 0, w: 1000, h: 800 },
+    },
+  ];
   const canvases = [
     { id: 'avatar-main', at: [0, 0, 1000, 800] },
     { id: 'aos-desktop-world-stage', parent: '__log__', at: [0, 0, 1000, 800] },
@@ -1185,7 +1233,7 @@ test('Surface Inspector scoped hit regions expose root and nested immediate chil
     { id: 'surface-inspector-annotation-action-window-a-pin_frame', parent: 'surface-inspector', at: [360, 80, 32, 32] },
   ];
 
-  const rootRegions = buildAnnotationScopedHitRegions({ canvases, selfId: 'surface-inspector' });
+  const rootRegions = buildAnnotationScopedHitRegions({ canvases, displays: scopedDisplays, selfId: 'surface-inspector' });
   assert.deepEqual(rootRegions.map((region) => region.id).sort(), ['window-a', 'window-b']);
   assert.deepEqual(rootRegions.map((region) => region.candidate.subject_path).sort(), [['canvas', 'window-a'], ['canvas', 'window-b']]);
   assert.equal(rootRegions.every((region) => region.candidate.adapter_id === 'aos-canvas-window'), true);
@@ -1193,6 +1241,7 @@ test('Surface Inspector scoped hit regions expose root and nested immediate chil
 
   const nestedRegions = buildAnnotationScopedHitRegions({
     canvases,
+    displays: scopedDisplays,
     selfId: 'surface-inspector',
     scopeStack: [{ subject_id: 'window-a', subject_path: ['main', 'window-a'], root_id: 'main', root_label: 'main' }],
     semanticTargetsByCanvas: new Map([['window-a', [

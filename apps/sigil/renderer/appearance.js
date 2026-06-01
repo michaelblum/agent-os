@@ -7,12 +7,13 @@
 // `snapshotAppearance()` is the inverse — returns a blob that, fed back through
 // applyAppearance, produces an equivalent state (roundtrip-stable).
 //
-// Neither function touches the DOM. Studio's existing UI listeners continue to
-// write `state.x = value` directly on every input event (that flow is unchanged);
-// on load, Studio calls `applyAppearance(DEFAULT_APPEARANCE)` then
-// `syncUIFromState()` (ui.js) to mirror state back into DOM input values.
+// Neither function touches the DOM. The active configuration surface's UI
+// listeners continue to write `state.x = value` directly on every input event
+// (that flow is unchanged); on load, the surface calls
+// `applyAppearance(DEFAULT_APPEARANCE)` then `syncUIFromState()` (ui.js) to
+// mirror state back into DOM input values.
 
-import state from './state.js';
+import state, { syncAvatarAliasesFromGraph } from './state.js';
 import { updateAllColors } from './colors.js';
 import { updatePulsars, updateGammaRays, updateAccretion, updateNeutrinos } from './phenomena.js';
 import { updateGeometry, updateOmegaGeometry } from './geometry.js';
@@ -32,6 +33,100 @@ const REF_HEIGHT = 1080;
 
 function computeBaseScale(base) {
     return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / window.innerHeight);
+}
+
+function avatarFromAppearanceBlob(blob) {
+    return {
+        shape: {
+            type: blob.shape,
+            size: { ...blob.size },
+            stellationFactor: blob.stellation,
+            tesseron: blob.tesseron,
+            params: {
+                box: { ...blob.shapeParams.box },
+                torus: { ...blob.shapeParams.torus },
+                cylinder: { ...blob.shapeParams.cylinder },
+                tetartoid: { ...blob.shapeParams.tetartoid },
+            },
+            zDepth: blob.zDepth,
+            baseScale: state.baseScale,
+        },
+        appearance: {
+            opacity: blob.opacity,
+            edgeOpacity: blob.edgeOpacity,
+            skin: blob.skin,
+            maskEnabled: blob.maskEnabled,
+            interiorEdges: blob.interiorEdges,
+            specular: blob.specular,
+            innerEdgePulseAmount: state.innerEdgePulseAmount,
+            innerEdgePulseRate: state.innerEdgePulseRate,
+            innerEdgeInsetScale: state.innerEdgeInsetScale,
+            innerEdgeHighlightInsetScale: state.innerEdgeHighlightInsetScale,
+            innerEdgePeakThreshold: state.innerEdgePeakThreshold,
+            innerEdgeFlickerAmount: state.innerEdgeFlickerAmount,
+            innerEdgeFlickerRate: state.innerEdgeFlickerRate,
+            colors: blob.colors,
+        },
+        effects: {
+            aura: {
+                ...blob.aura,
+                spike: state.auraSpike ?? 0,
+            },
+            phenomena: blob.phenomena,
+            turbulence: blob.turbulence,
+            lightning: blob.lightning,
+            magnetic: {
+                ...blob.magnetic,
+                fieldEnabled: state.isMagneticFieldEnabled ?? false,
+                fieldLineCount: state.magneticFieldLineCount ?? 20,
+                fieldRadius: state.magneticFieldRadius ?? 4,
+                fieldStrength: state.magneticFieldStrength ?? 1,
+            },
+            trail: {
+                enabled: blob.trails.enabled,
+                length: blob.trails.count,
+                opacity: blob.trails.opacity,
+                fadeMs: blob.trails.fadeMs,
+                style: blob.trails.style,
+            },
+            omega: {
+                enabled: blob.omega.enabled,
+                shape: {
+                    type: blob.omega.shape,
+                    stellationFactor: blob.omega.stellation,
+                    params: {
+                        box: { ...blob.shapeParams.box },
+                        torus: { ...blob.shapeParams.torus },
+                        cylinder: { ...blob.shapeParams.cylinder },
+                        tetartoid: { ...blob.shapeParams.tetartoid },
+                    },
+                    tesseron: blob.omega.tesseron,
+                },
+                scale: blob.omega.scale,
+                opacity: blob.omega.opacity,
+                edgeOpacity: blob.omega.edgeOpacity,
+                maskEnabled: blob.omega.maskEnabled,
+                interiorEdges: blob.omega.interiorEdges,
+                specular: blob.omega.specular,
+                skin: blob.omega.skin,
+                counterSpin: blob.omega.counterSpin,
+                lockPosition: blob.omega.lockPosition,
+                interDimensional: blob.omega.interDimensional,
+                ghostCount: blob.omega.ghostCount,
+                ghostMode: blob.omega.ghostMode,
+                ghostDuration: blob.omega.ghostDuration,
+                lagFactor: blob.omega.lagFactor,
+            },
+        },
+        transform: {
+            position: { x: state.currentPos?.x ?? 0, y: state.currentPos?.y ?? 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 },
+            scale: state.appScale ?? 1,
+            idleSpin: blob.idleSpin,
+        },
+        interaction: blob.interaction,
+        windowing: blob.windowing,
+    };
 }
 
 // -----------------------------------------------------------------------------
@@ -121,6 +216,20 @@ export const DEFAULT_APPEARANCE = Object.freeze({
     transitions: {
         enter: DEFAULT_TRANSITION_EFFECT,
         exit: DEFAULT_TRANSITION_EFFECT,
+        selectionMode: {
+            enter: 'supernova',
+            exit: 'reverse_supernova',
+        },
+        selectionModeTrail: {
+            interDimensional: true,
+            duration: 0.22,
+            delay: 0,
+            repeatCount: 10,
+            repeatDuration: 2.0,
+            trailMode: 'fade',
+            lagFactor: 0.05,
+            scale: 1.5,
+        },
         fastTravel: DEFAULT_FAST_TRAVEL_EFFECT,
         lineInterDimensional: true,
         line: {
@@ -381,10 +490,36 @@ export function applyAppearance(blob) {
         : D.windowing.avatarLevel;
 
     const transitions = blob.transitions ?? D.transitions;
+    const selectionModeTransitions = transitions.selectionMode ?? D.transitions.selectionMode;
+    const selectionModeTrail = transitions.selectionModeTrail ?? D.transitions.selectionModeTrail;
     const line = transitions.line ?? D.transitions.line;
     const wormhole = transitions.wormhole ?? D.transitions.wormhole;
     state.transitionEnterEffect = normalizeTransitionEffect(transitions.enter, D.transitions.enter);
     state.transitionExitEffect = normalizeTransitionEffect(transitions.exit, D.transitions.exit);
+    state.selectionModeEnterEffect = String(selectionModeTransitions.enter || D.transitions.selectionMode.enter);
+    state.selectionModeExitEffect = String(selectionModeTransitions.exit || D.transitions.selectionMode.exit);
+    state.selectionModeEffects = {
+        enter: state.selectionModeEnterEffect,
+        exit: state.selectionModeExitEffect,
+    };
+    state.selectionModeTrailInterDimensional = selectionModeTrail.interDimensional ?? D.transitions.selectionModeTrail.interDimensional;
+    state.selectionModeTrailDuration = selectionModeTrail.duration ?? D.transitions.selectionModeTrail.duration;
+    state.selectionModeTrailDelay = selectionModeTrail.delay ?? D.transitions.selectionModeTrail.delay;
+    state.selectionModeTrailRepeatCount = selectionModeTrail.repeatCount ?? D.transitions.selectionModeTrail.repeatCount;
+    state.selectionModeTrailRepeatDuration = selectionModeTrail.repeatDuration ?? D.transitions.selectionModeTrail.repeatDuration;
+    state.selectionModeTrailMode = selectionModeTrail.trailMode ?? D.transitions.selectionModeTrail.trailMode;
+    state.selectionModeTrailLag = selectionModeTrail.lagFactor ?? D.transitions.selectionModeTrail.lagFactor;
+    state.selectionModeTrailScale = selectionModeTrail.scale ?? D.transitions.selectionModeTrail.scale;
+    state.selectionModeTrail = {
+        interDimensional: state.selectionModeTrailInterDimensional,
+        duration: state.selectionModeTrailDuration,
+        delay: state.selectionModeTrailDelay,
+        repeatCount: state.selectionModeTrailRepeatCount,
+        repeatDuration: state.selectionModeTrailRepeatDuration,
+        trailMode: state.selectionModeTrailMode,
+        lag: state.selectionModeTrailLag,
+        scale: state.selectionModeTrailScale,
+    };
     state.transitionFastTravelEffect = normalizeFastTravelEffect(transitions.fastTravel, D.transitions.fastTravel);
     state.fastTravelLineInterDimensional = transitions.lineInterDimensional ?? D.transitions.lineInterDimensional;
     state.fastTravelLineDuration = line.duration ?? D.transitions.line.duration;
@@ -532,6 +667,9 @@ export function applyAppearance(blob) {
     state.trailFadeMs = tr.fadeMs ?? D.trails.fadeMs;
     state.trailStyle = tr.style ?? D.trails.style;
 
+    state.avatar = avatarFromAppearanceBlob(snapshotAppearance());
+    syncAvatarAliasesFromGraph(state);
+
     if (window.liveJs) {
         window.liveJs.avatarHitRadius = state.avatarHitRadius;
         window.liveJs.dragThreshold = state.dragThreshold;
@@ -542,8 +680,9 @@ export function applyAppearance(blob) {
 
     // Trigger renderer update hooks that need mesh/material rebuilds.
     // Guarded: in headless/test contexts groups/materials may not exist yet,
-    // and in pre-init contexts (e.g. Studio applyAppearance(DEFAULT) called
-    // before scene.js initScene()) the Three.js groups aren't wired either.
+    // and in pre-init contexts (e.g. the active configuration surface calling
+    // `applyAppearance(DEFAULT)` before `scene.js` initScene()) the Three.js
+    // groups aren't wired either.
     // Errors surface at console.debug so real regressions are visible in
     // devtools without breaking the headless-safety behavior.
     try { updateGeometry(state.currentGeometryType); }
@@ -654,6 +793,20 @@ export function snapshotAppearance() {
         transitions: {
             enter: normalizeTransitionEffect(state.transitionEnterEffect, DEFAULT_APPEARANCE.transitions.enter),
             exit: normalizeTransitionEffect(state.transitionExitEffect, DEFAULT_APPEARANCE.transitions.exit),
+            selectionMode: {
+                enter: state.selectionModeEnterEffect || DEFAULT_APPEARANCE.transitions.selectionMode.enter,
+                exit: state.selectionModeExitEffect || DEFAULT_APPEARANCE.transitions.selectionMode.exit,
+            },
+            selectionModeTrail: {
+                interDimensional: state.selectionModeTrailInterDimensional ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.interDimensional,
+                duration: state.selectionModeTrailDuration ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.duration,
+                delay: state.selectionModeTrailDelay ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.delay,
+                repeatCount: state.selectionModeTrailRepeatCount ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.repeatCount,
+                repeatDuration: state.selectionModeTrailRepeatDuration ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.repeatDuration,
+                trailMode: state.selectionModeTrailMode ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.trailMode,
+                lagFactor: state.selectionModeTrailLag ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.lagFactor,
+                scale: state.selectionModeTrailScale ?? DEFAULT_APPEARANCE.transitions.selectionModeTrail.scale,
+            },
             fastTravel: normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_APPEARANCE.transitions.fastTravel),
             lineInterDimensional: state.fastTravelLineInterDimensional ?? DEFAULT_APPEARANCE.transitions.lineInterDimensional,
             line: {

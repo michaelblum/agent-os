@@ -48,6 +48,30 @@ else
     fail "dev recommend docs-only routing drifted"
 fi
 
+if OUT="$(./aos dev recommend --json --files tests/lib/visual-harness.sh 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+summary = data["summary"]
+assert "visual-harness-primitives" in summary["rule_ids"], data
+assert "tests" in summary["rule_ids"], data
+commands = {item["command"] for item in data["next_commands"]}
+assert {
+    "bash tests/visual-harness-boundary.sh",
+    "bash tests/visual-harness-canonical-url-primitives.sh",
+    "bash tests/visual-harness-content-preflight.sh",
+    "bash tests/harness-composability-contracts.sh",
+} <= commands, data
+assert summary["requires_swift_build"] is False, data
+assert summary["tcc_identity_sensitive"] is False, data
+PY
+then
+    pass "dev recommend routes visual harness primitive changes to deterministic battery"
+else
+    fail "dev recommend visual harness primitive routing drifted"
+fi
+
 if OUT="$(./aos dev classify --json --files unknown/path.txt 2>/dev/null)" python3 - <<'PY'
 import json
 import os

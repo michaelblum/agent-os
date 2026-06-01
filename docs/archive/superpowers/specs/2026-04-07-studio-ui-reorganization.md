@@ -1,5 +1,10 @@
 # Studio UI Reorganization
 
+> **Archive status:** Historical Studio/Sigil design. It predates the accepted
+> visual-object descriptor/resource-lifecycle closure; use current
+> contract/status docs for avatar state, descriptors, stellation, and resource
+> guidance.
+
 **Date:** 2026-04-07
 **Session:** studio-ui
 **Scope:** `apps/sigil/studio/` only — HTML, CSS (structural only), JS (UI wiring only)

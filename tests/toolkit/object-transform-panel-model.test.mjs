@@ -39,7 +39,7 @@ function registry(canvasId = 'avatar-main') {
             {
               id: 'fractalPulse.intensity',
               label: 'Tree pulse',
-              type: 'range',
+              type: 'slider',
               value: 1,
               min: 0,
               max: 3,
@@ -335,7 +335,7 @@ test('effect control edits build effects patch messages and preserve editable js
       {
         id: 'fractalPulse.intensity',
         label: 'Tree pulse',
-        type: 'range',
+        type: 'slider',
         value: 2.1,
         min: 0,
         max: 3,

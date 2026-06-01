@@ -141,6 +141,21 @@ assert(registry.removeOwned(by: "stage", includeSuspendRetained: false).isEmpty,
 assert(registry.snapshot().map(\.id) == ["retained"], "retained region should remain visible")
 assert(registry.removeOwned(by: "stage", includeSuspendRetained: true).map(\.id) == ["retained"], "owner removal should remove retained regions")
 
+let cursorReconciler = AOSNativeCursorSuppressionReconciler()
+let firstCursorSuppression = cursorReconciler.reconcile(active: true)
+assert(firstCursorSuppression.hideNativeCursor == true, "first cursor suppression should hide the process cursor once")
+assert(firstCursorSuppression.showNativeCursor == false, "first cursor suppression should not show")
+let unchangedCursorSuppression = cursorReconciler.reconcile(active: true)
+assert(unchangedCursorSuppression.hideNativeCursor == false, "unchanged cursor suppression should not double-hide")
+assert(unchangedCursorSuppression.showNativeCursor == false, "unchanged cursor suppression should not restore")
+let displayChangedCursorSuppression = cursorReconciler.reconcile(active: true)
+assert(displayChangedCursorSuppression.hideNativeCursor == false, "display change while active should not double-hide")
+assert(displayChangedCursorSuppression.showNativeCursor == false, "display change while active should not restore")
+let clearedCursorSuppression = cursorReconciler.reconcile(active: false)
+assert(clearedCursorSuppression.showNativeCursor == true, "last cursor suppression removal should restore once")
+let repeatedCleanup = cursorReconciler.restore()
+assert(repeatedCleanup.showNativeCursor == false, "repeated cursor cleanup should be idempotent")
+
 print("PASS daemon input surface ownership and input regions")
 SWIFT
 

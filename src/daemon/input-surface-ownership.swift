@@ -36,6 +36,35 @@ private let aosInputRegionTerminalPhases: Set<String> = [
     "mouse_cancel",
 ]
 
+struct AOSNativeCursorSuppressionReconcileResult: Equatable {
+    let hideNativeCursor: Bool
+    let showNativeCursor: Bool
+    let active: Bool
+}
+
+final class AOSNativeCursorSuppressionReconciler {
+    private var active = false
+
+    func reconcile(active targetActive: Bool) -> AOSNativeCursorSuppressionReconcileResult {
+        let hide = targetActive && !active
+        let show = !targetActive && active
+        active = targetActive
+        return AOSNativeCursorSuppressionReconcileResult(
+            hideNativeCursor: hide,
+            showNativeCursor: show,
+            active: active
+        )
+    }
+
+    func restore() -> AOSNativeCursorSuppressionReconcileResult {
+        reconcile(active: false)
+    }
+
+    func snapshot() -> Bool {
+        active
+    }
+}
+
 struct AOSInputRegionRecord: Equatable {
     let id: String
     let ownerCanvasID: String
@@ -265,6 +294,17 @@ final class AOSInputRegionRegistry {
 
     func snapshot(ownerCanvasID: String? = nil) -> [AOSInputRegionRecord] {
         allRegions.filter { ownerCanvasID == nil || $0.ownerCanvasID == ownerCanvasID }
+    }
+
+    func nativeCursorSuppressionActive() -> Bool {
+        regions.values.contains { region in
+            guard region.enabled else { return false }
+            let value = region.metadata["cursor_suppression"]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .replacingOccurrences(of: "-", with: "_")
+            return value == "hide_native" || value == "hidden" || value == "true"
+        }
     }
 
     func activeCaptureSnapshot() -> [String: Any]? {

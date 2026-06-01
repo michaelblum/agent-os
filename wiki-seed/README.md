@@ -30,6 +30,6 @@ These are copied into the runtime wiki under the `aos/` namespace by the seed co
 - Some employer-brand reference material in this tree is retained as legacy appendix content because it informed the canonical workflow set.
 - Seeded entity/concept pages should describe current source-of-truth surfaces.
   Do not add first-class entity pages for parked legacy paths such as old Sigil
-  `studio/`, `workbench/`, or `chat/` unless a new product decision revives
-  them. Mention those paths only as compatibility notes under their owning
-  current subject.
+  `workbench/` or `chat/`, or the retired avatar configuration surface, unless
+  a new product decision revives them. Mention those paths only as compatibility
+  notes under their owning current subject.

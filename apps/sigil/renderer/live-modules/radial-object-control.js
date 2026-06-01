@@ -476,7 +476,7 @@ function wikiBrainObjectTargets() {
                         {
                             id: 'fiberPulse.intensity',
                             label: 'Fiber pulse',
-                            type: 'range',
+                            type: 'slider',
                             value: pulse.intensity,
                             min: 0,
                             max: 3,
@@ -486,7 +486,7 @@ function wikiBrainObjectTargets() {
                         {
                             id: 'fiberPulse.sparkDensity',
                             label: 'Spark density',
-                            type: 'range',
+                            type: 'slider',
                             value: pulse.sparkDensity,
                             min: 0,
                             max: 3,
@@ -548,7 +548,7 @@ function wikiBrainObjectTargets() {
                     animation_effects: [{
                         id: 'fractalPulse.intensity',
                         label: 'Tree pulse',
-                        type: 'range',
+                        type: 'slider',
                         value: pulse.intensity,
                         min: 0,
                         max: 3,

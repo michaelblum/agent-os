@@ -2,7 +2,8 @@ import state from './state.js';
 import { updateOmegaGeometry } from './geometry.js';
 
 // Lazy-init so this module is import-safe when THREE isn't loaded
-// (Studio imports transitively via colors.js but has no 3D scene).
+// (a non-3D config surface may import this transitively via colors.js, but it
+// has no 3D scene).
 let _lastPos, _counterSpinAxis;
 function _ensureScratch() {
     if (!_lastPos) {

@@ -1,86 +1,237 @@
+import { createAosZagSelect } from '../adapters/zag/select.js';
 import { createEventHub, dispatchDomEvent, ownerDocument } from './_events.js';
-import { attributeParts, escapeHtml } from './_html.js';
 
-function renderOptionHtml(option = {}, selectedValue) {
-  const value = option.value ?? '';
-  const parts = [`value="${escapeHtml(value)}"`];
-  if (option.disabled) parts.push('disabled');
-  if (String(value) === String(selectedValue ?? '')) parts.push('selected');
-  parts.push(...attributeParts(option));
-  return `<option ${parts.join(' ')}>${escapeHtml(option.label ?? String(value))}</option>`;
+let nextSelectId = 0;
+
+function stringValue(value) {
+  return value === undefined || value === null ? '' : String(value);
 }
 
-export function renderSelectHtml(config = {}) {
-  const selectClasses = ['aos-select'];
-  for (const name of String(config.className || '').split(/\s+/).filter(Boolean)) selectClasses.push(name);
-  const selectParts = [`class="${escapeHtml(selectClasses.join(' '))}"`];
-  if (config.id) selectParts.push(`id="${escapeHtml(config.id)}"`);
-  if (config.name) selectParts.push(`name="${escapeHtml(config.name)}"`);
-  if (config.ariaLabel) selectParts.push(`aria-label="${escapeHtml(config.ariaLabel)}"`);
-  if (config.disabled) selectParts.push('disabled');
-  selectParts.push(...attributeParts(config));
-  const options = (Array.isArray(config.options) ? config.options : [])
-    .map((option) => renderOptionHtml(option, config.value))
-    .join('');
-  const select = `<select ${selectParts.join(' ')}>${options}</select>`;
-  if (!config.label) return select;
+function normalizedOptions(options = []) {
+  return (Array.isArray(options) ? options : []).map((option) => {
+    const rawValue = option.value ?? '';
+    const value = stringValue(rawValue);
+    return {
+      ...option,
+      rawValue,
+      value,
+      label: option.label ?? value,
+    };
+  });
+}
 
-  const wrapperTag = config.wrapperTag || 'div';
-  const wrapperClasses = config.wrapperClassName || 'aos-control-stack';
-  const labelTag = wrapperTag === 'label' ? 'span' : 'label';
-  const label = `<${labelTag} class="aos-control-label">${escapeHtml(config.label)}</${labelTag}>`;
-  return `<${wrapperTag} class="${escapeHtml(wrapperClasses)}">${label}${select}</${wrapperTag}>`;
+function selectId(config = {}) {
+  if (config.id) return String(config.id);
+  nextSelectId += 1;
+  return `aos-select-${nextSelectId}`;
+}
+
+function optionCollection(options) {
+  return {
+    items: options,
+    find(value) {
+      const textValue = stringValue(value);
+      return options.find((option) => option.value === textValue) || null;
+    },
+  };
+}
+
+function applyDataset(element, dataset = {}) {
+  if (!element?.dataset || !dataset || typeof dataset !== 'object') return;
+  for (const [key, value] of Object.entries(dataset)) {
+    if (value !== undefined && value !== null) element.dataset[key] = String(value);
+  }
+}
+
+function applyAttributes(element, attributes = {}) {
+  if (!element || !attributes || typeof attributes !== 'object') return;
+  for (const [key, value] of Object.entries(attributes)) {
+    if (value === false || value === undefined || value === null) element.removeAttribute?.(key);
+    else if (value === true) element.setAttribute(key, '');
+    else element.setAttribute(key, String(value));
+  }
+}
+
+function applyClassName(element, className) {
+  for (const name of String(className || '').split(/\s+/).filter(Boolean)) {
+    element.classList.add(name);
+  }
+}
+
+function selectedOption(options, value) {
+  return options.find((option) => option.value === value) || null;
 }
 
 export function createSelect(config = {}) {
   const doc = ownerDocument(config);
   const hub = createEventHub();
   const el = doc.createElement('div');
-  const select = doc.createElement('select');
+  const id = selectId(config);
+  const labelEl = config.label ? doc.createElement('div') : null;
+  const trigger = doc.createElement('button');
+  const valueEl = doc.createElement('span');
+  const indicator = doc.createElement('span');
+  const content = doc.createElement('div');
+  let options = normalizedOptions(config.options);
+  let value = stringValue(config.value ?? options[0]?.value ?? '');
+  let disabled = !!config.disabled;
+  let suppressAdapterChange = false;
 
-  el.classList.add('aos-control-stack');
-  select.classList.add('aos-select');
+  el.classList.add('aos-control-stack', 'aos-select-control');
+  el.dataset.aosSelectRoot = '';
+  el.dataset.state = 'closed';
+  if (config.name) el.dataset.name = String(config.name);
+  applyClassName(el, config.className);
+  applyDataset(el, config.dataset);
+  applyAttributes(el, config.attributes);
 
-  if (config.label) {
-    const label = doc.createElement('label');
-    label.classList.add('aos-control-label');
-    label.textContent = String(config.label);
-    el.appendChild(label);
+  if (labelEl) {
+    labelEl.classList.add('aos-control-label');
+    labelEl.dataset.aosSelectLabel = '';
+    labelEl.textContent = String(config.label);
+    el.appendChild(labelEl);
   }
 
-  for (const option of Array.isArray(config.options) ? config.options : []) {
-    const optionEl = doc.createElement('option');
-    optionEl.value = option.value;
-    optionEl.textContent = option.label ?? String(option.value ?? '');
-    optionEl.disabled = !!option.disabled;
-    select.appendChild(optionEl);
-  }
+  trigger.type = 'button';
+  trigger.classList.add('aos-select', 'aos-select-trigger');
+  trigger.dataset.aosSelectTrigger = '';
+  if (config.ariaLabel) trigger.setAttribute('aria-label', config.ariaLabel);
 
-  if (config.value !== undefined) select.value = config.value;
-  el.appendChild(select);
+  valueEl.classList.add('aos-select-value');
+  valueEl.dataset.aosSelectValue = '';
+  indicator.classList.add('aos-select-indicator');
+  indicator.dataset.aosSelectIndicator = '';
+  indicator.setAttribute('aria-hidden', 'true');
+  trigger.append(valueEl, indicator);
 
-  const emitChange = () => {
-    config.onChange?.(select.value);
-    hub.emit('change', select.value);
-    dispatchDomEvent(el, 'change', { value: select.value });
+  content.classList.add('aos-select-content');
+  content.dataset.aosSelectContent = '';
+
+  el.append(trigger, content);
+
+  const currentValue = () => {
+    const selected = selectedOption(options, value);
+    return selected ? selected.rawValue : value;
   };
 
-  select.addEventListener('change', emitChange);
+  const adapter = createAosZagSelect({
+    id,
+    collection: optionCollection(options),
+    value: value === '' ? [] : [value],
+    disabled,
+    closeOnSelect: true,
+    onValueChange(details = {}) {
+      value = stringValue(details.value?.[0] ?? '');
+      sync();
+      if (!suppressAdapterChange) emitChange();
+    },
+    onOpenChange() {
+      sync();
+    },
+  });
+
+  function emitChange() {
+    const payloadValue = currentValue();
+    config.onChange?.(payloadValue);
+    hub.emit('change', payloadValue);
+    dispatchDomEvent(el, 'change', { value: payloadValue });
+  }
+
+  function createItem(option) {
+    const item = doc.createElement('button');
+    item.type = 'button';
+    item.classList.add('aos-select-item');
+    item.dataset.value = option.value;
+    item.textContent = option.label ?? option.value;
+    item.disabled = !!option.disabled;
+    applyDataset(item, option.dataset);
+    applyAttributes(item, option.attributes);
+    return item;
+  }
+
+  function renderItems() {
+    content.replaceChildren();
+    for (const option of options) content.appendChild(createItem(option));
+  }
+
+  function sync() {
+    const snapshot = adapter.connect();
+    const selected = selectedOption(options, value);
+    valueEl.textContent = selected?.label ?? value;
+    trigger.disabled = disabled;
+    trigger.setAttribute('aria-expanded', String(snapshot.open));
+    trigger.setAttribute('data-state', snapshot.open ? 'open' : 'closed');
+    content.hidden = !snapshot.open;
+    content.setAttribute('data-state', snapshot.open ? 'open' : 'closed');
+    el.dataset.state = snapshot.open ? 'open' : 'closed';
+    el.dataset.value = value;
+    for (const item of content.querySelectorAll('[data-value]')) {
+      const selectedItem = item.dataset.value === value;
+      item.classList.toggle('selected', selectedItem);
+      item.setAttribute('aria-selected', String(selectedItem));
+      item.disabled = !!selectedOption(options, item.dataset.value)?.disabled;
+    }
+  }
+
+  function bindAll() {
+    adapter.cleanupBindings();
+    adapter.bind(el);
+    sync();
+  }
+
+  renderItems();
+  bindAll();
 
   return {
     el,
     getValue() {
-      return select.value;
+      return currentValue();
     },
-    setValue(value, options = {}) {
-      select.value = value ?? '';
-      if (options.emit) emitChange();
+    getOptions() {
+      return options.map((option) => ({ ...option }));
+    },
+    setOptions(nextOptions = [], update = {}) {
+      options = normalizedOptions(nextOptions);
+      const requested = update.value !== undefined ? stringValue(update.value) : value;
+      value = options.some((option) => option.value === requested)
+        ? requested
+        : stringValue(options[0]?.value ?? '');
+      renderItems();
+      suppressAdapterChange = true;
+      adapter.update({
+        collection: optionCollection(options),
+        value: value === '' ? [] : [value],
+      });
+      suppressAdapterChange = false;
+      bindAll();
+      if (update.emit) emitChange();
+    },
+    setValue(nextValue, update = {}) {
+      value = stringValue(nextValue);
+      suppressAdapterChange = true;
+      adapter.setValue(value === '' ? [] : [value]);
+      suppressAdapterChange = false;
+      bindAll();
+      if (update.emit) emitChange();
+    },
+    setDisabled(nextDisabled = true) {
+      disabled = !!nextDisabled;
+      adapter.update({ disabled });
+      bindAll();
+    },
+    open() {
+      adapter.open();
+      sync();
+    },
+    close() {
+      adapter.close();
+      sync();
     },
     on(type, callback) {
       return type === 'change' ? hub.on(type, callback) : () => {};
     },
     destroy() {
-      select.removeEventListener('change', emitChange);
+      adapter.destroy();
       hub.clear();
     },
   };

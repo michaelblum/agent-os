@@ -26,6 +26,11 @@ import {
 } from '../../apps/sigil/renderer/live-modules/host-runtime.js'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+const deletedSelectionModeCursorPattern = new RegExp([
+  ['selection', 'Mode', 'Cursor', 'Model'].join(''),
+  ['read', 'Selection', 'Mode', 'Cursor', 'Model', 'Snapshot'].join(''),
+  ['refresh', 'Selection', 'Mode', 'Cursor', 'Model', 'Snapshot'].join(''),
+].join('|'))
 
 const display = {
   id: 'main',
@@ -480,11 +485,14 @@ test('Sigil reticle candidates are projected through canonical DesktopWorld help
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
 
   assert.match(source, /nativeToDesktopWorldRect/)
+  assert.match(source, /normalizeCanvasFrameToDesktopWorld/)
+  assert.match(source, /canvasLocalRectToDesktopWorld/)
   assert.match(source, /function annotationReticleCandidateInDesktopWorld/)
   assert.match(source, /function annotationReticleSemanticTargetForDesktopWorld/)
-  assert.match(source, /nativeToDesktopWorldRect\(nativeRect, liveJs\.displays\)/)
+  assert.match(source, /normalizeCanvasFrameToDesktopWorld\(canvas, liveJs\.displays\)/)
+  assert.match(source, /canvasLocalRectToDesktopWorld\(/)
   assert.match(source, /coordinate_space: 'desktop_world'/)
-  assert.match(source, /source_coordinate_space: 'native_display'/)
+  assert.match(source, /source_coordinate_space: frame\?\.source_coordinate_space/)
   assert.match(source, /annotationReticleSemanticTargetForDesktopWorld\(canvasId, target\)/)
 })
 
@@ -810,18 +818,22 @@ test('Sigil applies annotation item-click lifecycle guard to avatar and target-s
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const uses = source.match(/annotationReticleReleaseDisposition\(result\)/g) || []
 
-  assert.equal(uses.length, 2)
+  assert.equal(uses.length, 3)
   assert.match(source, /function handleRadialTargetSurfaceEvent[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
   assert.match(source, /case 'RADIAL': \{[\s\S]*annotationReticleReleaseDisposition\(result\)[\s\S]*exitAnnotationReticle\(annotationDisposition\.reason\)/)
 })
 
-test('Sigil defers Surface Inspector opening out of the radial drag reticle entry path', () => {
+test('Sigil routes the radial reticle item to Selection Mode instead of drag-through reticle entry', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const dispatchSource = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/radial-item-action-dispatch.js'), 'utf8')
   const enterStart = source.indexOf('function enterAnnotationReticle')
   const updateStart = source.indexOf('function updateAnnotationReticlePreview', enterStart)
   const enterBlock = source.slice(enterStart, updateStart)
 
-  assert.match(source, /createAnnotationReticleAcquisitionState/)
+  assert.doesNotMatch(source, /drag-through-reticle/)
+  assert.doesNotMatch(source, /createAnnotationReticleAcquisitionState/)
+  assert.match(dispatchSource, /enterSelectionMode\(pointer, 'radial-reticle'\)/)
+  assert.match(dispatchSource, /post\('sigil\.selection_mode\.enter'/)
   assert.match(source, /requestAnimationFrame\(flushAnnotationReticlePreview\)/)
   assert.doesNotMatch(enterBlock, /ensureUtilityCanvasVisible/)
   assert.doesNotMatch(enterBlock, /requestCanvasInspectorAnnotationToggle/)
@@ -874,7 +886,7 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   const debugBlock = source.slice(debugStart)
 
   assert.match(selectionRuntimeSource, /createSelectionModeContextSession/)
-  assert.match(selectionRuntimeSource, /function enter\(pointer = null, reason = 'avatar-double-click'\)/)
+  assert.match(selectionRuntimeSource, /function enter\(pointer = null, reason = 'selection-mode-enter'\)/)
   assert.match(selectionRuntimeSource, /function acquire\(point = null\)/)
   assert.match(selectionRuntimeSource, /function handleInput\(msg = \{\}\)/)
   assert.match(selectionRuntimeSource, /setActiveContextProvider\(\{[\s\S]*source: 'selection_mode_debug'/)
@@ -882,16 +894,18 @@ test('Sigil wires live Selection Mode state, capture, overlay, and recording hoo
   assert.match(source, /selectionMode: createDefaultSelectionModeState\(\)/)
   assert.match(source, /activeContext: createDefaultActiveContextState\(\)/)
   assert.match(source, /contextRecording: createDefaultContextRecordingState\(\)/)
-  assert.match(source, /function enterSelectionMode\(pointer = null, reason = 'avatar-double-click'\)/)
+  assert.match(source, /function enterSelectionMode\(pointer = null, reason = 'selection-mode-enter'\)/)
   assert.match(source, /function acquireSelectionModeCandidates\(point = null\)/)
   assert.match(source, /function handleSelectionModeInput\(msg = \{\}\)/)
   assert.match(source, /if \(handleSelectionModeInput\(msg\)\) return/)
-  assert.match(source, /consumeAvatarDoubleClick\(x, y\)[\s\S]*sigilUxCommandRuntime\.executeSelectionModeEnter/)
-  assert.match(commandRuntimeSource, /enterSelectionMode\(pointer, 'avatar-double-click'\)/)
+  assert.doesNotMatch(source, /sigilUxCommandRuntime\.executeSelectionModeEnter/)
+  assert.match(commandRuntimeSource, /enterSelectionMode\(pointer, payload\.context\?\.reason \|\| 'radial-reticle'\)/)
   assert.match(source, /selectionModeIsActive: \(\) => liveJs\.selectionMode\?\.active === true/)
   assert.match(source, /selectionModeOverlay: liveJs\.selectionModeOverlay \|\| buildProjectedSelectionModeOverlay/)
   assert.match(source, /function createSelectionModeContextFromDebugInput\(input = \{\}\)/)
+  assert.doesNotMatch(source, deletedSelectionModeCursorPattern)
   assert.match(debugBlock, /selectionMode: liveJs\.selectionMode/)
+  assert.doesNotMatch(debugBlock, deletedSelectionModeCursorPattern)
   assert.match(debugBlock, /activeContext: liveJs\.activeContext/)
   assert.match(debugBlock, /contextRecording: liveJs\.contextRecording/)
   assert.match(debugBlock, /createSelectionModeContext\(input = \{\}\) \{[\s\S]*createSelectionModeContextFromDebugInput\(input\)/)

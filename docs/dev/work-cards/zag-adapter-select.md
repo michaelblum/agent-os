@@ -4,7 +4,7 @@
 
 Add `packages/toolkit/adapters/zag/select.js` — a thin AOS adapter around
 `@zag-js/select` that wires Zag's select state machine to surfaces rendered
-with `createSelect` / `renderSelectHtml` from `packages/toolkit/controls/select.js`.
+with `createSelect` from `packages/toolkit/controls/select.js`.
 
 ## Context
 
@@ -14,10 +14,9 @@ pattern for all Zag adapters. Follow the same structure: `VanillaMachine`,
 — no positioning, no trigger/content split — but must follow the same
 lifecycle contract.
 
-`createSelect` and `renderSelectHtml` in `packages/toolkit/controls/select.js`
-already handle HTML rendering. This adapter does not replace them. It adds
-state machine behavior on top: keyboard navigation, typeahead, listbox ARIA,
-and controlled open/value state.
+`createSelect` in `packages/toolkit/controls/select.js` owns the control DOM
+and consumes this adapter for keyboard navigation, typeahead, listbox ARIA, and
+controlled open/value state.
 
 ## Scope
 
@@ -31,7 +30,6 @@ and controlled open/value state.
   only if `@zag-js/select` is not already present
 
 ### Do not touch
-- `packages/toolkit/controls/select.js` — rendering layer, no changes
 - `packages/toolkit/controls/_html.js` and
   `packages/toolkit/controls/button.js` — shared control cleanup belongs to the
   retrofit sweep, not this adapter card

@@ -287,7 +287,12 @@ semantic or actionable subjects over broad passive containers. Native macOS AX
 candidate builders emit `macos-ax` annotation candidates using native window
 roots, keep bounded AX elements scoped to the selected native window root, and
 preserve stale or unsupported blocker reasons when cursor evidence no longer
-matches or bounded projection is unavailable.
+matches or bounded projection is unavailable. The daemon provides raw AX facts
+for those builders: roles, text values, bounds, action names, settable
+attributes, ancestor chains, browser text candidates, and browser web-area
+rectangles. Toolkit policy derives user-facing labels, lineage path labels,
+browser tab URLs/titles, content rect choice, and normalized capabilities from
+that raw evidence so the privileged binary stays a stable telemetry surface.
 
 `filterAnnotationCandidatesForScope(candidates, scope, point, options?)` and
 `chooseAnnotationCandidateForScope(candidates, scope, point, options?)` apply
@@ -1329,8 +1334,8 @@ Concrete helper examples:
 - `createSigilAgentSubject()` emits a separate `sigil.agent` domain Subject with
   a `subject_references[]` narrative source pointing back to the wiki document's
   `wiki-markdown` Facet. Its avatar preview and appearance controls are
-  Canvas-Host entries because the live Sigil renderer and studio are AOS canvas
-  surfaces.
+  Canvas-Host entries because the live Sigil renderer and wiki subject browser
+  are AOS canvas surfaces.
 - `createWorkRecordSubject()` maps Work Record intent, execution-map, evidence,
   claims/verifier, and health views into Facets backed by the existing
   `work-record-workbench` Canvas Host. Recording, replay, repair, and retirement

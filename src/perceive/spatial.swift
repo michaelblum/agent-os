@@ -474,49 +474,45 @@ class SpatialModel {
         // Skip zero-size elements
         guard globalBounds.width > 0 && globalBounds.height > 0 else { return }
 
-        // Only emit whitelisted roles
-        if xrayWhitelistRoles.contains(role) {
-            // Compute triple coordinates
-            let boundsGlobal = ChannelBounds(from: globalBounds)
+        // Emit raw visible elements. Consumers own semantic filtering.
+        let boundsGlobal = ChannelBounds(from: globalBounds)
 
-            let boundsWindow = ChannelBounds(
-                x: Double(globalBounds.origin.x) - windowBounds.x,
-                y: Double(globalBounds.origin.y) - windowBounds.y,
-                w: Double(globalBounds.width),
-                h: Double(globalBounds.height)
-            )
+        let boundsWindow = ChannelBounds(
+            x: Double(globalBounds.origin.x) - windowBounds.x,
+            y: Double(globalBounds.origin.y) - windowBounds.y,
+            w: Double(globalBounds.width),
+            h: Double(globalBounds.height)
+        )
 
-            let boundsPixel = ChannelBounds(
-                x: boundsWindow.x * scaleFactor,
-                y: boundsWindow.y * scaleFactor,
-                w: boundsWindow.w * scaleFactor,
-                h: boundsWindow.h * scaleFactor
-            )
+        let boundsPixel = ChannelBounds(
+            x: boundsWindow.x * scaleFactor,
+            y: boundsWindow.y * scaleFactor,
+            w: boundsWindow.w * scaleFactor,
+            h: boundsWindow.h * scaleFactor
+        )
 
-            // Get available actions
-            var actionsRef: CFArray?
-            let actions: [String]
-            if AXUIElementCopyActionNames(element, &actionsRef) == .success,
-               let names = actionsRef as? [String] {
-                actions = names
-            } else {
-                actions = []
-            }
-
-            let channelEl = ChannelElement(
-                role: role,
-                title: axString(element, kAXTitleAttribute),
-                label: axString(element, kAXDescriptionAttribute),
-                identifier: axString(element, "AXIdentifier"),
-                value: axString(element, kAXValueAttribute),
-                enabled: axBool(element, kAXEnabledAttribute) ?? true,
-                actions: actions,
-                bounds_pixel: boundsPixel,
-                bounds_window: boundsWindow,
-                bounds_global: boundsGlobal
-            )
-            results.append(channelEl)
+        var actionsRef: CFArray?
+        let actions: [String]
+        if AXUIElementCopyActionNames(element, &actionsRef) == .success,
+           let names = actionsRef as? [String] {
+            actions = names
+        } else {
+            actions = []
         }
+
+        let channelEl = ChannelElement(
+            role: role,
+            title: axString(element, kAXTitleAttribute),
+            label: axString(element, kAXDescriptionAttribute),
+            identifier: axString(element, "AXIdentifier"),
+            value: axString(element, kAXValueAttribute),
+            enabled: axBool(element, kAXEnabledAttribute) ?? true,
+            actions: actions,
+            bounds_pixel: boundsPixel,
+            bounds_window: boundsWindow,
+            bounds_global: boundsGlobal
+        )
+        results.append(channelEl)
 
         // Recurse children
         for child in axChildren(element) {

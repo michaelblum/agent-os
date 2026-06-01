@@ -218,9 +218,9 @@ func appEnteredData(app: String, pid: Int, bundle_id: String?) -> [String: Any] 
 }
 
 func elementFocusedData(role: String, title: String?, label: String?, value: String?,
-                         bounds: Bounds?, action_names: [String] = [], capabilities: [String] = [],
-                         context_path: [String]) -> [String: Any] {
-    var d: [String: Any] = ["role": role, "context_path": context_path]
+                         bounds: Bounds?, action_names: [String] = [],
+                         settable_attributes: [String] = [], ancestor_chain: [[String: Any]] = []) -> [String: Any] {
+    var d: [String: Any] = ["role": role, "ancestor_chain": ancestor_chain]
     if let t = title { d["title"] = t }
     if let l = label { d["label"] = l }
     if let v = value { d["value"] = v }
@@ -228,6 +228,6 @@ func elementFocusedData(role: String, title: String?, label: String?, value: Str
         d["bounds"] = ["x": b.x, "y": b.y, "width": b.width, "height": b.height]
     }
     d["action_names"] = action_names
-    d["capabilities"] = capabilities
+    d["settable_attributes"] = settable_attributes
     return d
 }

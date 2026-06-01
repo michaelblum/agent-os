@@ -1,6 +1,12 @@
 # AOS 3D Object Graph Platform Contract
 
-Status: V0 design note for follow-on implementation slices.
+Status: V0 design note for follow-on implementation slices. The accepted
+descriptor/update contract and Phase 6 resource-lifecycle closure now live in
+`docs/design/visual-object-descriptor-contract-v0.md` and
+`docs/dev/reports/aos-visual-object-architecture.md`. This note remains useful
+for object-graph subject boundaries and follow-on adapter direction, but its
+avatar inventory predates the accepted descriptor loop and should not override
+the current descriptor, controller, form-binding, and lifecycle contracts.
 
 This note turns the current Sigil "3D thing" direction into a platform
 contract. It does not replace the existing `canvas_object.*` work. It names the
@@ -93,6 +99,14 @@ colors, and transform-like size controls. Today these live in `state.js` and
 `DEFAULT_APPEARANCE`, are applied through `applyAppearance()`, and rebuild
 renderer objects through `updateGeometry()`, `applySkin()`, and
 `updateAllColors()`.
+
+Current descriptor-driven avatar edits are narrower than this inventory and
+should be read through the accepted descriptor contract. Primary stellation now
+routes through `updatePrimaryStellation()` for the positive-factor morph-target
+subset, primary tesseron proportion routes through
+`updatePrimaryTesseronProportion()`, and appearance edits can use
+`updatePrimaryAppearance()` where covered. Shape changes, omega geometry, and
+other structural changes may still use full geometry sync hooks.
 
 Tesseron controls are object graph geometry/material patches. Primary and omega
 tesserons include enabled, proportion, match-mother, edit target, and child

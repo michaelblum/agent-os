@@ -27,6 +27,7 @@ import {
   projectPointToMinimap,
   rectFromAt,
   resolveCanvasFrames,
+  normalizeCanvasFrameToDesktopWorld,
 } from '../../runtime/spatial.js'
 import { normalizeMarks } from './marks/normalize.js'
 import { createMarksState, applySnapshot, evictCanvas } from './marks/reconcile.js'
@@ -99,6 +100,7 @@ export {
   projectPointToMinimap,
   rectFromAt,
   resolveCanvasFrames,
+  normalizeCanvasFrameToDesktopWorld,
 } from '../../runtime/spatial.js'
 
 const SELF_ID = (typeof window !== 'undefined' && (window.__aosCanvasId || window.__aosSurfaceCanvasId)) || 'surface-inspector'
@@ -152,6 +154,32 @@ function normalizeDisplayRect(rect = null) {
   const h = Number(rect.h ?? rect.height)
   if (![x, y, w, h].every(Number.isFinite)) return null
   return { x, y, w, h }
+}
+
+function normalizedCoordinateSpace(value = '') {
+  const space = String(value || '').trim().toLowerCase()
+  if (space === 'desktopworld') return 'desktop_world'
+  return space
+}
+
+function canvasExplicitDesktopWorldRect(canvas = {}) {
+  if (normalizedCoordinateSpace(canvas.at_resolved_coordinate_space ?? canvas.atResolvedCoordinateSpace) === 'desktop_world') {
+    return normalizeDisplayRect(rectFromAt(canvas.atResolved))
+  }
+  if (normalizedCoordinateSpace(canvas.at_coordinate_space ?? canvas.atCoordinateSpace ?? canvas.coordinate_space ?? canvas.coordinateSpace) === 'desktop_world') {
+    return normalizeDisplayRect(rectFromAt(canvas.at))
+  }
+  return null
+}
+
+function canvasDisplayRect(canvas = {}, displaysForProjection = []) {
+  const explicit = normalizeDisplayRect(canvas.visible_display_rect || canvas.display_space_rect || canvas.rect)
+  if (explicit) return explicit
+  if (Array.isArray(displaysForProjection) && displaysForProjection.length > 0) {
+    return normalizeDisplayRect(normalizeCanvasFrameToDesktopWorld(canvas, displaysForProjection)?.rect)
+  }
+  if (canvas.canvas_frame_blocker || canvas.canvas_frame_ambiguity) return null
+  return canvasExplicitDesktopWorldRect(canvas)
 }
 
 function unionDisplayRects(rects = []) {
@@ -325,6 +353,12 @@ function rowIndentStyle(depth) {
 function formatAt(at) {
   const [x, y, w, h] = Array.isArray(at) ? at : [0, 0, 0, 0]
   return `${Math.round(w)}\u00d7${Math.round(h)} @ ${Math.round(x)},${Math.round(y)}`
+}
+
+function canvasRowFrameAt(canvas = {}) {
+  if (Array.isArray(canvas.atResolved)) return canvas.atResolved
+  if (Array.isArray(canvas.at)) return canvas.at
+  return null
 }
 
 function formatBounds(bounds) {
@@ -578,11 +612,11 @@ export function planAnnotationActionControlCanvasSync({
   }
 }
 
-export function buildAnnotationScopedHitRegions({ canvases = [], semanticTargetsByCanvas = new Map(), scopeStack = [], selfId = SELF_ID } = {}) {
+export function buildAnnotationScopedHitRegions({ canvases = [], displays = [], semanticTargetsByCanvas = new Map(), scopeStack = [], selfId = SELF_ID } = {}) {
   const internal = (id) => id === selfId || String(id || '').startsWith(`${selfId}-annotation-action-`) || String(id || '').startsWith(`${selfId}-annotation-hit-layer`)
   const broadRoot = (id) => /^desktop[-_]world$/i.test(String(id || '')) || /^aos-desktop-world-stage$/i.test(String(id || '')) || /^display[-_:]/i.test(String(id || '')) || /^avatar-main$/i.test(String(id || '')) || /^root$/i.test(String(id || ''))
   const parentId = (canvas = {}) => canvas.parent || canvas.parent_id || ''
-  const rectForCanvas = (canvas) => normalizeDisplayRect(canvas.visible_display_rect || canvas.display_space_rect || canvas.rect || rectFromAt(canvas.atResolved ?? canvas.at))
+  const rectForCanvas = (canvas) => canvasDisplayRect(canvas, displays)
   const scope = Array.isArray(scopeStack) ? scopeStack.at(-1) : null
   const visibleCanvases = (Array.isArray(canvases) ? canvases : []).filter((canvas) => !canvas?.suspended && !internal(canvas.id))
   const ids = new Set(visibleCanvases.map((canvas) => canvas.id))
@@ -683,7 +717,7 @@ function renderSurfaceRow(c, depth, options = {}) {
   html += `<span class="canvas-id">${escapeHTML(c.id)}</span>`
   html += `<span class="canvas-kind">desktop-world</span>`
   html += `<span class="canvas-kind-detail">${segmentCount} segment${segmentCount === 1 ? '' : 's'}</span>`
-  html += `<span class="canvas-dims">${formatAt(c.atResolved || c.at)}</span>`
+  html += `<span class="canvas-dims">${formatAt(canvasRowFrameAt(c))}</span>`
   html += `<span class="canvas-flags">`
   html += renderCanvasActionButtons(c.id, options)
   html += `</span></div>`
@@ -694,7 +728,7 @@ function renderSurfaceRow(c, depth, options = {}) {
 export function renderCanvasRow(c, depth = 0, options = {}) {
   if (Array.isArray(c?.segments)) return renderSurfaceRow(c, depth, options)
 
-  const dims = formatAt(c?.atResolved || c?.at)
+  const dims = formatAt(canvasRowFrameAt(c))
   const selfId = options.selfId ?? SELF_ID
   const tintedIds = options.tintedIds || new Set()
   const statsIds = options.statsIds || new Set()
@@ -1202,7 +1236,7 @@ export default function CanvasInspector() {
         annotationOverlaySignatures.set(canvas.id, signature)
         evalCanvas(canvas.id, buildAnnotationOverlayEvalScript({
           ...group,
-          overlay_frame: normalizeDisplayRect(rectFromAt(canvas.atResolved || canvas.at)),
+          overlay_frame: normalizeDisplayRect(normalizeCanvasFrameToDesktopWorld(canvas, displays)?.rect),
         })).catch(() => {
           annotationOverlaySignatures.delete(canvas.id)
         })
@@ -1500,7 +1534,7 @@ export default function CanvasInspector() {
   }
 
   function canvasNodeForAnnotation(canvas) {
-    const rect = rectFromAt(canvas?.atResolved ?? canvas?.at)
+    const rect = normalizeCanvasFrameToDesktopWorld(canvas, displays)?.rect
     const hasChildren = canvases.some((item) => item?.parent === canvas?.id || item?.parent_id === canvas?.id)
     return {
       id: canvas?.id,
@@ -1511,7 +1545,7 @@ export default function CanvasInspector() {
       root_label: canvas?.root_label || canvas?.display_label || 'main',
       adapter_id: 'aos-canvas-window',
       projection: rect
-        ? { status: 'visible', projectable: true, can_project_display_overlay: true, can_reveal: true, visible_display_rect: rect, display_space_rect: rect, coordinate_space: 'native_display' }
+        ? { status: 'visible', projectable: true, can_project_display_overlay: true, can_reveal: true, visible_display_rect: rect, display_space_rect: rect, coordinate_space: 'desktop_world' }
         : { status: 'stale', projectable: false, can_reveal: false, blocker: { reason: 'missing_canvas_rect' }, blocker_reason: 'missing_canvas_rect' },
       has_children: hasChildren,
       pinned: Boolean(findPinForCandidateId(canvas?.id)),
@@ -2223,11 +2257,11 @@ export default function CanvasInspector() {
 
   function minimapCanvases() {
     const displayRects = normalizeDisplays(displays)
-      .map((display) => display.nativeBounds || display.bounds)
+      .map((display) => display.bounds)
       .filter(Boolean)
     const visibleCanvases = canvases.filter((canvas) => canvas?.suspended !== true)
     return resolveCanvasFrames(visibleCanvases).filter((canvas) => {
-      const rect = rectFromAt(canvas.atResolved ?? canvas.at)
+      const rect = normalizeCanvasFrameToDesktopWorld(canvas, displays)?.rect
       if (!rect) return false
       return displayRects.some((display) => rectsIntersect(rect, display))
     })
@@ -2991,12 +3025,24 @@ export default function CanvasInspector() {
   function normalizeCanvasesToDesktopWorld(list) {
     const resolved = resolveCanvasFrames(list)
     return resolved.map((canvas) => {
-      const worldResolved = nativeToDesktopWorldRect(rectFromAt(canvas.atResolved ?? canvas.at), displays)
-      const worldAt = nativeToDesktopWorldRect(rectFromAt(canvas.at), displays)
+      const worldResolved = normalizeCanvasFrameToDesktopWorld(canvas, displays)
+      const worldAt = normalizeCanvasFrameToDesktopWorld({
+        ...canvas,
+        atResolved: null,
+        at_resolved_coordinate_space: null,
+        atResolvedCoordinateSpace: null,
+      }, displays)
+      const blocked = worldResolved?.status === 'blocked'
       return {
         ...canvas,
-        at: rectToAt(worldAt) ?? canvas.at,
-        atResolved: rectToAt(worldResolved) ?? canvas.atResolved,
+        at: blocked ? null : (rectToAt(worldAt?.rect) ?? canvas.at),
+        atResolved: blocked ? null : (rectToAt(worldResolved?.rect) ?? canvas.atResolved),
+        at_coordinate_space: blocked ? '' : 'desktop_world',
+        at_resolved_coordinate_space: blocked ? '' : 'desktop_world',
+        canvas_frame_source: worldResolved?.source_frame || '',
+        canvas_frame_inference: worldResolved?.inference || '',
+        canvas_frame_ambiguity: worldResolved?.ambiguity || null,
+        canvas_frame_blocker: blocked ? (worldResolved.blocker || { reason: worldResolved.blocker_reason || 'canvas_frame_blocked' }) : null,
       }
     })
   }

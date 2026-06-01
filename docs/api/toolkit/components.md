@@ -31,8 +31,8 @@ native `step`, `min`, and `max` attributes, dispatches bubbling `input` and
 `defaults.css` provides the stock visual control pack for toolkit panels. It is
 optional and themeable through CSS custom properties. The first class set covers
 buttons, chip buttons, selects, text inputs, number fields, textareas,
-checkboxes, toggles, ranges, segmented controls, icon buttons, and selectable
-list rows.
+checkboxes, toggles, sliders, color fields, segmented controls, sectioned forms,
+icon buttons, and selectable list rows.
 
 ```html
 <link rel="stylesheet" href="aos://toolkit/components/_base/theme.css">
@@ -879,7 +879,7 @@ effect controls, and capabilities:
           {
             "id": "fractalPulse.intensity",
             "label": "Tree pulse",
-            "type": "range",
+            "type": "slider",
             "value": 1,
             "min": 0,
             "max": 3,

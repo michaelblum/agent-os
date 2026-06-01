@@ -19,7 +19,7 @@
     --sigil-type-trigger-caret-size: 1rem;
     --sigil-radius-scrollbar: 3px;
     --sigil-radius-control: 4px;
-    --sigil-radius-popover: 5px;
+    --sigil-radius-listbox: 5px;
     --sigil-radius-group: 6px;
     --sigil-radius-panel: 8px;
 
@@ -87,7 +87,7 @@
     --sigil-context-menu-surface-control-bg-strong: rgba(30, 15, 50, 0.85);
     --sigil-context-menu-surface-control-bg-select: rgba(30, 15, 50, 0.9);
     --sigil-context-menu-surface-control-bg-action: rgba(30, 15, 50, 0.6);
-    --sigil-context-menu-surface-popover-bg: rgba(12, 8, 24, 0.96);
+    --sigil-context-menu-surface-listbox-bg: rgba(12, 8, 24, 0.96);
     --sigil-context-menu-surface-section-bg: rgba(12, 8, 24, 0.42);
     --sigil-context-menu-surface-hover-bg: rgba(188, 19, 254, 0.2);
     --sigil-context-menu-surface-hover-bg-subtle: rgba(188, 19, 254, 0.15);
@@ -99,14 +99,14 @@
     --sigil-context-menu-border-color-muted: rgba(209, 135, 255, 0.35);
     --sigil-context-menu-border-color-control: rgba(209, 135, 255, 0.38);
     --sigil-context-menu-border-color-field: rgba(209, 135, 255, 0.4);
-    --sigil-context-menu-border-color-popover: rgba(209, 135, 255, 0.42);
+    --sigil-context-menu-border-color-listbox: rgba(209, 135, 255, 0.42);
     --sigil-context-menu-border-color-section: rgba(209, 135, 255, 0.24);
     --sigil-context-menu-border-color-divider: rgba(188, 19, 254, 0.4);
     --sigil-context-menu-border-color-subtle: rgba(188, 19, 254, 0.25);
     --sigil-context-menu-border-color-hairline: rgba(188, 19, 254, 0.3);
     --sigil-context-menu-shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.8);
     --sigil-context-menu-shadow-card-pushed: 0 4px 20px rgba(0, 0, 0, 0.5);
-    --sigil-context-menu-shadow-popover-inset: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+    --sigil-context-menu-shadow-listbox-inset: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
     --sigil-context-menu-blur-panel: 12px;
 
     --sigil-context-menu-space-0: 0;
@@ -130,7 +130,7 @@
     --sigil-context-menu-space-168: 168px;
     --sigil-context-menu-radius-3: var(--sigil-radius-scrollbar, var(--aos-control-compact-radius, 3px));
     --sigil-context-menu-radius-4: var(--sigil-radius-control, var(--aos-control-compact-radius, 4px));
-    --sigil-context-menu-radius-5: var(--sigil-radius-popover, var(--aos-control-radius, 5px));
+    --sigil-context-menu-radius-5: var(--sigil-radius-listbox, var(--aos-control-radius, 5px));
     --sigil-context-menu-radius-6: var(--sigil-radius-group, var(--aos-control-radius, 6px));
     --sigil-context-menu-radius-8: var(--sigil-radius-panel, var(--aos-panel-radius, 8px));
 }

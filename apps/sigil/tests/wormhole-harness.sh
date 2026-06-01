@@ -9,7 +9,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-source "$REPO_ROOT/tests/lib/visual-harness.sh"
+source "$REPO_ROOT/tests/lib/sigil/visual-harness.sh"
 
 AOS="${AOS:-$REPO_ROOT/aos}"
 MODE="${MODE:-repo}"

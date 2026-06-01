@@ -1,5 +1,11 @@
 # Sigil: Celestial Graft and Full-Screen Avatar
 
+> **Archive status:** Historical pre-descriptor Sigil design. It is not current
+> guidance for avatar descriptors, geometry updates, or resource lifecycle
+> evidence. Use `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md` instead.
+
 **Date:** 2026-04-07
 **Status:** Approved design, pending implementation plan
 

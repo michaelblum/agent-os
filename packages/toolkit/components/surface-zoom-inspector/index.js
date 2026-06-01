@@ -20,7 +20,6 @@ import {
 import { mountChrome } from '../../panel/chrome.js'
 import { createFixedSidebarPane, createSplitPane } from '../../panel/layouts/split-pane.js'
 import { renderButtonHtml } from '../../controls/button.js'
-import { renderSelectHtml } from '../../controls/select.js'
 import { renderToggleHtml } from '../../controls/toggle.js'
 import {
   renderWorkbenchPaneHeader,
@@ -74,18 +73,21 @@ function renderToolbarToggle({ label, checked, actionAttr }) {
   return controlHtml(control)
 }
 
-function renderToolbarSelect({ label, options, value, actionAttr, disabled = false }) {
+function renderToolbarSelectSlot(action) {
+  return `<span data-surface-zoom-select="${esc(action)}"></span>`
+}
+
+function createToolbarSelect({ label, options, value, disabled = false, onChange }) {
   const control = createSelect({
     document,
     label,
     value,
     options: options.map(([optionValue, optionLabel]) => ({ value: optionValue, label: optionLabel })),
+    onChange,
   })
-  const select = control.el.querySelector('select')
-  select?.setAttribute('data-action', actionValue(actionAttr))
-  if (disabled) select?.setAttribute('disabled', '')
+  if (disabled) control.setDisabled?.(true)
   control.el.classList.add('aos-control-row')
-  return controlHtml(control)
+  return control
 }
 
 function detailSummary(label, value = '') {
@@ -397,23 +399,8 @@ function renderToolbar(state) {
         content: `
         ${renderWorkbenchReadout({ label: 'Surface', value: surface?.label || 'none' })}
         ${renderToggleHtml({ label: 'Overlay', checked: state.overlayVisible, dataset: { action: 'toggle-overlay' } })}
-        ${renderSelectHtml({
-          label: 'Labels',
-          value: state.labelDensity,
-          options: LABEL_DENSITY_OPTIONS.map(([value, label]) => ({ value, label })),
-          wrapperTag: 'label',
-          wrapperClassName: 'aos-control-row',
-          dataset: { action: 'label-density' },
-        })}
-        ${renderSelectHtml({
-          label: 'Map',
-          value: state.mapDisplayMode,
-          options: DISPLAY_MODE_OPTIONS.map(([value, label]) => ({ value, label })),
-          wrapperTag: 'label',
-          wrapperClassName: 'aos-control-row',
-          disabled: !preview.markdown_backed,
-          dataset: { action: 'map-display-mode' },
-        })}
+        ${renderToolbarSelectSlot('label-density')}
+        ${renderToolbarSelectSlot('map-display-mode')}
         `,
       })}
       ${renderWorkbenchToolbarSection({
@@ -436,6 +423,37 @@ function renderToolbar(state) {
       })}
     `,
   })
+}
+
+function mountToolbarSelects(root, content, state) {
+  const preview = markdownPreviewViewModel(state)
+  const labelSlot = content.querySelector('[data-surface-zoom-select="label-density"]')
+  if (labelSlot) {
+    const control = createToolbarSelect({
+      label: 'Labels',
+      value: state.labelDensity,
+      options: LABEL_DENSITY_OPTIONS,
+      onChange(value) {
+        state.labelDensity = value
+        render(root, content, state)
+      },
+    })
+    labelSlot.replaceWith(control.el)
+  }
+  const mapSlot = content.querySelector('[data-surface-zoom-select="map-display-mode"]')
+  if (mapSlot) {
+    const control = createToolbarSelect({
+      label: 'Map',
+      value: state.mapDisplayMode,
+      options: DISPLAY_MODE_OPTIONS,
+      disabled: !preview.markdown_backed,
+      onChange(value) {
+        setMapDisplayMode(state, value)
+        render(root, content, state)
+      },
+    })
+    mapSlot.replaceWith(control.el)
+  }
 }
 
 function applyMarkdownPreview(root, state) {
@@ -511,8 +529,9 @@ function render(root, content, state) {
       ${narrowLayout
         ? `${mapPanel}<div class="surface-zoom-lower-stack">${inspectorPanel}${secondaryPanel}</div>`
         : `<div class="surface-zoom-left-stack">${mapPanel}${secondaryPanel}</div>${inspectorPanel}`}
-    </div>
+      </div>
   `
+  mountToolbarSelects(root, content, state)
   const workbench = content.querySelector('.surface-zoom-workbench')
   if (narrowLayout) {
     const lowerStack = content.querySelector('.surface-zoom-lower-stack')
@@ -702,12 +721,6 @@ async function main() {
     root.addEventListener('change', (event) => {
       if (event.target?.dataset?.action === 'toggle-overlay') {
         state.overlayVisible = event.target.checked
-        render(root, chrome.contentEl, state)
-      } else if (event.target?.dataset?.action === 'label-density') {
-        state.labelDensity = event.target.value
-        render(root, chrome.contentEl, state)
-      } else if (event.target?.dataset?.action === 'map-display-mode') {
-        setMapDisplayMode(state, event.target.value)
         render(root, chrome.contentEl, state)
       }
     })

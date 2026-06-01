@@ -1,5 +1,10 @@
 # Studio UX Rework Implementation Plan
 
+> **Archive status:** Historical Studio/Sigil plan. It predates the accepted
+> visual-object descriptor/resource-lifecycle closure; use current
+> contract/status docs for avatar state, descriptors, stellation, and resource
+> guidance.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the Celestial-era 3D-preview Avatar Studio with a stageless, identity-first inspector that manages a roster of agent wiki docs, provides a seeded reroll flyout, and relies on the live desktop avatar as its preview.

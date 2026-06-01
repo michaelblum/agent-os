@@ -2,10 +2,20 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-source "$ROOT/tests/lib/visual-harness.sh"
+source "$ROOT/tests/lib/sigil/visual-harness.sh"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
+
+assert_file_contains() {
+  local needle="$1"
+  local file="$2"
+  if ! grep -Fq "$needle" "$file"; then
+    echo "FAIL: expected $file to contain: $needle" >&2
+    cat "$file" >&2 || true
+    exit 1
+  fi
+}
 
 fake_aos="$tmpdir/aos"
 cat >"$fake_aos" <<'SH'
@@ -64,6 +74,7 @@ print(pathlib.Path(sys.argv[1]).resolve(strict=False))
 PY
 )"
 if AOS="$fake_aos" \
+  AOS_STATE_ROOT="$tmpdir/state" \
   AOS_FAKE_TOOLKIT_ROOT="$ROOT/packages/toolkit" \
   AOS_FAKE_SIGIL_ROOT="$tmpdir/old-root/apps/sigil" \
     aos_visual_prepare_live_roots >"$tmpdir/mismatch.out" 2>"$mismatch_err"; then
@@ -71,18 +82,19 @@ if AOS="$fake_aos" \
   exit 1
 fi
 
-grep -Fq "FAIL: live content root mismatch for sigil" "$mismatch_err"
-grep -Fq "Expected: $ROOT/apps/sigil" "$mismatch_err"
-grep -Fq "Active:   $active_old_sigil" "$mismatch_err"
-grep -Fq "not serving the worktree" "$mismatch_err"
+assert_file_contains "FAIL: live content root mismatch for sigil" "$mismatch_err"
+assert_file_contains "Expected: $ROOT/apps/sigil" "$mismatch_err"
+assert_file_contains "Active:   $active_old_sigil" "$mismatch_err"
+assert_file_contains "not serving the worktree" "$mismatch_err"
 
 warn_err="$tmpdir/warn.err"
 AOS="$fake_aos" \
+AOS_STATE_ROOT="$tmpdir/state" \
 AOS_VISUAL_CONTENT_PREFLIGHT=warn \
 AOS_FAKE_TOOLKIT_ROOT="$tmpdir/old-root/packages/toolkit" \
 AOS_FAKE_SIGIL_ROOT="$ROOT/apps/sigil" \
   aos_visual_prepare_live_roots >"$tmpdir/warn.out" 2>"$warn_err"
 
-grep -Fq "WARN: live content root mismatch for toolkit" "$warn_err"
+assert_file_contains "WARN: live content root mismatch for toolkit" "$warn_err"
 
 echo "PASS: visual harness content preflight detects stale active roots."

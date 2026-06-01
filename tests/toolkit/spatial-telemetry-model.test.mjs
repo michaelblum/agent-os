@@ -105,3 +105,30 @@ test('buildSpatialTelemetrySnapshot honors daemon-provided DesktopWorld bounds',
   assert.deepEqual(snapshot.displayRows[0].visibleBounds, { x: 50, y: 25, w: 1512, h: 957 });
   assert.deepEqual(snapshot.displayRows[0].nativeBounds, { x: -200, y: 0, w: 1512, h: 982 });
 });
+
+test('buildSpatialTelemetrySnapshot uses the canonical canvas frame contract', () => {
+  const snapshot = buildSpatialTelemetrySnapshot({
+    displays: [
+      display('left', { x: -207, y: 0, w: 207, h: 900 }),
+      display('main', { is_main: true, x: 0, y: 0, w: 1512, h: 982 }),
+    ],
+    canvases: [
+      { id: 'native-canvas', at: [120, 120, 360, 260] },
+      {
+        id: 'resolved-desktop-world-canvas',
+        at: [120, 120, 360, 260],
+        atResolved: [327, 120, 360, 260],
+        at_resolved_coordinate_space: 'desktop_world',
+      },
+      {
+        id: 'ambiguous-canvas',
+        at: [120, 120, 360, 260],
+        atResolved: [500, 120, 360, 260],
+      },
+    ],
+  });
+
+  assert.deepEqual(snapshot.canvasRows[0].worldRect, { x: 327, y: 120, w: 360, h: 260 });
+  assert.deepEqual(snapshot.canvasRows[1].worldRect, { x: 327, y: 120, w: 360, h: 260 });
+  assert.equal(snapshot.canvasRows[2].worldRect, null);
+});

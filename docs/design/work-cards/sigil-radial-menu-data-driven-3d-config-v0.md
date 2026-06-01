@@ -440,8 +440,8 @@ if that minimizes churn.
   failing test and called out in the completion report.
 - Do not remodel the Sigil radial target child surface except to keep semantic
   item data in sync with the resolved menu.
-- Do not update parked legacy Sigil `studio/`, `workbench/`, or `chat/` paths
-  unless a direct import breaks and the fix is mechanical.
+- Do not update parked legacy Sigil `workbench/` or `chat/` paths unless a
+  direct import breaks and the fix is mechanical.
 
 ## Verification
 

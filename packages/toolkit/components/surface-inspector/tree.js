@@ -8,7 +8,7 @@
 import {
   findContainingDisplayForRect,
   labelDisplays,
-  rectFromAt,
+  normalizeCanvasFrameToDesktopWorld,
 } from '../../runtime/spatial.js';
 
 const UNION_ID = '__union__';
@@ -18,10 +18,14 @@ const UNION_ID = '__union__';
 //   - its rect spans (or lies outside) every display's bounds, or
 //   - it has no resolvable rect at all.
 function canvasBelongsToUnion(canvas, displays) {
-  const rect = rectFromAt(canvas?.atResolved ?? canvas?.at)
+  const rect = canvasDesktopWorldRect(canvas, displays);
   if (canvas?.track === 'union') return true;
   if (!rect) return true;
   return findContainingDisplayForRect(rect, displays) == null;
+}
+
+function canvasDesktopWorldRect(canvas, displays) {
+  return normalizeCanvasFrameToDesktopWorld(canvas, displays)?.rect ?? null;
 }
 
 function getMarks(marksByCanvas, canvasId) {
@@ -192,7 +196,7 @@ export function computeInspectorTree({
       unionCanvases.push(c);
       continue;
     }
-    const owner = findContainingDisplayForRect(rectFromAt(c.atResolved ?? c.at), displays) || displays[0];
+    const owner = findContainingDisplayForRect(canvasDesktopWorldRect(c, displays), displays) || displays[0];
     if (!perDisplay.has(owner.id)) perDisplay.set(owner.id, []);
     perDisplay.get(owner.id).push(c);
   }

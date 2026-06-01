@@ -1,5 +1,12 @@
 # Sigil Celestial Graft Implementation Plan
 
+> **Archive status:** Historical pre-descriptor Sigil planning material. Do not
+> use this plan as current visual-object, avatar descriptor, geometry rebuild,
+> or resource-lifecycle guidance. Current authority is
+> `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the small-window avatar renderer with full-screen transparent canvases running the celestial legacy engine, enabling ghost trails and effects across screen space.

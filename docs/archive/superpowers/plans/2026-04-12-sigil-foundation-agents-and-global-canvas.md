@@ -1,5 +1,11 @@
 # Sigil Foundation — Agent Documents & Global Canvas Implementation Plan
 
+> **Archive status:** Historical pre-descriptor Sigil planning material. Use it
+> only for origin context; current visual-object and Sigil avatar guidance lives
+> in `docs/adr/0014-visual-object-descriptor-contract.md`,
+> `docs/design/visual-object-descriptor-contract-v0.md`, and
+> `docs/dev/reports/aos-visual-object-architecture.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace Sigil's minimal `avatar-config.json` with per-agent wiki documents, migrate to a single global canvas spanning all displays, hard-code idle=parked, and wire live reload via the AOS wiki change channel.

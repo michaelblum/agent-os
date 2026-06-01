@@ -242,8 +242,15 @@ class StatusItemManager {
         annotateItem.state = isCanvasInspectorAnnotationModeVisibleAndActive ? .on : .off
         menu.addItem(annotateItem)
 
-        if canvasManager.hasCanvas(toggleId) {
+        if !toggleUrl.isEmpty {
             menu.addItem(NSMenuItem.separator())
+            let reloadItem = NSMenuItem(title: "Reload", action: #selector(menuReload), keyEquivalent: "r")
+            reloadItem.target = self
+            reloadItem.isEnabled = !isAnimating
+            menu.addItem(reloadItem)
+        }
+
+        if canvasManager.hasCanvas(toggleId) {
             let removeItem = NSMenuItem(title: "Remove", action: #selector(menuRemove), keyEquivalent: "")
             removeItem.target = self
             menu.addItem(removeItem)
@@ -270,6 +277,10 @@ class StatusItemManager {
 
     @objc private func menuRemove() {
         dismissCanvas()
+    }
+
+    @objc private func menuReload() {
+        reloadCanvas()
     }
 
     @objc private func menuCanvasInspector() {
@@ -713,6 +724,43 @@ class StatusItemManager {
     }
 
     // MARK: - Dismiss (hard remove — daemon restart / full teardown)
+
+    private func removeCanvasTree(_ rootId: String) {
+        for id in canvasManager.collectTree(rootId).reversed() {
+            guard canvasManager.hasCanvas(id) else { continue }
+            var rm = CanvasRequest(action: "remove")
+            rm.id = id
+            _ = canvasManager.handle(rm)
+        }
+    }
+
+    private func reloadCanvas() {
+        guard !toggleUrl.isEmpty else { return }
+        let origin = statusItemCGPosition()
+        let modifiers = modifierNames(from: NSApp.currentEvent?.modifierFlags ?? [])
+        let existed = canvasManager.hasCanvas(toggleId)
+        log("reload target=\(toggleId) existed=\(existed) persistent=\(usesPersistentCanvas)")
+
+        isAnimating = true
+        updateIcon()
+        if existed {
+            removeCanvasTree(toggleId)
+        }
+        hasPersistentStateSource = false
+        persistentVisible = false
+        summonCanvas()
+
+        if usesPersistentCanvas {
+            waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
+                guard let self = self else { return }
+                if !ready {
+                    self.log("reload target=\(self.toggleId) readiness timed out; posting visible intent fallback")
+                }
+                self.isAnimating = false
+                self.showPersistentCanvas(origin: origin, modifiers: modifiers)
+            }
+        }
+    }
 
     private func dismissCanvas() {
         let isTracked = toggleTrack != nil

@@ -26,8 +26,9 @@ semantic.
 
 The visible implementation can be HTML, canvas, WebGL, Swift, or toolkit code.
 The accessibility surface should still behave like a Mac app: `aos see --xray`
-can discover it, and `aos do` can operate it through the daemon route when the
-runtime is ready.
+can expose its raw bounded AX elements, and toolkit/app policy can classify
+them for selection, annotation, or action. `aos do` can operate it through the
+daemon route when the runtime is ready.
 
 For AOS-owned canvases, `aos see capture --canvas <id> --xray` also exposes a
 `semantic_targets` array. Treat that as a projection of the same standard facts,
@@ -114,9 +115,9 @@ before claiming runtime verification. In installed mode, use the installed
 
 For representative controls, verify:
 
-- `./aos see --xray` exposes the expected role, semantic name, frame, state, and
-  action. For AOS-owned canvases, check `semantic_targets` for stable refs,
-  surface id, parent canvas id, and action id.
+- `./aos see --xray` exposes raw role/name/value/frame/action evidence. For
+  AOS-owned canvases, check `semantic_targets` for stable refs, surface id,
+  parent canvas id, and action id.
 - `./aos do` can operate the control through the daemon/AOS route, not only
   through app-local JavaScript or a synthetic unit test.
 - Screenshots show the intended visual design, with no duplicate agent labels

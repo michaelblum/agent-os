@@ -55,7 +55,7 @@ export function createSigilInputRegionAdapter({
         return selectSigilInputRegionOwner(windowObject, fallbackCanvasId);
     }
 
-    function payloadFor(id, frame, { semanticLabel, priority, purpose }) {
+    function payloadFor(id, frame, { semanticLabel, priority, purpose, metadata = {} }) {
         return {
             id,
             owner_canvas_id: currentOwnerCanvasId(),
@@ -70,6 +70,7 @@ export function createSigilInputRegionAdapter({
                 app: 'sigil',
                 surface: fallbackCanvasId,
                 purpose,
+                ...metadata,
             },
         };
     }

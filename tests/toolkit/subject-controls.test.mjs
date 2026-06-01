@@ -5,6 +5,10 @@ import {
   findWorkbenchSubjectControl,
   WORKBENCH_SUBJECT_CONTROL_ORDER,
 } from '../../packages/toolkit/workbench/subject-controls.js';
+import {
+  applyVisualObjectControllerUpdate,
+  createRadialMenuWorkbenchSubject,
+} from '../../packages/toolkit/workbench/index.js';
 import { createWorkbenchSubject } from '../../packages/toolkit/workbench/subject.js';
 import { createWikiPageSubject } from '../../packages/toolkit/workbench/wiki-subject.js';
 
@@ -99,4 +103,54 @@ test('subject controls ignore legacy controls and dotted raw capabilities', () =
   assert.equal(findWorkbenchSubjectControl(controls, 'edit').enabled, false);
   assert.deepEqual(findWorkbenchSubjectControl(controls, 'edit').contracts, []);
   assert.deepEqual(findWorkbenchSubjectControl(controls, 'edit').facets, []);
+});
+
+test('workbench subjects expose visual descriptors that bind through the controller adapter', () => {
+  const subject = createRadialMenuWorkbenchSubject({
+    menu: {
+      id: 'proof-menu',
+      items: [
+        { id: 'alpha', label: 'Alpha', effects: [{ ref: 'effect.alpha', enabled: true }] },
+      ],
+    },
+    selectedItemId: 'alpha',
+  });
+  const controls = deriveWorkbenchSubjectControls(subject);
+  const edit = findWorkbenchSubjectControl(controls, 'edit');
+  const descriptor = subject.state.visual_object_descriptors.find((entry) => (
+    entry.route === 'canvas_object.transform.patch'
+  ));
+  const state = {
+    radial_menu: {
+      'proof-menu': {
+        items: {
+          alpha: {
+            geometry: { radiusScale: 1 },
+          },
+        },
+      },
+    },
+  };
+  const calls = [];
+
+  const result = applyVisualObjectControllerUpdate(descriptor, 1.5, state, {
+    routeHandlers: {
+      'canvas_object.transform.patch': ({ mutation }) => calls.push(['route', mutation.descriptor_id]),
+    },
+    rendererSyncHandlers: {
+      resolveRadialMenuConfig: ({ mutation }) => calls.push(['sync', mutation.descriptor_id, 'resolve']),
+      renderRadialMenuPreview: ({ mutation }) => calls.push(['sync', mutation.descriptor_id, 'render']),
+    },
+  });
+
+  assert.equal(edit.enabled, true);
+  assert.ok(edit.facets.some((facet) => facet.key === 'object-controls'));
+  assert.equal(descriptor.id, 'radial-menu-proof-menu-alpha-radius-scale');
+  assert.equal(state.radial_menu['proof-menu'].items.alpha.geometry.radiusScale, 1.5);
+  assert.equal(result.descriptor_id, descriptor.id);
+  assert.deepEqual(calls, [
+    ['route', 'radial-menu-proof-menu-alpha-radius-scale'],
+    ['sync', 'radial-menu-proof-menu-alpha-radius-scale', 'resolve'],
+    ['sync', 'radial-menu-proof-menu-alpha-radius-scale', 'render'],
+  ]);
 });
