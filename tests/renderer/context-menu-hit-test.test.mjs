@@ -461,6 +461,29 @@ test('descriptor routing applies primary stellation through minimal sync hook', 
   assert.deepEqual(calls, [['stellation', 1.25]])
 })
 
+test('descriptor routing applies primary tesseron proportion through minimal sync hook', () => {
+  const calls = []
+  const state = {
+    avatar: {
+      shape: {
+        type: 4,
+        tesseron: { enabled: true, proportion: 0.5, matchMother: true, child: {} },
+      },
+      appearance: {},
+      effects: {},
+    },
+  }
+  const result = applyContextMenuDescriptorUpdate('sigil-menu-tesseron-proportion', '0.68', {
+    state,
+    updateGeometry(value) { calls.push(['geometry', value]) },
+    updatePrimaryTesseronProportion(value) { calls.push(['tesseron-proportion', value]) },
+  })
+
+  assert.equal(result.route, 'canvas_object.transform.patch')
+  assert.equal(state.avatar.shape.tesseron.proportion, 0.68)
+  assert.deepEqual(calls, [['tesseron-proportion', 0.68]])
+})
+
 test('descriptor routing applies primary appearance controls through minimal sync hook', () => {
   for (const [id, rawValue, expectedPath, expectedValue] of [
     ['sigil-menu-opacity', '0.35', ['appearance', 'opacity'], 0.35],
