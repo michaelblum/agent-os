@@ -56,6 +56,8 @@ function geometryStats() {
         primaryStellationSuppressed: 0,
         primaryStellationReplacementGeometriesCreated: 0,
         primaryStellationReplacementGeometriesDisposed: 0,
+        primaryStellationTemporaryGeometriesCreated: 0,
+        primaryStellationTemporaryGeometriesDisposed: 0,
         primaryStellationRetainedGeometries: 0,
         primaryStellationMaxRetainedGeometries: 0,
         primaryAppearanceUpdates: 0,
@@ -400,20 +402,18 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
     const edgeGeometry = typeof THREE_NS.EdgesGeometry === 'function'
         ? new THREE_NS.EdgesGeometry(finalGeometry)
         : finalGeometry;
-    stats.primaryStellationReplacementGeometriesCreated += countUniqueGeometries(finalGeometry, edgeGeometry);
+    stats.primaryStellationTemporaryGeometriesCreated += countUniqueGeometries(finalGeometry, edgeGeometry);
 
-    const oldDepthGeometry = depthMesh.geometry;
-    const oldCoreGeometry = coreMesh.geometry;
-    const oldWireGeometry = wireframeMesh.geometry;
-
-    depthMesh.geometry = finalGeometry;
-    coreMesh.geometry = finalGeometry;
-    wireframeMesh.geometry = edgeGeometry;
+    // Current stellation changes topology, so a uniform-only path is not safe yet.
+    // Keep GPU objects stable by copying generated buffers into retained geometries.
+    replacePositionAttribute(depthMesh.geometry, finalGeometry);
+    replacePositionAttribute(coreMesh.geometry, finalGeometry);
+    replacePositionAttribute(wireframeMesh.geometry, edgeGeometry);
     applyGradientVertexColors(coreMesh, avatar.appearance.colors.face);
     applyGradientVertexColors(wireframeMesh, avatar.appearance.colors.edge);
 
     baseGeometry.dispose?.();
-    stats.primaryStellationReplacementGeometriesDisposed += disposeUniqueGeometries(oldDepthGeometry, oldCoreGeometry, oldWireGeometry);
+    stats.primaryStellationTemporaryGeometriesDisposed += disposeUniqueGeometries(finalGeometry, edgeGeometry);
     recordPrimaryStellationRetainedGeometries(stats, depthMesh.geometry, coreMesh.geometry, wireframeMesh.geometry);
     stats.primaryStellationUpdates += 1;
     return { updated: true, suppressed: false };

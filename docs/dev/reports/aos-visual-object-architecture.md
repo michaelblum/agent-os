@@ -46,13 +46,18 @@ Implemented capabilities:
 Partially implemented:
 
 - Stellation and tesseron paths have focused no-rebuild, bounded resource, and
-  serialization coverage. Primary tesseron proportion edits now update child
-  and link geometry buffers in place through `updatePrimaryTesseronProportion()`
-  instead of routing the descriptor to a full primary hierarchy rebuild. The
-  100-edit deterministic and bounded live canvas proofs retained 7 unique
-  geometries, created and disposed 500 temporary geometries, and serialized
-  `state.avatar` successfully. GPU morph-target or uniform-only stellation is
-  not a completed platform capability.
+  serialization coverage. Primary stellation descriptor edits now keep the
+  existing depth/core/wire mesh and material identities and mutate retained
+  geometry buffers in place; the deterministic 100-edit proof retains 2 unique
+  geometries, creates/disposes 200 temporary source geometries, performs 0
+  replacement-geometry swaps, and serializes `state.avatar` successfully.
+  Primary tesseron proportion edits update child and link geometry buffers in
+  place through `updatePrimaryTesseronProportion()` instead of routing the
+  descriptor to a full primary hierarchy rebuild. The 100-edit deterministic
+  and bounded live canvas proofs retained 7 unique geometries, created and
+  disposed 500 temporary geometries, and serialized `state.avatar`
+  successfully. GPU morph-target or uniform-only stellation is still not a
+  completed platform capability because current stellation changes topology.
 - The descriptor/controller/form loop has deterministic 3D, 2D, and DOM proof
   coverage; broad migration of every visual surface is future work.
 - Live AOS proof exists for a bounded avatar tesseron resource update and for a
@@ -347,10 +352,11 @@ mesh.morphTargetInfluences[0] = stellationFactor;
 // Three.js interpolates on GPU
 ```
 
-This remains target guidance. Current Phase 5 evidence proves canonical state,
-descriptor routing, in-place controller/form binding, and no-rebuild focused
-paths where implemented. It does not prove a completed GPU morph-target or
-uniform-only geometry pipeline.
+This remains target guidance. Current Phase 5 and Phase 6 evidence proves
+canonical state, descriptor routing, in-place controller/form binding, and
+no-rebuild focused paths where implemented. Primary stellation now avoids
+geometry replacement churn through retained buffer mutation, but it does not
+prove a completed GPU morph-target or uniform-only geometry pipeline.
 
 ## Validation Matrix
 
@@ -513,13 +519,15 @@ radial 3D, toolkit DOM slider, and 2D/DesktopWorld-style update paths.
 
 ### Phase 6: GPU/Resource Optimization and Broader Live Proof
 
-**Status**: Started. Primary tesseron proportion edits now have bounded
-in-place child/link geometry update proof; broader GPU/resource work remains.
+**Status**: Started. Primary stellation and primary tesseron proportion edits
+now have bounded in-place geometry update proof; broader GPU/resource work
+remains.
 
 **Goal**: Convert the proven descriptor/update architecture into broader
 runtime performance and live-AOS confidence.
 
-- Complete GPU morph-target or uniform-only stellation updates for the avatar.
+- Complete GPU morph-target or uniform-only stellation updates for supported
+  avatar shapes if a topology-stable representation is introduced.
 - Extend the in-place tesseron resource pattern to omega tesseron if profiling
   or UI usage shows the same edit path is hot.
 - Decide whether material and geometry pooling belong in Sigil renderer code,

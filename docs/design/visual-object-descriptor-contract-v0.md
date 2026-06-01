@@ -225,11 +225,14 @@ while keeping mutation authority in the established editor handler.
 
 The descriptor contract is implemented, but it is not a renderer optimization
 package. Phase 6 has started with a focused Sigil avatar resource slice:
-primary tesseron proportion descriptor edits now sync through
-`updatePrimaryTesseronProportion()` and have deterministic plus bounded live
-proof for stable child/link resource identities, bounded temporary geometry
-creation/disposal, and `state.avatar` JSON serialization. GPU morph-target or
-uniform-only stellation, broader material/geometry pooling, complete
-observe-mode snapshot integration, and broader live proof across every visual
-surface remain future work. The ongoing Phase 6 scope is described in
+primary stellation descriptor edits now sync through
+`updatePrimaryStellation()` without full hierarchy rebuilds or geometry object
+swaps, retaining stable mesh/material/geometry identities while disposing
+temporary generated source buffers. Primary tesseron proportion descriptor edits
+now sync through `updatePrimaryTesseronProportion()` and have deterministic
+plus bounded live proof for stable child/link resource identities, bounded
+temporary geometry creation/disposal, and `state.avatar` JSON serialization.
+GPU morph-target or uniform-only stellation, broader material/geometry pooling,
+complete observe-mode snapshot integration, and broader live proof across every
+visual surface remain future work. The ongoing Phase 6 scope is described in
 `docs/dev/reports/aos-visual-object-architecture.md`.

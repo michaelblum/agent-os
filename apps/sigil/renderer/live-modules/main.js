@@ -2983,6 +2983,81 @@ function emitStatusItemState() {
     });
 }
 
+function geometryHasFinitePositions(geometry) {
+    const position = geometry?.getAttribute?.('position');
+    if (!position?.array?.length) return false;
+    for (const value of position.array) {
+        if (!Number.isFinite(value)) return false;
+    }
+    return true;
+}
+
+function runPrimaryStellationResourceSmoke(options = {}) {
+    const edits = Math.max(1, Math.min(200, Number(options.edits) || 40));
+    state.__sigilGeometryStats = {};
+    state.avatar.shape.type = 20;
+    state.avatar.shape.tesseron = { enabled: false, proportion: 0.5, matchMother: true, child: {} };
+    state.avatar.shape.stellationFactor = 0;
+    state.avatar.appearance.skin = 'none';
+    updateGeometry(20);
+
+    const stats = state.__sigilGeometryStats;
+    const meshes = {
+        depth: state.depthMesh,
+        core: state.coreMesh,
+        wire: state.wireframeMesh,
+    };
+    const geometries = {
+        depth: meshes.depth?.geometry,
+        core: meshes.core?.geometry,
+        wire: meshes.wire?.geometry,
+    };
+    const materials = {
+        depth: meshes.depth?.material,
+        core: meshes.core?.material,
+        wire: meshes.wire?.material,
+    };
+    const initialFullRebuilds = stats.primaryFullRebuilds;
+    let stable = true;
+    let finite = true;
+
+    for (let index = 0; index < edits; index += 1) {
+        const value = ((index % 20) + 1) / 16;
+        state.avatar.shape.stellationFactor = value;
+        const update = updatePrimaryStellation(value);
+        stable &&= update.updated === true && update.suppressed === false;
+        stable &&= state.depthMesh === meshes.depth && state.coreMesh === meshes.core && state.wireframeMesh === meshes.wire;
+        stable &&= state.depthMesh?.geometry === geometries.depth && state.coreMesh?.geometry === geometries.core && state.wireframeMesh?.geometry === geometries.wire;
+        stable &&= state.depthMesh?.material === materials.depth && state.coreMesh?.material === materials.core && state.wireframeMesh?.material === materials.wire;
+        finite &&= geometryHasFinitePositions(state.depthMesh?.geometry)
+            && geometryHasFinitePositions(state.coreMesh?.geometry)
+            && geometryHasFinitePositions(state.wireframeMesh?.geometry);
+    }
+
+    let jsonOk = true;
+    try {
+        JSON.stringify(state.avatar);
+    } catch {
+        jsonOk = false;
+    }
+
+    return {
+        edits,
+        fullRebuildDelta: stats.primaryFullRebuilds - initialFullRebuilds,
+        updates: stats.primaryStellationUpdates,
+        suppressed: stats.primaryStellationSuppressed,
+        replacementCreated: stats.primaryStellationReplacementGeometriesCreated,
+        replacementDisposed: stats.primaryStellationReplacementGeometriesDisposed,
+        temporaryCreated: stats.primaryStellationTemporaryGeometriesCreated,
+        temporaryDisposed: stats.primaryStellationTemporaryGeometriesDisposed,
+        retained: stats.primaryStellationRetainedGeometries,
+        maxRetained: stats.primaryStellationMaxRetainedGeometries,
+        finite,
+        stable,
+        jsonOk,
+    };
+}
+
 // canvas_object.marks — publish the avatar's current desktop position so the
 // Surface Inspector can mark it on its minimap and indented tree list.
 // Event-driven via setAvatarPosition + visibility changes; a ~5 s heartbeat
@@ -4596,6 +4671,9 @@ window.__sigilDebug = {
     dispatchDesktop(msg) {
         handleInputEvent(msg);
         return liveJs.currentState;
+    },
+    stellationResourceSmoke(options) {
+        return runPrimaryStellationResourceSmoke(options);
     },
     snapshot() {
         return {

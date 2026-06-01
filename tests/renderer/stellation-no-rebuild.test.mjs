@@ -15,6 +15,8 @@ function configurePrimaryShape({ tesseron = false } = {}) {
     primaryStellationSuppressed: 0,
     primaryStellationReplacementGeometriesCreated: 0,
     primaryStellationReplacementGeometriesDisposed: 0,
+    primaryStellationTemporaryGeometriesCreated: 0,
+    primaryStellationTemporaryGeometriesDisposed: 0,
     primaryStellationRetainedGeometries: 0,
     primaryStellationMaxRetainedGeometries: 0,
     primaryAppearanceUpdates: 0,
@@ -69,6 +71,7 @@ test('primary stellation edits reuse the existing shape hierarchy', () => {
   state.avatar.shape.stellationFactor = 0.5;
   const first = updatePrimaryStellation(0.5);
   const firstCoreGeometry = state.coreMesh.geometry;
+  const firstWireGeometry = state.wireframeMesh.geometry;
 
   state.avatar.shape.stellationFactor = 1.25;
   const second = updatePrimaryStellation(1.25);
@@ -80,7 +83,8 @@ test('primary stellation edits reuse the existing shape hierarchy', () => {
   assert.equal(state.wireframeMesh, wireframeMesh);
   assert.equal(state.coreMesh.material, coreMaterial);
   assert.equal(state.wireframeMesh.material, wireMaterial);
-  assert.notEqual(state.coreMesh.geometry, firstCoreGeometry);
+  assert.equal(state.coreMesh.geometry, firstCoreGeometry);
+  assert.equal(state.wireframeMesh.geometry, firstWireGeometry);
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationUpdates, 2);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
@@ -94,6 +98,9 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
   const depthMesh = state.depthMesh;
   const coreMesh = state.coreMesh;
   const wireframeMesh = state.wireframeMesh;
+  const depthGeometry = depthMesh.geometry;
+  const coreGeometry = coreMesh.geometry;
+  const wireGeometry = wireframeMesh.geometry;
   const depthMaterial = depthMesh.material;
   const coreMaterial = coreMesh.material;
   const wireMaterial = wireframeMesh.material;
@@ -108,6 +115,9 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
     assert.equal(state.depthMesh, depthMesh);
     assert.equal(state.coreMesh, coreMesh);
     assert.equal(state.wireframeMesh, wireframeMesh);
+    assert.equal(state.depthMesh.geometry, depthGeometry);
+    assert.equal(state.coreMesh.geometry, coreGeometry);
+    assert.equal(state.wireframeMesh.geometry, wireGeometry);
     assert.equal(state.depthMesh.material, depthMaterial);
     assert.equal(state.coreMesh.material, coreMaterial);
     assert.equal(state.wireframeMesh.material, wireMaterial);
@@ -119,8 +129,10 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationUpdates, 100);
   assert.equal(stats.primaryStellationSuppressed, 0);
-  assert.equal(stats.primaryStellationReplacementGeometriesCreated, 200);
-  assert.equal(stats.primaryStellationReplacementGeometriesDisposed, 200);
+  assert.equal(stats.primaryStellationReplacementGeometriesCreated, 0);
+  assert.equal(stats.primaryStellationReplacementGeometriesDisposed, 0);
+  assert.equal(stats.primaryStellationTemporaryGeometriesCreated, 200);
+  assert.equal(stats.primaryStellationTemporaryGeometriesDisposed, 200);
   assert.equal(stats.primaryStellationRetainedGeometries, 2);
   assert.equal(stats.primaryStellationMaxRetainedGeometries, 2);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
