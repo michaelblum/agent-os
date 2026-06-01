@@ -2,7 +2,10 @@
 set -euo pipefail
 
 source "$(dirname "$0")/lib/sigil/visual-harness.sh"
+source "$(dirname "$0")/lib/real-input-surface-harness.sh"
 source "$(dirname "$0")/lib/harness-contracts.sh"
+
+aos_real_input_surface_require_enabled || exit $?
 
 PREFIX="aos-sigil-real-input-status-avatar"
 aos_test_cleanup_prefix "$PREFIX"

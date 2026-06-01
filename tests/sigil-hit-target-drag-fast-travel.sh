@@ -191,8 +191,8 @@ drag_state = show_eval_json(
 
 if drag_state["state"] != "FAST_TRAVEL":
     raise SystemExit(f"FAIL: expected FAST_TRAVEL after radial handoff, got {drag_state}")
-if drag_state["fastTravelEffect"] != "line" or drag_state["radialPhase"] != "fastTravel":
-    raise SystemExit(f"FAIL: expected line fast-travel preview state, got {drag_state}")
+if drag_state["fastTravelEffect"] != "line" or drag_state["radialPhase"] is not None:
+    raise SystemExit(f"FAIL: expected line fast-travel preview state with cleared radial phase, got {drag_state}")
 if abs(drag_state["pointerPos"]["x"] - target["x"]) > 1 or abs(drag_state["pointerPos"]["y"] - target["y"]) > 1:
     raise SystemExit(f"FAIL: pointer position did not use drag destination: {drag_state}")
 
@@ -294,15 +294,20 @@ wormhole_start = {
 wormhole_start_native = world_to_native(wormhole_start)
 wormhole_target_native = world_to_native(wormhole_target)
 
-menu_effect = show_eval_json(
+show_eval(
     f"""(() => {{
       window.__sigilDebug.dispatch({{
         type: 'right_mouse_down',
         x: {wormhole_start_native["x"]},
         y: {wormhole_start_native["y"]}
       }})
-      const button = document.querySelector('[data-sigil-fast-travel-effect="wormhole"]')
-      if (!button) return JSON.stringify({{ ok: false, error: 'missing fast-travel menu button' }})
+      return 'ok'
+    }})()"""
+)
+
+menu_effect = wait_until(
+    lambda: show_eval_json(
+        f"""(() => {{
       const snap = window.__sigilDebug.snapshot()
       const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
       const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
@@ -333,19 +338,20 @@ menu_effect = show_eval_json(
         }})
         return nativePoint
       }}
-      const effectsPoint = pointFor('[data-ctx-tab="sigil-menu-effects"]')
-      if (!effectsPoint) return JSON.stringify({{ ok: false, error: 'missing effects tab' }})
-      clickWorld(effectsPoint)
-      const point = pointFor('[data-sigil-fast-travel-effect="wormhole"]')
-      if (!point) return JSON.stringify({{ ok: false, error: 'missing wormhole button point' }})
+      const travelTab = pointFor('[data-aos-tabs-trigger][data-value="travel"]')
+      if (!travelTab) return JSON.stringify({{ ok: false, error: 'missing travel tab' }})
+      clickWorld(travelTab)
+      const point = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
+      if (!point) return JSON.stringify({{ ok: false, error: 'missing wormhole segmented button' }})
       const nativePoint = clickWorld(point)
       const menuOpenAfterClick = window.liveJs.contextMenu?.open === true
+      const button = document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
       window.confirm = () => false
       window.__sigilDebug.dispatch({{ type: 'key_down', key_code: 53 }})
       return JSON.stringify({{
         ok: true,
         fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
-        active: button.classList.contains('active'),
+        active: button?.getAttribute('aria-pressed') === 'true' || button?.classList.contains('active'),
         menuOpen: menuOpenAfterClick,
         menuOpenAfterClose: window.liveJs.contextMenu?.open === true,
         point,
@@ -353,6 +359,9 @@ menu_effect = show_eval_json(
         traceTail: window.__sigilDebug.interactionTrace().entries.slice(-16)
       }})
     }})()"""
+    ),
+    timeout=5.0,
+    label="wormhole fast-travel segmented control",
 )
 if (
     not menu_effect.get("ok")
@@ -518,8 +527,9 @@ if extended_display:
     if ext_menu.get("menuOpen") is not True:
         raise SystemExit(f"FAIL: extended display right click did not open context menu with local hit coords: {ext_menu}")
 
-    ext_menu_control = show_eval_json(
-        f"""(() => {{
+    ext_menu_control = wait_until(
+        lambda: show_eval_json(
+            f"""(() => {{
           const snap = window.__sigilDebug.snapshot()
           const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
           const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
@@ -550,82 +560,64 @@ if extended_display:
               payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }}
             }})
           }}
-          const effectsTab = pointFor('[data-ctx-tab="sigil-menu-effects"]')
-          if (!effectsTab) return JSON.stringify({{ ok: false, error: 'missing effects tab' }})
-          clickWorld(effectsTab)
-          const lineButton = pointFor('[data-ctx-open="sigil-menu-line-card"]')
-          if (!lineButton) return JSON.stringify({{ ok: false, error: 'missing line settings button' }})
-          clickWorld(lineButton)
-          const activeId = window.__sigilDebug.snapshot().contextMenu?.stack?.activeId
           const before = window.state.fastTravelLineDuration
           const trailModeBefore = window.state.fastTravelLineTrailMode
-          const rangeStart = pointFor('#sigil-menu-line-duration', 0.15)
-          const rangeEnd = pointFor('#sigil-menu-line-duration', 0.85)
-          if (!rangeStart || !rangeEnd) return JSON.stringify({{ ok: false, error: 'missing line duration range', activeId }})
-          const rangeStartNative = toNative(rangeStart)
-          const rangeEndNative = toNative(rangeEnd)
+          const travelTab = pointFor('[data-aos-tabs-trigger][data-value="travel"]')
+          if (!travelTab) return JSON.stringify({{ ok: false, error: 'missing travel tab' }})
+          clickWorld(travelTab)
+          document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"]')?.scrollIntoView({{ block: 'center', inline: 'nearest' }})
+          const durationStart = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"] [data-aos-slider-control]', 0.15)
+          const durationEnd = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"] [data-aos-slider-control]', 0.85)
+          if (!durationStart || !durationEnd) return JSON.stringify({{ ok: false, error: 'missing line duration slider' }})
+          const durationStartNative = toNative(durationStart)
+          const durationEndNative = toNative(durationEnd)
           window.__sigilDebug.dispatch({{
             type: 'canvas_message',
             id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: rangeStartNative.x, screenY: rangeStartNative.y }}
+            payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: durationStartNative.x, screenY: durationStartNative.y }}
           }})
           window.__sigilDebug.dispatch({{
             type: 'canvas_message',
             id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: rangeEndNative.x, screenY: rangeEndNative.y }}
+            payload: {{ source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: durationEndNative.x, screenY: durationEndNative.y }}
           }})
           window.__sigilDebug.dispatch({{
             type: 'canvas_message',
             id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: rangeEndNative.x, screenY: rangeEndNative.y }}
+            payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: durationEndNative.x, screenY: durationEndNative.y }}
           }})
-          const lineCardWasActive = document.querySelector('#sigil-menu-line-card')?.classList.contains('active')
-          const shrinkMode = pointFor('[data-sigil-line-trail-mode="shrink"]')
-          if (!shrinkMode) return JSON.stringify({{ ok: false, error: 'missing line trail mode button' }})
+          const shrinkMode = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-line-trail-mode"] .aos-segmented button[data-value="shrink"]')
+          if (!shrinkMode) return JSON.stringify({{ ok: false, error: 'missing shrink trail mode button' }})
           clickWorld(shrinkMode)
-          const trailModeButtonActive = document.querySelector('[data-sigil-line-trail-mode="shrink"]')?.classList.contains('active')
-          const back = pointFor('#sigil-menu-line-card [data-ctx-back]')
-          if (!back) return JSON.stringify({{ ok: false, error: 'missing line card back button' }})
-          clickWorld(back)
-          const wormholeButton = pointFor('[data-ctx-open="sigil-menu-wormhole-card"]')
-          if (!wormholeButton) return JSON.stringify({{ ok: false, error: 'missing wormhole settings button' }})
-          clickWorld(wormholeButton)
-          const wormholeCard = document.querySelector('#sigil-menu-wormhole-card')
-          const scrollPoint = pointFor('#sigil-menu-wormhole-card')
-          const beforeScrollTop = wormholeCard?.scrollTop ?? null
-          if (!scrollPoint || !wormholeCard) return JSON.stringify({{ ok: false, error: 'missing wormhole card scroll target' }})
-          const scrollNative = toNative(scrollPoint)
-          window.__sigilDebug.dispatch({{
-            type: 'canvas_message',
-            id: {json.dumps(hit_id)},
-            payload: {{ source: 'sigil-hit', kind: 'scroll_wheel', screenX: scrollNative.x, screenY: scrollNative.y, dy: 120 }}
-          }})
+          const wormhole = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
+          if (!wormhole) return JSON.stringify({{ ok: false, error: 'missing wormhole fast-travel button' }})
+          clickWorld(wormhole)
+          const trailModeButton = document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-line-trail-mode"] .aos-segmented button[data-value="shrink"]')
+          const wormholeButton = document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
           return JSON.stringify({{
             ok: true,
-            activeId,
-            lineCardWasActive,
             before,
             after: window.state.fastTravelLineDuration,
-            rangeValue: document.querySelector('#sigil-menu-line-duration')?.value,
             trailModeBefore,
             trailModeAfter: window.state.fastTravelLineTrailMode,
-            trailModeButtonActive,
-            wormholeCardActive: wormholeCard.classList.contains('active'),
-            beforeScrollTop,
-            afterScrollTop: wormholeCard.scrollTop,
+            trailModeButtonActive: trailModeButton?.getAttribute('aria-pressed') === 'true' || trailModeButton?.classList.contains('active'),
+            fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
+            wormholeButtonActive: wormholeButton?.getAttribute('aria-pressed') === 'true' || wormholeButton?.classList.contains('active'),
             menuOpen: window.liveJs.contextMenu?.open === true
           }})
         }})()"""
+        ),
+        timeout=5.0,
+        label="extended display compact context-menu controls",
     )
     if (
         ext_menu_control.get("ok") is not True
-        or ext_menu_control.get("lineCardWasActive") is not True
         or ext_menu_control.get("trailModeAfter") != "shrink"
         or ext_menu_control.get("trailModeButtonActive") is not True
-        or ext_menu_control.get("wormholeCardActive") is not True
+        or ext_menu_control.get("fastTravelEffect") != "wormhole"
+        or ext_menu_control.get("wormholeButtonActive") is not True
         or ext_menu_control.get("menuOpen") is not True
         or math.isclose(float(ext_menu_control.get("before")), float(ext_menu_control.get("after")), abs_tol=0.001)
-        or float(ext_menu_control.get("afterScrollTop", 0)) <= float(ext_menu_control.get("beforeScrollTop", 0))
     ):
         raise SystemExit(f"FAIL: extended display context menu controls did not route through hit target: {ext_menu_control}")
 
