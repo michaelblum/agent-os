@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import THREE from '../../apps/sigil/renderer/vendor/three.min.js';
 import state, { syncAvatarAliasesFromGraph } from '../../apps/sigil/renderer/state.js';
-import { updateGeometry, updatePrimaryAppearance, updatePrimaryStellation, updatePrimaryTesseronProportion } from '../../apps/sigil/renderer/geometry.js';
+import { analyzePrimaryStellationTopologyFeasibility, updateGeometry, updatePrimaryAppearance, updatePrimaryStellation, updatePrimaryTesseronProportion } from '../../apps/sigil/renderer/geometry.js';
 import {
   createVisualObjectResourceLifecycleEvidence,
   validateVisualObjectResourceLifecycleEvidence,
@@ -80,8 +80,11 @@ test('primary stellation edits reuse the existing shape hierarchy', () => {
   state.avatar.shape.stellationFactor = 1.25;
   const second = updatePrimaryStellation(1.25);
 
-  assert.deepEqual(first, { updated: true, suppressed: false });
-  assert.deepEqual(second, { updated: true, suppressed: false });
+  assert.equal(first.updated, true);
+  assert.equal(first.suppressed, false);
+  assert.equal(second.updated, true);
+  assert.equal(second.suppressed, false);
+  assert.equal(second.gpuPath, 'morph-target');
   assert.equal(state.depthMesh, depthMesh);
   assert.equal(state.coreMesh, coreMesh);
   assert.equal(state.wireframeMesh, wireframeMesh);
@@ -92,6 +95,18 @@ test('primary stellation edits reuse the existing shape hierarchy', () => {
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationUpdates, 2);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
+});
+
+test('primary stellation topology feasibility exposes the positive-factor morph subset', () => {
+  const supportedTypes = [4, 6, 8, 12, 20, 90, 91, 92, 93, 100];
+  for (const type of supportedTypes) {
+    const result = analyzePrimaryStellationTopologyFeasibility(type);
+    assert.equal(result.positiveFactorTopologyStable, true, `positive topology for ${type}`);
+    assert.equal(result.zeroFactorTopologyStable, false, `zero topology split for ${type}`);
+    assert.equal(result.safeGpuPath, 'positive-factor-morph-target');
+    assert.match(result.blocker, /zero-factor stellation/);
+    assert.ok(result.morphVertexCount > result.flatVertexCount);
+  }
 });
 
 test('long primary stellation-only edit session keeps renderer resources bounded', () => {
@@ -117,7 +132,9 @@ test('long primary stellation-only edit session keeps renderer resources bounded
     state.avatar.shape.stellationFactor = value;
     const result = updatePrimaryStellation(value);
 
-    assert.deepEqual(result, { updated: true, suppressed: false });
+    assert.equal(result.updated, true);
+    assert.equal(result.suppressed, false);
+    assert.equal(result.gpuPath, 'morph-target');
     assert.equal(state.depthMesh, depthMesh);
     assert.equal(state.coreMesh, coreMesh);
     assert.equal(state.wireframeMesh, wireframeMesh);
@@ -138,10 +155,14 @@ test('long primary stellation-only edit session keeps renderer resources bounded
   assert.equal(stats.primaryStellationSuppressed, 0);
   assert.equal(stats.primaryStellationReplacementGeometriesCreated, 0);
   assert.equal(stats.primaryStellationReplacementGeometriesDisposed, 0);
-  assert.equal(stats.primaryStellationTemporaryGeometriesCreated, editCount * 2);
-  assert.equal(stats.primaryStellationTemporaryGeometriesDisposed, editCount * 2);
+  assert.equal(stats.primaryStellationTemporaryGeometriesCreated, 4);
+  assert.equal(stats.primaryStellationTemporaryGeometriesDisposed, 4);
   assert.equal(stats.primaryStellationRetainedGeometries, 2);
   assert.equal(stats.primaryStellationMaxRetainedGeometries, 2);
+  assert.equal(stats.primaryStellationGpuMorphSetups, 1);
+  assert.equal(stats.primaryStellationGpuMorphUpdates, editCount);
+  assert.equal(state.coreMesh.morphTargetInfluences[0], 1.25);
+  assert.equal(state.wireframeMesh.morphTargetInfluences[0], 1.25);
   const evidence = createVisualObjectResourceLifecycleEvidence({
     descriptor: {
       id: 'sigil-avatar-stellation',
@@ -470,7 +491,9 @@ test('primary stellation replacement geometries stay finite for editable shapes'
     state.avatar.shape.stellationFactor = 0.5;
     const result = updatePrimaryStellation(0.5);
 
-    assert.deepEqual(result, { updated: true, suppressed: false });
+    assert.equal(result.updated, true);
+    assert.equal(result.suppressed, false);
+    assert.equal(result.gpuPath, 'morph-target');
     assert.equal(hasFinitePositions(state.depthMesh.geometry), true, `depth geometry should be finite for type ${type}`);
     assert.equal(hasFinitePositions(state.coreMesh.geometry), true, `core geometry should be finite for type ${type}`);
     assert.equal(hasFinitePositions(state.wireframeMesh.geometry), true, `wire geometry should be finite for type ${type}`);

@@ -203,14 +203,10 @@ function defaultMaterial(THREE, kind, options = {}) {
     return new Material(options);
 }
 
-export function createStellatedGeometry(THREE, baseGeometry, factor) {
+export function createStellatedMorphTopologyGeometry(THREE, baseGeometry, factor = 0) {
     const nonIndexed = baseGeometry.index && typeof baseGeometry.toNonIndexed === 'function'
         ? baseGeometry.toNonIndexed()
         : (typeof baseGeometry.clone === 'function' ? baseGeometry.clone() : cloneGeometryPositions(THREE, baseGeometry));
-    if (Math.abs(factor) < 0.01) {
-        nonIndexed.computeVertexNormals?.();
-        return nonIndexed;
-    }
     const positionAttribute = geometryAttribute(nonIndexed, 'position');
     const count = Number(positionAttribute?.count) || 0;
     const newVertices = [];
@@ -237,6 +233,17 @@ export function createStellatedGeometry(THREE, baseGeometry, factor) {
         newVertices.push(vC.x, vC.y, vC.z, vA.x, vA.y, vA.z, peak.x, peak.y, peak.z);
     }
     return setGeometryPositions(THREE, newVertices, { ...(baseGeometry?.userData || {}) });
+}
+
+export function createStellatedGeometry(THREE, baseGeometry, factor) {
+    if (Math.abs(factor) < 0.01) {
+        const nonIndexed = baseGeometry.index && typeof baseGeometry.toNonIndexed === 'function'
+            ? baseGeometry.toNonIndexed()
+            : (typeof baseGeometry.clone === 'function' ? baseGeometry.clone() : cloneGeometryPositions(THREE, baseGeometry));
+        nonIndexed.computeVertexNormals?.();
+        return nonIndexed;
+    }
+    return createStellatedMorphTopologyGeometry(THREE, baseGeometry, factor);
 }
 
 export function createTetartoid(THREE, size, a, b, c) {

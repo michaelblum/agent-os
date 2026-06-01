@@ -51,19 +51,24 @@ Partially implemented:
 
 - Stellation and tesseron paths have focused no-rebuild, bounded resource, and
   serialization coverage. Primary stellation descriptor edits now keep the
-  existing depth/core/wire mesh and material identities and mutate retained
-  geometry buffers in place; the deterministic 1,000-edit proof-window record
-  retains 2 unique geometries, creates/disposes 2,000 temporary source
-  geometries, performs 0 replacement-geometry swaps, and serializes
-  `state.avatar` successfully. The live stellation smoke hook now supports a
-  bounded minimum-duration proof window and reports the same lifecycle counts.
+  existing depth/core/wire mesh, material, and geometry identities. Positive
+  non-tesseron stellation edits use a renderer-local Three.js morph-target
+  path after one topology-stable setup, while factor-zero transitions remain on
+  the retained CPU buffer route because the current generator uses a different
+  vertex topology at zero. The deterministic 1,000-edit proof-window record
+  retains 2 unique geometries, creates/disposes 4 temporary morph setup
+  geometries, performs 0 replacement-geometry swaps, updates
+  `morphTargetInfluences`, and serializes `state.avatar` successfully. The
+  live stellation smoke hook now supports a bounded minimum-duration proof
+  window and reports the same lifecycle counts.
   Primary tesseron proportion edits update child and link geometry buffers in
   place through `updatePrimaryTesseronProportion()` instead of routing the
   descriptor to a full primary hierarchy rebuild. The 100-edit deterministic
   and bounded live canvas proofs retained 7 unique geometries, created and
   disposed 500 temporary geometries, and serialized `state.avatar`
-  successfully. GPU morph-target or uniform-only stellation is still not a
-  completed platform capability because current stellation changes topology.
+  successfully. Uniform-only stellation remains blocked for the current
+  generated geometry because factor zero and positive stellation do not share
+  the same vertex layout, face semantics, or edge segment layout.
 - The descriptor/controller/form loop has deterministic 3D, 2D, and DOM proof
   coverage. Existing avatar/Three.js, radial/non-avatar 3D, toolkit DOM slider,
   and DesktopWorld/canvas-style tests now express their update evidence through
@@ -81,8 +86,9 @@ Partially implemented:
 
 Remaining broad slice:
 
-- **Phase 6 follow-up** should complete GPU morph-target or uniform
-  stellation where topology permits, profiler-backed leak proof, material or
+- **Phase 6 follow-up** should decide whether the avatar renderer should make
+  topology-stable stellated meshes the canonical zero-factor representation,
+  then revisit uniform-only stellation, profiler-backed leak proof, material or
   geometry pooling where warranted, and full observe-mode snapshot product
   integration. Representative avatar, radial, toolkit DOM, and
   DesktopWorld/canvas live proof now exists; broader live proof across every
@@ -369,11 +375,12 @@ mesh.morphTargetInfluences[0] = stellationFactor;
 // Three.js interpolates on GPU
 ```
 
-This remains target guidance. Current Phase 5 and Phase 6 evidence proves
-canonical state, descriptor routing, in-place controller/form binding, and
-no-rebuild focused paths where implemented. Primary stellation now avoids
-geometry replacement churn through retained buffer mutation, but it does not
-prove a completed GPU morph-target or uniform-only geometry pipeline.
+Primary stellation now implements the morph-target option for the safe positive
+non-tesseron subset. The blocker is the zero-factor topology split: at zero the
+current generator keeps the source triangle topology, while positive
+stellation expands each source triangle into three peak triangles. A uniform-
+only path still requires a renderer model where zero and positive stellation
+share vertex and edge topology.
 
 ## Validation Matrix
 
@@ -583,8 +590,8 @@ resources. Broader GPU/resource work remains.
 **Goal**: Convert the proven descriptor/update architecture into broader
 runtime performance and live-AOS confidence.
 
-- Complete GPU morph-target or uniform-only stellation updates for supported
-  avatar shapes if a topology-stable representation is introduced.
+- Revisit uniform-only stellation if the renderer makes topology-stable
+  stellated meshes canonical even at factor zero.
 - Extend the in-place tesseron resource pattern to omega tesseron if profiling
   or UI usage shows the same edit path is hot.
 - Material and geometry pooling currently belong in Sigil renderer code, with a

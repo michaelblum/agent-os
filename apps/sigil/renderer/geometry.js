@@ -5,6 +5,7 @@ import {
     createAvatarBaseGeometry,
     createAvatarShapeComposition,
     createStellatedGeometry as createSharedStellatedGeometry,
+    createStellatedMorphTopologyGeometry,
     createTetartoid as createSharedTetartoid,
 } from './avatar-shape-composition.js';
 import {
@@ -60,6 +61,8 @@ function geometryStats() {
         primaryStellationTemporaryGeometriesDisposed: 0,
         primaryStellationRetainedGeometries: 0,
         primaryStellationMaxRetainedGeometries: 0,
+        primaryStellationGpuMorphUpdates: 0,
+        primaryStellationGpuMorphSetups: 0,
         primaryAppearanceUpdates: 0,
         primaryAppearanceSuppressed: 0,
         primaryAppearanceMaterialsMutated: 0,
@@ -130,6 +133,102 @@ function replacePositionAttribute(targetGeometry, sourceGeometry) {
     targetGeometry.computeBoundingBox?.();
     targetGeometry.computeBoundingSphere?.();
     return true;
+}
+
+function clearStellationMorphState(mesh) {
+    if (!mesh?.geometry) return;
+    mesh.geometry.morphAttributes = {};
+    mesh.geometry.userData = {
+        ...(mesh.geometry.userData || {}),
+        stellation_gpu_path: 'retained_cpu_buffer',
+    };
+    mesh.morphTargetInfluences = undefined;
+    mesh.morphTargetDictionary = undefined;
+    if (mesh.material && 'morphTargets' in mesh.material) {
+        mesh.material.morphTargets = false;
+        mesh.material.needsUpdate = true;
+    }
+}
+
+function setMorphTargetsEnabled(mesh, enabled) {
+    if (!mesh) return;
+    if (typeof mesh.updateMorphTargets === 'function') mesh.updateMorphTargets();
+    mesh.morphTargetInfluences ??= [0];
+    mesh.morphTargetInfluences[0] = Number(mesh.morphTargetInfluences[0]) || 0;
+    mesh.morphTargetDictionary ??= { stellation: 0 };
+    if (mesh.material && 'morphTargets' in mesh.material) {
+        mesh.material.morphTargets = !!enabled;
+        mesh.material.needsUpdate = true;
+    }
+}
+
+function applyMorphInfluence(mesh, value) {
+    if (!mesh?.geometry?.morphAttributes?.position?.[0]) return false;
+    setMorphTargetsEnabled(mesh, true);
+    mesh.morphTargetInfluences[0] = value;
+    mesh.geometry.userData = {
+        ...(mesh.geometry.userData || {}),
+        stellation_gpu_path: 'morph_target',
+        stellation_morph_factor: value,
+    };
+    return true;
+}
+
+function installStellationMorphGeometry(mesh, baseGeometry, unitGeometry, value, { edge = false } = {}) {
+    if (!mesh?.geometry || !baseGeometry?.getAttribute?.('position') || !unitGeometry?.getAttribute?.('position')) return false;
+    replacePositionAttribute(mesh.geometry, baseGeometry);
+    mesh.geometry.morphAttributes = {
+        ...(mesh.geometry.morphAttributes || {}),
+        position: [unitGeometry.getAttribute('position').clone()],
+    };
+    mesh.geometry.userData = {
+        ...(mesh.geometry.userData || {}),
+        stellation_gpu_path: 'morph_target',
+        stellation_morph_kind: edge ? 'edge-line-segments' : 'surface',
+        stellation_morph_factor: value,
+        morphTargetsRelative: false,
+    };
+    mesh.geometry.morphTargetsRelative = false;
+    return applyMorphInfluence(mesh, value);
+}
+
+export function analyzePrimaryStellationTopologyFeasibility(type, params = state.avatar?.shape?.params) {
+    const THREE_NS = globalThis.THREE || THREE;
+    const baseGeometry = createBaseGeometry(type, defaultAvatarBaseSize(), params);
+    const flatGeometry = createSharedStellatedGeometry(THREE_NS, baseGeometry, 0);
+    const morphBaseGeometry = createStellatedMorphTopologyGeometry(THREE_NS, baseGeometry, 0);
+    const morphUnitGeometry = createStellatedMorphTopologyGeometry(THREE_NS, baseGeometry, 1);
+    const flatPosition = flatGeometry.getAttribute?.('position');
+    const morphBasePosition = morphBaseGeometry.getAttribute?.('position');
+    const morphUnitPosition = morphUnitGeometry.getAttribute?.('position');
+    const stableMorphTopology = !!morphBasePosition
+        && !!morphUnitPosition
+        && morphBasePosition.count === morphUnitPosition.count
+        && morphBasePosition.itemSize === morphUnitPosition.itemSize
+        && morphBasePosition.array?.length === morphUnitPosition.array?.length;
+    const zeroTopologyMatchesMorph = !!flatPosition
+        && !!morphBasePosition
+        && flatPosition.count === morphBasePosition.count
+        && flatPosition.array?.length === morphBasePosition.array?.length;
+    const result = {
+        shapeType: type,
+        safeGpuPath: stableMorphTopology ? 'positive-factor-morph-target' : 'blocked',
+        zeroFactorTopologyStable: zeroTopologyMatchesMorph,
+        positiveFactorTopologyStable: stableMorphTopology,
+        flatVertexCount: flatPosition?.count || 0,
+        morphVertexCount: morphBasePosition?.count || 0,
+        blocker: zeroTopologyMatchesMorph
+            ? null
+            : 'zero-factor stellation keeps the source triangle topology while positive stellation expands each source triangle into three peak triangles',
+        requiredRendererModelChange: zeroTopologyMatchesMorph
+            ? null
+            : 'represent primary stellation with a topology-stable generated mesh from the first positive edit, or generate base shapes directly in stellated morph topology so factor 0 and positive factors share attributes',
+    };
+    baseGeometry.dispose?.();
+    flatGeometry.dispose?.();
+    morphBaseGeometry.dispose?.();
+    morphUnitGeometry.dispose?.();
+    return result;
 }
 
 /**
@@ -392,8 +491,55 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
         return { updated: false, rebuilt: true };
     }
 
+    const numericValue = Number(value);
+    const morphEligible = Number.isFinite(numericValue) && Math.abs(numericValue) >= 0.01;
+    if (morphEligible && [depthMesh, coreMesh, wireframeMesh].every((mesh) => mesh.geometry?.userData?.stellation_gpu_path === 'morph_target')) {
+        const updated = [
+            applyMorphInfluence(depthMesh, numericValue),
+            applyMorphInfluence(coreMesh, numericValue),
+            applyMorphInfluence(wireframeMesh, numericValue),
+        ].every(Boolean);
+        if (updated) {
+            stats.primaryStellationUpdates += 1;
+            stats.primaryStellationGpuMorphUpdates += 1;
+            recordPrimaryStellationRetainedGeometries(stats, depthMesh.geometry, coreMesh.geometry, wireframeMesh.geometry);
+            return { updated: true, suppressed: false, gpuPath: 'morph-target', topologyStable: true };
+        }
+    }
+
     const THREE_NS = globalThis.THREE || THREE;
     const baseGeometry = createBaseGeometry(type, defaultAvatarBaseSize(), shape.params);
+    if (morphEligible) {
+        const morphBaseGeometry = createStellatedMorphTopologyGeometry(THREE_NS, baseGeometry, 0);
+        const morphUnitGeometry = createStellatedMorphTopologyGeometry(THREE_NS, baseGeometry, 1);
+        const edgeBaseGeometry = typeof THREE_NS.EdgesGeometry === 'function'
+            ? new THREE_NS.EdgesGeometry(morphBaseGeometry)
+            : morphBaseGeometry;
+        const edgeUnitGeometry = typeof THREE_NS.EdgesGeometry === 'function'
+            ? new THREE_NS.EdgesGeometry(morphUnitGeometry)
+            : morphUnitGeometry;
+        const setupGeometries = [morphBaseGeometry, morphUnitGeometry, edgeBaseGeometry, edgeUnitGeometry];
+        stats.primaryStellationTemporaryGeometriesCreated += countUniqueGeometries(...setupGeometries);
+
+        const installed = [
+            installStellationMorphGeometry(depthMesh, morphBaseGeometry, morphUnitGeometry, numericValue),
+            installStellationMorphGeometry(coreMesh, morphBaseGeometry, morphUnitGeometry, numericValue),
+            installStellationMorphGeometry(wireframeMesh, edgeBaseGeometry, edgeUnitGeometry, numericValue, { edge: true }),
+        ].every(Boolean);
+
+        stats.primaryStellationTemporaryGeometriesDisposed += disposeUniqueGeometries(...setupGeometries);
+        baseGeometry.dispose?.();
+        if (installed) {
+            applyGradientVertexColors(coreMesh, avatar.appearance.colors.face);
+            applyGradientVertexColors(wireframeMesh, avatar.appearance.colors.edge);
+            recordPrimaryStellationRetainedGeometries(stats, depthMesh.geometry, coreMesh.geometry, wireframeMesh.geometry);
+            stats.primaryStellationUpdates += 1;
+            stats.primaryStellationGpuMorphSetups += 1;
+            stats.primaryStellationGpuMorphUpdates += 1;
+            return { updated: true, suppressed: false, gpuPath: 'morph-target', topologyStable: true };
+        }
+    }
+
     const finalGeometry = createSharedStellatedGeometry(THREE_NS, baseGeometry, value);
     finalGeometry.userData = {
         ...(baseGeometry?.userData || {}),
@@ -406,6 +552,9 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
 
     // Current stellation changes topology, so a uniform-only path is not safe yet.
     // Keep GPU objects stable by copying generated buffers into retained geometries.
+    clearStellationMorphState(depthMesh);
+    clearStellationMorphState(coreMesh);
+    clearStellationMorphState(wireframeMesh);
     replacePositionAttribute(depthMesh.geometry, finalGeometry);
     replacePositionAttribute(coreMesh.geometry, finalGeometry);
     replacePositionAttribute(wireframeMesh.geometry, edgeGeometry);

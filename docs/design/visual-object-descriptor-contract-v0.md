@@ -336,19 +336,23 @@ The descriptor contract is implemented, and Phase 6 now has a reusable resource
 lifecycle evidence vocabulary with deterministic longer-edit proof adoption
 across avatar/Three.js, radial/non-avatar 3D, toolkit DOM slider, and
 DesktopWorld/canvas-style update fixtures. It is not a renderer optimization
-package or a shared material/geometry pool. Primary stellation descriptor edits now sync through
-`updatePrimaryStellation()` without full hierarchy rebuilds or geometry object
-swaps, retaining stable mesh/material/geometry identities while disposing
-temporary generated source buffers. Primary tesseron proportion descriptor edits
+package or a shared material/geometry pool. Primary stellation descriptor edits
+now sync through `updatePrimaryStellation()` without full hierarchy rebuilds or
+geometry object swaps, retaining stable mesh/material/geometry identities. The
+safe positive-factor, non-tesseron subset uses renderer-local Three.js morph
+targets and updates `morphTargetInfluences` after a one-time topology-stable
+setup; factor-zero transitions remain on retained CPU buffer mutation because
+the current generator uses a different vertex and edge topology at zero.
+Primary tesseron proportion descriptor edits
 now sync through `updatePrimaryTesseronProportion()` and have deterministic
 plus bounded live proof for stable child/link resource identities, bounded
 temporary geometry creation/disposal, and `state.avatar` JSON serialization.
 Primary stellation also has deterministic 1,000-edit proof-window evidence, and
 the live smoke hook can run a bounded minimum-duration proof while reporting
 the same retained/replacement/temporary/disposed resource counts.
-GPU morph-target or uniform-only stellation, broader material/geometry pooling,
-full observe-mode snapshot product integration, profiler-backed leak proof, and
-broader live proof across every visual surface remain future work. Current
+Uniform-only stellation, broader material/geometry pooling, full observe-mode
+snapshot product integration, profiler-backed leak proof, and broader live
+proof across every visual surface remain future work. Current
 Phase 6 proves representative avatar, radial, toolkit DOM, and
 DesktopWorld/canvas live update paths plus coexistence with existing
 observe/snapshot session artifacts without introducing a parallel snapshot
