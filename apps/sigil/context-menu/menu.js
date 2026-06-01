@@ -13,7 +13,7 @@ import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/t
 import {
     applyContextMenuDescriptorUpdate,
 } from './descriptors.js';
-import { createContextMenuSnapshotProjection } from './snapshot-projection.js';
+import { buildContextMenuSnapshot } from './snapshot-projection.js';
 import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
 
 let compactSurfaceModulePromise = null;
@@ -316,16 +316,24 @@ export function createSigilContextMenu({
         };
     }
 
-    const {
-        compactControlRecords,
-        snapshot,
-        syncSnapshot,
-    } = createContextMenuSnapshotProjection({
-        anchor,
-        liveJs,
-        getMenuState: () => menuState,
-        getCompactSurface: () => compactSurface,
-    });
+    function compactControlRecords() {
+        return compactSurface?.getControlRecords() || [];
+    }
+
+    function snapshot() {
+        return buildContextMenuSnapshot(menuState, compactSurface);
+    }
+
+    function syncSnapshot() {
+        const controls = compactControlRecords();
+        menuState.snapshot = {
+            activeTab: compactSurface?.getActiveTab() || null,
+            controlCount: controls.length,
+        };
+        anchor.setAttribute('aria-hidden', menuState.open ? 'false' : 'true');
+        anchor.setAttribute('data-state', menuState.open ? 'open' : 'closed');
+        if (liveJs) liveJs.contextMenu = snapshot();
+    }
 
     function setControlValue(id, value, checked = null) {
         compactFieldRecordByDescriptorId(id)?.control?.setValue?.(checked !== null ? !!checked : value, { emit: false });
