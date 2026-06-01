@@ -267,8 +267,11 @@ test('getControlRecords exposes normalized AOS control targets for agent operati
   const mode = records.find((record) => record.descriptor_id === 'avatar-mode');
   const opacity = form.getControlRecord('opacity');
 
+  assert.equal(mode.id, 'avatar-mode');
+  assert.equal(mode.field_id, 'mode');
   assert.equal(mode.ref, 'toolkit.panel.form:avatar-mode');
   assert.equal(mode.aosRef, 'toolkit.panel.form:avatar-mode');
+  assert.equal(mode.ref, `${mode.surface}:${mode.id}`);
   assert.equal(mode.role, 'radiogroup');
   assert.equal(mode.name, 'Mode');
   assert.equal(mode.value, 'alpha');
@@ -282,8 +285,11 @@ test('getControlRecords exposes normalized AOS control targets for agent operati
     { value: 'alpha', label: 'Alpha', selected: true, frame: { x: 10, y: 20, width: 50, height: 24 } },
     { value: 'omega', label: 'Omega', selected: false, frame: { x: 64, y: 20, width: 60, height: 24 } },
   ]);
+  assert.equal(opacity.id, 'avatar-opacity');
+  assert.equal(opacity.field_id, 'opacity');
   assert.equal(opacity.ref, 'toolkit.panel.form:avatar-opacity');
   assert.equal(opacity.aosRef, 'toolkit.panel.form:avatar-opacity');
+  assert.equal(opacity.ref, `${opacity.surface}:${opacity.id}`);
   assert.equal(opacity.role, 'slider');
   assert.equal(opacity.name, 'Opacity');
   assert.equal(opacity.value, 0.55);

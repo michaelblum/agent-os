@@ -238,13 +238,20 @@ test('compact avatar control surface exposes descriptor-addressed AOS control re
   const record = surface.getControlRecordByDescriptorId('sigil-menu-opacity');
   const records = surface.getControlRecords();
 
+  assert.equal(record.id, 'sigil-menu-opacity');
+  assert.equal(record.field_id, alphaOpacity.id);
+  assert.equal(record.descriptor_id, 'sigil-menu-opacity');
   assert.equal(record.ref, 'sigil.avatar.compact_control_surface:sigil-menu-opacity');
   assert.equal(record.aosRef, 'sigil.avatar.compact_control_surface:sigil-menu-opacity');
+  assert.equal(record.ref, `${record.surface}:${record.id}`);
   assert.equal(record.role, 'slider');
   assert.equal(record.name, 'Face Opacity');
   assert.equal(record.value, 0.8);
   assert.equal(record.surface, 'sigil.avatar.compact_control_surface');
   assert.deepEqual(record.frame, { x: 24, y: 84, width: 180, height: 28 });
+  assert.ok(records
+    .filter((item) => item.surface === 'sigil.avatar.compact_control_surface' && item.descriptor_id)
+    .every((item) => item.ref === `${item.surface}:${item.id}`));
   assert.ok(records.some((item) => (
     item.descriptor_id === 'sigil-menu-fast-travel-effect'
     && item.role === 'radiogroup'

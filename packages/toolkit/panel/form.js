@@ -324,8 +324,8 @@ function controlRecordFor(record = {}, options = {}) {
   });
   return {
     ...normalized,
-    id: field.id,
     descriptor_id: descriptorId,
+    field_id: field.id,
     ref: normalized.aosRef,
     kind: field.kind || 'text',
     options: controlOptions(field, record.control),
