@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  createSigilContextMenu,
   contextMenuSurfaceScrollDelta,
   contextMenuContentProps,
   findContextMenuElementAt,
@@ -12,6 +13,19 @@ import {
   contextMenuControlDescriptors,
   getContextMenuControlDescriptor,
 } from '../../apps/sigil/context-menu/descriptors.js'
+import { createDefaultAvatarState } from '../../apps/sigil/renderer/state.js'
+import { createDocument, patchSpreadSupport } from '../toolkit/zag-adapter-test-utils.mjs'
+
+function createPatchedDocument() {
+  const document = createDocument()
+  const createElement = document.createElement.bind(document)
+  document.createElement = (tagName) => patchSpreadSupport(createElement(tagName))
+  return document
+}
+
+function waitForMicrotasks() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
 
 function fakeElement(id, rect, selector = '*') {
   return {
@@ -229,6 +243,79 @@ test('context menu descriptors carry toolkit form metadata for compact avatar su
   assert.equal(opacity.step, 0.01)
   assert.ok(fastTravel.options.some((option) => option.value === 'line'))
   assert.deepEqual(grid.options.map((option) => option.value), ['off', 'flat', '3d'])
+})
+
+test('live context menu compact surface routes canonical controls through visual object binding once', async () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  globalThis.document = document
+  globalThis.window = { innerHeight: 900 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const state = {
+      avatar: createDefaultAvatarState(),
+      currentGeometryType: 12,
+      currentType: 12,
+      avatarBase: 153,
+    }
+    const calls = []
+    const menu = createSigilContextMenu({
+      state,
+      liveJs: {
+        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        avatarPos: { x: 0, y: 0 },
+      },
+      projectPoint: (point) => point,
+      updatePrimaryAppearance() { calls.push(['appearance']) },
+      onAppearanceChange(event) { calls.push(['persist', event.controlId, event.value]) },
+      trace: {
+        record(stage, data) {
+          if (stage === 'context-menu:descriptor-update') calls.push(['legacy-route', data.id])
+          if (stage === 'context-menu:visual-object-binding-update') calls.push(['binding-route', data.compatibilityId])
+        },
+      },
+    })
+
+    menu.openAt({ x: 0, y: 0 })
+    await waitForMicrotasks()
+    await waitForMicrotasks()
+
+    const field = Array.from(document.body.querySelectorAll('.aos-form-field'))
+      .find((element) => element.dataset?.descriptorId === 'sigil-menu-opacity')
+    assert.ok(field)
+    const track = field.querySelector('[data-aos-slider-track]')
+    const slider = field.querySelector('[data-aos-slider-root]')
+    assert.ok(track)
+    assert.ok(slider)
+    const sliderRect = () => ({
+      left: 20,
+      top: 20,
+      right: 120,
+      bottom: 28,
+      width: 100,
+      height: 8,
+    })
+    field.getBoundingClientRect = sliderRect
+    slider.getBoundingClientRect = sliderRect
+    track.getBoundingClientRect = sliderRect
+
+    assert.equal(menu.handlePointerEvent('left_mouse_down', { x: 62, y: 24 }), true)
+    assert.equal(menu.handlePointerEvent('left_mouse_up', { x: 62, y: 24 }), true)
+    await waitForMicrotasks()
+
+    assert.equal(state.avatar.appearance.opacity, 0.42)
+    assert.deepEqual(calls.filter(([kind]) => kind === 'binding-route'), [['binding-route', 'sigil-menu-opacity']])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'legacy-route'), [])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'appearance'), [['appearance']])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-menu-opacity', 0.42]])
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
+  }
 })
 
 test('descriptor routing applies a shape control through geometry sync', () => {

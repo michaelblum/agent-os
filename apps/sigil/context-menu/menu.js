@@ -9,9 +9,12 @@ import {
     DEFAULT_FAST_TRAVEL_EFFECT,
     normalizeFastTravelEffect,
 } from '../renderer/transition-registry.js';
+import { syncAvatarAliasesFromGraph } from '../renderer/state.js';
 import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/tesseron.js';
 import {
     applyContextMenuDescriptorUpdate,
+    contextMenuControlDescriptors,
+    getContextMenuControlDescriptor,
 } from './descriptors.js';
 
 let compactSurfaceModulePromise = null;
@@ -39,6 +42,12 @@ function computeBaseScale(base) {
     return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / viewportHeight);
 }
 
+function statePathText(value) {
+    return (Array.isArray(value) ? value : String(value ?? '').split('.'))
+        .filter((part) => part !== '')
+        .join('.');
+}
+
 function rectContainsPoint(rect, point) {
     return rect
         && Number.isFinite(rect.left)
@@ -49,6 +58,30 @@ function rectContainsPoint(rect, point) {
         && point.y >= rect.top
         && point.x < rect.right
         && point.y < rect.bottom;
+}
+
+function elementContains(parent, child) {
+    if (!parent || !child) return false;
+    if (typeof parent.contains === 'function') return parent.contains(child);
+    for (let cursor = child; cursor; cursor = cursor.parentElement) {
+        if (cursor === parent) return true;
+    }
+    return false;
+}
+
+function closestAny(element, selectors = []) {
+    if (!element) return null;
+    const combinedSelector = selectors.join(', ');
+    const combined = element.closest?.(combinedSelector);
+    if (combined) return combined;
+    for (const selector of selectors) {
+        const match = element.closest?.(selector);
+        if (match) return match;
+    }
+    for (let cursor = element; cursor; cursor = cursor.parentElement) {
+        if (selectors.some((selector) => cursor.matches?.(selector))) return cursor;
+    }
+    return null;
 }
 
 function displayVisibleBoundsForPoint(displays = [], point) {
@@ -151,25 +184,30 @@ export function resolveContextMenuOrigin(point, options = {}) {
 export function findContextMenuElementAt(anchor, point, doc = document) {
     if (!anchor || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
     const viewportHit = doc?.elementFromPoint?.(point.x, point.y);
-    if (viewportHit && anchor.contains(viewportHit)) return viewportHit;
+    if (viewportHit && elementContains(anchor, viewportHit)) return viewportHit;
 
-    const candidates = Array.from(anchor.querySelectorAll(
-        [
-            'button',
-            'input',
-            'select',
-            'textarea',
-            'label',
-            '.sigil-avatar-control-surface',
-            '.aos-form-field',
-            '[data-aos-select-content]',
-            '[data-aos-select-item]',
-            '[data-aos-slider-root]',
-            '[data-aos-slider-control]',
-            '[data-aos-slider-track]',
-            '[data-aos-slider-thumb]',
-        ].join(', ')
-    ));
+    const selectors = [
+        'button',
+        'input',
+        'select',
+        'textarea',
+        'label',
+        '.sigil-avatar-control-surface',
+        '.aos-form-field',
+        '[data-aos-select-content]',
+        '[data-aos-select-item]',
+        '[data-aos-slider-root]',
+        '[data-aos-slider-control]',
+        '[data-aos-slider-track]',
+        '[data-aos-slider-thumb]',
+    ];
+    const combinedSelector = selectors.join(', ');
+    const combinedCandidates = Array.from(anchor.querySelectorAll(combinedSelector) || []);
+    const candidates = combinedCandidates.length
+        ? combinedCandidates
+        : Array.from(new Set(selectors.flatMap((selector) => (
+            Array.from(anchor.querySelectorAll(selector) || [])
+        ))));
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
         const element = candidates[i];
         if (element.hidden) continue;
@@ -220,6 +258,8 @@ export function createSigilContextMenu({
     projectPoint,
     updateGeometry,
     updatePrimaryStellation,
+    updatePrimaryAppearance,
+    updatePrimaryTesseronProportion,
     updateOmegaGeometry,
     updateAllColors,
     updatePulsars,
@@ -240,7 +280,17 @@ export function createSigilContextMenu({
     layer.innerHTML = menuMarkup();
     document.body.appendChild(layer);
 
-    const anchor = layer.querySelector('#sigil-context-menu');
+    let anchor = layer.querySelector('#sigil-context-menu');
+    if (!anchor) {
+        anchor = document.createElement('div');
+        anchor.id = 'sigil-context-menu';
+        anchor.className = 'ctx-anchor sigil-context-menu';
+        anchor.setAttribute('role', 'dialog');
+        anchor.setAttribute('aria-modal', 'false');
+        anchor.setAttribute('aria-label', 'Sigil avatar control surface');
+        anchor.setAttribute('aria-hidden', 'true');
+        layer.appendChild(anchor);
+    }
     let menuState = {
         open: false,
         bounds: null,
@@ -326,6 +376,8 @@ export function createSigilContextMenu({
             liveJs,
             updateGeometry,
             updatePrimaryStellation,
+            updatePrimaryAppearance,
+            updatePrimaryTesseronProportion,
             updateOmegaGeometry,
             updateAllColors,
             updatePulsars,
@@ -351,6 +403,110 @@ export function createSigilContextMenu({
             persisted: result.persisted,
         });
         return result;
+    }
+
+    function compatibilityDescriptorForVisualDescriptor(descriptor = {}) {
+        if (!descriptor) return null;
+        return getContextMenuControlDescriptor(descriptor.id)
+            || getContextMenuControlDescriptor(descriptor.state_path)
+            || getContextMenuControlDescriptor(descriptor.action_id)
+            || contextMenuControlDescriptors.find((entry) => (
+                statePathText(entry.statePath) === statePathText(descriptor.state_path)
+                && (!descriptor.route || entry.route === descriptor.route)
+            ))
+            || null;
+    }
+
+    function applyVisualBindingCompatibility(context = {}) {
+        const { descriptor, mutation } = context;
+        const compatibility = compatibilityDescriptorForVisualDescriptor(descriptor);
+        const value = mutation?.value;
+        if (!state || !compatibility) return;
+
+        if (mutation?.state_path?.startsWith?.('avatar.')) syncAvatarAliasesFromGraph(state);
+
+        if (compatibility.id === 'sigil-menu-shape-select') {
+            state.currentType = value;
+            const supported = isTesseronSupportedShape(value);
+            setControlDisabled('sigil-menu-tesseron', !supported);
+            setControlDisabled('sigil-menu-stellation', supported && !!state.avatar?.shape?.tesseron?.enabled);
+        } else if (compatibility.id === 'sigil-menu-tesseron') {
+            state.avatar.shape.tesseron = normalizeTesseronConfig(state.avatar.shape.tesseron);
+            setControlDisabled('sigil-menu-stellation', value);
+            setControlDisabled('sigil-menu-tesseron-proportion', !value);
+            setControlDisabled('sigil-menu-tesseron-match', !value);
+        } else if (compatibility.id === 'sigil-menu-tesseron-match' && !value) {
+            state.avatar.shape.tesseron = normalizeTesseronConfig(state.avatar.shape.tesseron);
+            state.avatar.shape.tesseron.child.opacity ??= state.avatar.appearance.opacity;
+            state.avatar.shape.tesseron.child.edgeOpacity ??= state.avatar.appearance.edgeOpacity;
+            state.avatar.shape.tesseron.child.maskEnabled ??= state.avatar.appearance.maskEnabled;
+            state.avatar.shape.tesseron.child.interiorEdges ??= state.avatar.appearance.interiorEdges;
+            state.avatar.shape.tesseron.child.specular ??= state.avatar.appearance.specular;
+        } else if (compatibility.id === 'sigil-menu-pulsar' && value && (state.avatar?.effects?.phenomena?.pulsar?.count ?? 0) <= 0) {
+            state.avatar.effects.phenomena.pulsar.count = 1;
+            syncAvatarAliasesFromGraph(state);
+        } else if (compatibility.id === 'sigil-menu-accretion' && value && (state.avatar?.effects?.phenomena?.accretion?.count ?? 0) <= 0) {
+            state.avatar.effects.phenomena.accretion.count = 1;
+            syncAvatarAliasesFromGraph(state);
+        } else if (compatibility.id === 'sigil-menu-gamma' && value && (state.avatar?.effects?.phenomena?.gamma?.count ?? 0) <= 0) {
+            state.avatar.effects.phenomena.gamma.count = 3;
+            syncAvatarAliasesFromGraph(state);
+        } else if (compatibility.id === 'sigil-menu-neutrino' && value && (state.avatar?.effects?.phenomena?.neutrino?.count ?? 0) <= 0) {
+            state.avatar.effects.phenomena.neutrino.count = 1;
+            syncAvatarAliasesFromGraph(state);
+        } else if (compatibility.id === 'sigil-menu-line-interdim') {
+            setControlValue('sigil-menu-line-trail-enabled', null, value);
+        } else if (compatibility.id === 'sigil-menu-omega-shape') {
+            state.omegaType = value;
+            const supported = isTesseronSupportedShape(value);
+            setControlDisabled('sigil-menu-omega-tesseron', !supported);
+            setControlDisabled('sigil-menu-omega-stellation', supported && !!state.avatar?.effects?.omega?.shape?.tesseron?.enabled);
+        } else if (compatibility.id === 'sigil-menu-omega-tesseron') {
+            state.avatar.effects.omega.shape.tesseron = normalizeTesseronConfig(state.avatar.effects.omega.shape.tesseron);
+            setControlDisabled('sigil-menu-omega-stellation', value);
+            setControlDisabled('sigil-menu-omega-tesseron-proportion', !value);
+            setControlDisabled('sigil-menu-omega-tesseron-match', !value);
+        }
+
+        if (compatibility.persistence === 'appearance') {
+            onAppearanceChange?.({ controlId: compatibility.id, value, descriptor: compatibility });
+        }
+        recordTrace('visual-object-binding-update', {
+            descriptorId: descriptor.id,
+            compatibilityId: compatibility.id,
+            route: mutation?.route,
+            value,
+        });
+    }
+
+    function visualObjectRouteHandlers() {
+        const handler = (context) => {
+            applyVisualBindingCompatibility(context);
+            return true;
+        };
+        return {
+            'canvas_object.transform.patch': handler,
+            'canvas_object.effects.patch': handler,
+        };
+    }
+
+    function visualObjectRendererSyncHandlers() {
+        return {
+            updateGeometry: () => updateGeometry?.(state?.avatar?.shape?.type ?? state?.currentGeometryType ?? state?.currentType),
+            updatePrimaryStellation: ({ mutation }) => updatePrimaryStellation?.(mutation.value),
+            updatePrimaryAppearance: () => updatePrimaryAppearance?.(),
+            updatePrimaryTesseronProportion: ({ mutation }) => updatePrimaryTesseronProportion?.(mutation.value),
+            updateOmegaGeometry: () => updateOmegaGeometry?.(state?.avatar?.effects?.omega?.shape?.type ?? state?.omegaGeometryType ?? state?.omegaType),
+            updateAllColors: () => updateAllColors?.(),
+            updatePulsars: () => updatePulsars?.(state?.pulsarRayCount),
+            updateGammaRays: () => updateGammaRays?.(state?.gammaRayCount),
+            updateAccretion: () => updateAccretion?.(state?.accretionDiskCount),
+            updateNeutrinos: () => updateNeutrinos?.(state?.neutrinoJetCount),
+            updateMagneticTentacleCount: ({ mutation }) => updateMagneticTentacleCount?.(mutation.value),
+            avatarScale: ({ mutation }) => {
+                if (state) state.baseScale = computeBaseScale(mutation.value) ?? state.baseScale;
+            },
+        };
     }
 
     function cacheKey(value) {
@@ -423,8 +579,16 @@ export function createSigilContextMenu({
         compactSurface = createSigilAvatarCompactControlSurface(anchor, state || {}, {
             document,
             defaultTab: activeTab || compactSurface?.getActiveTab?.() || undefined,
-            onControlChange(payload = {}) {
-                routeChangedControls(payload.section?.controls || [], payload.values || {});
+            visualObjectBinding: {
+                state,
+                routeHandlers: visualObjectRouteHandlers(),
+                rendererSyncHandlers: visualObjectRendererSyncHandlers(),
+            },
+            onControlChange() {
+                queueMicrotask(() => {
+                    syncFromState();
+                    syncSnapshot();
+                });
             },
             onProjectionChange(payload = {}) {
                 routeChangedControls(payload.controls || [], payload.values || {});
@@ -462,16 +626,16 @@ export function createSigilContextMenu({
     }
 
     function compactFieldRecordForElement(element) {
-        const fieldEl = element?.closest?.('.aos-form-field');
+        const fieldEl = closestAny(element, ['.aos-form-field']);
         const fieldId = fieldEl?.dataset?.aosFieldId;
         if (!fieldId || !compactSurface) return null;
         for (const entry of compactSurface.forms.values()) {
-            if (!entry.el.contains(fieldEl)) continue;
+            if (!elementContains(entry.el, fieldEl)) continue;
             const field = entry.form.getField(fieldId);
             if (field) return { ...field, form: entry.form, section: entry.section, tab: entry.tab };
         }
         for (const form of compactSurface.projectionForms.values()) {
-            if (!form.el.contains(fieldEl)) continue;
+            if (!elementContains(form.el, fieldEl)) continue;
             const field = form.getField(fieldId);
             if (field) return { ...field, form };
         }
@@ -498,7 +662,10 @@ export function createSigilContextMenu({
         const max = Number.isFinite(Number(record.field.max)) ? Number(record.field.max) : 100;
         const ratio = clamp((local.x - rect.left) / rect.width, 0, 1);
         const value = snappedSliderValue(min + ((max - min) * ratio), record.field);
-        record.control.setValue(value, { emit: true });
+        const current = Number(record.control.getValue?.());
+        if (!Number.isFinite(current) || current !== value) {
+            record.control.setValue(value, { emit: true });
+        }
         if (options.commit) record.control.el?.dispatchEvent?.(new Event('commit', { bubbles: true }));
         return true;
     }
@@ -744,7 +911,7 @@ export function createSigilContextMenu({
     function containsDesktopPoint(point) {
         if (!point) return false;
         const target = elementAt(point);
-        if (target && anchor.contains(target)) return true;
+        if (target && elementContains(anchor, target)) return true;
         const b = surfaceBounds() || menuState.bounds;
         return !!(b
             && point.x >= b.x
@@ -765,14 +932,14 @@ export function createSigilContextMenu({
     }
 
     function activeScrollableSurface(target) {
-        return target?.closest?.('.sigil-avatar-control-surface')
+        return closestAny(target, ['.sigil-avatar-control-surface'])
             || anchor.querySelector('.sigil-avatar-control-surface');
     }
 
     function scrollSurfaceAt(point, event = {}) {
         const target = elementAt(point);
         let surface = null;
-        if (target && anchor.contains(target)) {
+        if (target && elementContains(anchor, target)) {
             surface = activeScrollableSurface(target);
         } else {
             const b = surfaceBounds() || menuState.bounds;
@@ -821,11 +988,11 @@ export function createSigilContextMenu({
         if (kind !== 'left_mouse_down' && kind !== 'left_mouse_up') return true;
 
         const target = elementAt(point);
-        if (!target || !anchor.contains(target)) {
+        if (!target || !elementContains(anchor, target)) {
             recordTrace('pointer:no-target', { kind, point, target: describeElement(target) });
             return true;
         }
-        const input = target.closest?.([
+        const input = closestAny(target, [
             'input',
             'button',
             'label',
@@ -835,7 +1002,7 @@ export function createSigilContextMenu({
             '[data-aos-slider-control]',
             '[data-aos-slider-track]',
             '[data-aos-slider-thumb]',
-        ].join(', '));
+        ]);
         recordTrace('pointer:target', {
             kind,
             point,
@@ -844,7 +1011,7 @@ export function createSigilContextMenu({
         });
         if (!input) return true;
 
-        const sliderRoot = input.closest?.('[data-aos-slider-root]');
+        const sliderRoot = closestAny(input, ['[data-aos-slider-root]']);
         if (kind === 'left_mouse_down' && sliderRoot) {
             menuState.activeSlider = { sliderRoot };
             return updateCompactSliderAt(sliderRoot, point);
