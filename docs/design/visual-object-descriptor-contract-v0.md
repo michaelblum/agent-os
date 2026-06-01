@@ -258,6 +258,35 @@ can carry descriptor metadata for actions, runtime controls, or derived views,
 but they must not be used as evidence for canonical state mutation, resource
 retention, or renderer sync.
 
+## Observe And Snapshot Boundary
+
+The visual-object contract stops at descriptor-addressed state mutation and
+renderer update evidence. Its lifecycle record can prove that a descriptor
+update used a route, ran renderer sync labels, preserved target identity,
+balanced temporary resources, serialized the canonical state graph, and cleaned
+up any live proof surface. It does not own observe-mode session lifetime,
+annotation anchors, scope stacks, point-in-time keyframes, bundle asset refs, or
+`snapshot_count`.
+
+Observe-mode and snapshot-style artifacts remain a separate session contract.
+`packages/toolkit/workbench/annotation-session.js` owns live annotation session
+state, including root subject, committed and preview scope stacks, hover-only
+preview evidence, anchors, comments, projection status, and `snapshot_count`.
+`packages/toolkit/workbench/context-session.js` converts that live state into
+point-in-time context sessions/keyframes for Surface Inspector bundles and
+Sigil reticle camera requests. Those snapshots can reference a visual surface
+or capture descriptor-adjacent state as evidence, but they must not become a
+second visual-object mutation model or a persistent annotation database.
+
+The shared responsibility is compatibility rather than ownership transfer:
+descriptor/update evidence says what canonical object state changed and how the
+renderer synchronized it; snapshot/session evidence says what live subject,
+scope, anchor, comment, projection, and asset state was captured at a moment.
+Tests keep these records separate by asserting lifecycle evidence has no
+`snapshot_count`, session summary, or asset refs, while context-session
+snapshots do not grow descriptor ids, renderer sync labels, or minimal-update
+claims.
+
 ## Radial Workbench Descriptor Loop
 
 The Sigil radial item workbench uses the controller adapter directly because
@@ -293,6 +322,8 @@ now sync through `updatePrimaryTesseronProportion()` and have deterministic
 plus bounded live proof for stable child/link resource identities, bounded
 temporary geometry creation/disposal, and `state.avatar` JSON serialization.
 GPU morph-target or uniform-only stellation, broader material/geometry pooling,
-complete observe-mode snapshot integration, and broader live proof across every
-visual surface remain future work. The ongoing Phase 6 scope is described in
-`docs/dev/reports/aos-visual-object-architecture.md`.
+full observe-mode snapshot product integration, and broader live proof across
+every visual surface remain future work. Current Phase 6 only proves the
+descriptor/update contract can coexist with existing observe/snapshot session
+artifacts without introducing a parallel snapshot store. The ongoing Phase 6
+scope is described in `docs/dev/reports/aos-visual-object-architecture.md`.

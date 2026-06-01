@@ -70,13 +70,18 @@ Partially implemented:
 - Live AOS proof exists for a bounded avatar tesseron resource update and for a
   bounded radial workbench descriptor update, but this report should not be
   read as claiming live proof for every surface.
+- Phase 6 boundary proof now keeps visual-object lifecycle evidence separate
+  from observe-mode snapshot/session evidence. Descriptor records prove routed
+  mutation, renderer sync, retained identity/resources, serialization, and
+  cleanup. Annotation/context sessions continue to own root/scope/anchor,
+  comment, projection status, keyframe asset refs, and `snapshot_count`.
 
 Remaining broad slice:
 
 - **Phase 6 follow-up** should complete GPU morph-target or uniform
-  stellation, material or geometry pooling where warranted, and a broader live
-  AOS validation pass across representative avatar, radial, DesktopWorld/canvas,
-  and DOM surfaces.
+  stellation, material or geometry pooling where warranted, full observe-mode
+  snapshot product integration, and a broader live AOS validation pass across
+  representative avatar, radial, DesktopWorld/canvas, DOM, and observe surfaces.
 
 ## Vision
 
@@ -379,6 +384,7 @@ state graph -> descriptor -> route/controller -> renderer sync/minimal update
 | Sigil radial item workbench / non-avatar 3D | `radial_menu.<menu>.items.<item>.*` selected item JSON and editor state | `createRadialMenuWorkbenchSubject()` descriptors route through `canvas_object.transform.patch`, `canvas_object.visibility.patch`, and `canvas_object.effects.patch`; workbench posts `visual_object.descriptor.update` | `applyVisualObjectControllerUpdate()` dispatches to existing `applyEditorObjectPatch()` / `applyEditorEffectsPatch()` and syncs registry/preview/exported subject state; radial transform proof now records route, renderer sync labels, retained selected-item identity, and serializable exported state with the lifecycle helper | `node --test tests/renderer/radial-item-editor.test.mjs tests/renderer/radial-object-control.test.mjs`; `node --test tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/object-transform-panel-model.test.mjs` |
 | Toolkit DOM slider proof | `toolkit.controls.opacity.value` JSON fixture state | `createToolkitSliderVisualObjectDescriptor()` uses `dom-toolkit` and `dom_toolkit.control.value.patch` | Controller/form binding calls the existing slider `setValue()` path, preserves root element identity, and validates serializable state with the lifecycle helper | `node --test tests/toolkit/visual-object-form-binding.test.mjs tests/toolkit/visual-object-contract.test.mjs tests/toolkit/panel-form.test.mjs` |
 | 2D/DesktopWorld or canvas-style proof | DesktopWorld/canvas-style transform fixture state | `canvas-2d` descriptor routes through `canvas_object.transform.patch` or `canvas_object.effects.patch` | Controller update applies state in place and reruns the existing transform/sync path on the same target node/object; same-node identity and serializable state are normalized as lifecycle evidence | `node --test tests/toolkit/desktop-world-surface-2d.test.mjs tests/toolkit/runtime-canvas.test.mjs tests/toolkit/controls-slider-color.test.mjs` |
+| Observe/snapshot session boundary | Annotation session/context session roots, scopes, anchors, comments, projection status, keyframes, asset refs, and `snapshot_count` | Not a visual-object descriptor route; Surface Inspector and Sigil camera paths use `canvas_inspector.capture_bundle` / `sigil_radial_camera` triggers through the existing session/snapshot contract | Focused boundary proof asserts lifecycle evidence does not absorb `snapshot_count`, session summaries, or asset refs, while context-session snapshots do not claim descriptor ids, renderer sync labels, or minimal-update semantics | `node --test tests/toolkit/visual-object-resource-lifecycle.test.mjs`; live proof uses one bounded Sigil/radial surface plus cleanup when `./aos ready --json` passes |
 
 ### Phase 6 Pooling Boundary Decision
 
@@ -397,6 +403,22 @@ temporary, disposed, identity, serialization, and optional
 Three.js resources locally, while toolkit surfaces prove stable target identity
 and serializable state through the same vocabulary without claiming GPU
 resource pooling.
+
+### Phase 6 Observe/Snapshot Boundary Decision
+
+Observe-mode integration stays on the existing annotation/session contract for
+this slice. Visual-object descriptors describe editable object state and the
+route/sync path for mutating that state; they intentionally do not encode live
+annotation scope, comments, projection freshness, bundle assets, or
+`snapshot_count`. Conversely, annotation and context sessions can capture a
+point-in-time surface and may include descriptor-adjacent evidence, but they do
+not become descriptor mutation records or resource lifecycle proof.
+
+The current compatibility proof is bounded: the lifecycle helper and
+annotation/context session helpers can coexist in the same workbench package
+without either contract importing the other's fields. Full observe-mode
+snapshot product integration remains tracked separately because it has broader
+surface, bundle, and capture-success semantics than descriptor/update evidence.
 
 The broad toolkit suite is not the validation gate for this workstream. On this
 branch, broad `node --test tests/toolkit/*.test.mjs` is known to include
