@@ -315,18 +315,24 @@ export function createSigilContextMenu({
         };
     }
 
+    function compactControlRecords() {
+        return compactSurface?.getControlRecords?.() || [];
+    }
+
     function snapshot() {
         return {
             open: menuState.open,
             bounds: menuState.bounds ? { ...menuState.bounds } : null,
             stack: null,
             activeTab: compactSurface?.getActiveTab?.() || null,
+            controls: compactControlRecords(),
         };
     }
 
     function syncSnapshot() {
         menuState.snapshot = {
             activeTab: compactSurface?.getActiveTab?.() || null,
+            controlCount: compactControlRecords().length,
         };
         anchor.setAttribute('aria-hidden', menuState.open ? 'false' : 'true');
         anchor.setAttribute('data-state', menuState.open ? 'open' : 'closed');

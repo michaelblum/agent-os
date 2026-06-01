@@ -156,6 +156,17 @@ function containsElement(parent, child) {
   return false;
 }
 
+function setRect(element, rect) {
+  element.getBoundingClientRect = () => ({
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    right: rect.left + rect.width,
+    bottom: rect.top + rect.height,
+  });
+}
+
 test('compact avatar control surface renders toolkit tabs and section forms from the avatar object graph view model', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const { surface } = mount(viewModel);
@@ -213,6 +224,31 @@ test('compact avatar control surface reports form changes with tab, section, and
   assert.equal(changes[0].section.key, 'primary-polyhedron');
   assert.equal(changes[0].avatar_id, 'avatar-main');
   assert.equal(changes[0].values[alphaOpacity.id], 0.45);
+});
+
+test('compact avatar control surface exposes descriptor-addressed AOS control records', () => {
+  const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
+  const { surface } = mount(viewModel);
+  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-menu-opacity');
+  const form = surface.getForm('alpha:primary-polyhedron');
+  const sliderControl = form.getField(alphaOpacity.id).control.el.querySelector('[data-aos-slider-control]');
+
+  setRect(sliderControl, { left: 24, top: 84, width: 180, height: 28 });
+
+  const record = surface.getControlRecordByDescriptorId('sigil-menu-opacity');
+  const records = surface.getControlRecords();
+
+  assert.equal(record.ref, 'aos.control:sigil-menu-opacity');
+  assert.equal(record.role, 'AXSlider');
+  assert.equal(record.name, 'Face Opacity');
+  assert.equal(record.value, 0.8);
+  assert.equal(record.surface, 'sigil.avatar.compact_control_surface');
+  assert.deepEqual(record.bounds, { left: 24, top: 84, width: 180, height: 28 });
+  assert.ok(records.some((item) => (
+    item.descriptor_id === 'sigil-menu-fast-travel-effect'
+    && item.role === 'AXRadioGroup'
+    && item.options.some((option) => option.value === 'wormhole')
+  )));
 });
 
 test('compact avatar control surface can bind a real canonical control through visual object descriptors', () => {

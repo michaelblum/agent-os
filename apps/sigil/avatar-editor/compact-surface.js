@@ -429,6 +429,44 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
     getProjectionForm(key = 'projection-tools') {
       return projectionForms.get(key) || null;
     },
+    getControlRecords() {
+      const records = [];
+      for (const { tab, section, form } of forms.values()) {
+        records.push(...form.getControlRecords().map((record) => ({
+          ...record,
+          tab: { key: tab.key, label: tab.label },
+          section: { key: section.key, label: section.label },
+          surface: 'sigil.avatar.compact_control_surface',
+        })));
+      }
+      for (const [key, form] of projectionForms) {
+        records.push(...form.getControlRecords().map((record) => ({
+          ...record,
+          projection: true,
+          section: { key, label: 'Surface Shortcuts' },
+          surface: 'sigil.avatar.compact_control_surface',
+        })));
+      }
+      return records;
+    },
+    getControlRecordByDescriptorId(descriptorId) {
+      for (const { form } of forms.values()) {
+        const record = form.getControlRecords().find((item) => item.descriptor_id === descriptorId);
+        if (record) return {
+          ...record,
+          surface: 'sigil.avatar.compact_control_surface',
+        };
+      }
+      for (const form of projectionForms.values()) {
+        const record = form.getControlRecords().find((item) => item.descriptor_id === descriptorId);
+        if (record) return {
+          ...record,
+          projection: true,
+          surface: 'sigil.avatar.compact_control_surface',
+        };
+      }
+      return null;
+    },
     refreshVisibility() {
       for (const entry of forms.values()) entry.form.refreshVisibility?.();
       for (const form of projectionForms.values()) form.refreshVisibility?.();

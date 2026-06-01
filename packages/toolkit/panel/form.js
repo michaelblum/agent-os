@@ -194,6 +194,140 @@ function metadataValue(value) {
   return String(value);
 }
 
+function text(value, fallback = '') {
+  const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return normalized || fallback;
+}
+
+function roleForField(field = {}) {
+  switch (field.kind) {
+    case 'exclusive_choice':
+    case 'radio_group':
+      return 'AXRadioGroup';
+    case 'multi_choice':
+      return 'AXCheckBoxGroup';
+    case 'boolean':
+    case 'checkbox':
+      return 'AXCheckBox';
+    case 'slider':
+      return 'AXSlider';
+    case 'select':
+      return 'AXPopUpButton';
+    case 'textarea':
+      return 'AXTextArea';
+    case 'number':
+    case 'text':
+    default:
+      return 'AXTextField';
+  }
+}
+
+function optionElementFor(control = null, option = {}, index = 0) {
+  const elements = typeof control?.el?.querySelectorAll === 'function'
+    ? Array.from(control.el.querySelectorAll('button,[data-value]'))
+    : [];
+  return elements.find((element) => element.dataset?.value === String(option.value))
+    || elements[index]
+    || null;
+}
+
+function controlOptions(field = {}, control = null) {
+  if (typeof control?.getOptions === 'function') {
+    return control.getOptions().map((option, index) => {
+      const element = optionElementFor(control, option, index);
+      return {
+        value: option.rawValue ?? option.value,
+        label: text(option.label, option.value),
+        enabled: !option.disabled,
+        selected: element?.getAttribute?.('aria-selected') === 'true'
+          || element?.getAttribute?.('aria-pressed') === 'true'
+          || element?.classList?.contains?.('selected') === true
+          || element?.classList?.contains?.('active') === true,
+        bounds: rectForElement(element),
+      };
+    });
+  }
+  if (!Array.isArray(field.options)) return [];
+  return field.options.map((option, index) => {
+    const element = optionElementFor(control, option, index);
+    return {
+      value: option.value,
+      label: text(option.label, option.value),
+      enabled: !option.disabled,
+      selected: element?.getAttribute?.('aria-pressed') === 'true'
+        || element?.getAttribute?.('aria-selected') === 'true'
+        || element?.classList?.contains?.('active') === true
+        || element?.classList?.contains?.('selected') === true,
+      bounds: rectForElement(element),
+    };
+  });
+}
+
+function rectForElement(element) {
+  if (typeof element?.getBoundingClientRect !== 'function') return null;
+  const rect = element.getBoundingClientRect();
+  const left = Number(rect.left);
+  const top = Number(rect.top);
+  const width = Number(rect.width);
+  const height = Number(rect.height);
+  if (![left, top, width, height].every(Number.isFinite)) return null;
+  return {
+    left,
+    top,
+    width,
+    height,
+  };
+}
+
+function focusTargetForRecord(record = {}) {
+  const el = record.control?.el;
+  if (!el) return null;
+  if (typeof el.matches === 'function' && el.matches('button,input,select,textarea,[tabindex]')) return el;
+  return typeof el.querySelector === 'function'
+    ? el.querySelector('button,input,select,textarea,[tabindex]')
+    : null;
+}
+
+function interactionTargetForRecord(record = {}) {
+  if (record.field.kind === 'slider') {
+    return record.control?.el?.querySelector?.('[data-aos-slider-control]') || record.control?.el || record.el;
+  }
+  return focusTargetForRecord(record) || record.control?.el || record.el;
+}
+
+function controlActionsForRecord(record = {}) {
+  const actions = [];
+  if (record.hidden) return actions;
+  if (['exclusive_choice', 'radio_group'].includes(record.field.kind)) actions.push('select');
+  else if (record.field.kind === 'slider') actions.push('drag', 'set-value');
+  else if (record.field.kind === 'select') actions.push('open', 'select');
+  else if (['boolean', 'checkbox', 'multi_choice'].includes(record.field.kind)) actions.push('toggle');
+  else actions.push('focus', 'set-value');
+  return actions;
+}
+
+function controlRecordFor(record = {}) {
+  const field = record.field || {};
+  const descriptorId = field.descriptor_id ?? field.binding?.descriptor_id ?? field.id;
+  const target = interactionTargetForRecord(record);
+  const value = record.control?.getValue?.();
+  return {
+    id: field.id,
+    descriptor_id: descriptorId,
+    ref: `aos.control:${descriptorId}`,
+    role: roleForField(field),
+    name: text(field.label ?? field.control_label, field.id),
+    kind: field.kind || 'text',
+    value,
+    options: controlOptions(field, record.control),
+    enabled: !record.hidden && !target?.disabled,
+    hidden: !!record.hidden,
+    bounds: rectForElement(target),
+    actions: controlActionsForRecord(record),
+    metadata: { ...record.el.dataset },
+  };
+}
+
 function applyFieldMetadata(fieldEl, field) {
   const binding = field.binding && typeof field.binding === 'object' ? field.binding : {};
   fieldEl.dataset.aosFieldId = String(field.id);
@@ -382,6 +516,13 @@ export function createForm(container, fields = [], options = {}) {
         field: record.field,
         hidden: record.hidden,
       };
+    },
+    getControlRecord(id) {
+      const record = records.get(id);
+      return record ? controlRecordFor(record) : null;
+    },
+    getControlRecords() {
+      return Array.from(records.values(), (record) => controlRecordFor(record));
     },
     focus() {
       for (const record of records.values()) {

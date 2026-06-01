@@ -123,6 +123,23 @@ const AOSNativeControls = (() => {
   const field = (descriptorId) => document.querySelector(`.aos-form-field[data-descriptor-id="${esc(descriptorId)}"]`)
   const segmentedButton = (descriptorId, value) => field(descriptorId)?.querySelector(`.aos-segmented button[data-value="${esc(value)}"]`)
   const sliderControl = (descriptorId) => field(descriptorId)?.querySelector('[data-aos-slider-control]')
+  const rectPoint = (rect, ratio = 0.5) => {
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null
+    const dw = desktopWorldBounds()
+    return {
+      x: dw[0] + rect.left + rect.width * ratio,
+      y: dw[1] + rect.top + rect.height / 2,
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+    }
+  }
+  const controlRecord = (descriptorId) => {
+    const controls = snapshot().contextMenu?.controls || []
+    return controls.find((control) => control.descriptor_id === descriptorId || control.id === descriptorId) || null
+  }
+  const optionRecord = (record, value) => {
+    const textValue = String(value)
+    return (record?.options || []).find((option) => String(option.value) === textValue) || null
+  }
   const clickPoint = (hitCanvasId, point) => {
     if (!point) return null
     const nativePoint = toNative(point)
@@ -171,20 +188,25 @@ const AOSNativeControls = (() => {
     return { ...ready, nativePoint: clickPoint(hitCanvasId, ready.point) }
   }
   const segmentedReady = (descriptorId, value) => {
-    const container = field(descriptorId)
-    if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
-    container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
-    const button = segmentedButton(descriptorId, value)
-    const point = pointFor(button)
+    const record = controlRecord(descriptorId)
+    const option = optionRecord(record, value)
+    let point = rectPoint(option?.bounds)
+    if (!point) {
+      const container = field(descriptorId)
+      if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
+      container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
+      point = pointFor(segmentedButton(descriptorId, value))
+    }
     if (!point) return { __pending: true, error: `missing or hidden option ${descriptorId}:${value}` }
     return {
       ok: true,
       id: descriptorId,
-      ref: `aos.control:${descriptorId}`,
-      role: 'AXRadioGroup',
-      name: container.querySelector('.aos-control-label')?.textContent?.trim() || descriptorId,
+      ref: record?.ref || `aos.control:${descriptorId}`,
+      role: record?.role || 'AXRadioGroup',
+      name: record?.name || descriptorId,
       value,
-      selected: selected(button),
+      selected: option?.selected === true,
+      controlRecord: record,
       point
     }
   }
@@ -192,31 +214,38 @@ const AOSNativeControls = (() => {
     const ready = segmentedReady(descriptorId, value)
     if (!ready.ok) return ready
     const nativePoint = clickPoint(hitCanvasId, ready.point)
-    const button = segmentedButton(descriptorId, value)
-    return { ...ready, nativePoint, selected: selected(button) }
+    const updated = optionRecord(controlRecord(descriptorId), value)
+    return { ...ready, nativePoint, selected: updated?.selected === true }
   }
   const sliderReady = (descriptorId) => {
-    const container = field(descriptorId)
-    if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
-    container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
-    const control = sliderControl(descriptorId)
-    const point = pointFor(control)
+    const record = controlRecord(descriptorId)
+    let point = rectPoint(record?.bounds)
+    if (!point) {
+      const container = field(descriptorId)
+      if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
+      container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
+      point = pointFor(sliderControl(descriptorId))
+    }
     if (!point) return { __pending: true, error: `missing or hidden slider ${descriptorId}` }
     return {
       ok: true,
       id: descriptorId,
-      ref: `aos.control:${descriptorId}`,
-      role: 'AXSlider',
-      name: container.querySelector('.aos-control-label')?.textContent?.trim() || descriptorId,
+      ref: record?.ref || `aos.control:${descriptorId}`,
+      role: record?.role || 'AXSlider',
+      name: record?.name || descriptorId,
+      value: record?.value,
+      actions: record?.actions || [],
+      controlRecord: record,
       point
     }
   }
   const dragSlider = (hitCanvasId, descriptorId, startRatio = 0.15, endRatio = 0.85) => {
     const ready = sliderReady(descriptorId)
     if (!ready.ok) return ready
-    const control = sliderControl(descriptorId)
-    const start = pointFor(control, startRatio)
-    const end = pointFor(control, endRatio)
+    const bounds = ready.controlRecord?.bounds
+    const control = bounds ? null : sliderControl(descriptorId)
+    const start = bounds ? rectPoint(bounds, startRatio) : pointFor(control, startRatio)
+    const end = bounds ? rectPoint(bounds, endRatio) : pointFor(control, endRatio)
     if (!start || !end) return { __pending: true, error: `missing slider drag points ${descriptorId}` }
     return { ...ready, start, end, ...dragPoints(hitCanvasId, start, end) }
   }
