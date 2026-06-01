@@ -305,11 +305,26 @@ show_eval(
     }})()"""
 )
 
-menu_effect = wait_until(
+menu_travel_tab = wait_until(
     lambda: show_eval_json(
-        f"""(() => {{
-      const snap = window.__sigilDebug.snapshot()
-      const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+        """(() => {
+	      const el = document.querySelector('[data-aos-tabs-trigger][data-value="travel"]')
+	      if (!el) return JSON.stringify({ __pending: true, error: 'missing travel tab' })
+	      const rect = el.getBoundingClientRect()
+	      if (rect.width <= 0 || rect.height <= 0) return JSON.stringify({ __pending: true, error: 'travel tab not visible' })
+	      return JSON.stringify({ ok: true })
+	    })()"""
+    ),
+    timeout=5.0,
+    label="travel tab mounted",
+)
+if menu_travel_tab.get("ok") is not True:
+    raise SystemExit(f"FAIL: travel tab did not mount: {menu_travel_tab}")
+
+show_eval(
+    f"""(() => {{
+	      const snap = window.__sigilDebug.snapshot()
+	      const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
       const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
       const toNative = (point) => ({{
         x: nativeBounds[0] + point.x - dwBounds[0],
@@ -338,15 +353,65 @@ menu_effect = wait_until(
         }})
         return nativePoint
       }}
-      const travelTab = pointFor('[data-aos-tabs-trigger][data-value="travel"]')
-      if (!travelTab) return JSON.stringify({{ ok: false, error: 'missing travel tab' }})
-      clickWorld(travelTab)
-      const point = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
-      if (!point) return JSON.stringify({{ ok: false, error: 'missing wormhole segmented button' }})
-      const nativePoint = clickWorld(point)
-      const menuOpenAfterClick = window.liveJs.contextMenu?.open === true
-      const button = document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
-      window.confirm = () => false
+      clickWorld(pointFor('[data-aos-tabs-trigger][data-value="travel"]'))
+      return 'ok'
+    }})()"""
+)
+
+menu_effect_ready = wait_until(
+    lambda: show_eval_json(
+        """(() => {
+	      const button = document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
+	      if (!button) return JSON.stringify({ __pending: true, error: 'missing wormhole segmented button' })
+	      const rect = button.getBoundingClientRect()
+	      if (rect.width <= 0 || rect.height <= 0) return JSON.stringify({ __pending: true, error: 'wormhole segmented button not visible' })
+	      return JSON.stringify({ ok: true })
+	    })()"""
+    ),
+    timeout=5.0,
+    label="wormhole fast-travel segmented control readiness",
+)
+if menu_effect_ready.get("ok") is not True:
+    raise SystemExit(f"FAIL: wormhole fast-travel segmented control did not mount: {menu_effect_ready}")
+
+menu_effect = show_eval_json(
+    f"""(() => {{
+	      const snap = window.__sigilDebug.snapshot()
+	      const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+	      const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
+	      const toNative = (point) => ({{
+	        x: nativeBounds[0] + point.x - dwBounds[0],
+	        y: nativeBounds[1] + point.y - dwBounds[1],
+	      }})
+	      const pointFor = (selector) => {{
+	        const el = document.querySelector(selector)
+	        if (!el) return null
+	        const rect = el.getBoundingClientRect()
+	        return {{
+	          x: dwBounds[0] + rect.left + rect.width / 2,
+	          y: dwBounds[1] + rect.top + rect.height / 2,
+	        }}
+	      }}
+	      const clickWorld = (point) => {{
+	        const nativePoint = toNative(point)
+	        window.__sigilDebug.dispatch({{
+	          type: 'canvas_message',
+	          id: {json.dumps(hit_id)},
+	          payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: nativePoint.x, screenY: nativePoint.y }}
+	        }})
+	        window.__sigilDebug.dispatch({{
+	          type: 'canvas_message',
+	          id: {json.dumps(hit_id)},
+	          payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }}
+	        }})
+	        return nativePoint
+	      }}
+	      const point = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
+	      if (!point) return JSON.stringify({{ ok: false, error: 'missing wormhole segmented button' }})
+	      const nativePoint = clickWorld(point)
+	      const menuOpenAfterClick = window.liveJs.contextMenu?.open === true
+	      const button = document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]')
+	      window.confirm = () => false
       window.__sigilDebug.dispatch({{ type: 'key_down', key_code: 53 }})
       return JSON.stringify({{
         ok: true,
@@ -356,12 +421,9 @@ menu_effect = wait_until(
         menuOpenAfterClose: window.liveJs.contextMenu?.open === true,
         point,
         nativePoint,
-        traceTail: window.__sigilDebug.interactionTrace().entries.slice(-16)
-      }})
-    }})()"""
-    ),
-    timeout=5.0,
-    label="wormhole fast-travel segmented control",
+	        traceTail: window.__sigilDebug.interactionTrace().entries.slice(-16)
+	      }})
+	    }})()"""
 )
 if (
     not menu_effect.get("ok")
@@ -527,12 +589,27 @@ if extended_display:
     if ext_menu.get("menuOpen") is not True:
         raise SystemExit(f"FAIL: extended display right click did not open context menu with local hit coords: {ext_menu}")
 
-    ext_menu_control = wait_until(
+    ext_travel_tab = wait_until(
         lambda: show_eval_json(
-            f"""(() => {{
-          const snap = window.__sigilDebug.snapshot()
-          const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
-          const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
+            """(() => {
+          const el = document.querySelector('[data-aos-tabs-trigger][data-value="travel"]')
+          if (!el) return JSON.stringify({ __pending: true, error: 'missing travel tab' })
+          const rect = el.getBoundingClientRect()
+          if (rect.width <= 0 || rect.height <= 0) return JSON.stringify({ __pending: true, error: 'travel tab not visible' })
+          return JSON.stringify({ ok: true })
+        })()"""
+        ),
+        timeout=5.0,
+        label="extended display travel tab mounted",
+    )
+    if ext_travel_tab.get("ok") is not True:
+        raise SystemExit(f"FAIL: extended display travel tab did not mount: {ext_travel_tab}")
+
+    show_eval(
+        f"""(() => {{
+	          const snap = window.__sigilDebug.snapshot()
+	          const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+	          const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
           const toNative = (point) => ({{
             x: nativeBounds[0] + point.x - dwBounds[0],
             y: nativeBounds[1] + point.y - dwBounds[1],
@@ -560,14 +637,74 @@ if extended_display:
               payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }}
             }})
           }}
-          const before = window.state.fastTravelLineDuration
-          const trailModeBefore = window.state.fastTravelLineTrailMode
-          const travelTab = pointFor('[data-aos-tabs-trigger][data-value="travel"]')
-          if (!travelTab) return JSON.stringify({{ ok: false, error: 'missing travel tab' }})
-          clickWorld(travelTab)
-          document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"]')?.scrollIntoView({{ block: 'center', inline: 'nearest' }})
-          const durationStart = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"] [data-aos-slider-control]', 0.15)
-          const durationEnd = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"] [data-aos-slider-control]', 0.85)
+	          const travelTab = pointFor('[data-aos-tabs-trigger][data-value="travel"]')
+	          if (!travelTab) return JSON.stringify({{ ok: false, error: 'missing travel tab' }})
+	          clickWorld(travelTab)
+	          return 'ok'
+	        }})()"""
+    )
+
+    ext_controls_ready = wait_until(
+        lambda: show_eval_json(
+            """(() => {
+          document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"]')?.scrollIntoView({ block: 'center', inline: 'nearest' })
+          const selectors = [
+            '.aos-form-field[data-descriptor-id="sigil-menu-line-duration"] [data-aos-slider-control]',
+            '.aos-form-field[data-descriptor-id="sigil-menu-line-trail-mode"] .aos-segmented button[data-value="shrink"]',
+            '.aos-form-field[data-descriptor-id="sigil-menu-fast-travel-effect"] .aos-segmented button[data-value="wormhole"]'
+          ]
+          for (const selector of selectors) {
+            const el = document.querySelector(selector)
+            if (!el) return JSON.stringify({ __pending: true, error: `missing ${selector}` })
+            const rect = el.getBoundingClientRect()
+            if (rect.width <= 0 || rect.height <= 0) return JSON.stringify({ __pending: true, error: `not visible ${selector}` })
+          }
+          return JSON.stringify({ ok: true })
+        })()"""
+        ),
+        timeout=5.0,
+        label="extended display compact context-menu controls readiness",
+    )
+    if ext_controls_ready.get("ok") is not True:
+        raise SystemExit(f"FAIL: extended display compact context-menu controls did not mount: {ext_controls_ready}")
+
+    ext_menu_control = show_eval_json(
+        f"""(() => {{
+	          const snap = window.__sigilDebug.snapshot()
+	          const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+	          const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
+	          const toNative = (point) => ({{
+	            x: nativeBounds[0] + point.x - dwBounds[0],
+	            y: nativeBounds[1] + point.y - dwBounds[1],
+	          }})
+	          const pointFor = (selector, ratio = 0.5) => {{
+	            const el = document.querySelector(selector)
+	            if (!el) return null
+	            const rect = el.getBoundingClientRect()
+	            return {{
+	              x: dwBounds[0] + rect.left + rect.width * ratio,
+	              y: dwBounds[1] + rect.top + rect.height / 2,
+	              rect: {{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+	            }}
+	          }}
+	          const clickWorld = (point) => {{
+	            const nativePoint = toNative(point)
+	            window.__sigilDebug.dispatch({{
+	              type: 'canvas_message',
+	              id: {json.dumps(hit_id)},
+	              payload: {{ source: 'sigil-hit', kind: 'left_mouse_down', screenX: nativePoint.x, screenY: nativePoint.y }}
+	            }})
+	            window.__sigilDebug.dispatch({{
+	              type: 'canvas_message',
+	              id: {json.dumps(hit_id)},
+	              payload: {{ source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }}
+	            }})
+	          }}
+	          const before = window.state.fastTravelLineDuration
+	          const trailModeBefore = window.state.fastTravelLineTrailMode
+	          document.querySelector('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"]')?.scrollIntoView({{ block: 'center', inline: 'nearest' }})
+	          const durationStart = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"] [data-aos-slider-control]', 0.15)
+	          const durationEnd = pointFor('.aos-form-field[data-descriptor-id="sigil-menu-line-duration"] [data-aos-slider-control]', 0.85)
           if (!durationStart || !durationEnd) return JSON.stringify({{ ok: false, error: 'missing line duration slider' }})
           const durationStartNative = toNative(durationStart)
           const durationEndNative = toNative(durationEnd)
@@ -603,12 +740,9 @@ if extended_display:
             trailModeButtonActive: trailModeButton?.getAttribute('aria-pressed') === 'true' || trailModeButton?.classList.contains('active'),
             fastTravelEffect: window.__sigilDebug.snapshot().fastTravelEffect,
             wormholeButtonActive: wormholeButton?.getAttribute('aria-pressed') === 'true' || wormholeButton?.classList.contains('active'),
-            menuOpen: window.liveJs.contextMenu?.open === true
-          }})
-        }})()"""
-        ),
-        timeout=5.0,
-        label="extended display compact context-menu controls",
+	            menuOpen: window.liveJs.contextMenu?.open === true
+	          }})
+	        }})()"""
     )
     if (
         ext_menu_control.get("ok") is not True

@@ -166,13 +166,52 @@ right_click_duplicate = show_eval_json(
 )
 assert right_click_duplicate["contextMenu"]["open"] is True, right_click_duplicate
 
+daemon_echo = show_eval_json(
+    f"""(() => {{
+      window.__sigilDebug.clearInteractionTrace()
+      const snap = window.__sigilDebug.snapshot()
+      const bounds = snap.contextMenu?.bounds
+      if (!bounds || bounds.w <= 0 || bounds.h <= 0) {{
+        return JSON.stringify({{ ok: false, error: 'missing open context menu bounds', contextMenu: snap.contextMenu }})
+      }}
+      const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+      const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
+      const point = {{
+        x: bounds.x + bounds.w / 2,
+        y: bounds.y + bounds.h / 2,
+      }}
+      const nativePoint = {{
+        x: nativeBounds[0] + point.x - dwBounds[0],
+        y: nativeBounds[1] + point.y - dwBounds[1],
+      }}
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: point.x, y: point.y }})
+      window.__sigilDebug.dispatch({{
+        type: 'canvas_message',
+        id: {json.dumps(hit_target_id)},
+        payload: {{
+          source: 'sigil-hit',
+          kind: 'left_mouse_dragged',
+          screenX: nativePoint.x,
+          screenY: nativePoint.y
+        }}
+      }})
+      const trace = window.__sigilDebug.interactionTrace().entries
+      return JSON.stringify({{
+        ok: true,
+        ignored: trace.find((entry) => entry.stage === 'hit-canvas:ignored' && entry.data?.reason === 'daemon-echo') || null,
+        traceTail: trace.slice(-12),
+      }})
+    }})()"""
+)
+assert daemon_echo["ok"] is True, daemon_echo
+assert daemon_echo["ignored"] is not None, daemon_echo
+
 show_eval("window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 }); 'ok'")
 direct_drag_state = show_eval_json(
     """(() => {
-      const frame = window.__sigilDebug.snapshot().hitTargetFrame
-      const p = { x: frame[0] + frame[2] / 2, y: frame[1] + frame[3] / 2 }
-      window.__sigilDebug.dispatch({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatch({ type: 'left_mouse_dragged', x: p.x + 18, y: p.y })
+      const p = window.__sigilDebug.snapshot().avatarPos
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 48, y: p.y })
       return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
