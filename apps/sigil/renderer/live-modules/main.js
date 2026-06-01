@@ -2993,7 +2993,9 @@ function geometryHasFinitePositions(geometry) {
 }
 
 function runPrimaryStellationResourceSmoke(options = {}) {
-    const edits = Math.max(1, Math.min(200, Number(options.edits) || 40));
+    const requestedEdits = Number(options.edits) || 40;
+    const edits = Math.max(1, Math.min(5000, requestedEdits));
+    const minDurationMs = Math.max(0, Math.min(15000, Number(options.minDurationMs ?? options.min_duration_ms) || 0));
     state.__sigilGeometryStats = {};
     state.avatar.shape.type = 20;
     state.avatar.shape.tesseron = { enabled: false, proportion: 0.5, matchMother: true, child: {} };
@@ -3021,7 +3023,9 @@ function runPrimaryStellationResourceSmoke(options = {}) {
     let stable = true;
     let finite = true;
 
-    for (let index = 0; index < edits; index += 1) {
+    const proofStartedAt = performance.now();
+    let index = 0;
+    for (; index < edits || (minDurationMs > 0 && performance.now() - proofStartedAt < minDurationMs); index += 1) {
         const value = ((index % 20) + 1) / 16;
         state.avatar.shape.stellationFactor = value;
         const update = updatePrimaryStellation(value);
@@ -3033,6 +3037,7 @@ function runPrimaryStellationResourceSmoke(options = {}) {
             && geometryHasFinitePositions(state.coreMesh?.geometry)
             && geometryHasFinitePositions(state.wireframeMesh?.geometry);
     }
+    const proofDurationMs = performance.now() - proofStartedAt;
 
     let jsonOk = true;
     try {
@@ -3042,7 +3047,14 @@ function runPrimaryStellationResourceSmoke(options = {}) {
     }
 
     return {
-        edits,
+        edits: index,
+        requestedEdits: edits,
+        proofWindow: {
+            kind: minDurationMs > 0 ? 'live_runtime_duration' : 'live_edit_loop',
+            durationMs: proofDurationMs,
+            minDurationMs,
+            iterationLimit: edits,
+        },
         fullRebuildDelta: stats.primaryFullRebuilds - initialFullRebuilds,
         updates: stats.primaryStellationUpdates,
         suppressed: stats.primaryStellationSuppressed,

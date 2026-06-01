@@ -38,6 +38,12 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
     temporaryResourcesDisposed: 200,
     finiteDataValid: true,
     jsonSerializableState: state,
+    proofWindow: {
+      kind: 'deterministic_edit_loop',
+      durationMs: 250,
+      minDurationMs: 200,
+      iterationLimit: 100,
+    },
     poolingBoundary: {
       owner: 'sigil-renderer',
       decision: 'renderer-local',
@@ -52,11 +58,36 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
   assert.deepEqual(evidence.retained_resource, { count: 2, limit: 2, within_limit: true });
   assert.deepEqual(evidence.temporary_resource, { created: 200, disposed: 200, balanced: true });
   assert.deepEqual(evidence.json_serializable_state, { checked: true, ok: true });
+  assert.deepEqual(evidence.proof_window, {
+    kind: 'deterministic_edit_loop',
+    duration_ms: 250,
+    min_duration_ms: 200,
+    iteration_limit: 100,
+  });
   assert.deepEqual(evidence.pooling_boundary, {
     owner: 'sigil-renderer',
     decision: 'renderer-local',
     rationale: 'Three.js geometry and material reuse depends on renderer-owned topology and disposal semantics.',
   });
+  assert.deepEqual(validateVisualObjectResourceLifecycleEvidence(evidence), { ok: true, errors: [] });
+});
+
+test('resource lifecycle validation accepts bounded proof-window metadata', () => {
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'duration-proof',
+      state_path: 'avatar.shape.stellationFactor',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryStellation'],
+    },
+    proofWindow: {
+      kind: 'live_runtime_duration',
+      durationMs: 5_000,
+      minDurationMs: 5_000,
+      iterationLimit: 1_000,
+    },
+  });
+
   assert.deepEqual(validateVisualObjectResourceLifecycleEvidence(evidence), { ok: true, errors: [] });
 });
 

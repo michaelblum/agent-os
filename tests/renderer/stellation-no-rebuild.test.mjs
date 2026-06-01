@@ -110,7 +110,8 @@ test('long primary stellation-only edit session keeps renderer resources bounded
   const wireMaterial = wireframeMesh.material;
   const initialFullRebuilds = stats.primaryFullRebuilds;
 
-  const editCount = 160;
+  const editCount = 1_000;
+  const proofStartedAt = performance.now();
   for (let index = 0; index < editCount; index += 1) {
     const value = ((index % 25) + 1) / 20;
     state.avatar.shape.stellationFactor = value;
@@ -130,6 +131,7 @@ test('long primary stellation-only edit session keeps renderer resources bounded
     assert.equal(hasFinitePositions(state.coreMesh.geometry), true);
     assert.equal(hasFinitePositions(state.wireframeMesh.geometry), true);
   }
+  const proofDurationMs = performance.now() - proofStartedAt;
 
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationUpdates, editCount);
@@ -157,6 +159,11 @@ test('long primary stellation-only edit session keeps renderer resources bounded
     temporaryResourcesCreated: stats.primaryStellationTemporaryGeometriesCreated,
     temporaryResourcesDisposed: stats.primaryStellationTemporaryGeometriesDisposed,
     finiteDataValid: [state.depthMesh.geometry, state.coreMesh.geometry, state.wireframeMesh.geometry].every(hasFinitePositions),
+    proofWindow: {
+      kind: 'deterministic_runtime_duration',
+      durationMs: proofDurationMs,
+      iterationLimit: editCount,
+    },
     poolingBoundary: {
       owner: 'sigil-renderer',
       decision: 'renderer-local',
@@ -165,6 +172,9 @@ test('long primary stellation-only edit session keeps renderer resources bounded
     jsonSerializableState: state.avatar,
   });
   assert.equal(evidence.minimal_update, true);
+  assert.equal(evidence.proof_window.kind, 'deterministic_runtime_duration');
+  assert.equal(evidence.proof_window.iteration_limit, editCount);
+  assert.ok(evidence.proof_window.duration_ms >= 0);
   assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });

@@ -75,6 +75,7 @@ export function createVisualObjectResourceLifecycleEvidence({
   identityStable = true,
   poolingBoundary = null,
   cleanupResult = null,
+  proofWindow = null,
 } = {}) {
   const before = numberValue(rebuildsBefore);
   const after = numberValue(rebuildsAfter);
@@ -129,6 +130,20 @@ export function createVisualObjectResourceLifecycleEvidence({
           decision: text(poolingBoundary.decision),
           rationale: text(poolingBoundary.rationale),
         },
+    proof_window: proofWindow === null || proofWindow === undefined
+      ? null
+      : {
+          kind: text(proofWindow.kind, 'edit_loop'),
+          duration_ms: numberValue(proofWindow.duration_ms ?? proofWindow.durationMs, 0),
+          min_duration_ms: (proofWindow.min_duration_ms ?? proofWindow.minDurationMs) === null
+            || (proofWindow.min_duration_ms ?? proofWindow.minDurationMs) === undefined
+            ? null
+            : numberValue(proofWindow.min_duration_ms ?? proofWindow.minDurationMs, 0),
+          iteration_limit: (proofWindow.iteration_limit ?? proofWindow.iterationLimit) === null
+            || (proofWindow.iteration_limit ?? proofWindow.iterationLimit) === undefined
+            ? null
+            : numberValue(proofWindow.iteration_limit ?? proofWindow.iterationLimit, 0),
+        },
     live_cleanup: cleanupResult,
   };
 }
@@ -158,6 +173,14 @@ export function validateVisualObjectResourceLifecycleEvidence(evidence = {}) {
   }
   if (evidence.json_serializable_state?.checked && evidence.json_serializable_state.ok !== true) {
     errors.push({ code: 'json_serializable_state', field: 'json_serializable_state.ok' });
+  }
+  if (evidence.proof_window !== null && evidence.proof_window !== undefined) {
+    if (!text(evidence.proof_window.kind)) {
+      errors.push({ code: 'proof_window', field: 'proof_window.kind' });
+    }
+    if (!Number.isFinite(evidence.proof_window.duration_ms) || evidence.proof_window.duration_ms < 0) {
+      errors.push({ code: 'proof_window', field: 'proof_window.duration_ms' });
+    }
   }
   if (evidence.pooling_boundary !== null && evidence.pooling_boundary !== undefined) {
     for (const field of ['owner', 'decision']) {

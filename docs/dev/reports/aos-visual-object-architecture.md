@@ -52,9 +52,11 @@ Partially implemented:
 - Stellation and tesseron paths have focused no-rebuild, bounded resource, and
   serialization coverage. Primary stellation descriptor edits now keep the
   existing depth/core/wire mesh and material identities and mutate retained
-  geometry buffers in place; the deterministic 100-edit proof retains 2 unique
-  geometries, creates/disposes 200 temporary source geometries, performs 0
-  replacement-geometry swaps, and serializes `state.avatar` successfully.
+  geometry buffers in place; the deterministic 1,000-edit proof-window record
+  retains 2 unique geometries, creates/disposes 2,000 temporary source
+  geometries, performs 0 replacement-geometry swaps, and serializes
+  `state.avatar` successfully. The live stellation smoke hook now supports a
+  bounded minimum-duration proof window and reports the same lifecycle counts.
   Primary tesseron proportion edits update child and link geometry buffers in
   place through `updatePrimaryTesseronProportion()` instead of routing the
   descriptor to a full primary hierarchy rebuild. The 100-edit deterministic
@@ -567,12 +569,13 @@ radial 3D, toolkit DOM slider, and 2D/DesktopWorld-style update paths.
 
 ### Phase 6: GPU/Resource Optimization and Broader Live Proof
 
-**Status**: Resource lifecycle contract extracted. Primary stellation and
-primary tesseron proportion edits now have longer bounded in-place geometry
-update proof, representative radial, DOM, and DesktopWorld/canvas-style update
-fixtures map to the same lifecycle vocabulary, and the pooling boundary is
-documented as renderer-local for material/geometry resources. Broader
-GPU/resource work remains.
+**Status**: Resource lifecycle contract extracted. Primary stellation now has
+1,000-edit deterministic proof-window evidence plus a live bounded-duration
+smoke hook, primary tesseron proportion edits have longer bounded in-place
+geometry update proof, representative radial, DOM, and
+DesktopWorld/canvas-style update fixtures map to the same lifecycle vocabulary,
+and the pooling boundary is documented as renderer-local for material/geometry
+resources. Broader GPU/resource work remains.
 
 **Goal**: Convert the proven descriptor/update architecture into broader
 runtime performance and live-AOS confidence.
@@ -584,8 +587,8 @@ runtime performance and live-AOS confidence.
 - Material and geometry pooling currently belong in Sigil renderer code, with a
   future visual-object package still possible if a second real Three.js client
   needs the same topology-aware cache/disposal behavior.
-- Extend leak/resource lifecycle evidence from deterministic longer edit loops
-  to profiler-backed or runtime-duration leak proof.
+- Extend leak/resource lifecycle evidence from the current deterministic and
+  bounded live runtime-duration windows to profiler-backed leak proof.
 - Extend live AOS proof beyond the current bounded avatar/radial checks to
   representative DesktopWorld/canvas and DOM surfaces when a live harness exists
   for those paths.

@@ -233,14 +233,18 @@ Descriptor-driven mutation evidence now uses these reusable terms:
   that the descriptor mutated.
 - `pooling_boundary`: optional evidence metadata naming the owner and decision
   for material/geometry pooling when the proof touches resource reuse.
+- `proof_window`: optional metadata for duration-focused or longer-iteration
+  proofs, including proof kind, observed duration, minimum requested duration,
+  and iteration limit when applicable.
 
 An evidence record for a descriptor-driven update should include: `state_path`,
 descriptor id, `route`, `renderer_sync` labels, edit count, structural rebuild
 delta, retained identity/resource count and bound where relevant, replacement
 resource create/dispose counts, temporary resource create/dispose counts,
 finite or valid data check where geometry/control data is meaningful, JSON
-serialization result for the canonical state, and live cleanup result when a
-live AOS surface was created for the proof. When resource reuse is part of the
+serialization result for the canonical state, proof-window metadata when the
+claim is duration-focused, and live cleanup result when a live AOS surface was
+created for the proof. When resource reuse is part of the
 claim, include the pooling boundary decision in the evidence instead of
 implying that every surface shares a material or geometry pool.
 
@@ -321,6 +325,9 @@ temporary generated source buffers. Primary tesseron proportion descriptor edits
 now sync through `updatePrimaryTesseronProportion()` and have deterministic
 plus bounded live proof for stable child/link resource identities, bounded
 temporary geometry creation/disposal, and `state.avatar` JSON serialization.
+Primary stellation also has deterministic 1,000-edit proof-window evidence, and
+the live smoke hook can run a bounded minimum-duration proof while reporting
+the same retained/replacement/temporary/disposed resource counts.
 GPU morph-target or uniform-only stellation, broader material/geometry pooling,
 full observe-mode snapshot product integration, and broader live proof across
 every visual surface remain future work. Current Phase 6 only proves the
