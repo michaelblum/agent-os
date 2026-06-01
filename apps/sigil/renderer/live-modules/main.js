@@ -115,6 +115,10 @@ import { createSessionVitalityController } from '../session-vitality.js';
 import { copyTextToClipboard } from './clipboard-utils.js';
 
 const {
+    createVisualObjectResourceLifecycleEvidence,
+    validateVisualObjectResourceLifecycleEvidence,
+} = await import(toolkitSpecifier('workbench/visual-object-resource-lifecycle.js'));
+const {
     buildBrowserTabAnnotationCandidate,
     buildNativeAxAncestorAnnotationCandidates,
     buildNativeAxElementAnnotationCandidate,
@@ -2992,10 +2996,32 @@ function geometryHasFinitePositions(geometry) {
     return true;
 }
 
+function captureStellationProfilerObservation() {
+    const memory = performance?.memory || null;
+    const rendererInfo = state.renderer?.info || null;
+    const rendererMemory = rendererInfo?.memory || null;
+    const programs = rendererInfo?.programs;
+    return {
+        heap: memory ? {
+            used: finiteOrNull(memory.usedJSHeapSize),
+            total: finiteOrNull(memory.totalJSHeapSize),
+            limit: finiteOrNull(memory.jsHeapSizeLimit),
+        } : null,
+        renderer: rendererInfo ? {
+            geometries: finiteOrNull(rendererMemory?.geometries),
+            textures: finiteOrNull(rendererMemory?.textures),
+            programs: Array.isArray(programs) ? programs.length : finiteOrNull(programs),
+            draw_calls: finiteOrNull(rendererInfo.render?.calls),
+            triangles: finiteOrNull(rendererInfo.render?.triangles),
+        } : null,
+    };
+}
+
 function runPrimaryStellationResourceSmoke(options = {}) {
     const requestedEdits = Number(options.edits) || 40;
     const edits = Math.max(1, Math.min(5000, requestedEdits));
     const minDurationMs = Math.max(0, Math.min(15000, Number(options.minDurationMs ?? options.min_duration_ms) || 0));
+    const sampleEvery = Math.max(1, Math.floor(edits / 20));
     state.__sigilGeometryStats = {};
     state.avatar.shape.type = 20;
     state.avatar.shape.tesseron = { enabled: false, proportion: 0.5, matchMother: true, child: {} };
@@ -3022,6 +3048,17 @@ function runPrimaryStellationResourceSmoke(options = {}) {
     const initialFullRebuilds = stats.primaryFullRebuilds;
     let stable = true;
     let finite = true;
+    const profilerSamples = [];
+    const recordProfilerSample = () => {
+        const observation = captureStellationProfilerObservation();
+        profilerSamples.push({
+            ts: performance.now(),
+            ...observation,
+        });
+        return observation;
+    };
+
+    recordProfilerSample();
 
     const proofStartedAt = performance.now();
     let index = 0;
@@ -3036,8 +3073,37 @@ function runPrimaryStellationResourceSmoke(options = {}) {
         finite &&= geometryHasFinitePositions(state.depthMesh?.geometry)
             && geometryHasFinitePositions(state.coreMesh?.geometry)
             && geometryHasFinitePositions(state.wireframeMesh?.geometry);
+        if (index % sampleEvery === 0) recordProfilerSample();
     }
     const proofDurationMs = performance.now() - proofStartedAt;
+    const finalProfilerSample = recordProfilerSample();
+    const heapSamples = profilerSamples.map((sample) => sample.heap).filter(Boolean);
+    const heapUsedSamples = heapSamples.map((sample) => sample.used).filter((value) => Number.isFinite(value));
+    const heapPeak = heapUsedSamples.length > 0 ? Math.max(...heapUsedSamples) : null;
+    const heapBefore = heapSamples[0] || null;
+    const heapAfter = heapSamples[heapSamples.length - 1] || null;
+    const rendererSamples = profilerSamples.map((sample) => sample.renderer).filter(Boolean);
+    const rendererAfter = finalProfilerSample.renderer || rendererSamples[rendererSamples.length - 1] || null;
+    const profilerMeasurement = {
+        kind: 'live_profiler_runtime_duration',
+        source: heapBefore ? 'performance.memory' : 'renderer.info',
+        metric: heapBefore ? 'usedJSHeapSize' : 'renderer_resource_counts',
+        window_ms: proofDurationMs,
+        sample_count: profilerSamples.length,
+        available: heapBefore != null || rendererAfter != null,
+        before: heapBefore?.used ?? null,
+        after: heapAfter?.used ?? null,
+        peak: heapPeak,
+        delta: heapBefore && heapAfter ? heapAfter.used - heapBefore.used : null,
+        limit: heapBefore?.limit ?? heapAfter?.limit ?? null,
+        within_limit: heapBefore && heapPeak != null && heapBefore.limit != null ? heapPeak <= heapBefore.limit : null,
+        resource_counts: rendererAfter ? {
+            geometries: rendererAfter.geometries,
+            textures: rendererAfter.textures,
+            programs: rendererAfter.programs,
+            draw_calls: rendererAfter.draw_calls,
+        } : null,
+    };
 
     let jsonOk = true;
     try {
@@ -3070,6 +3136,39 @@ function runPrimaryStellationResourceSmoke(options = {}) {
         finite,
         stable,
         jsonOk,
+        profilerMeasurement,
+        evidence: createVisualObjectResourceLifecycleEvidence({
+            descriptor: {
+                id: 'sigil-avatar-stellation',
+                state_path: 'avatar.shape.stellationFactor',
+                route: 'canvas_object.transform.patch',
+                renderer_sync: ['updatePrimaryStellation'],
+            },
+            editCount: index,
+            rebuildsBefore: initialFullRebuilds,
+            rebuildsAfter: stats.primaryFullRebuilds,
+            retainedResources: stats.primaryStellationRetainedGeometries,
+            retainedResourceLimit: stats.primaryStellationMaxRetainedGeometries,
+            replacementResourcesCreated: stats.primaryStellationReplacementGeometriesCreated,
+            replacementResourcesDisposed: stats.primaryStellationReplacementGeometriesDisposed,
+            temporaryResourcesCreated: stats.primaryStellationTemporaryGeometriesCreated,
+            temporaryResourcesDisposed: stats.primaryStellationTemporaryGeometriesDisposed,
+            finiteDataValid: finite,
+            identityStable: stable,
+            jsonSerializableState: state.avatar,
+            profilerMeasurement,
+            poolingBoundary: {
+                owner: 'sigil-renderer',
+                decision: 'renderer-local',
+                rationale: 'Primary stellation reuse mutates renderer-owned Three.js buffers and materials in place; no toolkit pool is extracted for Three.js resources.',
+            },
+            proofWindow: {
+                kind: 'live_profiler_runtime_duration',
+                durationMs: proofDurationMs,
+                minDurationMs,
+                iterationLimit: edits,
+            },
+        }),
     };
 }
 

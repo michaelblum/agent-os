@@ -10,9 +10,10 @@ lifecycle evidence helper in
 `packages/toolkit/workbench/visual-object-resource-lifecycle.js`, identified by
 `aos.visual_object.resource_lifecycle.v0`. The Phase 6 architecture closure
 accepts these contracts with representative deterministic and live evidence;
-future profiler-backed leak proof, full observe/snapshot product integration,
-zero-factor stellation topology work, omega tesseron optimization, and broad
-toolkit stabilization are separate tracks.
+the primary stellation path now carries representative profiler-backed window
+metadata, while full observe/snapshot product integration, zero-factor
+stellation topology work, omega tesseron optimization, and broad toolkit
+stabilization are separate tracks.
 
 ## Descriptor Fields
 
@@ -355,13 +356,13 @@ plus bounded live proof for stable child/link resource identities, bounded
 temporary geometry creation/disposal, and `state.avatar` JSON serialization.
 Primary stellation also has deterministic 1,000-edit proof-window evidence, and
 the live smoke hook can run a bounded minimum-duration proof while reporting
-the same retained/replacement/temporary/disposed resource counts.
+the same retained/replacement/temporary/disposed resource counts plus
+profiler-backed window metadata.
 Uniform-only stellation, broader material/geometry pooling, full observe-mode
-snapshot product integration, profiler-backed leak proof, omega tesseron
-optimization, and broader live proof across every visual surface remain future
-tracks outside this contract closure. Current Phase 6 proves representative
-avatar, radial, toolkit DOM, and
-DesktopWorld/canvas live update paths plus coexistence with existing
+snapshot product integration, omega tesseron optimization, and broader live
+proof across every visual surface remain future tracks outside this contract
+closure. Current Phase 6 proves representative avatar, radial, toolkit DOM,
+and DesktopWorld/canvas live update paths plus coexistence with existing
 observe/snapshot session artifacts without introducing a parallel snapshot
 store. The closure status and next tracks are described in
 `docs/dev/reports/aos-visual-object-architecture.md`.

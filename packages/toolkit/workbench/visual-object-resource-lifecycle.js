@@ -11,6 +11,7 @@ export const VISUAL_OBJECT_RESOURCE_LIFECYCLE_TERMS = Object.freeze([
   'identity_stable',
   'json_serializable_state',
   'pooling_boundary',
+  'profiler_measurement',
 ]);
 
 function text(value, fallback = '') {
@@ -55,6 +56,59 @@ function syncLabels(updateResult = {}, rendererSync = []) {
   return outcomes.length ? outcomes : labels;
 }
 
+function profilerMeasurementValue(value, fallback = null) {
+  if (value === null || value === undefined) return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeProfilerMeasurement(profilerMeasurement) {
+  if (profilerMeasurement === null || profilerMeasurement === undefined) return null;
+  const source = text(profilerMeasurement.source, 'unknown');
+  const kind = text(profilerMeasurement.kind, 'runtime_profiler_window');
+  const metric = text(profilerMeasurement.metric, 'heap_used_bytes');
+  const windowMs = profilerMeasurementValue(profilerMeasurement.window_ms ?? profilerMeasurement.windowMs, 0);
+  const sampleCount = profilerMeasurementValue(profilerMeasurement.sample_count ?? profilerMeasurement.sampleCount, 0);
+  const before = profilerMeasurementValue(profilerMeasurement.before, null);
+  const after = profilerMeasurementValue(profilerMeasurement.after, null);
+  const peak = profilerMeasurementValue(profilerMeasurement.peak, null);
+  const delta = profilerMeasurementValue(profilerMeasurement.delta, null);
+  const limit = profilerMeasurementValue(profilerMeasurement.limit, null);
+  const available = profilerMeasurement.available === null || profilerMeasurement.available === undefined
+    ? null
+    : booleanValue(profilerMeasurement.available);
+  const withinLimit = profilerMeasurement.within_limit === null || profilerMeasurement.within_limit === undefined
+    ? null
+    : booleanValue(profilerMeasurement.within_limit);
+  const resourceCounts = profilerMeasurement.resource_counts && typeof profilerMeasurement.resource_counts === 'object'
+    ? {
+        geometries: profilerMeasurementValue(profilerMeasurement.resource_counts.geometries, null),
+        textures: profilerMeasurementValue(profilerMeasurement.resource_counts.textures, null),
+        programs: profilerMeasurementValue(profilerMeasurement.resource_counts.programs, null),
+        draw_calls: profilerMeasurementValue(
+          profilerMeasurement.resource_counts.draw_calls ?? profilerMeasurement.resource_counts.drawCalls,
+          null,
+        ),
+      }
+    : null;
+
+  return {
+    source,
+    kind,
+    metric,
+    window_ms: windowMs,
+    sample_count: sampleCount,
+    available,
+    before,
+    after,
+    peak,
+    delta,
+    limit,
+    within_limit: withinLimit,
+    resource_counts: resourceCounts,
+  };
+}
+
 export function createVisualObjectResourceLifecycleEvidence({
   descriptor = {},
   updateResult = {},
@@ -74,6 +128,7 @@ export function createVisualObjectResourceLifecycleEvidence({
   jsonSerializableState,
   identityStable = true,
   poolingBoundary = null,
+  profilerMeasurement = null,
   cleanupResult = null,
   proofWindow = null,
 } = {}) {
@@ -130,6 +185,7 @@ export function createVisualObjectResourceLifecycleEvidence({
           decision: text(poolingBoundary.decision),
           rationale: text(poolingBoundary.rationale),
         },
+    profiler_measurement: normalizeProfilerMeasurement(profilerMeasurement),
     proof_window: proofWindow === null || proofWindow === undefined
       ? null
       : {
@@ -186,6 +242,37 @@ export function validateVisualObjectResourceLifecycleEvidence(evidence = {}) {
     for (const field of ['owner', 'decision']) {
       if (!text(evidence.pooling_boundary[field])) {
         errors.push({ code: 'pooling_boundary', field: `pooling_boundary.${field}` });
+      }
+    }
+  }
+  if (evidence.profiler_measurement !== null && evidence.profiler_measurement !== undefined) {
+    if (!text(evidence.profiler_measurement.kind)) {
+      errors.push({ code: 'profiler_measurement', field: 'profiler_measurement.kind' });
+    }
+    if (!text(evidence.profiler_measurement.source)) {
+      errors.push({ code: 'profiler_measurement', field: 'profiler_measurement.source' });
+    }
+    if (!Number.isFinite(evidence.profiler_measurement.window_ms) || evidence.profiler_measurement.window_ms < 0) {
+      errors.push({ code: 'profiler_measurement', field: 'profiler_measurement.window_ms' });
+    }
+    if (!Number.isFinite(evidence.profiler_measurement.sample_count) || evidence.profiler_measurement.sample_count < 0) {
+      errors.push({ code: 'profiler_measurement', field: 'profiler_measurement.sample_count' });
+    }
+    for (const field of ['before', 'after', 'peak', 'delta', 'limit']) {
+      if (evidence.profiler_measurement[field] !== null
+        && evidence.profiler_measurement[field] !== undefined
+        && !Number.isFinite(evidence.profiler_measurement[field])) {
+        errors.push({ code: 'profiler_measurement', field: `profiler_measurement.${field}` });
+      }
+    }
+    if (evidence.profiler_measurement.resource_counts !== null
+      && evidence.profiler_measurement.resource_counts !== undefined) {
+      for (const field of ['geometries', 'textures', 'programs', 'draw_calls']) {
+        if (evidence.profiler_measurement.resource_counts[field] !== null
+          && evidence.profiler_measurement.resource_counts[field] !== undefined
+          && !Number.isFinite(evidence.profiler_measurement.resource_counts[field])) {
+          errors.push({ code: 'profiler_measurement', field: `profiler_measurement.resource_counts.${field}` });
+        }
       }
     }
   }

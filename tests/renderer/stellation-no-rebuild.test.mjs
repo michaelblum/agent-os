@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as v8 from 'node:v8';
 
 import THREE from '../../apps/sigil/renderer/vendor/three.min.js';
 import state, { syncAvatarAliasesFromGraph } from '../../apps/sigil/renderer/state.js';
@@ -127,10 +128,18 @@ test('long primary stellation-only edit session keeps renderer resources bounded
 
   const editCount = 1_000;
   const proofStartedAt = performance.now();
+  const profilerBefore = process.memoryUsage();
+  let profilerPeak = profilerBefore.heapUsed;
+  let profilerSamples = 0;
   for (let index = 0; index < editCount; index += 1) {
     const value = ((index % 25) + 1) / 20;
     state.avatar.shape.stellationFactor = value;
     const result = updatePrimaryStellation(value);
+    if (index % 50 === 0) {
+      const sample = process.memoryUsage();
+      profilerPeak = Math.max(profilerPeak, sample.heapUsed);
+      profilerSamples += 1;
+    }
 
     assert.equal(result.updated, true);
     assert.equal(result.suppressed, false);
@@ -149,6 +158,7 @@ test('long primary stellation-only edit session keeps renderer resources bounded
     assert.equal(hasFinitePositions(state.wireframeMesh.geometry), true);
   }
   const proofDurationMs = performance.now() - proofStartedAt;
+  const profilerAfter = process.memoryUsage();
 
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
   assert.equal(stats.primaryStellationUpdates, editCount);
@@ -190,12 +200,35 @@ test('long primary stellation-only edit session keeps renderer resources bounded
       decision: 'renderer-local',
       rationale: 'Primary stellation reuse mutates renderer-owned Three.js buffers and materials in place; no toolkit pool is extracted for Three.js resources.',
     },
+    profilerMeasurement: {
+      kind: 'deterministic_heap_window',
+      source: 'node:process.memoryUsage',
+      metric: 'heapUsed',
+      windowMs: proofDurationMs,
+      sampleCount: profilerSamples + 2,
+      available: true,
+      before: profilerBefore.heapUsed,
+      after: profilerAfter.heapUsed,
+      peak: profilerPeak,
+      delta: profilerAfter.heapUsed - profilerBefore.heapUsed,
+      limit: v8.getHeapStatistics().heap_size_limit,
+      within_limit: profilerPeak <= v8.getHeapStatistics().heap_size_limit,
+      resource_counts: {
+        geometries: stats.primaryStellationRetainedGeometries,
+        textures: 0,
+        programs: 0,
+        draw_calls: 0,
+      },
+    },
     jsonSerializableState: state.avatar,
   });
   assert.equal(evidence.minimal_update, true);
   assert.equal(evidence.proof_window.kind, 'deterministic_runtime_duration');
   assert.equal(evidence.proof_window.iteration_limit, editCount);
   assert.ok(evidence.proof_window.duration_ms >= 0);
+  assert.equal(evidence.profiler_measurement.kind, 'deterministic_heap_window');
+  assert.equal(evidence.profiler_measurement.source, 'node:process.memoryUsage');
+  assert.equal(evidence.profiler_measurement.resource_counts.geometries, 2);
   assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
