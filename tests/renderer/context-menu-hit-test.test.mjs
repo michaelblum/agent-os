@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import {
   createSigilContextMenu,
   contextMenuSurfaceScrollDelta,
@@ -13,6 +14,9 @@ import {
   contextMenuControlDescriptors,
   getContextMenuControlDescriptor,
 } from '../../apps/sigil/context-menu/descriptors.js'
+import {
+  contextMenuDescriptorForVisualObjectDescriptor,
+} from '../../apps/sigil/context-menu/visual-object-binding.js'
 import { createDefaultAvatarState } from '../../apps/sigil/renderer/state.js'
 import { createDocument, patchSpreadSupport } from '../toolkit/zag-adapter-test-utils.mjs'
 
@@ -270,13 +274,23 @@ test('live context menu compact surface routes canonical controls through visual
       },
       projectPoint: (point) => point,
       updatePrimaryAppearance() { calls.push(['appearance']) },
-      onAppearanceChange(event) { calls.push(['persist', event.controlId, event.value]) },
+      onAppearanceChange(event) {
+        calls.push([
+          'persist',
+          event.controlId,
+          event.value,
+          event.descriptor?.contract,
+          event.descriptor?.id,
+          event.compatibilityDescriptor?.id,
+        ])
+      },
       trace: {
         record(stage, data) {
           if (stage === 'context-menu:descriptor-update') calls.push(['legacy-route', data.id])
           if (stage === 'context-menu:visual-object-binding-update') calls.push(['binding-route', data.compatibilityId])
         },
       },
+      allowTestAnchorFallback: true,
     })
 
     menu.openAt({ x: 0, y: 0 })
@@ -310,12 +324,104 @@ test('live context menu compact surface routes canonical controls through visual
     assert.deepEqual(calls.filter(([kind]) => kind === 'binding-route'), [['binding-route', 'sigil-menu-opacity']])
     assert.deepEqual(calls.filter(([kind]) => kind === 'legacy-route'), [])
     assert.deepEqual(calls.filter(([kind]) => kind === 'appearance'), [['appearance']])
-    assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-menu-opacity', 0.42]])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [[
+      'persist',
+      'sigil-menu-opacity',
+      0.42,
+      'aos.visual_object.descriptor.v0',
+      'sigil.avatar.primary-polyhedron.avatar.appearance.opacity',
+      'sigil-menu-opacity',
+    ]])
   } finally {
     globalThis.document = previousDocument
     globalThis.window = previousWindow
     globalThis.Event = previousEvent
   }
+})
+
+test('live context menu visual binding suppresses duplicate slider commits', async () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  globalThis.document = document
+  globalThis.window = { innerHeight: 900 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const state = {
+      avatar: createDefaultAvatarState(),
+      currentGeometryType: 12,
+      currentType: 12,
+      avatarBase: 153,
+    }
+    const calls = []
+    const menu = createSigilContextMenu({
+      state,
+      liveJs: {
+        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        avatarPos: { x: 0, y: 0 },
+      },
+      projectPoint: (point) => point,
+      updatePrimaryAppearance() { calls.push(['appearance']) },
+      onAppearanceChange(event) { calls.push(['persist', event.value]) },
+      trace: {
+        record(stage, data) {
+          if (stage === 'context-menu:visual-object-binding-update') calls.push(['binding-route', data.value])
+        },
+      },
+      allowTestAnchorFallback: true,
+    })
+
+    menu.openAt({ x: 0, y: 0 })
+    await waitForMicrotasks()
+    await waitForMicrotasks()
+
+    const field = Array.from(document.body.querySelectorAll('.aos-form-field'))
+      .find((element) => element.dataset?.descriptorId === 'sigil-menu-opacity')
+    const track = field.querySelector('[data-aos-slider-track]')
+    const slider = field.querySelector('[data-aos-slider-root]')
+    const sliderRect = () => ({
+      left: 20,
+      top: 20,
+      right: 120,
+      bottom: 28,
+      width: 100,
+      height: 8,
+    })
+    field.getBoundingClientRect = sliderRect
+    slider.getBoundingClientRect = sliderRect
+    track.getBoundingClientRect = sliderRect
+
+    assert.equal(menu.handlePointerEvent('left_mouse_down', { x: 62, y: 24 }), true)
+    assert.equal(menu.handlePointerEvent('left_mouse_up', { x: 62, y: 24 }), true)
+    await waitForMicrotasks()
+
+    assert.deepEqual(calls.filter(([kind]) => kind === 'binding-route'), [['binding-route', 0.42]])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'appearance'), [['appearance']])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 0.42]])
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
+  }
+})
+
+test('visual object binding resolves compatibility descriptors without a copied behavior tree', async () => {
+  assert.equal(
+    contextMenuDescriptorForVisualObjectDescriptor({
+      id: 'compact-control:opacity',
+      state_path: 'avatar.appearance.opacity',
+      route: 'canvas_object.effects.patch',
+    })?.id,
+    'sigil-menu-opacity',
+  )
+
+  const menuSource = await readFile(new URL('../../apps/sigil/context-menu/menu.js', import.meta.url), 'utf8')
+  const adapterSource = await readFile(new URL('../../apps/sigil/context-menu/visual-object-binding.js', import.meta.url), 'utf8')
+  assert.equal(menuSource.includes('function applyVisualBindingCompatibility'), false)
+  assert.equal(menuSource.includes("compatibility.id === 'sigil-menu-shape-select'"), false)
+  assert.equal(adapterSource.includes('applyContextMenuDescriptorUpdate'), true)
 })
 
 test('descriptor routing applies a shape control through geometry sync', () => {

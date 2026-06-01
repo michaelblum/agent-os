@@ -9,13 +9,11 @@ import {
     DEFAULT_FAST_TRAVEL_EFFECT,
     normalizeFastTravelEffect,
 } from '../renderer/transition-registry.js';
-import { syncAvatarAliasesFromGraph } from '../renderer/state.js';
 import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/tesseron.js';
 import {
     applyContextMenuDescriptorUpdate,
-    contextMenuControlDescriptors,
-    getContextMenuControlDescriptor,
 } from './descriptors.js';
+import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
 
 let compactSurfaceModulePromise = null;
 
@@ -40,12 +38,6 @@ function computeBaseScale(base) {
         ? Math.max(1, window.innerHeight)
         : REF_HEIGHT;
     return (base / REF_BASE) * REF_SCALE * (REF_HEIGHT / viewportHeight);
-}
-
-function statePathText(value) {
-    return (Array.isArray(value) ? value : String(value ?? '').split('.'))
-        .filter((part) => part !== '')
-        .join('.');
 }
 
 function rectContainsPoint(rect, point) {
@@ -74,10 +66,6 @@ function closestAny(element, selectors = []) {
     const combinedSelector = selectors.join(', ');
     const combined = element.closest?.(combinedSelector);
     if (combined) return combined;
-    for (const selector of selectors) {
-        const match = element.closest?.(selector);
-        if (match) return match;
-    }
     for (let cursor = element; cursor; cursor = cursor.parentElement) {
         if (selectors.some((selector) => cursor.matches?.(selector))) return cursor;
     }
@@ -274,6 +262,7 @@ export function createSigilContextMenu({
     onBoundsChange,
     onClose,
     trace,
+    allowTestAnchorFallback = false,
 } = {}) {
     const layer = document.createElement('div');
     layer.className = 'sigil-context-menu-layer';
@@ -282,14 +271,19 @@ export function createSigilContextMenu({
 
     let anchor = layer.querySelector('#sigil-context-menu');
     if (!anchor) {
-        anchor = document.createElement('div');
-        anchor.id = 'sigil-context-menu';
-        anchor.className = 'ctx-anchor sigil-context-menu';
-        anchor.setAttribute('role', 'dialog');
-        anchor.setAttribute('aria-modal', 'false');
-        anchor.setAttribute('aria-label', 'Sigil avatar control surface');
-        anchor.setAttribute('aria-hidden', 'true');
-        layer.appendChild(anchor);
+        if (allowTestAnchorFallback) {
+            anchor = document.createElement('div');
+            anchor.id = 'sigil-context-menu';
+            anchor.className = 'ctx-anchor sigil-context-menu';
+            anchor.setAttribute('role', 'dialog');
+            anchor.setAttribute('aria-modal', 'false');
+            anchor.setAttribute('aria-label', 'Sigil avatar control surface');
+            anchor.setAttribute('aria-hidden', 'true');
+            layer.appendChild(anchor);
+        }
+    }
+    if (!anchor) {
+        throw new TypeError('Sigil context menu markup must include #sigil-context-menu.');
     }
     let menuState = {
         open: false,
@@ -405,109 +399,10 @@ export function createSigilContextMenu({
         return result;
     }
 
-    function compatibilityDescriptorForVisualDescriptor(descriptor = {}) {
-        if (!descriptor) return null;
-        return getContextMenuControlDescriptor(descriptor.id)
-            || getContextMenuControlDescriptor(descriptor.state_path)
-            || getContextMenuControlDescriptor(descriptor.action_id)
-            || contextMenuControlDescriptors.find((entry) => (
-                statePathText(entry.statePath) === statePathText(descriptor.state_path)
-                && (!descriptor.route || entry.route === descriptor.route)
-            ))
-            || null;
-    }
-
-    function applyVisualBindingCompatibility(context = {}) {
-        const { descriptor, mutation } = context;
-        const compatibility = compatibilityDescriptorForVisualDescriptor(descriptor);
-        const value = mutation?.value;
-        if (!state || !compatibility) return;
-
-        if (mutation?.state_path?.startsWith?.('avatar.')) syncAvatarAliasesFromGraph(state);
-
-        if (compatibility.id === 'sigil-menu-shape-select') {
-            state.currentType = value;
-            const supported = isTesseronSupportedShape(value);
-            setControlDisabled('sigil-menu-tesseron', !supported);
-            setControlDisabled('sigil-menu-stellation', supported && !!state.avatar?.shape?.tesseron?.enabled);
-        } else if (compatibility.id === 'sigil-menu-tesseron') {
-            state.avatar.shape.tesseron = normalizeTesseronConfig(state.avatar.shape.tesseron);
-            setControlDisabled('sigil-menu-stellation', value);
-            setControlDisabled('sigil-menu-tesseron-proportion', !value);
-            setControlDisabled('sigil-menu-tesseron-match', !value);
-        } else if (compatibility.id === 'sigil-menu-tesseron-match' && !value) {
-            state.avatar.shape.tesseron = normalizeTesseronConfig(state.avatar.shape.tesseron);
-            state.avatar.shape.tesseron.child.opacity ??= state.avatar.appearance.opacity;
-            state.avatar.shape.tesseron.child.edgeOpacity ??= state.avatar.appearance.edgeOpacity;
-            state.avatar.shape.tesseron.child.maskEnabled ??= state.avatar.appearance.maskEnabled;
-            state.avatar.shape.tesseron.child.interiorEdges ??= state.avatar.appearance.interiorEdges;
-            state.avatar.shape.tesseron.child.specular ??= state.avatar.appearance.specular;
-        } else if (compatibility.id === 'sigil-menu-pulsar' && value && (state.avatar?.effects?.phenomena?.pulsar?.count ?? 0) <= 0) {
-            state.avatar.effects.phenomena.pulsar.count = 1;
-            syncAvatarAliasesFromGraph(state);
-        } else if (compatibility.id === 'sigil-menu-accretion' && value && (state.avatar?.effects?.phenomena?.accretion?.count ?? 0) <= 0) {
-            state.avatar.effects.phenomena.accretion.count = 1;
-            syncAvatarAliasesFromGraph(state);
-        } else if (compatibility.id === 'sigil-menu-gamma' && value && (state.avatar?.effects?.phenomena?.gamma?.count ?? 0) <= 0) {
-            state.avatar.effects.phenomena.gamma.count = 3;
-            syncAvatarAliasesFromGraph(state);
-        } else if (compatibility.id === 'sigil-menu-neutrino' && value && (state.avatar?.effects?.phenomena?.neutrino?.count ?? 0) <= 0) {
-            state.avatar.effects.phenomena.neutrino.count = 1;
-            syncAvatarAliasesFromGraph(state);
-        } else if (compatibility.id === 'sigil-menu-line-interdim') {
-            setControlValue('sigil-menu-line-trail-enabled', null, value);
-        } else if (compatibility.id === 'sigil-menu-omega-shape') {
-            state.omegaType = value;
-            const supported = isTesseronSupportedShape(value);
-            setControlDisabled('sigil-menu-omega-tesseron', !supported);
-            setControlDisabled('sigil-menu-omega-stellation', supported && !!state.avatar?.effects?.omega?.shape?.tesseron?.enabled);
-        } else if (compatibility.id === 'sigil-menu-omega-tesseron') {
-            state.avatar.effects.omega.shape.tesseron = normalizeTesseronConfig(state.avatar.effects.omega.shape.tesseron);
-            setControlDisabled('sigil-menu-omega-stellation', value);
-            setControlDisabled('sigil-menu-omega-tesseron-proportion', !value);
-            setControlDisabled('sigil-menu-omega-tesseron-match', !value);
-        }
-
-        if (compatibility.persistence === 'appearance') {
-            onAppearanceChange?.({ controlId: compatibility.id, value, descriptor: compatibility });
-        }
-        recordTrace('visual-object-binding-update', {
-            descriptorId: descriptor.id,
-            compatibilityId: compatibility.id,
-            route: mutation?.route,
-            value,
-        });
-    }
-
-    function visualObjectRouteHandlers() {
-        const handler = (context) => {
-            applyVisualBindingCompatibility(context);
-            return true;
-        };
-        return {
-            'canvas_object.transform.patch': handler,
-            'canvas_object.effects.patch': handler,
-        };
-    }
-
-    function visualObjectRendererSyncHandlers() {
-        return {
-            updateGeometry: () => updateGeometry?.(state?.avatar?.shape?.type ?? state?.currentGeometryType ?? state?.currentType),
-            updatePrimaryStellation: ({ mutation }) => updatePrimaryStellation?.(mutation.value),
-            updatePrimaryAppearance: () => updatePrimaryAppearance?.(),
-            updatePrimaryTesseronProportion: ({ mutation }) => updatePrimaryTesseronProportion?.(mutation.value),
-            updateOmegaGeometry: () => updateOmegaGeometry?.(state?.avatar?.effects?.omega?.shape?.type ?? state?.omegaGeometryType ?? state?.omegaType),
-            updateAllColors: () => updateAllColors?.(),
-            updatePulsars: () => updatePulsars?.(state?.pulsarRayCount),
-            updateGammaRays: () => updateGammaRays?.(state?.gammaRayCount),
-            updateAccretion: () => updateAccretion?.(state?.accretionDiskCount),
-            updateNeutrinos: () => updateNeutrinos?.(state?.neutrinoJetCount),
-            updateMagneticTentacleCount: ({ mutation }) => updateMagneticTentacleCount?.(mutation.value),
-            avatarScale: ({ mutation }) => {
-                if (state) state.baseScale = computeBaseScale(mutation.value) ?? state.baseScale;
-            },
-        };
-    }
+    const visualObjectBinding = createVisualObjectBindingAdapter({
+        descriptorContext,
+        recordTrace,
+    });
 
     function cacheKey(value) {
         if (value === undefined) return 'undefined';
@@ -581,8 +476,8 @@ export function createSigilContextMenu({
             defaultTab: activeTab || compactSurface?.getActiveTab?.() || undefined,
             visualObjectBinding: {
                 state,
-                routeHandlers: visualObjectRouteHandlers(),
-                rendererSyncHandlers: visualObjectRendererSyncHandlers(),
+                routeHandlers: visualObjectBinding.routeHandlers,
+                rendererSyncHandlers: visualObjectBinding.rendererSyncHandlers,
             },
             onControlChange() {
                 queueMicrotask(() => {
