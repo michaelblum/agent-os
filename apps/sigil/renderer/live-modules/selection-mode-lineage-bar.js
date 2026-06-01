@@ -125,7 +125,9 @@ function rectCenter(rect = null) {
 function displayForPoint(displays = [], point = null) {
     const entries = Array.isArray(displays) ? displays : [];
     if (!entries.length || !point) return null;
-    return findToolkitDisplayForPoint(entries, finite(point.x), finite(point.y));
+    const resolved = findToolkitDisplayForPoint(entries, finite(point.x), finite(point.y));
+    if (!resolved) return null;
+    return findDisplayById(entries, displayId(resolved)) || resolved;
 }
 
 function roleTokenForText(text = '') {

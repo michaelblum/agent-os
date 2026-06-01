@@ -275,9 +275,13 @@ export function createSigilUxTreeCommandRegistry({
     }
     if (typeof selectionModeSnapshot === 'function') {
         registry['sigil.selection_mode.snapshot'] = (payload = {}) => selectionModeSnapshot(payload.context?.pointer || null, payload);
+    } else if (typeof annotationCameraCaptureBundle === 'function') {
+        registry['sigil.selection_mode.snapshot'] = (payload = {}) => annotationCameraCaptureBundle(payload.context?.reason || 'selection-mode-snapshot', payload);
     }
     if (typeof selectionModeRecord === 'function') {
         registry['sigil.selection_mode.record'] = (payload = {}) => selectionModeRecord(payload.context?.pointer || null, payload);
+    } else if (typeof annotationCameraCaptureBundle === 'function') {
+        registry['sigil.selection_mode.record'] = (payload = {}) => annotationCameraCaptureBundle(payload.context?.reason || 'selection-mode-record', payload);
     }
     if (typeof selectionModeCycleTarget === 'function') {
         registry['sigil.selection_mode.cycle_target'] = ({ binding } = {}) => {
