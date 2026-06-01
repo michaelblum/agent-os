@@ -14,6 +14,10 @@ The original target architecture has now been implemented and accepted on
 `gdi/selection-mode-cursor-ancestor-ladder-v0`. This report is both the
 architecture record and the current status record. Future-looking sections
 below are separate tracks, not an instruction to keep expanding Phase 6.
+Sections labeled as historical describe the pre-descriptor problem statement or
+the original migration plan. Current implementation guidance comes from the
+status summary, validation matrix, Phase 6 closure notes, and
+`docs/design/visual-object-descriptor-contract-v0.md`.
 
 Implemented capabilities:
 
@@ -142,7 +146,11 @@ This pattern should work identically whether rendering:
 
 The **rendering technology changes, but the architecture stays constant**.
 
-## Current Problem: Imperative, Rebuild-Heavy Rendering
+## Historical Problem Statement: Imperative, Rebuild-Heavy Rendering
+
+This section preserves the pre-descriptor problem statement that motivated the
+architecture. It is not current guidance for implemented avatar stellation or
+tesseron descriptor edits.
 
 ### Avatar Example (3D WebGL)
 
@@ -167,7 +175,11 @@ state.stellationFactor = 1.5;
 
 State is **hidden in closures, renderer internals, or scattered across modules**. There's no canonical source of truth, so any change requires full reconstruction to ensure consistency.
 
-## Target Architecture: Data-Driven, Minimal Updates
+## Current Target Architecture: Data-Driven, Minimal Updates
+
+This section describes the accepted direction. Current proof scope and retained
+limits are the ones listed in the implementation status, validation matrix, and
+success criteria.
 
 ### Avatar Example (Reference Implementation)
 
@@ -507,7 +519,11 @@ performance or platform-wide adoption work.
 13. **Validation**: Implemented through the matrix above for avatar 3D, radial
    non-avatar 3D, toolkit DOM slider, and 2D/DesktopWorld-style proofs.
 
-## Migration Strategy
+## Historical Migration Strategy
+
+The phase plan below records how the accepted architecture was reached. Treat
+implemented phase details as historical delivery notes unless the phase status
+explicitly identifies a future track.
 
 ### Phase 1: Avatar State Unification (Foundation)
 
