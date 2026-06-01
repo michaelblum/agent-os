@@ -3017,6 +3017,38 @@ function captureStellationProfilerObservation() {
     };
 }
 
+function reduceProfilerSamples(samples, proofDurationMs) {
+    const profilerSamples = Array.isArray(samples) ? samples : [];
+    const heapSamples = profilerSamples.map((sample) => sample.heap).filter(Boolean);
+    const heapUsedSamples = heapSamples.map((sample) => sample.used).filter((value) => Number.isFinite(value));
+    const heapPeak = heapUsedSamples.length > 0 ? Math.max(...heapUsedSamples) : null;
+    const heapBefore = heapSamples[0] || null;
+    const heapAfter = heapSamples[heapSamples.length - 1] || null;
+    const rendererSamples = profilerSamples.map((sample) => sample.renderer).filter(Boolean);
+    const rendererAfter = rendererSamples[rendererSamples.length - 1] || null;
+
+    return {
+        kind: 'live_profiler_runtime_duration',
+        source: heapBefore ? 'performance.memory' : 'renderer.info',
+        metric: heapBefore ? 'usedJSHeapSize' : 'renderer_resource_counts',
+        window_ms: proofDurationMs,
+        sample_count: profilerSamples.length,
+        available: heapBefore != null || rendererAfter != null,
+        before: heapBefore?.used ?? null,
+        after: heapAfter?.used ?? null,
+        peak: heapPeak,
+        delta: heapBefore && heapAfter ? heapAfter.used - heapBefore.used : null,
+        limit: heapBefore?.limit ?? heapAfter?.limit ?? null,
+        within_limit: heapBefore && heapPeak != null && heapBefore.limit != null ? heapPeak <= heapBefore.limit : null,
+        resource_counts: rendererAfter ? {
+            geometries: rendererAfter.geometries,
+            textures: rendererAfter.textures,
+            programs: rendererAfter.programs,
+            draw_calls: rendererAfter.draw_calls,
+        } : null,
+    };
+}
+
 function runPrimaryStellationResourceSmoke(options = {}) {
     const requestedEdits = Number(options.edits) || 40;
     const edits = Math.max(1, Math.min(5000, requestedEdits));
@@ -3076,34 +3108,9 @@ function runPrimaryStellationResourceSmoke(options = {}) {
         if (index % sampleEvery === 0) recordProfilerSample();
     }
     const proofDurationMs = performance.now() - proofStartedAt;
-    const finalProfilerSample = recordProfilerSample();
-    const heapSamples = profilerSamples.map((sample) => sample.heap).filter(Boolean);
-    const heapUsedSamples = heapSamples.map((sample) => sample.used).filter((value) => Number.isFinite(value));
-    const heapPeak = heapUsedSamples.length > 0 ? Math.max(...heapUsedSamples) : null;
-    const heapBefore = heapSamples[0] || null;
-    const heapAfter = heapSamples[heapSamples.length - 1] || null;
-    const rendererSamples = profilerSamples.map((sample) => sample.renderer).filter(Boolean);
-    const rendererAfter = finalProfilerSample.renderer || rendererSamples[rendererSamples.length - 1] || null;
-    const profilerMeasurement = {
-        kind: 'live_profiler_runtime_duration',
-        source: heapBefore ? 'performance.memory' : 'renderer.info',
-        metric: heapBefore ? 'usedJSHeapSize' : 'renderer_resource_counts',
-        window_ms: proofDurationMs,
-        sample_count: profilerSamples.length,
-        available: heapBefore != null || rendererAfter != null,
-        before: heapBefore?.used ?? null,
-        after: heapAfter?.used ?? null,
-        peak: heapPeak,
-        delta: heapBefore && heapAfter ? heapAfter.used - heapBefore.used : null,
-        limit: heapBefore?.limit ?? heapAfter?.limit ?? null,
-        within_limit: heapBefore && heapPeak != null && heapBefore.limit != null ? heapPeak <= heapBefore.limit : null,
-        resource_counts: rendererAfter ? {
-            geometries: rendererAfter.geometries,
-            textures: rendererAfter.textures,
-            programs: rendererAfter.programs,
-            draw_calls: rendererAfter.draw_calls,
-        } : null,
-    };
+    recordProfilerSample();
+    const profilerMeasurement = reduceProfilerSamples(profilerSamples, proofDurationMs);
+    const proofWindowKind = minDurationMs > 0 ? 'live_runtime_duration' : 'live_edit_loop';
 
     let jsonOk = true;
     try {
@@ -3116,7 +3123,7 @@ function runPrimaryStellationResourceSmoke(options = {}) {
         edits: index,
         requestedEdits: edits,
         proofWindow: {
-            kind: minDurationMs > 0 ? 'live_runtime_duration' : 'live_edit_loop',
+            kind: proofWindowKind,
             durationMs: proofDurationMs,
             minDurationMs,
             iterationLimit: edits,
@@ -3163,7 +3170,7 @@ function runPrimaryStellationResourceSmoke(options = {}) {
                 rationale: 'Primary stellation reuse mutates renderer-owned Three.js buffers and materials in place; no toolkit pool is extracted for Three.js resources.',
             },
             proofWindow: {
-                kind: 'live_profiler_runtime_duration',
+                kind: proofWindowKind,
                 durationMs: proofDurationMs,
                 minDurationMs,
                 iterationLimit: edits,

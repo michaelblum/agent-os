@@ -53,8 +53,8 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
       kind: 'deterministic_heap_window',
       source: 'performance.memory',
       metric: 'usedJSHeapSize',
-      windowMs: 250,
-      sampleCount: 4,
+      window_ms: 250,
+      sample_count: 4,
       available: true,
       before: 1024,
       after: 1536,
@@ -200,20 +200,43 @@ test('resource lifecycle validation accepts profiler-backed measurement metadata
       kind: 'heap_and_renderer_window',
       source: 'performance.memory',
       metric: 'usedJSHeapSize',
-      windowMs: 500,
-      sampleCount: 8,
+      window_ms: 500,
+      sample_count: 8,
       available: true,
       before: 2048,
       after: 3072,
       peak: 3328,
       delta: 1024,
       limit: 8192,
-      resource_counts: { geometries: 2, textures: 0, programs: 1, drawCalls: 6 },
+      resource_counts: { geometries: 2, textures: 0, programs: 1, draw_calls: 6 },
     },
   });
 
   assert.deepEqual(validateVisualObjectResourceLifecycleEvidence(evidence), { ok: true, errors: [] });
   assert.equal(evidence.profiler_measurement.resource_counts.draw_calls, 6);
+});
+
+test('resource lifecycle profiler measurement uses canonical snake_case input only', () => {
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'profiler-window-canonical',
+      state_path: 'avatar.shape.stellationFactor',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryStellation'],
+    },
+    profilerMeasurement: {
+      kind: 'heap_and_renderer_window',
+      source: 'performance.memory',
+      metric: 'usedJSHeapSize',
+      windowMs: 500,
+      sampleCount: 8,
+      resource_counts: { drawCalls: 6 },
+    },
+  });
+
+  assert.equal(evidence.profiler_measurement.window_ms, 0);
+  assert.equal(evidence.profiler_measurement.sample_count, 0);
+  assert.equal(evidence.profiler_measurement.resource_counts.draw_calls, null);
 });
 
 test('resource lifecycle profiler measurement preserves unavailable numeric fields as null', () => {
@@ -228,8 +251,8 @@ test('resource lifecycle profiler measurement preserves unavailable numeric fiel
       kind: 'renderer_resource_window',
       source: 'renderer.info',
       metric: 'renderer_resource_counts',
-      windowMs: 1000,
-      sampleCount: 5,
+      window_ms: 1000,
+      sample_count: 5,
       available: true,
       before: null,
       after: null,

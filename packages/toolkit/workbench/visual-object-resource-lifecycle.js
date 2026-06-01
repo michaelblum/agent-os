@@ -56,10 +56,15 @@ function syncLabels(updateResult = {}, rendererSync = []) {
   return outcomes.length ? outcomes : labels;
 }
 
-function profilerMeasurementValue(value, fallback = null) {
+function nullableNumberValue(value, fallback = null) {
   if (value === null || value === undefined) return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function nullableBooleanValue(value, fallback = null) {
+  if (value === null || value === undefined) return fallback;
+  return booleanValue(value, fallback);
 }
 
 function normalizeProfilerMeasurement(profilerMeasurement) {
@@ -67,28 +72,21 @@ function normalizeProfilerMeasurement(profilerMeasurement) {
   const source = text(profilerMeasurement.source, 'unknown');
   const kind = text(profilerMeasurement.kind, 'runtime_profiler_window');
   const metric = text(profilerMeasurement.metric, 'heap_used_bytes');
-  const windowMs = profilerMeasurementValue(profilerMeasurement.window_ms ?? profilerMeasurement.windowMs, 0);
-  const sampleCount = profilerMeasurementValue(profilerMeasurement.sample_count ?? profilerMeasurement.sampleCount, 0);
-  const before = profilerMeasurementValue(profilerMeasurement.before, null);
-  const after = profilerMeasurementValue(profilerMeasurement.after, null);
-  const peak = profilerMeasurementValue(profilerMeasurement.peak, null);
-  const delta = profilerMeasurementValue(profilerMeasurement.delta, null);
-  const limit = profilerMeasurementValue(profilerMeasurement.limit, null);
-  const available = profilerMeasurement.available === null || profilerMeasurement.available === undefined
-    ? null
-    : booleanValue(profilerMeasurement.available);
-  const withinLimit = profilerMeasurement.within_limit === null || profilerMeasurement.within_limit === undefined
-    ? null
-    : booleanValue(profilerMeasurement.within_limit);
+  const windowMs = nullableNumberValue(profilerMeasurement.window_ms, 0);
+  const sampleCount = nullableNumberValue(profilerMeasurement.sample_count, 0);
+  const before = nullableNumberValue(profilerMeasurement.before, null);
+  const after = nullableNumberValue(profilerMeasurement.after, null);
+  const peak = nullableNumberValue(profilerMeasurement.peak, null);
+  const delta = nullableNumberValue(profilerMeasurement.delta, null);
+  const limit = nullableNumberValue(profilerMeasurement.limit, null);
+  const available = nullableBooleanValue(profilerMeasurement.available);
+  const withinLimit = nullableBooleanValue(profilerMeasurement.within_limit);
   const resourceCounts = profilerMeasurement.resource_counts && typeof profilerMeasurement.resource_counts === 'object'
     ? {
-        geometries: profilerMeasurementValue(profilerMeasurement.resource_counts.geometries, null),
-        textures: profilerMeasurementValue(profilerMeasurement.resource_counts.textures, null),
-        programs: profilerMeasurementValue(profilerMeasurement.resource_counts.programs, null),
-        draw_calls: profilerMeasurementValue(
-          profilerMeasurement.resource_counts.draw_calls ?? profilerMeasurement.resource_counts.drawCalls,
-          null,
-        ),
+        geometries: nullableNumberValue(profilerMeasurement.resource_counts.geometries, null),
+        textures: nullableNumberValue(profilerMeasurement.resource_counts.textures, null),
+        programs: nullableNumberValue(profilerMeasurement.resource_counts.programs, null),
+        draw_calls: nullableNumberValue(profilerMeasurement.resource_counts.draw_calls, null),
       }
     : null;
 
