@@ -2,6 +2,7 @@
 
 Inventory taken on 2026-06-01 from `main` at `/Users/Michael/Code/agent-os`.
 Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39425`.
+Final deterministic top-level refresh after `gdi/sigil-agent-terminal-repo-root-wrapper-correction-v0` from clean branch worktree at `e7fa75b8d4bcf304d5417b9b6bfb1c61d5e8e1bb`.
 
 ## Current Test Inventory
 
@@ -14,11 +15,12 @@ Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39
 - `cd packages/gateway && npm test` - 99/99 pass.
 - `cd packages/host && npm test` - 63/63 pass.
 - `node --test tests/daemon/*.test.mjs` - 40/40 pass after PR #394.
+- `node --test tests/sigil-agent-terminal-server.test.mjs` - 19/19 pass after the Sigil Agent Terminal bridge hook assertion correction.
+- `node --test tests/*.test.mjs` - 148/148 pass from a clean temporary worktree at `e7fa75b8d4bcf304d5417b9b6bfb1c61d5e8e1bb`.
 
 ### Current Failures
 
-- `node --test tests/*.test.mjs` - 147/148 pass, 1 fail after PR #394 when rerun from a clean temporary worktree.
-- `node --test tests/sigil-agent-terminal-server.test.mjs` - 18/19 pass, 1 fail when rerun directly.
+- No deterministic Node test failures currently reproduced from a clean worktree in this inventory.
 
 ### Local Dirty-State Artifacts
 
@@ -43,9 +45,9 @@ Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39
 
 ## Known Breakages
 
-### High Priority - Agent Terminal Launcher Contract
+### Resolved High Priority - Agent Terminal Launcher Contract
 
-- [ ] `tests/sigil-agent-terminal-server.test.mjs` fails `Sigil Agent Terminal bridge > passes stable repo root to bridge server startup paths`. First assertion/error: wrapper content did not match `/\"AGENT_TERMINAL_REPO_ROOT=\" \\+ shlex\\.quote\\(repo_root\\)/`; the current compatibility wrapper exports `AGENT_COMMAND`/`RESTART`, computes `REPO_ROOT`, and execs `"$REPO_ROOT/aos" launch sigil agent-terminal "${ARGS[@]}"` without the expected `AGENT_TERMINAL_REPO_ROOT` startup environment evidence.
+- [x] `tests/sigil-agent-terminal-server.test.mjs` failed `Sigil Agent Terminal bridge > passes stable repo root to bridge server startup paths`. The deterministic assertion now follows the canonical path from `apps/sigil/agent-terminal/launch.sh` through `aos launch sigil agent-terminal` to the `apps/sigil/aos-app.json` `before_surfaces` bridge hook, where `apps/sigil/agent-terminal/bridge-launch.sh` carries `AGENT_TERMINAL_REPO_ROOT` for both tmux and process startup paths.
 
 ### Resolved High Priority
 
@@ -63,7 +65,7 @@ Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39
 
 ## Next Inventory Candidate
 
-The next smallest correction slice should target `tests/sigil-agent-terminal-server.test.mjs`, specifically the stable repo-root wrapper startup contract.
+No current deterministic breakage remains in this PR #392 inventory. Next work should come from the broader project plan rather than this breakage file.
 
 ## Migration Pattern
 
