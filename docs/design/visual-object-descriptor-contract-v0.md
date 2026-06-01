@@ -1,7 +1,9 @@
 # Visual Object Descriptor Contract V0
 
-Phase 4 extracts the Sigil avatar's proven descriptor shape into a reusable
-toolkit workbench contract. The implementation lives in
+Phase 4 extracted the Sigil avatar's proven descriptor shape into a reusable
+toolkit workbench contract, and Phase 5 has validated/adopted that contract
+across avatar, non-avatar radial, 2D/canvas-style, and DOM/toolkit proofs. The
+implementation lives in
 `packages/toolkit/workbench/visual-object-contract.js` and is identified by
 `aos.visual_object.descriptor.v0`.
 
@@ -144,14 +146,14 @@ createToolkitSliderVisualObjectDescriptor({
 });
 ```
 
-## Phase 5 Target
+## Phase 5 Implemented Loop
 
-The first broad Phase 5 slice validates non-avatar visuals against this
-contract. Radial menu descriptors prove descriptor validation, projection-only
-classification, patch routing, JSON serialization, technology identity, and
-non-avatar evidence contracts without migrating Sigil renderer internals.
+Phase 5 validates non-avatar visuals against this contract. Radial menu
+descriptors prove descriptor validation, projection-only classification, patch
+routing, JSON serialization, technology identity, and non-avatar evidence
+contracts without migrating Sigil renderer internals.
 
-The follow-up mutation/update proof covers the full deterministic loop:
+The mutation/update proof covers the full deterministic loop:
 
 ```text
 canonical state graph -> descriptor -> routed mutation -> minimal update
@@ -218,3 +220,12 @@ Visibility descriptors keep their descriptor route as
 the existing transform patch handler with a `visible` patch because that is the
 current radial object-control contract. This preserves the route as evidence
 while keeping mutation authority in the established editor handler.
+
+## Remaining Gaps
+
+The descriptor contract is implemented, but it is not a renderer optimization
+package. GPU morph-target or uniform-only stellation, material/geometry resource
+pooling, complete observe-mode snapshot integration, and broader live proof
+across every visual surface remain future work. The next broad slice is
+`Phase 6: GPU/resource optimization and broader live proof`, described in
+`docs/dev/reports/aos-visual-object-architecture.md`.

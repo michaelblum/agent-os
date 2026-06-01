@@ -1,25 +1,64 @@
 # AOS Visual Object Architecture: Avatar as Reference Implementation
 
 **Date**: 2026-05-31  
-**Status**: Planning  
+**Status**: Implemented through Phase 5 consolidation; remaining GPU/resource
+optimization work tracked below
 **Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 
-## Implementation Slicing
+## Implementation Status
 
-This report describes the full target architecture. It should not be treated as
-one implementation stroke. The first GDI slice is intentionally narrower:
+The original target architecture has now been implemented through Phase 5 on
+`gdi/selection-mode-cursor-ancestor-ladder-v0`. This report is both the
+architecture record and the current status record; future-looking sections below
+are explicitly called out as remaining work.
 
-1. Establish a canonical, JSON-serializable `state.avatar.*` graph.
-2. Migrate active Sigil avatar callers and controls to read/write that graph.
-3. Preserve current rendering behavior while making the new state shape the
-   source of truth.
-4. Add enough deterministic coverage to prove active callers use
-   `state.avatar.*` and `JSON.stringify(state.avatar)` succeeds.
+Implemented capabilities:
 
-GPU morph targets, uniform-only stellation updates, material pooling, complete
-descriptor coverage, and non-avatar visual extraction are follow-up slices. They
-should build on the canonical state graph instead of being mixed into the first
-state migration.
+- `apps/sigil/renderer/state.js` owns canonical, JSON-serializable
+  `state.avatar.*` data for active shape, appearance, effects, and transform
+  configuration.
+- Active avatar renderer/model/editor paths read and write canonical
+  `state.avatar.*` paths while preserving current renderer behavior.
+- `apps/sigil/avatar-editor/model.js` projects Sigil avatar editor controls into
+  `visual_object_descriptors` with the shared
+  `aos.visual_object.descriptor.v0` contract.
+- `packages/toolkit/workbench/visual-object-contract.js` contains descriptor
+  creation, validation, coercion, descriptor-addressed state mutation, and the
+  DOM slider proof helper.
+- `packages/toolkit/workbench/visual-object-controller.js` provides
+  `applyVisualObjectControllerUpdate()` for descriptor edit events, route
+  dispatch, state mutation, and ordered `renderer_sync` handlers.
+- `packages/toolkit/workbench/visual-object-form-binding.js` provides
+  `bindVisualObjectForm()` and field-change descriptor lookup for real form
+  surfaces.
+- `apps/sigil/avatar-editor/compact-surface.js` can opt canonical avatar forms
+  into `bindVisualObjectForm()` with caller-owned state, route handlers, and
+  renderer sync handlers.
+- `packages/toolkit/workbench/radial-menu-subject.js` projects non-avatar
+  radial menu state into descriptor metadata for transform, visibility, effects,
+  selected item config, preview resources, and export actions.
+- `apps/sigil/radial-item-editor/model.js` and
+  `apps/sigil/radial-item-workbench/index.js` route real radial item workbench
+  descriptor edits through `applyVisualObjectControllerUpdate()` and the
+  existing `applyEditorObjectPatch()` / `applyEditorEffectsPatch()` mutation
+  authorities.
+
+Partially implemented:
+
+- Stellation and tesseron paths have focused no-rebuild and serialization
+  coverage, but GPU morph-target or uniform-only stellation is not a completed
+  platform capability.
+- The descriptor/controller/form loop has deterministic 3D, 2D, and DOM proof
+  coverage; broad migration of every visual surface is future work.
+- Live AOS proof exists for a bounded radial workbench descriptor update, but
+  this report should not be read as claiming live proof for every surface.
+
+Remaining broad slice:
+
+- **Phase 6: GPU/resource optimization and broader live proof** should complete
+  GPU morph-target or uniform stellation, material or geometry resource pooling
+  where warranted, and a broader live AOS validation pass across representative
+  avatar, radial, DesktopWorld/canvas, and DOM surfaces.
 
 ## Vision
 
@@ -302,56 +341,90 @@ mesh.morphTargetInfluences[0] = stellationFactor;
 // Three.js interpolates on GPU
 ```
 
+This remains target guidance. Current Phase 5 evidence proves canonical state,
+descriptor routing, in-place controller/form binding, and no-rebuild focused
+paths where implemented. It does not prove a completed GPU morph-target or
+uniform-only geometry pipeline.
+
+## Validation Matrix
+
+The durable cross-surface pattern is:
+
+```text
+state graph -> descriptor -> route/controller -> renderer sync/minimal update
+```
+
+| Surface | State graph | Descriptor/route | Sync or minimal update evidence | Focused verification |
+| --- | --- | --- | --- | --- |
+| Sigil avatar / Three.js | `state.avatar.*` shape, appearance, effects, and transform data | Avatar editor model exposes `visual_object_descriptors`; compact surface can opt into `bindVisualObjectForm()` | Caller-owned route/sync handlers mutate canonical avatar JSON and preserve compact form/root identity; stellation/tesseron focused tests cover no-rebuild and serialization paths | `node --test tests/renderer/sigil-avatar-editor-compact-surface.test.mjs tests/renderer/sigil-avatar-editor-model.test.mjs tests/renderer/sigil-avatar-editor-surface-view-model.test.mjs`; `node --test tests/renderer/stellation-no-rebuild.test.mjs tests/renderer/tesseron.test.mjs` |
+| Sigil radial item workbench / non-avatar 3D | `radial_menu.<menu>.items.<item>.*` selected item JSON and editor state | `createRadialMenuWorkbenchSubject()` descriptors route through `canvas_object.transform.patch`, `canvas_object.visibility.patch`, and `canvas_object.effects.patch`; workbench posts `visual_object.descriptor.update` | `applyVisualObjectControllerUpdate()` dispatches to existing `applyEditorObjectPatch()` / `applyEditorEffectsPatch()` and syncs registry/preview/exported subject state | `node --test tests/renderer/radial-item-editor.test.mjs tests/renderer/radial-object-control.test.mjs`; `node --test tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/object-transform-panel-model.test.mjs` |
+| Toolkit DOM slider proof | `toolkit.controls.opacity.value` JSON fixture state | `createToolkitSliderVisualObjectDescriptor()` uses `dom-toolkit` and `dom_toolkit.control.value.patch` | Controller/form binding calls the existing slider `setValue()` path and preserves root element identity | `node --test tests/toolkit/visual-object-form-binding.test.mjs tests/toolkit/visual-object-contract.test.mjs tests/toolkit/panel-form.test.mjs` |
+| 2D/DesktopWorld or canvas-style proof | DesktopWorld/canvas-style transform fixture state | `canvas-2d` descriptor routes through `canvas_object.transform.patch` or `canvas_object.effects.patch` | Controller update applies state in place and reruns the existing transform/sync path on the same target node/object | `node --test tests/toolkit/desktop-world-surface-2d.test.mjs tests/toolkit/runtime-canvas.test.mjs tests/toolkit/controls-slider-color.test.mjs` |
+
+The broad toolkit suite is not the validation gate for this workstream. On this
+branch, broad `node --test tests/toolkit/*.test.mjs` is known to include
+unrelated failures in `tests/toolkit/runtime-radial-gesture.test.mjs` and
+`tests/toolkit/spatial-governance.test.mjs`; use the focused matrix above for
+this architecture contract unless those files are touched. For broader harness
+selection, use `tests/README.md` and
+`docs/guides/test-harness-ladder-and-prep.md`.
+
 ## Success Criteria
 
-The criteria below describe the full architecture. Use the "First Slice
-Acceptance" section for the initial GDI round.
+The criteria below distinguish completed Phase 5 contract work from remaining
+performance or platform-wide adoption work.
 
 ### Performance
 
-1. **60fps parameter updates**: User drags stellation slider → avatar morphs smoothly without frame drops
-2. **Memory stability**: No leaks over extended editing sessions (geometry/material disposal complete)
-3. **Instant agent changes**: Agent mutation applies next frame without perceivable lag
+1. **60fps parameter updates**: Remaining work. User drags stellation slider ->
+   avatar should eventually morph smoothly through GPU-friendly updates.
+2. **Memory stability**: Partially implemented. Focused no-rebuild tests exist;
+   complete material/geometry pooling and long-session leak proof remain future
+   work.
+3. **Instant agent changes**: Implemented for descriptor-addressed state writes
+   and deterministic sync handlers; broader live agent mutation proof remains
+   future work.
 
 ### Architecture
 
-4. **State introspection**: All avatar parameters accessible via `state.avatar.*` paths
-5. **Serialization**: Complete avatar configuration exports as JSON, reimports identically
-6. **Descriptor coverage**: Every editable parameter has descriptor metadata
+4. **State introspection**: Implemented for active avatar shape, appearance,
+   effects, and transform paths under `state.avatar.*`.
+5. **Serialization**: Implemented for deterministic avatar and descriptor tests;
+   live proof depends on AOS readiness for the selected surface.
+6. **Descriptor coverage**: Implemented for active editor/workbench controls
+   covered by the avatar compact and radial workbench surfaces; not yet claimed
+   for every future visual parameter.
 
 ### Integration
 
-7. **Workbench binding**: Toolkit panels show live-bound controls for all parameters
-8. **Agent addressing**: LLM can mutate any parameter via path without code changes
-9. **Snapshot capture**: Observe mode snapshots include complete avatar state via AOS contracts
-10. **Transition support**: Avatar parameters animate smoothly via declarative transitions
+7. **Workbench binding**: Implemented for the generic form binding helper,
+   optional Sigil avatar compact-surface binding, and radial item workbench
+   descriptor/controller adoption.
+8. **Agent addressing**: Implemented at the descriptor/controller path level for
+   covered parameters; full natural-language or all-parameter addressing is not
+   claimed here.
+9. **Snapshot capture**: Partially implemented through JSON-serializable state
+   and exported subject state; complete observe-mode snapshot integration
+   remains a separate surface contract.
+10. **Transition support**: Future work. The current contract exposes
+   `renderer_sync` labels and routes, but does not implement declarative
+   transition playback for all avatar parameters.
 
 ### Pattern Extraction
 
-11. **Reusable primitives**: At least three patterns extracted to `packages/toolkit/` or new package
-12. **Documentation**: Pattern documented with examples for 3D, 2D, DOM use cases
-13. **Validation**: Pattern successfully applied to at least one non-avatar visual (radial menu or toolkit control)
-
-### First Slice Acceptance
-
-The first implementation slice is accepted when:
-
-1. `state.avatar` exists as the canonical avatar configuration object.
-2. Shape, appearance, effect, and transform parameters that active Sigil avatar
-   controls or renderer paths use are represented under `state.avatar.*`.
-3. Active in-repo callers touched by the slice read/write the new paths; avoid
-   adding old-path compatibility shims unless an external boundary cannot be
-   updated in the same slice.
-4. `JSON.stringify(state.avatar)` succeeds in deterministic tests and in a live
-   `avatar-main` canvas when AOS readiness permits.
-5. Existing renderer behavior still boots and exposes the avatar through
-   `window.__sigilDebug.snapshot()`.
-6. Any known stale tests, docs, or inactive callers left behind are recorded in
-   `BROKE.md` with a concrete follow-up checkbox.
+11. **Reusable primitives**: Implemented in toolkit descriptor, controller, form
+   binding, radial subject, and DOM slider helper modules.
+12. **Documentation**: Implemented in
+   `docs/design/visual-object-descriptor-contract-v0.md` and this report, with
+   3D, 2D/canvas-style, and DOM/toolkit examples.
+13. **Validation**: Implemented through the matrix above for avatar 3D, radial
+   non-avatar 3D, toolkit DOM slider, and 2D/DesktopWorld-style proofs.
 
 ## Migration Strategy
 
 ### Phase 1: Avatar State Unification (Foundation)
+
+**Status**: Implemented for active Sigil avatar paths.
 
 **Goal**: Move all avatar parameters from scattered locations into canonical `state.avatar` graph
 
@@ -372,15 +445,23 @@ The first implementation slice is accepted when:
 
 ### Phase 2: GPU-Optimized Parameter Updates (Performance)
 
+**Status**: Partially implemented; broad GPU/resource optimization remains
+Phase 6 work.
+
 **Goal**: Eliminate geometry rebuilds for parameter changes
 
-- Implement stellation via GPU uniforms or morph targets
-- Add geometry caching layer (don't recreate identical shapes)
-- Add material pooling (reuse materials with matching properties)
-- Fix disposal lifecycle (track and dispose all intermediate geometries)
-- **Deliverable**: 60fps smooth parameter editing
+- Implement stellation via GPU uniforms or morph targets. **Remaining.**
+- Add geometry caching layer where repeated structures warrant it. **Remaining.**
+- Add material pooling for matching properties where profiling shows churn.
+  **Remaining.**
+- Fix disposal lifecycle for intermediate geometries. **Partially covered by
+  focused no-rebuild tests; broad leak proof remains.**
+- **Deliverable**: 60fps smooth parameter editing. **Not yet claimed.**
 
 ### Phase 3: Descriptor-Driven Controls (Toolkit Integration)
+
+**Status**: Implemented for covered avatar compact and workbench descriptor
+paths; not a claim that every possible avatar parameter has shipped live UI.
 
 **Goal**: Make avatar fully editable via workbench
 
@@ -392,23 +473,54 @@ The first implementation slice is accepted when:
 
 ### Phase 4: Pattern Extraction (Platform Generalization)
 
+**Status**: Implemented as toolkit workbench contract, controller, and form
+binding helpers.
+
 **Goal**: Extract reusable patterns to AOS packages
 
 - Document state graph contracts
 - Extract descriptor format specification
-- Generalize routing layer (not just `canvas_object`)
-- Create base classes for data-driven visual objects
-- **Deliverable**: Documented pattern ready for other AOS visuals
+- Generalize routing layer through descriptor `route` and caller-owned handlers
+  rather than a `canvas_object`-only implementation
+- Keep base classes out of scope until more real surfaces need them; the current
+  reusable unit is the descriptor/controller/form helper set
+- **Deliverable**: Documented pattern ready for other AOS visuals. **Implemented.**
 
 ### Phase 5: Validation & Iteration (Proof of Generality)
 
+**Status**: Implemented for deterministic proofs across avatar 3D, non-avatar
+radial 3D, toolkit DOM slider, and 2D/DesktopWorld-style update paths.
+
 **Goal**: Prove pattern works beyond avatar
 
-- Apply pattern to 3D radial menu (Sigil context menu)
-- Apply pattern to 2D radial menu (general AOS)
-- Apply pattern to toolkit control (slider or color picker)
-- Identify friction points, refine contracts
-- **Deliverable**: Pattern proven across rendering technologies
+- Apply pattern to a non-avatar 3D radial editor/workbench surface. **Implemented
+  through the Sigil radial item workbench.**
+- Apply pattern to 2D/DesktopWorld or canvas-style state update. **Implemented
+  through focused toolkit tests.**
+- Apply pattern to toolkit control. **Implemented through the DOM slider
+  descriptor and form-binding proof.**
+- Identify friction points, refine contracts. **Implemented: strict boolean
+  coercion, projection-only rejection, route/sync handler boundaries, and
+  field-change descriptor lookup are documented and tested.**
+- **Deliverable**: Pattern proven across rendering technologies. **Implemented
+  for the focused validation matrix above.**
+
+### Phase 6: GPU/Resource Optimization and Broader Live Proof (Next)
+
+**Status**: Future work.
+
+**Goal**: Convert the proven descriptor/update architecture into broader
+runtime performance and live-AOS confidence.
+
+- Complete GPU morph-target or uniform-only stellation updates for the avatar.
+- Decide whether material and geometry pooling belong in Sigil renderer code,
+  toolkit 3D helpers, or a future visual-object package.
+- Add leak/resource lifecycle evidence for extended editing sessions.
+- Extend live AOS proof beyond the radial workbench to representative avatar,
+  DesktopWorld/canvas, and DOM surfaces when readiness permits.
+- Revisit broad toolkit failures in radial gesture and spatial governance as a
+  separate stabilization slice, not as part of this completed visual-object
+  contract consolidation.
 
 ## Broader Impact: Unified AOS Visual Architecture
 
