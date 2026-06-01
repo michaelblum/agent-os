@@ -347,8 +347,10 @@ Primary stellation also has deterministic 1,000-edit proof-window evidence, and
 the live smoke hook can run a bounded minimum-duration proof while reporting
 the same retained/replacement/temporary/disposed resource counts.
 GPU morph-target or uniform-only stellation, broader material/geometry pooling,
-full observe-mode snapshot product integration, and broader live proof across
-every visual surface remain future work. Current Phase 6 only proves the
-descriptor/update contract can coexist with existing observe/snapshot session
-artifacts without introducing a parallel snapshot store. The ongoing Phase 6
-scope is described in `docs/dev/reports/aos-visual-object-architecture.md`.
+full observe-mode snapshot product integration, profiler-backed leak proof, and
+broader live proof across every visual surface remain future work. Current
+Phase 6 proves representative avatar, radial, toolkit DOM, and
+DesktopWorld/canvas live update paths plus coexistence with existing
+observe/snapshot session artifacts without introducing a parallel snapshot
+store. The ongoing Phase 6 scope is described in
+`docs/dev/reports/aos-visual-object-architecture.md`.

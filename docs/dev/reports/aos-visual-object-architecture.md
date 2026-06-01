@@ -82,9 +82,11 @@ Partially implemented:
 Remaining broad slice:
 
 - **Phase 6 follow-up** should complete GPU morph-target or uniform
-  stellation, material or geometry pooling where warranted, full observe-mode
-  snapshot product integration, and a broader live AOS validation pass across
-  representative avatar, radial, DesktopWorld/canvas, DOM, and observe surfaces.
+  stellation where topology permits, profiler-backed leak proof, material or
+  geometry pooling where warranted, and full observe-mode snapshot product
+  integration. Representative avatar, radial, toolkit DOM, and
+  DesktopWorld/canvas live proof now exists; broader live proof across every
+  product surface remains future work.
 
 ## Vision
 
@@ -590,9 +592,9 @@ runtime performance and live-AOS confidence.
   needs the same topology-aware cache/disposal behavior.
 - Extend leak/resource lifecycle evidence from the current deterministic and
   bounded live runtime-duration windows to profiler-backed leak proof.
-- Extend live AOS proof beyond the current bounded avatar/radial checks to
-  representative DesktopWorld/canvas and DOM surfaces when a live harness exists
-  for those paths.
+- Extend live AOS proof beyond the current bounded representative avatar,
+  radial, toolkit DOM, and DesktopWorld/canvas checks as more product surfaces
+  adopt descriptor-driven updates.
 - Revisit broad toolkit failures in radial gesture and spatial governance as a
   separate stabilization slice, not as part of this completed visual-object
   contract consolidation.
