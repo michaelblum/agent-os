@@ -1,8 +1,8 @@
 # AOS Visual Object Architecture: Avatar as Reference Implementation
 
 **Date**: 2026-05-31  
-**Status**: Implemented through Phase 5 consolidation; remaining GPU/resource
-optimization work tracked below
+**Status**: Implemented through Phase 5 consolidation plus a focused Phase 6
+avatar resource slice; remaining GPU/resource optimization work tracked below
 **Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 
 ## Implementation Status
@@ -45,20 +45,26 @@ Implemented capabilities:
 
 Partially implemented:
 
-- Stellation and tesseron paths have focused no-rebuild and serialization
-  coverage, but GPU morph-target or uniform-only stellation is not a completed
-  platform capability.
+- Stellation and tesseron paths have focused no-rebuild, bounded resource, and
+  serialization coverage. Primary tesseron proportion edits now update child
+  and link geometry buffers in place through `updatePrimaryTesseronProportion()`
+  instead of routing the descriptor to a full primary hierarchy rebuild. The
+  100-edit deterministic and bounded live canvas proofs retained 7 unique
+  geometries, created and disposed 500 temporary geometries, and serialized
+  `state.avatar` successfully. GPU morph-target or uniform-only stellation is
+  not a completed platform capability.
 - The descriptor/controller/form loop has deterministic 3D, 2D, and DOM proof
   coverage; broad migration of every visual surface is future work.
-- Live AOS proof exists for a bounded radial workbench descriptor update, but
-  this report should not be read as claiming live proof for every surface.
+- Live AOS proof exists for a bounded avatar tesseron resource update and for a
+  bounded radial workbench descriptor update, but this report should not be
+  read as claiming live proof for every surface.
 
 Remaining broad slice:
 
-- **Phase 6: GPU/resource optimization and broader live proof** should complete
-  GPU morph-target or uniform stellation, material or geometry resource pooling
-  where warranted, and a broader live AOS validation pass across representative
-  avatar, radial, DesktopWorld/canvas, and DOM surfaces.
+- **Phase 6 follow-up** should complete GPU morph-target or uniform
+  stellation, material or geometry pooling where warranted, and a broader live
+  AOS validation pass across representative avatar, radial, DesktopWorld/canvas,
+  and DOM surfaces.
 
 ## Vision
 
@@ -505,19 +511,24 @@ radial 3D, toolkit DOM slider, and 2D/DesktopWorld-style update paths.
 - **Deliverable**: Pattern proven across rendering technologies. **Implemented
   for the focused validation matrix above.**
 
-### Phase 6: GPU/Resource Optimization and Broader Live Proof (Next)
+### Phase 6: GPU/Resource Optimization and Broader Live Proof
 
-**Status**: Future work.
+**Status**: Started. Primary tesseron proportion edits now have bounded
+in-place child/link geometry update proof; broader GPU/resource work remains.
 
 **Goal**: Convert the proven descriptor/update architecture into broader
 runtime performance and live-AOS confidence.
 
 - Complete GPU morph-target or uniform-only stellation updates for the avatar.
+- Extend the in-place tesseron resource pattern to omega tesseron if profiling
+  or UI usage shows the same edit path is hot.
 - Decide whether material and geometry pooling belong in Sigil renderer code,
   toolkit 3D helpers, or a future visual-object package.
-- Add leak/resource lifecycle evidence for extended editing sessions.
-- Extend live AOS proof beyond the radial workbench to representative avatar,
-  DesktopWorld/canvas, and DOM surfaces when readiness permits.
+- Add leak/resource lifecycle evidence for extended editing sessions beyond the
+  current 100-edit primary stellation and primary tesseron proofs.
+- Extend live AOS proof beyond the current avatar tesseron and radial workbench
+  checks to representative DesktopWorld/canvas and DOM surfaces when readiness
+  permits.
 - Revisit broad toolkit failures in radial gesture and spatial governance as a
   separate stabilization slice, not as part of this completed visual-object
   contract consolidation.

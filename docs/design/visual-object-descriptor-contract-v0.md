@@ -224,8 +224,12 @@ while keeping mutation authority in the established editor handler.
 ## Remaining Gaps
 
 The descriptor contract is implemented, but it is not a renderer optimization
-package. GPU morph-target or uniform-only stellation, material/geometry resource
-pooling, complete observe-mode snapshot integration, and broader live proof
-across every visual surface remain future work. The next broad slice is
-`Phase 6: GPU/resource optimization and broader live proof`, described in
+package. Phase 6 has started with a focused Sigil avatar resource slice:
+primary tesseron proportion descriptor edits now sync through
+`updatePrimaryTesseronProportion()` and have deterministic plus bounded live
+proof for stable child/link resource identities, bounded temporary geometry
+creation/disposal, and `state.avatar` JSON serialization. GPU morph-target or
+uniform-only stellation, broader material/geometry pooling, complete
+observe-mode snapshot integration, and broader live proof across every visual
+surface remain future work. The ongoing Phase 6 scope is described in
 `docs/dev/reports/aos-visual-object-architecture.md`.

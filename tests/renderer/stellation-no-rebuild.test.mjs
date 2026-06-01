@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import THREE from '../../apps/sigil/renderer/vendor/three.min.js';
 import state, { syncAvatarAliasesFromGraph } from '../../apps/sigil/renderer/state.js';
-import { updateGeometry, updatePrimaryAppearance, updatePrimaryStellation } from '../../apps/sigil/renderer/geometry.js';
+import { updateGeometry, updatePrimaryAppearance, updatePrimaryStellation, updatePrimaryTesseronProportion } from '../../apps/sigil/renderer/geometry.js';
 
 globalThis.THREE = THREE;
 
@@ -20,6 +20,12 @@ function configurePrimaryShape({ tesseron = false } = {}) {
     primaryAppearanceUpdates: 0,
     primaryAppearanceSuppressed: 0,
     primaryAppearanceMaterialsMutated: 0,
+    primaryTesseronProportionUpdates: 0,
+    primaryTesseronProportionSuppressed: 0,
+    primaryTesseronProportionTemporaryGeometriesCreated: 0,
+    primaryTesseronProportionTemporaryGeometriesDisposed: 0,
+    primaryTesseronProportionRetainedGeometries: 0,
+    primaryTesseronProportionMaxRetainedGeometries: 0,
     omegaFullRebuilds: 0,
   };
   state.avatar.shape.type = 20;
@@ -300,6 +306,60 @@ test('primary appearance edits keep tesseron child matched to mother when config
   assert.equal(state.tesseronChildWireframeMesh.material.opacity, 0.1);
   assert.equal(state.tesseronChildCoreMesh.material.shininess, 0);
   assert.equal(state.__sigilGeometryStats.primaryFullRebuilds, initialFullRebuilds);
+});
+
+test('100 primary tesseron proportion edits keep child/link resources bounded', () => {
+  configurePrimaryShape({ tesseron: true });
+  updateGeometry(20);
+
+  const stats = state.__sigilGeometryStats;
+  const meshes = {
+    depth: state.depthMesh,
+    core: state.coreMesh,
+    wire: state.wireframeMesh,
+    childDepth: state.tesseronChildDepthMesh,
+    childCore: state.tesseronChildCoreMesh,
+    childWire: state.tesseronChildWireframeMesh,
+    innerWire: state.innerWireframeMesh,
+    innerHighlight: state.innerHighlightWireframeMesh,
+  };
+  const geometries = Object.fromEntries(Object.entries(meshes).map(([key, mesh]) => [key, mesh.geometry]));
+  const materials = Object.fromEntries(Object.entries(meshes).map(([key, mesh]) => [key, mesh.material]));
+  const initialFullRebuilds = stats.primaryFullRebuilds;
+
+  for (let index = 0; index < 100; index += 1) {
+    const value = 0.12 + ((index % 25) * 0.03);
+    state.avatar.shape.tesseron.proportion = value;
+    syncAvatarAliasesFromGraph(state);
+    const result = updatePrimaryTesseronProportion(value);
+
+    assert.deepEqual(result, { updated: true, rebuilt: false, suppressed: false });
+    const stateKeys = {
+      depth: 'depthMesh',
+      core: 'coreMesh',
+      wire: 'wireframeMesh',
+      childDepth: 'tesseronChildDepthMesh',
+      childCore: 'tesseronChildCoreMesh',
+      childWire: 'tesseronChildWireframeMesh',
+      innerWire: 'innerWireframeMesh',
+      innerHighlight: 'innerHighlightWireframeMesh',
+    };
+    for (const [key, mesh] of Object.entries(meshes)) {
+      assert.equal(state[stateKeys[key]], mesh);
+      assert.equal(mesh.geometry, geometries[key]);
+      assert.equal(mesh.material, materials[key]);
+      assert.equal(hasFinitePositions(mesh.geometry), true);
+    }
+  }
+
+  assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
+  assert.equal(stats.primaryTesseronProportionUpdates, 100);
+  assert.equal(stats.primaryTesseronProportionSuppressed, 0);
+  assert.equal(stats.primaryTesseronProportionTemporaryGeometriesCreated, 500);
+  assert.equal(stats.primaryTesseronProportionTemporaryGeometriesDisposed, 500);
+  assert.equal(stats.primaryTesseronProportionRetainedGeometries, 7);
+  assert.equal(stats.primaryTesseronProportionMaxRetainedGeometries, 7);
+  assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
 
 test('primary skin rebuilds dispose shader ramp textures once', () => {

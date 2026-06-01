@@ -1,5 +1,5 @@
 import state from '../state.js';
-import { updateGeometry, updatePrimaryStellation, updatePrimaryAppearance, updateOmegaGeometry, updateInnerEdgePulse } from '../geometry.js';
+import { updateGeometry, updatePrimaryStellation, updatePrimaryAppearance, updatePrimaryTesseronProportion, updateOmegaGeometry, updateInnerEdgePulse } from '../geometry.js';
 import { updateAllColors } from '../colors.js';
 import { createAuraObjects, animateAura, hideAuraObjects } from '../aura.js';
 import {
@@ -836,6 +836,7 @@ const contextMenu = createSigilContextMenu({
     updateGeometry,
     updatePrimaryStellation,
     updatePrimaryAppearance,
+    updatePrimaryTesseronProportion,
     updateOmegaGeometry,
     updateAllColors,
     updatePulsars,

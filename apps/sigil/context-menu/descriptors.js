@@ -219,7 +219,7 @@ const CONTROL_DESCRIPTORS = [
     shapeParamDescriptor({ id: 'sigil-menu-box-height', label: 'Box Height', statePath: 'avatar.shape.params.box.height', shape: 6 }),
     shapeParamDescriptor({ id: 'sigil-menu-box-depth', label: 'Box Depth', statePath: 'avatar.shape.params.box.depth', shape: 6 }),
     descriptor({ id: 'sigil-menu-tesseron', panel: 'shape', label: 'Tesseron', type: 'checkbox', path: 'avatar.shape.tesseron.enabled', coerce: BOOLEAN, route: 'canvas_object.transform.patch', rendererSync: 'updateGeometry' }),
-    descriptor({ id: 'sigil-menu-tesseron-proportion', panel: 'shape', label: 'Child Proportion', type: 'slider', path: 'avatar.shape.tesseron.proportion', coerce: NUMBER, route: 'canvas_object.transform.patch', rendererSync: 'updateGeometry' }),
+    descriptor({ id: 'sigil-menu-tesseron-proportion', panel: 'shape', label: 'Child Proportion', type: 'slider', path: 'avatar.shape.tesseron.proportion', coerce: NUMBER, route: 'canvas_object.transform.patch', rendererSync: 'updatePrimaryTesseronProportion' }),
     descriptor({ id: 'sigil-menu-tesseron-match', panel: 'shape', label: 'Match Mother', type: 'checkbox', path: 'avatar.shape.tesseron.matchMother', coerce: BOOLEAN, route: 'canvas_object.transform.patch', rendererSync: 'updateGeometry' }),
     descriptor({ id: 'sigil-menu-stellation', panel: 'shape', label: 'Stellation', type: 'slider', path: 'avatar.shape.stellationFactor', coerce: NUMBER, route: 'canvas_object.transform.patch', rendererSync: 'updatePrimaryStellation' }),
     descriptor({ id: 'sigil-menu-opacity', panel: 'shape', label: 'Face Opacity', type: 'slider', path: 'avatar.appearance.opacity', coerce: NUMBER, route: 'canvas_object.effects.patch', rendererSync: 'updatePrimaryAppearance' }),

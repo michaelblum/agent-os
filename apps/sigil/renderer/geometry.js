@@ -8,8 +8,11 @@ import {
     createTetartoid as createSharedTetartoid,
 } from './avatar-shape-composition.js';
 import {
+    createTesseronDepthGeometry,
+    createTesseronLinkGeometry,
     isTesseronSupportedShape,
     normalizeTesseronConfig,
+    scaleGeometryPositions,
 } from './tesseron.js';
 
 export function createStellatedGeometry(baseGeometry, factor) {
@@ -58,6 +61,12 @@ function geometryStats() {
         primaryAppearanceUpdates: 0,
         primaryAppearanceSuppressed: 0,
         primaryAppearanceMaterialsMutated: 0,
+        primaryTesseronProportionUpdates: 0,
+        primaryTesseronProportionSuppressed: 0,
+        primaryTesseronProportionTemporaryGeometriesCreated: 0,
+        primaryTesseronProportionTemporaryGeometriesDisposed: 0,
+        primaryTesseronProportionRetainedGeometries: 0,
+        primaryTesseronProportionMaxRetainedGeometries: 0,
         omegaFullRebuilds: 0,
     };
     state.__sigilGeometryStats ??= {};
@@ -90,6 +99,35 @@ function recordPrimaryStellationRetainedGeometries(stats, ...geometries) {
         stats.primaryStellationMaxRetainedGeometries || 0,
         retained,
     );
+}
+
+function recordPrimaryTesseronRetainedGeometries(stats, ...geometries) {
+    const retained = countUniqueGeometries(...geometries);
+    stats.primaryTesseronProportionRetainedGeometries = retained;
+    stats.primaryTesseronProportionMaxRetainedGeometries = Math.max(
+        stats.primaryTesseronProportionMaxRetainedGeometries || 0,
+        retained,
+    );
+}
+
+function replacePositionAttribute(targetGeometry, sourceGeometry) {
+    const source = sourceGeometry?.getAttribute?.('position');
+    if (!targetGeometry || !source) return false;
+    const target = targetGeometry.getAttribute?.('position');
+    if (!target || target.count !== source.count || target.itemSize !== source.itemSize || target.array?.length !== source.array?.length) {
+        targetGeometry.setAttribute('position', source.clone ? source.clone() : source);
+    } else {
+        target.array.set(source.array);
+        target.needsUpdate = true;
+    }
+    targetGeometry.userData = {
+        ...(targetGeometry.userData || {}),
+        ...(sourceGeometry.userData || {}),
+    };
+    targetGeometry.computeVertexNormals?.();
+    targetGeometry.computeBoundingBox?.();
+    targetGeometry.computeBoundingSphere?.();
+    return true;
 }
 
 /**
@@ -379,6 +417,78 @@ export function updatePrimaryStellation(value = state.avatar?.shape?.stellationF
     recordPrimaryStellationRetainedGeometries(stats, depthMesh.geometry, coreMesh.geometry, wireframeMesh.geometry);
     stats.primaryStellationUpdates += 1;
     return { updated: true, suppressed: false };
+}
+
+export function updatePrimaryTesseronProportion(value = state.avatar?.shape?.tesseron?.proportion) {
+    const avatar = state.avatar;
+    const shape = avatar?.shape || {};
+    const type = shape.type ?? state.currentGeometryType ?? state.currentType;
+    const tesseron = normalizeTesseronConfig({
+        ...(shape.tesseron || {}),
+        proportion: value,
+    });
+    const stats = geometryStats();
+    const tesseronActive = !!tesseron.enabled && isTesseronSupportedShape(type);
+
+    const meshes = [
+        state.depthMesh,
+        state.coreMesh,
+        state.wireframeMesh,
+        state.tesseronChildDepthMesh,
+        state.tesseronChildCoreMesh,
+        state.tesseronChildWireframeMesh,
+        state.innerWireframeMesh,
+        state.innerHighlightWireframeMesh,
+    ];
+    if (!tesseronActive || meshes.some((mesh) => !mesh?.geometry)) {
+        stats.primaryTesseronProportionSuppressed += 1;
+        updateGeometry(type);
+        return { updated: false, rebuilt: true, suppressed: !tesseronActive };
+    }
+
+    const THREE_NS = globalThis.THREE || THREE;
+    const finalGeometry = state.coreMesh.geometry;
+    const temporary = [];
+    const createEdges = (geometry) => {
+        if (typeof THREE_NS.EdgesGeometry !== 'function') return geometry;
+        const edgeGeometry = new THREE_NS.EdgesGeometry(geometry);
+        temporary.push(edgeGeometry);
+        return edgeGeometry;
+    };
+
+    const childGeometry = scaleGeometryPositions(finalGeometry, tesseron.proportion);
+    const childDepthGeometry = createTesseronDepthGeometry(finalGeometry, tesseron.proportion);
+    const childWireGeometry = createEdges(childGeometry);
+    const linkGeometry = createTesseronLinkGeometry(finalGeometry, tesseron.proportion);
+    const highlightLinkGeometry = createTesseronLinkGeometry(finalGeometry, tesseron.proportion);
+    temporary.push(childGeometry, childDepthGeometry, linkGeometry, highlightLinkGeometry);
+    stats.primaryTesseronProportionTemporaryGeometriesCreated += countUniqueGeometries(...temporary);
+
+    replacePositionAttribute(state.tesseronChildCoreMesh.geometry, childGeometry);
+    replacePositionAttribute(state.tesseronChildDepthMesh.geometry, childDepthGeometry);
+    replacePositionAttribute(state.tesseronChildWireframeMesh.geometry, childWireGeometry);
+    replacePositionAttribute(state.innerWireframeMesh.geometry, linkGeometry);
+    replacePositionAttribute(state.innerHighlightWireframeMesh.geometry, highlightLinkGeometry);
+
+    applyGradientVertexColors(state.tesseronChildCoreMesh, avatar.appearance.colors.face);
+    applyGradientVertexColors(state.tesseronChildWireframeMesh, avatar.appearance.colors.edge);
+    applyGradientVertexColors(state.innerWireframeMesh, avatar.appearance.colors.edge);
+    applyGradientVertexColors(state.innerHighlightWireframeMesh, avatar.appearance.colors.edge);
+
+    stats.primaryTesseronProportionTemporaryGeometriesDisposed += disposeUniqueGeometries(...temporary);
+    recordPrimaryTesseronRetainedGeometries(
+        stats,
+        state.depthMesh.geometry,
+        state.coreMesh.geometry,
+        state.wireframeMesh.geometry,
+        state.tesseronChildDepthMesh.geometry,
+        state.tesseronChildCoreMesh.geometry,
+        state.tesseronChildWireframeMesh.geometry,
+        state.innerWireframeMesh.geometry,
+        state.innerHighlightWireframeMesh.geometry,
+    );
+    stats.primaryTesseronProportionUpdates += 1;
+    return { updated: true, rebuilt: false, suppressed: false };
 }
 
 export function updateOmegaGeometry(type) {
