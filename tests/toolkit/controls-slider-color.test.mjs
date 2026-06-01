@@ -71,14 +71,18 @@ test('slider descriptor mutation syncs through setValue without replacing the ro
   const state = { toolkit: { controls: { opacity: { value: 0.2 } } } };
   const root = slider.el;
 
-  const result = applyVisualObjectControllerUpdate(descriptor, '0.65', state, {
-    routeHandlers: {
-      'dom_toolkit.control.value.patch': ({ mutation }) => mutation.state_path,
-    },
-    rendererSyncHandlers: {
-      syncDomControlValue: ({ mutation }) => slider.setValue(mutation.value),
-    },
-  });
+  let result;
+  const editValues = ['0.35', '0.5', '0.65', '0.8', '0.65'];
+  for (const value of editValues) {
+    result = applyVisualObjectControllerUpdate(descriptor, value, state, {
+      routeHandlers: {
+        'dom_toolkit.control.value.patch': ({ mutation }) => mutation.state_path,
+      },
+      rendererSyncHandlers: {
+        syncDomControlValue: ({ mutation }) => slider.setValue(mutation.value),
+      },
+    });
+  }
 
   assert.equal(result.route, 'dom_toolkit.control.value.patch');
   assert.equal(result.route_outcome.status, 'called');
@@ -91,10 +95,15 @@ test('slider descriptor mutation syncs through setValue without replacing the ro
     descriptor,
     updateResult: result,
     rendererSync: ['syncDomControlValue'],
-    editCount: 1,
+    editCount: editValues.length,
     retainedResources: [root],
     retainedResourceLimit: 1,
     identityStable: slider.el === root,
+    poolingBoundary: {
+      owner: 'toolkit-dom-control',
+      decision: 'not-applicable',
+      rationale: 'The DOM slider proof retains a root element and serializable state; material and geometry pools are renderer-local concerns.',
+    },
     jsonSerializableState: state,
   });
   assert.equal(evidence.identity_stable, true);

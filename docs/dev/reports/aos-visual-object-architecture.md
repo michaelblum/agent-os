@@ -380,6 +380,24 @@ state graph -> descriptor -> route/controller -> renderer sync/minimal update
 | Toolkit DOM slider proof | `toolkit.controls.opacity.value` JSON fixture state | `createToolkitSliderVisualObjectDescriptor()` uses `dom-toolkit` and `dom_toolkit.control.value.patch` | Controller/form binding calls the existing slider `setValue()` path, preserves root element identity, and validates serializable state with the lifecycle helper | `node --test tests/toolkit/visual-object-form-binding.test.mjs tests/toolkit/visual-object-contract.test.mjs tests/toolkit/panel-form.test.mjs` |
 | 2D/DesktopWorld or canvas-style proof | DesktopWorld/canvas-style transform fixture state | `canvas-2d` descriptor routes through `canvas_object.transform.patch` or `canvas_object.effects.patch` | Controller update applies state in place and reruns the existing transform/sync path on the same target node/object; same-node identity and serializable state are normalized as lifecycle evidence | `node --test tests/toolkit/desktop-world-surface-2d.test.mjs tests/toolkit/runtime-canvas.test.mjs tests/toolkit/controls-slider-color.test.mjs` |
 
+### Phase 6 Pooling Boundary Decision
+
+Material and geometry pooling stays renderer-local for this slice. The current
+reuse behavior that matters for leaks and churn is inside Sigil's Three.js
+renderer: topology-specific geometry buffers, mesh/material object identity,
+temporary source geometry disposal, and shader/material template ownership.
+Extracting a toolkit pool now would either import Three.js concepts into the
+renderer-agnostic workbench layer or create a generic cache that none of the
+DOM, DesktopWorld/canvas-style, or radial descriptor paths can honestly share.
+
+The shared boundary is therefore evidence, not pooled objects:
+`aos.visual_object.resource_lifecycle.v0` records retained, replacement,
+temporary, disposed, identity, serialization, and optional
+`pooling_boundary` metadata. Sigil can continue to optimize renderer-owned
+Three.js resources locally, while toolkit surfaces prove stable target identity
+and serializable state through the same vocabulary without claiming GPU
+resource pooling.
+
 The broad toolkit suite is not the validation gate for this workstream. On this
 branch, broad `node --test tests/toolkit/*.test.mjs` is known to include
 unrelated failures in `tests/toolkit/runtime-radial-gesture.test.mjs` and
@@ -397,9 +415,10 @@ performance or platform-wide adoption work.
 
 1. **60fps parameter updates**: Remaining work. User drags stellation slider ->
    avatar should eventually morph smoothly through GPU-friendly updates.
-2. **Memory stability**: Partially implemented. Focused no-rebuild tests exist;
-   complete material/geometry pooling and long-session leak proof remain future
-   work.
+2. **Memory stability**: Partially implemented. Focused no-rebuild tests and
+   longer deterministic edit loops now prove retained/replacement/temporary
+   resource counts across the validation matrix; complete GPU-level
+   material/geometry pooling and profiler-backed leak proof remain future work.
 3. **Instant agent changes**: Implemented for descriptor-addressed state writes
    and deterministic sync handlers; broader live agent mutation proof remains
    future work.
@@ -527,10 +546,11 @@ radial 3D, toolkit DOM slider, and 2D/DesktopWorld-style update paths.
 ### Phase 6: GPU/Resource Optimization and Broader Live Proof
 
 **Status**: Resource lifecycle contract extracted. Primary stellation and
-primary tesseron proportion edits now have bounded in-place geometry update
-proof, and representative radial, DOM, and DesktopWorld/canvas-style update
-fixtures map to the same lifecycle vocabulary. Broader GPU/resource work
-remains.
+primary tesseron proportion edits now have longer bounded in-place geometry
+update proof, representative radial, DOM, and DesktopWorld/canvas-style update
+fixtures map to the same lifecycle vocabulary, and the pooling boundary is
+documented as renderer-local for material/geometry resources. Broader
+GPU/resource work remains.
 
 **Goal**: Convert the proven descriptor/update architecture into broader
 runtime performance and live-AOS confidence.
@@ -539,13 +559,14 @@ runtime performance and live-AOS confidence.
   avatar shapes if a topology-stable representation is introduced.
 - Extend the in-place tesseron resource pattern to omega tesseron if profiling
   or UI usage shows the same edit path is hot.
-- Decide whether material and geometry pooling belong in Sigil renderer code,
-  toolkit 3D helpers, or a future visual-object package.
-- Extend leak/resource lifecycle evidence to extended editing sessions beyond
-  the current 100-edit primary stellation and primary tesseron proofs.
-- Extend live AOS proof beyond the current avatar tesseron and radial workbench
-  checks to representative DesktopWorld/canvas and DOM surfaces when readiness
-  permits.
+- Material and geometry pooling currently belong in Sigil renderer code, with a
+  future visual-object package still possible if a second real Three.js client
+  needs the same topology-aware cache/disposal behavior.
+- Extend leak/resource lifecycle evidence from deterministic longer edit loops
+  to profiler-backed or runtime-duration leak proof.
+- Extend live AOS proof beyond the current bounded avatar/radial checks to
+  representative DesktopWorld/canvas and DOM surfaces when a live harness exists
+  for those paths.
 - Revisit broad toolkit failures in radial gesture and spatial governance as a
   separate stabilization slice, not as part of this completed visual-object
   contract consolidation.

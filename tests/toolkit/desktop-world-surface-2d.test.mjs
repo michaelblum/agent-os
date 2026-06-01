@@ -55,17 +55,21 @@ test('descriptor-addressed DesktopWorld transform updates the same 2D target nod
 
   adapter.applyWorldTransform(node)
   const beforeNode = node
-  const result = applyVisualObjectControllerUpdate(descriptor, 3840, state, {
-    routeHandlers: {
-      'canvas_object.transform.patch': ({ mutation }) => {
-        adapter.segment = state.desktop_world.stage.segment
-        return mutation.state_path
+  let result
+  const editValues = [2048, 2560, 3200, 3840]
+  for (const value of editValues) {
+    result = applyVisualObjectControllerUpdate(descriptor, value, state, {
+      routeHandlers: {
+        'canvas_object.transform.patch': ({ mutation }) => {
+          adapter.segment = state.desktop_world.stage.segment
+          return mutation.state_path
+        },
       },
-    },
-    rendererSyncHandlers: {
-      applyWorldTransform: () => adapter.applyWorldTransform(node),
-    },
-  })
+      rendererSyncHandlers: {
+        applyWorldTransform: () => adapter.applyWorldTransform(node),
+      },
+    })
+  }
 
   assert.equal(result.route, 'canvas_object.transform.patch')
   assert.equal(result.route_outcome.status, 'called')
@@ -76,10 +80,15 @@ test('descriptor-addressed DesktopWorld transform updates the same 2D target nod
   const evidence = createVisualObjectResourceLifecycleEvidence({
     descriptor,
     updateResult: result,
-    editCount: 1,
+    editCount: editValues.length,
     retainedResources: [node],
     retainedResourceLimit: 1,
     identityStable: node === beforeNode,
+    poolingBoundary: {
+      owner: 'toolkit-canvas-2d',
+      decision: 'not-applicable',
+      rationale: 'This proof retains and updates the same 2D target node; Three.js material and geometry pooling do not belong in the canvas-2d helper.',
+    },
     jsonSerializableState: state,
   })
   assert.equal(evidence.identity_stable, true)

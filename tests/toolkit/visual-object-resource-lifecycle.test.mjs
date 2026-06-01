@@ -28,6 +28,11 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
     temporaryResourcesDisposed: 200,
     finiteDataValid: true,
     jsonSerializableState: state,
+    poolingBoundary: {
+      owner: 'sigil-renderer',
+      decision: 'renderer-local',
+      rationale: 'Three.js geometry and material reuse depends on renderer-owned topology and disposal semantics.',
+    },
   });
 
   assert.equal(evidence.contract, VISUAL_OBJECT_RESOURCE_LIFECYCLE_CONTRACT_ID);
@@ -37,6 +42,11 @@ test('resource lifecycle helper normalizes descriptor update evidence', () => {
   assert.deepEqual(evidence.retained_resource, { count: 2, limit: 2, within_limit: true });
   assert.deepEqual(evidence.temporary_resource, { created: 200, disposed: 200, balanced: true });
   assert.deepEqual(evidence.json_serializable_state, { checked: true, ok: true });
+  assert.deepEqual(evidence.pooling_boundary, {
+    owner: 'sigil-renderer',
+    decision: 'renderer-local',
+    rationale: 'Three.js geometry and material reuse depends on renderer-owned topology and disposal semantics.',
+  });
   assert.deepEqual(validateVisualObjectResourceLifecycleEvidence(evidence), { ok: true, errors: [] });
 });
 
@@ -81,5 +91,27 @@ test('resource lifecycle vocabulary is explicit and stable', () => {
     'renderer_sync',
     'identity_stable',
     'json_serializable_state',
+    'pooling_boundary',
   ]);
+});
+
+test('resource lifecycle validation requires complete pooling boundary metadata when present', () => {
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'pooling-boundary',
+      state_path: 'avatar.shape.stellationFactor',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryStellation'],
+    },
+    poolingBoundary: {
+      owner: '',
+      decision: '',
+      rationale: 'missing owner and decision should not pass as an explicit boundary record',
+    },
+  });
+
+  assert.deepEqual(
+    validateVisualObjectResourceLifecycleEvidence(evidence).errors.map((error) => error.field),
+    ['pooling_boundary.owner', 'pooling_boundary.decision'],
+  );
 });

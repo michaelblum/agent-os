@@ -231,6 +231,8 @@ Descriptor-driven mutation evidence now uses these reusable terms:
   target, or equivalent visual target remained the same object.
 - `json_serializable_state`: result of serializing the canonical state graph
   that the descriptor mutated.
+- `pooling_boundary`: optional evidence metadata naming the owner and decision
+  for material/geometry pooling when the proof touches resource reuse.
 
 An evidence record for a descriptor-driven update should include: `state_path`,
 descriptor id, `route`, `renderer_sync` labels, edit count, structural rebuild
@@ -238,7 +240,18 @@ delta, retained identity/resource count and bound where relevant, replacement
 resource create/dispose counts, temporary resource create/dispose counts,
 finite or valid data check where geometry/control data is meaningful, JSON
 serialization result for the canonical state, and live cleanup result when a
-live AOS surface was created for the proof.
+live AOS surface was created for the proof. When resource reuse is part of the
+claim, include the pooling boundary decision in the evidence instead of
+implying that every surface shares a material or geometry pool.
+
+Current Phase 6 keeps material and geometry pooling renderer-local. Sigil's
+Three.js paths own topology, buffer mutation, material templates, and disposal
+timing, so pooling those objects in toolkit would introduce Three.js semantics
+into a renderer-agnostic workbench package. Toolkit lifecycle helpers therefore
+record retained, replacement, temporary, and disposed counts without owning a
+pool. DOM controls and DesktopWorld/canvas-style fixtures use the same
+vocabulary for stable target identity, but their `pooling_boundary` is
+`not-applicable` because they do not own GPU material or geometry resources.
 
 Projection-only descriptors are outside mutation/update lifecycle claims. They
 can carry descriptor metadata for actions, runtime controls, or derived views,
@@ -269,10 +282,10 @@ while keeping mutation authority in the established editor handler.
 ## Remaining Gaps
 
 The descriptor contract is implemented, and Phase 6 now has a reusable resource
-lifecycle evidence vocabulary with deterministic proof adoption across
-avatar/Three.js, radial/non-avatar 3D, toolkit DOM slider, and
+lifecycle evidence vocabulary with deterministic longer-edit proof adoption
+across avatar/Three.js, radial/non-avatar 3D, toolkit DOM slider, and
 DesktopWorld/canvas-style update fixtures. It is not a renderer optimization
-package. Primary stellation descriptor edits now sync through
+package or a shared material/geometry pool. Primary stellation descriptor edits now sync through
 `updatePrimaryStellation()` without full hierarchy rebuilds or geometry object
 swaps, retaining stable mesh/material/geometry identities while disposing
 temporary generated source buffers. Primary tesseron proportion descriptor edits

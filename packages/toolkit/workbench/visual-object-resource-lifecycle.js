@@ -10,6 +10,7 @@ export const VISUAL_OBJECT_RESOURCE_LIFECYCLE_TERMS = Object.freeze([
   'renderer_sync',
   'identity_stable',
   'json_serializable_state',
+  'pooling_boundary',
 ]);
 
 function text(value, fallback = '') {
@@ -72,6 +73,7 @@ export function createVisualObjectResourceLifecycleEvidence({
   finiteDataValid = null,
   jsonSerializableState,
   identityStable = true,
+  poolingBoundary = null,
   cleanupResult = null,
 } = {}) {
   const before = numberValue(rebuildsBefore);
@@ -120,6 +122,13 @@ export function createVisualObjectResourceLifecycleEvidence({
     identity_stable: booleanValue(identityStable),
     finite_data_valid: finiteDataValid === null ? null : booleanValue(finiteDataValid),
     json_serializable_state: jsonSerializationResult(jsonSerializableState),
+    pooling_boundary: poolingBoundary === null || poolingBoundary === undefined
+      ? null
+      : {
+          owner: text(poolingBoundary.owner),
+          decision: text(poolingBoundary.decision),
+          rationale: text(poolingBoundary.rationale),
+        },
     live_cleanup: cleanupResult,
   };
 }
@@ -149,6 +158,13 @@ export function validateVisualObjectResourceLifecycleEvidence(evidence = {}) {
   }
   if (evidence.json_serializable_state?.checked && evidence.json_serializable_state.ok !== true) {
     errors.push({ code: 'json_serializable_state', field: 'json_serializable_state.ok' });
+  }
+  if (evidence.pooling_boundary !== null && evidence.pooling_boundary !== undefined) {
+    for (const field of ['owner', 'decision']) {
+      if (!text(evidence.pooling_boundary[field])) {
+        errors.push({ code: 'pooling_boundary', field: `pooling_boundary.${field}` });
+      }
+    }
   }
   return {
     ok: errors.length === 0,

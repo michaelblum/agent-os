@@ -94,7 +94,7 @@ test('primary stellation edits reuse the existing shape hierarchy', () => {
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
 
-test('100 primary stellation-only edits keep renderer resources bounded', () => {
+test('long primary stellation-only edit session keeps renderer resources bounded', () => {
   configurePrimaryShape();
   updateGeometry(20);
 
@@ -110,7 +110,8 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
   const wireMaterial = wireframeMesh.material;
   const initialFullRebuilds = stats.primaryFullRebuilds;
 
-  for (let index = 0; index < 100; index += 1) {
+  const editCount = 160;
+  for (let index = 0; index < editCount; index += 1) {
     const value = ((index % 25) + 1) / 20;
     state.avatar.shape.stellationFactor = value;
     const result = updatePrimaryStellation(value);
@@ -131,12 +132,12 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
   }
 
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
-  assert.equal(stats.primaryStellationUpdates, 100);
+  assert.equal(stats.primaryStellationUpdates, editCount);
   assert.equal(stats.primaryStellationSuppressed, 0);
   assert.equal(stats.primaryStellationReplacementGeometriesCreated, 0);
   assert.equal(stats.primaryStellationReplacementGeometriesDisposed, 0);
-  assert.equal(stats.primaryStellationTemporaryGeometriesCreated, 200);
-  assert.equal(stats.primaryStellationTemporaryGeometriesDisposed, 200);
+  assert.equal(stats.primaryStellationTemporaryGeometriesCreated, editCount * 2);
+  assert.equal(stats.primaryStellationTemporaryGeometriesDisposed, editCount * 2);
   assert.equal(stats.primaryStellationRetainedGeometries, 2);
   assert.equal(stats.primaryStellationMaxRetainedGeometries, 2);
   const evidence = createVisualObjectResourceLifecycleEvidence({
@@ -146,7 +147,7 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
       route: 'canvas_object.transform.patch',
       renderer_sync: ['updatePrimaryStellation'],
     },
-    editCount: 100,
+    editCount,
     rebuildsBefore: initialFullRebuilds,
     rebuildsAfter: stats.primaryFullRebuilds,
     retainedResources: stats.primaryStellationRetainedGeometries,
@@ -156,6 +157,11 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
     temporaryResourcesCreated: stats.primaryStellationTemporaryGeometriesCreated,
     temporaryResourcesDisposed: stats.primaryStellationTemporaryGeometriesDisposed,
     finiteDataValid: [state.depthMesh.geometry, state.coreMesh.geometry, state.wireframeMesh.geometry].every(hasFinitePositions),
+    poolingBoundary: {
+      owner: 'sigil-renderer',
+      decision: 'renderer-local',
+      rationale: 'Primary stellation reuse mutates renderer-owned Three.js buffers and materials in place; no toolkit pool is extracted for Three.js resources.',
+    },
     jsonSerializableState: state.avatar,
   });
   assert.equal(evidence.minimal_update, true);
@@ -345,7 +351,7 @@ test('primary appearance edits keep tesseron child matched to mother when config
   assert.equal(state.__sigilGeometryStats.primaryFullRebuilds, initialFullRebuilds);
 });
 
-test('100 primary tesseron proportion edits keep child/link resources bounded', () => {
+test('long primary tesseron proportion edit session keeps child/link resources bounded', () => {
   configurePrimaryShape({ tesseron: true });
   updateGeometry(20);
 
@@ -364,7 +370,8 @@ test('100 primary tesseron proportion edits keep child/link resources bounded', 
   const materials = Object.fromEntries(Object.entries(meshes).map(([key, mesh]) => [key, mesh.material]));
   const initialFullRebuilds = stats.primaryFullRebuilds;
 
-  for (let index = 0; index < 100; index += 1) {
+  const editCount = 160;
+  for (let index = 0; index < editCount; index += 1) {
     const value = 0.12 + ((index % 25) * 0.03);
     state.avatar.shape.tesseron.proportion = value;
     syncAvatarAliasesFromGraph(state);
@@ -390,10 +397,10 @@ test('100 primary tesseron proportion edits keep child/link resources bounded', 
   }
 
   assert.equal(stats.primaryFullRebuilds, initialFullRebuilds);
-  assert.equal(stats.primaryTesseronProportionUpdates, 100);
+  assert.equal(stats.primaryTesseronProportionUpdates, editCount);
   assert.equal(stats.primaryTesseronProportionSuppressed, 0);
-  assert.equal(stats.primaryTesseronProportionTemporaryGeometriesCreated, 500);
-  assert.equal(stats.primaryTesseronProportionTemporaryGeometriesDisposed, 500);
+  assert.equal(stats.primaryTesseronProportionTemporaryGeometriesCreated, editCount * 5);
+  assert.equal(stats.primaryTesseronProportionTemporaryGeometriesDisposed, editCount * 5);
   assert.equal(stats.primaryTesseronProportionRetainedGeometries, 7);
   assert.equal(stats.primaryTesseronProportionMaxRetainedGeometries, 7);
   const evidence = createVisualObjectResourceLifecycleEvidence({
@@ -403,7 +410,7 @@ test('100 primary tesseron proportion edits keep child/link resources bounded', 
       route: 'canvas_object.transform.patch',
       renderer_sync: ['updatePrimaryTesseronProportion'],
     },
-    editCount: 100,
+    editCount,
     rebuildsBefore: initialFullRebuilds,
     rebuildsAfter: stats.primaryFullRebuilds,
     retainedResources: stats.primaryTesseronProportionRetainedGeometries,
@@ -411,6 +418,11 @@ test('100 primary tesseron proportion edits keep child/link resources bounded', 
     temporaryResourcesCreated: stats.primaryTesseronProportionTemporaryGeometriesCreated,
     temporaryResourcesDisposed: stats.primaryTesseronProportionTemporaryGeometriesDisposed,
     finiteDataValid: Object.values(geometries).every(hasFinitePositions),
+    poolingBoundary: {
+      owner: 'sigil-renderer',
+      decision: 'renderer-local',
+      rationale: 'Tesseron child/link geometry reuse depends on renderer-owned topology and disposal behavior.',
+    },
     jsonSerializableState: state.avatar,
   });
   assert.equal(evidence.minimal_update, true);

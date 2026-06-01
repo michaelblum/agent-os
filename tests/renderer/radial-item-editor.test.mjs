@@ -374,19 +374,23 @@ test('radial item visual descriptors route transform edits through editor patch 
     entry.id === 'radial-menu-sigil.radial.main-wiki-graph-radius-scale'
   ))
 
-  const result = applyRadialItemVisualObjectDescriptorUpdate(state, {
-    descriptor,
-    value: '1.35',
-    requestId: 'req-visual-transform',
-    onRouteResult({ message, result: routeResult }) {
-      routeCalls.push([message.type, routeResult.status, routeResult.target.object_id, routeResult.transform.scale.x])
-    },
-    onSync({ label }) {
-      syncCalls.push(label)
-      return { status: 'synced', label }
-    },
-  })
+  let result
+  const editValues = ['1.05', '1.15', '1.25', '1.35', '1.45', '1.35']
   const item = selectedRadialItem(state)
+  for (const [index, value] of editValues.entries()) {
+    result = applyRadialItemVisualObjectDescriptorUpdate(state, {
+      descriptor,
+      value,
+      requestId: `req-visual-transform-${index}`,
+      onRouteResult({ message, result: routeResult }) {
+        routeCalls.push([message.type, routeResult.status, routeResult.target.object_id, routeResult.transform.scale.x])
+      },
+      onSync({ label }) {
+        syncCalls.push(label)
+        return { status: 'synced', label }
+      },
+    })
+  }
   const registry = buildEditorObjectRegistry(state)
   const preview = buildEditorRadialSnapshot(state)
   const roundTrip = JSON.parse(JSON.stringify(exportSelectedRadialItemDefinition(state, {
@@ -398,19 +402,29 @@ test('radial item visual descriptors route transform edits through editor patch 
   assert.equal(item.geometry.radiusScale, 1.35)
   assert.deepEqual(item.geometry.modelTransform.scale, { x: 1.35, y: 1.35, z: 1.35 })
   assert.deepEqual(routeCalls, [
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.05],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.15],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.25],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.35],
+    ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.45],
     ['canvas_object.transform.patch', 'applied', WIKI_BRAIN_GROUP_OBJECT_ID, 1.35],
   ])
-  assert.deepEqual(syncCalls, ['resolveRadialMenuConfig', 'renderRadialMenuPreview'])
+  assert.deepEqual(syncCalls, editValues.flatMap(() => ['resolveRadialMenuConfig', 'renderRadialMenuPreview']))
   assert.equal(registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID).transform.scale.x, 1.35)
   assert.equal(preview.items[0].geometry.radiusScale, 1.35)
   assert.equal(roundTrip.item.geometry.radiusScale, 1.35)
   const evidence = createVisualObjectResourceLifecycleEvidence({
     descriptor,
     updateResult: result,
-    editCount: 1,
+    editCount: editValues.length,
     retainedResources: [state, registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID)],
     retainedResourceLimit: 2,
     identityStable: selectedRadialItem(state) === item,
+    poolingBoundary: {
+      owner: 'sigil-radial-editor',
+      decision: 'renderer-local',
+      rationale: 'Radial object identity and preview sync are app-owned; no toolkit 3D resource pool is extracted for this JSON descriptor loop.',
+    },
     jsonSerializableState: roundTrip,
   })
   assert.equal(evidence.route, 'canvas_object.transform.patch')
