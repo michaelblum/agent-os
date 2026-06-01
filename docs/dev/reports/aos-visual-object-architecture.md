@@ -1,17 +1,19 @@
 # AOS Visual Object Architecture: Avatar as Reference Implementation
 
 **Date**: 2026-05-31  
-**Status**: Implemented through Phase 5 consolidation plus Phase 6 resource
-lifecycle contract extraction; remaining GPU/resource optimization work tracked
-below
+**Status**: Accepted architecture. Phase 5 consolidation and Phase 6 closure
+now provide reusable descriptor/update contracts, resource-lifecycle evidence,
+representative deterministic and live proofs, and a primary stellation
+positive-factor morph-target subset. Remaining work is split into separate
+future tracks below rather than kept as active Phase 6 scope.
 **Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 
 ## Implementation Status
 
-The original target architecture has now been implemented through Phase 5 on
+The original target architecture has now been implemented and accepted on
 `gdi/selection-mode-cursor-ancestor-ladder-v0`. This report is both the
-architecture record and the current status record; future-looking sections below
-are explicitly called out as remaining work.
+architecture record and the current status record. Future-looking sections
+below are separate tracks, not an instruction to keep expanding Phase 6.
 
 Implemented capabilities:
 
@@ -47,7 +49,7 @@ Implemented capabilities:
   reusable renderer-agnostic resource/update lifecycle evidence contract for
   descriptor-driven update proofs.
 
-Partially implemented:
+Implemented representative proofs and retained limits:
 
 - Stellation and tesseron paths have focused no-rebuild, bounded resource, and
   serialization coverage. Primary stellation descriptor edits now keep the
@@ -84,15 +86,23 @@ Partially implemented:
   cleanup. Annotation/context sessions continue to own root/scope/anchor,
   comment, projection status, keyframe asset refs, and `snapshot_count`.
 
-Remaining broad slice:
+Future tracks:
 
-- **Phase 6 follow-up** should decide whether the avatar renderer should make
-  topology-stable stellated meshes the canonical zero-factor representation,
-  then revisit uniform-only stellation, profiler-backed leak proof, material or
-  geometry pooling where warranted, and full observe-mode snapshot product
-  integration. Representative avatar, radial, toolkit DOM, and
-  DesktopWorld/canvas live proof now exists; broader live proof across every
-  product surface remains future work.
+- **Profiler-backed leak proof**: convert the current deterministic and bounded
+  runtime-duration lifecycle evidence into profiler-backed memory/resource
+  evidence where product risk warrants it.
+- **Observe-mode snapshot product integration**: integrate descriptor-adjacent
+  state into the existing observe/session/snapshot product flow without
+  replacing the session contract or absorbing `snapshot_count` into
+  visual-object lifecycle records.
+- **Topology-stable stellation model**: if smooth zero-to-positive stellation
+  becomes a product requirement, make topology-stable stellated meshes the
+  canonical zero-factor representation, then revisit uniform-only stellation.
+- **Omega tesseron hot path**: extend the primary tesseron in-place update
+  pattern to omega tesseron only if profiling or product usage shows that edit
+  path is hot.
+- **Broad toolkit stabilization**: handle radial gesture and spatial governance
+  suite failures in their own runtime/toolkit stabilization track.
 
 ## Vision
 
@@ -447,12 +457,16 @@ performance or platform-wide adoption work.
 
 ### Performance
 
-1. **60fps parameter updates**: Remaining work. User drags stellation slider ->
-   avatar should eventually morph smoothly through GPU-friendly updates.
-2. **Memory stability**: Partially implemented. Focused no-rebuild tests and
+1. **60fps parameter updates**: Accepted for the implemented primary
+   positive-factor stellation morph-target subset; broader smooth
+   zero-to-positive or all-shape stellation remains a separate topology-stable
+   model track.
+2. **Memory stability**: Implemented for the focused lifecycle evidence matrix.
+   Focused no-rebuild tests and
    longer deterministic edit loops now prove retained/replacement/temporary
    resource counts across the validation matrix; complete GPU-level
-   material/geometry pooling and profiler-backed leak proof remain future work.
+   material/geometry pooling and profiler-backed leak proof remain separate
+   future tracks.
 3. **Instant agent changes**: Implemented for descriptor-addressed state writes
    and deterministic sync handlers; broader live agent mutation proof remains
    future work.
@@ -475,9 +489,10 @@ performance or platform-wide adoption work.
 8. **Agent addressing**: Implemented at the descriptor/controller path level for
    covered parameters; full natural-language or all-parameter addressing is not
    claimed here.
-9. **Snapshot capture**: Partially implemented through JSON-serializable state
-   and exported subject state; complete observe-mode snapshot integration
-   remains a separate surface contract.
+9. **Snapshot capture**: Boundary accepted. JSON-serializable descriptor state
+   and exported subject state coexist with observe/session snapshots, but
+   complete observe-mode snapshot product integration remains a separate
+   surface contract.
 10. **Transition support**: Future work. The current contract exposes
    `renderer_sync` labels and routes, but does not implement declarative
    transition playback for all avatar parameters.
@@ -517,18 +532,25 @@ performance or platform-wide adoption work.
 
 ### Phase 2: GPU-Optimized Parameter Updates (Performance)
 
-**Status**: Partially implemented; broad GPU/resource optimization remains
-Phase 6 work.
+**Status**: Accepted for the current architecture scope. The primary
+positive-factor non-tesseron stellation subset uses a renderer-local
+morph-target path; zero-factor topology-stable stellation and broader
+GPU/resource optimization are separate future tracks.
 
 **Goal**: Eliminate geometry rebuilds for parameter changes
 
-- Implement stellation via GPU uniforms or morph targets. **Remaining.**
-- Add geometry caching layer where repeated structures warrant it. **Remaining.**
+- Implement stellation via GPU uniforms or morph targets. **Implemented for the
+  safe positive-factor morph-target subset; uniform-only and zero-factor
+  topology-stable support are future work.**
+- Add geometry caching layer where repeated structures warrant it. **Future
+  profiler-backed work.**
 - Add material pooling for matching properties where profiling shows churn.
-  **Remaining.**
+  **Future profiler-backed work.**
 - Fix disposal lifecycle for intermediate geometries. **Partially covered by
-  focused no-rebuild tests; broad leak proof remains.**
-- **Deliverable**: 60fps smooth parameter editing. **Not yet claimed.**
+  focused no-rebuild tests; profiler-backed leak proof is a future track.**
+- **Deliverable**: Minimal-update stellation proof for the implemented subset.
+  **Accepted for the architecture closure; broader smooth editing remains a
+  product/performance track.**
 
 ### Phase 3: Descriptor-Driven Controls (Toolkit Integration)
 
@@ -577,34 +599,45 @@ radial 3D, toolkit DOM slider, and 2D/DesktopWorld-style update paths.
 - **Deliverable**: Pattern proven across rendering technologies. **Implemented
   for the focused validation matrix above.**
 
-### Phase 6: GPU/Resource Optimization and Broader Live Proof
+### Phase 6: Architecture Closure
 
-**Status**: Resource lifecycle contract extracted. Primary stellation now has
+**Status**: Closed for this workstream. Resource lifecycle contract extracted.
+Primary stellation now has
 1,000-edit deterministic proof-window evidence plus a live bounded-duration
 smoke hook, primary tesseron proportion edits have longer bounded in-place
 geometry update proof, representative radial, DOM, and
 DesktopWorld/canvas-style update fixtures map to the same lifecycle vocabulary,
 and the pooling boundary is documented as renderer-local for material/geometry
-resources. Broader GPU/resource work remains.
+resources. Future GPU/resource/product work is tracked as separate next tracks.
 
-**Goal**: Convert the proven descriptor/update architecture into broader
-runtime performance and live-AOS confidence.
+**Goal**: Close the proven descriptor/update architecture as reusable and
+reviewable, with representative live evidence and explicit boundaries.
 
-- Revisit uniform-only stellation if the renderer makes topology-stable
-  stellated meshes canonical even at factor zero.
-- Extend the in-place tesseron resource pattern to omega tesseron if profiling
-  or UI usage shows the same edit path is hot.
-- Material and geometry pooling currently belong in Sigil renderer code, with a
-  future visual-object package still possible if a second real Three.js client
-  needs the same topology-aware cache/disposal behavior.
-- Extend leak/resource lifecycle evidence from the current deterministic and
-  bounded live runtime-duration windows to profiler-backed leak proof.
-- Extend live AOS proof beyond the current bounded representative avatar,
-  radial, toolkit DOM, and DesktopWorld/canvas checks as more product surfaces
-  adopt descriptor-driven updates.
-- Revisit broad toolkit failures in radial gesture and spatial governance as a
-  separate stabilization slice, not as part of this completed visual-object
-  contract consolidation.
+- Accepted core: descriptor, controller, form binding, radial subject, and
+  resource-lifecycle contracts are reusable toolkit/workbench primitives.
+- Accepted representative proofs: avatar/Three.js, radial/non-avatar 3D,
+  toolkit DOM slider, DesktopWorld/canvas-style, and observe/snapshot boundary
+  tests define the deterministic acceptance matrix. Live hooks exist for
+  bounded avatar tesseron/stellation, radial workbench, toolkit DOM slider, and
+  DesktopWorld stage paths.
+- Accepted stellation subset: primary positive-factor non-tesseron edits use
+  renderer-local Three.js morph targets after topology-stable setup.
+- Retained blocker: factor-zero stellation still uses the CPU buffer route
+  because the current generator changes vertex, face, and edge topology at
+  zero.
+
+Separate future tracks:
+
+- Profiler-backed leak proof for memory/resource behavior beyond deterministic
+  and bounded runtime-duration evidence.
+- Full observe-mode snapshot product integration through the existing
+  annotation/context-session contract.
+- Zero-factor/topology-stable stellation model if product work requires smooth
+  zero-to-positive GPU or uniform-only stellation.
+- Omega tesseron in-place resource optimization only if profiling or UI usage
+  makes that path hot.
+- Broad toolkit stabilization for radial gesture and spatial governance,
+  independent of this visual-object architecture closure.
 
 ## Broader Impact: Unified AOS Visual Architecture
 

@@ -8,7 +8,11 @@ implementation lives in
 `aos.visual_object.descriptor.v0`. Phase 6 adds the companion resource
 lifecycle evidence helper in
 `packages/toolkit/workbench/visual-object-resource-lifecycle.js`, identified by
-`aos.visual_object.resource_lifecycle.v0`.
+`aos.visual_object.resource_lifecycle.v0`. The Phase 6 architecture closure
+accepts these contracts with representative deterministic and live evidence;
+future profiler-backed leak proof, full observe/snapshot product integration,
+zero-factor stellation topology work, omega tesseron optimization, and broad
+toolkit stabilization are separate tracks.
 
 ## Descriptor Fields
 
@@ -266,7 +270,8 @@ created for the proof. When resource reuse is part of the
 claim, include the pooling boundary decision in the evidence instead of
 implying that every surface shares a material or geometry pool.
 
-Current Phase 6 keeps material and geometry pooling renderer-local. Sigil's
+The accepted Phase 6 closure keeps material and geometry pooling renderer-local.
+Sigil's
 Three.js paths own topology, buffer mutation, material templates, and disposal
 timing, so pooling those objects in toolkit would introduce Three.js semantics
 into a renderer-agnostic workbench package. Toolkit lifecycle helpers therefore
@@ -332,7 +337,8 @@ while keeping mutation authority in the established editor handler.
 
 ## Remaining Gaps
 
-The descriptor contract is implemented, and Phase 6 now has a reusable resource
+The descriptor contract is implemented and accepted, and Phase 6 now has a
+reusable resource
 lifecycle evidence vocabulary with deterministic longer-edit proof adoption
 across avatar/Three.js, radial/non-avatar 3D, toolkit DOM slider, and
 DesktopWorld/canvas-style update fixtures. It is not a renderer optimization
@@ -351,10 +357,11 @@ Primary stellation also has deterministic 1,000-edit proof-window evidence, and
 the live smoke hook can run a bounded minimum-duration proof while reporting
 the same retained/replacement/temporary/disposed resource counts.
 Uniform-only stellation, broader material/geometry pooling, full observe-mode
-snapshot product integration, profiler-backed leak proof, and broader live
-proof across every visual surface remain future work. Current
-Phase 6 proves representative avatar, radial, toolkit DOM, and
+snapshot product integration, profiler-backed leak proof, omega tesseron
+optimization, and broader live proof across every visual surface remain future
+tracks outside this contract closure. Current Phase 6 proves representative
+avatar, radial, toolkit DOM, and
 DesktopWorld/canvas live update paths plus coexistence with existing
 observe/snapshot session artifacts without introducing a parallel snapshot
-store. The ongoing Phase 6 scope is described in
+store. The closure status and next tracks are described in
 `docs/dev/reports/aos-visual-object-architecture.md`.
