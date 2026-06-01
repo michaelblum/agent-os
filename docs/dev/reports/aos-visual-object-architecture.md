@@ -1,8 +1,9 @@
 # AOS Visual Object Architecture: Avatar as Reference Implementation
 
 **Date**: 2026-05-31  
-**Status**: Implemented through Phase 5 consolidation plus a focused Phase 6
-avatar resource slice; remaining GPU/resource optimization work tracked below
+**Status**: Implemented through Phase 5 consolidation plus Phase 6 resource
+lifecycle contract extraction; remaining GPU/resource optimization work tracked
+below
 **Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 
 ## Implementation Status
@@ -42,6 +43,9 @@ Implemented capabilities:
   descriptor edits through `applyVisualObjectControllerUpdate()` and the
   existing `applyEditorObjectPatch()` / `applyEditorEffectsPatch()` mutation
   authorities.
+- `packages/toolkit/workbench/visual-object-resource-lifecycle.js` provides the
+  reusable renderer-agnostic resource/update lifecycle evidence contract for
+  descriptor-driven update proofs.
 
 Partially implemented:
 
@@ -59,7 +63,10 @@ Partially implemented:
   successfully. GPU morph-target or uniform-only stellation is still not a
   completed platform capability because current stellation changes topology.
 - The descriptor/controller/form loop has deterministic 3D, 2D, and DOM proof
-  coverage; broad migration of every visual surface is future work.
+  coverage. Existing avatar/Three.js, radial/non-avatar 3D, toolkit DOM slider,
+  and DesktopWorld/canvas-style tests now express their update evidence through
+  the shared lifecycle vocabulary; broad migration of every visual surface is
+  future work.
 - Live AOS proof exists for a bounded avatar tesseron resource update and for a
   bounded radial workbench descriptor update, but this report should not be
   read as claiming live proof for every surface.
@@ -368,10 +375,10 @@ state graph -> descriptor -> route/controller -> renderer sync/minimal update
 
 | Surface | State graph | Descriptor/route | Sync or minimal update evidence | Focused verification |
 | --- | --- | --- | --- | --- |
-| Sigil avatar / Three.js | `state.avatar.*` shape, appearance, effects, and transform data | Avatar editor model exposes `visual_object_descriptors`; compact surface can opt into `bindVisualObjectForm()` | Caller-owned route/sync handlers mutate canonical avatar JSON and preserve compact form/root identity; stellation/tesseron focused tests cover no-rebuild and serialization paths | `node --test tests/renderer/sigil-avatar-editor-compact-surface.test.mjs tests/renderer/sigil-avatar-editor-model.test.mjs tests/renderer/sigil-avatar-editor-surface-view-model.test.mjs`; `node --test tests/renderer/stellation-no-rebuild.test.mjs tests/renderer/tesseron.test.mjs` |
-| Sigil radial item workbench / non-avatar 3D | `radial_menu.<menu>.items.<item>.*` selected item JSON and editor state | `createRadialMenuWorkbenchSubject()` descriptors route through `canvas_object.transform.patch`, `canvas_object.visibility.patch`, and `canvas_object.effects.patch`; workbench posts `visual_object.descriptor.update` | `applyVisualObjectControllerUpdate()` dispatches to existing `applyEditorObjectPatch()` / `applyEditorEffectsPatch()` and syncs registry/preview/exported subject state | `node --test tests/renderer/radial-item-editor.test.mjs tests/renderer/radial-object-control.test.mjs`; `node --test tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/object-transform-panel-model.test.mjs` |
-| Toolkit DOM slider proof | `toolkit.controls.opacity.value` JSON fixture state | `createToolkitSliderVisualObjectDescriptor()` uses `dom-toolkit` and `dom_toolkit.control.value.patch` | Controller/form binding calls the existing slider `setValue()` path and preserves root element identity | `node --test tests/toolkit/visual-object-form-binding.test.mjs tests/toolkit/visual-object-contract.test.mjs tests/toolkit/panel-form.test.mjs` |
-| 2D/DesktopWorld or canvas-style proof | DesktopWorld/canvas-style transform fixture state | `canvas-2d` descriptor routes through `canvas_object.transform.patch` or `canvas_object.effects.patch` | Controller update applies state in place and reruns the existing transform/sync path on the same target node/object | `node --test tests/toolkit/desktop-world-surface-2d.test.mjs tests/toolkit/runtime-canvas.test.mjs tests/toolkit/controls-slider-color.test.mjs` |
+| Sigil avatar / Three.js | `state.avatar.*` shape, appearance, effects, and transform data | Avatar editor model exposes `visual_object_descriptors`; compact surface can opt into `bindVisualObjectForm()` | Caller-owned route/sync handlers mutate canonical avatar JSON and preserve compact form/root identity; stellation/tesseron focused tests express 100-edit no-rebuild, retained resource bounds, temporary create/dispose balance, finite geometry, and serialization through `aos.visual_object.resource_lifecycle.v0` | `node --test tests/renderer/sigil-avatar-editor-compact-surface.test.mjs tests/renderer/sigil-avatar-editor-model.test.mjs tests/renderer/sigil-avatar-editor-surface-view-model.test.mjs`; `node --test tests/renderer/stellation-no-rebuild.test.mjs tests/renderer/tesseron.test.mjs` |
+| Sigil radial item workbench / non-avatar 3D | `radial_menu.<menu>.items.<item>.*` selected item JSON and editor state | `createRadialMenuWorkbenchSubject()` descriptors route through `canvas_object.transform.patch`, `canvas_object.visibility.patch`, and `canvas_object.effects.patch`; workbench posts `visual_object.descriptor.update` | `applyVisualObjectControllerUpdate()` dispatches to existing `applyEditorObjectPatch()` / `applyEditorEffectsPatch()` and syncs registry/preview/exported subject state; radial transform proof now records route, renderer sync labels, retained selected-item identity, and serializable exported state with the lifecycle helper | `node --test tests/renderer/radial-item-editor.test.mjs tests/renderer/radial-object-control.test.mjs`; `node --test tests/toolkit/radial-menu-subject.test.mjs tests/toolkit/object-transform-panel-model.test.mjs` |
+| Toolkit DOM slider proof | `toolkit.controls.opacity.value` JSON fixture state | `createToolkitSliderVisualObjectDescriptor()` uses `dom-toolkit` and `dom_toolkit.control.value.patch` | Controller/form binding calls the existing slider `setValue()` path, preserves root element identity, and validates serializable state with the lifecycle helper | `node --test tests/toolkit/visual-object-form-binding.test.mjs tests/toolkit/visual-object-contract.test.mjs tests/toolkit/panel-form.test.mjs` |
+| 2D/DesktopWorld or canvas-style proof | DesktopWorld/canvas-style transform fixture state | `canvas-2d` descriptor routes through `canvas_object.transform.patch` or `canvas_object.effects.patch` | Controller update applies state in place and reruns the existing transform/sync path on the same target node/object; same-node identity and serializable state are normalized as lifecycle evidence | `node --test tests/toolkit/desktop-world-surface-2d.test.mjs tests/toolkit/runtime-canvas.test.mjs tests/toolkit/controls-slider-color.test.mjs` |
 
 The broad toolkit suite is not the validation gate for this workstream. On this
 branch, broad `node --test tests/toolkit/*.test.mjs` is known to include
@@ -519,8 +526,10 @@ radial 3D, toolkit DOM slider, and 2D/DesktopWorld-style update paths.
 
 ### Phase 6: GPU/Resource Optimization and Broader Live Proof
 
-**Status**: Started. Primary stellation and primary tesseron proportion edits
-now have bounded in-place geometry update proof; broader GPU/resource work
+**Status**: Resource lifecycle contract extracted. Primary stellation and
+primary tesseron proportion edits now have bounded in-place geometry update
+proof, and representative radial, DOM, and DesktopWorld/canvas-style update
+fixtures map to the same lifecycle vocabulary. Broader GPU/resource work
 remains.
 
 **Goal**: Convert the proven descriptor/update architecture into broader
@@ -532,8 +541,8 @@ runtime performance and live-AOS confidence.
   or UI usage shows the same edit path is hot.
 - Decide whether material and geometry pooling belong in Sigil renderer code,
   toolkit 3D helpers, or a future visual-object package.
-- Add leak/resource lifecycle evidence for extended editing sessions beyond the
-  current 100-edit primary stellation and primary tesseron proofs.
+- Extend leak/resource lifecycle evidence to extended editing sessions beyond
+  the current 100-edit primary stellation and primary tesseron proofs.
 - Extend live AOS proof beyond the current avatar tesseron and radial workbench
   checks to representative DesktopWorld/canvas and DOM surfaces when readiness
   permits.

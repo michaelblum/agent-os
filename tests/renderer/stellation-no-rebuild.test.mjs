@@ -4,6 +4,10 @@ import test from 'node:test';
 import THREE from '../../apps/sigil/renderer/vendor/three.min.js';
 import state, { syncAvatarAliasesFromGraph } from '../../apps/sigil/renderer/state.js';
 import { updateGeometry, updatePrimaryAppearance, updatePrimaryStellation, updatePrimaryTesseronProportion } from '../../apps/sigil/renderer/geometry.js';
+import {
+  createVisualObjectResourceLifecycleEvidence,
+  validateVisualObjectResourceLifecycleEvidence,
+} from '../../packages/toolkit/workbench/visual-object-resource-lifecycle.js';
 
 globalThis.THREE = THREE;
 
@@ -135,6 +139,27 @@ test('100 primary stellation-only edits keep renderer resources bounded', () => 
   assert.equal(stats.primaryStellationTemporaryGeometriesDisposed, 200);
   assert.equal(stats.primaryStellationRetainedGeometries, 2);
   assert.equal(stats.primaryStellationMaxRetainedGeometries, 2);
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'sigil-avatar-stellation',
+      state_path: 'avatar.shape.stellationFactor',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryStellation'],
+    },
+    editCount: 100,
+    rebuildsBefore: initialFullRebuilds,
+    rebuildsAfter: stats.primaryFullRebuilds,
+    retainedResources: stats.primaryStellationRetainedGeometries,
+    retainedResourceLimit: stats.primaryStellationMaxRetainedGeometries,
+    replacementResourcesCreated: stats.primaryStellationReplacementGeometriesCreated,
+    replacementResourcesDisposed: stats.primaryStellationReplacementGeometriesDisposed,
+    temporaryResourcesCreated: stats.primaryStellationTemporaryGeometriesCreated,
+    temporaryResourcesDisposed: stats.primaryStellationTemporaryGeometriesDisposed,
+    finiteDataValid: [state.depthMesh.geometry, state.coreMesh.geometry, state.wireframeMesh.geometry].every(hasFinitePositions),
+    jsonSerializableState: state.avatar,
+  });
+  assert.equal(evidence.minimal_update, true);
+  assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
 
@@ -371,6 +396,25 @@ test('100 primary tesseron proportion edits keep child/link resources bounded', 
   assert.equal(stats.primaryTesseronProportionTemporaryGeometriesDisposed, 500);
   assert.equal(stats.primaryTesseronProportionRetainedGeometries, 7);
   assert.equal(stats.primaryTesseronProportionMaxRetainedGeometries, 7);
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor: {
+      id: 'sigil-avatar-tesseron-proportion',
+      state_path: 'avatar.shape.tesseron.proportion',
+      route: 'canvas_object.transform.patch',
+      renderer_sync: ['updatePrimaryTesseronProportion'],
+    },
+    editCount: 100,
+    rebuildsBefore: initialFullRebuilds,
+    rebuildsAfter: stats.primaryFullRebuilds,
+    retainedResources: stats.primaryTesseronProportionRetainedGeometries,
+    retainedResourceLimit: stats.primaryTesseronProportionMaxRetainedGeometries,
+    temporaryResourcesCreated: stats.primaryTesseronProportionTemporaryGeometriesCreated,
+    temporaryResourcesDisposed: stats.primaryTesseronProportionTemporaryGeometriesDisposed,
+    finiteDataValid: Object.values(geometries).every(hasFinitePositions),
+    jsonSerializableState: state.avatar,
+  });
+  assert.equal(evidence.minimal_update, true);
+  assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true);
   assert.doesNotThrow(() => JSON.stringify(state.avatar));
 });
 

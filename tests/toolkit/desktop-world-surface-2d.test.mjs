@@ -6,6 +6,10 @@ import {
   createVisualObjectDescriptor,
 } from '../../packages/toolkit/workbench/visual-object-contract.js'
 import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbench/visual-object-controller.js'
+import {
+  createVisualObjectResourceLifecycleEvidence,
+  validateVisualObjectResourceLifecycleEvidence,
+} from '../../packages/toolkit/workbench/visual-object-resource-lifecycle.js'
 
 test('worldOrigin translates by negative segment DesktopWorld bounds', () => {
   const adapter = new DesktopWorldSurface2D({ canvasId: 'avatar' })
@@ -69,4 +73,15 @@ test('descriptor-addressed DesktopWorld transform updates the same 2D target nod
   assert.equal(state.desktop_world.stage.segment.dw_bounds[0], 3840)
   assert.equal(node, beforeNode)
   assert.equal(node.style.transform, 'translate(-3840px, -40px)')
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor,
+    updateResult: result,
+    editCount: 1,
+    retainedResources: [node],
+    retainedResourceLimit: 1,
+    identityStable: node === beforeNode,
+    jsonSerializableState: state,
+  })
+  assert.equal(evidence.identity_stable, true)
+  assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true)
 })

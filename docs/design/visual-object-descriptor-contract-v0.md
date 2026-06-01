@@ -5,7 +5,10 @@ toolkit workbench contract, and Phase 5 has validated/adopted that contract
 across avatar, non-avatar radial, 2D/canvas-style, and DOM/toolkit proofs. The
 implementation lives in
 `packages/toolkit/workbench/visual-object-contract.js` and is identified by
-`aos.visual_object.descriptor.v0`.
+`aos.visual_object.descriptor.v0`. Phase 6 adds the companion resource
+lifecycle evidence helper in
+`packages/toolkit/workbench/visual-object-resource-lifecycle.js`, identified by
+`aos.visual_object.resource_lifecycle.v0`.
 
 ## Descriptor Fields
 
@@ -97,6 +100,12 @@ Phase 5 adds two non-avatar proofs:
   Workbench renderer sync labels call the existing registry/preview sync path
   so the object transform panel, exported subject state, and preview snapshot
   observe the same selected-item JSON mutation.
+- `packages/toolkit/workbench/visual-object-resource-lifecycle.js` normalizes
+  descriptor update proof data into the reusable resource/update lifecycle
+  vocabulary. It is renderer-agnostic: callers pass descriptor ids, state
+  paths, route/sync results, resource counts, identity checks, finite-data
+  checks, JSON state, and optional live cleanup results. It does not import
+  Three.js, DOM, or Sigil code.
 
 ## Technology Examples
 
@@ -200,6 +209,42 @@ Projection-only descriptors remain read-only from this path. They can describe
 runtime affordances, app actions, or derived views, but form binding must not
 turn them into canonical state mutation.
 
+## Resource Lifecycle Evidence
+
+Descriptor-driven mutation evidence now uses these reusable terms:
+
+- `structural_rebuild`: renderer hierarchy or target reconstruction count
+  before and after the edit loop. A zero delta proves the edit did not rebuild
+  the target structure.
+- `minimal_update`: true when the descriptor mutation reused the existing
+  route/sync path without a structural rebuild.
+- `retained_resource`: resource identities intentionally kept across edits,
+  plus an optional upper bound.
+- `replacement_resource`: newly swapped durable resources and their disposal
+  count.
+- `temporary_resource`: generated source/intermediate resources created during
+  the edit and disposed before the proof ends.
+- `disposed_resource`: total replacement plus temporary disposal evidence.
+- `renderer_sync`: ordered sync labels or sync outcomes used after the state
+  mutation.
+- `identity_stable`: whether the relevant mesh, registry object, DOM root, 2D
+  target, or equivalent visual target remained the same object.
+- `json_serializable_state`: result of serializing the canonical state graph
+  that the descriptor mutated.
+
+An evidence record for a descriptor-driven update should include: `state_path`,
+descriptor id, `route`, `renderer_sync` labels, edit count, structural rebuild
+delta, retained identity/resource count and bound where relevant, replacement
+resource create/dispose counts, temporary resource create/dispose counts,
+finite or valid data check where geometry/control data is meaningful, JSON
+serialization result for the canonical state, and live cleanup result when a
+live AOS surface was created for the proof.
+
+Projection-only descriptors are outside mutation/update lifecycle claims. They
+can carry descriptor metadata for actions, runtime controls, or derived views,
+but they must not be used as evidence for canonical state mutation, resource
+retention, or renderer sync.
+
 ## Radial Workbench Descriptor Loop
 
 The Sigil radial item workbench uses the controller adapter directly because
@@ -223,9 +268,11 @@ while keeping mutation authority in the established editor handler.
 
 ## Remaining Gaps
 
-The descriptor contract is implemented, but it is not a renderer optimization
-package. Phase 6 has started with a focused Sigil avatar resource slice:
-primary stellation descriptor edits now sync through
+The descriptor contract is implemented, and Phase 6 now has a reusable resource
+lifecycle evidence vocabulary with deterministic proof adoption across
+avatar/Three.js, radial/non-avatar 3D, toolkit DOM slider, and
+DesktopWorld/canvas-style update fixtures. It is not a renderer optimization
+package. Primary stellation descriptor edits now sync through
 `updatePrimaryStellation()` without full hierarchy rebuilds or geometry object
 swaps, retaining stable mesh/material/geometry identities while disposing
 temporary generated source buffers. Primary tesseron proportion descriptor edits

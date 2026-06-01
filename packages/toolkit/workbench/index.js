@@ -14,6 +14,7 @@ export * from './subject-graph.js';
 export * from './visual-object-contract.js';
 export * from './visual-object-controller.js';
 export * from './visual-object-form-binding.js';
+export * from './visual-object-resource-lifecycle.js';
 export * from './artifact-bundle-subject.js';
 export * from './wiki-subject.js';
 export * from './wiki-subject-opening.js';

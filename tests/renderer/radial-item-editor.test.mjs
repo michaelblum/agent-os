@@ -53,6 +53,10 @@ import {
 import { createRadialMenuWorkbenchSubject } from '../../packages/toolkit/workbench/radial-menu-subject.js'
 import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbench/visual-object-controller.js'
 import {
+  createVisualObjectResourceLifecycleEvidence,
+  validateVisualObjectResourceLifecycleEvidence,
+} from '../../packages/toolkit/workbench/visual-object-resource-lifecycle.js'
+import {
   subjectCapabilities,
   subjectContracts,
   subjectFacets,
@@ -400,6 +404,18 @@ test('radial item visual descriptors route transform edits through editor patch 
   assert.equal(registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID).transform.scale.x, 1.35)
   assert.equal(preview.items[0].geometry.radiusScale, 1.35)
   assert.equal(roundTrip.item.geometry.radiusScale, 1.35)
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor,
+    updateResult: result,
+    editCount: 1,
+    retainedResources: [state, registry.objects.find((object) => object.object_id === WIKI_BRAIN_GROUP_OBJECT_ID)],
+    retainedResourceLimit: 2,
+    identityStable: selectedRadialItem(state) === item,
+    jsonSerializableState: roundTrip,
+  })
+  assert.equal(evidence.route, 'canvas_object.transform.patch')
+  assert.equal(evidence.identity_stable, true)
+  assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true)
 })
 
 test('radial item visual descriptors route visibility edits through editor patch and sync paths', () => {

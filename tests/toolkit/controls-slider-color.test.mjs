@@ -5,6 +5,10 @@ import {
   createToolkitSliderVisualObjectDescriptor,
 } from '../../packages/toolkit/workbench/visual-object-contract.js';
 import { applyVisualObjectControllerUpdate } from '../../packages/toolkit/workbench/visual-object-controller.js';
+import {
+  createVisualObjectResourceLifecycleEvidence,
+  validateVisualObjectResourceLifecycleEvidence,
+} from '../../packages/toolkit/workbench/visual-object-resource-lifecycle.js';
 import { FakeEvent, createFakeDocument } from './dom-fixture.mjs';
 import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs';
 
@@ -83,6 +87,18 @@ test('slider descriptor mutation syncs through setValue without replacing the ro
   assert.equal(slider.el, root);
   assert.equal(slider.getValue(), 0.65);
   assert.equal(slider.el.querySelector('[data-aos-slider-output]').textContent, '0.65');
+  const evidence = createVisualObjectResourceLifecycleEvidence({
+    descriptor,
+    updateResult: result,
+    rendererSync: ['syncDomControlValue'],
+    editCount: 1,
+    retainedResources: [root],
+    retainedResourceLimit: 1,
+    identityStable: slider.el === root,
+    jsonSerializableState: state,
+  });
+  assert.equal(evidence.identity_stable, true);
+  assert.equal(validateVisualObjectResourceLifecycleEvidence(evidence).ok, true);
   assert.deepEqual(JSON.parse(JSON.stringify(state)), state);
 });
 
