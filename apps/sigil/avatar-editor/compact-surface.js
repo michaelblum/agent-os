@@ -263,6 +263,22 @@ function activeTabFromTabsAdapter(tabsAdapter) {
   return tabsAdapter.connect().value;
 }
 
+function rectForElement(element) {
+  if (typeof element?.getBoundingClientRect !== 'function') return null;
+  const rect = element.getBoundingClientRect();
+  const left = Number(rect.left);
+  const top = Number(rect.top);
+  const width = Number(rect.width);
+  const height = Number(rect.height);
+  if (![left, top, width, height].every(Number.isFinite)) return null;
+  return {
+    left,
+    top,
+    width,
+    height,
+  };
+}
+
 export function createSigilAvatarCompactControlSurface(container, input = {}, options = {}) {
   if (!container?.appendChild && !options.document?.createElement) {
     throw new Error('createSigilAvatarCompactControlSurface requires a DOM container');
@@ -431,6 +447,32 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
     },
     getControlRecords() {
       const records = [];
+      for (const tab of renderedTabs) {
+        const tabKey = tab.key || 'tab';
+        const triggerEl = triggerEls.get(tabKey);
+        const selected = triggerEl?.getAttribute?.('aria-selected') === 'true'
+          || activeTabFromTabsAdapter(tabsAdapter) === tabKey;
+        records.push({
+          id: tabKey,
+          ref: `aos.tab:${tabKey}`,
+          role: 'AXTab',
+          name: text(tab.label, tabKey),
+          label: text(tab.label, tabKey),
+          kind: 'tab',
+          value: tabKey,
+          selected,
+          current: selected,
+          enabled: !triggerEl?.disabled,
+          hidden: !!triggerEl?.hidden,
+          bounds: rectForElement(triggerEl),
+          actions: triggerEl?.hidden ? [] : ['select'],
+          surface: 'sigil.avatar.compact_control_surface',
+          metadata: {
+            value: tabKey,
+            ...(triggerEl?.dataset ? { ...triggerEl.dataset } : {}),
+          },
+        });
+      }
       for (const { tab, section, form } of forms.values()) {
         records.push(...form.getControlRecords().map((record) => ({
           ...record,

@@ -251,6 +251,44 @@ test('compact avatar control surface exposes descriptor-addressed AOS control re
   )));
 });
 
+test('compact avatar control surface exposes AOS-native tab control records', () => {
+  const { surface } = mount();
+  const alphaTrigger = surface.el.querySelectorAll('[data-aos-tabs-trigger]')
+    .find((element) => element.dataset.value === 'alpha');
+  const omegaTrigger = surface.el.querySelectorAll('[data-aos-tabs-trigger]')
+    .find((element) => element.dataset.value === 'omega');
+
+  setRect(alphaTrigger, { left: 12, top: 20, width: 56, height: 24 });
+  setRect(omegaTrigger, { left: 132, top: 20, width: 72, height: 24 });
+
+  let alphaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:alpha');
+  let omegaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:omega');
+
+  assert.equal(alphaRecord.id, 'alpha');
+  assert.equal(alphaRecord.value, 'alpha');
+  assert.equal(alphaRecord.role, 'AXTab');
+  assert.equal(alphaRecord.name, 'Alpha');
+  assert.equal(alphaRecord.label, 'Alpha');
+  assert.equal(alphaRecord.selected, true);
+  assert.equal(alphaRecord.current, true);
+  assert.equal(alphaRecord.enabled, true);
+  assert.deepEqual(alphaRecord.bounds, { left: 12, top: 20, width: 56, height: 24 });
+  assert.deepEqual(alphaRecord.actions, ['select']);
+  assert.equal(alphaRecord.surface, 'sigil.avatar.compact_control_surface');
+
+  assert.equal(omegaRecord.selected, false);
+  assert.equal(omegaRecord.current, false);
+
+  surface.setActiveTab('omega');
+  alphaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:alpha');
+  omegaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:omega');
+
+  assert.equal(alphaRecord.selected, false);
+  assert.equal(alphaRecord.current, false);
+  assert.equal(omegaRecord.selected, true);
+  assert.equal(omegaRecord.current, true);
+});
+
 test('compact avatar control surface can bind a real canonical control through visual object descriptors', () => {
   const state = avatarState();
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(state);

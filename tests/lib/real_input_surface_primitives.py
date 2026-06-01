@@ -119,7 +119,7 @@ const AOSNativeControls = (() => {
       rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
     }
   }
-  const tab = (value) => document.querySelector(`[data-aos-tabs-trigger][data-value="${esc(value)}"]`)
+  const brokenContractTabElement = (value) => document.querySelector(`[data-aos-tabs-trigger][data-value="${esc(value)}"]`)
   const field = (descriptorId) => document.querySelector(`.aos-form-field[data-descriptor-id="${esc(descriptorId)}"]`)
   const segmentedButton = (descriptorId, value) => field(descriptorId)?.querySelector(`.aos-segmented button[data-value="${esc(value)}"]`)
   const sliderControl = (descriptorId) => field(descriptorId)?.querySelector('[data-aos-slider-control]')
@@ -135,6 +135,14 @@ const AOSNativeControls = (() => {
   const controlRecord = (descriptorId) => {
     const controls = snapshot().contextMenu?.controls || []
     return controls.find((control) => control.descriptor_id === descriptorId || control.id === descriptorId) || null
+  }
+  const tabRecord = (value) => {
+    const textValue = String(value)
+    const controls = snapshot().contextMenu?.controls || []
+    return controls.find((control) => (
+      control.role === 'AXTab'
+      && (control.ref === `aos.tab:${textValue}` || String(control.value) === textValue || String(control.id) === textValue)
+    )) || null
   }
   const optionRecord = (record, value) => {
     const textValue = String(value)
@@ -175,12 +183,31 @@ const AOSNativeControls = (() => {
     })
     return { startNative, endNative }
   }
-  const selected = (button) => button?.getAttribute('aria-pressed') === 'true' || button?.classList.contains('active')
   const tabReady = (value) => {
-    const element = tab(value)
-    const point = pointFor(element)
-    if (!point) return { __pending: true, error: `missing or hidden tab ${value}` }
-    return { ok: true, role: 'AXTab', ref: `aos.tab:${value}`, value, point }
+    const record = tabRecord(value)
+    let point = rectPoint(record?.bounds)
+    let fallback = null
+    if (!point) {
+      const element = brokenContractTabElement(value)
+      point = pointFor(element)
+      if (point) fallback = 'broken-contract-dom-selector'
+    }
+    if (!point) return { __pending: true, error: `missing or hidden AOS tab record ${value}` }
+    return {
+      ok: true,
+      id: record?.id || String(value),
+      role: record?.role || 'AXTab',
+      ref: record?.ref || `aos.tab:${value}`,
+      name: record?.name || record?.label || String(value),
+      value: record?.value ?? value,
+      selected: record?.selected === true,
+      current: record?.current === true,
+      enabled: record?.enabled !== false,
+      actions: record?.actions || ['select'],
+      controlRecord: record,
+      fallback,
+      point
+    }
   }
   const clickTab = (hitCanvasId, value) => {
     const ready = tabReady(value)
