@@ -6,6 +6,7 @@ sandbox_mode = "danger-full-access"
 
 [features]
 hooks = true
+goals = true
 multi_agent = true
 js_repl = true
 guardian_approval = true
