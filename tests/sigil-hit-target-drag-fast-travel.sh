@@ -79,6 +79,27 @@ def wait_until(predicate, timeout=5.0, interval=0.05, label="condition"):
         time.sleep(interval)
     raise SystemExit(f"FAIL: timed out waiting for {label}; last={last!r}")
 
+def assert_record_payload(payload, kind, name, *, forbid_fallback=False):
+    if not isinstance(payload, dict):
+        raise SystemExit(f"FAIL: {kind} {name} returned non-object helper payload: {payload!r}")
+    record = payload.get("controlRecord")
+    if not isinstance(record, dict) or not record:
+        raise SystemExit(
+            f"FAIL: {kind} {name} did not use populated AOS controlRecord: "
+            f"{json.dumps(payload, sort_keys=True)}"
+        )
+    if forbid_fallback and payload.get("fallback") is not None:
+        raise SystemExit(
+            f"FAIL: {kind} {name} used fallback instead of AOS controlRecord: "
+            f"{json.dumps(payload, sort_keys=True)}"
+        )
+
+def assert_tab_record_payload(payload, tab):
+    assert_record_payload(payload, "tab", tab, forbid_fallback=True)
+
+def assert_control_record_payload(payload, descriptor):
+    assert_record_payload(payload, "control", descriptor)
+
 snapshot = show_eval_json(
     "JSON.stringify({ avatarPos: window.liveJs.avatarPos, displays: window.liveJs.displays, sigil: window.__sigilDebug.snapshot() })"
 )
@@ -317,10 +338,12 @@ menu_travel_tab = wait_until(
 )
 if menu_travel_tab.get("ok") is not True:
     raise SystemExit(f"FAIL: travel tab did not mount: {menu_travel_tab}")
+assert_tab_record_payload(menu_travel_tab, "travel ready")
 
 menu_tab_click = show_eval_json(ris.aos_native_click_tab_js(hit_id, "travel"))
 if menu_tab_click.get("ok") is not True:
     raise SystemExit(f"FAIL: travel tab click failed: {menu_tab_click}")
+assert_tab_record_payload(menu_tab_click, "travel click")
 
 menu_effect_ready = wait_until(
     lambda: show_eval_json(ris.aos_native_segmented_ready_js("sigil-menu-fast-travel-effect", "wormhole")),
@@ -329,8 +352,10 @@ menu_effect_ready = wait_until(
 )
 if menu_effect_ready.get("ok") is not True:
     raise SystemExit(f"FAIL: wormhole fast-travel segmented control did not mount: {menu_effect_ready}")
+assert_control_record_payload(menu_effect_ready, "sigil-menu-fast-travel-effect ready")
 
 menu_effect = show_eval_json(ris.aos_native_click_segmented_js(hit_id, "sigil-menu-fast-travel-effect", "wormhole"))
+assert_control_record_payload(menu_effect, "sigil-menu-fast-travel-effect click")
 menu_effect_state = show_eval_json(
     """(() => {
       const menuOpen = window.liveJs.contextMenu?.open === true
@@ -515,10 +540,12 @@ if extended_display:
     )
     if ext_travel_tab.get("ok") is not True:
         raise SystemExit(f"FAIL: extended display travel tab did not mount: {ext_travel_tab}")
+    assert_tab_record_payload(ext_travel_tab, "extended display travel ready")
 
     ext_tab_click = show_eval_json(ris.aos_native_click_tab_js(hit_id, "travel"))
     if ext_tab_click.get("ok") is not True:
         raise SystemExit(f"FAIL: extended display travel tab click failed: {ext_tab_click}")
+    assert_tab_record_payload(ext_tab_click, "extended display travel click")
 
     ext_duration_ready = wait_until(
         lambda: show_eval_json(ris.aos_native_slider_ready_js("sigil-menu-line-duration")),
@@ -537,11 +564,17 @@ if extended_display:
     )
     if ext_duration_ready.get("ok") is not True or ext_trail_ready.get("ok") is not True or ext_wormhole_ready.get("ok") is not True:
         raise SystemExit(f"FAIL: extended display compact context-menu controls did not mount: duration={ext_duration_ready} trail={ext_trail_ready} wormhole={ext_wormhole_ready}")
+    assert_control_record_payload(ext_duration_ready, "extended display sigil-menu-line-duration ready")
+    assert_control_record_payload(ext_trail_ready, "extended display sigil-menu-line-trail-mode ready")
+    assert_control_record_payload(ext_wormhole_ready, "extended display sigil-menu-fast-travel-effect ready")
 
     ext_before = show_eval_json("JSON.stringify({ duration: window.state.fastTravelLineDuration, trailMode: window.state.fastTravelLineTrailMode })")
     ext_duration_drag = show_eval_json(ris.aos_native_drag_slider_js(hit_id, "sigil-menu-line-duration", 0.15, 0.85))
     ext_trail_click = show_eval_json(ris.aos_native_click_segmented_js(hit_id, "sigil-menu-line-trail-mode", "shrink"))
     ext_wormhole_click = show_eval_json(ris.aos_native_click_segmented_js(hit_id, "sigil-menu-fast-travel-effect", "wormhole"))
+    assert_control_record_payload(ext_duration_drag, "extended display sigil-menu-line-duration drag")
+    assert_control_record_payload(ext_trail_click, "extended display sigil-menu-line-trail-mode click")
+    assert_control_record_payload(ext_wormhole_click, "extended display sigil-menu-fast-travel-effect click")
     ext_menu_control = show_eval_json(
         """(() => {
           return JSON.stringify({
