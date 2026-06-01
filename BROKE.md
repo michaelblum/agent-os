@@ -1,6 +1,7 @@
 # Breaking Changes from Visual Object Descriptor Refactor (PR #392)
 
 Inventory taken on 2026-06-01 from `main` at `/Users/Michael/Code/agent-os`.
+Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39425`.
 
 ## Current Test Inventory
 
@@ -12,37 +13,63 @@ Inventory taken on 2026-06-01 from `main` at `/Users/Michael/Code/agent-os`.
 - `node --test tests/schemas/*.test.mjs` - 125/125 pass.
 - `cd packages/gateway && npm test` - 99/99 pass.
 - `cd packages/host && npm test` - 63/63 pass.
+- `node --test tests/daemon/*.test.mjs` - 40/40 pass after PR #394.
 
-### Previously Failing
+### Current Failures
+
+- `node --test tests/*.test.mjs` - 141/148 pass, 7 fail after PR #394.
+- `node --test tests/afk-session-trigger-prototype.test.mjs` - 55/61 pass, 6 fail when rerun directly.
+- `node --test tests/sigil-agent-terminal-server.test.mjs` - 18/19 pass, 1 fail when rerun directly.
+
+### Resolved Renderer Inventory
 
 - `node --test tests/renderer/*.test.mjs` - 449/455 pass, 6 fail before `gdi/pr392-renderer-breakage-correction-v0`.
-- `node --test tests/daemon/*.test.mjs` - 39/40 pass, 1 fail during concurrent broad-suite inventory.
-
-### Resolution Evidence
-
 - `gdi/pr392-renderer-breakage-correction-v0` at `c61ea4c02472283193bb44eb4d3854aa47dba343` fixes the renderer inventory.
 - `node --test tests/renderer/interaction-overlay-lineage-layer.test.mjs` - 1/1 pass.
 - `node --test tests/renderer/radial-gesture-menu.test.mjs` - 18/18 pass.
 - `node --test tests/renderer/sigil-selection-mode-runtime.test.mjs` - 37/37 pass.
 - `node --test tests/renderer/sigil-ux-tree-readiness.test.mjs` - 7/7 pass.
 - `node --test tests/renderer/*.test.mjs` - 455/455 pass.
-- `node --test tests/daemon/gate-continuations.test.mjs` - 14/14 pass when rerun serially; classify the earlier daemon failure as load-sensitive timing noise unless it reproduces outside concurrent inventory.
+
+### Daemon Timing Inventory
+
+- `node --test tests/daemon/*.test.mjs` previously reported 39/40 pass, 1 fail during concurrent broad-suite inventory.
+- `node --test tests/daemon/gate-continuations.test.mjs` - 14/14 pass when rerun serially during renderer correction.
+- `node --test tests/daemon/*.test.mjs` - 40/40 pass after PR #394; the earlier daemon timing failure remains classified as load-sensitive timing noise because it did not reproduce serially or in the refreshed daemon suite.
 
 ## Known Breakages
 
-### High Priority
+### High Priority - AFK Live Launch Fixture Path
+
+- [ ] `tests/afk-session-trigger-prototype.test.mjs` has six deterministic failures in fixture-backed live launch paths. First assertion/error for five failures is `Expected values to be strictly equal: 1 !== 0`; the cleanup-path failure is `Expected values to be strictly equal: false !== true`.
+  - `runs one-item AFK work queue live launch through guarded single-packet fixtures`
+  - `one-item AFK work queue live launch reuses accepted receipt without relaunch`
+  - `one-item AFK work queue live launch reports cleanup failure from guarded path`
+  - `runs fixture-backed sleep-lease live launch with pre-launch and final out receipts`
+  - `runs fixture-backed AFK live launch with primary AFK flag spellings`
+  - `runs fixture-backed sleep-lease live launch with matching local artifact route`
+
+### Medium Priority - Agent Terminal Launcher Contract
+
+- [ ] `tests/sigil-agent-terminal-server.test.mjs` fails `Sigil Agent Terminal bridge > passes stable repo root to bridge server startup paths`. First assertion/error: wrapper content did not match `/\"AGENT_TERMINAL_REPO_ROOT=\" \\+ shlex\\.quote\\(repo_root\\)/`; the current compatibility wrapper exports `AGENT_COMMAND`/`RESTART`, computes `REPO_ROOT`, and execs `"$REPO_ROOT/aos" launch sigil agent-terminal "${ARGS[@]}"` without the expected `AGENT_TERMINAL_REPO_ROOT` startup environment evidence.
+
+### Resolved High Priority
 
 - [x] `tests/renderer/interaction-overlay-lineage-layer.test.mjs` crashed while importing Sigil renderer modules because `apps/sigil/renderer/live-modules/radial-gesture-visuals.js` evaluated `new THREE.Color('#ffffff')` at module scope while `THREE` was not defined in the deterministic test environment.
 
-### Medium Priority
+### Resolved Medium Priority
 
 - [x] `tests/renderer/radial-gesture-menu.test.mjs` had three radial/fast-travel boundary assertion failures: hover outside handoff radius reported `enteredFastTravel: true` where tests expect radial state to remain active.
 - [x] `tests/renderer/sigil-selection-mode-runtime.test.mjs` failed `Selection Mode lineage bar pins to the active display visible bounds`; the right edge was no longer clamped within the expected visible display bound.
 - [x] `tests/renderer/sigil-ux-tree-readiness.test.mjs` failed the positive readiness audit with `audit.ok === false`.
 
-### Low Priority / Possibly Environmental
+### Resolved Low Priority / Possibly Environmental
 
 - [x] `tests/daemon/gate-continuations.test.mjs` failed the "defer returns immediately" timing assertion during concurrent inventory: `Date.now() - started < 1000`. Observed duration was about 1045 ms while broader suites were running concurrently. Serial rerun passes in about 432 ms for the timed subtest.
+
+## Next Inventory Candidate
+
+The next smallest correction slice should target `tests/afk-session-trigger-prototype.test.mjs` fixture-backed live launch behavior first. It accounts for 6 of the 7 current top-level failures and reproduces in a direct file rerun.
 
 ## Migration Pattern
 
