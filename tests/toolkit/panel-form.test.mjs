@@ -267,25 +267,27 @@ test('getControlRecords exposes normalized AOS control targets for agent operati
   const mode = records.find((record) => record.descriptor_id === 'avatar-mode');
   const opacity = form.getControlRecord('opacity');
 
-  assert.equal(mode.ref, 'aos.control:avatar-mode');
-  assert.equal(mode.role, 'AXRadioGroup');
+  assert.equal(mode.ref, 'toolkit.panel.form:avatar-mode');
+  assert.equal(mode.aosRef, 'toolkit.panel.form:avatar-mode');
+  assert.equal(mode.role, 'radiogroup');
   assert.equal(mode.name, 'Mode');
   assert.equal(mode.value, 'alpha');
   assert.deepEqual(mode.actions, ['select']);
-  assert.deepEqual(mode.options.map(({ value, label, selected, bounds }) => ({
+  assert.deepEqual(mode.options.map(({ value, label, selected, frame }) => ({
     value,
     label,
     selected,
-    bounds,
+    frame,
   })), [
-    { value: 'alpha', label: 'Alpha', selected: true, bounds: { left: 10, top: 20, width: 50, height: 24 } },
-    { value: 'omega', label: 'Omega', selected: false, bounds: { left: 64, top: 20, width: 60, height: 24 } },
+    { value: 'alpha', label: 'Alpha', selected: true, frame: { x: 10, y: 20, width: 50, height: 24 } },
+    { value: 'omega', label: 'Omega', selected: false, frame: { x: 64, y: 20, width: 60, height: 24 } },
   ]);
-  assert.equal(opacity.ref, 'aos.control:avatar-opacity');
-  assert.equal(opacity.role, 'AXSlider');
+  assert.equal(opacity.ref, 'toolkit.panel.form:avatar-opacity');
+  assert.equal(opacity.aosRef, 'toolkit.panel.form:avatar-opacity');
+  assert.equal(opacity.role, 'slider');
   assert.equal(opacity.name, 'Opacity');
   assert.equal(opacity.value, 0.55);
-  assert.deepEqual(opacity.bounds, { left: 10, top: 72, width: 160, height: 28 });
+  assert.deepEqual(opacity.frame, { x: 10, y: 72, width: 160, height: 28 });
   assert.deepEqual(opacity.actions, ['drag', 'set-value']);
 });
 

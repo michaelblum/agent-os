@@ -90,6 +90,12 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
   })
 })
 
+test('normalizeSemanticTarget maps form control AX aliases to canonical web roles', () => {
+  assert.equal(normalizeSemanticTarget({ id: 'mode', role: 'AXRadioGroup' }).role, 'radiogroup')
+  assert.equal(normalizeSemanticTarget({ id: 'toggles', role: 'AXCheckBoxGroup' }).role, 'group')
+  assert.equal(normalizeSemanticTarget({ id: 'shape', role: 'AXPopUpButton' }).role, 'combobox')
+})
+
 test('normalizeSemanticTargets rejects targets without stable ids', () => {
   assert.throws(
     () => normalizeSemanticTargets([{ label: '' }]),

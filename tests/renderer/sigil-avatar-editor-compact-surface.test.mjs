@@ -238,15 +238,16 @@ test('compact avatar control surface exposes descriptor-addressed AOS control re
   const record = surface.getControlRecordByDescriptorId('sigil-menu-opacity');
   const records = surface.getControlRecords();
 
-  assert.equal(record.ref, 'aos.control:sigil-menu-opacity');
-  assert.equal(record.role, 'AXSlider');
+  assert.equal(record.ref, 'sigil.avatar.compact_control_surface:sigil-menu-opacity');
+  assert.equal(record.aosRef, 'sigil.avatar.compact_control_surface:sigil-menu-opacity');
+  assert.equal(record.role, 'slider');
   assert.equal(record.name, 'Face Opacity');
   assert.equal(record.value, 0.8);
   assert.equal(record.surface, 'sigil.avatar.compact_control_surface');
-  assert.deepEqual(record.bounds, { left: 24, top: 84, width: 180, height: 28 });
+  assert.deepEqual(record.frame, { x: 24, y: 84, width: 180, height: 28 });
   assert.ok(records.some((item) => (
     item.descriptor_id === 'sigil-menu-fast-travel-effect'
-    && item.role === 'AXRadioGroup'
+    && item.role === 'radiogroup'
     && item.options.some((option) => option.value === 'wormhole')
   )));
 });
@@ -261,18 +262,18 @@ test('compact avatar control surface exposes AOS-native tab control records', ()
   setRect(alphaTrigger, { left: 12, top: 20, width: 56, height: 24 });
   setRect(omegaTrigger, { left: 132, top: 20, width: 72, height: 24 });
 
-  let alphaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:alpha');
-  let omegaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:omega');
+  let alphaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:alpha');
+  let omegaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:omega');
 
   assert.equal(alphaRecord.id, 'alpha');
   assert.equal(alphaRecord.value, 'alpha');
-  assert.equal(alphaRecord.role, 'AXTab');
+  assert.equal(alphaRecord.role, 'tab');
   assert.equal(alphaRecord.name, 'Alpha');
   assert.equal(alphaRecord.label, 'Alpha');
   assert.equal(alphaRecord.selected, true);
   assert.equal(alphaRecord.current, true);
   assert.equal(alphaRecord.enabled, true);
-  assert.deepEqual(alphaRecord.bounds, { left: 12, top: 20, width: 56, height: 24 });
+  assert.deepEqual(alphaRecord.frame, { x: 12, y: 20, width: 56, height: 24 });
   assert.deepEqual(alphaRecord.actions, ['select']);
   assert.equal(alphaRecord.surface, 'sigil.avatar.compact_control_surface');
 
@@ -280,8 +281,8 @@ test('compact avatar control surface exposes AOS-native tab control records', ()
   assert.equal(omegaRecord.current, false);
 
   surface.setActiveTab('omega');
-  alphaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:alpha');
-  omegaRecord = surface.getControlRecords().find((record) => record.ref === 'aos.tab:omega');
+  alphaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:alpha');
+  omegaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:omega');
 
   assert.equal(alphaRecord.selected, false);
   assert.equal(alphaRecord.current, false);

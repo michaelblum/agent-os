@@ -9,11 +9,14 @@ const AX_ROLE_ALIASES = {
   AXMenu: 'menu',
   AXMenuItem: 'menuitem',
   AXCheckBox: 'checkbox',
+  AXCheckBoxGroup: 'group',
   AXRadioButton: 'radio',
+  AXRadioGroup: 'radiogroup',
   AXSlider: 'slider',
   AXTextField: 'textbox',
   AXTextArea: 'textbox',
   AXSearchField: 'searchbox',
+  AXPopUpButton: 'combobox',
   AXGroup: 'group',
   AXStaticText: 'text',
   AXImage: 'img',
@@ -73,6 +76,10 @@ function normalizeFrame(frame = null, fallback = null) {
   if (Array.isArray(source) && source.length >= 4) {
     const [x, y, w, h] = source
     return normalizeFrameObject({ x, y, width: w, height: h })
+  }
+  if (typeof source.getBoundingClientRect === 'function') {
+    const rect = source.getBoundingClientRect()
+    return normalizeFrameObject(rect)
   }
   if (typeof source === 'object') return normalizeFrameObject(source)
   return null

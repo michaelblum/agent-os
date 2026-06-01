@@ -98,7 +98,7 @@ def assert_tab_record_payload(payload, tab):
     assert_record_payload(payload, "tab", tab, forbid_fallback=True)
 
 def assert_control_record_payload(payload, descriptor):
-    assert_record_payload(payload, "control", descriptor)
+    assert_record_payload(payload, "control", descriptor, forbid_fallback=True)
 
 snapshot = show_eval_json(
     "JSON.stringify({ avatarPos: window.liveJs.avatarPos, displays: window.liveJs.displays, sigil: window.__sigilDebug.snapshot() })"

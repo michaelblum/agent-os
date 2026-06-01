@@ -10,11 +10,15 @@ const { createButton } = await import(toolkitSpecifier('controls/button.js', {
 const { createForm } = await import(toolkitSpecifier('panel/form.js', {
   local: '../../../packages/toolkit/panel/form.js',
 }));
+const { normalizeSemanticTarget } = await import(toolkitSpecifier('runtime/semantic-targets.js', {
+  local: '../../../packages/toolkit/runtime/semantic-targets.js',
+}));
 const { bindVisualObjectForm } = await import(toolkitSpecifier('workbench/visual-object-form-binding.js', {
   local: '../../../packages/toolkit/workbench/visual-object-form-binding.js',
 }));
 
 const COMPACT_SURFACE_VIEW_MODEL_TYPE = 'sigil.avatar.compact_control_surface.view_model';
+const COMPACT_SURFACE_ID = 'sigil.avatar.compact_control_surface';
 
 function isCompactSurfaceViewModel(value = {}) {
   return value?.type === COMPACT_SURFACE_VIEW_MODEL_TYPE;
@@ -190,6 +194,7 @@ function createProjectionTools({
     toolsEl.appendChild(formEl);
     const form = createForm(formEl, projectionFormFields(formControls), {
       document: doc,
+      surface: COMPACT_SURFACE_ID,
       onChange(values) {
         const payload = {
           values,
@@ -231,6 +236,7 @@ function createSection({
 
   const form = createForm(sectionEl, sectionFormFields(section), {
     document: doc,
+    surface: COMPACT_SURFACE_ID,
     onChange(values) {
       const payload = {
         tab,
@@ -261,22 +267,6 @@ function createSection({
 
 function activeTabFromTabsAdapter(tabsAdapter) {
   return tabsAdapter.connect().value;
-}
-
-function rectForElement(element) {
-  if (typeof element?.getBoundingClientRect !== 'function') return null;
-  const rect = element.getBoundingClientRect();
-  const left = Number(rect.left);
-  const top = Number(rect.top);
-  const width = Number(rect.width);
-  const height = Number(rect.height);
-  if (![left, top, width, height].every(Number.isFinite)) return null;
-  return {
-    left,
-    top,
-    width,
-    height,
-  };
 }
 
 export function createSigilAvatarCompactControlSurface(container, input = {}, options = {}) {
@@ -453,24 +443,27 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         const selected = triggerEl?.getAttribute?.('aria-selected') === 'true'
           || activeTabFromTabsAdapter(tabsAdapter) === tabKey;
         records.push({
+          ...normalizeSemanticTarget({
+            id: tabKey,
+            role: 'AXTab',
+            name: text(tab.label, tabKey),
+            value: tabKey,
+            selected,
+            current: selected,
+            enabled: !triggerEl?.disabled,
+            frame: triggerEl,
+            surface: COMPACT_SURFACE_ID,
+            metadata: {
+              value: tabKey,
+              ...(triggerEl?.dataset ? { ...triggerEl.dataset } : {}),
+            },
+          }),
           id: tabKey,
-          ref: `aos.tab:${tabKey}`,
-          role: 'AXTab',
-          name: text(tab.label, tabKey),
+          ref: `${COMPACT_SURFACE_ID}:${tabKey}`,
           label: text(tab.label, tabKey),
           kind: 'tab',
-          value: tabKey,
-          selected,
-          current: selected,
-          enabled: !triggerEl?.disabled,
           hidden: !!triggerEl?.hidden,
-          bounds: rectForElement(triggerEl),
           actions: triggerEl?.hidden ? [] : ['select'],
-          surface: 'sigil.avatar.compact_control_surface',
-          metadata: {
-            value: tabKey,
-            ...(triggerEl?.dataset ? { ...triggerEl.dataset } : {}),
-          },
         });
       }
       for (const { tab, section, form } of forms.values()) {
@@ -478,7 +471,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
           ...record,
           tab: { key: tab.key, label: tab.label },
           section: { key: section.key, label: section.label },
-          surface: 'sigil.avatar.compact_control_surface',
+          surface: COMPACT_SURFACE_ID,
         })));
       }
       for (const [key, form] of projectionForms) {
@@ -486,7 +479,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
           ...record,
           projection: true,
           section: { key, label: 'Surface Shortcuts' },
-          surface: 'sigil.avatar.compact_control_surface',
+          surface: COMPACT_SURFACE_ID,
         })));
       }
       return records;
@@ -496,7 +489,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         const record = form.getControlRecords().find((item) => item.descriptor_id === descriptorId);
         if (record) return {
           ...record,
-          surface: 'sigil.avatar.compact_control_surface',
+          surface: COMPACT_SURFACE_ID,
         };
       }
       for (const form of projectionForms.values()) {
@@ -504,7 +497,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         if (record) return {
           ...record,
           projection: true,
-          surface: 'sigil.avatar.compact_control_surface',
+          surface: COMPACT_SURFACE_ID,
         };
       }
       return null;

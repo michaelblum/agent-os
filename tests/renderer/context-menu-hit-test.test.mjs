@@ -380,15 +380,19 @@ test('live context menu snapshot includes compact surface tab control records', 
       height: 24,
     })
 
-    const omegaRecord = menu.snapshot().controls.find((record) => record.ref === 'aos.tab:omega')
+    const omegaRecord = menu.snapshot().controls.find((record) => (
+      record.ref === 'sigil.avatar.compact_control_surface:omega'
+    ))
 
-    assert.equal(omegaRecord.role, 'AXTab')
+    assert.equal(omegaRecord.role, 'tab')
     assert.equal(omegaRecord.id, 'omega')
     assert.equal(omegaRecord.value, 'omega')
     assert.equal(omegaRecord.name, 'Omega')
     assert.equal(omegaRecord.selected, false)
-    assert.deepEqual(omegaRecord.bounds, { left: 132, top: 20, width: 72, height: 24 })
-    assert.ok(liveJs.contextMenu.controls.some((record) => record.ref === 'aos.tab:alpha'))
+    assert.deepEqual(omegaRecord.frame, { x: 132, y: 20, width: 72, height: 24 })
+    assert.ok(liveJs.contextMenu.controls.some((record) => (
+      record.ref === 'sigil.avatar.compact_control_surface:alpha'
+    )))
   } finally {
     globalThis.document = previousDocument
     globalThis.window = previousWindow

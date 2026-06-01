@@ -8,6 +8,7 @@ import { createTextarea } from '../controls/textarea.js';
 import { createToggle } from '../controls/toggle.js';
 import { dispatchDomEvent } from '../controls/_events.js';
 import { wireNumberFieldControls } from '../controls/number-field.js';
+import { normalizeSemanticTarget } from '../runtime/semantic-targets.js';
 
 function createHub() {
   const listeners = new Map();
@@ -199,26 +200,26 @@ function text(value, fallback = '') {
   return normalized || fallback;
 }
 
-function roleForField(field = {}) {
+function semanticRoleForField(field = {}) {
   switch (field.kind) {
     case 'exclusive_choice':
     case 'radio_group':
-      return 'AXRadioGroup';
+      return 'radiogroup';
     case 'multi_choice':
-      return 'AXCheckBoxGroup';
+      return 'group';
     case 'boolean':
     case 'checkbox':
-      return 'AXCheckBox';
+      return 'checkbox';
     case 'slider':
-      return 'AXSlider';
+      return 'slider';
     case 'select':
-      return 'AXPopUpButton';
+      return 'combobox';
     case 'textarea':
-      return 'AXTextArea';
+      return 'textbox';
     case 'number':
     case 'text':
     default:
-      return 'AXTextField';
+      return 'textbox';
   }
 }
 
@@ -243,7 +244,7 @@ function controlOptions(field = {}, control = null) {
           || element?.getAttribute?.('aria-pressed') === 'true'
           || element?.classList?.contains?.('selected') === true
           || element?.classList?.contains?.('active') === true,
-        bounds: rectForElement(element),
+        frame: rectForElement(element),
       };
     });
   }
@@ -258,7 +259,7 @@ function controlOptions(field = {}, control = null) {
         || element?.getAttribute?.('aria-selected') === 'true'
         || element?.classList?.contains?.('active') === true
         || element?.classList?.contains?.('selected') === true,
-      bounds: rectForElement(element),
+      frame: rectForElement(element),
     };
   });
 }
@@ -272,10 +273,10 @@ function rectForElement(element) {
   const height = Number(rect.height);
   if (![left, top, width, height].every(Number.isFinite)) return null;
   return {
-    left,
-    top,
-    width,
-    height,
+    x: Math.round(left),
+    y: Math.round(top),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
   };
 }
 
@@ -306,25 +307,30 @@ function controlActionsForRecord(record = {}) {
   return actions;
 }
 
-function controlRecordFor(record = {}) {
+function controlRecordFor(record = {}, options = {}) {
   const field = record.field || {};
   const descriptorId = field.descriptor_id ?? field.binding?.descriptor_id ?? field.id;
   const target = interactionTargetForRecord(record);
   const value = record.control?.getValue?.();
+  const normalized = normalizeSemanticTarget({
+    id: descriptorId,
+    role: field.role || semanticRoleForField(field),
+    name: field.label ?? field.control_label ?? field.id,
+    value,
+    enabled: !record.hidden && !target?.disabled,
+    frame: rectForElement(target),
+    surface: field.surface || options.surface || 'toolkit.panel.form',
+    metadata: { ...record.el.dataset },
+  });
   return {
+    ...normalized,
     id: field.id,
     descriptor_id: descriptorId,
-    ref: `aos.control:${descriptorId}`,
-    role: roleForField(field),
-    name: text(field.label ?? field.control_label, field.id),
+    ref: normalized.aosRef,
     kind: field.kind || 'text',
-    value,
     options: controlOptions(field, record.control),
-    enabled: !record.hidden && !target?.disabled,
     hidden: !!record.hidden,
-    bounds: rectForElement(target),
     actions: controlActionsForRecord(record),
-    metadata: { ...record.el.dataset },
   };
 }
 
@@ -519,10 +525,10 @@ export function createForm(container, fields = [], options = {}) {
     },
     getControlRecord(id) {
       const record = records.get(id);
-      return record ? controlRecordFor(record) : null;
+      return record ? controlRecordFor(record, options) : null;
     },
     getControlRecords() {
-      return Array.from(records.values(), (record) => controlRecordFor(record));
+      return Array.from(records.values(), (record) => controlRecordFor(record, options));
     },
     focus() {
       for (const record of records.values()) {

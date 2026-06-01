@@ -125,11 +125,14 @@ const AOSNativeControls = (() => {
   const sliderControl = (descriptorId) => field(descriptorId)?.querySelector('[data-aos-slider-control]')
   const rectPoint = (rect, ratio = 0.5) => {
     if (!rect || rect.width <= 0 || rect.height <= 0) return null
+    const left = Number.isFinite(Number(rect.x)) ? Number(rect.x) : Number(rect.left)
+    const top = Number.isFinite(Number(rect.y)) ? Number(rect.y) : Number(rect.top)
+    if (!Number.isFinite(left) || !Number.isFinite(top)) return null
     const dw = desktopWorldBounds()
     return {
-      x: dw[0] + rect.left + rect.width * ratio,
-      y: dw[1] + rect.top + rect.height / 2,
-      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+      x: dw[0] + left + rect.width * ratio,
+      y: dw[1] + top + rect.height / 2,
+      rect: { x: left, y: top, width: rect.width, height: rect.height }
     }
   }
   const controlRecord = (descriptorId) => {
@@ -140,13 +143,23 @@ const AOSNativeControls = (() => {
     const textValue = String(value)
     const controls = snapshot().contextMenu?.controls || []
     return controls.find((control) => (
-      control.role === 'AXTab'
-      && (control.ref === `aos.tab:${textValue}` || String(control.value) === textValue || String(control.id) === textValue)
+      control.role === 'tab'
+      && (String(control.value) === textValue || String(control.id) === textValue)
     )) || null
   }
   const optionRecord = (record, value) => {
     const textValue = String(value)
     return (record?.options || []).find((option) => String(option.value) === textValue) || null
+  }
+  const recordFrame = (record) => record?.frame || record?.bounds || null
+  const recordPointOrFallback = ({ record, fallbackElement, ratio = 0.5 }) => {
+    const recordPoint = rectPoint(recordFrame(record), ratio)
+    if (recordPoint) return { point: recordPoint, fallback: null }
+    const fallbackPoint = pointFor(fallbackElement?.(), ratio)
+    return {
+      point: fallbackPoint,
+      fallback: fallbackPoint ? 'broken-contract-dom-selector' : null
+    }
   }
   const clickPoint = (hitCanvasId, point) => {
     if (!point) return null
@@ -185,19 +198,16 @@ const AOSNativeControls = (() => {
   }
   const tabReady = (value) => {
     const record = tabRecord(value)
-    let point = rectPoint(record?.bounds)
-    let fallback = null
-    if (!point) {
-      const element = brokenContractTabElement(value)
-      point = pointFor(element)
-      if (point) fallback = 'broken-contract-dom-selector'
-    }
+    const { point, fallback } = recordPointOrFallback({
+      record,
+      fallbackElement: () => brokenContractTabElement(value)
+    })
     if (!point) return { __pending: true, error: `missing or hidden AOS tab record ${value}` }
     return {
       ok: true,
       id: record?.id || String(value),
-      role: record?.role || 'AXTab',
-      ref: record?.ref || `aos.tab:${value}`,
+      role: record?.role || 'tab',
+      ref: record?.ref || `sigil.avatar.compact_control_surface:${value}`,
       name: record?.name || record?.label || String(value),
       value: record?.value ?? value,
       selected: record?.selected === true,
@@ -215,25 +225,26 @@ const AOSNativeControls = (() => {
     return { ...ready, nativePoint: clickPoint(hitCanvasId, ready.point) }
   }
   const segmentedReady = (descriptorId, value) => {
+    const container = field(descriptorId)
+    if (container) container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
     const record = controlRecord(descriptorId)
     const option = optionRecord(record, value)
-    let point = rectPoint(option?.bounds)
-    if (!point) {
-      const container = field(descriptorId)
-      if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
-      container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
-      point = pointFor(segmentedButton(descriptorId, value))
-    }
+    if (!rectPoint(recordFrame(option)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
+    const { point, fallback } = recordPointOrFallback({
+      record: option,
+      fallbackElement: () => segmentedButton(descriptorId, value)
+    })
     if (!point) return { __pending: true, error: `missing or hidden option ${descriptorId}:${value}` }
     return {
       ok: true,
       id: descriptorId,
-      ref: record?.ref || `aos.control:${descriptorId}`,
-      role: record?.role || 'AXRadioGroup',
+      ref: record?.ref || `sigil.avatar.compact_control_surface:${descriptorId}`,
+      role: record?.role || 'radiogroup',
       name: record?.name || descriptorId,
       value,
       selected: option?.selected === true,
       controlRecord: record,
+      fallback,
       point
     }
   }
@@ -245,36 +256,43 @@ const AOSNativeControls = (() => {
     return { ...ready, nativePoint, selected: updated?.selected === true }
   }
   const sliderReady = (descriptorId) => {
+    const container = field(descriptorId)
+    if (container) container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
     const record = controlRecord(descriptorId)
-    let point = rectPoint(record?.bounds)
-    if (!point) {
-      const container = field(descriptorId)
-      if (!container) return { __pending: true, error: `missing control ${descriptorId}` }
-      container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
-      point = pointFor(sliderControl(descriptorId))
-    }
+    if (!rectPoint(recordFrame(record)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
+    const { point, fallback } = recordPointOrFallback({
+      record,
+      fallbackElement: () => sliderControl(descriptorId)
+    })
     if (!point) return { __pending: true, error: `missing or hidden slider ${descriptorId}` }
     return {
       ok: true,
       id: descriptorId,
-      ref: record?.ref || `aos.control:${descriptorId}`,
-      role: record?.role || 'AXSlider',
+      ref: record?.ref || `sigil.avatar.compact_control_surface:${descriptorId}`,
+      role: record?.role || 'slider',
       name: record?.name || descriptorId,
       value: record?.value,
       actions: record?.actions || [],
       controlRecord: record,
+      fallback,
       point
     }
   }
   const dragSlider = (hitCanvasId, descriptorId, startRatio = 0.15, endRatio = 0.85) => {
     const ready = sliderReady(descriptorId)
     if (!ready.ok) return ready
-    const bounds = ready.controlRecord?.bounds
-    const control = bounds ? null : sliderControl(descriptorId)
-    const start = bounds ? rectPoint(bounds, startRatio) : pointFor(control, startRatio)
-    const end = bounds ? rectPoint(bounds, endRatio) : pointFor(control, endRatio)
+    const frame = recordFrame(ready.controlRecord)
+    const control = frame ? null : sliderControl(descriptorId)
+    const start = frame ? rectPoint(frame, startRatio) : pointFor(control, startRatio)
+    const end = frame ? rectPoint(frame, endRatio) : pointFor(control, endRatio)
     if (!start || !end) return { __pending: true, error: `missing slider drag points ${descriptorId}` }
-    return { ...ready, start, end, ...dragPoints(hitCanvasId, start, end) }
+    return {
+      ...ready,
+      fallback: ready.fallback || (frame ? null : 'broken-contract-dom-selector'),
+      start,
+      end,
+      ...dragPoints(hitCanvasId, start, end)
+    }
   }
   return { tabReady, clickTab, segmentedReady, clickSegmented, sliderReady, dragSlider }
 })()
