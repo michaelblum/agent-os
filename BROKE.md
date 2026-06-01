@@ -17,9 +17,13 @@ Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39
 
 ### Current Failures
 
-- `node --test tests/*.test.mjs` - 141/148 pass, 7 fail after PR #394.
-- `node --test tests/afk-session-trigger-prototype.test.mjs` - 55/61 pass, 6 fail when rerun directly.
+- `node --test tests/*.test.mjs` - 147/148 pass, 1 fail after PR #394 when rerun from a clean temporary worktree.
 - `node --test tests/sigil-agent-terminal-server.test.mjs` - 18/19 pass, 1 fail when rerun directly.
+
+### Local Dirty-State Artifacts
+
+- `node --test tests/*.test.mjs` reported 141/148 pass, 7 fail when run from Foreman's dirty local checkout with `.codex/config.toml` modified.
+- `node --test tests/afk-session-trigger-prototype.test.mjs` reported 55/61 pass, 6 fail in that dirty checkout. A clean temporary worktree at `70d7e940` reran the AFK file as 61/61 pass, so those six AFK live-launch failures are classified as local dirty-state artifacts, not current code breakage.
 
 ### Resolved Renderer Inventory
 
@@ -39,17 +43,7 @@ Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39
 
 ## Known Breakages
 
-### High Priority - AFK Live Launch Fixture Path
-
-- [ ] `tests/afk-session-trigger-prototype.test.mjs` has six deterministic failures in fixture-backed live launch paths. First assertion/error for five failures is `Expected values to be strictly equal: 1 !== 0`; the cleanup-path failure is `Expected values to be strictly equal: false !== true`.
-  - `runs one-item AFK work queue live launch through guarded single-packet fixtures`
-  - `one-item AFK work queue live launch reuses accepted receipt without relaunch`
-  - `one-item AFK work queue live launch reports cleanup failure from guarded path`
-  - `runs fixture-backed sleep-lease live launch with pre-launch and final out receipts`
-  - `runs fixture-backed AFK live launch with primary AFK flag spellings`
-  - `runs fixture-backed sleep-lease live launch with matching local artifact route`
-
-### Medium Priority - Agent Terminal Launcher Contract
+### High Priority - Agent Terminal Launcher Contract
 
 - [ ] `tests/sigil-agent-terminal-server.test.mjs` fails `Sigil Agent Terminal bridge > passes stable repo root to bridge server startup paths`. First assertion/error: wrapper content did not match `/\"AGENT_TERMINAL_REPO_ROOT=\" \\+ shlex\\.quote\\(repo_root\\)/`; the current compatibility wrapper exports `AGENT_COMMAND`/`RESTART`, computes `REPO_ROOT`, and execs `"$REPO_ROOT/aos" launch sigil agent-terminal "${ARGS[@]}"` without the expected `AGENT_TERMINAL_REPO_ROOT` startup environment evidence.
 
@@ -69,7 +63,7 @@ Refreshed after PR #394 from `main` merge `7c93b35ca4eb7c4c69f6439b7d4b6eb490b39
 
 ## Next Inventory Candidate
 
-The next smallest correction slice should target `tests/afk-session-trigger-prototype.test.mjs` fixture-backed live launch behavior first. It accounts for 6 of the 7 current top-level failures and reproduces in a direct file rerun.
+The next smallest correction slice should target `tests/sigil-agent-terminal-server.test.mjs`, specifically the stable repo-root wrapper startup contract.
 
 ## Migration Pattern
 
