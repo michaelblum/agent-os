@@ -1,6 +1,30 @@
 # Work Card: Sigil Avatar Object Graph Adapter V0
 
-## Goal
+## Routing Status
+
+Historical / do not route as-is.
+
+This card predates the accepted avatar object-control implementation now present
+in `apps/sigil/renderer/live-modules/avatar-object-control.js` with focused
+coverage in `tests/renderer/avatar-object-control.test.mjs`. It also predates
+the accepted `21dc331d` Sigil avatar controls panel, which currently uses a
+temporary private `sigil.avatar_panel.*` message protocol.
+
+Current sequence:
+
+1. Finish and accept
+   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+2. Route the current replacement card:
+   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+
+Do not use this card to preserve old context-menu behavior or to add a second
+avatar store. The next implementation must migrate owned Sigil/toolkit callers
+to the existing `visual_object_descriptors` and `canvas_object.*` contracts,
+delete the private `sigil.avatar_panel.*` route, and fail loudly if stale
+internal paths remain. Compatibility is acceptable only for a named external
+consumer or release boundary.
+
+## Historical Goal
 
 Expose the live Sigil avatar as an object graph / `canvas_object` subject
 without changing context menu behavior. This is an adapter slice, not a UI

@@ -9,6 +9,29 @@ morph-target subset. Remaining work is split into separate future tracks below
 rather than kept as active Phase 6 scope.
 **Branch**: `gdi/selection-mode-cursor-ancestor-ladder-v0`
 
+## Current Routing Update: Detached Avatar Panel
+
+As of the accepted `21dc331d` checkpoint on
+`gdi/radial-compact-snapshot-extraction-integration-v0`, Sigil's avatar
+controls can open as a separate toolkit panel through the AOS action bus. That
+panel is product-useful but still uses a temporary private
+`sigil.avatar_panel.*` message protocol between the panel and `avatar-main`.
+
+Route order for the active Foreman workstream:
+
+1. Fix live toolkit/Sigil panel dragging through
+   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+2. Migrate the detached avatar controls panel to the existing
+   `visual_object_descriptors` / `canvas_object.*` resource contract through
+   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+3. Refresh Wiki graph browser, shared 3D editor subject, and semantic target
+   cleanup work against that accepted resource migration head.
+
+Do not preserve repo-owned private protocols, duplicate target vocabulary, or
+transitional aliases for this workstream. Migrate owned callers in the same
+slice and delete stale paths unless a named external consumer, release boundary,
+or explicit migration window requires compatibility.
+
 ## Implementation Status
 
 The original target architecture has now been implemented and accepted on

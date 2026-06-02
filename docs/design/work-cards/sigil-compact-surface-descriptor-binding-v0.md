@@ -1,5 +1,20 @@
 # Sigil Compact Surface Descriptor Binding
 
+## Routing Status
+
+Historical / do not route as-is.
+
+The descriptor-binding direction in this card has already been absorbed into the
+accepted visual-object architecture and compact surface implementation. The
+active drift risk is different: after `21dc331d`, the detached Sigil avatar
+controls panel still communicates with `avatar-main` through private
+`sigil.avatar_panel.*` messages. The next panel work must migrate that panel to
+the existing descriptor/resource contracts and remove the private route.
+
+Route `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`
+after the live panel drag correction is accepted. Do not use this historical
+card to keep a second compact-surface mutation path or compatibility layer.
+
 ## Tracker
 
 - Source prompt: user reported the compact surface was lost after the visual object descriptor refactor and asked for the clean reinstatement path.

@@ -1,18 +1,44 @@
 # Work Card: Sigil 3D Thing Editor Subjects V0
 
-## Tracker
+## Routing Status
 
-- Continue from branch: `gdi/sigil-avatar-object-graph-adapter-v0`
-- Accepted prerequisite adapter head:
+Historical / do not route as-is.
+
+This card points at stale prerequisite branches and assumes an older adapter /
+context-menu descriptor sequence. The repo now has an avatar object-control
+adapter and the accepted `21dc331d` detached Sigil avatar controls panel. Before
+any shared 3D editor subject work is routed, the panel must be migrated away
+from its private `sigil.avatar_panel.*` protocol and onto the existing
+`visual_object_descriptors` / `canvas_object.*` resource contract.
+
+Current sequence:
+
+1. Finish and accept
+   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+2. Route
+   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+3. Refresh this 3D thing editor card against the accepted resource migration
+   head, then route it if the Wiki/3D drilldown still needs the shared subject
+   loader.
+
+When refreshed, do not preserve repo-owned private subject aliases. Update owned
+callers in the same slice and delete stale paths unless a named external
+consumer or release boundary requires compatibility.
+
+## Historical Tracker
+
+- Historical branch, do not use:
+  `gdi/sigil-avatar-object-graph-adapter-v0`
+- Historical prerequisite adapter head:
   `1e4c44c9d34de3ae8d84481c0fe1a88a127c105f`
-- Accepted prerequisite context-menu descriptor head:
+- Historical prerequisite context-menu descriptor head:
   `1baf0be1ede3f7adb819ef4366239b46ee256665`
 - Foreman review note on 2026-05-16: deterministic checks passed, but
   repo-mode live verification was blocked by `./aos ready` reporting
   `diagnosis=input_tap_not_active`. Keep this slice deterministic unless the
   implementation changes editor launch, canvas subscription, or panel behavior.
 
-## Goal
+## Historical Goal
 
 Generalize the radial item editor subject loader/stage so it can load both
 radial item and avatar subjects through a shared 3D thing editor path.

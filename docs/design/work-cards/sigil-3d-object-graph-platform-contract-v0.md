@@ -1,10 +1,32 @@
 # Work Card: Sigil 3D Object Graph Platform Contract V0
 
-## Tracker
+## Routing Status
 
-- Current branch:
+Historical / do not route as-is.
+
+This design-card slice predates the accepted visual-object architecture closure,
+the current avatar object-control adapter, and the accepted `21dc331d` detached
+Sigil avatar controls panel. Its follow-on sequence is stale.
+
+Current routing sequence:
+
+1. Finish and accept
+   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+2. Route
+   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+3. Refresh any remaining Wiki graph browser, 3D thing editor, or semantic
+   target cleanup card against the accepted resource migration head.
+
+Strict contract rule for this workstream: migrate owned Sigil/toolkit callers in
+the same slice and delete private aliases or old vocabulary. Compatibility is
+allowed only for a named external consumer, release boundary, or migration
+window with an explicit removal gate.
+
+## Historical Tracker
+
+- Historical branch, do not use:
   `gdi/sigil-radial-menu-data-driven-3d-config-v0`
-- Accepted prerequisite head:
+- Historical prerequisite head:
   `7bc5605e92b8123f7518dd5d301ff229b719ca8b`
 - Product/platform direction from Michael:
   Sigil should be a great product and a showcase for the AOS toolkit stack.
@@ -27,7 +49,7 @@ canvas, issue, or prior implementation state. Read and rediscover before
 editing. Continue from the current radial-menu branch unless Foreman or the
 human explicitly routes this work elsewhere.
 
-## Goal
+## Historical Goal
 
 Turn the "3D thing" idea into a concrete platform contract and migration plan.
 

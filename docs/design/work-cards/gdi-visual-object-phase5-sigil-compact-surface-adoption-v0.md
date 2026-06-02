@@ -3,6 +3,14 @@
 > **Historical status:** Closed Phase 5 real-surface adoption slice. Current
 > Sigil avatar compact-surface guidance is covered by the accepted
 > descriptor/controller/form-binding contract and the status report.
+>
+> **2026-06-02 routing guard:** Do not route this card for the detached Sigil
+> avatar controls panel introduced at `21dc331d`. That panel must be migrated
+> through
+> `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`
+> after the live panel drag correction is accepted, and the private
+> `sigil.avatar_panel.*` protocol should be removed rather than preserved as an
+> internal compatibility layer.
 
 ## Tracker
 
