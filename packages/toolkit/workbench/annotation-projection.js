@@ -449,10 +449,10 @@ export function buildBrowserContentSeamAdapterResult(record = {}, context = {}) 
 
 export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = {}) {
   const targetId = text(
-    target.id
+    target.ref
+      || target.id
       || target.target_id
       || target.semantic_target_id
-      || target.ref
       || target.do_target
       || target.data_aos_ref,
     'target',
@@ -463,11 +463,15 @@ export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = 
   const scrollable = Boolean(target.scrollable_ancestor_chain?.length || target.offscreen_scrollable || target.can_scroll);
   const hasStructuredReveal = target.can_reveal !== false
     && target.reveal_eligible !== false
+    && target.extension?.reveal_eligible !== false
     && Boolean(
       target.revealable
         || target.can_reveal
         || target.reveal_eligible
+        || target.extension?.reveal_eligible
+        || target.provenance?.selector
         || target.selector
+        || target.ref
         || target.data_aos_ref
         || target.aos_ref
         || target.target_id

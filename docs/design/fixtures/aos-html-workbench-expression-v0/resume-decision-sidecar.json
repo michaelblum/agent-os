@@ -7,7 +7,7 @@
   "source_hash": "sha256:63513f6c50a760d9d30224944c7493307c977f0016e48ed0b7aad4534520d4b4",
   "annotations": [
     {
-      "target_id": "goal",
+      "ref": "html-workbench-expression:goal",
       "kind": "selection_comment",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 13,
@@ -17,7 +17,7 @@
   ],
   "decisions": [
     {
-      "target_id": "goal",
+      "ref": "html-workbench-expression:goal",
       "decision": "approved",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 13,

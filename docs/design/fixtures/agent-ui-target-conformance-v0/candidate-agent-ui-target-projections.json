@@ -63,10 +63,11 @@
       "refreshed_at": "2026-06-01T00:00:00.000Z",
       "provenance_source_payload_id": "decision-17",
       "source_tree_node_metadata": {
-        "subject_id": "decision-17",
-        "target_id": "decision-17",
-        "data_aos_ref": "html-workbench-expression:decision-17",
-        "selector": "[data-semantic-target-id=\"decision-17\"]"
+        "ref": "html-workbench-expression:decision-17",
+        "provenance": {
+          "source_payload_id": "decision-17",
+          "selector": "[data-semantic-target-id=\"decision-17\"]"
+        }
       }
     }
   ]

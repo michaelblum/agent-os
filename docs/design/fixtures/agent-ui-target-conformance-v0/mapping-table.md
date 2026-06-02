@@ -11,7 +11,7 @@ are not copied into the canonical producer identity.
 | Toolkit runtime semantic target | `id`, `ref` | `ref` remains the canonical route identity; runtime-only `id` is listed as provenance when composed into `agent_ui_target` |
 | Toolkit panel form control | `ref` | Already canonical `agent_ui_target`; form ids land in `extension.descriptor_id` and `extension.field_id` |
 | Sigil compact control/tab | `ref` | Already canonical `agent_ui_target`; tab/section/label fields land in `extension`; local source ids stay provenance-only |
-| HTML workbench source-line target | `target_id`, `data_aos_ref`, `aos_ref` | `ref` from `data_aos_ref`; source path/lines land in `extension.source`; selector lands in `provenance.selector` |
+| HTML workbench source-line target | `ref` | Canonical `ref` remains the producer identity; source path/lines land in `extension.source`; selector and DOM slug land in provenance/extension reveal hints |
 | Annotation/Surface Inspector projection | `subject_id` plus drift-prone source metadata | Projection fixture renames join identity to `ref`; `subject_path`, `root_id`, geometry, render status, blockers, and freshness stay projection-only |
 
 ## Field Accounting

@@ -144,10 +144,10 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["target_id", "label", "level", "selector"],
+        "required": ["ref", "label", "level", "selector"],
         "additionalProperties": false,
         "properties": {
-          "target_id": { "type": "string", "minLength": 1 },
+          "ref": { "type": "string", "minLength": 1 },
           "label": { "type": "string" },
           "level": { "type": "integer", "minimum": 1, "maximum": 6 },
           "selector": { "type": "string", "minLength": 1 }
@@ -159,23 +159,23 @@
     "SemanticTarget": {
       "type": "object",
       "required": [
-        "target_id",
-        "data_aos_ref",
-        "aos_ref",
+        "ref",
+        "surface",
+        "role",
+        "name",
         "kind",
-        "accessible_label",
-        "source_path",
-        "source_line_start",
-        "source_line_end",
-        "selector",
-        "annotation_eligible",
-        "reveal_eligible"
+        "enabled",
+        "state",
+        "actions",
+        "extension",
+        "provenance"
       ],
       "additionalProperties": false,
       "properties": {
-        "target_id": { "type": "string", "minLength": 1 },
-        "data_aos_ref": { "type": "string", "minLength": 1 },
-        "aos_ref": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
+        "surface": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
         "kind": {
           "enum": [
             "document",
@@ -189,21 +189,22 @@
             "verification"
           ]
         },
-        "accessible_label": { "type": "string", "minLength": 1 },
-        "source_path": { "type": "string", "minLength": 1 },
-        "source_line_start": { "type": "integer", "minimum": 1 },
-        "source_line_end": { "type": "integer", "minimum": 1 },
-        "selector": { "type": "string", "minLength": 1 },
-        "annotation_eligible": { "type": "boolean" },
-        "reveal_eligible": { "type": "boolean" }
+        "enabled": { "type": "boolean" },
+        "state": { "$ref": "#/$defs/AgentUiTargetState" },
+        "actions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "extension": { "$ref": "#/$defs/WorkbenchTargetExtension" },
+        "provenance": { "$ref": "#/$defs/WorkbenchTargetProvenance" }
       }
     },
     "SourceMapEntry": {
       "type": "object",
-      "required": ["target_id", "source_path", "source_line_start", "source_line_end", "selector"],
+      "required": ["ref", "source_path", "source_line_start", "source_line_end", "selector"],
       "additionalProperties": false,
       "properties": {
-        "target_id": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
         "source_path": { "type": "string", "minLength": 1 },
         "source_line_start": { "type": "integer", "minimum": 1 },
         "source_line_end": { "type": "integer", "minimum": 1 },
@@ -212,10 +213,10 @@
     },
     "MermaidBlock": {
       "type": "object",
-      "required": ["target_id", "source_path", "source_line_start", "source_line_end", "selector", "source_hash"],
+      "required": ["ref", "source_path", "source_line_start", "source_line_end", "selector", "source_hash"],
       "additionalProperties": false,
       "properties": {
-        "target_id": { "type": "string", "minLength": 1 },
+        "ref": { "type": "string", "minLength": 1 },
         "source_path": { "type": "string", "minLength": 1 },
         "source_line_start": { "type": "integer", "minimum": 1 },
         "source_line_end": { "type": "integer", "minimum": 1 },
@@ -224,6 +225,63 @@
           "type": "string",
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
+      }
+    },
+    "AgentUiTargetState": {
+      "type": "object",
+      "required": ["value", "current", "pressed", "selected", "checked", "expanded"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {},
+        "current": {},
+        "pressed": {},
+        "selected": {},
+        "checked": {},
+        "expanded": {}
+      }
+    },
+    "WorkbenchTargetExtension": {
+      "type": "object",
+      "required": ["annotation_eligible", "reveal_eligible", "source", "dom_id"],
+      "additionalProperties": false,
+      "properties": {
+        "annotation_eligible": { "type": "boolean" },
+        "reveal_eligible": { "type": "boolean" },
+        "dom_id": { "type": "string", "minLength": 1 },
+        "source": {
+          "type": "object",
+          "required": ["path", "line_start", "line_end"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string", "minLength": 1 },
+            "line_start": { "type": "integer", "minimum": 1 },
+            "line_end": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "WorkbenchTargetProvenance": {
+      "type": "object",
+      "required": [
+        "source_payload_id",
+        "metadata",
+        "parent_canvas_id",
+        "selector",
+        "dom_id",
+        "source_path",
+        "source_line_start",
+        "source_line_end"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_payload_id": { "type": "string", "minLength": 1 },
+        "metadata": { "type": "object" },
+        "parent_canvas_id": { "type": "string" },
+        "selector": { "type": "string", "minLength": 1 },
+        "dom_id": { "type": "string", "minLength": 1 },
+        "source_path": { "type": "string", "minLength": 1 },
+        "source_line_start": { "type": "integer", "minimum": 1 },
+        "source_line_end": { "type": "integer", "minimum": 1 }
       }
     }
   }
