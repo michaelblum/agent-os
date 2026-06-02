@@ -23,7 +23,7 @@ export function applyIntegrationHubSemanticTarget(element, target = {}, options 
     role: target.role || 'AXButton',
     name: target.name,
     action: target.action,
-    aosRef: target.aosRef || integrationHubAosRef(target.id),
+    ref: target.ref || integrationHubAosRef(target.id),
     surface: SURFACE,
     enabled: target.enabled,
     current: target.current,

@@ -10,7 +10,7 @@ const { createButton } = await import(toolkitSpecifier('controls/button.js', {
 const { createForm } = await import(toolkitSpecifier('panel/form.js', {
   local: '../../../packages/toolkit/panel/form.js',
 }));
-const { normalizeSemanticTarget } = await import(toolkitSpecifier('runtime/semantic-targets.js', {
+const { normalizeAgentUiTarget } = await import(toolkitSpecifier('runtime/semantic-targets.js', {
   local: '../../../packages/toolkit/runtime/semantic-targets.js',
 }));
 const { bindVisualObjectForm } = await import(toolkitSpecifier('workbench/visual-object-form-binding.js', {
@@ -443,7 +443,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         const selected = triggerEl?.getAttribute?.('aria-selected') === 'true'
           || activeTabFromTabsAdapter(tabsAdapter) === tabKey;
         records.push({
-          ...normalizeSemanticTarget({
+          ...normalizeAgentUiTarget({
             id: tabKey,
             role: 'AXTab',
             name: text(tab.label, tabKey),
@@ -457,47 +457,57 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
               value: tabKey,
               ...(triggerEl?.dataset ? { ...triggerEl.dataset } : {}),
             },
+          }, {
+            kind: 'tab',
+            actions: triggerEl?.hidden ? [] : ['select'],
+            extension: {
+              label: text(tab.label, tabKey),
+              hidden: !!triggerEl?.hidden,
+            },
           }),
-          id: tabKey,
-          ref: `${COMPACT_SURFACE_ID}:${tabKey}`,
-          label: text(tab.label, tabKey),
-          kind: 'tab',
-          hidden: !!triggerEl?.hidden,
-          actions: triggerEl?.hidden ? [] : ['select'],
         });
       }
       for (const { tab, section, form } of forms.values()) {
         records.push(...form.getControlRecords().map((record) => ({
           ...record,
-          tab: { key: tab.key, label: tab.label },
-          section: { key: section.key, label: section.label },
           surface: COMPACT_SURFACE_ID,
+          extension: {
+            ...record.extension,
+            tab: { key: tab.key, label: tab.label },
+            section: { key: section.key, label: section.label },
+          },
         })));
       }
       for (const [key, form] of projectionForms) {
         records.push(...form.getControlRecords().map((record) => ({
           ...record,
-          projection: true,
-          section: { key, label: 'Surface Shortcuts' },
           surface: COMPACT_SURFACE_ID,
+          extension: {
+            ...record.extension,
+            projection: true,
+            section: { key, label: 'Surface Shortcuts' },
+          },
         })));
       }
       return records;
     },
     getControlRecordByDescriptorId(descriptorId) {
       for (const { form } of forms.values()) {
-        const record = form.getControlRecords().find((item) => item.descriptor_id === descriptorId);
+        const record = form.getControlRecords().find((item) => item.extension?.descriptor_id === descriptorId);
         if (record) return {
           ...record,
           surface: COMPACT_SURFACE_ID,
         };
       }
       for (const form of projectionForms.values()) {
-        const record = form.getControlRecords().find((item) => item.descriptor_id === descriptorId);
+        const record = form.getControlRecords().find((item) => item.extension?.descriptor_id === descriptorId);
         if (record) return {
           ...record,
-          projection: true,
           surface: COMPACT_SURFACE_ID,
+          extension: {
+            ...record.extension,
+            projection: true,
+          },
         };
       }
       return null;

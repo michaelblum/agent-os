@@ -138,8 +138,8 @@ function roleTag(role) {
   return 'div'
 }
 
-export function aosRefForTarget(target = {}, options = {}) {
-  if (target.aosRef) return text(target.aosRef)
+export function refForTarget(target = {}, options = {}) {
+  if (target.ref) return text(target.ref)
   const surface = text(target.surface ?? target.surfaceId ?? options.surface ?? options.surfaceId, '')
   const id = safeId(target.id ?? target.name)
   return surface ? `${surface}:${id}` : id
@@ -167,8 +167,8 @@ export function normalizeSemanticTarget(target = {}, options = {}) {
     expanded: target.expanded ?? null,
     value: target.value ?? null,
     surface,
-    parentCanvasId: text(target.parentCanvasId ?? options.parentCanvasId, ''),
-    aosRef: aosRefForTarget({ ...target, id, surface }, options),
+    parent_canvas_id: text(target.parent_canvas_id ?? options.parent_canvas_id, ''),
+    ref: refForTarget({ ...target, id, surface }, options),
     metadata: {
       ...(target.metadata && typeof target.metadata === 'object' ? target.metadata : {}),
     },
@@ -182,6 +182,66 @@ export function normalizeSemanticTargets(targets = [], options = {}) {
   return targets.map((target) => normalizeSemanticTarget(target, options))
 }
 
+function compactObject(value) {
+  return JSON.parse(JSON.stringify(value ?? null))
+}
+
+function extensionSource(record = {}) {
+  return {
+    path: record.source_path ?? null,
+    line_start: record.source_line_start ?? null,
+    line_end: record.source_line_end ?? null,
+  }
+}
+
+function actionList(target = {}, options = {}) {
+  if (Array.isArray(options.actions)) return [...options.actions]
+  if (Array.isArray(target.actions)) return [...target.actions]
+  const action = pickAction(target)
+  return action ? [action] : []
+}
+
+export function normalizeAgentUiTarget(target = {}, options = {}) {
+  const semantic = normalizeSemanticTarget(target, options)
+  const extension = {
+    ...(options.extension && typeof options.extension === 'object' ? options.extension : {}),
+  }
+  if (!Object.hasOwn(extension, 'source')) extension.source = extensionSource(target)
+
+  const provenance = {
+    ...(options.provenance && typeof options.provenance === 'object' ? options.provenance : {}),
+  }
+  if (!Object.hasOwn(provenance, 'source_payload_id')) provenance.source_payload_id = target.id ?? target.ref ?? semantic.ref
+  if (semantic.metadata !== undefined && !Object.hasOwn(provenance, 'metadata')) {
+    provenance.metadata = compactObject(semantic.metadata)
+  }
+  if (semantic.frame !== undefined && !Object.hasOwn(provenance, 'frame')) {
+    provenance.frame = compactObject(semantic.frame)
+  }
+  if (!Object.hasOwn(provenance, 'parent_canvas_id')) provenance.parent_canvas_id = semantic.parent_canvas_id
+  if (target.selector && !Object.hasOwn(provenance, 'selector')) provenance.selector = target.selector
+
+  return {
+    ref: semantic.ref,
+    surface: semantic.surface,
+    role: semantic.role,
+    name: semantic.name,
+    kind: text(options.kind ?? target.kind, 'semantic_target'),
+    enabled: semantic.enabled,
+    state: {
+      value: semantic.value,
+      current: semantic.current,
+      pressed: semantic.pressed,
+      selected: semantic.selected,
+      checked: semantic.checked,
+      expanded: semantic.expanded,
+    },
+    actions: actionList(target, options),
+    extension,
+    provenance,
+  }
+}
+
 function roleMatchesNativeElement(normalized, options = {}) {
   const nativeRole = options.nativeRole || (options.nativeButton ? 'button' : '')
   return nativeRole && normalized.role === nativeRole
@@ -191,10 +251,10 @@ export function semanticTargetAttributeEntries(target = {}, options = {}) {
   const normalized = normalizeSemanticTarget(target, options)
   const attrs = new Map([
     ['aria-label', normalized.name],
-    ['data-aos-ref', normalized.aosRef],
+    ['data-aos-ref', normalized.ref],
     ['data-aos-surface', normalized.surface],
     ['data-semantic-target-id', normalized.id],
-    ['data-aos-parent-canvas', options.includeParentCanvas === false ? null : normalized.parentCanvasId],
+    ['data-aos-parent-canvas', options.includeParentCanvas === false ? null : normalized.parent_canvas_id],
     ['data-aos-action', normalized.action],
     ['aria-disabled', normalized.enabled ? null : 'true'],
     ['aria-pressed', normalized.pressed === null ? null : boolAttr(normalized.pressed)],
@@ -258,11 +318,11 @@ export function applySemanticTargetAttributes(element, target = {}, options = {}
   else element.removeAttribute?.('aria-valuetext')
 
   if ('disabled' in element) element.disabled = nativeTag === 'button' && !normalized.enabled
-  setDataset(element, 'aosRef', normalized.aosRef)
+  setDataset(element, 'aosRef', normalized.ref)
   setDataset(element, 'aosAction', normalized.action)
   setDataset(element, 'aosSurface', normalized.surface)
   setDataset(element, 'semanticTargetId', normalized.id)
-  setDataset(element, 'aosParentCanvas', normalized.parentCanvasId)
+  setDataset(element, 'aosParentCanvas', normalized.parent_canvas_id)
 
   if (normalized.frame && element.style) {
     element.style.position = options.position || 'absolute'

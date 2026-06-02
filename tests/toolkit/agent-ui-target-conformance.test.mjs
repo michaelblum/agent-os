@@ -66,6 +66,10 @@ function extensionSource(record) {
 }
 
 function mapCurrentRecordToCandidate(shape, record) {
+  if (record?.state && record?.extension && record?.provenance && record.ref) {
+    return compactObject(record)
+  }
+
   const ref = record.ref || record.aosRef || record.data_aos_ref || record.aos_ref
   assert.ok(ref, `${shape} must have a mappable current identity`)
 
@@ -96,6 +100,7 @@ function mapCurrentRecordToCandidate(shape, record) {
 
   if (record.metadata !== undefined) common.provenance.metadata = compactObject(record.metadata)
   if (record.frame !== undefined) common.provenance.frame = compactObject(record.frame)
+  if (record.parent_canvas_id !== undefined) common.provenance.parent_canvas_id = record.parent_canvas_id
   if (record.parentCanvasId !== undefined) common.provenance.parent_canvas_id = record.parentCanvasId
   if (record.selector) common.provenance.selector = record.selector
 
@@ -233,5 +238,5 @@ test('current semantic target core still requires ids and does not invent action
 
   const target = normalizeSemanticTarget({ id: 'plain-target', name: 'Plain Target' })
   assert.equal(target.action, '')
-  assert.equal(target.aosRef, 'plain-target')
+  assert.equal(target.ref, 'plain-target')
 })

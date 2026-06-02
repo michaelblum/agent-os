@@ -23,7 +23,7 @@ export function applyWikiKBSemanticTarget(element, target = {}, options = {}) {
     role: 'AXButton',
     ...target,
     surface: SURFACE,
-    aosRef: target.aosRef || wikiKBAosRef(target.id),
+    ref: target.ref || wikiKBAosRef(target.id),
   }, {
     idPrefix: null,
     ...options,

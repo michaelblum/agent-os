@@ -24,7 +24,7 @@
         },
         "provenance": {
           "source_payload_id": "wiki-graph",
-          "legacy_identity_keys": ["id", "aosRef"],
+          "legacy_identity_keys": ["id", "ref"],
           "metadata": {},
           "frame": { "x": 10, "y": 21, "width": 55, "height": 45 },
           "parent_canvas_id": "avatar-main"
@@ -58,7 +58,6 @@
         },
         "provenance": {
           "source_payload_id": "avatar-opacity",
-          "legacy_identity_keys": ["id", "aosRef", "ref"],
           "metadata": {},
           "frame": { "x": 10, "y": 72, "width": 160, "height": 28 },
           "parent_canvas_id": ""
@@ -94,7 +93,6 @@
         },
         "provenance": {
           "source_payload_id": "sigil-menu-opacity",
-          "legacy_identity_keys": ["id", "aosRef", "ref"],
           "metadata": {},
           "frame": { "x": 24, "y": 84, "width": 180, "height": 28 },
           "parent_canvas_id": ""
@@ -126,7 +124,6 @@
         },
         "provenance": {
           "source_payload_id": "alpha",
-          "legacy_identity_keys": ["id", "aosRef", "ref"],
           "metadata": { "value": "alpha" },
           "frame": { "x": 12, "y": 20, "width": 56, "height": 24 },
           "parent_canvas_id": ""
