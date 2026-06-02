@@ -1,0 +1,28 @@
+.aos-action-demo {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 14px;
+  color: var(--text-primary, #eaf7f8);
+}
+
+.aos-action-demo__link {
+  justify-self: start;
+  color: #9ce7ff;
+  font-weight: 680;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(156, 231, 255, 0.58);
+}
+
+.aos-action-demo__link:hover {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+.aos-action-demo__status {
+  min-height: 18px;
+  color: rgba(234, 247, 248, 0.72);
+  font-size: 12px;
+}

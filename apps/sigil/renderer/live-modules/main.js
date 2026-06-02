@@ -158,6 +158,7 @@ const radialTargetSurface = createRadialMenuTargetSurface({
     url: sigilUrl('renderer/radial-menu-surface.html'),
     id: 'sigil-radial-menu-avatar-main',
 });
+const SIGIL_AVATAR_PANEL_CANVAS_ID = 'sigil-avatar-controls-avatar-main';
 
 const liveJs = {
     avatarPos: { x: 0, y: 0, valid: false },
@@ -854,6 +855,18 @@ const contextMenu = createSigilContextMenu({
     onAvatarWindowLevelChange: applyAvatarWindowLevel,
     onBoundsChange: syncSigilInputRegions,
     onClose: handleContextMenuClose,
+    actionDispatcher(action, payload = {}, options = {}) {
+        return host.request('aos.action', { ...payload, action }, options);
+    },
+    panelId: SIGIL_AVATAR_PANEL_CANVAS_ID,
+    panelUrl: sigilUrl('avatar-editor/panel.html', {
+        query: {
+            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+            owner: 'avatar-main',
+            'sigil-root': currentSigilRoot(),
+            'toolkit-root': currentToolkitRoot(),
+        },
+    }),
     trace: interactionTrace,
 });
 sigilInputRegions = createSigilInputRegionAdapter({
@@ -878,6 +891,7 @@ const UTILITY_CANVAS_IDS = new Set([
     WIKI_WORKBENCH_CANVAS_ID,
     AGENT_TERMINAL_CANVAS_ID,
     LEGACY_CODEX_TERMINAL_CANVAS_ID,
+    SIGIL_AVATAR_PANEL_CANVAS_ID,
 ]);
 
 function markAppearanceChanged() {
@@ -4186,9 +4200,19 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    if (typeof msg.type === 'string' && msg.type.startsWith('sigil.avatar_panel.')) {
+        if (contextMenu.handlePanelMessage(msg)) return;
+    }
+
     if (msg.type === 'canvas_lifecycle') {
         annotationReticleHandleCanvasLifecycle(msg);
         const canvasId = msg.canvas_id || msg.canvas?.id;
+        if (
+            canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID
+            && (msg.action === 'removed' || msg.suspended === true || msg.canvas?.suspended === true)
+        ) {
+            contextMenu.close('panel-lifecycle');
+        }
         if (UTILITY_CANVAS_IDS.has(canvasId)) {
             if (msg.action === 'removed') {
                 liveJs.utilityCanvases.delete(canvasId);
@@ -4705,7 +4729,7 @@ function animate() {
     if (work.structural) {
         contextMenu.updateSegmentPosition();
 
-        if (primarySegment && contextMenu.isOpen()) {
+        if (primarySegment && contextMenu.isOpen() && contextMenu.interactiveBounds()) {
             hitTarget.syncWorldRect(contextMenu.interactiveBounds(), true, { displays: liveJs.displays });
         } else if (primarySegment && liveJs.avatarParking) {
             hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);

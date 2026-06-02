@@ -1,0 +1,45 @@
+@import url("../theme/avatar-control-surface.css");
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  --bg-panel: var(--sigil-context-menu-card-bg);
+  --bg-panel-header: rgba(5, 12, 18, 0.94);
+  --bg-panel-content: transparent;
+  --border-panel: var(--sigil-context-menu-border-color-control);
+  --border-subtle: var(--sigil-context-menu-border-color-divider);
+  --text-primary: var(--sigil-context-menu-color-primary);
+  --text-header: var(--sigil-context-menu-color-accent);
+  --aos-window-button-bg: rgba(5, 18, 24, 0.78);
+  --aos-window-button-border: 1px solid var(--sigil-context-menu-border-color-field);
+  --aos-window-button-color: var(--sigil-context-menu-color-primary);
+  --aos-panel-grip-color: var(--sigil-context-menu-color-accent-strong);
+  font-family: var(--sigil-context-menu-font-family);
+  background: transparent;
+}
+
+.sigil-avatar-panel-placeholder {
+  padding: var(--sigil-context-menu-space-12);
+  color: var(--sigil-context-menu-color-accent-muted);
+  font: var(--sigil-context-menu-type-value);
+}
+
+.sigil-avatar-panel-host {
+  min-height: 0;
+}
+
+.sigil-avatar-panel-host .sigil-avatar-control-surface {
+  width: 100%;
+  max-height: none;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}

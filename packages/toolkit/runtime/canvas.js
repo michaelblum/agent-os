@@ -296,6 +296,19 @@ export function evalCanvas(id, js, opts = {}) {
   })
 }
 
+export function aosAction(action, payload = {}, opts = {}) {
+  if (typeof action !== 'string' || !action.trim()) {
+    throw new Error('INVALID_ACTION: aosAction requires action')
+  }
+  return rpc('aos.action', {
+    ...payload,
+    action: action.trim(),
+  }, {
+    timeoutMs: opts.timeoutMs ?? 5000,
+    mapResult: opts.mapResult || ((msg) => msg),
+  })
+}
+
 export async function writeClipboardText(text, opts = {}) {
   if (typeof text !== 'string') {
     throw new Error('INVALID_PAYLOAD: writeClipboardText requires plain text')

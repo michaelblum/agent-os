@@ -15,6 +15,7 @@ import {
 } from './descriptors.js';
 import { buildContextMenuSnapshot } from './snapshot-projection.js';
 import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
+import { buildSigilAvatarCompactSurfaceViewModel } from '../avatar-editor/surface-view-model.js';
 
 let compactSurfaceModulePromise = null;
 
@@ -26,6 +27,8 @@ function loadCompactSurfaceModule() {
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
 const MENU_OFFSET = 18;
+const PANEL_WIDTH = 332;
+const PANEL_HEIGHT = 540;
 const REF_BASE = 300;
 const REF_SCALE = 1.1;
 const REF_HEIGHT = 1080;
@@ -271,6 +274,11 @@ export function createSigilContextMenu({
     onAvatarWindowLevelChange,
     onBoundsChange,
     onClose,
+    actionDispatcher = null,
+    panelId = 'sigil-avatar-controls-avatar-main',
+    panelUrl = null,
+    panelWidth = PANEL_WIDTH,
+    panelHeight = PANEL_HEIGHT,
     trace,
     allowTestAnchorFallback = false,
 } = {}) {
@@ -302,7 +310,11 @@ export function createSigilContextMenu({
         snapshot: null,
     };
     let compactSurface = null;
+    let panelReady = false;
+    let panelControls = [];
+    let panelActiveTab = null;
     const compactValueCache = new Map();
+    const usesPanel = typeof actionDispatcher === 'function' && !!panelUrl;
     const interactionRouter = createDesktopWorldInteractionRouter({
         onOutsidePointer(event) {
             if (event.phase === 'up') close('outside-click');
@@ -326,7 +338,7 @@ export function createSigilContextMenu({
     }
 
     function compactControlRecords() {
-        return compactSurface?.getControlRecords?.() || [];
+        return compactSurface?.getControlRecords?.() || panelControls || [];
     }
 
     function snapshot() {
@@ -335,8 +347,10 @@ export function createSigilContextMenu({
 
     function syncSnapshot() {
         menuState.snapshot = {
-            activeTab: compactSurface?.getActiveTab?.() || null,
+            activeTab: compactSurface?.getActiveTab?.() || panelActiveTab || null,
             controlCount: compactControlRecords().length,
+            surface: usesPanel ? 'toolkit-panel' : 'embedded',
+            panelId: usesPanel ? panelId : null,
         };
         anchor.setAttribute('aria-hidden', menuState.open ? 'false' : 'true');
         anchor.setAttribute('data-state', menuState.open ? 'open' : 'closed');
@@ -438,6 +452,21 @@ export function createSigilContextMenu({
         }
     }
 
+    function seedCompactValueCacheFromViewModel(viewModel = null) {
+        if (!viewModel) return;
+        compactValueCache.clear();
+        for (const tab of viewModel.tabs || []) {
+            for (const section of tab.sections || []) {
+                for (const control of section.controls || []) {
+                    compactValueCache.set(control.id, cacheKey(control.value));
+                }
+            }
+        }
+        for (const control of viewModel.projection_tools || []) {
+            compactValueCache.set(control.id, cacheKey(control.value));
+        }
+    }
+
     function routeChangedControls(controls = [], values = {}) {
         let changed = false;
         for (const control of controls) {
@@ -452,6 +481,7 @@ export function createSigilContextMenu({
         if (changed) {
             syncFromState();
             syncSnapshot();
+            sendPanelUpdate('control-change');
         }
         return changed;
     }
@@ -463,15 +493,22 @@ export function createSigilContextMenu({
         if (id?.startsWith?.('toggle-')) {
             onUtilityAction?.(control.action_id || id);
             syncSnapshot();
+            sendPanelUpdate('projection-action');
             return;
         }
         Promise.resolve(onAvatarAction?.(id)).then((changed) => {
             if (changed) {
-                void mountCompactSurface().then(() => {
+                if (usesPanel) {
                     syncFromState();
-                    seedCompactValueCache();
                     syncSnapshot();
-                });
+                    sendPanelUpdate('avatar-action');
+                } else {
+                    void mountCompactSurface().then(() => {
+                        syncFromState();
+                        seedCompactValueCache();
+                        syncSnapshot();
+                    });
+                }
             }
         }).catch((error) => {
             console.warn('[sigil] avatar control surface action failed:', error);
@@ -709,6 +746,8 @@ export function createSigilContextMenu({
 
     function clampToVisible(point) {
         return resolveContextMenuOrigin(point, {
+            width: usesPanel ? panelWidth : MENU_WIDTH,
+            height: usesPanel ? panelHeight : MENU_HEIGHT,
             displays: liveJs?.displays || [],
             visibleBounds: liveJs?.visibleBounds,
             avatar: {
@@ -723,6 +762,7 @@ export function createSigilContextMenu({
     }
 
     function syncPosition() {
+        if (usesPanel) return;
         if (!menuState.open || !menuState.bounds || typeof projectPoint !== 'function') return;
         const local = projectPoint(menuState.bounds);
         if (!local) {
@@ -735,6 +775,7 @@ export function createSigilContextMenu({
     }
 
     function surfaceBounds() {
+        if (usesPanel) return menuState.bounds ? { ...menuState.bounds } : null;
         if (!menuState.bounds) return null;
         const surfaceRect = anchor.querySelector('.sigil-avatar-control-surface')?.getBoundingClientRect?.();
         if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) return { ...menuState.bounds };
@@ -752,13 +793,45 @@ export function createSigilContextMenu({
         syncFromState();
         const origin = clampToVisible(point);
         menuState.open = true;
-        menuState.bounds = { x: origin.x, y: origin.y, w: MENU_WIDTH, h: MENU_HEIGHT };
+        menuState.bounds = {
+            x: origin.x,
+            y: origin.y,
+            w: usesPanel ? panelWidth : MENU_WIDTH,
+            h: usesPanel ? panelHeight : MENU_HEIGHT,
+        };
         if (state) state.isMenuOpen = true;
         recordTrace('open', { point, origin, bounds: menuState.bounds });
         syncPosition();
         anchor.classList.add('visible');
         syncSnapshot();
         onBoundsChange?.(snapshot());
+        if (usesPanel) {
+            void dispatchPanelAction('panel.toggle', {
+                id: panelId,
+                url: panelUrl,
+                width: panelWidth,
+                height: panelHeight,
+                interactive: true,
+                focus: true,
+                window_level: 'floating',
+                toggle_behavior: 'reposition',
+                anchor: {
+                    coordinate_space: 'desktop_world',
+                    x: point.x,
+                    y: point.y,
+                    offset: { x: MENU_OFFSET, y: MENU_OFFSET },
+                },
+                geometry_change: 'frame',
+                geometry_cause: 'sigil.avatar.right_click',
+                geometry_phase: 'settled',
+            }).then(() => {
+                sendPanelUpdate('open');
+            }).catch((error) => {
+                console.warn('[sigil] avatar control panel action failed:', error);
+                recordTrace('panel-action-failed', { error: String(error) });
+            });
+            return snapshot();
+        }
         void mountCompactSurface().then(() => {
             if (!menuState.open) return;
             syncFromState();
@@ -778,6 +851,9 @@ export function createSigilContextMenu({
         menuState.open = false;
         menuState.bounds = null;
         menuState.activeSlider = null;
+        panelReady = false;
+        panelControls = [];
+        panelActiveTab = null;
         interactionRouter.reset();
         compactSurface?.destroy?.();
         compactSurface = null;
@@ -789,6 +865,11 @@ export function createSigilContextMenu({
         recordTrace('close', { reason, snapshot: nextSnapshot });
         onBoundsChange?.(nextSnapshot);
         onClose?.({ reason, snapshot: nextSnapshot });
+        if (usesPanel && reason !== 'panel-lifecycle' && reason !== 'panel-close-request') {
+            void dispatchPanelAction('panel.close', { id: panelId }).catch((error) => {
+                console.warn('[sigil] avatar control panel close failed:', error);
+            });
+        }
     }
 
     function applySnapshot(next = {}) {
@@ -802,6 +883,9 @@ export function createSigilContextMenu({
             compactSurface?.destroy?.();
             compactSurface = null;
             compactValueCache.clear();
+            panelReady = false;
+            panelControls = [];
+            panelActiveTab = null;
             anchor.classList.remove('visible');
             syncSnapshot();
             return;
@@ -833,6 +917,14 @@ export function createSigilContextMenu({
 
     function containsDesktopPoint(point) {
         if (!point) return false;
+        if (usesPanel) {
+            const b = menuState.bounds;
+            return !!(b
+                && point.x >= b.x
+                && point.y >= b.y
+                && point.x < b.x + b.w
+                && point.y < b.y + b.h);
+        }
         const target = elementAt(point);
         if (target && elementContains(anchor, target)) return true;
         const b = surfaceBounds() || menuState.bounds;
@@ -979,6 +1071,24 @@ export function createSigilContextMenu({
 
     function handlePointerEvent(kind, point, options = {}) {
         if (!menuState.open) return false;
+        if (usesPanel) {
+            const raw = options.raw || {};
+            const sourceIdentity = options.sourceIdentity || raw.sourceIdentity || {};
+            const sourceCanvasId = sourceIdentity.sourceCanvasId
+                || sourceIdentity.source_canvas_id
+                || raw.sourceCanvasId
+                || raw.source_canvas_id
+                || null;
+            const ownerCanvasId = sourceIdentity.ownerCanvasId
+                || sourceIdentity.owner_canvas_id
+                || raw.ownerCanvasId
+                || raw.owner_canvas_id
+                || null;
+            if (sourceCanvasId === panelId || ownerCanvasId === panelId) return true;
+            const inside = containsDesktopPoint(point);
+            if (!inside && kind === 'left_mouse_down') close('outside-click');
+            return inside || kind !== 'left_mouse_down';
+        }
         const raw = options.raw || {};
         const sourceIdentity = options.sourceIdentity || raw.sourceIdentity || (
             raw.sourceOrigin || raw.source_origin || raw.sourceCanvasId || raw.source_canvas_id
@@ -1002,6 +1112,79 @@ export function createSigilContextMenu({
     syncFromState();
     syncSnapshot();
 
+    function buildPanelUpdatePayload(reason = 'sync') {
+        const viewModel = buildSigilAvatarCompactSurfaceViewModel(state || {});
+        seedCompactValueCacheFromViewModel(viewModel);
+        return {
+            reason,
+            panel_id: panelId,
+            view_model: viewModel,
+            active_tab: panelActiveTab || menuState.snapshot?.activeTab || null,
+        };
+    }
+
+    function dispatchPanelAction(action, payload = {}) {
+        if (!usesPanel) return Promise.resolve(null);
+        return Promise.resolve(actionDispatcher(action, {
+            ...payload,
+            source: {
+                app: 'sigil',
+                surface: 'avatar',
+                canvas_id: 'avatar-main',
+            },
+        }));
+    }
+
+    function sendPanelUpdate(reason = 'sync') {
+        if (!usesPanel || !menuState.open || !panelReady) return false;
+        const message = {
+            type: 'sigil.avatar_panel.update',
+            payload: buildPanelUpdatePayload(reason),
+        };
+        void dispatchPanelAction('canvas.send', {
+            target: panelId,
+            message,
+        }).catch((error) => {
+            console.warn('[sigil] avatar control panel update failed:', error);
+        });
+        return true;
+    }
+
+    function handlePanelMessage(message = {}) {
+        const type = message.type;
+        const payload = message.payload || message;
+        if (type === 'sigil.avatar_panel.ready') {
+            panelReady = true;
+            sendPanelUpdate('ready');
+            return true;
+        }
+        if (type === 'sigil.avatar_panel.snapshot') {
+            panelControls = Array.isArray(payload.controls) ? payload.controls : [];
+            panelActiveTab = payload.active_tab || payload.activeTab || panelActiveTab;
+            syncSnapshot();
+            onBoundsChange?.(snapshot());
+            return true;
+        }
+        if (type === 'sigil.avatar_panel.tab_change') {
+            panelActiveTab = payload.value || payload.active_tab || payload.activeTab || panelActiveTab;
+            syncSnapshot();
+            return true;
+        }
+        if (type === 'sigil.avatar_panel.control_change' || type === 'sigil.avatar_panel.projection_change') {
+            routeChangedControls(payload.controls || [], payload.values || {});
+            return true;
+        }
+        if (type === 'sigil.avatar_panel.projection_action') {
+            handleCompactProjectionAction(payload);
+            return true;
+        }
+        if (type === 'sigil.avatar_panel.close') {
+            close('panel-close-request');
+            return true;
+        }
+        return false;
+    }
+
     return {
         openAt,
         close,
@@ -1012,11 +1195,14 @@ export function createSigilContextMenu({
             return menuState.bounds ? { ...menuState.bounds } : null;
         },
         interactiveBounds() {
+            if (usesPanel) return null;
             return surfaceBounds() || (menuState.bounds ? { ...menuState.bounds } : null);
         },
         updateSegmentPosition: syncPosition,
         containsDesktopPoint,
         handlePointerEvent,
+        handlePanelMessage,
+        sendPanelUpdate,
         applySnapshot,
         snapshot,
     };

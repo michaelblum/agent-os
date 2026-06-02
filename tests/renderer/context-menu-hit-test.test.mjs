@@ -302,6 +302,65 @@ test('context menu descriptors carry toolkit form metadata for compact avatar su
   assert.deepEqual(grid.options.map((option) => option.value), ['off', 'flat', '3d'])
 })
 
+test('panel context menu treats child panel canvas input as inside the menu', () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  globalThis.document = document
+  globalThis.window = { innerHeight: 900 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const actions = []
+    const closes = []
+    const menu = createSigilContextMenu({
+      state: {
+        avatar: createDefaultAvatarState(),
+        currentGeometryType: 12,
+        currentType: 12,
+        avatarBase: 153,
+      },
+      liveJs: {
+        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        avatarPos: { x: 300, y: 300 },
+      },
+      projectPoint: (point) => point,
+      actionDispatcher(action, payload) {
+        actions.push({ action, payload })
+        return Promise.resolve({ status: 'ok' })
+      },
+      panelId: 'panel-test',
+      panelUrl: 'aos://sigil/avatar-editor/panel.html',
+      onClose(event) {
+        closes.push(event.reason)
+      },
+      allowTestAnchorFallback: true,
+    })
+
+    menu.openAt({ x: 300, y: 300 })
+    assert.equal(menu.isOpen(), true)
+    assert.equal(actions[0]?.action, 'panel.toggle')
+    assert.equal(actions[0]?.payload?.focus, true)
+
+    assert.equal(menu.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
+      raw: { source_canvas_id: 'panel-test' },
+    }), true)
+    assert.equal(menu.isOpen(), true)
+    assert.deepEqual(closes, [])
+
+    assert.equal(menu.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
+      raw: { source_canvas_id: 'other-panel' },
+    }), false)
+    assert.equal(menu.isOpen(), false)
+    assert.deepEqual(closes, ['outside-click'])
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
+  }
+})
+
 test('live context menu compact surface routes canonical controls through visual object binding once', async () => {
   const previousDocument = globalThis.document
   const previousWindow = globalThis.window
