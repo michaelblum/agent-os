@@ -237,7 +237,7 @@ export async function warmCanvas({
 }
 
 export function mutateSelf(opts) {
-  // opts: { frame?: [x,y,w,h], interactive?: bool }
+  // opts: { frame?: [x,y,w,h], interactive?: bool, geometry?: object }
   // fire-and-forget; daemon defaults id to caller (this canvas) when omitted
   emit('canvas.update', opts)
 }

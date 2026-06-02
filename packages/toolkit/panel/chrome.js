@@ -14,9 +14,11 @@ import {
   chipFrameForPanelFrame,
   clampFrameToWorkArea as placementClampFrameToWorkArea,
   cloneFrame as placementCloneFrame,
+  createPlacementPlan,
   finiteNumber,
   frameFromWindow as placementFrameFromWindow,
   normalizePanelDisplays,
+  normalizeViewportOverflowPolicy,
   positiveNumber,
   workAreaForFrameTopLeft as placementWorkAreaForFrameTopLeft,
   workAreaForPoint as placementWorkAreaForPoint,
@@ -268,6 +270,7 @@ function nextGeometryTransactionId(prefix = 'geometry') {
 }
 
 export const clampFrameToWorkArea = placementClampFrameToWorkArea
+export { createPlacementPlan, normalizeViewportOverflowPolicy }
 
 function framesEqual(lhs, rhs) {
   const a = cloneFrame(lhs)
@@ -439,6 +442,7 @@ export function createDragController({
   clampOnEnd = false,
   transfer = false,
   transferController = null,
+  viewportOverflowPolicy = 'clamp',
   minVisibleWidth = 160,
   minVisibleHeight = 44,
   onStateChange = null,
@@ -521,8 +525,22 @@ export function createDragController({
       active = null
       const transferResult = panelTransfer?.end()
       if (transferResult?.nativeFrame) {
-        frame = cloneFrame(transferResult.nativeFrame)
-        updateFrame(frame)
+        const plan = createPlacementPlan({
+          requestedFrame: transferResult.nativeFrame,
+          workArea: getDragWorkArea(transferResult.nativeFrame, releasePointer),
+          viewportOverflowPolicy: 'allow',
+          minVisibleWidth,
+          minVisibleHeight,
+          cause: 'placement.drag.transfer',
+        })
+        frame = cloneFrame(plan.final_settled_frame)
+        updateFrame(frame, {
+          change: 'frame',
+          cause: 'placement.drag.transfer',
+          phase: 'settled',
+          transaction_id: transactionId,
+          placement: plan,
+        })
       } else if (clampOnEnd) {
         const actualFrame = cloneFrame(getFrame())
         // WKWebView exposes display-local pointer screenY values on some
@@ -531,18 +549,29 @@ export function createDragController({
         // release so the final visibility clamp does not snap a correctly moved
         // panel back to the display's menu-bar edge.
         frame = framesEqual(actualFrame, startFrame) ? cloneFrame(frame) : actualFrame
-        const clamped = clampFrameToWorkArea(frame, {
+        const plan = createPlacementPlan({
+          requestedFrame: frame,
           workArea: getDragWorkArea(frame, releasePointer),
+          viewportOverflowPolicy,
           minVisibleWidth,
           minVisibleHeight,
         })
-        if (!framesEqual(frame, clamped)) {
-          frame = clamped
-          updateFrame(clamped, {
+        if (!framesEqual(frame, plan.final_settled_frame)) {
+          frame = cloneFrame(plan.final_settled_frame)
+          updateFrame(frame, {
             change: 'origin',
             cause: 'placement.drag',
             phase: 'settled',
             transaction_id: transactionId,
+            placement: plan,
+          })
+        } else {
+          updateFrame(frame, {
+            change: 'origin',
+            cause: 'placement.drag',
+            phase: 'settled',
+            transaction_id: transactionId,
+            placement: plan,
           })
         }
       } else {
@@ -726,12 +755,20 @@ export function createMaximizeController({
   function maximizePanel() {
     if (maximized) return state()
     restoreFrame = cloneFrame(getFrame())
+    const requestedFrame = cloneFrame(getWorkArea(restoreFrame))
+    const plan = createPlacementPlan({
+      requestedFrame,
+      workArea: requestedFrame,
+      viewportOverflowPolicy: 'allow',
+      cause: 'layout.maximize',
+    })
     maximized = true
-    updateFrame(cloneFrame(getWorkArea(restoreFrame)), {
+    updateFrame(cloneFrame(plan.final_settled_frame), {
       change: 'frame',
       cause: 'layout.maximize',
       phase: 'settled',
       transaction_id: nextGeometryTransactionId('layout-maximize'),
+      placement: plan,
     })
     notify()
     return state()
@@ -739,7 +776,13 @@ export function createMaximizeController({
 
   function restorePanel() {
     if (!maximized || !restoreFrame) return state()
-    const frame = cloneFrame(restoreFrame)
+    const plan = createPlacementPlan({
+      requestedFrame: restoreFrame,
+      workArea: getWorkArea(restoreFrame),
+      viewportOverflowPolicy: 'clamp',
+      cause: 'layout.restore',
+    })
+    const frame = cloneFrame(plan.final_settled_frame)
     maximized = false
     restoreFrame = null
     updateFrame(frame, {
@@ -747,6 +790,7 @@ export function createMaximizeController({
       cause: 'layout.restore',
       phase: 'settled',
       transaction_id: nextGeometryTransactionId('layout-restore'),
+      placement: plan,
     })
     notify()
     return state()

@@ -307,6 +307,7 @@ class Canvas {
     var parent: String?
     var owner: CanvasOwnerInfo?
     private(set) var sourceURL: String?
+    var placement: [String: JSONValue]?
     private var inputPassthrough = false
 
     /// Direct create/update into a mixed-DPI straddling rect can still land at
@@ -519,6 +520,7 @@ class Canvas {
             url: sourceURL,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
             requestedFrame: [desiredCGFrame.origin.x, desiredCGFrame.origin.y, desiredCGFrame.size.width, desiredCGFrame.size.height],
+            placement: placement,
             anchorWindow: anchorWindowID.map { Int($0) },
             anchorChannel: anchorChannelID,
             offset: offset.map { [$0.origin.x, $0.origin.y, $0.size.width, $0.size.height] },
@@ -657,7 +659,16 @@ class CanvasManager {
             } else {
                 row["requested_frame_unavailable_reason"] = "canvas type does not expose a single requested frame"
             }
-            row["actual_native_windows"] = windowNumbers.compactMap { nativeByWindowNumber[$0] }
+            if let placement = info.placement {
+                row["placement"] = jsonDictionary(placement)
+            } else {
+                row["placement_unavailable_reason"] = "canvas has not reported toolkit placement metadata"
+            }
+            let actualNativeWindows = windowNumbers.compactMap { nativeByWindowNumber[$0] }
+            row["actual_native_windows"] = actualNativeWindows
+            if let actualNativeFrame = (actualNativeWindows.first?["actual_frame"] as? [String: Any]) {
+                row["actual_native_frame"] = actualNativeFrame
+            }
             row["native_join_status"] = windowNumbers.isEmpty
                 ? "no_window_numbers"
                 : (windowNumbers.allSatisfy { nativeByWindowNumber[$0] != nil } ? "matched" : "missing_native_window")
@@ -787,6 +798,10 @@ class CanvasManager {
         [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height]
     }
 
+    private func jsonDictionary(_ object: [String: JSONValue]) -> [String: Any] {
+        object.mapValues { $0.anyValue }
+    }
+
     private func canvasInfoDictionary(_ info: CanvasInfo) -> [String: Any] {
         var row: [String: Any] = [
             "id": info.id,
@@ -807,6 +822,9 @@ class CanvasManager {
         if let suspended = info.suspended { row["suspended"] = suspended }
         if let lifecycleState = info.lifecycleState { row["lifecycleState"] = lifecycleState }
         if let windowNumbers = info.windowNumbers { row["windowNumbers"] = windowNumbers }
+        if let placement = info.placement {
+            row["placement"] = jsonDictionary(placement)
+        }
         if let segments = info.segments {
             row["segments"] = segments.map { segment in
                 [
@@ -1177,14 +1195,21 @@ class CanvasManager {
         change: String? = nil,
         cause: String? = nil,
         phase: String? = nil,
-        transactionID: String? = nil
+        transactionID: String? = nil,
+        metadata: [String: JSONValue]? = nil
     ) -> [String: Any] {
-        [
+        var context: [String: Any] = [
             "change": change ?? "frame",
             "cause": cause ?? "unknown",
             "phase": phase ?? "settled",
             "transaction_id": transactionID ?? UUID().uuidString,
         ]
+        if let metadata {
+            for (key, value) in metadata {
+                context[key] = value
+            }
+        }
+        return context
     }
 
     private func emitGeometry(_ canvas: CanvasLike, previousFrame: CGRect?, currentFrame: CGRect, context: [String: Any]) {
@@ -1221,6 +1246,9 @@ class CanvasManager {
             "at": frameArray(currentFrame),
             "canvas": canvasPayload,
         ]
+        if let placement = context["placement"] as? [String: JSONValue] {
+            payload["placement"] = jsonDictionary(placement)
+        }
         if let previousFrame {
             payload["previous_frame"] = frameArray(previousFrame)
         }
@@ -2005,11 +2033,15 @@ class CanvasManager {
 
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
+            if let placement = req.geometry?["placement"]?.objectValue {
+                canvas.placement = placement
+            }
             if moveCanvas(canvas, to: newFrame, geometry: geometryContext(
                 change: req.geometryChange,
                 cause: req.geometryCause,
                 phase: req.geometryPhase,
-                transactionID: req.geometryTransactionID
+                transactionID: req.geometryTransactionID,
+                metadata: req.geometry
             )) {
                 lifecycleDirty = false
             }

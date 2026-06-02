@@ -3,6 +3,94 @@
 
 import Foundation
 
+enum JSONValue: Codable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([JSONValue].self) {
+            self = .array(value)
+        } else {
+            self = .object(try container.decode([String: JSONValue].self))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        case .bool(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
+        case .null: try container.encodeNil()
+        }
+    }
+
+    init?(_ value: Any) {
+        switch value {
+        case let value as String:
+            self = .string(value)
+        case let value as Bool:
+            self = .bool(value)
+        case let value as Int:
+            self = .number(Double(value))
+        case let value as Double:
+            guard value.isFinite else { return nil }
+            self = .number(value)
+        case let value as CGFloat:
+            let number = Double(value)
+            guard number.isFinite else { return nil }
+            self = .number(number)
+        case let value as [Any]:
+            self = .array(value.compactMap { JSONValue($0) })
+        case let value as [String: Any]:
+            var object: [String: JSONValue] = [:]
+            for (key, entry) in value {
+                if let converted = JSONValue(entry) {
+                    object[key] = converted
+                }
+            }
+            self = .object(object)
+        default:
+            if value is NSNull {
+                self = .null
+            } else {
+                return nil
+            }
+        }
+    }
+
+    var anyValue: Any {
+        switch self {
+        case .string(let value): return value
+        case .number(let value): return value
+        case .bool(let value): return value
+        case .object(let value): return value.mapValues { $0.anyValue }
+        case .array(let value): return value.map { $0.anyValue }
+        case .null: return NSNull()
+        }
+    }
+
+    var objectValue: [String: JSONValue]? {
+        if case .object(let value) = self { return value }
+        return nil
+    }
+}
+
 // MARK: - Control Surface Patterns
 //
 // The combination of interactive canvases, eval (host->content), and
@@ -82,6 +170,7 @@ struct CanvasRequest: Codable {
     var geometryCause: String? = nil  // canvas_geometry cause, e.g. placement.drag
     var geometryPhase: String? = nil  // canvas_geometry phase: start, update, settled, cancelled
     var geometryTransactionID: String? = nil // stable across a geometry sequence
+    var geometry: [String: JSONValue]? = nil // structured canvas_geometry metadata
 
     enum CodingKeys: String, CodingKey {
         case action, id, at, offset, html, url, interactive, focus, ttl, js, scope
@@ -94,6 +183,7 @@ struct CanvasRequest: Codable {
         case geometryCause = "geometry_cause"
         case geometryPhase = "geometry_phase"
         case geometryTransactionID = "geometry_transaction_id"
+        case geometry
     }
 }
 
@@ -153,6 +243,7 @@ struct CanvasInfo: Codable {
     var url: String?              // URL loaded into the canvas, if URL-backed
     var at: [CGFloat]           // current [x, y, w, h] in CG coords
     var requestedFrame: [CGFloat]? // last requested/desired [x, y, w, h] in CG coords
+    var placement: [String: JSONValue]? // toolkit placement contract metadata
     var anchorWindow: Int?
     var anchorChannel: String?
     var offset: [CGFloat]?

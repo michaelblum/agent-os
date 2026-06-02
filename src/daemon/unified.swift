@@ -1381,6 +1381,10 @@ class UnifiedDaemon {
         request.geometryCause = payload["geometry_cause"] as? String ?? "aos.action"
         request.geometryPhase = payload["geometry_phase"] as? String ?? (frame == nil ? nil : "settled")
         request.geometryTransactionID = payload["geometry_transaction_id"] as? String
+        if let geometry = payload["geometry"] as? [String: Any],
+           let converted = JSONValue(geometry)?.objectValue {
+            request.geometry = converted
+        }
         return request
     }
 
@@ -1733,6 +1737,7 @@ class UnifiedDaemon {
         let interactive = payload["interactive"] as? Bool
         let windowLevel = payload["window_level"] as? String
         let geometry = payload["geometry"] as? [String: Any]
+        let convertedGeometry = geometry.flatMap { JSONValue($0)?.objectValue }
 
         guard at != nil || interactive != nil || windowLevel != nil else {
             fputs("[canvas-mut] update dropped caller=\(callerID) target=\(targetID) reason=no-fields\n", stderr)
@@ -1754,7 +1759,8 @@ class UnifiedDaemon {
             geometryChange: geometry?["change"] as? String ?? payload["geometry_change"] as? String,
             geometryCause: geometry?["cause"] as? String ?? payload["geometry_cause"] as? String,
             geometryPhase: geometry?["phase"] as? String ?? payload["geometry_phase"] as? String,
-            geometryTransactionID: geometry?["transaction_id"] as? String ?? payload["geometry_transaction_id"] as? String
+            geometryTransactionID: geometry?["transaction_id"] as? String ?? payload["geometry_transaction_id"] as? String,
+            geometry: convertedGeometry
         )
 
         DispatchQueue.main.async { [weak self] in
