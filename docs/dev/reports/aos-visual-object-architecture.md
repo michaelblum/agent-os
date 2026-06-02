@@ -25,11 +25,12 @@ Route order for the active Foreman workstream:
    `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`.
 3. Accepted: runtime service/input-tap ownership observability through
    `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`.
-4. Next: define or refresh toolkit panel placement so requested frames, actual
-   native frames, final settled frames, and opt-in viewport overflow behavior
-   are explicit toolkit policy rather than daemon layout policy.
-5. Add Sigil-owned avatar avoidance only if final settled panel frame evidence
-   shows the avatar can overlap or win input over its controls panel.
+4. Accepted: toolkit panel placement/final-frame reporting through
+   `docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md`.
+5. Next: use the final-frame and visible-surface audit contracts to prove
+   whether the Sigil avatar overlaps or wins input over its controls panel; add
+   Sigil-owned avatar avoidance only if that evidence requires it, through
+   `docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`.
 6. Return to live toolkit/Sigil panel dragging through
    `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
 7. Migrate the detached avatar controls panel to the existing

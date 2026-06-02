@@ -76,18 +76,30 @@ The required observability preconditions are now accepted:
   fact that duplicate macOS TCC rows are human-observable rather than AOS
   database-observable.
 
-The next placement slice can therefore build on `./aos show audit --json`,
-`./aos status --json`, and `./aos ready --json` instead of treating duplicate
-surfaces, stale worktrees, or input-tap ownership as unknown background noise.
+The placement/final-frame slice is now accepted, so follow-on Sigil and drag
+work can build on `./aos show audit --json`, `./aos status --json`, and
+`./aos ready --json` instead of treating duplicate surfaces, stale worktrees,
+or input-tap ownership as unknown background noise.
 
 This audit is not layout policy. Daemon/kernel code owns native truth and
 diagnostics. Toolkit owns opt-in panel placement policy. Sigil owns whether the
 avatar should avoid its controls panel after the panel's final settled frame is
 known.
 
-## Current Implementation Slice
+## Accepted Placement Contract
 
-The current branch has a useful partial extraction:
+The accepted `gdi/toolkit-panel-placement-final-frame-contract-v0` slice added
+the public placement-reporting shape needed for follow-on work:
+
+- `requested_frame`: caller-requested native global CG frame.
+- `policy_adjusted_frame`: frame after toolkit viewport overflow policy.
+- `final_settled_frame`: frame the toolkit requests as settled placement.
+- `viewport_overflow_policy`: effective `allow`, `clamp`, `flip`, or `shift`
+  policy, defaulting to conservative `clamp`.
+- `actual_native_frame`: daemon/window-server native truth available through
+  visible-surface audit rows.
+
+The current branch also has a useful partial extraction:
 
 - `packages/toolkit/panel/chrome.js` provides shared panel chrome, drag, resize,
   minimize, maximize, restore, and close behavior.

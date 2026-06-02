@@ -14,11 +14,15 @@ Current sequence:
 
 1. Accept
    `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
-2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
-   avatar avoidance only if the evidence requires it.
-3. Refresh and accept
+2. Accepted: toolkit panel placement/final-frame reporting through
+   `docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md`.
+3. Next: route
+   `docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`
+   to add Sigil-owned avatar avoidance only if final-frame/input-winner evidence
+   requires it.
+4. Refresh and accept
    `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
-4. Route the current replacement card:
+5. Route the current replacement card:
    `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
 
 Do not use this card to preserve old context-menu behavior or to add a second

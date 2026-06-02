@@ -20,16 +20,21 @@ docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md
 docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md
 ```
 
-The next slice is not live drag. Route toolkit panel placement/final-frame
-reporting first:
+Toolkit panel placement/final-frame reporting is now accepted:
 
 ```text
 docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md
 ```
 
-Only refresh this live-drag card after toolkit panel placement/final-frame
-reporting is accepted, and after Sigil-owned avatar avoidance has either been
-implemented or explicitly ruled out from the audit/final-frame evidence.
+The next slice is still not live drag. Route the Sigil avatar-panel final-frame
+avoidance assessment first:
+
+```text
+docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md
+```
+
+Only refresh this live-drag card after Sigil-owned avatar avoidance has either
+been implemented or explicitly ruled out from the audit/final-frame evidence.
 
 ## Recipient
 
@@ -74,12 +79,13 @@ Current sequence:
    `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`.
 3. Accepted:
    `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`.
-4. Next: define or refresh the toolkit panel placement contract so panels
-   report requested, policy-adjusted, final settled, and actual native frames,
-   with opt-in viewport overflow behavior such as `allow`, `clamp`, `flip`, or
-   `shift`.
-5. Add Sigil-owned avatar avoidance only if final settled panel frames show the
-   avatar can overlap or win input over its controls panel.
+4. Accepted: toolkit panel placement contract reports requested,
+   policy-adjusted, final settled, and actual native frames, with opt-in
+   viewport overflow behavior such as `allow`, `clamp`, `flip`, or `shift`.
+5. Next: route
+   `docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`
+   to prove whether the avatar can overlap or win input over its controls panel,
+   and to add Sigil-owned avatar avoidance only if the evidence requires it.
 6. Refresh this live-drag correction card against that accepted observability
    and placement head.
 7. Only after drag is corrected, route
