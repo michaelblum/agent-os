@@ -69,6 +69,14 @@ frame versus actual native frame, level, focus, interactivity, orphan windows,
 and the input target winner at a point where the current input router can prove
 it.
 
+The first accepted audit slice covers the active daemon and labels that limit as
+`runtime.native_window_scope = "current_daemon_process"`. The remaining
+precondition is cross-process/stale-worktree visibility: external AOS-owned
+native windows must be listed separately from current-daemon registry rows and
+current-daemon orphan windows, with process/worktree provenance or explicit
+unavailable reasons. Until that follow-up is accepted, a clean active registry
+does not prove that no stale visible AOS surface can win input.
+
 This audit is not layout policy. Daemon/kernel code owns native truth and
 diagnostics. Toolkit owns opt-in panel placement policy. Sigil owns whether the
 avatar should avoid its controls panel after the panel's final settled frame is
