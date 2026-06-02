@@ -10,7 +10,7 @@ import {
   buildEmployerBrandLiveEvidenceUrlReachabilityCheck,
   loadEmployerBrandLiveEvidenceUrlReachabilityCheck,
   validateEmployerBrandLiveEvidenceUrlReachabilityCheck,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-url-reachability-check.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-url-reachability-check.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

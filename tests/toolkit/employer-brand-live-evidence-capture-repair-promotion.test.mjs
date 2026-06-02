@@ -11,7 +11,7 @@ import {
   loadEmployerBrandLiveEvidenceRepairedLocatorCapturePlan,
   validateEmployerBrandLiveEvidenceCaptureRepairPromotion,
   validateEmployerBrandLiveEvidenceRepairedLocatorCapturePlan,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-capture-repair-promotion.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-capture-repair-promotion.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

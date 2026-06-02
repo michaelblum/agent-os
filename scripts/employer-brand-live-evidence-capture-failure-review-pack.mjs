@@ -6,7 +6,7 @@ import {
   buildEmployerBrandLiveEvidenceCaptureFailureReviewPack,
   loadEmployerBrandLiveEvidenceCaptureFailureReviewPackInputs,
   validateEmployerBrandLiveEvidenceCaptureFailureReviewPack,
-} from '../packages/toolkit/workbench/employer-brand-live-evidence-capture-failure-review-pack.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-capture-failure-review-pack.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

@@ -134,7 +134,7 @@ Each collection request should have a stable request ID that survives collection
 
 The current local planning bridge is
 `compileBrowserEvidenceManifestFromEmployerBrandAuditProject()` in
-`packages/toolkit/workbench/employer-brand-project-browser-evidence.js`, with a
+`packages/toolkit/workbench/_reference/employer-brand/employer-brand-project-browser-evidence.js`, with a
 script wrapper at
 `scripts/employer-brand-project-browser-evidence-manifest.mjs`. It compiles an
 Employer Brand Audit Project V0 fixture into a Browser Evidence Capture

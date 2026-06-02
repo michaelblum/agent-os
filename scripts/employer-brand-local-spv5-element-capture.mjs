@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   executeEmployerBrandLocalSpv5ElementCapture,
   writeEmployerBrandElementClipManifest,
-} from '../packages/toolkit/workbench/employer-brand-element-capture-executor.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-element-capture-executor.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

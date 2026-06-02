@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildEmployerBrandLiveEvidenceReviewedLocatorCapturePlan,
   validateEmployerBrandLiveEvidenceReviewedLocatorCapturePlan,
-} from '../packages/toolkit/workbench/employer-brand-live-evidence-reviewed-locator-capture-plan.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-reviewed-locator-capture-plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

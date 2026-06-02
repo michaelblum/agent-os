@@ -11,7 +11,7 @@ import {
   loadEmployerBrandLiveEvidenceVisibilityAdjustedCapturePlan,
   loadEmployerBrandLiveEvidenceVisibilityAdjustedCapturePlanInputs,
   validateEmployerBrandLiveEvidenceVisibilityAdjustedCapturePlan,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-visibility-adjusted-capture-plan.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-visibility-adjusted-capture-plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
