@@ -476,10 +476,14 @@ export function createSigilContextMenu({
 
     async function mountCompactSurface(activeTab = null) {
         const { createSigilAvatarCompactControlSurface } = await loadCompactSurfaceModule();
+        const previousSurface = compactSurface;
+        const previousTab = previousSurface?.getActiveTab?.();
+        const previousScrollTop = previousSurface?.el?.scrollTop ?? 0;
+        const previousScrollLeft = previousSurface?.el?.scrollLeft ?? 0;
         compactSurface?.destroy?.();
         compactSurface = createSigilAvatarCompactControlSurface(anchor, state || {}, {
             document,
-            defaultTab: activeTab || compactSurface?.getActiveTab?.() || undefined,
+            defaultTab: activeTab || previousTab || undefined,
             visualObjectBinding: {
                 state,
                 routeHandlers: visualObjectBinding.routeHandlers,
@@ -500,6 +504,10 @@ export function createSigilContextMenu({
                 syncSnapshot();
             },
         });
+        if (previousScrollTop > 0 || previousScrollLeft > 0) {
+            compactSurface.el.scrollTop = previousScrollTop;
+            compactSurface.el.scrollLeft = previousScrollLeft;
+        }
         seedCompactValueCache(compactSurface);
         syncSnapshot();
         return compactSurface;
@@ -797,6 +805,16 @@ export function createSigilContextMenu({
         syncPosition();
         anchor.classList.add('visible');
         syncSnapshot();
+        if (compactSurface) {
+            if (next.activeTab && compactSurface.getActiveTab?.() !== next.activeTab) {
+                compactSurface.setActiveTab?.(next.activeTab);
+            }
+            syncFromState();
+            seedCompactValueCache();
+            syncPosition();
+            syncSnapshot();
+            return;
+        }
         void mountCompactSurface(next.activeTab || null).then(() => {
             if (!menuState.open) return;
             syncFromState();

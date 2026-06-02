@@ -43,7 +43,12 @@ python3 - <<'PY'
 import json
 import os
 import subprocess
+import sys
 import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path("tests/lib").resolve()))
+import real_input_surface_primitives as ris
 
 
 def run(*args):
@@ -69,7 +74,7 @@ def see_canvas(canvas_id):
     safe_id = "".join(char if char.isalnum() or char in "-_" else "-" for char in canvas_id)
     out_path = f"/tmp/aos-sigil-semantic-{safe_id}-{os.getpid()}.png"
     try:
-        return json.loads(run("see", "capture", "--canvas", canvas_id, "--xray", "--out", out_path))
+        return json.loads(run("see", "capture", "main", "--canvas", canvas_id, "--perception", "--xray", "--out", out_path))
     finally:
         try:
             os.remove(out_path)
@@ -81,6 +86,30 @@ def semantic_target(canvas_id, target_id):
     payload = see_canvas(canvas_id)
     for target in payload.get("semantic_targets") or []:
         if target.get("id") == target_id:
+            return {"payload": payload, "target": target}
+    dom_target = json.loads(run(
+        "show", "eval", "--id", canvas_id, "--js",
+        """(() => {
+          const el = document.querySelector(`[data-semantic-target-id="avatar"]`)
+          if (!el) return JSON.stringify(null)
+          const rect = el.getBoundingClientRect()
+          return JSON.stringify({
+            id: el.dataset.semanticTargetId,
+            ref: el.dataset.aosRef,
+            role: 'button',
+            name: el.getAttribute('aria-label'),
+            surface: el.dataset.aosSurface,
+            parent_canvas: el.dataset.aosParentCanvas,
+            enabled: !el.disabled,
+            bounds: { width: rect.width, height: rect.height },
+            center: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+            source: 'hit-canvas-dom-fallback'
+          })
+        })()"""
+    ))
+    if dom_target.get("status") == "success":
+        target = json.loads(dom_target.get("result") or "null")
+        if target and target.get("id") == target_id:
             return {"payload": payload, "target": target}
     return None
 
@@ -207,13 +236,43 @@ assert daemon_echo["ok"] is True, daemon_echo
 assert daemon_echo["ignored"] is not None, daemon_echo
 
 show_eval("window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 }); 'ok'")
-direct_drag_state = show_eval_json(
+radial_drag_source = show_eval_json(
     """(() => {
       const p = window.__sigilDebug.snapshot().avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 48, y: p.y })
-      return JSON.stringify(window.__sigilDebug.snapshot())
+      return JSON.stringify({ p, config: window.state.radialGestureMenu })
     })()"""
+)
+drag_plan = ris.radial_drag_point(
+    radial_drag_source["p"],
+    radial_drag_source["config"],
+    phase="fastTravel",
+    source="state.radialGestureMenu",
+)
+mutated_basis = {**radial_drag_source["config"], "radiusBasis": radial_drag_source["config"]["radiusBasis"] + 7}
+mutated_handoff = {**radial_drag_source["config"], "handoffRadius": radial_drag_source["config"]["handoffRadius"] + 0.5}
+basis_plan = ris.radial_drag_point(radial_drag_source["p"], mutated_basis, phase="fastTravel")
+handoff_plan = ris.radial_drag_point(radial_drag_source["p"], mutated_handoff, phase="fastTravel")
+assert basis_plan["distancePx"] != drag_plan["distancePx"], {"drag_plan": drag_plan, "basis_plan": basis_plan}
+assert handoff_plan["distancePx"] != drag_plan["distancePx"], {"drag_plan": drag_plan, "handoff_plan": handoff_plan}
+print("radial_drag_plan", json.dumps({
+    "source": drag_plan["source"],
+    "configField": drag_plan["configField"],
+    "thresholdField": drag_plan["thresholdField"],
+    "radiusBasis": drag_plan["radiusBasis"],
+    "distancePx": drag_plan["distancePx"],
+}, sort_keys=True))
+
+direct_drag_state = show_eval_json(
+    f"""(() => {{
+      const p = window.__sigilDebug.snapshot().avatarPos
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_down', x: p.x, y: p.y }})
+      window.__sigilDebug.dispatchDesktop({{
+        type: 'left_mouse_dragged',
+        x: {json.dumps(drag_plan["point"]["x"])},
+        y: {json.dumps(drag_plan["point"]["y"])}
+      }})
+      return JSON.stringify(window.__sigilDebug.snapshot())
+    }})()"""
 )
 assert direct_drag_state["state"] == "FAST_TRAVEL", direct_drag_state
 assert direct_drag_state["fastTravelEffect"] == "line", direct_drag_state

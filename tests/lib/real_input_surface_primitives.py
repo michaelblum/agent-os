@@ -382,6 +382,15 @@ def desktop_world_figure_eight_path(displays, radial_menu_radius=260, min_span=2
     )
 
 
+def radial_drag_point(origin, config, phase="fastTravel", angle=0, epsilon=3, source="radialGestureMenu"):
+    return node_primitive(
+        "radial-drag-point",
+        origin=origin,
+        config=config,
+        options={"phase": phase, "angle": angle, "epsilon": epsilon, "source": source},
+    )
+
+
 def distance(a, b):
     dx = float(a["x"]) - float(b["x"])
     dy = float(a["y"]) - float(b["y"])
