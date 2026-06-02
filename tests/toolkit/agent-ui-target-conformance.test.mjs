@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 import {
+  actionList,
+  compactObject,
+  extensionSource,
   normalizeSemanticTarget,
   normalizeSemanticTargets,
 } from '../../packages/toolkit/runtime/semantic-targets.js'
@@ -46,23 +49,6 @@ function currentRecordsByShape(sourceFixture) {
 
 function canonicalRecordsByShape(candidateFixture) {
   return new Map(candidateFixture.records.map((entry) => [entry.shape, entry.agent_ui_target]))
-}
-
-function compactObject(value) {
-  return JSON.parse(JSON.stringify(value))
-}
-
-function actionList(record) {
-  if (Array.isArray(record.actions)) return [...record.actions]
-  return record.action ? [record.action] : []
-}
-
-function extensionSource(record) {
-  return {
-    path: record.source_path ?? null,
-    line_start: record.source_line_start ?? null,
-    line_end: record.source_line_end ?? null,
-  }
 }
 
 function mapCurrentRecordToCandidate(shape, record) {

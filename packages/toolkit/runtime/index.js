@@ -40,8 +40,11 @@ export {
   resolveDesktopWorldHitRegionOwnerCanvasId,
 } from './desktop-world-hit-region.js'
 export {
+  actionList,
   applySemanticTargetAttributes,
+  compactObject,
   createSemanticTargetElement,
+  extensionSource,
   normalizeAgentUiTarget,
   normalizeSemanticTarget,
   normalizeSemanticTargets,

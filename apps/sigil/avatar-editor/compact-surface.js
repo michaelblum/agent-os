@@ -442,30 +442,28 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         const triggerEl = triggerEls.get(tabKey);
         const selected = triggerEl?.getAttribute?.('aria-selected') === 'true'
           || activeTabFromTabsAdapter(tabsAdapter) === tabKey;
-        records.push({
-          ...normalizeAgentUiTarget({
-            id: tabKey,
-            role: 'AXTab',
-            name: text(tab.label, tabKey),
+        records.push(normalizeAgentUiTarget({
+          id: tabKey,
+          role: 'AXTab',
+          name: text(tab.label, tabKey),
+          value: tabKey,
+          selected,
+          current: selected,
+          enabled: !triggerEl?.disabled,
+          frame: triggerEl,
+          surface: COMPACT_SURFACE_ID,
+          metadata: {
             value: tabKey,
-            selected,
-            current: selected,
-            enabled: !triggerEl?.disabled,
-            frame: triggerEl,
-            surface: COMPACT_SURFACE_ID,
-            metadata: {
-              value: tabKey,
-              ...(triggerEl?.dataset ? { ...triggerEl.dataset } : {}),
-            },
-          }, {
-            kind: 'tab',
-            actions: triggerEl?.hidden ? [] : ['select'],
-            extension: {
-              label: text(tab.label, tabKey),
-              hidden: !!triggerEl?.hidden,
-            },
-          }),
-        });
+            ...(triggerEl?.dataset ? { ...triggerEl.dataset } : {}),
+          },
+        }, {
+          kind: 'tab',
+          actions: triggerEl?.hidden ? [] : ['select'],
+          extension: {
+            label: text(tab.label, tabKey),
+            hidden: !!triggerEl?.hidden,
+          },
+        }));
       }
       for (const { tab, section, form } of forms.values()) {
         records.push(...form.getControlRecords().map((record) => ({
