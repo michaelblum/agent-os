@@ -1,0 +1,171 @@
+{
+  "schema": "agent_ui_target_conformance_candidate_producers_v0",
+  "records": [
+    {
+      "shape": "toolkit_runtime_semantic_target",
+      "agent_ui_target": {
+        "ref": "sigil-radial-menu:wiki-graph",
+        "surface": "sigil-radial-menu",
+        "role": "button",
+        "name": "Wiki Graph",
+        "kind": "semantic_target",
+        "enabled": true,
+        "state": {
+          "value": null,
+          "current": true,
+          "pressed": null,
+          "selected": null,
+          "checked": null,
+          "expanded": null
+        },
+        "actions": ["wikiGraph"],
+        "extension": {
+          "source": { "path": null, "line_start": null, "line_end": null }
+        },
+        "provenance": {
+          "source_payload_id": "wiki-graph",
+          "legacy_identity_keys": ["id", "aosRef"],
+          "metadata": {},
+          "frame": { "x": 10, "y": 21, "width": 55, "height": 45 },
+          "parent_canvas_id": "avatar-main"
+        }
+      }
+    },
+    {
+      "shape": "toolkit_panel_form_control",
+      "agent_ui_target": {
+        "ref": "toolkit.panel.form:avatar-opacity",
+        "surface": "toolkit.panel.form",
+        "role": "slider",
+        "name": "Opacity",
+        "kind": "slider",
+        "enabled": true,
+        "state": {
+          "value": 0.55,
+          "current": null,
+          "pressed": null,
+          "selected": null,
+          "checked": null,
+          "expanded": null
+        },
+        "actions": ["drag", "set-value"],
+        "extension": {
+          "descriptor_id": "avatar-opacity",
+          "field_id": "opacity",
+          "options": [],
+          "hidden": false,
+          "source": { "path": null, "line_start": null, "line_end": null }
+        },
+        "provenance": {
+          "source_payload_id": "avatar-opacity",
+          "legacy_identity_keys": ["id", "aosRef", "ref"],
+          "metadata": {},
+          "frame": { "x": 10, "y": 72, "width": 160, "height": 28 },
+          "parent_canvas_id": ""
+        }
+      }
+    },
+    {
+      "shape": "sigil_compact_surface_control",
+      "agent_ui_target": {
+        "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
+        "surface": "sigil.avatar.compact_control_surface",
+        "role": "slider",
+        "name": "Face Opacity",
+        "kind": "slider",
+        "enabled": true,
+        "state": {
+          "value": 0.8,
+          "current": null,
+          "pressed": null,
+          "selected": null,
+          "checked": null,
+          "expanded": null
+        },
+        "actions": ["drag", "set-value"],
+        "extension": {
+          "descriptor_id": "sigil-menu-opacity",
+          "field_id": "face.opacity",
+          "options": [],
+          "hidden": false,
+          "tab": { "key": "alpha", "label": "Alpha" },
+          "section": { "key": "primary-polyhedron", "label": "Primary Polyhedron" },
+          "source": { "path": null, "line_start": null, "line_end": null }
+        },
+        "provenance": {
+          "source_payload_id": "sigil-menu-opacity",
+          "legacy_identity_keys": ["id", "aosRef", "ref"],
+          "metadata": {},
+          "frame": { "x": 24, "y": 84, "width": 180, "height": 28 },
+          "parent_canvas_id": ""
+        }
+      }
+    },
+    {
+      "shape": "sigil_compact_surface_tab",
+      "agent_ui_target": {
+        "ref": "sigil.avatar.compact_control_surface:alpha",
+        "surface": "sigil.avatar.compact_control_surface",
+        "role": "tab",
+        "name": "Alpha",
+        "kind": "tab",
+        "enabled": true,
+        "state": {
+          "value": "alpha",
+          "current": true,
+          "pressed": null,
+          "selected": true,
+          "checked": null,
+          "expanded": null
+        },
+        "actions": ["select"],
+        "extension": {
+          "label": "Alpha",
+          "hidden": false,
+          "source": { "path": null, "line_start": null, "line_end": null }
+        },
+        "provenance": {
+          "source_payload_id": "alpha",
+          "legacy_identity_keys": ["id", "aosRef", "ref"],
+          "metadata": { "value": "alpha" },
+          "frame": { "x": 12, "y": 20, "width": 56, "height": 24 },
+          "parent_canvas_id": ""
+        }
+      }
+    },
+    {
+      "shape": "html_workbench_source_line_target",
+      "agent_ui_target": {
+        "ref": "html-workbench-expression:decision-17",
+        "surface": "html-workbench-expression",
+        "role": "document_region",
+        "name": "Decision: Prefer canonical ref",
+        "kind": "decision",
+        "enabled": true,
+        "state": {
+          "value": null,
+          "current": null,
+          "pressed": null,
+          "selected": null,
+          "checked": null,
+          "expanded": null
+        },
+        "actions": [],
+        "extension": {
+          "annotation_eligible": true,
+          "reveal_eligible": true,
+          "source": {
+            "path": "docs/design/agent-ui-affordance-synthesis-v0.md",
+            "line_start": 17,
+            "line_end": 22
+          }
+        },
+        "provenance": {
+          "selector": "[data-semantic-target-id=\"decision-17\"]",
+          "source_payload_id": "decision-17",
+          "legacy_identity_keys": ["aos_ref", "data_aos_ref", "target_id"]
+        }
+      }
+    }
+  ]
+}

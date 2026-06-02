@@ -1,0 +1,131 @@
+{
+  "schema": "agent_ui_target_conformance_current_sources_v0",
+  "records": [
+    {
+      "shape": "toolkit_runtime_semantic_target",
+      "source": "packages/toolkit/runtime/semantic-targets.js",
+      "record": {
+        "id": "wiki-graph",
+        "role": "button",
+        "name": "Wiki Graph",
+        "action": "wikiGraph",
+        "enabled": true,
+        "current": true,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null,
+        "value": null,
+        "surface": "sigil-radial-menu",
+        "parentCanvasId": "avatar-main",
+        "aosRef": "sigil-radial-menu:wiki-graph",
+        "metadata": {},
+        "frame": { "x": 10, "y": 21, "width": 55, "height": 45 }
+      }
+    },
+    {
+      "shape": "toolkit_panel_form_control",
+      "source": "packages/toolkit/panel/form.js",
+      "record": {
+        "id": "avatar-opacity",
+        "role": "slider",
+        "name": "Opacity",
+        "action": "",
+        "enabled": true,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null,
+        "value": 0.55,
+        "surface": "toolkit.panel.form",
+        "parentCanvasId": "",
+        "aosRef": "toolkit.panel.form:avatar-opacity",
+        "metadata": {},
+        "frame": { "x": 10, "y": 72, "width": 160, "height": 28 },
+        "descriptor_id": "avatar-opacity",
+        "field_id": "opacity",
+        "ref": "toolkit.panel.form:avatar-opacity",
+        "kind": "slider",
+        "options": [],
+        "hidden": false,
+        "actions": ["drag", "set-value"]
+      }
+    },
+    {
+      "shape": "sigil_compact_surface_control",
+      "source": "apps/sigil/avatar-editor/compact-surface.js",
+      "record": {
+        "id": "sigil-menu-opacity",
+        "role": "slider",
+        "name": "Face Opacity",
+        "action": "",
+        "enabled": true,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null,
+        "value": 0.8,
+        "surface": "sigil.avatar.compact_control_surface",
+        "parentCanvasId": "",
+        "aosRef": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
+        "metadata": {},
+        "frame": { "x": 24, "y": 84, "width": 180, "height": 28 },
+        "descriptor_id": "sigil-menu-opacity",
+        "field_id": "face.opacity",
+        "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
+        "kind": "slider",
+        "options": [],
+        "hidden": false,
+        "actions": ["drag", "set-value"],
+        "tab": { "key": "alpha", "label": "Alpha" },
+        "section": { "key": "primary-polyhedron", "label": "Primary Polyhedron" }
+      }
+    },
+    {
+      "shape": "sigil_compact_surface_tab",
+      "source": "apps/sigil/avatar-editor/compact-surface.js",
+      "record": {
+        "id": "alpha",
+        "role": "tab",
+        "name": "Alpha",
+        "action": "",
+        "enabled": true,
+        "current": true,
+        "pressed": null,
+        "selected": true,
+        "checked": null,
+        "expanded": null,
+        "value": "alpha",
+        "surface": "sigil.avatar.compact_control_surface",
+        "parentCanvasId": "",
+        "aosRef": "sigil.avatar.compact_control_surface:alpha",
+        "metadata": { "value": "alpha" },
+        "frame": { "x": 12, "y": 20, "width": 56, "height": 24 },
+        "ref": "sigil.avatar.compact_control_surface:alpha",
+        "label": "Alpha",
+        "kind": "tab",
+        "hidden": false,
+        "actions": ["select"]
+      }
+    },
+    {
+      "shape": "html_workbench_source_line_target",
+      "source": "packages/toolkit/workbench/html-workbench-expression.js",
+      "record": {
+        "target_id": "decision-17",
+        "data_aos_ref": "html-workbench-expression:decision-17",
+        "aos_ref": "html-workbench-expression:decision-17",
+        "kind": "decision",
+        "accessible_label": "Decision: Prefer canonical ref",
+        "source_path": "docs/design/agent-ui-affordance-synthesis-v0.md",
+        "source_line_start": 17,
+        "source_line_end": 22,
+        "selector": "[data-semantic-target-id=\"decision-17\"]",
+        "annotation_eligible": true,
+        "reveal_eligible": true
+      }
+    }
+  ]
+}
