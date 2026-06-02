@@ -31,6 +31,59 @@ function waitForMicrotasks() {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+function setRect(element, rect) {
+  element.getBoundingClientRect = () => ({
+    left: rect.left,
+    top: rect.top,
+    right: rect.left + rect.width,
+    bottom: rect.top + rect.height,
+    width: rect.width,
+    height: rect.height,
+  })
+}
+
+function fieldByDescriptor(doc, descriptorId) {
+  return Array.from(doc.body.querySelectorAll('.aos-form-field'))
+    .find((element) => element.dataset?.descriptorId === descriptorId)
+}
+
+function setSliderRect(doc, descriptorId, rect) {
+  const field = fieldByDescriptor(doc, descriptorId)
+  assert.ok(field, `missing field for ${descriptorId}`)
+  setRect(field, rect)
+  for (const selector of [
+    '[data-aos-slider-root]',
+    '[data-aos-slider-control]',
+    '[data-aos-slider-track]',
+    '[data-aos-slider-thumb]',
+  ]) {
+    const element = field.querySelector(selector)
+    if (element) setRect(element, rect)
+  }
+  return field
+}
+
+function setToggleRect(doc, descriptorId, rect) {
+  const field = fieldByDescriptor(doc, descriptorId)
+  assert.ok(field, `missing field for ${descriptorId}`)
+  setRect(field, rect)
+  for (const element of [
+    field.querySelector('label'),
+    field.querySelector('input'),
+  ].filter(Boolean)) {
+    setRect(element, rect)
+  }
+  return field
+}
+
+function sliderX(value, min, max, rect) {
+  return rect.left + (((value - min) / (max - min)) * rect.width)
+}
+
+function rounded(value) {
+  return Number(Number(value).toFixed(6))
+}
+
 function fakeElement(id, rect, selector = '*') {
   return {
     id,
@@ -461,6 +514,123 @@ test('live context menu visual binding suppresses duplicate slider commits', asy
     assert.deepEqual(calls.filter(([kind]) => kind === 'binding-route'), [['binding-route', 0.42]])
     assert.deepEqual(calls.filter(([kind]) => kind === 'appearance'), [['appearance']])
     assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 0.42]])
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
+  }
+})
+
+test('live context menu keeps scrolled compact Box sliders routed to their descriptors', async () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  globalThis.document = document
+  globalThis.window = { innerHeight: 900 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const avatar = createDefaultAvatarState()
+    avatar.shape.type = 6
+    avatar.shape.tesseron.enabled = true
+    avatar.shape.stellationFactor = 0
+    avatar.shape.params.box = { width: 1, height: 1, depth: 1 }
+    const state = {
+      avatar,
+      currentGeometryType: 6,
+      currentType: 6,
+      avatarBase: 153,
+      tesseron: avatar.shape.tesseron,
+      stellationFactor: 0,
+      boxWidth: 1,
+      boxHeight: 1,
+      boxDepth: 1,
+    }
+    const calls = []
+    const menu = createSigilContextMenu({
+      state,
+      liveJs: {
+        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        avatarPos: { x: 0, y: 0 },
+      },
+      projectPoint: (point) => point,
+      updateGeometry(value) { calls.push(['geometry', value]) },
+      updatePrimaryStellation(value) { calls.push(['stellation', value]) },
+      trace: {
+        record(stage, data) {
+          if (stage === 'context-menu:visual-object-binding-update') {
+            calls.push(['binding-route', data.compatibilityId, data.value])
+          }
+        },
+      },
+      allowTestAnchorFallback: true,
+    })
+
+    menu.openAt({ x: 0, y: 0 })
+    await waitForMicrotasks()
+    await waitForMicrotasks()
+
+    const surface = document.body.querySelector('.sigil-avatar-control-surface')
+    assert.ok(surface)
+    setRect(surface, { left: 18, top: 18, width: 292, height: 448 })
+    surface.scrollTop = 0
+    surface.scrollLeft = 0
+
+    assert.equal(menu.handlePointerEvent('scroll_wheel', { x: 80, y: 80 }, {
+      raw: { dy: 180, sourceOrigin: 'canvas' },
+    }), true)
+    assert.equal(surface.scrollTop, 180)
+
+    const tesseronInput = fieldByDescriptor(document, 'sigil-menu-tesseron')?.querySelector('input')
+    assert.ok(tesseronInput)
+    tesseronInput.checked = false
+    tesseronInput.dispatchEvent(new Event('change', { bubbles: true }))
+    await waitForMicrotasks()
+    await waitForMicrotasks()
+
+    assert.equal(state.avatar.shape.tesseron.enabled, false)
+
+    const hiddenLaterTabConflict = 'sigil-menu-trail-length'
+    const drags = [
+      ['sigil-menu-box-width', 'width', 2.05, 0.1, 4, { left: 34, top: 142, width: 180, height: 24 }],
+      ['sigil-menu-box-height', 'height', 1.66, 0.1, 4, { left: 34, top: 178, width: 180, height: 24 }],
+      ['sigil-menu-box-depth', 'depth', 3.22, 0.1, 4, { left: 34, top: 214, width: 180, height: 24 }],
+      ['sigil-menu-stellation', 'stellationFactor', 1.25, -1, 2, { left: 34, top: 250, width: 180, height: 24 }],
+    ]
+
+    for (const [descriptorId, key, value, min, max, rect] of drags) {
+      setSliderRect(document, descriptorId, rect)
+      setSliderRect(document, hiddenLaterTabConflict, rect)
+      const point = { x: sliderX(value, min, max, rect), y: rect.top + 12 }
+      assert.equal(menu.handlePointerEvent('left_mouse_down', point), true)
+      assert.equal(menu.handlePointerEvent('left_mouse_dragged', point), true)
+      assert.equal(menu.handlePointerEvent('left_mouse_up', point), true)
+      await waitForMicrotasks()
+      await waitForMicrotasks()
+
+      if (key === 'stellationFactor') {
+        assert.equal(rounded(state.avatar.shape.stellationFactor), value)
+      } else {
+        assert.equal(rounded(state.avatar.shape.params.box[key]), value)
+      }
+      assert.equal(state.avatar.effects.trail.length, 20)
+    }
+
+    assert.deepEqual({
+      width: rounded(state.avatar.shape.params.box.width),
+      height: rounded(state.avatar.shape.params.box.height),
+      depth: rounded(state.avatar.shape.params.box.depth),
+    }, { width: 2.05, height: 1.66, depth: 3.22 })
+    assert.equal(rounded(state.avatar.shape.stellationFactor), 1.25)
+    assert.deepEqual(calls.filter(([kind]) => kind === 'binding-route').map(([, id]) => id), [
+      'sigil-menu-tesseron',
+      'sigil-menu-box-width',
+      'sigil-menu-box-height',
+      'sigil-menu-box-depth',
+      'sigil-menu-stellation',
+    ])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'stellation'), [['stellation', 1.25]])
   } finally {
     globalThis.document = previousDocument
     globalThis.window = previousWindow

@@ -73,6 +73,15 @@ function closestAny(element, selectors = []) {
     return null;
 }
 
+function elementHiddenInTree(element, boundary = null) {
+    for (let cursor = element; cursor && cursor !== boundary; cursor = cursor.parentElement) {
+        if (cursor.hidden) return true;
+        if (cursor.getAttribute?.('aria-hidden') === 'true') return true;
+        if (cursor.classList?.contains?.('hidden')) return true;
+    }
+    return false;
+}
+
 function displayVisibleBoundsForPoint(displays = [], point) {
     return displays.find((entry) => {
         const rect = entry.visibleBounds || entry.visible_bounds || entry.bounds;
@@ -199,7 +208,7 @@ export function findContextMenuElementAt(anchor, point, doc = document) {
         ))));
     for (let i = candidates.length - 1; i >= 0; i -= 1) {
         const element = candidates[i];
-        if (element.hidden) continue;
+        if (elementHiddenInTree(element, anchor)) continue;
         const rect = element.getBoundingClientRect?.();
         if (rectContainsPoint(rect, point)) return element;
     }
