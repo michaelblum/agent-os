@@ -11,9 +11,13 @@ controls panel still communicates with `avatar-main` through private
 `sigil.avatar_panel.*` messages. The next panel work must migrate that panel to
 the existing descriptor/resource contracts and remove the private route.
 
-Route `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`
-after the live panel drag correction is accepted. Do not use this historical
-card to keep a second compact-surface mutation path or compatibility layer.
+Before routing
+`docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`,
+accept `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`,
+refresh toolkit panel placement/final-frame reporting, add Sigil-owned avatar
+avoidance only if the evidence requires it, and refresh/accept live panel drag
+correction. Do not use this historical card to keep a second compact-surface
+mutation path or compatibility layer.
 
 ## Tracker
 

@@ -19,12 +19,21 @@ panel is product-useful but still uses a temporary private
 
 Route order for the active Foreman workstream:
 
-1. Fix live toolkit/Sigil panel dragging through
+1. Add an AOS-first visible-surface/orphan audit through
+   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`, because
+   `ready=true` and registered panel state do not prove all human-visible
+   AOS windows belong to the active branch/content root or registry.
+2. Define or refresh toolkit panel placement so requested frames, actual native
+   frames, final settled frames, and opt-in viewport overflow behavior are
+   explicit toolkit policy rather than daemon layout policy.
+3. Add Sigil-owned avatar avoidance only if final settled panel frame evidence
+   shows the avatar can overlap or win input over its controls panel.
+4. Return to live toolkit/Sigil panel dragging through
    `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
-2. Migrate the detached avatar controls panel to the existing
+5. Migrate the detached avatar controls panel to the existing
    `visual_object_descriptors` / `canvas_object.*` resource contract through
    `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
-3. Refresh Wiki graph browser, shared 3D editor subject, and semantic target
+6. Refresh Wiki graph browser, shared 3D editor subject, and semantic target
    cleanup work against that accepted resource migration head.
 
 Do not preserve repo-owned private protocols, duplicate target vocabulary, or

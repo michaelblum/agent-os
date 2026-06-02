@@ -10,11 +10,15 @@ Sigil avatar controls panel. Its follow-on sequence is stale.
 
 Current routing sequence:
 
-1. Finish and accept
+1. Accept
+   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
+   avatar avoidance only if the evidence requires it.
+3. Refresh and accept
    `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
-2. Route
+4. Route
    `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
-3. Refresh any remaining Wiki graph browser, 3D thing editor, or semantic
+5. Refresh any remaining Wiki graph browser, 3D thing editor, or semantic
    target cleanup card against the accepted resource migration head.
 
 Strict contract rule for this workstream: migrate owned Sigil/toolkit callers in

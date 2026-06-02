@@ -2,13 +2,25 @@
 
 ## Routing Status
 
-Do not dispatch until
-`docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md` has been
-accepted. Detached toolkit panels must drag reliably before this panel-based
-editing UX is expanded.
+Do not dispatch yet.
+
+New live evidence showed duplicate Avatar/Sigil surfaces across displays, so
+detached panel correctness now needs observability and placement preconditions
+before this resource migration expands panel-based editing UX.
+
+Current prerequisites:
+
+1. Accept
+   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+2. Define or refresh toolkit panel placement so requested and final settled
+   native frames are observable, with opt-in viewport overflow policy.
+3. Add Sigil-owned avatar avoidance only if final settled panel frame evidence
+   shows the avatar can overlap or win input over the controls panel.
+4. Refresh and accept
+   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
 
 When Foreman routes this card, update the `required_start_ref` below to the
-accepted live-drag correction head. Do not start from `origin/main`.
+accepted head after those prerequisites. Do not start from `origin/main`.
 
 ## Recipient
 
@@ -16,16 +28,17 @@ GDI implementation round.
 
 ## Branch / Base
 
-- `branch_from`: accepted live-drag correction branch/head
-- `required_start_ref`: to be filled by Foreman after live-drag acceptance
+- `branch_from`: accepted post-audit/post-placement/live-drag branch/head
+- `required_start_ref`: to be filled by Foreman after prerequisites are accepted
 - `expected_output_branch`: `gdi/sigil-avatar-panel-resource-contract-migration-v0`
 
 ## Source Artifacts
 
 - Accepted action bus / detached panel checkpoint:
   `21dc331d7bb4ec77493e77ad32541d0d70ba70a1`
-- Active prerequisite:
-  `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`
+- Active prerequisites:
+  - `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`
+  - `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`
 - Current architecture report:
   `docs/dev/reports/aos-visual-object-architecture.md`
 - Existing wire contract:
@@ -247,7 +260,7 @@ When `./aos ready --post-permission` passes, run a bounded live smoke:
 Include:
 
 - branch name and head SHA;
-- accepted live-drag start ref used;
+- accepted post-audit/post-placement/live-drag start ref used;
 - changed paths;
 - exact contract used for panel read/update/result flow;
 - proof that private `sigil.avatar_panel.*` protocol names were removed from

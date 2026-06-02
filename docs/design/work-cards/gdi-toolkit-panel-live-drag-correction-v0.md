@@ -1,5 +1,28 @@
 # GDI Work Card: Toolkit Panel Live Drag Correction V0
 
+## Routing Status
+
+Paused / do not dispatch as-is.
+
+New human-visible evidence changed the problem shape after this card was
+written: two Avatar/Sigil control surfaces were visible simultaneously across
+displays, one new panel-backed Avatar controls surface and one older compact
+Avatar/Sigil controls surface without panel chrome. That means the live drag
+failure is not proven to be only coordinate drift. Surface identity, registry,
+content-root, branch/worktree, and orphan visible-window drift must be audited
+first.
+
+The replacement first slice is:
+
+```text
+docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md
+```
+
+Only refresh this live-drag card after the visible-surface audit and toolkit
+panel placement contract are accepted, and after Sigil-owned avatar avoidance
+has either been implemented or explicitly ruled out from the audit/final-frame
+evidence.
+
 ## Recipient
 
 GDI correction round.
@@ -32,18 +55,26 @@ available.
 
 ## Downstream Routing Guard
 
-Keep this slice focused on panel drag. Do not broaden it into avatar resource
-or Wiki graph work.
+Keep this card paused until its preconditions are explicit. Do not route it as
+the next GDI task simply because panel drag remains a known issue.
 
-After this card is accepted, the next current implementation card is:
+Current sequence:
 
-```text
-docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md
-```
+1. Route and accept
+   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+2. Define or refresh the toolkit panel placement contract so panels report
+   requested and final settled native frames, with opt-in viewport overflow
+   behavior such as `allow`, `clamp`, `flip`, or `shift`.
+3. Add Sigil-owned avatar avoidance only if final settled panel frames show the
+   avatar can overlap or win input over its controls panel.
+4. Refresh this live-drag correction card against that accepted observability
+   and placement head.
+5. Only after drag is corrected, route
+   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
 
 Older avatar object-graph, context-menu data-driven-controls, and 3D thing
-editor cards are historical until refreshed against the accepted drag and
-resource-migration heads.
+editor cards are historical until refreshed against the accepted audit,
+placement, drag, and resource-migration heads.
 
 ## Fresh Context Contract
 
@@ -70,6 +101,13 @@ Foreman accepted the new focused Sigil panel behavior, including:
 The remaining failure is live: dragging the panel header with `./aos do drag`
 did not reliably change the panel's frame in `./aos show list`, even after the
 panel was focused.
+
+Do not treat that as a pure drag primitive failure without first proving visible
+surface exclusivity. The new evidence shows registered AOS state can look
+expected while stale or duplicate visible windows still participate in human
+input. `./aos ready` proves tap/runtime readiness only; it does not prove that
+all visible windows are from the active branch/content root or that the canvas
+registry matches the window server.
 
 ## Read First
 

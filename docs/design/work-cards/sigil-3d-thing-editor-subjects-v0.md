@@ -13,11 +13,15 @@ from its private `sigil.avatar_panel.*` protocol and onto the existing
 
 Current sequence:
 
-1. Finish and accept
+1. Accept
+   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
+   avatar avoidance only if the evidence requires it.
+3. Refresh and accept
    `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
-2. Route
+4. Route
    `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
-3. Refresh this 3D thing editor card against the accepted resource migration
+5. Refresh this 3D thing editor card against the accepted resource migration
    head, then route it if the Wiki/3D drilldown still needs the shared subject
    loader.
 

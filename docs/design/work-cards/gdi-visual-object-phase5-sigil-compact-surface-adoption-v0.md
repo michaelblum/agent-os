@@ -8,7 +8,9 @@
 > avatar controls panel introduced at `21dc331d`. That panel must be migrated
 > through
 > `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`
-> after the live panel drag correction is accepted, and the private
+> only after the visible-surface/orphan audit, toolkit panel
+> placement/final-frame reporting, any evidence-required Sigil avatar
+> avoidance, and refreshed live panel drag correction are accepted. The private
 > `sigil.avatar_panel.*` protocol should be removed rather than preserved as an
 > internal compatibility layer.
 

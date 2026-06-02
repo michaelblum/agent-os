@@ -12,9 +12,13 @@ temporary private `sigil.avatar_panel.*` message protocol.
 
 Current sequence:
 
-1. Finish and accept
+1. Accept
+   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
+   avatar avoidance only if the evidence requires it.
+3. Refresh and accept
    `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
-2. Route the current replacement card:
+4. Route the current replacement card:
    `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
 
 Do not use this card to preserve old context-menu behavior or to add a second

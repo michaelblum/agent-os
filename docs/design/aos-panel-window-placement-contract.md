@@ -52,6 +52,28 @@ The intended boundary is:
   menu graphics, transfer outlines, spotlights, and telemetry. It is not the
   place for text inputs or normal window controls.
 
+## 2026-06-02 Surface-Audit Precondition
+
+New Sigil live evidence showed two Avatar/Sigil control surfaces visible at the
+same time across displays: the new panel-backed Avatar controls surface and an
+older compact controls surface without panel chrome. This changes the immediate
+route. A panel that does not drag reliably may be suffering from coordinate
+drift, but it may also be losing input to a stale/orphan visible surface, a
+wrong content root, or an overlapping higher-level window.
+
+Before routing more placement or drag policy, AOS needs an AOS-first
+visible-surface/orphan audit owned by the daemon/kernel observability layer. The
+audit should show all visible AOS windows across displays, their registry owner
+when present, branch/worktree/content-root provenance when available, requested
+frame versus actual native frame, level, focus, interactivity, orphan windows,
+and the input target winner at a point where the current input router can prove
+it.
+
+This audit is not layout policy. Daemon/kernel code owns native truth and
+diagnostics. Toolkit owns opt-in panel placement policy. Sigil owns whether the
+avatar should avoid its controls panel after the panel's final settled frame is
+known.
+
 ## Current Implementation Slice
 
 The current branch has a useful partial extraction:
@@ -112,6 +134,12 @@ AOS needs a small, explicit panel placement contract. It should define:
   coordinates;
 - panel rest policy: normal panels rest on one display, clamped to that
   display's visible work area unless a surface explicitly opts out;
+- viewport overflow policy: panel callers can opt into documented behavior such
+  as `allow`, `clamp`, `flip`, or `shift`, with a deterministic final settled
+  frame reported after policy is applied;
+- frame lifecycle reporting: requested frame, policy-adjusted frame, and actual
+  native frame are separately observable so clamping and stale bookkeeping are
+  diagnosable;
 - drag authority: active drag movement can remain direct/native. Toolkit policy
   decides transfer release and final clamping, then calls `updateFrame()` /
   emits `drag_end`; daemon `drag_end` finalization completes the native frame
@@ -129,7 +157,11 @@ AOS needs a small, explicit panel placement contract. It should define:
 
 The next implementable slice should be small and testable:
 
+- an AOS-first visible-surface/orphan audit that proves registry/native window
+  alignment before live pointer or drag checks;
 - one public toolkit API for panel/window placement policy;
+- explicit requested-frame versus final-settled-frame reporting;
+- opt-in viewport overflow behavior for panels;
 - stock panel chrome routes through `createPanelWindowController()`;
 - minimized chip restore routed through that API and backed by stage layers plus
   explicit input regions by default;
