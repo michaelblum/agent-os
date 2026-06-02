@@ -83,6 +83,264 @@ def wait_until(predicate, timeout=6.0, interval=0.08, label="condition"):
     raise TimeoutError(f"timed out waiting for {label}; last={last!r}")
 
 
+def js_json(value):
+    return json.dumps(value)
+
+
+def aos_native_control_helper_js():
+    return r"""
+const AOSNativeControls = (() => {
+  const esc = (value) => {
+    const text = String(value ?? '')
+    if (globalThis.CSS?.escape) return globalThis.CSS.escape(text)
+    return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  }
+  const snapshot = () => window.__sigilDebug.snapshot()
+  const desktopWorldBounds = () => snapshot().surface?.segment?.dw_bounds || [0, 0, 0, 0]
+  const nativeBounds = () => snapshot().surface?.segment?.native_bounds || desktopWorldBounds()
+  const toNative = (point) => {
+    const dw = desktopWorldBounds()
+    const native = nativeBounds()
+    return { x: native[0] + point.x - dw[0], y: native[1] + point.y - dw[1] }
+  }
+  const visibleRect = (element) => {
+    if (!element) return null
+    const rect = element.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    return rect
+  }
+  const pointFor = (element, ratio = 0.5) => {
+    const rect = visibleRect(element)
+    if (!rect) return null
+    const dw = desktopWorldBounds()
+    return {
+      x: dw[0] + rect.left + rect.width * ratio,
+      y: dw[1] + rect.top + rect.height / 2,
+      rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+    }
+  }
+  const brokenContractTabElement = (value) => document.querySelector(`[data-aos-tabs-trigger][data-value="${esc(value)}"]`)
+  const field = (descriptorId) => document.querySelector(`.aos-form-field[data-descriptor-id="${esc(descriptorId)}"]`)
+  const segmentedButton = (descriptorId, value) => field(descriptorId)?.querySelector(`.aos-segmented button[data-value="${esc(value)}"]`)
+  const sliderControl = (descriptorId) => field(descriptorId)?.querySelector('[data-aos-slider-control]')
+  const rectPoint = (rect, ratio = 0.5) => {
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null
+    const left = Number.isFinite(Number(rect.x)) ? Number(rect.x) : Number(rect.left)
+    const top = Number.isFinite(Number(rect.y)) ? Number(rect.y) : Number(rect.top)
+    if (!Number.isFinite(left) || !Number.isFinite(top)) return null
+    const dw = desktopWorldBounds()
+    return {
+      x: dw[0] + left + rect.width * ratio,
+      y: dw[1] + top + rect.height / 2,
+      rect: { x: left, y: top, width: rect.width, height: rect.height }
+    }
+  }
+  const controlRecord = (descriptorId) => {
+    const controls = snapshot().contextMenu?.controls || []
+    return controls.find((control) => control.descriptor_id === descriptorId || control.id === descriptorId) || null
+  }
+  const tabRecord = (value) => {
+    const textValue = String(value)
+    const controls = snapshot().contextMenu?.controls || []
+    return controls.find((control) => (
+      control.role === 'tab'
+      && (String(control.value) === textValue || String(control.id) === textValue)
+    )) || null
+  }
+  const optionRecord = (record, value) => {
+    const textValue = String(value)
+    return (record?.options || []).find((option) => String(option.value) === textValue) || null
+  }
+  const recordFrame = (record) => record?.frame || record?.bounds || null
+  const recordPointOrFallback = ({ record, fallbackElement, ratio = 0.5 }) => {
+    const recordPoint = rectPoint(recordFrame(record), ratio)
+    if (recordPoint) return { point: recordPoint, fallback: null }
+    const fallbackPoint = pointFor(fallbackElement?.(), ratio)
+    return {
+      point: fallbackPoint,
+      fallback: fallbackPoint ? 'broken-contract-dom-selector' : null
+    }
+  }
+  const clickPoint = (hitCanvasId, point) => {
+    if (!point) return null
+    const nativePoint = toNative(point)
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_down', screenX: nativePoint.x, screenY: nativePoint.y }
+    })
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }
+    })
+    return nativePoint
+  }
+  const dragPoints = (hitCanvasId, start, end) => {
+    const startNative = toNative(start)
+    const endNative = toNative(end)
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_down', screenX: startNative.x, screenY: startNative.y }
+    })
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_dragged', screenX: endNative.x, screenY: endNative.y }
+    })
+    window.__sigilDebug.dispatch({
+      type: 'canvas_message',
+      id: hitCanvasId,
+      payload: { source: 'sigil-hit', kind: 'left_mouse_up', screenX: endNative.x, screenY: endNative.y }
+    })
+    return { startNative, endNative }
+  }
+  const tabReady = (value) => {
+    const record = tabRecord(value)
+    const { point, fallback } = recordPointOrFallback({
+      record,
+      fallbackElement: () => brokenContractTabElement(value)
+    })
+    if (!point) return { __pending: true, error: `missing or hidden AOS tab record ${value}` }
+    return {
+      ok: true,
+      id: record?.id || String(value),
+      role: record?.role || 'tab',
+      ref: record?.ref || `sigil.avatar.compact_control_surface:${value}`,
+      name: record?.name || record?.label || String(value),
+      value: record?.value ?? value,
+      selected: record?.selected === true,
+      current: record?.current === true,
+      enabled: record?.enabled !== false,
+      actions: record?.actions || ['select'],
+      controlRecord: record,
+      fallback,
+      point
+    }
+  }
+  const clickTab = (hitCanvasId, value) => {
+    const ready = tabReady(value)
+    if (!ready.ok) return ready
+    return { ...ready, nativePoint: clickPoint(hitCanvasId, ready.point) }
+  }
+  const segmentedReady = (descriptorId, value) => {
+    const container = field(descriptorId)
+    if (container) container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
+    const record = controlRecord(descriptorId)
+    const option = optionRecord(record, value)
+    if (!rectPoint(recordFrame(option)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
+    const { point, fallback } = recordPointOrFallback({
+      record: option,
+      fallbackElement: () => segmentedButton(descriptorId, value)
+    })
+    if (!point) return { __pending: true, error: `missing or hidden option ${descriptorId}:${value}` }
+    return {
+      ok: true,
+      id: descriptorId,
+      ref: record?.ref || `sigil.avatar.compact_control_surface:${descriptorId}`,
+      role: record?.role || 'radiogroup',
+      name: record?.name || descriptorId,
+      value,
+      selected: option?.selected === true,
+      controlRecord: record,
+      fallback,
+      point
+    }
+  }
+  const clickSegmented = (hitCanvasId, descriptorId, value) => {
+    const ready = segmentedReady(descriptorId, value)
+    if (!ready.ok) return ready
+    const nativePoint = clickPoint(hitCanvasId, ready.point)
+    const updated = optionRecord(controlRecord(descriptorId), value)
+    return { ...ready, nativePoint, selected: updated?.selected === true }
+  }
+  const sliderReady = (descriptorId) => {
+    const container = field(descriptorId)
+    if (container) container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
+    const record = controlRecord(descriptorId)
+    if (!rectPoint(recordFrame(record)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
+    const { point, fallback } = recordPointOrFallback({
+      record,
+      fallbackElement: () => sliderControl(descriptorId)
+    })
+    if (!point) return { __pending: true, error: `missing or hidden slider ${descriptorId}` }
+    return {
+      ok: true,
+      id: descriptorId,
+      ref: record?.ref || `sigil.avatar.compact_control_surface:${descriptorId}`,
+      role: record?.role || 'slider',
+      name: record?.name || descriptorId,
+      value: record?.value,
+      actions: record?.actions || [],
+      controlRecord: record,
+      fallback,
+      point
+    }
+  }
+  const dragSlider = (hitCanvasId, descriptorId, startRatio = 0.15, endRatio = 0.85) => {
+    const ready = sliderReady(descriptorId)
+    if (!ready.ok) return ready
+    const frame = recordFrame(ready.controlRecord)
+    const control = frame ? null : sliderControl(descriptorId)
+    const start = frame ? rectPoint(frame, startRatio) : pointFor(control, startRatio)
+    const end = frame ? rectPoint(frame, endRatio) : pointFor(control, endRatio)
+    if (!start || !end) return { __pending: true, error: `missing slider drag points ${descriptorId}` }
+    return {
+      ...ready,
+      fallback: ready.fallback || (frame ? null : 'broken-contract-dom-selector'),
+      start,
+      end,
+      ...dragPoints(hitCanvasId, start, end)
+    }
+  }
+  return { tabReady, clickTab, segmentedReady, clickSegmented, sliderReady, dragSlider }
+})()
+"""
+
+
+def aos_native_tab_ready_js(value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.tabReady({js_json(value)}))
+}})()"""
+
+
+def aos_native_click_tab_js(hit_canvas_id, value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.clickTab({js_json(hit_canvas_id)}, {js_json(value)}))
+}})()"""
+
+
+def aos_native_segmented_ready_js(descriptor_id, value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.segmentedReady({js_json(descriptor_id)}, {js_json(value)}))
+}})()"""
+
+
+def aos_native_click_segmented_js(hit_canvas_id, descriptor_id, value):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.clickSegmented({js_json(hit_canvas_id)}, {js_json(descriptor_id)}, {js_json(value)}))
+}})()"""
+
+
+def aos_native_slider_ready_js(descriptor_id):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.sliderReady({js_json(descriptor_id)}))
+}})()"""
+
+
+def aos_native_drag_slider_js(hit_canvas_id, descriptor_id, start_ratio=0.15, end_ratio=0.85):
+    return f"""(() => {{
+{aos_native_control_helper_js()}
+return JSON.stringify(AOSNativeControls.dragSlider({js_json(hit_canvas_id)}, {js_json(descriptor_id)}, {float(start_ratio)}, {float(end_ratio)}))
+}})()"""
+
+
 def node_primitive(action, **payload):
     completed = subprocess.run(
         ["node", str(NODE_HELPER), action],

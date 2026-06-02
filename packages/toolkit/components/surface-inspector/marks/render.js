@@ -31,8 +31,8 @@ function markSemanticAttrs(mark, canvasId) {
     id: `mark-${canvasId}-${mark.id}`,
     role: 'AXImage',
     name: mark.name || mark.id,
-    aosRef: canvasInspectorAosRef('mark', canvasId, mark.id),
-    parentCanvasId: canvasId,
+    ref: canvasInspectorAosRef('mark', canvasId, mark.id),
+    parent_canvas_id: canvasId,
   });
 }
 

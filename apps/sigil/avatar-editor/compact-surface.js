@@ -10,11 +10,15 @@ const { createButton } = await import(toolkitSpecifier('controls/button.js', {
 const { createForm } = await import(toolkitSpecifier('panel/form.js', {
   local: '../../../packages/toolkit/panel/form.js',
 }));
+const { normalizeAgentUiTarget } = await import(toolkitSpecifier('runtime/semantic-targets.js', {
+  local: '../../../packages/toolkit/runtime/semantic-targets.js',
+}));
 const { bindVisualObjectForm } = await import(toolkitSpecifier('workbench/visual-object-form-binding.js', {
   local: '../../../packages/toolkit/workbench/visual-object-form-binding.js',
 }));
 
 const COMPACT_SURFACE_VIEW_MODEL_TYPE = 'sigil.avatar.compact_control_surface.view_model';
+const COMPACT_SURFACE_ID = 'sigil.avatar.compact_control_surface';
 
 function isCompactSurfaceViewModel(value = {}) {
   return value?.type === COMPACT_SURFACE_VIEW_MODEL_TYPE;
@@ -190,6 +194,7 @@ function createProjectionTools({
     toolsEl.appendChild(formEl);
     const form = createForm(formEl, projectionFormFields(formControls), {
       document: doc,
+      surface: COMPACT_SURFACE_ID,
       onChange(values) {
         const payload = {
           values,
@@ -231,6 +236,7 @@ function createSection({
 
   const form = createForm(sectionEl, sectionFormFields(section), {
     document: doc,
+    surface: COMPACT_SURFACE_ID,
     onChange(values) {
       const payload = {
         tab,
@@ -428,6 +434,83 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
     },
     getProjectionForm(key = 'projection-tools') {
       return projectionForms.get(key) || null;
+    },
+    getControlRecords() {
+      const records = [];
+      for (const tab of renderedTabs) {
+        const tabKey = tab.key || 'tab';
+        const triggerEl = triggerEls.get(tabKey);
+        const selected = triggerEl?.getAttribute?.('aria-selected') === 'true'
+          || activeTabFromTabsAdapter(tabsAdapter) === tabKey;
+        records.push({
+          ...normalizeAgentUiTarget({
+            id: tabKey,
+            role: 'AXTab',
+            name: text(tab.label, tabKey),
+            value: tabKey,
+            selected,
+            current: selected,
+            enabled: !triggerEl?.disabled,
+            frame: triggerEl,
+            surface: COMPACT_SURFACE_ID,
+            metadata: {
+              value: tabKey,
+              ...(triggerEl?.dataset ? { ...triggerEl.dataset } : {}),
+            },
+          }, {
+            kind: 'tab',
+            actions: triggerEl?.hidden ? [] : ['select'],
+            extension: {
+              label: text(tab.label, tabKey),
+              hidden: !!triggerEl?.hidden,
+            },
+          }),
+        });
+      }
+      for (const { tab, section, form } of forms.values()) {
+        records.push(...form.getControlRecords().map((record) => ({
+          ...record,
+          surface: COMPACT_SURFACE_ID,
+          extension: {
+            ...record.extension,
+            tab: { key: tab.key, label: tab.label },
+            section: { key: section.key, label: section.label },
+          },
+        })));
+      }
+      for (const [key, form] of projectionForms) {
+        records.push(...form.getControlRecords().map((record) => ({
+          ...record,
+          surface: COMPACT_SURFACE_ID,
+          extension: {
+            ...record.extension,
+            projection: true,
+            section: { key, label: 'Surface Shortcuts' },
+          },
+        })));
+      }
+      return records;
+    },
+    getControlRecordByDescriptorId(descriptorId) {
+      for (const { form } of forms.values()) {
+        const record = form.getControlRecords().find((item) => item.extension?.descriptor_id === descriptorId);
+        if (record) return {
+          ...record,
+          surface: COMPACT_SURFACE_ID,
+        };
+      }
+      for (const form of projectionForms.values()) {
+        const record = form.getControlRecords().find((item) => item.extension?.descriptor_id === descriptorId);
+        if (record) return {
+          ...record,
+          surface: COMPACT_SURFACE_ID,
+          extension: {
+            ...record.extension,
+            projection: true,
+          },
+        };
+      }
+      return null;
     },
     refreshVisibility() {
       for (const entry of forms.values()) entry.form.refreshVisibility?.();

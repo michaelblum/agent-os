@@ -39,7 +39,7 @@ export function panelTabSemanticTarget(content = {}, index = 0, options = {}) {
     name: label,
     action: 'tabs/activate',
     surface: TABS_SURFACE,
-    aosRef: panelTabAosRef(options.panelName, tabID),
+    ref: panelTabAosRef(options.panelName, tabID),
     selected: !!options.selected,
   }
 }

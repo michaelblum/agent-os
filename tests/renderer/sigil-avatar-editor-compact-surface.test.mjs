@@ -156,6 +156,17 @@ function containsElement(parent, child) {
   return false;
 }
 
+function setRect(element, rect) {
+  element.getBoundingClientRect = () => ({
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    right: rect.left + rect.width,
+    bottom: rect.top + rect.height,
+  });
+}
+
 test('compact avatar control surface renders toolkit tabs and section forms from the avatar object graph view model', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const { surface } = mount(viewModel);
@@ -213,6 +224,76 @@ test('compact avatar control surface reports form changes with tab, section, and
   assert.equal(changes[0].section.key, 'primary-polyhedron');
   assert.equal(changes[0].avatar_id, 'avatar-main');
   assert.equal(changes[0].values[alphaOpacity.id], 0.45);
+});
+
+test('compact avatar control surface exposes descriptor-addressed AOS control records', () => {
+  const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
+  const { surface } = mount(viewModel);
+  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-menu-opacity');
+  const form = surface.getForm('alpha:primary-polyhedron');
+  const sliderControl = form.getField(alphaOpacity.id).control.el.querySelector('[data-aos-slider-control]');
+
+  setRect(sliderControl, { left: 24, top: 84, width: 180, height: 28 });
+
+  const record = surface.getControlRecordByDescriptorId('sigil-menu-opacity');
+  const records = surface.getControlRecords();
+
+  assert.equal(record.extension.descriptor_id, 'sigil-menu-opacity');
+  assert.equal(record.extension.field_id, alphaOpacity.id);
+  assert.equal(record.ref, 'sigil.avatar.compact_control_surface:sigil-menu-opacity');
+  assert.equal(record.role, 'slider');
+  assert.equal(record.name, 'Face Opacity');
+  assert.equal(record.state.value, 0.8);
+  assert.equal(record.surface, 'sigil.avatar.compact_control_surface');
+  assert.deepEqual(record.provenance.frame, { x: 24, y: 84, width: 180, height: 28 });
+  assert.equal(Object.hasOwn(record, 'aosRef'), false);
+  assert.equal(Object.hasOwn(record, 'id'), false);
+  assert.ok(records
+    .filter((item) => item.surface === 'sigil.avatar.compact_control_surface' && item.extension?.descriptor_id)
+    .every((item) => item.ref === `${item.surface}:${item.extension.descriptor_id}`));
+  assert.ok(records.some((item) => (
+    item.extension?.descriptor_id === 'sigil-menu-fast-travel-effect'
+    && item.role === 'radiogroup'
+    && item.extension.options.some((option) => option.value === 'wormhole')
+  )));
+});
+
+test('compact avatar control surface exposes AOS-native tab control records', () => {
+  const { surface } = mount();
+  const alphaTrigger = surface.el.querySelectorAll('[data-aos-tabs-trigger]')
+    .find((element) => element.dataset.value === 'alpha');
+  const omegaTrigger = surface.el.querySelectorAll('[data-aos-tabs-trigger]')
+    .find((element) => element.dataset.value === 'omega');
+
+  setRect(alphaTrigger, { left: 12, top: 20, width: 56, height: 24 });
+  setRect(omegaTrigger, { left: 132, top: 20, width: 72, height: 24 });
+
+  let alphaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:alpha');
+  let omegaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:omega');
+
+  assert.equal(alphaRecord.provenance.source_payload_id, 'alpha');
+  assert.equal(alphaRecord.state.value, 'alpha');
+  assert.equal(alphaRecord.role, 'tab');
+  assert.equal(alphaRecord.name, 'Alpha');
+  assert.equal(alphaRecord.extension.label, 'Alpha');
+  assert.equal(alphaRecord.state.selected, true);
+  assert.equal(alphaRecord.state.current, true);
+  assert.equal(alphaRecord.enabled, true);
+  assert.deepEqual(alphaRecord.provenance.frame, { x: 12, y: 20, width: 56, height: 24 });
+  assert.deepEqual(alphaRecord.actions, ['select']);
+  assert.equal(alphaRecord.surface, 'sigil.avatar.compact_control_surface');
+
+  assert.equal(omegaRecord.state.selected, false);
+  assert.equal(omegaRecord.state.current, false);
+
+  surface.setActiveTab('omega');
+  alphaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:alpha');
+  omegaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:omega');
+
+  assert.equal(alphaRecord.state.selected, false);
+  assert.equal(alphaRecord.state.current, false);
+  assert.equal(omegaRecord.state.selected, true);
+  assert.equal(omegaRecord.state.current, true);
 });
 
 test('compact avatar control surface can bind a real canonical control through visual object descriptors', () => {

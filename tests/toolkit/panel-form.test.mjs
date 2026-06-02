@@ -46,6 +46,17 @@ function mount(fields = gateFields, options = {}) {
   return { document, container, form };
 }
 
+function setRect(element, rect) {
+  element.getBoundingClientRect = () => ({
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    right: rect.left + rect.width,
+    bottom: rect.top + rect.height,
+  });
+}
+
 test('createForm renders gate fields through toolkit controls', () => {
   const { form } = mount([
     {
@@ -219,6 +230,70 @@ test('onFieldChange callback receives field-level binding payloads without chang
   assert.equal(fieldChanges[0].field.descriptor_id, 'toolkit-slider-opacity');
   assert.equal(fieldChanges[0].binding.state_path, 'toolkit.controls.opacity.value');
   assert.equal(fieldChanges[0].metadata.descriptorId, 'toolkit-slider-opacity');
+});
+
+test('getControlRecords exposes normalized AOS control targets for agent operation', () => {
+  const { form } = mount([
+    {
+      id: 'mode',
+      descriptor_id: 'avatar-mode',
+      kind: 'radio_group',
+      label: 'Mode',
+      value: 'alpha',
+      options: [
+        { value: 'alpha', label: 'Alpha' },
+        { value: 'omega', label: 'Omega' },
+      ],
+    },
+    {
+      id: 'opacity',
+      descriptor_id: 'avatar-opacity',
+      kind: 'slider',
+      label: 'Opacity',
+      value: 0.55,
+      min: 0,
+      max: 1,
+      step: 0.05,
+    },
+  ], { zag: true });
+  const [alphaButton, omegaButton] = form.getField('mode').control.el.querySelectorAll('button');
+  const sliderControl = form.getField('opacity').control.el.querySelector('[data-aos-slider-control]');
+
+  setRect(alphaButton, { left: 10, top: 20, width: 50, height: 24 });
+  setRect(omegaButton, { left: 64, top: 20, width: 60, height: 24 });
+  setRect(sliderControl, { left: 10, top: 72, width: 160, height: 28 });
+
+  const records = form.getControlRecords();
+  const mode = records.find((record) => record.extension.descriptor_id === 'avatar-mode');
+  const opacity = form.getControlRecord('opacity');
+
+  assert.equal(mode.extension.descriptor_id, 'avatar-mode');
+  assert.equal(mode.extension.field_id, 'mode');
+  assert.equal(mode.ref, 'toolkit.panel.form:avatar-mode');
+  assert.equal(mode.role, 'radiogroup');
+  assert.equal(mode.name, 'Mode');
+  assert.equal(mode.state.value, 'alpha');
+  assert.deepEqual(mode.actions, ['select']);
+  assert.deepEqual(mode.extension.options.map(({ value, label, selected, frame }) => ({
+    value,
+    label,
+    selected,
+    frame,
+  })), [
+    { value: 'alpha', label: 'Alpha', selected: true, frame: { x: 10, y: 20, width: 50, height: 24 } },
+    { value: 'omega', label: 'Omega', selected: false, frame: { x: 64, y: 20, width: 60, height: 24 } },
+  ]);
+  assert.equal(mode.provenance.source_payload_id, 'avatar-mode');
+  assert.equal(Object.hasOwn(mode, 'aosRef'), false);
+  assert.equal(Object.hasOwn(mode, 'id'), false);
+  assert.equal(opacity.extension.descriptor_id, 'avatar-opacity');
+  assert.equal(opacity.extension.field_id, 'opacity');
+  assert.equal(opacity.ref, 'toolkit.panel.form:avatar-opacity');
+  assert.equal(opacity.role, 'slider');
+  assert.equal(opacity.name, 'Opacity');
+  assert.equal(opacity.state.value, 0.55);
+  assert.deepEqual(opacity.provenance.frame, { x: 10, y: 72, width: 160, height: 28 });
+  assert.deepEqual(opacity.actions, ['drag', 'set-value']);
 });
 
 test('createForm renders sectioned data-editor fields with binding metadata', () => {

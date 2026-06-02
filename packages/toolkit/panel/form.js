@@ -8,6 +8,7 @@ import { createTextarea } from '../controls/textarea.js';
 import { createToggle } from '../controls/toggle.js';
 import { dispatchDomEvent } from '../controls/_events.js';
 import { wireNumberFieldControls } from '../controls/number-field.js';
+import { normalizeAgentUiTarget } from '../runtime/semantic-targets.js';
 
 function createHub() {
   const listeners = new Map();
@@ -192,6 +193,144 @@ function metadataValue(value) {
   if (value === undefined || value === null || value === '') return null;
   if (Array.isArray(value)) return value.join(' ');
   return String(value);
+}
+
+function text(value, fallback = '') {
+  const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return normalized || fallback;
+}
+
+function semanticRoleForField(field = {}) {
+  switch (field.kind) {
+    case 'exclusive_choice':
+    case 'radio_group':
+      return 'radiogroup';
+    case 'multi_choice':
+      return 'group';
+    case 'boolean':
+    case 'checkbox':
+      return 'checkbox';
+    case 'slider':
+      return 'slider';
+    case 'select':
+      return 'combobox';
+    case 'textarea':
+      return 'textbox';
+    case 'number':
+    case 'text':
+    default:
+      return 'textbox';
+  }
+}
+
+function optionElementFor(control = null, option = {}, index = 0) {
+  const elements = typeof control?.el?.querySelectorAll === 'function'
+    ? Array.from(control.el.querySelectorAll('button,[data-value]'))
+    : [];
+  return elements.find((element) => element.dataset?.value === String(option.value))
+    || elements[index]
+    || null;
+}
+
+function controlOptions(field = {}, control = null) {
+  if (typeof control?.getOptions === 'function') {
+    return control.getOptions().map((option, index) => {
+      const element = optionElementFor(control, option, index);
+      return {
+        value: option.rawValue ?? option.value,
+        label: text(option.label, option.value),
+        enabled: !option.disabled,
+        selected: element?.getAttribute?.('aria-selected') === 'true'
+          || element?.getAttribute?.('aria-pressed') === 'true'
+          || element?.classList?.contains?.('selected') === true
+          || element?.classList?.contains?.('active') === true,
+        frame: rectForElement(element),
+      };
+    });
+  }
+  if (!Array.isArray(field.options)) return [];
+  return field.options.map((option, index) => {
+    const element = optionElementFor(control, option, index);
+    return {
+      value: option.value,
+      label: text(option.label, option.value),
+      enabled: !option.disabled,
+      selected: element?.getAttribute?.('aria-pressed') === 'true'
+        || element?.getAttribute?.('aria-selected') === 'true'
+        || element?.classList?.contains?.('active') === true
+        || element?.classList?.contains?.('selected') === true,
+      frame: rectForElement(element),
+    };
+  });
+}
+
+function rectForElement(element) {
+  if (typeof element?.getBoundingClientRect !== 'function') return null;
+  const rect = element.getBoundingClientRect();
+  const left = Number(rect.left);
+  const top = Number(rect.top);
+  const width = Number(rect.width);
+  const height = Number(rect.height);
+  if (![left, top, width, height].every(Number.isFinite)) return null;
+  return {
+    x: Math.round(left),
+    y: Math.round(top),
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height)),
+  };
+}
+
+function focusTargetForRecord(record = {}) {
+  const el = record.control?.el;
+  if (!el) return null;
+  if (typeof el.matches === 'function' && el.matches('button,input,select,textarea,[tabindex]')) return el;
+  return typeof el.querySelector === 'function'
+    ? el.querySelector('button,input,select,textarea,[tabindex]')
+    : null;
+}
+
+function interactionTargetForRecord(record = {}) {
+  if (record.field.kind === 'slider') {
+    return record.control?.el?.querySelector?.('[data-aos-slider-control]') || record.control?.el || record.el;
+  }
+  return focusTargetForRecord(record) || record.control?.el || record.el;
+}
+
+function controlActionsForRecord(record = {}) {
+  const actions = [];
+  if (record.hidden) return actions;
+  if (['exclusive_choice', 'radio_group'].includes(record.field.kind)) actions.push('select');
+  else if (record.field.kind === 'slider') actions.push('drag', 'set-value');
+  else if (record.field.kind === 'select') actions.push('open', 'select');
+  else if (['boolean', 'checkbox', 'multi_choice'].includes(record.field.kind)) actions.push('toggle');
+  else actions.push('focus', 'set-value');
+  return actions;
+}
+
+function controlRecordFor(record = {}, options = {}) {
+  const field = record.field || {};
+  const descriptorId = field.descriptor_id ?? field.binding?.descriptor_id ?? field.id;
+  const target = interactionTargetForRecord(record);
+  const value = record.control?.getValue?.();
+  return normalizeAgentUiTarget({
+    id: descriptorId,
+    role: field.role || semanticRoleForField(field),
+    name: field.label ?? field.control_label ?? field.id,
+    value,
+    enabled: !record.hidden && !target?.disabled,
+    frame: rectForElement(target),
+    surface: field.surface || options.surface || 'toolkit.panel.form',
+    metadata: { ...record.el.dataset },
+  }, {
+    kind: field.kind || 'text',
+    actions: controlActionsForRecord(record),
+    extension: {
+      descriptor_id: descriptorId,
+      field_id: field.id,
+      options: controlOptions(field, record.control),
+      hidden: !!record.hidden,
+    },
+  });
 }
 
 function applyFieldMetadata(fieldEl, field) {
@@ -382,6 +521,13 @@ export function createForm(container, fields = [], options = {}) {
         field: record.field,
         hidden: record.hidden,
       };
+    },
+    getControlRecord(id) {
+      const record = records.get(id);
+      return record ? controlRecordFor(record, options) : null;
+    },
+    getControlRecords() {
+      return Array.from(records.values(), (record) => controlRecordFor(record, options));
     },
     focus() {
       for (const record of records.values()) {

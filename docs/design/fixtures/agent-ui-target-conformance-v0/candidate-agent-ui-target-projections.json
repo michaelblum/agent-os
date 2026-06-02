@@ -1,0 +1,74 @@
+{
+  "schema": "agent_ui_target_conformance_candidate_projections_v0",
+  "records": [
+    {
+      "shape": "annotation_surface_inspector_projection",
+      "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
+      "adapter_id": "aos-toolkit-semantic-target",
+      "root_id": "avatar-main",
+      "subject_path": ["canvas", "avatar-main", "semantic", "sigil.avatar.compact_control_surface:sigil-menu-opacity"],
+      "subject_kind": "slider",
+      "current_render_status": "visible",
+      "can_project_display_overlay": true,
+      "can_reveal": true,
+      "coordinate_space": "native_display",
+      "display_space_rect": { "x": 24, "y": 84, "width": 180, "height": 28 },
+      "local_space_rect": { "x": 24, "y": 84, "width": 180, "height": 28 },
+      "ancestor_viewport_clip_chain": [],
+      "scrollable_ancestor_chain": [],
+      "blocker_reasons": [],
+      "refreshed_at": "2026-06-01T00:00:00.000Z",
+      "provenance_source_payload_id": "sigil-menu-opacity",
+      "source_tree_node_metadata": {
+        "subject_id": "sigil-menu-opacity",
+        "target_id": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
+        "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity"
+      }
+    },
+    {
+      "shape": "annotation_canvas_window_projection",
+      "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
+      "adapter_id": "aos-canvas-window",
+      "root_id": "avatar-main",
+      "subject_path": ["canvas", "avatar-main", "window", "sigil.avatar.compact_control_surface:sigil-menu-opacity"],
+      "subject_kind": "canvas_window",
+      "current_render_status": "visible",
+      "can_project_display_overlay": true,
+      "can_reveal": true,
+      "coordinate_space": "native_display",
+      "display_space_rect": { "x": 0, "y": 0, "width": 320, "height": 460 },
+      "local_space_rect": { "x": 0, "y": 0, "width": 320, "height": 460 },
+      "ancestor_viewport_clip_chain": [],
+      "scrollable_ancestor_chain": [],
+      "blocker_reasons": [],
+      "refreshed_at": "2026-06-01T00:00:00.000Z",
+      "provenance_source_payload_id": "avatar-main"
+    },
+    {
+      "shape": "annotation_surface_inspector_blocked_projection",
+      "ref": "html-workbench-expression:decision-17",
+      "adapter_id": "aos-toolkit-semantic-target",
+      "root_id": "html-workbench-expression",
+      "subject_path": ["canvas", "html-workbench-expression", "semantic", "html-workbench-expression:decision-17"],
+      "subject_kind": "decision",
+      "current_render_status": "unsupported",
+      "can_project_display_overlay": false,
+      "can_reveal": false,
+      "coordinate_space": "native_display",
+      "display_space_rect": null,
+      "local_space_rect": null,
+      "ancestor_viewport_clip_chain": [],
+      "scrollable_ancestor_chain": [],
+      "blocker_reasons": ["semantic_target_no_structured_bounds_or_reveal_handler"],
+      "refreshed_at": "2026-06-01T00:00:00.000Z",
+      "provenance_source_payload_id": "decision-17",
+      "source_tree_node_metadata": {
+        "ref": "html-workbench-expression:decision-17",
+        "provenance": {
+          "source_payload_id": "decision-17",
+          "selector": "[data-semantic-target-id=\"decision-17\"]"
+        }
+      }
+    }
+  ]
+}

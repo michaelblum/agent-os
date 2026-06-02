@@ -31,7 +31,7 @@ export function objectRowAttrs(entry, selected = false) {
     role: 'AXButton',
     name: `Select ${entry.name}`,
     action: 'select_object',
-    aosRef: `${SURFACE}:object:${entry.canvas_id}:${entry.object_id}`,
+    ref: `${SURFACE}:object:${entry.canvas_id}:${entry.object_id}`,
     selected,
   }, { nativeRole: 'button' });
 }
@@ -44,7 +44,7 @@ export function visibilityToggleAttrs(entry, options = {}) {
     role: 'AXCheckBox',
     name: `${visible ? 'Hide' : 'Show'} ${entry.name}`,
     action: 'toggle_visibility',
-    aosRef: `${SURFACE}:visibility:${entry.canvas_id}:${entry.object_id}`,
+    ref: `${SURFACE}:visibility:${entry.canvas_id}:${entry.object_id}`,
     checked,
   }, { nativeRole: 'checkbox' });
 }
@@ -56,7 +56,7 @@ export function tripletInputAttrs(entry, group, axis, value) {
     role: 'AXTextField',
     name: label,
     action: 'edit_transform',
-    aosRef: `${SURFACE}:input:${entry.canvas_id}:${entry.object_id}:${group}:${axis}`,
+    ref: `${SURFACE}:input:${entry.canvas_id}:${entry.object_id}:${group}:${axis}`,
     value,
   }, { nativeRole: 'textbox' });
 }
@@ -68,7 +68,7 @@ export function descriptorInputAttrs(entry, field, value) {
     role: 'AXTextArea',
     name: label,
     action: 'edit_descriptor',
-    aosRef: `${SURFACE}:descriptor:${entry.canvas_id}:${entry.object_id}:${field}`,
+    ref: `${SURFACE}:descriptor:${entry.canvas_id}:${entry.object_id}:${field}`,
     value,
   }, { nativeRole: 'textbox' });
 }

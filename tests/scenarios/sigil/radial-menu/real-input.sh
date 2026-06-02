@@ -4,6 +4,8 @@ set -euo pipefail
 source "$(dirname "$0")/../../../lib/sigil/radial-menu.sh"
 source "$(dirname "$0")/../../../lib/harness-contracts.sh"
 
+aos_real_input_surface_require_enabled || exit $?
+
 AVATAR_ID="${AOS_SIGIL_AVATAR_ID:-avatar-main}"
 INSPECTOR_ID="${AOS_SIGIL_INSPECTOR_ID:-surface-inspector}"
 RADIAL_ID="sigil-radial-menu-$AVATAR_ID"

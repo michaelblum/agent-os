@@ -30,6 +30,9 @@
     "summary": {
       "type": "string"
     },
+    "routing_guidance": {
+      "$ref": "#/$defs/routing_guidance"
+    },
     "providers": {
       "type": "object",
       "minProperties": 1,
@@ -60,6 +63,38 @@
         "error",
         "warning"
       ]
+    },
+    "routing_guidance": {
+      "type": "object",
+      "required": [
+        "description",
+        "prefer_gdi_when",
+        "foreman_implements_when",
+        "tranche_sizing"
+      ],
+      "properties": {
+        "description": {
+          "$ref": "#/$defs/non_empty_string"
+        },
+        "prefer_gdi_when": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "foreman_implements_when": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/non_empty_string"
+          }
+        },
+        "tranche_sizing": {
+          "$ref": "#/$defs/non_empty_string"
+        }
+      },
+      "additionalProperties": false
     },
     "provider_contract": {
       "type": "object",

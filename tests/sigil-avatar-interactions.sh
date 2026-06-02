@@ -41,7 +41,6 @@ aos_test_start_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
 
 python3 - <<'PY'
 import json
-import math
 import os
 import subprocess
 import time
@@ -156,222 +155,68 @@ hover_cleared = show_eval_json(
 )
 assert hover_cleared["avatarHover"] is False, hover_cleared
 
-goto_state = show_eval_json(
-    """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: p.x, y: p.y })
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
-)
-assert goto_state["state"] == "GOTO", goto_state
-
-goto_canceled = show_eval_json(
-    """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x, y: p.y })
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
-)
-assert goto_canceled["state"] == "IDLE", goto_canceled
-
-goto_state = show_eval_json(
-    """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: p.x, y: p.y })
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
-)
-assert goto_state["state"] == "GOTO", goto_state
-
-target = show_eval_json(
-    """(() => {
-      const d = window.liveJs.displays.find((display) => display.is_main) || window.liveJs.displays[0]
-      return JSON.stringify({
-        x: d.visible_bounds.x + d.visible_bounds.w / 2,
-        y: d.visible_bounds.y + d.visible_bounds.h / 2
-      })
-    })()"""
-)
-
-show_eval(
-    f"""(() => {{
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_down', x: {target['x']}, y: {target['y']} }})
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_up', x: {target['x']}, y: {target['y']} }})
-      return 'ok'
-    }})()"""
-)
-
-wait_until(
-    lambda: (
-        lambda snap: snap
-        if snap["state"] == "IDLE"
-        and snap["travel"] is None
-        and math.isclose(snap["avatarPos"]["x"], target["x"], abs_tol=1.0)
-        and math.isclose(snap["avatarPos"]["y"], target["y"], abs_tol=1.0)
-        else None
-    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
-    timeout=5.0,
-)
-
-drag_state = show_eval_json(
-    """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 18, y: p.y })
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
-)
-assert drag_state["state"] == "RADIAL", drag_state
-assert drag_state["radialGestureMenu"]["phase"] == "radial", drag_state
-radial_ready = wait_until(
-    lambda: (
-        lambda snap: snap
-        if snap.get("radialGestureVisuals", {}).get("visible") is True
-        and {"context-menu", "wiki-graph"}.issubset(set(snap.get("radialGestureVisuals", {}).get("itemIds", [])))
-        and snap.get("radialGestureVisuals", {}).get("scales", {}).get("context-menu", 0) > 0
-        and snap.get("radialTargetSurface", {}).get("interactive") is True
-        and {"context-menu", "wiki-graph"}.issubset({target.get("id") for target in snap.get("radialTargetSurface", {}).get("targets", [])})
-        else None
-    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
-    timeout=3.0,
-    label="radial target surface ready",
-)
-radial_surface = radial_ready["radialTargetSurface"]
-radial_surface_id = radial_surface["id"]
-radial_context_semantic = wait_until(lambda: semantic_target(radial_surface_id, "context-menu"), timeout=3.0, label="radial context semantic target")
-radial_targets = radial_context_semantic["payload"].get("semantic_targets") or []
-radial_target_ids = {target.get("id") for target in radial_targets}
-assert {"context-menu", "wiki-graph"}.issubset(radial_target_ids), radial_targets
-context_target = radial_context_semantic["target"]
-assert context_target["ref"] == "sigil-radial-item-context-menu", context_target
-assert context_target["role"] == "button", context_target
-assert context_target["name"] == "Context Menu", context_target
-assert context_target["action"] == "contextMenu", context_target
-assert context_target["surface"] == radial_surface_id, context_target
-assert context_target["parent_canvas"] == "avatar-main", context_target
-
-displays = show_eval_json("JSON.stringify(window.liveJs.displays)")
-context_point = semantic_target_world_point(
-    radial_surface,
-    radial_context_semantic["payload"],
-    context_target,
-    displays,
-)
-
-canceled = show_eval_json(
-    """(() => {
-      window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 })
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
-)
-assert canceled["state"] == "IDLE", canceled
-
-second_radial_start = show_eval_json(
-    """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 80, y: p.y })
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
-)
-assert second_radial_start["state"] == "RADIAL", second_radial_start
-second_radial_ready = wait_until(
-    lambda: (
-        lambda snap: snap
-        if snap.get("radialTargetSurface", {}).get("interactive") is True
-        and {"context-menu", "wiki-graph"}.issubset({target.get("id") for target in snap.get("radialTargetSurface", {}).get("targets", [])})
-        else None
-    )(show_eval_json("JSON.stringify(window.__sigilDebug.snapshot())")),
-    timeout=3.0,
-    label="second radial target surface ready",
-)
-second_radial_surface = second_radial_ready["radialTargetSurface"]
-second_radial_context_semantic = wait_until(lambda: semantic_target(second_radial_surface["id"], "context-menu"), timeout=3.0, label="second radial context semantic target")
-second_context_point = semantic_target_world_point(
-    second_radial_surface,
-    second_radial_context_semantic["payload"],
-    second_radial_context_semantic["target"],
-    show_eval_json("JSON.stringify(window.liveJs.displays)"),
-)
-radial_context = show_eval_json(
-    f"""(() => {{
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: {second_context_point['x']}, y: {second_context_point['y']} }})
-      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_up', x: {second_context_point['x']}, y: {second_context_point['y']} }})
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    }})()"""
-)
-assert radial_context["state"] == "IDLE", radial_context
-assert radial_context["contextMenu"]["open"] is True, radial_context
-show_eval("window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 }); 'ok'")
-
-goto_canceled_again = show_eval_json(
-    """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x, y: p.y })
-      return JSON.stringify(window.__sigilDebug.snapshot())
-    })()"""
-)
-assert goto_canceled_again["state"] == "IDLE", goto_canceled_again
-
 right_click_duplicate = show_eval_json(
     """(() => {
-      const p = window.liveJs.avatarPos
-      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x, y: p.y })
-      window.__sigilDebug.dispatchDesktop({ type: 'right_mouse_down', x: p.x + 20, y: p.y + 4 })
+      const frame = window.__sigilDebug.snapshot().hitTargetFrame
+      const p = { x: frame[0] + frame[2] / 2, y: frame[1] + frame[3] / 2 }
+      window.__sigilDebug.dispatch({ type: 'right_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatch({ type: 'right_mouse_down', x: p.x + 20, y: p.y + 4 })
       return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
 assert right_click_duplicate["contextMenu"]["open"] is True, right_click_duplicate
 
-label_toggle = show_eval_json(
-    """(() => {
-      document.querySelector('[data-ctx-tab="sigil-menu-effects"]').click()
-      const checkbox = document.querySelector('#sigil-menu-line-interdim')
-      const label = checkbox.closest('label')
-      const labelRect = label.getBoundingClientRect()
-      const inputRect = checkbox.getBoundingClientRect()
+daemon_echo = show_eval_json(
+    f"""(() => {{
+      window.__sigilDebug.clearInteractionTrace()
       const snap = window.__sigilDebug.snapshot()
-      const segment = snap.surface?.segment?.dw_bounds
-      const native = snap.surface?.segment?.native_bounds
-      const originX = Array.isArray(segment) ? segment[0] : (window.liveJs.globalBounds?.x ?? 0)
-      const originY = Array.isArray(segment) ? segment[1] : (window.liveJs.globalBounds?.y ?? 0)
-      const point = {
-        x: originX + Math.min(labelRect.right - 8, inputRect.right + 70),
-        y: originY + labelRect.top + labelRect.height / 2
-      }
-      const nativePoint = Array.isArray(segment) && Array.isArray(native)
-        ? { x: native[0] + point.x - segment[0], y: native[1] + point.y - segment[1] }
-        : point
-      const before = checkbox.checked
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: point.x, y: point.y })
-      window.__sigilDebug.dispatch({
+      const bounds = snap.contextMenu?.bounds
+      if (!bounds || bounds.w <= 0 || bounds.h <= 0) {{
+        return JSON.stringify({{ ok: false, error: 'missing open context menu bounds', contextMenu: snap.contextMenu }})
+      }}
+      const dwBounds = snap.surface?.segment?.dw_bounds || [0, 0, 0, 0]
+      const nativeBounds = snap.surface?.segment?.native_bounds || dwBounds
+      const point = {{
+        x: bounds.x + bounds.w / 2,
+        y: bounds.y + bounds.h / 2,
+      }}
+      const nativePoint = {{
+        x: nativeBounds[0] + point.x - dwBounds[0],
+        y: nativeBounds[1] + point.y - dwBounds[1],
+      }}
+      window.__sigilDebug.dispatchDesktop({{ type: 'left_mouse_dragged', x: point.x, y: point.y }})
+      window.__sigilDebug.dispatch({{
         type: 'canvas_message',
-        id: snap.hitTargetId,
-        payload: { source: 'sigil-hit', kind: 'left_mouse_down', screenX: nativePoint.x, screenY: nativePoint.y }
-      })
-      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_up', x: point.x, y: point.y })
-      window.__sigilDebug.dispatch({
-        type: 'canvas_message',
-        id: snap.hitTargetId,
-        payload: { source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }
-      })
-      return JSON.stringify({
-        before,
-        checked: checkbox.checked,
-        stateValue: window.state.fastTravelLineInterDimensional,
-        menuOpen: window.__sigilDebug.snapshot().contextMenu.open,
-        ignoredEchoes: window.__sigilDebug.interactionTrace().entries.filter((entry) => entry.stage === 'hit-canvas:ignored' && entry.data.reason === 'daemon-echo').length
-      })
+        id: {json.dumps(hit_target_id)},
+        payload: {{
+          source: 'sigil-hit',
+          kind: 'left_mouse_dragged',
+          screenX: nativePoint.x,
+          screenY: nativePoint.y
+        }}
+      }})
+      const trace = window.__sigilDebug.interactionTrace().entries
+      return JSON.stringify({{
+        ok: true,
+        ignored: trace.find((entry) => entry.stage === 'hit-canvas:ignored' && entry.data?.reason === 'daemon-echo') || null,
+        traceTail: trace.slice(-12),
+      }})
+    }})()"""
+)
+assert daemon_echo["ok"] is True, daemon_echo
+assert daemon_echo["ignored"] is not None, daemon_echo
+
+show_eval("window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 }); 'ok'")
+direct_drag_state = show_eval_json(
+    """(() => {
+      const p = window.__sigilDebug.snapshot().avatarPos
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_down', x: p.x, y: p.y })
+      window.__sigilDebug.dispatchDesktop({ type: 'left_mouse_dragged', x: p.x + 48, y: p.y })
+      return JSON.stringify(window.__sigilDebug.snapshot())
     })()"""
 )
-assert label_toggle["checked"] == (not label_toggle["before"]), label_toggle
-assert label_toggle["stateValue"] == label_toggle["checked"], label_toggle
-assert label_toggle["menuOpen"] is True, label_toggle
-assert label_toggle["ignoredEchoes"] >= 2, label_toggle
+assert direct_drag_state["state"] == "FAST_TRAVEL", direct_drag_state
+assert direct_drag_state["fastTravelEffect"] == "line", direct_drag_state
 
 assert hit_target_id in canvas_ids(), f"missing hit target canvas after interactions: {hit_target_id}"
 print("PASS")

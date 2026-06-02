@@ -339,6 +339,67 @@ test('live context menu compact surface routes canonical controls through visual
   }
 })
 
+test('live context menu snapshot includes compact surface tab control records', async () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  const liveJs = {
+    displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+    avatarPos: { x: 0, y: 0 },
+  }
+  globalThis.document = document
+  globalThis.window = { innerHeight: 900 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const menu = createSigilContextMenu({
+      state: {
+        avatar: createDefaultAvatarState(),
+        currentGeometryType: 12,
+        currentType: 12,
+        avatarBase: 153,
+      },
+      liveJs,
+      projectPoint: (point) => point,
+      allowTestAnchorFallback: true,
+    })
+
+    menu.openAt({ x: 0, y: 0 })
+    await waitForMicrotasks()
+    await waitForMicrotasks()
+
+    const omegaTrigger = Array.from(document.body.querySelectorAll('[data-aos-tabs-trigger]'))
+      .find((element) => element.dataset.value === 'omega')
+    omegaTrigger.getBoundingClientRect = () => ({
+      left: 132,
+      top: 20,
+      right: 204,
+      bottom: 44,
+      width: 72,
+      height: 24,
+    })
+
+    const omegaRecord = menu.snapshot().controls.find((record) => (
+      record.ref === 'sigil.avatar.compact_control_surface:omega'
+    ))
+
+    assert.equal(omegaRecord.role, 'tab')
+    assert.equal(omegaRecord.provenance.source_payload_id, 'omega')
+    assert.equal(omegaRecord.state.value, 'omega')
+    assert.equal(omegaRecord.name, 'Omega')
+    assert.equal(omegaRecord.state.selected, false)
+    assert.deepEqual(omegaRecord.provenance.frame, { x: 132, y: 20, width: 72, height: 24 })
+    assert.ok(liveJs.contextMenu.controls.some((record) => (
+      record.ref === 'sigil.avatar.compact_control_surface:alpha'
+    )))
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
+  }
+})
+
 test('live context menu visual binding suppresses duplicate slider commits', async () => {
   const previousDocument = globalThis.document
   const previousWindow = globalThis.window

@@ -5,6 +5,26 @@
   "dock": "gdi",
   "role": "gdi",
   "summary": "GDI Codex work goals use /goal interactively while copied transfer payloads remain plain durable pointers.",
+  "routing_guidance": {
+    "description": "Criteria Foreman uses to decide whether a slice belongs with GDI. Prefer GDI for any slice that meets the minimum bar; use large tranches over conservative splits whenever the criteria hold.",
+    "prefer_gdi_when": [
+      "The slice has a single durable objective expressible in one sentence.",
+      "Done is machine-checkable: tests pass, coverage threshold met, metric hits target, file state matches spec, API/health check returns expected value.",
+      "At least one shell command or API call can be run repeatedly to verify progress (e.g. npm test, pytest, pnpm lint, lighthouse, a health-check endpoint).",
+      "All required actions are within GDI's available tools: edit files, run shell commands, call configured APIs, interact with GitHub.",
+      "Scope is constrained: branch/sandbox identified, directories whitelisted or implicitly bounded, iteration/time/cost budget can be set.",
+      "Human judgment is not required at each step; humans review only the final evidence."
+    ],
+    "foreman_implements_when": [
+      "No single durable objective can be stated - the work is exploratory, advisory, or a multi-concern grab-bag.",
+      "Done is inherently subjective (taste, product direction, architecture trade-off) with no machine-checkable proxy.",
+      "The task requires continuous human judgment or stakeholder input at intermediate steps.",
+      "Critical actions fall outside GDI's toolbelt (admin UI, credentialed external system, legal/compliance step).",
+      "Scope cannot be bounded safely before the work starts.",
+      "The slice is tiny enough that writing a work card costs more than just doing it."
+    ],
+    "tranche_sizing": "Prefer large, ambitious tranches over conservative splits. If a sequence of related objectives each pass the prefer_gdi_when criteria, bundle them into one work card with ordered milestones rather than issuing separate rounds. Split only when a milestone has a hard dependency on human review or an external event."
+  },
   "providers": {
     "codex": {
       "provider": "codex",
@@ -51,7 +71,7 @@
         {
           "code": "gdi_self_acceptance_risk",
           "severity": "error",
-          "description": "GDI must not self-accept architecture, product, or coordination decisions.",
+          "description": "GDI must not self-accept architecture, product, or coordination decisions. Implementation decisions within the scope of the work card (how to structure code, which tests to write, which files to edit) are GDI's to make. Self-acceptance means deciding whether the objective itself was the right goal, whether the PR should merge, or whether a product/architectural trade-off was correct - those go back to Foreman.",
           "match": "\\bself-accept\\b|\\bdecide\\s+(architecture|product|branch strategy)\\b"
         }
       ],

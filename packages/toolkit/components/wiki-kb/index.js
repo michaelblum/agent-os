@@ -106,7 +106,7 @@ export default function WikiKB(options = {}) {
         id: `sidebar-mode-${button.dataset.mode}`,
         name: button.textContent,
         action: 'set_sidebar_mode',
-        aosRef: wikiKBAosRef('sidebar-mode', button.dataset.mode),
+        ref: wikiKBAosRef('sidebar-mode', button.dataset.mode),
         pressed: isActive,
       })
     }
@@ -165,7 +165,7 @@ export default function WikiKB(options = {}) {
         id: `related-${relatedNode.id}`,
         name: `Related: ${relatedNode.name}`,
         action: 'select_related_node',
-        aosRef: wikiKBAosRef('related', relatedNode.id),
+        ref: wikiKBAosRef('related', relatedNode.id),
       })
 
       const dot = document.createElement('span')
@@ -313,7 +313,7 @@ export default function WikiKB(options = {}) {
         id: `layout-mode-${button.dataset.layoutMode}`,
         name: `${layoutMode?.label || button.textContent} layout`,
         action: 'set_layout_mode',
-        aosRef: wikiKBAosRef('layout-mode', button.dataset.layoutMode),
+        ref: wikiKBAosRef('layout-mode', button.dataset.layoutMode),
         pressed: isActive,
       })
     }
@@ -507,7 +507,7 @@ export default function WikiKB(options = {}) {
       id: 'sidebar-close',
       name: 'Close details',
       action: 'close_details',
-      aosRef: wikiKBAosRef('sidebar', 'close'),
+      ref: wikiKBAosRef('sidebar', 'close'),
     })
     syncSidebarToggle()
 

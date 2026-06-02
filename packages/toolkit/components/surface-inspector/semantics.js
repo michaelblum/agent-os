@@ -33,7 +33,7 @@ export function canvasActionAttrs(canvasId, action, options = {}) {
     role: 'AXButton',
     name: options.name || labels[action] || `${action} ${canvasId}`,
     action: options.action || actions[action] || action,
-    aosRef: canvasInspectorAosRef('canvas', canvasId, action),
+    ref: canvasInspectorAosRef('canvas', canvasId, action),
     pressed: options.pressed ?? null,
   }, { nativeButton: true })
 }
@@ -44,7 +44,7 @@ export function inspectorControlAttrs(id, options = {}) {
     role: 'AXButton',
     name: options.name || id,
     action: options.action || id,
-    aosRef: options.aosRef || canvasInspectorAosRef('control', id),
+    ref: options.ref || canvasInspectorAosRef('control', id),
     pressed: options.pressed ?? null,
     expanded: options.expanded ?? null,
   }, { nativeButton: true })

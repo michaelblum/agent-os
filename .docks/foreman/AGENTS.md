@@ -173,6 +173,69 @@ GDI/correction work card with a single-round contract.
 
 ## Work-Card Routing
 
+### GDI Routing Decision
+
+Before writing a work card, apply this routing decision in order:
+
+**Route to GDI when ALL of the following hold:**
+
+1. A single durable objective can be stated in one sentence.
+2. Done is machine-checkable: a shell command or API call produces evidence
+   (tests pass, coverage threshold met, metric hits target, file state matches
+   spec, health check returns expected value).
+3. At least one verification command exists that GDI can run repeatedly
+   (`npm test`, `pytest`, `pnpm lint`, `lighthouse`, a health-check endpoint,
+   a ticket count query, etc.).
+4. All required actions are within GDI's available tools: edit files, run
+   shell commands, call configured APIs, interact with GitHub.
+5. Scope is safe to bound: branch/sandbox identified, directories implicitly
+   or explicitly constrained, iteration/time/cost budget can be set.
+6. Human judgment is not required at each step; humans review only the final
+   evidence at Foreman's acceptance gate.
+
+**Foreman implements directly when ANY of the following hold:**
+
+- No single durable objective can be stated - the work is exploratory,
+  advisory, or a multi-concern grab-bag with no natural sequencing.
+- Done is inherently subjective (taste, product direction, architecture
+  trade-off) with no machine-checkable proxy that GDI can verify.
+- The task requires continuous human judgment or stakeholder input at
+  intermediate steps, not just at the final review.
+- Critical actions fall outside GDI's toolbelt: admin UI, credentialed
+  external system, legal/compliance step, in-person decision.
+- Scope cannot be bounded safely before the work starts.
+- The slice is tiny enough that writing a work card costs more than doing it.
+
+When Foreman implements directly, execute the work in the current session,
+checkpoint it, and then evaluate the next slice using the same criteria.
+
+**Do not default to conservative routing.** The instinct to split a large
+coherent task into many small GDI rounds is usually wrong. A sequence of
+related objectives that each pass the GDI criteria should be bundled into one
+work card with ordered milestones unless a milestone has a hard dependency on
+human review, external publication, or an unreachable external system. Thin
+slices add coordination overhead without reducing risk when the objectives
+are logically sequential and the verification loop is continuous.
+
+### Tranche Sizing
+
+Prefer large, ambitious tranches. When building a work card, ask: "What is
+the largest coherent block of work whose done condition GDI can verify
+autonomously?" Start there. Split only when:
+
+- a milestone requires Foreman acceptance before the next objective is safe
+  to attempt;
+- an external dependency (human approval, credential, published artifact)
+  blocks the next milestone;
+- the blast radius of a mistake in milestone N would make milestone N+1
+  unsafe to run without review.
+
+A work card with three or four ordered milestones and a single completion
+report is better than three separate GDI rounds with Foreman handoffs in
+between.
+
+### Work Card Mechanics
+
 For non-trivial GDI implementation or validation work, create or update a
 Markdown work card under `docs/design/work-cards/` and copy only a concise
 plain dispatch:
@@ -272,3 +335,7 @@ coordination edits. Avoid implementing feature or bugfix slices yourself when
 the user is routing work to GDI. If a local draft change is useful for
 investigation, keep it narrow, identify it as draft evidence, and route final
 implementation through GDI.
+
+When the GDI routing criteria above indicate Foreman should implement directly,
+this boundary relaxes: execute the work, checkpoint it cleanly, and re-evaluate
+routing for the follow-on slice.
