@@ -233,11 +233,6 @@ function semanticTargetIdentifier(target = {}) {
   return String(
     target.ref
       || target.id
-      // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
-      || target.target_id
-      || target.semantic_target_id
-      || target.do_target
-      || target.data_aos_ref
       || '',
   ).trim()
 }
@@ -266,15 +261,9 @@ export function buildRevealPayloadForSurfaceInspectorPin(pin = {}) {
     subject_path: Array.isArray(pin.subject_path) ? [...pin.subject_path] : [],
     root_id: pin.root_id,
     root_path: Array.isArray(pin.projection?.root_path) ? [...pin.projection.root_path] : [],
-    owner_canvas_id: pin.root_id || sourceMetadata.canvas_id || sourceMetadata.surface,
-    canvas_id: sourceMetadata.canvas_id || pin.root_id,
+    owner_canvas_id: pin.root_id || sourceMetadata.provenance?.canvas_id || sourceMetadata.canvas_id || sourceMetadata.surface,
+    canvas_id: sourceMetadata.provenance?.canvas_id || sourceMetadata.canvas_id || pin.root_id,
     id: sourceMetadata.id,
-    // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
-    target_id: sourceMetadata.target_id,
-    semantic_target_id: sourceMetadata.semantic_target_id,
-    data_aos_ref: sourceMetadata.data_aos_ref,
-    aos_ref: sourceMetadata.aos_ref,
-    do_target: sourceMetadata.do_target,
     selector: sourceMetadata.provenance?.selector || sourceMetadata.selector,
     selector_candidates: Array.isArray(sourceMetadata.selector_candidates) ? [...sourceMetadata.selector_candidates] : [],
     source_path: sourceMetadata.extension?.source?.path || sourceMetadata.source_path,
@@ -912,15 +901,9 @@ function buildRevealTargetEvalScript(target = {}) {
         target.ref ? '[data-aos-ref="' + CSS.escape(target.ref) + '"]' : '',
         target.subject_id ? '[data-semantic-target-id="' + CSS.escape(target.subject_id) + '"]' : '',
         target.subject_id ? '[data-aos-ref="' + CSS.escape(target.subject_id) + '"]' : '',
-        // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
-        target.source_tree_node_metadata?.target_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.target_id) + '"]' : '',
-        target.source_tree_node_metadata?.data_aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.data_aos_ref) + '"]' : '',
-        target.source_tree_node_metadata?.aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.aos_ref) + '"]' : '',
         target.source_tree_node_metadata?.selector || '',
         target.source_tree_node_metadata?.preferred_selector || '',
         ...(Array.isArray(target.source_tree_node_metadata?.selector_candidates) ? target.source_tree_node_metadata.selector_candidates : []),
-        target.do_target ? '[data-aos-ref="' + CSS.escape(target.do_target) + '"]' : '',
-        target.do_target ? '[data-aos-action="' + CSS.escape(target.do_target) + '"]' : '',
         target.subject_id ? '[data-aos-action="' + CSS.escape(target.subject_id) + '"]' : ''
       ].filter(Boolean).join(',')
       const element = selector ? document.querySelector(selector) : null
@@ -1585,15 +1568,20 @@ export default function CanvasInspector() {
   }
 
   function normalizeSemanticTargetsPayload(payload = {}) {
-    const canvasId = payload.canvas_id || payload.surface || payload.id
     const targets = Array.isArray(payload.semantic_targets)
       ? payload.semantic_targets
       : (Array.isArray(payload.targets) ? payload.targets : [])
+    const canvasId = payload.canvas_id
+      || payload.surface
+      || payload.id
+      || targets.find((target) => target?.provenance?.canvas_id)?.provenance?.canvas_id
     if (!canvasId) return
     semanticTargetsByCanvas.set(canvasId, targets.map((target) => ({
       ...target,
-      id: semanticTargetId(target) || target.id,
-      canvas_id: target.canvas_id || canvasId,
+      provenance: {
+        ...(target.provenance && typeof target.provenance === 'object' ? target.provenance : {}),
+        canvas_id: target.provenance?.canvas_id || canvasId,
+      },
     })))
   }
 
@@ -2044,7 +2032,7 @@ export default function CanvasInspector() {
       rerender()
       return
     }
-    const canvasId = pin.root_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface
+    const canvasId = pin.root_id || pin.source_tree_node_metadata?.provenance?.canvas_id || pin.source_tree_node_metadata?.canvas_id || pin.source_tree_node_metadata?.surface
     if (!canvasId || canvasId === SELF_ID) {
       annotationState = applySurfaceInspectorRevealResult(annotationState, pin.id, {
         status: 'unsupported',

@@ -162,6 +162,39 @@
           "dom_id": "decision-17"
         }
       }
+    },
+    {
+      "shape": "native_perceive_canvas_semantic_target",
+      "agent_ui_target": {
+        "ref": "sigil-radial-item-wiki-graph",
+        "surface": "sigil-radial-menu",
+        "role": "button",
+        "name": "Wiki Graph",
+        "kind": "semantic_target",
+        "enabled": true,
+        "state": {
+          "value": null,
+          "current": "true",
+          "pressed": null,
+          "selected": null,
+          "checked": null,
+          "expanded": null
+        },
+        "actions": ["wiki-graph"],
+        "extension": {
+          "dom_id": "wiki-graph",
+          "source": { "path": null, "line_start": null, "line_end": null }
+        },
+        "provenance": {
+          "canvas_id": "sigil-radial-menu",
+          "do_target": "canvas:sigil-radial-menu/sigil-radial-item-wiki-graph",
+          "parent_canvas_id": "avatar-main",
+          "source_payload_id": "wiki-graph",
+          "bounds": { "x": 40, "y": 24, "width": 56, "height": 56 },
+          "frame": { "x": 40, "y": 24, "width": 56, "height": 56 },
+          "center": { "x": 68, "y": 52 }
+        }
+      }
     }
   ]
 }

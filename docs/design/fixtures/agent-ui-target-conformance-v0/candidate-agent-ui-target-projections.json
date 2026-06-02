@@ -20,9 +20,14 @@
       "refreshed_at": "2026-06-01T00:00:00.000Z",
       "provenance_source_payload_id": "sigil-menu-opacity",
       "source_tree_node_metadata": {
-        "subject_id": "sigil-menu-opacity",
-        "target_id": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
-        "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity"
+        "ref": "sigil.avatar.compact_control_surface:sigil-menu-opacity",
+        "extension": {
+          "descriptor_id": "sigil-menu-opacity",
+          "field_id": "face.opacity"
+        },
+        "provenance": {
+          "source_payload_id": "sigil-menu-opacity"
+        }
       }
     },
     {

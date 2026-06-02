@@ -450,17 +450,26 @@ export function buildBrowserContentSeamAdapterResult(record = {}, context = {}) 
 export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = {}) {
   const targetId = text(
     target.ref
-      || target.id
-      // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
-      || target.target_id
-      || target.semantic_target_id
-      || target.do_target
-      || target.data_aos_ref,
+      || target.id,
     'target',
   );
-  const sourceBounds = normalizeRect(target.display_space_rect || target.display_bounds || target.bounds || target.rect);
+  const sourceBounds = normalizeRect(
+    target.display_space_rect
+      || target.display_bounds
+      || target.bounds
+      || target.rect
+      || target.provenance?.bounds
+      || target.provenance?.frame,
+  );
   const bounds = clipAnnotationDisplayRectToVisibleChain(sourceBounds, target.ancestor_viewport_clip_chain || target.clip_chain);
-  const local = normalizeRect(target.local_space_rect || target.local_bounds || target.bounds || target.rect);
+  const local = normalizeRect(
+    target.local_space_rect
+      || target.local_bounds
+      || target.bounds
+      || target.rect
+      || target.provenance?.bounds
+      || target.provenance?.frame,
+  );
   const scrollable = Boolean(target.scrollable_ancestor_chain?.length || target.offscreen_scrollable || target.can_scroll);
   const hasStructuredReveal = target.can_reveal !== false
     && target.reveal_eligible !== false
@@ -472,12 +481,7 @@ export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = 
         || target.extension?.reveal_eligible
         || target.provenance?.selector
         || target.selector
-        || target.ref
-        // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
-        || target.data_aos_ref
-        || target.aos_ref
-        || target.target_id
-        || target.semantic_target_id,
+        || target.ref,
     );
   const visible = target.visible !== false && bounds;
   const coordinateSpace = text(

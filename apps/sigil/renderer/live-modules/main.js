@@ -2151,6 +2151,8 @@ function annotationReticleSemanticTargetForDesktopWorld(canvasId = '', target = 
         || target.display_bounds
         || target.bounds
         || target.rect
+        || target.provenance?.bounds
+        || target.provenance?.frame
     );
     if (!sourceRect) return target;
 
@@ -2200,10 +2202,17 @@ function annotationReticleHandleCanvasLifecycle(msg = {}) {
 }
 
 function annotationReticleHandleSemanticTargets(payload = {}) {
-    const canvasId = String(payload.canvas_id || payload.surface_id || payload.id || payload.source_canvas_id || '').trim();
     const targets = Array.isArray(payload.semantic_targets)
         ? payload.semantic_targets
         : (Array.isArray(payload.targets) ? payload.targets : []);
+    const canvasId = String(
+        payload.canvas_id
+        || payload.surface_id
+        || payload.id
+        || payload.source_canvas_id
+        || targets.find((target) => target?.provenance?.canvas_id)?.provenance?.canvas_id
+        || ''
+    ).trim();
     if (!canvasId) return;
     clearAnnotationReticleSemanticCandidatesForCanvas(liveJs.annotationReticleTargetEvidence, canvasId);
     if (!targets.length) return;
@@ -2229,18 +2238,19 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
             candidateIds.push(candidate.id);
             continue;
         }
-        const desktopTarget = annotationReticleSemanticTargetForDesktopWorld(canvasId, target);
+        const targetCanvasId = String(target.provenance?.canvas_id || canvasId).trim();
+        const desktopTarget = annotationReticleSemanticTargetForDesktopWorld(targetCanvasId, target);
         const projection = buildSemanticTargetProjectionAdapterResult(desktopTarget, {
-            canvas_id: canvasId,
+            canvas_id: targetCanvasId,
             refreshed_at: desktopTarget.refreshed_at || payload.refreshed_at || new Date().toISOString(),
-            provenance_source_payload_id: desktopTarget.payload_id || payload.payload_id,
+            provenance_source_payload_id: desktopTarget.provenance?.source_payload_id || desktopTarget.payload_id || payload.payload_id,
         });
         const candidate = {
             id: projection.subject_id,
             subject_id: projection.subject_id,
             subject_path: projection.subject_path,
             root_id: projection.root_id,
-            root_label: canvasId,
+            root_label: targetCanvasId,
             root_kind: 'canvas',
             subject_kind: projection.subject_kind,
             label: desktopTarget.name || desktopTarget.label || desktopTarget.role || projection.subject_id,
@@ -2249,7 +2259,7 @@ function annotationReticleHandleSemanticTargets(payload = {}) {
             source_metadata: {
                 ...desktopTarget,
                 adapter_scope: 'sigil_cached_semantic_targets',
-                canvas_id: canvasId,
+                canvas_id: targetCanvasId,
             },
         };
         annotationReticleUpsertCandidate(candidate);

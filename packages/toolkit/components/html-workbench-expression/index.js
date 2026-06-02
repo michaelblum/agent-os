@@ -82,15 +82,6 @@ function rectPayload(rect = null) {
   return { x, y, w, h }
 }
 
-function targetRef(target = {}) {
-  return text(target.ref || target.id)
-}
-
-function targetDomId(target = {}) {
-  const ref = text(target.ref || target.id)
-  return text(target.provenance?.dom_id || ref.split(':').pop() || ref)
-}
-
 function targetRevealEligible(target = {}) {
   return target.extension?.reveal_eligible ?? target.reveal_eligible
 }
@@ -102,8 +93,8 @@ function cssEscape(value) {
 
 function targetSelectors(target = {}) {
   const selectors = []
-  const ref = targetRef(target)
-  const domId = targetDomId(target)
+  const ref = text(target.ref)
+  const domId = text(target.provenance?.dom_id || target.extension?.dom_id)
   if (target.provenance?.selector) selectors.push(String(target.provenance.selector))
   if (target.selector) selectors.push(String(target.selector))
   if (domId) selectors.push(`[data-semantic-target-id="${cssEscape(domId)}"]`)
@@ -131,7 +122,7 @@ export function revealHtmlWorkbenchSemanticTarget(state, target = {}, {
     .map((value) => String(value ?? '').trim())
     .filter(Boolean)
   const metadataTarget = state.metadata?.semantic_targets?.find?.((item) => {
-    const id = targetRef(item)
+    const id = text(item.ref)
     return id && candidateIds.includes(String(id))
   }) || target.source_tree_node_metadata || target
   const element = resolveTargetElement(document_, metadataTarget)
@@ -139,7 +130,7 @@ export function revealHtmlWorkbenchSemanticTarget(state, target = {}, {
     return {
       status: 'target_absent',
       adapter_id: 'aos-toolkit-semantic-target',
-      subject_id: target.subject_id || target.ref || target.id || targetRef(metadataTarget),
+      subject_id: target.subject_id || target.ref || text(metadataTarget.ref),
       blocker_reason: 'semantic_target_not_found',
       completed_at: now,
     }
@@ -164,7 +155,7 @@ export function revealHtmlWorkbenchSemanticTarget(state, target = {}, {
   return {
     status: alreadyVisible ? 'already_visible' : (visible ? 'revealed' : 'blocked'),
     adapter_id: 'aos-toolkit-semantic-target',
-    subject_id: target.subject_id || target.ref || target.id || targetRef(metadataTarget),
+    subject_id: target.subject_id || target.ref || text(metadataTarget.ref),
     blocker_reason: visible ? '' : 'scroll_into_view_did_not_make_target_visible',
     completed_at: now,
     projection: {
@@ -195,11 +186,11 @@ export function buildHtmlWorkbenchSemanticTargetsPayload(state, {
         ? rect.x + rect.w >= viewportRect.x && rect.y + rect.h >= viewportRect.y && rect.x <= viewportRect.x + viewportRect.w && rect.y <= viewportRect.y + viewportRect.h
         : rect.x + rect.w >= 0 && rect.y + rect.h >= 0
     ))
-    const ref = targetRef(target)
-    const canReveal = targetRevealEligible(target) !== false && Boolean(element || target.provenance?.selector || target.selector || targetDomId(target) || ref)
+    const ref = text(target.ref)
+    const domId = text(target.provenance?.dom_id || target.extension?.dom_id)
+    const canReveal = targetRevealEligible(target) !== false && Boolean(element || target.provenance?.selector || target.selector || domId || ref)
     return {
       ...target,
-      id: ref,
       canvas_id: HTML_WORKBENCH_EXPRESSION_SURFACE,
       surface: HTML_WORKBENCH_EXPRESSION_SURFACE,
       name: target.name || target.label || ref,
