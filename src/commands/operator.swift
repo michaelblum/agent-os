@@ -75,24 +75,41 @@ private struct PermissionsSetupState: Encodable {
 private struct RuntimeInputTapBlock: Encodable {
     let status: String
     let attempts: Int
+    let owner_pid: Int?
+    let owner_kind: String
+    let launchd_managed: Bool
+    let installed_mode_socket_reachable: Bool
+    let stale_input_tap_capable_daemons: Int
     // Optional: a legacy daemon (lacking the structured `input_tap` block)
     // doesn't expose these. Emit with encodeIfPresent so consumers see "field
     // absent" rather than a fabricated `false`.
     let listen_access: Bool?
     let post_access: Bool?
     let last_error_at: String?
+    let duplicate_tcc_rows_observable: Bool
+    let duplicate_tcc_rows_observability: String
 
     private enum CodingKeys: String, CodingKey {
-        case status, attempts, listen_access, post_access, last_error_at
+        case status, attempts, owner_pid, owner_kind, launchd_managed
+        case installed_mode_socket_reachable, stale_input_tap_capable_daemons
+        case listen_access, post_access, last_error_at
+        case duplicate_tcc_rows_observable, duplicate_tcc_rows_observability
     }
 
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(status, forKey: .status)
         try c.encode(attempts, forKey: .attempts)
+        try c.encodeIfPresent(owner_pid, forKey: .owner_pid)
+        try c.encode(owner_kind, forKey: .owner_kind)
+        try c.encode(launchd_managed, forKey: .launchd_managed)
+        try c.encode(installed_mode_socket_reachable, forKey: .installed_mode_socket_reachable)
+        try c.encode(stale_input_tap_capable_daemons, forKey: .stale_input_tap_capable_daemons)
         try c.encodeIfPresent(listen_access, forKey: .listen_access)
         try c.encodeIfPresent(post_access, forKey: .post_access)
         try c.encodeIfPresent(last_error_at, forKey: .last_error_at)
+        try c.encode(duplicate_tcc_rows_observable, forKey: .duplicate_tcc_rows_observable)
+        try c.encode(duplicate_tcc_rows_observability, forKey: .duplicate_tcc_rows_observability)
     }
 }
 
@@ -106,6 +123,9 @@ private struct RuntimeState: Encodable {
     let lock_owner_pid: Int?
     let service_pid: Int?
     let ownership_state: String
+    let ownership_kind: String
+    let owner_pid: Int?
+    let owner_launchd_managed: Bool
     let socket_path: String
     let socket_exists: Bool
     let socket_reachable: Bool
@@ -257,6 +277,13 @@ private struct GitStatusState: Encodable {
 private struct StatusCleanDaemon: Decodable {
     let pid: Int
     let args: String
+}
+
+private struct RuntimeOwnershipClassification {
+    let state: String
+    let kind: String
+    let ownerPID: Int?
+    let launchdManaged: Bool
 }
 
 private struct StatusCleanCanvas: Decodable {
@@ -543,10 +570,10 @@ func statusCommand(args: [String]) {
     let prefix = aosInvocationDisplayName()
     let permissions = currentPermissionsState()
     let permissionsSetup = currentPermissionsSetupState(permissions: permissions)
-    let runtime = currentRuntimeState()
     let identity = aosCurrentRuntimeIdentity(program: "aos")
     let snapshotResult = currentSpatialSnapshot()
     let cleanReport = currentCleanReport()
+    let runtime = currentRuntimeState(cleanReport: cleanReport)
     let git = currentGitStatus()
 
     var notes: [String] = []
@@ -1277,8 +1304,8 @@ private func buildReadyResponse(
     let permissions = currentPermissionsState()
     let setup = currentPermissionsSetupState(permissions: permissions)
     let daemonHealth = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
-    let runtime = currentRuntimeState(preFetchedHealth: daemonHealth)
     let cleanReport = currentCleanReport()
+    let runtime = currentRuntimeState(preFetchedHealth: daemonHealth, cleanReport: cleanReport)
     let evaluation = evaluateReadyForTesting(
         daemon: daemonHealth?.asView,
         cliAccessibility: permissions.accessibility,
@@ -1363,6 +1390,9 @@ private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bo
     }
     if blockerIDs.contains("daemon_ownership_mismatch") {
         return "automatic after daemon ownership mismatch"
+    }
+    if blockerIDs.contains("daemon_unmanaged") {
+        return "automatic after unmanaged daemon"
     }
     if blockerIDs.contains("input_tap_not_active") {
         return "automatic after input tap inactive"
@@ -1463,6 +1493,7 @@ private func readyPhase(ready: Bool, blockers: [ReadyBlocker]) -> String {
     if ready { return "ready" }
     if blockers.contains(where: { $0.id == "daemon_unreachable" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) { return "runtime_blocked" }
+    if blockers.contains(where: { $0.id == "daemon_unmanaged" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.id == "stale_daemons" }) { return "runtime_blocked" }
     if blockers.contains(where: { $0.kind == "permission" }) { return "human_required" }
     if blockers.contains(where: { $0.id == "input_tap_not_active" }) { return "runtime_blocked" }
@@ -1479,6 +1510,9 @@ private func readyDiagnosis(
     if ready { return "ready" }
     if blockers.contains(where: { $0.id == "daemon_ownership_mismatch" }) {
         return "daemon_ownership_mismatch"
+    }
+    if blockers.contains(where: { $0.id == "daemon_unmanaged" }) {
+        return "daemon_unmanaged"
     }
     if blockers.contains(where: { $0.id == "stale_daemons" }) {
         return "stale_daemons"
@@ -1535,6 +1569,19 @@ private func readyBlockers(
             id: "daemon_ownership_mismatch",
             scope: "daemon",
             message: "Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).",
+            target_path: daemonPath,
+            settings_url: nil,
+            blocks: ["see", "do", "show", "tell", "listen"]
+        ))
+    }
+
+    if runtime.ownership_state == "unmanaged" {
+        let owner = runtime.owner_pid.map(String.init) ?? "unknown"
+        blockers.append(ReadyBlocker(
+            kind: "runtime",
+            id: "daemon_unmanaged",
+            scope: "daemon",
+            message: "Repo daemon is reachable with owner pid=\(owner), but it is not launchd-managed or an accepted foreground/dev runtime.",
             target_path: daemonPath,
             settings_url: nil,
             blocks: ["see", "do", "show", "tell", "listen"]
@@ -1644,6 +1691,7 @@ private func readyBlockers(
 private func isRepairableRuntimeBlockerID(_ id: String) -> Bool {
     return id == "daemon_unreachable" ||
         id == "daemon_ownership_mismatch" ||
+        id == "daemon_unmanaged" ||
         id == "stale_daemons" ||
         id == "input_tap_not_active"
 }
@@ -1808,7 +1856,10 @@ private func readyNotes(
     return notes
 }
 
-private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> RuntimeState {
+private func currentRuntimeState(
+    preFetchedHealth: DaemonHealthState? = nil,
+    cleanReport: StatusCleanReport? = nil
+) -> RuntimeState {
     let mode = aosCurrentRuntimeMode()
     let socketPath = aosSocketPath(for: mode)
     let otherModeSocketPath = aosSocketPath(for: mode.other)
@@ -1817,17 +1868,21 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
     let otherSocketReachable = socketIsReachable(otherModeSocketPath)
     let health = preFetchedHealth ?? fetchDaemonHealth(socketPath: socketPath)
     let explicitStateRootOverride = aosHasExplicitStateRootOverride()
-    let servicePID = explicitStateRootOverride ? nil : launchdProcessID(label: aosServiceLabel(for: mode))
+        && ProcessInfo.processInfo.environment["AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL"] != "1"
+    let ignoreLaunchdForTest = ProcessInfo.processInfo.environment["AOS_TEST_IGNORE_LAUNCHD"] == "1"
+    let servicePID = (explicitStateRootOverride || ignoreLaunchdForTest) ? nil : launchdProcessID(label: aosServiceLabel(for: mode))
     let lockOwnerPID = aosDaemonLockOwnerPID(for: mode)
     let servingPID = health?.servingPID
     let daemonPID = servingPID ?? lockOwnerPID ?? servicePID ?? fallbackDaemonProcessID()
     let daemonRunning = daemonPID != nil || socketReachable
-    let ownershipState = currentOwnershipState(
+    let ownership = currentOwnershipClassification(
         socketReachable: socketReachable,
         servingPID: servingPID,
         lockOwnerPID: lockOwnerPID,
-        servicePID: servicePID
+        servicePID: servicePID,
+        explicitStateRootOverride: explicitStateRootOverride
     )
+    let staleInputTapCapableDaemons = cleanReport?.stale_daemons.count ?? 0
 
     let inputTapBlock: RuntimeInputTapBlock?
     if let status = health?.inputTapStatus, let attempts = health?.inputTapAttempts {
@@ -1836,9 +1891,16 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
         inputTapBlock = RuntimeInputTapBlock(
             status: status,
             attempts: attempts,
+            owner_pid: ownership.ownerPID,
+            owner_kind: ownership.kind,
+            launchd_managed: ownership.launchdManaged,
+            installed_mode_socket_reachable: otherSocketReachable,
+            stale_input_tap_capable_daemons: staleInputTapCapableDaemons,
             listen_access: health?.inputTapListenAccess,
             post_access: health?.inputTapPostAccess,
-            last_error_at: health?.inputTapLastErrorAt
+            last_error_at: health?.inputTapLastErrorAt,
+            duplicate_tcc_rows_observable: false,
+            duplicate_tcc_rows_observability: "unavailable: AOS does not query or mutate the macOS TCC database; duplicate Privacy UI rows require human observation."
         )
     } else {
         inputTapBlock = nil
@@ -1853,7 +1915,10 @@ private func currentRuntimeState(preFetchedHealth: DaemonHealthState? = nil) -> 
         serving_pid: servingPID,
         lock_owner_pid: lockOwnerPID,
         service_pid: servicePID,
-        ownership_state: ownershipState,
+        ownership_state: ownership.state,
+        ownership_kind: ownership.kind,
+        owner_pid: ownership.ownerPID,
+        owner_launchd_managed: ownership.launchdManaged,
         socket_path: socketPath,
         socket_exists: socketExists,
         socket_reachable: socketReachable,
@@ -1963,26 +2028,80 @@ extension DaemonHealthState {
     }
 }
 
-private func currentOwnershipState(
+private func currentOwnershipClassification(
     socketReachable: Bool,
     servingPID: Int?,
     lockOwnerPID: Int?,
-    servicePID: Int?
-) -> String {
+    servicePID: Int?,
+    explicitStateRootOverride: Bool
+) -> RuntimeOwnershipClassification {
     if let servingPID, let lockOwnerPID, servingPID != lockOwnerPID {
-        return "mismatch"
+        return RuntimeOwnershipClassification(
+            state: "mismatch",
+            kind: "mismatch",
+            ownerPID: servingPID,
+            launchdManaged: false
+        )
     }
 
     let ownerPID = servingPID ?? lockOwnerPID
     if let ownerPID, let servicePID, ownerPID != servicePID {
-        return parentProcessID(of: ownerPID) == servicePID ? "consistent" : "mismatch"
+        if parentProcessID(of: ownerPID) == servicePID {
+            return RuntimeOwnershipClassification(
+                state: "consistent",
+                kind: "launchd_managed",
+                ownerPID: ownerPID,
+                launchdManaged: true
+            )
+        }
+        return RuntimeOwnershipClassification(
+            state: "mismatch",
+            kind: "mismatch",
+            ownerPID: ownerPID,
+            launchdManaged: false
+        )
+    }
+
+    if let ownerPID, servicePID == nil {
+        if explicitStateRootOverride {
+            return RuntimeOwnershipClassification(
+                state: "consistent",
+                kind: "foreground_dev",
+                ownerPID: ownerPID,
+                launchdManaged: false
+            )
+        }
+        return RuntimeOwnershipClassification(
+            state: "unmanaged",
+            kind: "unmanaged",
+            ownerPID: ownerPID,
+            launchdManaged: false
+        )
     }
 
     let pids = [ownerPID, servicePID].compactMap { $0 }
     if pids.isEmpty {
-        return socketReachable ? "unknown" : "absent"
+        return RuntimeOwnershipClassification(
+            state: socketReachable ? "unknown" : "absent",
+            kind: socketReachable ? "unknown" : "absent",
+            ownerPID: nil,
+            launchdManaged: false
+        )
     }
-    return Set(pids).count <= 1 ? "consistent" : "mismatch"
+    if Set(pids).count <= 1 {
+        return RuntimeOwnershipClassification(
+            state: "consistent",
+            kind: servicePID == nil ? "unknown" : "launchd_managed",
+            ownerPID: ownerPID ?? servicePID,
+            launchdManaged: servicePID != nil
+        )
+    }
+    return RuntimeOwnershipClassification(
+        state: "mismatch",
+        kind: "mismatch",
+        ownerPID: ownerPID,
+        launchdManaged: false
+    )
 }
 
 private func parentProcessID(of pid: Int) -> Int? {
@@ -1998,6 +2117,12 @@ private func runtimeHealthNotes(_ runtime: RuntimeState) -> [String] {
         let lock = runtime.lock_owner_pid.map(String.init) ?? "none"
         let service = runtime.service_pid.map(String.init) ?? "none"
         notes.append("Daemon ownership mismatch: serving pid=\(serving), lock pid=\(lock), service pid=\(service).")
+    } else if runtime.ownership_state == "unmanaged" {
+        let owner = runtime.owner_pid.map(String.init) ?? "unknown"
+        notes.append("Reachable repo daemon is unmanaged: owner pid=\(owner), service pid=none. Use '\(aosInvocationDisplayName()) service start --mode \(runtime.mode)' or '\(aosInvocationDisplayName()) ready --repair'.")
+    }
+    if runtime.event_tap_expected, runtime.input_tap != nil {
+        notes.append("Duplicate macOS TCC Privacy rows are not observable from AOS; AOS reports this capability as unavailable and does not query the TCC database.")
     }
     // Suppress when the typed runtime.input_tap block is present: callers
     // (statusCommand, doctorCommand) emit a richer headline via

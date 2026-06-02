@@ -69,6 +69,11 @@ runtime = d.get("runtime", {})
 assert runtime.get("socket_reachable") is True, runtime
 assert runtime.get("input_tap_status") == "active", runtime
 assert runtime.get("ownership_state") in ("consistent", "unknown"), runtime
+assert runtime.get("ownership_kind") in ("foreground_dev", "unknown"), runtime
+tap = runtime.get("input_tap", {})
+assert tap.get("owner_kind") in ("foreground_dev", "unknown"), tap
+assert tap.get("duplicate_tcc_rows_observable") is False, tap
+assert "unavailable" in tap.get("duplicate_tcc_rows_observability", ""), tap
 '
 
 echo "PASS"
