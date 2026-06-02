@@ -417,7 +417,10 @@ class Canvas {
         }
         let controller = WKUserContentController()
         controller.addUserScript(WKUserScript(
-            source: aosCanvasBootstrapScript("window.__aosCanvasId = \(jsStringLiteral(id));"),
+            source: aosCanvasBootstrapScript("""
+window.__aosCanvasId = \(jsStringLiteral(id));
+window.__aosInitialFrame = [\(cgFrame.origin.x), \(cgFrame.origin.y), \(cgFrame.size.width), \(cgFrame.size.height)];
+"""),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))

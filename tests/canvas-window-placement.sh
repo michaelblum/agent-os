@@ -15,8 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-./aos serve --idle-timeout none >"$ROOT/daemon.stdout" 2>"$ROOT/daemon.stderr" &
-aos_test_wait_for_socket "$ROOT" || { echo "FAIL: isolated daemon socket did not become reachable"; exit 1; }
+aos_test_start_daemon "$ROOT" toolkit packages/toolkit \
+  || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 DAEMON_PID="$(aos_test_wait_for_lock_pid "$ROOT")" || { echo "FAIL: isolated daemon lock pid did not appear"; exit 1; }
 
 TARGET_JSON="$(python3 - <<'PY'
@@ -25,21 +25,26 @@ import subprocess
 
 graph = json.loads(subprocess.check_output(["./aos", "graph", "displays"], text=True))
 displays = graph.get("data", {}).get("displays", graph.get("displays", []))
-other = next((display for display in displays if not display.get("is_main")), None)
-if other is None:
+display = next((display for display in displays if display.get("is_main")), displays[0] if displays else None)
+if display is None:
     raise SystemExit(1)
 
-bounds = other["bounds"]
+visible = display.get("native_visible_bounds") or display.get("visible_bounds") or display.get("bounds")
+if visible is None:
+    visible = display["bounds"]
 width = 320
 height = 220
-margin_x = 120
-margin_y = 100
-x = int(bounds["x"] + max(margin_x, min(bounds["w"] - width - 40, 320)))
-y = int(bounds["y"] + max(margin_y, min(bounds["h"] - height - 40, 180)))
-print(json.dumps({"x": x, "y": y, "w": width, "h": height}))
+requested_x = int(visible["x"] + visible["w"] - 100)
+requested_y = int(visible["y"] + 80)
+final_x = int(visible["x"] + visible["w"] - width)
+final_y = requested_y
+print(json.dumps({
+    "requested": {"x": requested_x, "y": requested_y, "w": width, "h": height},
+    "final": {"x": final_x, "y": final_y, "w": width, "h": height},
+}))
 PY
 )" || {
-  echo "SKIP: requires at least two displays"
+  echo "SKIP: requires display geometry"
   exit 0
 }
 
@@ -47,7 +52,7 @@ TARGET_AT="$(python3 - "$TARGET_JSON" <<'PY'
 import json
 import sys
 
-target = json.loads(sys.argv[1])
+target = json.loads(sys.argv[1])["requested"]
 print(f"{target['x']},{target['y']},{target['w']},{target['h']}")
 PY
 )"
@@ -55,7 +60,11 @@ PY
 ./aos show create \
   --id placement-smoke \
   --at "$TARGET_AT" \
-  --html '<html><body style="margin:0;background:rgba(255,0,0,0.18);border:2px solid red;"></body></html>' >/dev/null
+  --interactive \
+  --focus \
+  --url aos://toolkit/components/aos-action-demo/index.html >/dev/null
+
+./aos show wait --id placement-smoke --manifest aos-action-demo --timeout 5s >/dev/null
 
 python3 - "$DAEMON_PID" "$TARGET_JSON" <<'PY'
 import json
@@ -74,7 +83,7 @@ from Quartz import (
 
 
 pid = int(sys.argv[1])
-target = json.loads(sys.argv[2])
+target = json.loads(sys.argv[2])["final"]
 tolerance = 2.5
 
 
@@ -142,25 +151,6 @@ if any(abs(a - e) > tolerance for a, e in zip(actual, expected)):
 print("PASS")
 PY
 
-PLACEMENT_JSON="$(python3 - "$TARGET_JSON" <<'PY'
-import json
-import sys
-
-target = json.loads(sys.argv[1])
-requested = [target["x"] + 180, target["y"], target["w"], target["h"]]
-final = [target["x"], target["y"], target["w"], target["h"]]
-print(json.dumps({
-    "requested_frame": requested,
-    "policy_adjusted_frame": final,
-    "final_settled_frame": final,
-    "viewport_overflow_policy": "clamp",
-    "cause": "placement.test",
-}))
-PY
-)"
-
-./aos show eval --id placement-smoke --js "window.webkit.messageHandlers.headsup.postMessage({type:'canvas.update',payload:{frame:[$TARGET_AT],geometry:{change:'frame',cause:'placement.test',phase:'settled',transaction_id:'placement-test-contract',placement:$PLACEMENT_JSON}}})" >/dev/null
-
 python3 - "$TARGET_JSON" <<'PY'
 import json
 import subprocess
@@ -168,8 +158,8 @@ import sys
 import time
 
 target = json.loads(sys.argv[1])
-expected_final = [target["x"], target["y"], target["w"], target["h"]]
-expected_requested = [target["x"] + 180, target["y"], target["w"], target["h"]]
+expected_final = [target["final"]["x"], target["final"]["y"], target["final"]["w"], target["final"]["h"]]
+expected_requested = [target["requested"]["x"], target["requested"]["y"], target["requested"]["w"], target["requested"]["h"]]
 
 
 def run(*args):
@@ -193,8 +183,9 @@ assert placement.get("requested_frame") == expected_requested, placement
 assert placement.get("policy_adjusted_frame") == expected_final, placement
 assert placement.get("final_settled_frame") == expected_final, placement
 assert placement.get("viewport_overflow_policy") == "clamp", placement
+assert placement.get("cause") == "placement.initial", placement
 
-audit = run("show", "audit", "--json", "--point", f"{target['x'] + 10},{target['y'] + 10}")
+audit = run("show", "audit", "--json", "--point", f"{expected_final[0] + 10},{expected_final[1] + 10}")
 registered = audit.get("registered_canvases", audit.get("registered", []))
 audit_row = next((entry for entry in registered if entry.get("id") == "placement-smoke"), None)
 if not audit_row:
@@ -202,14 +193,17 @@ if not audit_row:
 audit_placement = audit_row.get("placement") or {}
 assert audit_row.get("requested_frame") == expected_final, audit_row
 assert audit_row.get("requested_frame_source") == "Canvas.desiredCGFrame", audit_row
+assert "placement_unavailable_reason" not in audit_row, audit_row
 assert audit_placement.get("requested_frame") == expected_requested, audit_placement
+assert audit_placement.get("policy_adjusted_frame") == expected_final, audit_placement
 assert audit_placement.get("final_settled_frame") == expected_final, audit_placement
 native = audit_row.get("actual_native_windows") or []
 if not native:
     raise SystemExit(f"FAIL: audit did not expose actual native frame: {audit_row}")
 actual_native_frame = audit_row.get("actual_native_frame") or {}
-assert actual_native_frame.get("x") == expected_final[0], audit_row
-assert actual_native_frame.get("y") == expected_final[1], audit_row
+for key, index in (("x", 0), ("y", 1), ("w", 2), ("h", 3)):
+    if abs(float(actual_native_frame.get(key, 0)) - expected_final[index]) > 2.5:
+        raise SystemExit(f"FAIL: actual_native_frame {key} mismatch: {audit_row}")
 
 print("PASS")
 PY

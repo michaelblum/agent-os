@@ -224,6 +224,22 @@ test('frame and work area helpers normalize current window geometry', () => {
   }), [300, 140, 1200, 800]);
 });
 
+test('frame helper prefers daemon boot frame before WebKit window coordinates settle', (t) => {
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    __aosInitialFrame: [1400, 80, 420, 260],
+    screenX: 0,
+    screenY: 762,
+    outerWidth: 320,
+    outerHeight: 220,
+  };
+  t.after(() => {
+    globalThis.window = previousWindow;
+  });
+
+  assert.deepEqual(frameFromWindow(globalThis.window), [1400, 80, 420, 260]);
+});
+
 test('chip frame helper avoids menu bar and clamps to available work area', () => {
   assert.deepEqual(chipFrameFromWindow({
     screenX: 0,
@@ -478,6 +494,67 @@ test('drag settle update exposes toolkit placement contract metadata', () => {
     viewport_overflow_policy: 'clamp',
     cause: 'placement.policy',
   });
+});
+
+test('initial panel settle emits placement metadata through the controller', () => {
+  let frame = [1400, 80, 420, 260];
+  const updates = [];
+  const controller = createPanelWindowController({
+    getFrame: () => frame,
+    getWorkArea: () => [0, 33, 1512, 949],
+    updateFrame(nextFrame, geometry) {
+      frame = nextFrame;
+      updates.push({ frame: nextFrame, geometry });
+    },
+    drag: false,
+    minimize: false,
+    initialPlacement: true,
+  });
+
+  const plan = controller.settleInitialPlacement();
+
+  assert.deepEqual(plan, {
+    requested_frame: [1400, 80, 420, 260],
+    policy_adjusted_frame: [1092, 80, 420, 260],
+    final_settled_frame: [1092, 80, 420, 260],
+    viewport_overflow_policy: 'clamp',
+    cause: 'placement.initial',
+  });
+  assert.deepEqual(frame, [1092, 80, 420, 260]);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0].geometry.placement, plan);
+  assert.equal(updates[0].geometry.cause, 'placement.initial');
+  assert.equal(updates[0].geometry.phase, 'settled');
+  assert.equal(controller.settleInitialPlacement(), null);
+});
+
+test('initial panel settle supports opt-in allow overflow policy', () => {
+  let frame = [1400, 80, 420, 260];
+  const updates = [];
+  const controller = createPanelWindowController({
+    getFrame: () => frame,
+    getWorkArea: () => [0, 33, 1512, 949],
+    updateFrame(nextFrame, geometry) {
+      frame = nextFrame;
+      updates.push({ frame: nextFrame, geometry });
+    },
+    drag: false,
+    minimize: false,
+    initialPlacement: { viewportOverflowPolicy: 'allow' },
+  });
+
+  const plan = controller.settleInitialPlacement();
+
+  assert.deepEqual(plan, {
+    requested_frame: [1400, 80, 420, 260],
+    policy_adjusted_frame: [1400, 80, 420, 260],
+    final_settled_frame: [1400, 80, 420, 260],
+    viewport_overflow_policy: 'allow',
+    cause: 'placement.initial',
+  });
+  assert.deepEqual(frame, [1400, 80, 420, 260]);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0].geometry.placement, plan);
 });
 
 test('createPanelWindowController prewarms the shared stage before minimize click', async (t) => {
