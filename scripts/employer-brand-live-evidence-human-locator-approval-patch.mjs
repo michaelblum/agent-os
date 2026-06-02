@@ -7,7 +7,7 @@ import {
   EMPLOYER_BRAND_LIVE_EVIDENCE_HUMAN_LOCATOR_APPROVAL_PATCH_TYPE,
   applyEmployerBrandLiveEvidenceHumanLocatorApprovalPatch,
   validateEmployerBrandLiveEvidenceHumanLocatorApprovalPatch,
-} from '../packages/toolkit/workbench/employer-brand-live-evidence-human-locator-approval-patch.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-human-locator-approval-patch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

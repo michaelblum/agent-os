@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildEmployerBrandLiveEvidenceHumanLocatorReviewPack,
   validateEmployerBrandLiveEvidenceHumanLocatorReviewPack,
-} from '../packages/toolkit/workbench/employer-brand-live-evidence-human-locator-review-pack.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-human-locator-review-pack.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

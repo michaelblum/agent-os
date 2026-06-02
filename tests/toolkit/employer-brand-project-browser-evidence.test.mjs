@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   compileBrowserEvidenceManifestFromEmployerBrandAuditProject,
-} from '../../packages/toolkit/workbench/employer-brand-project-browser-evidence.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-project-browser-evidence.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
