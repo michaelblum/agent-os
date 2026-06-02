@@ -576,8 +576,8 @@ export function createSigilContextMenu({
         const ratio = clamp((local.x - rect.left) / rect.width, 0, 1);
         const value = snappedSliderValue(min + ((max - min) * ratio), record.field);
         const current = Number(record.control.getValue?.());
-        if (!Number.isFinite(current) || current !== value) {
-            record.control.setValue(value, { emit: true });
+        if (!Number.isFinite(current) || current !== value || options.commit) {
+            record.control.setValue(value, { emit: !!options.commit });
         }
         if (options.commit) record.control.el?.dispatchEvent?.(new Event('commit', { bubbles: true }));
         return true;

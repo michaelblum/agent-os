@@ -602,10 +602,27 @@ test('live context menu keeps scrolled compact Box sliders routed to their descr
     for (const [descriptorId, key, value, min, max, rect] of drags) {
       setSliderRect(document, descriptorId, rect)
       setSliderRect(document, hiddenLaterTabConflict, rect)
-      const point = { x: sliderX(value, min, max, rect), y: rect.top + 12 }
-      assert.equal(menu.handlePointerEvent('left_mouse_down', point), true)
-      assert.equal(menu.handlePointerEvent('left_mouse_dragged', point), true)
-      assert.equal(menu.handlePointerEvent('left_mouse_up', point), true)
+      const beforeRouteCount = calls.filter(([kind]) => kind === 'binding-route').length
+      const beforeValue = key === 'stellationFactor'
+        ? state.avatar.shape.stellationFactor
+        : state.avatar.shape.params.box[key]
+      const downPoint = { x: sliderX(min, min, max, rect), y: rect.top + 12 }
+      const dragPoint = { x: sliderX((min + value) / 2, min, max, rect), y: rect.top + 12 }
+      const upPoint = { x: sliderX(value, min, max, rect), y: rect.top + 12 }
+
+      assert.equal(menu.handlePointerEvent('left_mouse_down', downPoint), true)
+      assert.equal(menu.handlePointerEvent('left_mouse_dragged', dragPoint), true)
+      await waitForMicrotasks()
+      await waitForMicrotasks()
+
+      assert.equal(calls.filter(([kind]) => kind === 'binding-route').length, beforeRouteCount)
+      if (key === 'stellationFactor') {
+        assert.equal(rounded(state.avatar.shape.stellationFactor), rounded(beforeValue))
+      } else {
+        assert.equal(rounded(state.avatar.shape.params.box[key]), rounded(beforeValue))
+      }
+
+      assert.equal(menu.handlePointerEvent('left_mouse_up', upPoint), true)
       await waitForMicrotasks()
       await waitForMicrotasks()
 
