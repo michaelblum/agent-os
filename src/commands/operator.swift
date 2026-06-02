@@ -2121,9 +2121,6 @@ private func runtimeHealthNotes(_ runtime: RuntimeState) -> [String] {
         let owner = runtime.owner_pid.map(String.init) ?? "unknown"
         notes.append("Reachable repo daemon is unmanaged: owner pid=\(owner), service pid=none. Use '\(aosInvocationDisplayName()) service start --mode \(runtime.mode)' or '\(aosInvocationDisplayName()) ready --repair'.")
     }
-    if runtime.event_tap_expected, runtime.input_tap != nil {
-        notes.append("Duplicate macOS TCC Privacy rows are not observable from AOS; AOS reports this capability as unavailable and does not query the TCC database.")
-    }
     // Suppress when the typed runtime.input_tap block is present: callers
     // (statusCommand, doctorCommand) emit a richer headline via
     // inputTapRecoveryGuidance that supersedes this short one.
