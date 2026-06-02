@@ -12,26 +12,24 @@ failure is not proven to be only coordinate drift. Surface identity, registry,
 content-root, branch/worktree, and orphan visible-window drift must be audited
 first.
 
-The first replacement slice has been accepted as a current-daemon audit:
+The replacement observability slices have been accepted:
 
 ```text
 docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md
+docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md
+docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md
 ```
 
-That audit intentionally reports
-`runtime.native_window_scope = "current_daemon_process"`. Before placement or
-drag work resumes, route the follow-up that makes visible external/stale AOS
-runtime windows observable:
+The next slice is not live drag. Route toolkit panel placement/final-frame
+reporting first:
 
 ```text
-docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md
+docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md
 ```
 
-Only refresh this live-drag card after the current-daemon audit,
-cross-process/stale-worktree audit, runtime service/input-tap observability,
-and toolkit panel placement contract are accepted, and after Sigil-owned avatar
-avoidance has either been implemented or explicitly ruled out from the
-audit/final-frame evidence.
+Only refresh this live-drag card after toolkit panel placement/final-frame
+reporting is accepted, and after Sigil-owned avatar avoidance has either been
+implemented or explicitly ruled out from the audit/final-frame evidence.
 
 ## Recipient
 
@@ -70,16 +68,16 @@ the next GDI task simply because panel drag remains a known issue.
 
 Current sequence:
 
-1. Route and accept
+1. Accepted:
    `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
-2. Route and accept
+2. Accepted:
    `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`.
-3. Route and accept
-   `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`
-   if live checks still show service/status/input-tap provenance ambiguity.
-4. Define or refresh the toolkit panel placement contract so panels report
-   requested and final settled native frames, with opt-in viewport overflow
-   behavior such as `allow`, `clamp`, `flip`, or `shift`.
+3. Accepted:
+   `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`.
+4. Next: define or refresh the toolkit panel placement contract so panels
+   report requested, policy-adjusted, final settled, and actual native frames,
+   with opt-in viewport overflow behavior such as `allow`, `clamp`, `flip`, or
+   `shift`.
 5. Add Sigil-owned avatar avoidance only if final settled panel frames show the
    avatar can overlap or win input over its controls panel.
 6. Refresh this live-drag correction card against that accepted observability

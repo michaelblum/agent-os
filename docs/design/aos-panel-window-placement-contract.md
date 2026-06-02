@@ -52,7 +52,7 @@ The intended boundary is:
   menu graphics, transfer outlines, spotlights, and telemetry. It is not the
   place for text inputs or normal window controls.
 
-## 2026-06-02 Surface-Audit Precondition
+## 2026-06-02 Observability Preconditions
 
 New Sigil live evidence showed two Avatar/Sigil control surfaces visible at the
 same time across displays: the new panel-backed Avatar controls surface and an
@@ -61,21 +61,24 @@ route. A panel that does not drag reliably may be suffering from coordinate
 drift, but it may also be losing input to a stale/orphan visible surface, a
 wrong content root, or an overlapping higher-level window.
 
-Before routing more placement or drag policy, AOS needs an AOS-first
-visible-surface/orphan audit owned by the daemon/kernel observability layer. The
-audit should show all visible AOS windows across displays, their registry owner
-when present, branch/worktree/content-root provenance when available, requested
-frame versus actual native frame, level, focus, interactivity, orphan windows,
-and the input target winner at a point where the current input router can prove
-it.
+The required observability preconditions are now accepted:
 
-The first accepted audit slice covers the active daemon and labels that limit as
-`runtime.native_window_scope = "current_daemon_process"`. The remaining
-precondition is cross-process/stale-worktree visibility: external AOS-owned
-native windows must be listed separately from current-daemon registry rows and
-current-daemon orphan windows, with process/worktree provenance or explicit
-unavailable reasons. Until that follow-up is accepted, a clean active registry
-does not prove that no stale visible AOS surface can win input.
+- `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md` covers
+  active daemon registry/native-window alignment and labels the runtime scope as
+  `runtime.native_window_scope = "current_daemon_process"`.
+- `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`
+  lists external visible AOS-owned native windows separately from current-daemon
+  registry rows and orphan windows, with bounded process provenance and explicit
+  unavailable reasons.
+- `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`
+  exposes launchd/service ownership, input-tap ownership, stale input-tap
+  capable daemon counts, installed-mode socket reachability, and the explicit
+  fact that duplicate macOS TCC rows are human-observable rather than AOS
+  database-observable.
+
+The next placement slice can therefore build on `./aos show audit --json`,
+`./aos status --json`, and `./aos ready --json` instead of treating duplicate
+surfaces, stale worktrees, or input-tap ownership as unknown background noise.
 
 This audit is not layout policy. Daemon/kernel code owns native truth and
 diagnostics. Toolkit owns opt-in panel placement policy. Sigil owns whether the
@@ -165,10 +168,9 @@ AOS needs a small, explicit panel placement contract. It should define:
 
 The next implementable slice should be small and testable:
 
-- an AOS-first visible-surface/orphan audit that proves registry/native window
-  alignment before live pointer or drag checks;
 - one public toolkit API for panel/window placement policy;
-- explicit requested-frame versus final-settled-frame reporting;
+- explicit requested-frame, policy-adjusted frame, final-settled frame, and
+  actual native-frame reporting;
 - opt-in viewport overflow behavior for panels;
 - stock panel chrome routes through `createPanelWindowController()`;
 - minimized chip restore routed through that API and backed by stage layers plus

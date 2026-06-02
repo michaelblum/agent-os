@@ -10,13 +10,17 @@ before this resource migration expands panel-based editing UX.
 
 Current prerequisites:
 
-1. Accept
+1. Accepted:
    `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
-2. Define or refresh toolkit panel placement so requested and final settled
+2. Accepted:
+   `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`.
+3. Accepted:
+   `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`.
+4. Define or refresh toolkit panel placement so requested and final settled
    native frames are observable, with opt-in viewport overflow policy.
-3. Add Sigil-owned avatar avoidance only if final settled panel frame evidence
+5. Add Sigil-owned avatar avoidance only if final settled panel frame evidence
    shows the avatar can overlap or win input over the controls panel.
-4. Refresh and accept
+6. Refresh and accept
    `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
 
 When Foreman routes this card, update the `required_start_ref` below to the
