@@ -75,7 +75,9 @@ for canvas_id in (id_a, id_b):
     row = rows.get(canvas_id)
     if not row:
         raise SystemExit(f"FAIL: missing registered audit row for {canvas_id}: {payload}")
-    assert row.get("requested_frame") == row.get("at"), row
+    requested = row.get("requested_frame")
+    assert isinstance(requested, list) and len(requested) == 4, row
+    assert row.get("requested_frame_source") == "Canvas.desiredCGFrame", row
     assert row.get("native_join_status") == "matched", row
     assert row.get("logical_surface_key") == "sigil.avatar.controls", row
     assert row.get("interactive") is True, row
@@ -106,7 +108,12 @@ assert sorted(avatar_dupe.get("canvas_ids") or []) == sorted([id_a, id_b]), avat
 
 assert isinstance(payload.get("native_windows"), list), payload
 assert isinstance(payload.get("orphan_native_windows"), list), payload
+for orphan in payload.get("orphan_native_windows") or []:
+    assert orphan.get("visible") is True, orphan
+    assert orphan.get("on_screen") is True, orphan
+assert isinstance(payload.get("non_visible_unmatched_native_windows"), list), payload
 assert isinstance(payload.get("registered_without_native_window"), list), payload
+assert payload.get("runtime", {}).get("native_window_scope") == "current_daemon_process", payload.get("runtime")
 assert payload.get("unavailable", {}).get("orphan_synthesis"), payload
 
 winner = payload.get("input_target_winner", {}).get("winner") or {}

@@ -1320,6 +1320,47 @@
         {
           "args" : [
             {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable audit output",
+              "token" : "--json",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "point",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Evaluate native input target at x,y",
+              "token" : "--point",
+              "value_type" : "string"
+            }
+          ],
+          "examples" : [
+            "aos show audit --json",
+            "aos show audit --json --point 90,100"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "show-audit",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos show audit [--json] [--point x,y]"
+        },
+        {
+          "args" : [
+            {
               "id" : "html",
               "kind" : "flag",
               "required" : false,

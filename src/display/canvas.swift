@@ -518,6 +518,7 @@ class Canvas {
             id: id,
             url: sourceURL,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
+            requestedFrame: [desiredCGFrame.origin.x, desiredCGFrame.origin.y, desiredCGFrame.size.width, desiredCGFrame.size.height],
             anchorWindow: anchorWindowID.map { Int($0) },
             anchorChannel: anchorChannelID,
             offset: offset.map { [$0.origin.x, $0.origin.y, $0.size.width, $0.size.height] },
@@ -646,7 +647,12 @@ class CanvasManager {
             var row = canvasInfoDictionary(info)
             let windowNumbers = info.windowNumbers ?? []
             row["join_key"] = ["window_numbers": windowNumbers]
-            row["requested_frame"] = info.at
+            if let requestedFrame = info.requestedFrame {
+                row["requested_frame"] = requestedFrame
+                row["requested_frame_source"] = "Canvas.desiredCGFrame"
+            } else {
+                row["requested_frame_unavailable_reason"] = "canvas type does not expose a single requested frame"
+            }
             row["actual_native_windows"] = windowNumbers.compactMap { nativeByWindowNumber[$0] }
             row["native_join_status"] = windowNumbers.isEmpty
                 ? "no_window_numbers"
@@ -655,9 +661,15 @@ class CanvasManager {
             return row
         }
 
-        let orphanNativeWindows = nativeWindows.filter { native in
+        let unmatchedNativeWindows = nativeWindows.filter { native in
             guard let windowNumber = native["window_number"] as? Int else { return true }
             return !registeredWindowNumbers.contains(windowNumber)
+        }
+        let orphanNativeWindows = unmatchedNativeWindows.filter { native in
+            (native["visible"] as? Bool) == true && (native["on_screen"] as? Bool) == true
+        }
+        let nonVisibleUnmatchedNativeWindows = unmatchedNativeWindows.filter { native in
+            !((native["visible"] as? Bool) == true && (native["on_screen"] as? Bool) == true)
         }
 
         let registeredMissingNative = registered.filter { row in
@@ -706,6 +718,7 @@ class CanvasManager {
                 "mode": aosCurrentRuntimeMode().rawValue,
                 "worktree_root": worktreeRoot,
                 "cwd": FileManager.default.currentDirectoryPath,
+                "native_window_scope": "current_daemon_process",
             ],
             "join": [
                 "key": "CanvasInfo.windowNumbers[] == CGWindowListCopyWindowInfo[kCGWindowNumber]",
@@ -715,6 +728,7 @@ class CanvasManager {
             "registered_canvases": registered,
             "native_windows": nativeWindows,
             "orphan_native_windows": orphanNativeWindows,
+            "non_visible_unmatched_native_windows": nonVisibleUnmatchedNativeWindows,
             "registered_without_native_window": registeredMissingNative,
             "duplicate_logical_surfaces": duplicates,
             "input_target_winner": inputTarget,

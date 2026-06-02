@@ -152,6 +152,7 @@ struct CanvasInfo: Codable {
     let id: String
     var url: String?              // URL loaded into the canvas, if URL-backed
     var at: [CGFloat]           // current [x, y, w, h] in CG coords
+    var requestedFrame: [CGFloat]? // last requested/desired [x, y, w, h] in CG coords
     var anchorWindow: Int?
     var anchorChannel: String?
     var offset: [CGFloat]?

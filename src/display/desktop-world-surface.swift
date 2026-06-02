@@ -298,6 +298,7 @@ final class DesktopWorldSurfaceCanvas: CanvasLike {
             id: id,
             url: sourceURL,
             at: [f.origin.x, f.origin.y, f.size.width, f.size.height],
+            requestedFrame: nil,
             anchorWindow: nil,
             anchorChannel: nil,
             offset: nil,
