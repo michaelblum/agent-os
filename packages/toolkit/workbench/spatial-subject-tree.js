@@ -310,7 +310,11 @@ export function buildSpatialSubjectTree({
 
   const targetSurfaces = surfaces.length > 0
     ? surfaces
-    : [...new Set(semantic_targets.map((target) => target.surface ?? target.canvas_id).filter(Boolean))].map((id) => ({ id, canvas_id: semantic_targets.find((target) => (target.surface ?? target.canvas_id) === id)?.canvas_id }))
+    : [...new Set(semantic_targets.map((target) => target.surface ?? target.provenance?.canvas_id).filter(Boolean))]
+      .map((id) => ({
+        id,
+        canvas_id: semantic_targets.find((target) => (target.surface ?? target.provenance?.canvas_id) === id)?.provenance?.canvas_id,
+      }))
 
   for (const [surfaceIndex, surface] of targetSurfaces.entries()) {
     const surfaceId = asId(surface.id ?? surface.surface_id, surfaceIndex)
@@ -338,26 +342,38 @@ export function buildSpatialSubjectTree({
   }
 
   for (const [targetIndex, target] of semantic_targets.entries()) {
-    const surfaceId = asId(target.surface ?? target.canvas_id, target.canvas_id)
-    const parentId = surfaceParentById.get(surfaceId) ?? (target.canvas_id ? `canvas:${target.canvas_id}` : rootId)
-    const targetId = asId(target.id ?? target.ref, targetIndex)
+    const provenance = target.provenance && typeof target.provenance === 'object' ? target.provenance : {}
+    const extension = target.extension && typeof target.extension === 'object' ? target.extension : {}
+    const canvasId = asId(provenance.canvas_id, null)
+    const surfaceId = asId(target.surface ?? canvasId, canvasId)
+    const parentId = surfaceParentById.get(surfaceId) ?? (canvasId ? `canvas:${canvasId}` : rootId)
+    const targetId = asId(target.ref, targetIndex)
+    const bounds = provenance.bounds ?? provenance.frame ?? null
+    const actions = Array.isArray(target.actions) ? target.actions : []
+    const doTarget = provenance.do_target ?? null
     nodes.push({
       id: `target:${targetId}`,
       parent_id: parentId,
       kind: 'semantic_target',
       label: target.name ?? target.label ?? target.role ?? targetId,
       source: {
-        canvas_id: target.canvas_id ?? null,
+        canvas_id: canvasId,
         surface_id: surfaceId,
         subject_id: targetId,
-        adapter_subject_id: target.ref ?? target.do_target ?? null,
+        adapter_subject_id: doTarget ?? targetId,
       },
-      bounds: { parent_local: target.bounds },
+      bounds: { parent_local: bounds },
       sibling_order: targetIndex,
       state: target.enabled === false ? 'hidden' : 'visible',
       adapter: { id: 'aos-semantic-targets', type: 'aos_canvas', confidence: 0.85, freshness: 'snapshot', child_discovery: 'complete' },
-      capabilities: { hit_test: true, annotate: true, action: Boolean(target.do_target || target.action), capture: true, inspect_children: false },
-      metadata: { role: target.role ?? null, action: target.action ?? null, state: target.state ?? null },
+      capabilities: { hit_test: true, annotate: true, action: actions.length > 0 || Boolean(doTarget), capture: true, inspect_children: false },
+      metadata: {
+        role: target.role ?? null,
+        actions,
+        dom_id: extension.dom_id ?? null,
+        do_target: doTarget,
+        state: target.state ?? null,
+      },
     })
   }
 

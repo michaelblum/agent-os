@@ -34,15 +34,28 @@ OUT="$(./aos see capture --canvas "$CANVAS_ID" --xray --out "/tmp/${CANVAS_ID}.p
 echo "$OUT" | jq -e --arg canvas "$CANVAS_ID" '
   .semantic_targets
   | map(select(
-      .canvas_id == $canvas
-      and .id == "retry"
+      .provenance.canvas_id == $canvas
       and .ref == "contract.retry"
-      and .do_target == ("canvas:" + $canvas + "/contract.retry")
+      and .extension.dom_id == "retry"
+      and .provenance.do_target == ("canvas:" + $canvas + "/contract.retry")
       and .role == "button"
       and .name == "Retry Action"
-      and .action == "retry"
+      and (.actions | index("retry"))
       and .surface == "contract.surface"
       and .enabled == true
+      and (.provenance.bounds.width | type == "number")
+      and (.provenance.frame.width | type == "number")
+      and (.provenance.center.x | type == "number")
+      and (has("id") | not)
+      and (has("canvas_id") | not)
+      and (has("do_target") | not)
+      and (has("action") | not)
+      and (has("parent_canvas") | not)
+      and (has("bounds") | not)
+      and (has("center") | not)
+      and (has("target_id") | not)
+      and (has("aos_ref") | not)
+      and (has("data_aos_ref") | not)
     ))
   | length == 1
 ' >/dev/null || {
