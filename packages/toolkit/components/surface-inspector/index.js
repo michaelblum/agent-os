@@ -896,6 +896,10 @@ function buildRevealTargetEvalScript(target = {}) {
         return JSON.stringify(window.aosSurfaceInspector.revealTarget(target) || { status: 'unsupported', completed_at: now })
       }
       const selector = [
+        target.selector || '',
+        target.source_tree_node_metadata?.provenance?.selector || '',
+        target.source_tree_node_metadata?.extension?.dom_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.extension.dom_id) + '"]' : '',
+        target.ref ? '[data-aos-ref="' + CSS.escape(target.ref) + '"]' : '',
         target.subject_id ? '[data-semantic-target-id="' + CSS.escape(target.subject_id) + '"]' : '',
         target.subject_id ? '[data-aos-ref="' + CSS.escape(target.subject_id) + '"]' : '',
         target.source_tree_node_metadata?.target_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.target_id) + '"]' : '',
