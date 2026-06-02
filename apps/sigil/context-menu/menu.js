@@ -13,6 +13,7 @@ import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/t
 import {
     applyContextMenuDescriptorUpdate,
 } from './descriptors.js';
+import { buildContextMenuSnapshot } from './snapshot-projection.js';
 import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
 
 let compactSurfaceModulePromise = null;
@@ -320,13 +321,7 @@ export function createSigilContextMenu({
     }
 
     function snapshot() {
-        return {
-            open: menuState.open,
-            bounds: menuState.bounds ? { ...menuState.bounds } : null,
-            stack: null,
-            activeTab: compactSurface?.getActiveTab?.() || null,
-            controls: compactControlRecords(),
-        };
+        return buildContextMenuSnapshot(menuState, compactSurface);
     }
 
     function syncSnapshot() {
