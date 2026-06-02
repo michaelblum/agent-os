@@ -640,7 +640,11 @@ class CanvasManager {
     func visibleSurfaceAudit(point: CGPoint? = nil) -> [String: Any] {
         let registeredInfos = canvases.values.map { $0.toInfo() }.sorted { $0.id < $1.id }
         let registeredWindowNumbers = Set(registeredInfos.flatMap { $0.windowNumbers ?? [] })
-        let nativeWindows = nativeWindowServerEntries(ownerPID: Int(getpid()))
+        let currentPID = Int(getpid())
+        var allNativeWindows = nativeWindowServerEntries()
+        allNativeWindows.append(contentsOf: testFixtureNativeWindowServerEntries())
+        let nativeWindows = allNativeWindows.filter { ($0["owner_pid"] as? Int) == currentPID }
+        let externalAOSWindows = externalAOSNativeWindows(from: allNativeWindows, currentPID: currentPID)
         let nativeByWindowNumber = Dictionary(uniqueKeysWithValues: nativeWindows.map { (($0["window_number"] as? Int) ?? -1, $0) })
 
         let registered = registeredInfos.map { info -> [String: Any] in
@@ -704,7 +708,12 @@ class CanvasManager {
         ]
         if let point {
             inputTarget["point"] = [point.x, point.y]
-            inputTarget["winner"] = inputTargetWinner(at: point, nativeWindows: nativeWindows, registeredInfos: registeredInfos)
+            inputTarget["winner"] = inputTargetWinner(
+                at: point,
+                nativeWindows: nativeWindows,
+                externalAOSWindows: externalAOSWindows,
+                registeredInfos: registeredInfos
+            )
         } else {
             inputTarget["unavailable_reason"] = "pass --point x,y to evaluate a native point"
         }
@@ -719,6 +728,21 @@ class CanvasManager {
                 "worktree_root": worktreeRoot,
                 "cwd": FileManager.default.currentDirectoryPath,
                 "native_window_scope": "current_daemon_process",
+                "current_daemon_pid": currentPID,
+                "cross_process_aos_window_discovery": [
+                    "ran": true,
+                    "native_window_scope": "visible_on_screen_aos_owned_windows_not_owned_by_current_daemon_process",
+                    "candidate_identification": [
+                        "CGWindow owner PID differs from current daemon PID",
+                        "native window is visible and on screen",
+                        "owner name, executable path, or command line indicates an AOS runtime",
+                    ],
+                    "native_source": "CGWindowListCopyWindowInfo(kCGWindowListOptionAll)",
+                    "process_metadata_source": "NSRunningApplication plus ps -p <pid> -o args=",
+                    "stale_daemon_model": "same aos (serve|__serve) process pattern used by ./aos clean --dry-run --json",
+                    "cleanup_command": "./aos clean --dry-run --json",
+                    "inspect_command": "./aos status --json",
+                ] as [String: Any],
             ],
             "join": [
                 "key": "CanvasInfo.windowNumbers[] == CGWindowListCopyWindowInfo[kCGWindowNumber]",
@@ -729,6 +753,7 @@ class CanvasManager {
             "native_windows": nativeWindows,
             "orphan_native_windows": orphanNativeWindows,
             "non_visible_unmatched_native_windows": nonVisibleUnmatchedNativeWindows,
+            "external_aos_native_windows": externalAOSWindows,
             "registered_without_native_window": registeredMissingNative,
             "duplicate_logical_surfaces": duplicates,
             "input_target_winner": inputTarget,
@@ -821,12 +846,13 @@ class CanvasManager {
         }
     }
 
-    private func nativeWindowServerEntries(ownerPID: Int) -> [[String: Any]] {
+    private func nativeWindowServerEntries(ownerPID: Int? = nil) -> [[String: Any]] {
         guard let infos = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] else {
             return []
         }
         return infos.enumerated().compactMap { index, info in
-            guard (info[kCGWindowOwnerPID as String] as? Int) == ownerPID else { return nil }
+            let actualOwnerPID = info[kCGWindowOwnerPID as String] as? Int ?? -1
+            if let ownerPID, actualOwnerPID != ownerPID { return nil }
             let boundsDict = info[kCGWindowBounds as String] as? [String: Any] ?? [:]
             let frame = CGRect(
                 x: numberValue(boundsDict["X"]) ?? 0,
@@ -841,7 +867,7 @@ class CanvasManager {
             let isVisible = onScreen && alpha > 0 && frame.width > 0 && frame.height > 0
             return [
                 "window_number": windowNumber ?? -1,
-                "owner_pid": ownerPID,
+                "owner_pid": actualOwnerPID,
                 "owner_name": info[kCGWindowOwnerName as String] as? String ?? "",
                 "name": info[kCGWindowName as String] as? String ?? "",
                 "actual_frame": frameDictionary(frame),
@@ -857,6 +883,166 @@ class CanvasManager {
                 ],
             ] as [String: Any]
         }
+    }
+
+    private func testFixtureNativeWindowServerEntries() -> [[String: Any]] {
+        guard let raw = ProcessInfo.processInfo.environment["AOS_TEST_VISIBLE_SURFACE_AUDIT_NATIVE_WINDOWS_JSON"],
+              let data = raw.data(using: .utf8),
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+        return rows
+    }
+
+    private func externalAOSNativeWindows(from nativeWindows: [[String: Any]], currentPID: Int) -> [[String: Any]] {
+        let staleDaemonPIDs = Set(aosCleanStaleDaemonCandidatePIDs(currentPID: currentPID))
+        return nativeWindows.compactMap { native in
+            guard let ownerPID = native["owner_pid"] as? Int, ownerPID != currentPID else { return nil }
+            guard (native["visible"] as? Bool) == true, (native["on_screen"] as? Bool) == true else { return nil }
+            let processIdentity = externalAOSProcessIdentity(pid: ownerPID)
+            guard isExternalAOSWindowCandidate(native: native, processIdentity: processIdentity, staleDaemonPIDs: staleDaemonPIDs) else {
+                return nil
+            }
+
+            var row = native
+            let classification = externalAOSWindowClassification(
+                processIdentity: processIdentity,
+                appearsInStaleDaemonModel: staleDaemonPIDs.contains(ownerPID)
+            )
+            row["classification"] = classification
+            row["process_identity"] = processIdentity
+            row["appears_in_aos_clean_stale_daemons"] = staleDaemonPIDs.contains(ownerPID)
+            row["current_daemon_pid"] = currentPID
+            row["scope"] = "external_process"
+            row["reason"] = "visible on-screen AOS-owned native window is not owned by current daemon process"
+            return row
+        }
+        .sorted { (($0["front_to_back_index"] as? Int) ?? Int.max) < (($1["front_to_back_index"] as? Int) ?? Int.max) }
+    }
+
+    private func isExternalAOSWindowCandidate(
+        native: [String: Any],
+        processIdentity: [String: Any],
+        staleDaemonPIDs: Set<Int>
+    ) -> Bool {
+        if let ownerPID = native["owner_pid"] as? Int, staleDaemonPIDs.contains(ownerPID) { return true }
+        let ownerName = ((native["owner_name"] as? String) ?? "").lowercased()
+        let executablePath = ((processIdentity["executable_path"] as? String) ?? "").lowercased()
+        let commandLine = ((processIdentity["command_line"] as? String) ?? "").lowercased()
+        return ownerName == "aos"
+            || ownerName == "agent-os"
+            || ownerName.contains("aos")
+            || executablePath.hasSuffix("/aos")
+            || executablePath.contains("/aos.app/")
+            || commandLine.contains("/aos serve")
+            || commandLine.contains("/aos __serve")
+            || commandLine.contains("aos serve")
+            || commandLine.contains("aos __serve")
+    }
+
+    private func externalAOSWindowClassification(
+        processIdentity: [String: Any],
+        appearsInStaleDaemonModel: Bool
+    ) -> String {
+        if appearsInStaleDaemonModel { return "stale_aos_daemon_window" }
+        if (processIdentity["runtime_mode"] as? String) == "installed" { return "installed_mode_window" }
+        let commandLine = ((processIdentity["command_line"] as? String) ?? "").lowercased()
+        if commandLine.contains(" serve") || commandLine.contains(" __serve") {
+            return "external_aos_daemon_window"
+        }
+        return "unknown_aos_runtime_window"
+    }
+
+    private func externalAOSProcessIdentity(pid: Int) -> [String: Any] {
+        let runningApp = NSRunningApplication(processIdentifier: pid_t(pid))
+        let executablePath = runningApp?.executableURL?.path
+        let bundlePath = runningApp?.bundleURL?.path
+        let commandLine = processCommandLine(pid: pid)
+        let inferredMode = inferAOSRuntimeMode(executablePath: executablePath, bundlePath: bundlePath, commandLine: commandLine)
+        let worktreeRoot = inferProcessWorktreeRoot(executablePath: executablePath, commandLine: commandLine)
+        var row: [String: Any] = [
+            "pid": pid,
+            "owner_name": runningApp?.localizedName ?? NSNull(),
+            "executable_path": executablePath ?? NSNull(),
+            "executable_path_unavailable_reason": executablePath == nil ? "NSRunningApplication did not expose executableURL for PID \(pid)" : NSNull(),
+            "bundle_path": bundlePath ?? NSNull(),
+            "bundle_path_unavailable_reason": bundlePath == nil ? "NSRunningApplication did not expose bundleURL for PID \(pid)" : NSNull(),
+            "command_line": commandLine ?? NSNull(),
+            "command_line_unavailable_reason": commandLine == nil ? "ps did not return command line for PID \(pid)" : NSNull(),
+            "runtime_mode": inferredMode ?? NSNull(),
+            "runtime_mode_unavailable_reason": inferredMode == nil ? "runtime mode was not inferable from executable path or command line" : NSNull(),
+            "state_root": NSNull(),
+            "state_root_unavailable_reason": "not available from native window-server or process command-line metadata",
+            "socket_path": NSNull(),
+            "socket_path_unavailable_reason": "not available from native window-server or process command-line metadata",
+            "worktree_root": worktreeRoot ?? NSNull(),
+            "worktree_root_unavailable_reason": worktreeRoot == nil ? "no enclosing git worktree could be inferred from executable path or command line" : NSNull(),
+            "branch": NSNull(),
+            "branch_unavailable_reason": "no worktree root available" as Any,
+            "repo_git_commit": NSNull(),
+            "repo_git_commit_unavailable_reason": "no worktree root available" as Any,
+        ]
+        if let worktreeRoot {
+            let branch = gitOutput(args: ["-C", worktreeRoot, "branch", "--show-current"])
+            let commit = gitOutput(args: ["-C", worktreeRoot, "rev-parse", "--short", "HEAD"])
+            row["branch"] = branch ?? NSNull()
+            row["branch_unavailable_reason"] = branch == nil ? "git branch lookup failed for inferred worktree root" : NSNull()
+            row["repo_git_commit"] = commit ?? NSNull()
+            row["repo_git_commit_unavailable_reason"] = commit == nil ? "git commit lookup failed for inferred worktree root" : NSNull()
+        }
+        return row
+    }
+
+    private func inferAOSRuntimeMode(executablePath: String?, bundlePath: String?, commandLine: String?) -> String? {
+        let haystack = [executablePath, bundlePath, commandLine]
+            .compactMap { $0?.lowercased() }
+            .joined(separator: " ")
+        if haystack.contains("aos_runtime_mode=installed") || haystack.contains("/applications/aos.app/") {
+            return "installed"
+        }
+        if haystack.contains("aos_runtime_mode=repo") || haystack.contains("/code/agent-os/aos") || haystack.contains("/agent-os/aos") {
+            return "repo"
+        }
+        return nil
+    }
+
+    private func inferProcessWorktreeRoot(executablePath: String?, commandLine: String?) -> String? {
+        var bases: [String] = []
+        if let executablePath {
+            bases.append(URL(fileURLWithPath: executablePath).deletingLastPathComponent().path)
+        }
+        if let commandLine {
+            for token in commandLine.split(separator: " ") {
+                let value = String(token)
+                if value.hasPrefix("/") {
+                    bases.append(URL(fileURLWithPath: value).deletingLastPathComponent().path)
+                }
+            }
+        }
+        return aosRepoRootFromBases(bases)
+    }
+
+    private func processCommandLine(pid: Int) -> String? {
+        let output = runProcess("/bin/ps", arguments: ["-p", String(pid), "-o", "args="])
+        guard output.exitCode == 0 else { return nil }
+        let line = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return line.isEmpty ? nil : line
+    }
+
+    private func aosCleanStaleDaemonCandidatePIDs(currentPID: Int) -> [Int] {
+        let output = runProcess("/usr/bin/pgrep", arguments: ["-f", "aos (serve|__serve)"])
+        guard output.exitCode == 0 else { return [] }
+        return output.stdout
+            .split(whereSeparator: \.isNewline)
+            .compactMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { $0 != currentPID }
+    }
+
+    private func gitOutput(args: [String]) -> String? {
+        let output = runProcess("/usr/bin/git", arguments: args)
+        guard output.exitCode == 0 else { return nil }
+        let value = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
     }
 
     private func numberValue(_ value: Any?) -> CGFloat? {
@@ -886,15 +1072,29 @@ class CanvasManager {
         return info.id
     }
 
-    private func inputTargetWinner(at point: CGPoint, nativeWindows: [[String: Any]], registeredInfos: [CanvasInfo]) -> [String: Any] {
+    private func inputTargetWinner(
+        at point: CGPoint,
+        nativeWindows: [[String: Any]],
+        externalAOSWindows: [[String: Any]],
+        registeredInfos: [CanvasInfo]
+    ) -> [String: Any] {
         let byWindowNumber: [Int: CanvasInfo] = Dictionary(
             registeredInfos.flatMap { info in
                 (info.windowNumbers ?? []).map { ($0, info) }
             },
             uniquingKeysWith: { first, _ in first }
         )
+        let externalByWindowNumber: [Int: [String: Any]] = Dictionary(
+            uniqueKeysWithValues: externalAOSWindows.compactMap { native in
+                guard let windowNumber = native["window_number"] as? Int else { return nil }
+                return (windowNumber, native)
+            }
+        )
 
-        for native in nativeWindows {
+        let frontToBackWindows = (nativeWindows + externalAOSWindows)
+            .sorted { (($0["front_to_back_index"] as? Int) ?? Int.max) < (($1["front_to_back_index"] as? Int) ?? Int.max) }
+
+        for native in frontToBackWindows {
             guard let frameDict = native["actual_frame"] as? [String: Any],
                   let x = numberValue(frameDict["x"]),
                   let y = numberValue(frameDict["y"]),
@@ -903,6 +1103,18 @@ class CanvasManager {
             let frame = CGRect(x: x, y: y, width: w, height: h)
             guard frame.contains(point), (native["visible"] as? Bool) == true else { continue }
             let windowNumber = native["window_number"] as? Int ?? -1
+            if let external = externalByWindowNumber[windowNumber] {
+                return [
+                    "status": "external_aos_native_window",
+                    "scope": "external_process",
+                    "window_number": windowNumber,
+                    "owner_pid": external["owner_pid"] ?? NSNull(),
+                    "classification": external["classification"] ?? "unknown_aos_runtime_window",
+                    "native": external,
+                    "process_identity": external["process_identity"] ?? NSNull(),
+                    "reason": "frontmost visible AOS-owned native window at point is owned by another process",
+                ] as [String: Any]
+            }
             if let info = byWindowNumber[windowNumber] {
                 return [
                     "status": info.interactive && info.suspended != true ? "matched_registered_surface" : "matched_noninteractive_or_suspended_surface",

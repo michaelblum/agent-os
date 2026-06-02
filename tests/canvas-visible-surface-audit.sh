@@ -7,14 +7,63 @@ PREFIX="aos-canvas-visible-surface-audit"
 aos_test_cleanup_prefix "$PREFIX"
 
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
+STALE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}-stale.XXXXXX")"
 export AOS_STATE_ROOT="$ROOT"
 
 cleanup() {
   ./aos show remove-all >/dev/null 2>&1 || true
+  if [[ -n "${STALE_PID:-}" ]] && kill -0 "$STALE_PID" 2>/dev/null; then
+    kill "$STALE_PID" 2>/dev/null || true
+    wait "$STALE_PID" 2>/dev/null || true
+  fi
   aos_test_kill_root "$ROOT"
-  rm -rf "$ROOT"
+  rm -rf "$ROOT" "$STALE_ROOT"
 }
 trap cleanup EXIT
+
+cat >"$STALE_ROOT/aos" <<'SH'
+#!/usr/bin/env bash
+while true; do
+  sleep 10
+done
+SH
+chmod +x "$STALE_ROOT/aos"
+"$STALE_ROOT/aos" serve --idle-timeout 5m \
+  >"$STALE_ROOT/stale.stdout" 2>"$STALE_ROOT/stale.stderr" &
+STALE_PID=$!
+
+export AOS_TEST_VISIBLE_SURFACE_AUDIT_NATIVE_WINDOWS_JSON
+AOS_TEST_VISIBLE_SURFACE_AUDIT_NATIVE_WINDOWS_JSON="$(python3 - "$STALE_PID" "$PWD" <<'PY'
+import json
+import os
+import sys
+
+pid = int(sys.argv[1])
+cwd = sys.argv[2]
+print(json.dumps([{
+    "window_number": 900001,
+    "owner_pid": pid,
+    "owner_name": "aos",
+    "name": "test external AOS window",
+    "actual_frame": {"x": 520, "y": 70, "w": 180, "h": 120},
+    "window_layer": 3,
+    "alpha": 1,
+    "on_screen": True,
+    "visible": True,
+    "front_to_back_index": 0,
+    "display_relationship": [{
+        "display_id": -1,
+        "frame": {"x": 0, "y": 0, "w": 2000, "h": 1200},
+        "intersection": {"x": 520, "y": 70, "w": 180, "h": 120},
+    }],
+    "focus": {
+        "is_key_window": False,
+        "source": "test fixture for cross-process visible-surface audit classification",
+    },
+    "test_fixture": True,
+}]))
+PY
+)"
 
 aos_test_start_daemon "$ROOT" \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
@@ -48,18 +97,19 @@ import time
 
 id_a, id_b, cwd = sys.argv[1:]
 
-def audit():
+def audit(point):
     return json.loads(subprocess.check_output([
-        "./aos", "show", "audit", "--json", "--point", "80,90"
+        "./aos", "show", "audit", "--json", "--point", point
     ], text=True))
 
 deadline = time.time() + 5
 payload = None
 while time.time() < deadline:
-    payload = audit()
+    payload = audit("80,90")
     rows = {row.get("id"): row for row in payload.get("registered_canvases", [])}
     native = rows.get(id_a, {}).get("actual_native_windows") or []
-    if rows.get(id_a) and rows.get(id_b) and native:
+    external = payload.get("external_aos_native_windows") or []
+    if rows.get(id_a) and rows.get(id_b) and native and external:
         break
     time.sleep(0.1)
 
@@ -113,13 +163,45 @@ for orphan in payload.get("orphan_native_windows") or []:
     assert orphan.get("on_screen") is True, orphan
 assert isinstance(payload.get("non_visible_unmatched_native_windows"), list), payload
 assert isinstance(payload.get("registered_without_native_window"), list), payload
-assert payload.get("runtime", {}).get("native_window_scope") == "current_daemon_process", payload.get("runtime")
+runtime = payload.get("runtime", {})
+assert runtime.get("native_window_scope") == "current_daemon_process", runtime
+assert isinstance(runtime.get("current_daemon_pid"), int), runtime
+cross = runtime.get("cross_process_aos_window_discovery") or {}
+assert cross.get("ran") is True, cross
+assert cross.get("cleanup_command") == "./aos clean --dry-run --json", cross
+assert "aos clean" in (cross.get("stale_daemon_model") or ""), cross
 assert payload.get("unavailable", {}).get("orphan_synthesis"), payload
+
+external_rows = payload.get("external_aos_native_windows") or []
+external = next((row for row in external_rows if row.get("classification") == "stale_aos_daemon_window"), None)
+if not external:
+    raise SystemExit(f"FAIL: missing stale external AOS native window: {external_rows}")
+assert external.get("scope") == "external_process", external
+assert external.get("owner_pid") != runtime.get("current_daemon_pid"), external
+assert external.get("visible") is True, external
+assert external.get("on_screen") is True, external
+assert external.get("appears_in_aos_clean_stale_daemons") is True, external
+identity = external.get("process_identity") or {}
+assert identity.get("pid") == external.get("owner_pid"), identity
+assert isinstance(identity.get("command_line"), str) and "aos serve" in identity.get("command_line"), identity
+assert "runtime_mode" in identity, identity
+assert identity.get("runtime_mode") == "repo" or identity.get("runtime_mode_unavailable_reason"), identity
+assert "worktree_root" in identity, identity
+assert identity.get("worktree_root") == cwd or identity.get("worktree_root_unavailable_reason"), identity
+assert "branch" in identity and "branch_unavailable_reason" in identity, identity
+assert "repo_git_commit" in identity and "repo_git_commit_unavailable_reason" in identity, identity
 
 winner = payload.get("input_target_winner", {}).get("winner") or {}
 assert winner.get("status") in ("matched_registered_surface", "matched_noninteractive_or_suspended_surface"), winner
 assert winner.get("canvas_id") == id_a, winner
 assert winner.get("interactive") is True, winner
+
+external_payload = audit("540,90")
+external_winner = external_payload.get("input_target_winner", {}).get("winner") or {}
+assert external_winner.get("status") == "external_aos_native_window", external_winner
+assert external_winner.get("scope") == "external_process", external_winner
+assert external_winner.get("classification") == "stale_aos_daemon_window", external_winner
+assert (external_winner.get("process_identity") or {}).get("pid") == external_winner.get("owner_pid"), external_winner
 
 print("PASS")
 PY
