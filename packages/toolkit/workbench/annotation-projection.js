@@ -451,6 +451,7 @@ export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = 
   const targetId = text(
     target.ref
       || target.id
+      // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
       || target.target_id
       || target.semantic_target_id
       || target.do_target
@@ -472,6 +473,7 @@ export function buildSemanticTargetProjectionAdapterResult(target = {}, owner = 
         || target.provenance?.selector
         || target.selector
         || target.ref
+        // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
         || target.data_aos_ref
         || target.aos_ref
         || target.target_id

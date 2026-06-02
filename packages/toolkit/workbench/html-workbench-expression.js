@@ -140,7 +140,8 @@ function sectionKind(title) {
 }
 
 function targetDomId(target = {}) {
-  return text(target.extension?.dom_id || target.provenance?.dom_id || target.provenance?.source_payload_id || target.ref);
+  const ref = text(target.ref);
+  return text(target.provenance?.dom_id || ref.split(':').pop() || ref);
 }
 
 function targetSource(target = {}) {
@@ -199,16 +200,12 @@ function workbenchAgentUiTarget({
       annotation_eligible: Boolean(eligible),
       reveal_eligible: Boolean(eligible),
       source,
-      dom_id: targetId,
     },
     provenance: {
-      source_payload_id: targetId,
       dom_id: targetId,
-      source_path: source.path,
-      source_line_start: source.line_start,
-      source_line_end: source.line_end,
       selector: text(selector, `[data-semantic-target-id="${targetId}"]`),
     },
+    suppressSourcePayloadId: true,
   });
 }
 

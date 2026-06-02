@@ -37,15 +37,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 1,
           "line_end": 124
-        },
-        "dom_id": "document"
+        }
       },
       "provenance": {
-        "source_payload_id": "document",
         "dom_id": "document",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 1,
-        "source_line_end": 124,
         "selector": "[data-aos-ref=\"html-workbench-expression:document\"]",
         "metadata": {},
         "parent_canvas_id": ""
@@ -74,15 +69,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 1,
           "line_end": 4
-        },
-        "dom_id": "employer-brand-audit-human-alignment-pack-v0"
+        }
       },
       "provenance": {
-        "source_payload_id": "employer-brand-audit-human-alignment-pack-v0",
         "dom_id": "employer-brand-audit-human-alignment-pack-v0",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 1,
-        "source_line_end": 4,
         "selector": "#employer-brand-audit-human-alignment-pack-v0",
         "metadata": {},
         "parent_canvas_id": ""
@@ -111,15 +101,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 5,
           "line_end": 15
-        },
-        "dom_id": "current-assumptions"
+        }
       },
       "provenance": {
-        "source_payload_id": "current-assumptions",
         "dom_id": "current-assumptions",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 5,
-        "source_line_end": 15,
         "selector": "#current-assumptions",
         "metadata": {},
         "parent_canvas_id": ""
@@ -148,15 +133,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 16,
           "line_end": 34
-        },
-        "dom_id": "evidence-flow"
+        }
       },
       "provenance": {
-        "source_payload_id": "evidence-flow",
         "dom_id": "evidence-flow",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 16,
-        "source_line_end": 34,
         "selector": "#evidence-flow",
         "metadata": {},
         "parent_canvas_id": ""
@@ -185,15 +165,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 35,
           "line_end": 40
-        },
-        "dom_id": "evidence-requirements-brief"
+        }
       },
       "provenance": {
-        "source_payload_id": "evidence-requirements-brief",
         "dom_id": "evidence-requirements-brief",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 35,
-        "source_line_end": 40,
         "selector": "#evidence-requirements-brief",
         "metadata": {},
         "parent_canvas_id": ""
@@ -222,15 +197,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 41,
           "line_end": 50
-        },
-        "dom_id": "companies-and-competitor-set"
+        }
       },
       "provenance": {
-        "source_payload_id": "companies-and-competitor-set",
         "dom_id": "companies-and-competitor-set",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 41,
-        "source_line_end": 50,
         "selector": "#companies-and-competitor-set",
         "metadata": {},
         "parent_canvas_id": ""
@@ -259,15 +229,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 51,
           "line_end": 56
-        },
-        "dom_id": "source-categories-and-page-types"
+        }
       },
       "provenance": {
-        "source_payload_id": "source-categories-and-page-types",
         "dom_id": "source-categories-and-page-types",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 51,
-        "source_line_end": 56,
         "selector": "#source-categories-and-page-types",
         "metadata": {},
         "parent_canvas_id": ""
@@ -296,15 +261,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 57,
           "line_end": 74
-        },
-        "dom_id": "desired-evidence-elements-and-expected-clip-counts"
+        }
       },
       "provenance": {
-        "source_payload_id": "desired-evidence-elements-and-expected-clip-counts",
         "dom_id": "desired-evidence-elements-and-expected-clip-counts",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 57,
-        "source_line_end": 74,
         "selector": "#desired-evidence-elements-and-expected-clip-counts",
         "metadata": {},
         "parent_canvas_id": ""
@@ -333,15 +293,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 75,
           "line_end": 78
-        },
-        "dom_id": "what-not-to-collect"
+        }
       },
       "provenance": {
-        "source_payload_id": "what-not-to-collect",
         "dom_id": "what-not-to-collect",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 75,
-        "source_line_end": 78,
         "selector": "#what-not-to-collect",
         "metadata": {},
         "parent_canvas_id": ""
@@ -370,15 +325,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 79,
           "line_end": 88
-        },
-        "dom_id": "kilos-interpretation"
+        }
       },
       "provenance": {
-        "source_payload_id": "kilos-interpretation",
         "dom_id": "kilos-interpretation",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 79,
-        "source_line_end": 88,
         "selector": "#kilos-interpretation",
         "metadata": {},
         "parent_canvas_id": ""
@@ -407,15 +357,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 89,
           "line_end": 94
-        },
-        "dom_id": "source-trust-and-inaccessible-source-policy"
+        }
       },
       "provenance": {
-        "source_payload_id": "source-trust-and-inaccessible-source-policy",
         "dom_id": "source-trust-and-inaccessible-source-policy",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 89,
-        "source_line_end": 94,
         "selector": "#source-trust-and-inaccessible-source-policy",
         "metadata": {},
         "parent_canvas_id": ""
@@ -444,15 +389,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 95,
           "line_end": 98
-        },
-        "dom_id": "visual-evidence-quality-criteria"
+        }
       },
       "provenance": {
-        "source_payload_id": "visual-evidence-quality-criteria",
         "dom_id": "visual-evidence-quality-criteria",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 95,
-        "source_line_end": 98,
         "selector": "#visual-evidence-quality-criteria",
         "metadata": {},
         "parent_canvas_id": ""
@@ -481,15 +421,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 99,
           "line_end": 104
-        },
-        "dom_id": "report-tone-and-direction"
+        }
       },
       "provenance": {
-        "source_payload_id": "report-tone-and-direction",
         "dom_id": "report-tone-and-direction",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 99,
-        "source_line_end": 104,
         "selector": "#report-tone-and-direction",
         "metadata": {},
         "parent_canvas_id": ""
@@ -518,15 +453,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 105,
           "line_end": 116
-        },
-        "dom_id": "explicit-human-decision-points"
+        }
       },
       "provenance": {
-        "source_payload_id": "explicit-human-decision-points",
         "dom_id": "explicit-human-decision-points",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 105,
-        "source_line_end": 116,
         "selector": "#explicit-human-decision-points",
         "metadata": {},
         "parent_canvas_id": ""
@@ -555,15 +485,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 117,
           "line_end": 120
-        },
-        "dom_id": "boundary-for-foreman-gdi-and-operator"
+        }
       },
       "provenance": {
-        "source_payload_id": "boundary-for-foreman-gdi-and-operator",
         "dom_id": "boundary-for-foreman-gdi-and-operator",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 117,
-        "source_line_end": 120,
         "selector": "#boundary-for-foreman-gdi-and-operator",
         "metadata": {},
         "parent_canvas_id": ""
@@ -592,15 +517,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 121,
           "line_end": 124
-        },
-        "dom_id": "future-direction"
+        }
       },
       "provenance": {
-        "source_payload_id": "future-direction",
         "dom_id": "future-direction",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 121,
-        "source_line_end": 124,
         "selector": "#future-direction",
         "metadata": {},
         "parent_canvas_id": ""
@@ -629,15 +549,10 @@
           "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
           "line_start": 18,
           "line_end": 27
-        },
-        "dom_id": "mermaid-block-1"
+        }
       },
       "provenance": {
-        "source_payload_id": "mermaid-block-1",
         "dom_id": "mermaid-block-1",
-        "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-        "source_line_start": 18,
-        "source_line_end": 27,
         "selector": "[data-semantic-target-id=\"mermaid-block-1\"]",
         "metadata": {},
         "parent_canvas_id": ""

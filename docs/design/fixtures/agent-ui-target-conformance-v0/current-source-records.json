@@ -147,7 +147,6 @@
         "extension": {
           "annotation_eligible": true,
           "reveal_eligible": true,
-          "dom_id": "decision-17",
           "source": {
             "path": "docs/design/agent-ui-affordance-synthesis-v0.md",
             "line_start": 17,
@@ -156,11 +155,7 @@
         },
         "provenance": {
           "selector": "[data-semantic-target-id=\"decision-17\"]",
-          "source_payload_id": "decision-17",
-          "dom_id": "decision-17",
-          "source_path": "docs/design/agent-ui-affordance-synthesis-v0.md",
-          "source_line_start": 17,
-          "source_line_end": 22
+          "dom_id": "decision-17"
         }
       }
     }

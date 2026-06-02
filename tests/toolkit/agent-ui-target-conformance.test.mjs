@@ -153,6 +153,24 @@ function assertCanonicalProducerGates(target) {
   walkKeys(target, (key) => {
     assert.ok(!PRODUCER_FORBIDDEN_PROJECTION_KEYS.includes(key), `projection key leaked into producer tree: ${key}`)
   })
+
+  if (target.surface === 'html-workbench-expression') {
+    assert.equal(Object.hasOwn(target.extension || {}, 'dom_id'), false, `${target.ref} must not duplicate DOM id under extension`)
+    assert.equal(Object.hasOwn(target.provenance || {}, 'dom_id'), true, `${target.ref} must keep the single DOM reveal hint under provenance`)
+    assert.equal(Object.hasOwn(target.provenance || {}, 'source_payload_id'), false, `${target.ref} must not duplicate source_payload_id`)
+    for (const key of ['source_path', 'source_line_start', 'source_line_end']) {
+      assert.equal(Object.hasOwn(target.provenance || {}, key), false, `${target.ref} must keep source data only under extension.source`)
+    }
+    const nestedDomSlots = [
+      target.extension?.dom_id,
+      target.provenance?.dom_id,
+      target.provenance?.source_payload_id,
+    ].filter((value) => value === target.provenance?.dom_id)
+    assert.ok(nestedDomSlots.length <= 1, `${target.ref} duplicated DOM slug across nested fields`)
+    assert.ok(target.extension?.source?.path, `${target.ref} must include extension.source.path`)
+    assert.ok(target.extension?.source?.line_start, `${target.ref} must include extension.source.line_start`)
+    assert.ok(target.extension?.source?.line_end, `${target.ref} must include extension.source.line_end`)
+  }
 }
 
 test('current producer fixtures map losslessly to candidate agent_ui_target records', async () => {

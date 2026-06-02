@@ -37,15 +37,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 1,
           "line_end": 294
-        },
-        "dom_id": "document"
+        }
       },
       "provenance": {
-        "source_payload_id": "document",
         "dom_id": "document",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 1,
-        "source_line_end": 294,
         "selector": "[data-aos-ref=\"html-workbench-expression:document\"]",
         "metadata": {},
         "parent_canvas_id": ""
@@ -74,15 +69,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 1,
           "line_end": 2
-        },
-        "dom_id": "aos-html-workbench-expression-v0"
+        }
       },
       "provenance": {
-        "source_payload_id": "aos-html-workbench-expression-v0",
         "dom_id": "aos-html-workbench-expression-v0",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 1,
-        "source_line_end": 2,
         "selector": "#aos-html-workbench-expression-v0",
         "metadata": {},
         "parent_canvas_id": ""
@@ -111,15 +101,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 3,
           "line_end": 12
-        },
-        "dom_id": "tracker"
+        }
       },
       "provenance": {
-        "source_payload_id": "tracker",
         "dom_id": "tracker",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 3,
-        "source_line_end": 12,
         "selector": "#tracker",
         "metadata": {},
         "parent_canvas_id": ""
@@ -148,15 +133,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 13,
           "line_end": 29
-        },
-        "dom_id": "goal"
+        }
       },
       "provenance": {
-        "source_payload_id": "goal",
         "dom_id": "goal",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 13,
-        "source_line_end": 29,
         "selector": "#goal",
         "metadata": {},
         "parent_canvas_id": ""
@@ -185,15 +165,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 30,
           "line_end": 45
-        },
-        "dom_id": "why"
+        }
       },
       "provenance": {
-        "source_payload_id": "why",
         "dom_id": "why",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 30,
-        "source_line_end": 45,
         "selector": "#why",
         "metadata": {},
         "parent_canvas_id": ""
@@ -222,15 +197,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 46,
           "line_end": 66
-        },
-        "dom_id": "existing-code-to-inspect"
+        }
       },
       "provenance": {
-        "source_payload_id": "existing-code-to-inspect",
         "dom_id": "existing-code-to-inspect",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 46,
-        "source_line_end": 66,
         "selector": "#existing-code-to-inspect",
         "metadata": {},
         "parent_canvas_id": ""
@@ -259,15 +229,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 67,
           "line_end": 88
-        },
-        "dom_id": "scope"
+        }
       },
       "provenance": {
-        "source_payload_id": "scope",
         "dom_id": "scope",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 67,
-        "source_line_end": 88,
         "selector": "#scope",
         "metadata": {},
         "parent_canvas_id": ""
@@ -296,15 +261,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 89,
           "line_end": 124
-        },
-        "dom_id": "contract"
+        }
       },
       "provenance": {
-        "source_payload_id": "contract",
         "dom_id": "contract",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 89,
-        "source_line_end": 124,
         "selector": "#contract",
         "metadata": {},
         "parent_canvas_id": ""
@@ -333,15 +293,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 125,
           "line_end": 147
-        },
-        "dom_id": "markdown-work-card-adapter"
+        }
       },
       "provenance": {
-        "source_payload_id": "markdown-work-card-adapter",
         "dom_id": "markdown-work-card-adapter",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 125,
-        "source_line_end": 147,
         "selector": "#markdown-work-card-adapter",
         "metadata": {},
         "parent_canvas_id": ""
@@ -370,15 +325,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 148,
           "line_end": 170
-        },
-        "dom_id": "human-facing-surface"
+        }
       },
       "provenance": {
-        "source_payload_id": "human-facing-surface",
         "dom_id": "human-facing-surface",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 148,
-        "source_line_end": 170,
         "selector": "#human-facing-surface",
         "metadata": {},
         "parent_canvas_id": ""
@@ -407,15 +357,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 171,
           "line_end": 189
-        },
-        "dom_id": "annotation-and-checkpoint-path"
+        }
       },
       "provenance": {
-        "source_payload_id": "annotation-and-checkpoint-path",
         "dom_id": "annotation-and-checkpoint-path",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 171,
-        "source_line_end": 189,
         "selector": "#annotation-and-checkpoint-path",
         "metadata": {},
         "parent_canvas_id": ""
@@ -444,15 +389,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 190,
           "line_end": 203
-        },
-        "dom_id": "work-card-authoring-flow"
+        }
       },
       "provenance": {
-        "source_payload_id": "work-card-authoring-flow",
         "dom_id": "work-card-authoring-flow",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 190,
-        "source_line_end": 203,
         "selector": "#work-card-authoring-flow",
         "metadata": {},
         "parent_canvas_id": ""
@@ -481,15 +421,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 204,
           "line_end": 217
-        },
-        "dom_id": "security-and-safety"
+        }
       },
       "provenance": {
-        "source_payload_id": "security-and-safety",
         "dom_id": "security-and-safety",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 204,
-        "source_line_end": 217,
         "selector": "#security-and-safety",
         "metadata": {},
         "parent_canvas_id": ""
@@ -518,15 +453,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 218,
           "line_end": 229
-        },
-        "dom_id": "non-goals"
+        }
       },
       "provenance": {
-        "source_payload_id": "non-goals",
         "dom_id": "non-goals",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 218,
-        "source_line_end": 229,
         "selector": "#non-goals",
         "metadata": {},
         "parent_canvas_id": ""
@@ -555,15 +485,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 230,
           "line_end": 243
-        },
-        "dom_id": "deliverables"
+        }
       },
       "provenance": {
-        "source_payload_id": "deliverables",
         "dom_id": "deliverables",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 230,
-        "source_line_end": 243,
         "selector": "#deliverables",
         "metadata": {},
         "parent_canvas_id": ""
@@ -592,15 +517,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 244,
           "line_end": 278
-        },
-        "dom_id": "suggested-verification"
+        }
       },
       "provenance": {
-        "source_payload_id": "suggested-verification",
         "dom_id": "suggested-verification",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 244,
-        "source_line_end": 278,
         "selector": "#suggested-verification",
         "metadata": {},
         "parent_canvas_id": ""
@@ -629,15 +549,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 279,
           "line_end": 294
-        },
-        "dom_id": "completion-audit"
+        }
       },
       "provenance": {
-        "source_payload_id": "completion-audit",
         "dom_id": "completion-audit",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 279,
-        "source_line_end": 294,
         "selector": "#completion-audit",
         "metadata": {},
         "parent_canvas_id": ""
@@ -666,15 +581,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 248,
           "line_end": 250
-        },
-        "dom_id": "code-block-1"
+        }
       },
       "provenance": {
-        "source_payload_id": "code-block-1",
         "dom_id": "code-block-1",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 248,
-        "source_line_end": 250,
         "selector": "[data-semantic-target-id=\"code-block-1\"]",
         "metadata": {},
         "parent_canvas_id": ""
@@ -703,15 +613,10 @@
           "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
           "line_start": 254,
           "line_end": 262
-        },
-        "dom_id": "code-block-2"
+        }
       },
       "provenance": {
-        "source_payload_id": "code-block-2",
         "dom_id": "code-block-2",
-        "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-        "source_line_start": 254,
-        "source_line_end": 262,
         "selector": "[data-semantic-target-id=\"code-block-2\"]",
         "metadata": {},
         "parent_canvas_id": ""

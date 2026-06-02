@@ -183,8 +183,8 @@ test('HTML expression surface payload exposes revealable live semantic targets',
         enabled: true,
         state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
         actions: [],
-        extension: { dom_id: 'goal', reveal_eligible: true },
-        provenance: { selector: '[data-semantic-target-id="goal"]', source_payload_id: 'goal' },
+        extension: { reveal_eligible: true },
+        provenance: { selector: '[data-semantic-target-id="goal"]', dom_id: 'goal' },
       }],
     },
   });
@@ -227,8 +227,8 @@ test('HTML expression surface keeps offscreen semantic targets revealable withou
         enabled: true,
         state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
         actions: [],
-        extension: { dom_id: 'suggested-verification', reveal_eligible: true },
-        provenance: { selector: '[data-semantic-target-id="suggested-verification"]', source_payload_id: 'suggested-verification' },
+        extension: { reveal_eligible: true },
+        provenance: { selector: '[data-semantic-target-id="suggested-verification"]', dom_id: 'suggested-verification' },
       }],
     },
   });
@@ -264,8 +264,8 @@ test('HTML expression reveal hook scrolls an offscreen semantic target and retur
         enabled: true,
         state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
         actions: [],
-        extension: { dom_id: 'suggested-verification', reveal_eligible: true },
-        provenance: { selector: '[data-semantic-target-id="suggested-verification"]', source_payload_id: 'suggested-verification' },
+        extension: { reveal_eligible: true },
+        provenance: { selector: '[data-semantic-target-id="suggested-verification"]', dom_id: 'suggested-verification' },
       }],
     },
   });
@@ -356,8 +356,8 @@ test('HTML expression surface replays current semantic targets when Surface Insp
           enabled: true,
           state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
           actions: [],
-          extension: { dom_id: 'goal', reveal_eligible: true },
-          provenance: { selector: '[data-semantic-target-id="goal"]', source_payload_id: 'goal' },
+          extension: { reveal_eligible: true },
+          provenance: { selector: '[data-semantic-target-id="goal"]', dom_id: 'goal' },
         }],
       },
     });
@@ -442,6 +442,31 @@ test('generated Employer Brand human alignment expression fixture is determinist
   assert.equal(fixture.mermaid_blocks.length, 1);
   assert.match(fixture.mermaid_blocks[0].source_hash, /^sha256:[a-f0-9]{64}$/);
   assert.equal(targetRefs.has(fixture.mermaid_blocks[0].ref), true);
+});
+
+test('generated workbench semantic targets single-source identity and source data', () => {
+  const expression = buildMarkdownWorkCardHtmlExpression({
+    markdown: sampleWorkCard,
+    sourcePath: 'docs/design/work-cards/sample.md',
+    generatedAt: '2026-05-10T00:00:00.000Z',
+    expressionId: 'sample-expression',
+  });
+
+  for (const target of expression.metadata.semantic_targets) {
+    assert.equal(Object.hasOwn(target, 'ref'), true);
+    for (const key of ['id', 'target_id', 'data_aos_ref', 'aos_ref', 'accessible_label', 'semantic_target_id', 'subject_id', 'do_target']) {
+      assert.equal(Object.hasOwn(target, key), false, `${target.ref} leaked top-level ${key}`);
+    }
+    assert.equal(Object.hasOwn(target.extension, 'dom_id'), false, `${target.ref} duplicated dom_id under extension`);
+    assert.equal(Object.hasOwn(target.provenance, 'dom_id'), true, `${target.ref} missing provenance.dom_id`);
+    assert.equal(Object.hasOwn(target.provenance, 'source_payload_id'), false, `${target.ref} duplicated source_payload_id`);
+    for (const key of ['source_path', 'source_line_start', 'source_line_end']) {
+      assert.equal(Object.hasOwn(target.provenance, key), false, `${target.ref} duplicated ${key} under provenance`);
+    }
+    assert.equal(target.extension.source.path, 'docs/design/work-cards/sample.md');
+    assert.equal(Number.isInteger(target.extension.source.line_start), true);
+    assert.equal(Number.isInteger(target.extension.source.line_end), true);
+  }
 });
 
 test('resume fixture maps annotation and decision sidecars back to expression source lines', async () => {

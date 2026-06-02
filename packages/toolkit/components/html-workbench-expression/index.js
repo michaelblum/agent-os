@@ -87,7 +87,8 @@ function targetRef(target = {}) {
 }
 
 function targetDomId(target = {}) {
-  return text(target.extension?.dom_id || target.provenance?.dom_id || target.provenance?.source_payload_id || target.id)
+  const ref = text(target.ref || target.id)
+  return text(target.provenance?.dom_id || ref.split(':').pop() || ref)
 }
 
 function targetRevealEligible(target = {}) {

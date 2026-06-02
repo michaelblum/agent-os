@@ -242,12 +242,11 @@
     },
     "WorkbenchTargetExtension": {
       "type": "object",
-      "required": ["annotation_eligible", "reveal_eligible", "source", "dom_id"],
+      "required": ["annotation_eligible", "reveal_eligible", "source"],
       "additionalProperties": false,
       "properties": {
         "annotation_eligible": { "type": "boolean" },
         "reveal_eligible": { "type": "boolean" },
-        "dom_id": { "type": "string", "minLength": 1 },
         "source": {
           "type": "object",
           "required": ["path", "line_start", "line_end"],
@@ -263,25 +262,17 @@
     "WorkbenchTargetProvenance": {
       "type": "object",
       "required": [
-        "source_payload_id",
         "metadata",
         "parent_canvas_id",
         "selector",
-        "dom_id",
-        "source_path",
-        "source_line_start",
-        "source_line_end"
+        "dom_id"
       ],
       "additionalProperties": false,
       "properties": {
-        "source_payload_id": { "type": "string", "minLength": 1 },
         "metadata": { "type": "object" },
         "parent_canvas_id": { "type": "string" },
         "selector": { "type": "string", "minLength": 1 },
-        "dom_id": { "type": "string", "minLength": 1 },
-        "source_path": { "type": "string", "minLength": 1 },
-        "source_line_start": { "type": "integer", "minimum": 1 },
-        "source_line_end": { "type": "integer", "minimum": 1 }
+        "dom_id": { "type": "string", "minLength": 1 }
       }
     }
   }

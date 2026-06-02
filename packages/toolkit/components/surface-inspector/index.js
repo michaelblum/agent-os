@@ -230,7 +230,16 @@ export function projectAnnotationRectToMinimap(layout, rect, {
 }
 
 function semanticTargetIdentifier(target = {}) {
-  return String(target.ref || target.id || target.target_id || target.semantic_target_id || target.do_target || target.data_aos_ref || '').trim()
+  return String(
+    target.ref
+      || target.id
+      // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
+      || target.target_id
+      || target.semantic_target_id
+      || target.do_target
+      || target.data_aos_ref
+      || '',
+  ).trim()
 }
 
 function isBrowserDomElementTarget(target = {}) {
@@ -260,6 +269,7 @@ export function buildRevealPayloadForSurfaceInspectorPin(pin = {}) {
     owner_canvas_id: pin.root_id || sourceMetadata.canvas_id || sourceMetadata.surface,
     canvas_id: sourceMetadata.canvas_id || pin.root_id,
     id: sourceMetadata.id,
+    // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
     target_id: sourceMetadata.target_id,
     semantic_target_id: sourceMetadata.semantic_target_id,
     data_aos_ref: sourceMetadata.data_aos_ref,
@@ -902,6 +912,7 @@ function buildRevealTargetEvalScript(target = {}) {
         target.ref ? '[data-aos-ref="' + CSS.escape(target.ref) + '"]' : '',
         target.subject_id ? '[data-semantic-target-id="' + CSS.escape(target.subject_id) + '"]' : '',
         target.subject_id ? '[data-aos-ref="' + CSS.escape(target.subject_id) + '"]' : '',
+        // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
         target.source_tree_node_metadata?.target_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.target_id) + '"]' : '',
         target.source_tree_node_metadata?.data_aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.data_aos_ref) + '"]' : '',
         target.source_tree_node_metadata?.aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.aos_ref) + '"]' : '',
