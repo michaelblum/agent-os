@@ -230,7 +230,16 @@ export function projectAnnotationRectToMinimap(layout, rect, {
 }
 
 function semanticTargetIdentifier(target = {}) {
-  return String(target.id || target.target_id || target.semantic_target_id || target.ref || target.do_target || target.data_aos_ref || '').trim()
+  return String(
+    target.ref
+      || target.id
+      // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
+      || target.target_id
+      || target.semantic_target_id
+      || target.do_target
+      || target.data_aos_ref
+      || '',
+  ).trim()
 }
 
 function isBrowserDomElementTarget(target = {}) {
@@ -253,19 +262,22 @@ export function buildRevealPayloadForSurfaceInspectorPin(pin = {}) {
   const fallback = {
     adapter_id: pin.adapter_id,
     subject_id: pin.subject_id,
+    ref: sourceMetadata.ref || pin.subject_id,
     subject_path: Array.isArray(pin.subject_path) ? [...pin.subject_path] : [],
     root_id: pin.root_id,
     root_path: Array.isArray(pin.projection?.root_path) ? [...pin.projection.root_path] : [],
     owner_canvas_id: pin.root_id || sourceMetadata.canvas_id || sourceMetadata.surface,
     canvas_id: sourceMetadata.canvas_id || pin.root_id,
-    target_id: sourceMetadata.target_id || sourceMetadata.id || pin.subject_id,
-    semantic_target_id: sourceMetadata.semantic_target_id || sourceMetadata.target_id || sourceMetadata.id || pin.subject_id,
-    data_aos_ref: sourceMetadata.data_aos_ref || sourceMetadata.aos_ref,
-    aos_ref: sourceMetadata.aos_ref || sourceMetadata.data_aos_ref,
+    id: sourceMetadata.id,
+    // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
+    target_id: sourceMetadata.target_id,
+    semantic_target_id: sourceMetadata.semantic_target_id,
+    data_aos_ref: sourceMetadata.data_aos_ref,
+    aos_ref: sourceMetadata.aos_ref,
     do_target: sourceMetadata.do_target,
-    selector: sourceMetadata.selector,
+    selector: sourceMetadata.provenance?.selector || sourceMetadata.selector,
     selector_candidates: Array.isArray(sourceMetadata.selector_candidates) ? [...sourceMetadata.selector_candidates] : [],
-    source_path: sourceMetadata.source_path,
+    source_path: sourceMetadata.extension?.source?.path || sourceMetadata.source_path,
     source_url: sourceMetadata.source_url,
     source_tree_node_metadata: sourceMetadata,
     prior_projection: pin.projection,
@@ -894,8 +906,13 @@ function buildRevealTargetEvalScript(target = {}) {
         return JSON.stringify(window.aosSurfaceInspector.revealTarget(target) || { status: 'unsupported', completed_at: now })
       }
       const selector = [
+        target.selector || '',
+        target.source_tree_node_metadata?.provenance?.selector || '',
+        target.source_tree_node_metadata?.extension?.dom_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.extension.dom_id) + '"]' : '',
+        target.ref ? '[data-aos-ref="' + CSS.escape(target.ref) + '"]' : '',
         target.subject_id ? '[data-semantic-target-id="' + CSS.escape(target.subject_id) + '"]' : '',
         target.subject_id ? '[data-aos-ref="' + CSS.escape(target.subject_id) + '"]' : '',
+        // Removal gate: old target identity spellings remain for non-workbench producers until https://github.com/michaelblum/agent-os/issues/399.
         target.source_tree_node_metadata?.target_id ? '[data-semantic-target-id="' + CSS.escape(target.source_tree_node_metadata.target_id) + '"]' : '',
         target.source_tree_node_metadata?.data_aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.data_aos_ref) + '"]' : '',
         target.source_tree_node_metadata?.aos_ref ? '[data-aos-ref="' + CSS.escape(target.source_tree_node_metadata.aos_ref) + '"]' : '',

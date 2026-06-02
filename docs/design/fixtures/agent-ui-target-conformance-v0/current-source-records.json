@@ -129,17 +129,34 @@
       "shape": "html_workbench_source_line_target",
       "source": "packages/toolkit/workbench/html-workbench-expression.js",
       "record": {
-        "target_id": "decision-17",
-        "data_aos_ref": "html-workbench-expression:decision-17",
-        "aos_ref": "html-workbench-expression:decision-17",
+        "ref": "html-workbench-expression:decision-17",
+        "surface": "html-workbench-expression",
+        "role": "document_region",
+        "name": "Decision: Prefer canonical ref",
         "kind": "decision",
-        "accessible_label": "Decision: Prefer canonical ref",
-        "source_path": "docs/design/agent-ui-affordance-synthesis-v0.md",
-        "source_line_start": 17,
-        "source_line_end": 22,
-        "selector": "[data-semantic-target-id=\"decision-17\"]",
-        "annotation_eligible": true,
-        "reveal_eligible": true
+        "enabled": true,
+        "state": {
+          "value": null,
+          "current": null,
+          "pressed": null,
+          "selected": null,
+          "checked": null,
+          "expanded": null
+        },
+        "actions": [],
+        "extension": {
+          "annotation_eligible": true,
+          "reveal_eligible": true,
+          "source": {
+            "path": "docs/design/agent-ui-affordance-synthesis-v0.md",
+            "line_start": 17,
+            "line_end": 22
+          }
+        },
+        "provenance": {
+          "selector": "[data-semantic-target-id=\"decision-17\"]",
+          "dom_id": "decision-17"
+        }
       }
     }
   ]

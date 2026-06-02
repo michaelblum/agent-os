@@ -211,7 +211,9 @@ export function normalizeAgentUiTarget(target = {}, options = {}) {
   const provenance = {
     ...(options.provenance && typeof options.provenance === 'object' ? options.provenance : {}),
   }
-  if (!Object.hasOwn(provenance, 'source_payload_id')) provenance.source_payload_id = target.id ?? target.ref ?? semantic.ref
+  if (!options.suppressSourcePayloadId && !Object.hasOwn(provenance, 'source_payload_id')) {
+    provenance.source_payload_id = target.id ?? target.ref ?? semantic.ref
+  }
   if (semantic.metadata !== undefined && !Object.hasOwn(provenance, 'metadata')) {
     provenance.metadata = compactObject(semantic.metadata)
   }

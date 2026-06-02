@@ -159,8 +159,7 @@
         },
         "provenance": {
           "selector": "[data-semantic-target-id=\"decision-17\"]",
-          "source_payload_id": "decision-17",
-          "legacy_identity_keys": ["aos_ref", "data_aos_ref", "target_id"]
+          "dom_id": "decision-17"
         }
       }
     }
