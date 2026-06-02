@@ -182,11 +182,12 @@ export function normalizeSemanticTargets(targets = [], options = {}) {
   return targets.map((target) => normalizeSemanticTarget(target, options))
 }
 
-function compactObject(value) {
+export function compactObject(value) {
+  // Assumes JSON-safe input: drops undefined/functions and throws on cycles.
   return JSON.parse(JSON.stringify(value ?? null))
 }
 
-function extensionSource(record = {}) {
+export function extensionSource(record = {}) {
   return {
     path: record.source_path ?? null,
     line_start: record.source_line_start ?? null,
@@ -194,7 +195,7 @@ function extensionSource(record = {}) {
   }
 }
 
-function actionList(target = {}, options = {}) {
+export function actionList(target = {}, options = {}) {
   if (Array.isArray(options.actions)) return [...options.actions]
   if (Array.isArray(target.actions)) return [...target.actions]
   const action = pickAction(target)
