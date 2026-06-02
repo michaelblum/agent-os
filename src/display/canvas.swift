@@ -738,7 +738,7 @@ class CanvasManager {
                         "owner name, executable path, or command line indicates an AOS runtime",
                     ],
                     "native_source": "CGWindowListCopyWindowInfo(kCGWindowListOptionAll)",
-                    "process_metadata_source": "NSRunningApplication plus ps -p <pid> -o args=",
+                    "process_metadata_source": "NSRunningApplication plus one batched ps command for prefiltered unique candidate PIDs; git provenance is unavailable in the live audit fast path",
                     "stale_daemon_model": "same aos (serve|__serve) process pattern used by ./aos clean --dry-run --json",
                     "cleanup_command": "./aos clean --dry-run --json",
                     "inspect_command": "./aos status --json",
@@ -896,13 +896,20 @@ class CanvasManager {
 
     private func externalAOSNativeWindows(from nativeWindows: [[String: Any]], currentPID: Int) -> [[String: Any]] {
         let staleDaemonPIDs = Set(aosCleanStaleDaemonCandidatePIDs(currentPID: currentPID))
-        return nativeWindows.compactMap { native in
-            guard let ownerPID = native["owner_pid"] as? Int, ownerPID != currentPID else { return nil }
-            guard (native["visible"] as? Bool) == true, (native["on_screen"] as? Bool) == true else { return nil }
-            let processIdentity = externalAOSProcessIdentity(pid: ownerPID)
-            guard isExternalAOSWindowCandidate(native: native, processIdentity: processIdentity, staleDaemonPIDs: staleDaemonPIDs) else {
-                return nil
-            }
+        let candidates = nativeWindows.filter { native in
+            guard let ownerPID = native["owner_pid"] as? Int, ownerPID != currentPID else { return false }
+            guard (native["visible"] as? Bool) == true, (native["on_screen"] as? Bool) == true else { return false }
+            return isCheapExternalAOSWindowCandidate(native: native, staleDaemonPIDs: staleDaemonPIDs)
+        }
+        let commandLines = processCommandLines(pids: Set(candidates.compactMap { $0["owner_pid"] as? Int }))
+        let processIdentities = Dictionary(uniqueKeysWithValues: Set(candidates.compactMap { $0["owner_pid"] as? Int }).map { pid in
+            (pid, externalAOSProcessIdentity(pid: pid, commandLine: commandLines[pid]))
+        })
+
+        return candidates.compactMap { native in
+            guard let ownerPID = native["owner_pid"] as? Int,
+                  let processIdentity = processIdentities[ownerPID],
+                  isExternalAOSWindowCandidate(native: native, processIdentity: processIdentity, staleDaemonPIDs: staleDaemonPIDs) else { return nil }
 
             var row = native
             let classification = externalAOSWindowClassification(
@@ -918,6 +925,22 @@ class CanvasManager {
             return row
         }
         .sorted { (($0["front_to_back_index"] as? Int) ?? Int.max) < (($1["front_to_back_index"] as? Int) ?? Int.max) }
+    }
+
+    private func isCheapExternalAOSWindowCandidate(
+        native: [String: Any],
+        staleDaemonPIDs: Set<Int>
+    ) -> Bool {
+        if let ownerPID = native["owner_pid"] as? Int, staleDaemonPIDs.contains(ownerPID) { return true }
+        let ownerName = ((native["owner_name"] as? String) ?? "").lowercased()
+        if ownerName == "aos" || ownerName == "agent-os" || ownerName.contains("aos") { return true }
+        if let ownerPID = native["owner_pid"] as? Int,
+           let runningApp = NSRunningApplication(processIdentifier: pid_t(ownerPID)) {
+            let executablePath = runningApp.executableURL?.path.lowercased() ?? ""
+            let bundlePath = runningApp.bundleURL?.path.lowercased() ?? ""
+            return executablePath.hasSuffix("/aos") || bundlePath.contains("/aos.app/")
+        }
+        return false
     }
 
     private func isExternalAOSWindowCandidate(
@@ -953,11 +976,10 @@ class CanvasManager {
         return "unknown_aos_runtime_window"
     }
 
-    private func externalAOSProcessIdentity(pid: Int) -> [String: Any] {
+    private func externalAOSProcessIdentity(pid: Int, commandLine: String?) -> [String: Any] {
         let runningApp = NSRunningApplication(processIdentifier: pid_t(pid))
         let executablePath = runningApp?.executableURL?.path
         let bundlePath = runningApp?.bundleURL?.path
-        let commandLine = processCommandLine(pid: pid)
         let inferredMode = inferAOSRuntimeMode(executablePath: executablePath, bundlePath: bundlePath, commandLine: commandLine)
         let worktreeRoot = inferProcessWorktreeRoot(executablePath: executablePath, commandLine: commandLine)
         var row: [String: Any] = [
@@ -978,17 +1000,13 @@ class CanvasManager {
             "worktree_root": worktreeRoot ?? NSNull(),
             "worktree_root_unavailable_reason": worktreeRoot == nil ? "no enclosing git worktree could be inferred from executable path or command line" : NSNull(),
             "branch": NSNull(),
-            "branch_unavailable_reason": "no worktree root available" as Any,
+            "branch_unavailable_reason": "git branch lookup is not run in the live audit fast path" as Any,
             "repo_git_commit": NSNull(),
-            "repo_git_commit_unavailable_reason": "no worktree root available" as Any,
+            "repo_git_commit_unavailable_reason": "git commit lookup is not run in the live audit fast path" as Any,
         ]
-        if let worktreeRoot {
-            let branch = gitOutput(args: ["-C", worktreeRoot, "branch", "--show-current"])
-            let commit = gitOutput(args: ["-C", worktreeRoot, "rev-parse", "--short", "HEAD"])
-            row["branch"] = branch ?? NSNull()
-            row["branch_unavailable_reason"] = branch == nil ? "git branch lookup failed for inferred worktree root" : NSNull()
-            row["repo_git_commit"] = commit ?? NSNull()
-            row["repo_git_commit_unavailable_reason"] = commit == nil ? "git commit lookup failed for inferred worktree root" : NSNull()
+        if worktreeRoot == nil {
+            row["branch_unavailable_reason"] = "no worktree root available"
+            row["repo_git_commit_unavailable_reason"] = "no worktree root available"
         }
         return row
     }
@@ -1022,11 +1040,23 @@ class CanvasManager {
         return aosRepoRootFromBases(bases)
     }
 
-    private func processCommandLine(pid: Int) -> String? {
-        let output = runProcess("/bin/ps", arguments: ["-p", String(pid), "-o", "args="])
-        guard output.exitCode == 0 else { return nil }
-        let line = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return line.isEmpty ? nil : line
+    private func processCommandLines(pids: Set<Int>) -> [Int: String] {
+        let sortedPIDs = pids.sorted()
+        guard !sortedPIDs.isEmpty else { return [:] }
+        let output = runProcess("/bin/ps", arguments: ["-p", sortedPIDs.map(String.init).joined(separator: ","), "-o", "pid=,args="])
+        guard output.exitCode == 0 else { return [:] }
+        var rows: [Int: String] = [:]
+        for rawLine in output.stdout.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard let firstSpace = line.firstIndex(where: { $0 == " " || $0 == "\t" }) else { continue }
+            let pidText = line[..<firstSpace].trimmingCharacters(in: .whitespaces)
+            guard let pid = Int(pidText) else { continue }
+            let commandLine = line[firstSpace...].trimmingCharacters(in: .whitespaces)
+            if !commandLine.isEmpty {
+                rows[pid] = commandLine
+            }
+        }
+        return rows
     }
 
     private func aosCleanStaleDaemonCandidatePIDs(currentPID: Int) -> [Int] {
@@ -1036,13 +1066,6 @@ class CanvasManager {
             .split(whereSeparator: \.isNewline)
             .compactMap { Int($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
             .filter { $0 != currentPID }
-    }
-
-    private func gitOutput(args: [String]) -> String? {
-        let output = runProcess("/usr/bin/git", arguments: args)
-        guard output.exitCode == 0 else { return nil }
-        let value = output.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
     }
 
     private func numberValue(_ value: Any?) -> CGFloat? {

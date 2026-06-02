@@ -183,7 +183,9 @@ assert external.get("on_screen") is True, external
 assert external.get("appears_in_aos_clean_stale_daemons") is True, external
 identity = external.get("process_identity") or {}
 assert identity.get("pid") == external.get("owner_pid"), identity
-assert isinstance(identity.get("command_line"), str) and "aos serve" in identity.get("command_line"), identity
+assert isinstance(identity.get("command_line"), str) and (
+    "aos serve" in identity.get("command_line") or "aos __serve" in identity.get("command_line")
+), identity
 assert "runtime_mode" in identity, identity
 assert identity.get("runtime_mode") == "repo" or identity.get("runtime_mode_unavailable_reason"), identity
 assert "worktree_root" in identity, identity
