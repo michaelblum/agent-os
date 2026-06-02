@@ -1263,6 +1263,17 @@
       }
     },
     {
+      "path": ["show", "audit"],
+      "summary": "Audit visible AOS surfaces by joining canvas registry state with native window-server truth.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "audit"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["show", "ping"],
       "summary": "Ping the canvas daemon through the external show client.",
       "executable": "/usr/bin/env",

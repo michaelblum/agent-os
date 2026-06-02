@@ -636,6 +636,94 @@ class CanvasManager {
         ]
     }
 
+    func visibleSurfaceAudit(point: CGPoint? = nil) -> [String: Any] {
+        let registeredInfos = canvases.values.map { $0.toInfo() }.sorted { $0.id < $1.id }
+        let registeredWindowNumbers = Set(registeredInfos.flatMap { $0.windowNumbers ?? [] })
+        let nativeWindows = nativeWindowServerEntries(ownerPID: Int(getpid()))
+        let nativeByWindowNumber = Dictionary(uniqueKeysWithValues: nativeWindows.map { (($0["window_number"] as? Int) ?? -1, $0) })
+
+        let registered = registeredInfos.map { info -> [String: Any] in
+            var row = canvasInfoDictionary(info)
+            let windowNumbers = info.windowNumbers ?? []
+            row["join_key"] = ["window_numbers": windowNumbers]
+            row["requested_frame"] = info.at
+            row["actual_native_windows"] = windowNumbers.compactMap { nativeByWindowNumber[$0] }
+            row["native_join_status"] = windowNumbers.isEmpty
+                ? "no_window_numbers"
+                : (windowNumbers.allSatisfy { nativeByWindowNumber[$0] != nil } ? "matched" : "missing_native_window")
+            row["logical_surface_key"] = logicalSurfaceKey(info)
+            return row
+        }
+
+        let orphanNativeWindows = nativeWindows.filter { native in
+            guard let windowNumber = native["window_number"] as? Int else { return true }
+            return !registeredWindowNumbers.contains(windowNumber)
+        }
+
+        let registeredMissingNative = registered.filter { row in
+            (row["native_join_status"] as? String) == "missing_native_window"
+        }
+
+        var groups: [String: [[String: Any]]] = [:]
+        for row in registered {
+            guard let key = row["logical_surface_key"] as? String, !key.isEmpty else { continue }
+            let visibleNative = (row["actual_native_windows"] as? [[String: Any]] ?? []).contains { native in
+                (native["on_screen"] as? Bool) == true
+            }
+            if visibleNative {
+                groups[key, default: []].append(row)
+            }
+        }
+        let duplicates = groups
+            .filter { $0.value.count > 1 }
+            .map { key, rows in
+                [
+                    "logical_surface_key": key,
+                    "count": rows.count,
+                    "canvas_ids": rows.compactMap { $0["id"] as? String },
+                    "entries": rows,
+                ] as [String: Any]
+            }
+            .sorted { (($0["logical_surface_key"] as? String) ?? "") < (($1["logical_surface_key"] as? String) ?? "") }
+
+        var inputTarget: [String: Any] = [
+            "available": point != nil,
+            "method": "native_window_front_to_back_order_with_registry_interactivity",
+        ]
+        if let point {
+            inputTarget["point"] = [point.x, point.y]
+            inputTarget["winner"] = inputTargetWinner(at: point, nativeWindows: nativeWindows, registeredInfos: registeredInfos)
+        } else {
+            inputTarget["unavailable_reason"] = "pass --point x,y to evaluate a native point"
+        }
+
+        let worktreeRoot: Any = aosRepoRootFromBases([FileManager.default.currentDirectoryPath]) ?? NSNull()
+        return [
+            "status": "success",
+            "schema_version": 1,
+            "runtime": [
+                "pid": Int(getpid()),
+                "mode": aosCurrentRuntimeMode().rawValue,
+                "worktree_root": worktreeRoot,
+                "cwd": FileManager.default.currentDirectoryPath,
+            ],
+            "join": [
+                "key": "CanvasInfo.windowNumbers[] == CGWindowListCopyWindowInfo[kCGWindowNumber]",
+                "native_source": "CGWindowListCopyWindowInfo(kCGWindowListOptionAll)",
+                "registry_source": "CanvasManager.canvases.toInfo()",
+            ],
+            "registered_canvases": registered,
+            "native_windows": nativeWindows,
+            "orphan_native_windows": orphanNativeWindows,
+            "registered_without_native_window": registeredMissingNative,
+            "duplicate_logical_surfaces": duplicates,
+            "input_target_winner": inputTarget,
+            "unavailable": [
+                "orphan_synthesis": "read-only audit cannot synthesize a native daemon window without a registry entry",
+            ],
+        ]
+    }
+
     func setCanvasAlpha(_ id: String, _ alpha: CGFloat) {
         guard let canvas = canvases[id] else { return }
         canvas.setAlpha(alpha)
@@ -658,6 +746,174 @@ class CanvasManager {
 
     private func frameArray(_ rect: CGRect) -> [CGFloat] {
         [rect.origin.x, rect.origin.y, rect.size.width, rect.size.height]
+    }
+
+    private func canvasInfoDictionary(_ info: CanvasInfo) -> [String: Any] {
+        var row: [String: Any] = [
+            "id": info.id,
+            "at": info.at,
+            "interactive": info.interactive,
+        ]
+        if let url = info.url { row["url"] = url }
+        if let anchorWindow = info.anchorWindow { row["anchor_window"] = anchorWindow }
+        if let anchorChannel = info.anchorChannel { row["anchor_channel"] = anchorChannel }
+        if let offset = info.offset { row["offset"] = offset }
+        if let windowLevel = info.windowLevel { row["window_level"] = windowLevel }
+        if let ttl = info.ttl { row["ttl"] = ttl }
+        if let scope = info.scope { row["scope"] = scope }
+        if let autoProject = info.autoProject { row["auto_project"] = autoProject }
+        if let track = info.track { row["track"] = track }
+        if let parent = info.parent { row["parent"] = parent }
+        if let cascade = info.cascade { row["cascade"] = cascade }
+        if let suspended = info.suspended { row["suspended"] = suspended }
+        if let lifecycleState = info.lifecycleState { row["lifecycleState"] = lifecycleState }
+        if let windowNumbers = info.windowNumbers { row["windowNumbers"] = windowNumbers }
+        if let segments = info.segments {
+            row["segments"] = segments.map { segment in
+                [
+                    "display_id": Int(segment.displayID),
+                    "index": segment.index,
+                    "dw_bounds": segment.dwBounds,
+                    "native_bounds": segment.nativeBounds,
+                ] as [String: Any]
+            }
+        }
+        if let owner = info.owner, let ownerDict = owner.dictionary() {
+            row["owner"] = ownerDict
+        }
+        return row
+    }
+
+    private func frameDictionary(_ rect: CGRect) -> [String: Any] {
+        [
+            "x": rect.origin.x,
+            "y": rect.origin.y,
+            "w": rect.size.width,
+            "h": rect.size.height,
+        ]
+    }
+
+    private func displayRelationships(for frame: CGRect) -> [[String: Any]] {
+        NSScreen.screens.compactMap { screen in
+            let cgFrame = canvasCGFrame(screen.frame)
+            let intersection = frame.intersection(cgFrame)
+            guard !intersection.isNull, intersection.width > 0, intersection.height > 0 else { return nil }
+            let displayID = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.intValue
+            return [
+                "display_id": displayID ?? -1,
+                "frame": frameDictionary(cgFrame),
+                "intersection": frameDictionary(intersection),
+            ] as [String: Any]
+        }
+    }
+
+    private func nativeWindowServerEntries(ownerPID: Int) -> [[String: Any]] {
+        guard let infos = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+        return infos.enumerated().compactMap { index, info in
+            guard (info[kCGWindowOwnerPID as String] as? Int) == ownerPID else { return nil }
+            let boundsDict = info[kCGWindowBounds as String] as? [String: Any] ?? [:]
+            let frame = CGRect(
+                x: numberValue(boundsDict["X"]) ?? 0,
+                y: numberValue(boundsDict["Y"]) ?? 0,
+                width: numberValue(boundsDict["Width"]) ?? 0,
+                height: numberValue(boundsDict["Height"]) ?? 0
+            )
+            let alpha = numberValue(info[kCGWindowAlpha as String]) ?? 1
+            let onScreen = (info[kCGWindowIsOnscreen as String] as? Bool) ?? false
+            let windowNumber = info[kCGWindowNumber as String] as? Int
+            let layer = info[kCGWindowLayer as String] as? Int
+            let isVisible = onScreen && alpha > 0 && frame.width > 0 && frame.height > 0
+            return [
+                "window_number": windowNumber ?? -1,
+                "owner_pid": ownerPID,
+                "owner_name": info[kCGWindowOwnerName as String] as? String ?? "",
+                "name": info[kCGWindowName as String] as? String ?? "",
+                "actual_frame": frameDictionary(frame),
+                "window_layer": layer ?? 0,
+                "alpha": alpha,
+                "on_screen": onScreen,
+                "visible": isVisible,
+                "front_to_back_index": index,
+                "display_relationship": displayRelationships(for: frame),
+                "focus": [
+                    "is_key_window": NSApp.keyWindow?.windowNumber == windowNumber,
+                    "source": "NSApp.keyWindow for registered daemon process windows; unavailable for unrelated native windows",
+                ],
+            ] as [String: Any]
+        }
+    }
+
+    private func numberValue(_ value: Any?) -> CGFloat? {
+        if let value = value as? CGFloat { return value }
+        if let value = value as? Double { return CGFloat(value) }
+        if let value = value as? Int { return CGFloat(value) }
+        if let value = value as? NSNumber { return CGFloat(truncating: value) }
+        return nil
+    }
+
+    private func logicalSurfaceKey(_ info: CanvasInfo) -> String {
+        let id = info.id.lowercased()
+        let url = (info.url ?? "").lowercased()
+        let parent = (info.parent ?? "").lowercased()
+        if id.contains("avatar-controls") || url.contains("avatar-panel") {
+            return "sigil.avatar.controls"
+        }
+        if parent == "avatar-main" && (id.contains("radial-menu") || url.contains("radial-menu-surface")) {
+            return "sigil.avatar.controls"
+        }
+        if id.contains("avatar-main") || parent == "avatar-main" {
+            return "sigil.avatar.\(id)"
+        }
+        if let parent = info.parent, !parent.isEmpty {
+            return "\(parent).\(info.id)"
+        }
+        return info.id
+    }
+
+    private func inputTargetWinner(at point: CGPoint, nativeWindows: [[String: Any]], registeredInfos: [CanvasInfo]) -> [String: Any] {
+        let byWindowNumber: [Int: CanvasInfo] = Dictionary(
+            registeredInfos.flatMap { info in
+                (info.windowNumbers ?? []).map { ($0, info) }
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        for native in nativeWindows {
+            guard let frameDict = native["actual_frame"] as? [String: Any],
+                  let x = numberValue(frameDict["x"]),
+                  let y = numberValue(frameDict["y"]),
+                  let w = numberValue(frameDict["w"]),
+                  let h = numberValue(frameDict["h"]) else { continue }
+            let frame = CGRect(x: x, y: y, width: w, height: h)
+            guard frame.contains(point), (native["visible"] as? Bool) == true else { continue }
+            let windowNumber = native["window_number"] as? Int ?? -1
+            if let info = byWindowNumber[windowNumber] {
+                return [
+                    "status": info.interactive && info.suspended != true ? "matched_registered_surface" : "matched_noninteractive_or_suspended_surface",
+                    "canvas_id": info.id,
+                    "window_number": windowNumber,
+                    "interactive": info.interactive,
+                    "suspended": info.suspended ?? false,
+                    "lifecycleState": info.lifecycleState ?? "unknown",
+                    "window_level": info.windowLevel ?? "default",
+                    "native": native,
+                    "reason": "first visible daemon-owned native window containing point in CGWindowList front-to-back order",
+                ] as [String: Any]
+            }
+            return [
+                "status": "orphan_native_window",
+                "window_number": windowNumber,
+                "native": native,
+                "reason": "frontmost visible daemon-owned native window at point is not joined to a registered canvas",
+            ] as [String: Any]
+        }
+
+        return [
+            "status": "none",
+            "reason": "no visible daemon-owned native window contains point",
+        ]
     }
 
     private func geometryChange(from previous: CGRect, to next: CGRect) -> String {

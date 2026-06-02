@@ -2414,6 +2414,26 @@ class UnifiedDaemon {
         return (service, action, data, ref)
     }
 
+    private func pointFromAuditRequest(_ json: [String: Any]) -> CGPoint? {
+        if let point = json["point"] as? [Double], point.count >= 2 {
+            return CGPoint(x: point[0], y: point[1])
+        }
+        if let point = json["point"] as? [CGFloat], point.count >= 2 {
+            return CGPoint(x: point[0], y: point[1])
+        }
+        guard let x = json["x"], let y = json["y"] else { return nil }
+        func number(_ value: Any) -> CGFloat? {
+            if let value = value as? CGFloat { return value }
+            if let value = value as? Double { return CGFloat(value) }
+            if let value = value as? Int { return CGFloat(value) }
+            if let value = value as? NSNumber { return CGFloat(truncating: value) }
+            if let value = value as? String, let parsed = Double(value) { return CGFloat(parsed) }
+            return nil
+        }
+        guard let px = number(x), let py = number(y) else { return nil }
+        return CGPoint(x: px, y: py)
+    }
+
     /// Map v1 envelope (service, action) to the legacy flat action string
     /// used by the existing switch. Returns nil if the pair is not in the v1 catalog.
     private func legacyActionName(service: String, action: String) -> String? {
@@ -2425,6 +2445,7 @@ class UnifiedDaemon {
         case ("show", "remove"):              return "remove"
         case ("show", "remove_all"):          return "remove-all"
         case ("show", "list"):                return "list"
+        case ("show", "audit"):               return "audit"
         case ("show", "post"):                return "post"
         case ("see", "snapshot"):             return "snapshot"
         case ("tell", "send"):                return "tell"
@@ -2572,6 +2593,19 @@ class UnifiedDaemon {
             if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
+        case "audit":
+            let point = pointFromAuditRequest(json)
+            let semaphore = DispatchSemaphore(value: 0)
+            var audit: [String: Any] = ["status": "error", "error": "Internal error", "code": "INTERNAL"]
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { semaphore.signal(); return }
+                audit = self.canvasManager.visibleSurfaceAudit(point: point)
+                self.checkIdle()
+                semaphore.signal()
+            }
+            semaphore.wait()
+            sendResponseJSON(to: clientFD, audit, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
             let requestData = lineData(from: json)
             guard var request = CanvasRequest.from(requestData) else {
