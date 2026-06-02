@@ -208,7 +208,7 @@ test('HTML expression surface payload exposes revealable live semantic targets',
 
   assert.equal(payload.type, 'canvas_inspector.semantic_targets');
   assert.equal(payload.canvas_id, 'html-workbench-expression');
-  assert.equal(payload.semantic_targets[0].id, 'html-workbench-expression:goal');
+  assert.equal(payload.semantic_targets[0].ref, 'html-workbench-expression:goal');
   assert.equal(payload.semantic_targets[0].current_render_status, 'visible');
   assert.equal(payload.semantic_targets[0].can_reveal, true);
   assert.deepEqual(payload.semantic_targets[0].display_space_rect, { x: 20, y: 40, w: 300, h: 60 });
@@ -375,7 +375,7 @@ test('HTML expression surface replays current semantic targets when Surface Insp
     assert.equal(sent[0].payload.target, 'surface-inspector');
     assert.equal(sent[0].payload.message.type, 'canvas_inspector.semantic_targets');
     assert.equal(sent[0].payload.message.replay_reason, 'surface_inspector_bootstrap');
-    assert.equal(sent[0].payload.message.semantic_targets[0].id, 'html-workbench-expression:goal');
+    assert.equal(sent[0].payload.message.semantic_targets[0].ref, 'html-workbench-expression:goal');
     assert.equal(sent[0].payload.message.semantic_targets[0].can_reveal, true);
     assert.deepEqual(sent[0].payload.message.semantic_targets[0].display_space_rect, { x: 20, y: 40, w: 300, h: 60 });
   } finally {

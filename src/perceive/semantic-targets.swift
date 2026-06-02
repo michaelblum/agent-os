@@ -60,17 +60,16 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
         || id
         || ref
       );
-      const stateFor = (el, disabled) => {
+      const stateFor = (el) => {
         const state = {};
+        const value = attr(el, 'aria-valuetext') || attr(el, 'aria-valuenow') || (el.value !== undefined ? clean(el.value) : '');
+        if (value) state.value = value;
         const current = attr(el, 'aria-current');
         if (current && current !== 'false') state.current = current;
         for (const key of ['pressed', 'selected', 'checked', 'expanded']) {
           const value = boolAttr(el, `aria-${key}`);
           if (value !== null) state[key] = value;
         }
-        const value = attr(el, 'aria-valuetext') || attr(el, 'aria-valuenow') || (el.value !== undefined ? clean(el.value) : '');
-        if (value) state.value = value;
-        if (disabled) state.disabled = true;
         return Object.keys(state).length ? state : null;
       };
 
@@ -79,6 +78,7 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
         if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height) || rect.width <= 0 || rect.height <= 0) return null;
         const id = data(el, 'semanticTargetId') || attr(el, 'data-semantic-target-id') || attr(el, 'id');
         const ref = data(el, 'aosRef') || attr(el, 'data-aos-ref');
+        if (!ref) return null;
         const doTarget = canvasId && ref ? `canvas:${canvasId}/${ref}` : null;
         const disabled = el.matches?.(':disabled') || attr(el, 'aria-disabled') === 'true';
         const bounds = {
@@ -87,23 +87,33 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
           width: Math.max(1, Math.round(rect.width * scale)),
           height: Math.max(1, Math.round(rect.height * scale)),
         };
+        const action = data(el, 'aosAction') || attr(el, 'data-aos-action') || '';
+        const parentCanvasId = data(el, 'aosParentCanvas') || attr(el, 'data-aos-parent-canvas') || null;
         return {
-          canvas_id: canvasId,
-          id: id || null,
-          ref: ref || null,
-          do_target: doTarget,
+          ref,
+          surface: data(el, 'aosSurface') || attr(el, 'data-aos-surface') || null,
           role: attr(el, 'role') || nativeRole(el),
           name: targetName(el, id, ref) || null,
-          action: data(el, 'aosAction') || attr(el, 'data-aos-action') || null,
-          surface: data(el, 'aosSurface') || attr(el, 'data-aos-surface') || null,
-          parent_canvas: data(el, 'aosParentCanvas') || attr(el, 'data-aos-parent-canvas') || null,
+          kind: 'semantic_target',
           enabled: !disabled,
-          bounds,
-          center: {
-            x: Math.round(bounds.x + bounds.width / 2),
-            y: Math.round(bounds.y + bounds.height / 2),
+          state: stateFor(el),
+          actions: action ? [action] : [],
+          extension: {
+            dom_id: id || null,
+            source: { path: null, line_start: null, line_end: null },
           },
-          state: stateFor(el, disabled),
+          provenance: {
+            canvas_id: canvasId,
+            do_target: doTarget,
+            parent_canvas_id: parentCanvasId,
+            source_payload_id: id || ref,
+            bounds,
+            frame: bounds,
+            center: {
+              x: Math.round(bounds.x + bounds.width / 2),
+              y: Math.round(bounds.y + bounds.height / 2),
+            },
+          },
         };
       }).filter(Boolean));
     })()

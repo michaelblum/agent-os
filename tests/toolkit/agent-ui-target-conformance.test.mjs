@@ -181,6 +181,7 @@ test('current producer fixtures map losslessly to candidate agent_ui_target reco
 
   assert.deepEqual([...sources.keys()].sort(), [
     'html_workbench_source_line_target',
+    'native_perceive_canvas_semantic_target',
     'sigil_compact_surface_control',
     'sigil_compact_surface_tab',
     'toolkit_panel_form_control',
@@ -234,18 +235,13 @@ test('blocked projection fixtures preserve explicit blockers instead of selector
   assert.notEqual(blocked.ref, blocked.source_tree_node_metadata.selector)
 })
 
-test('projection fixture exposes current subject_id and target_id drift as source evidence only', async () => {
+test('projection fixtures do not preserve legacy producer identity spellings', async () => {
   const projectionFixture = await readJson('candidate-agent-ui-target-projections.json')
-  const drift = projectionFixture.records.find((record) => (
-    record.source_tree_node_metadata?.subject_id
-    && record.source_tree_node_metadata?.target_id
-    && record.source_tree_node_metadata.subject_id !== record.source_tree_node_metadata.target_id
-  ))
-
-  assert.ok(drift, 'fixture should expose current subject_id/target_id drift')
-  assert.equal(drift.ref, 'sigil.avatar.compact_control_surface:sigil-menu-opacity')
-  assert.equal(drift.source_tree_node_metadata.subject_id, 'sigil-menu-opacity')
-  assert.equal(drift.source_tree_node_metadata.target_id, 'sigil.avatar.compact_control_surface:sigil-menu-opacity')
+  for (const projection of projectionFixture.records) {
+    walkKeys(projection.source_tree_node_metadata || {}, (key) => {
+      assert.ok(!['target_id', 'semantic_target_id', 'data_aos_ref', 'aos_ref'].includes(key), `legacy producer key remained in projection fixture: ${key}`)
+    })
+  }
 })
 
 test('current semantic target core still requires ids and does not invent action defaults', () => {

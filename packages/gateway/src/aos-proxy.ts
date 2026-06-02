@@ -36,6 +36,47 @@ export type NormalizedWindow = {
   focused: boolean;
 };
 
+type SemanticTargetRect = { x: number; y: number; width: number; height: number };
+
+export type AOSSemanticTarget = {
+  ref: string;
+  surface?: string;
+  role: string;
+  name?: string;
+  kind: string;
+  enabled: boolean;
+  state?: {
+    value?: string;
+    current?: string;
+    pressed?: boolean;
+    selected?: boolean;
+    checked?: boolean;
+    expanded?: boolean;
+  };
+  actions: string[];
+  extension: {
+    dom_id?: string;
+    source?: { path?: string | null; line_start?: number | null; line_end?: number | null };
+  };
+  provenance: {
+    canvas_id?: string;
+    do_target?: string;
+    parent_canvas_id?: string;
+    source_payload_id?: string;
+    bounds?: SemanticTargetRect;
+    frame?: SemanticTargetRect;
+    center?: { x: number; y: number };
+  };
+};
+
+export type CaptureResult = {
+  status: string;
+  base64?: string;
+  elements?: unknown[];
+  semantic_targets?: AOSSemanticTarget[];
+  path?: string;
+};
+
 /** Normalize raw CLI window data to match the SDK type contract. */
 export function normalizeWindow(raw: any, isFocused = false): NormalizedWindow {
   const win = raw.window ?? raw;
@@ -93,7 +134,7 @@ export async function capture(opts?: {
   base64?: boolean;
   format?: 'png' | 'jpg';
   out?: string;
-}): Promise<{ status: string; base64?: string; elements?: unknown[]; semantic_targets?: unknown[]; path?: string }> {
+}): Promise<CaptureResult> {
   const args = ['see', 'capture', opts?.display ?? 'user_active'];
   if (opts?.canvas) args.push('--canvas', opts.canvas);
   if (opts?.window) args.push('--window');

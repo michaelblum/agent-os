@@ -12,7 +12,8 @@ are not copied into the canonical producer identity.
 | Toolkit panel form control | `ref` | Already canonical `agent_ui_target`; form ids land in `extension.descriptor_id` and `extension.field_id` |
 | Sigil compact control/tab | `ref` | Already canonical `agent_ui_target`; tab/section/label fields land in `extension`; local source ids stay provenance-only |
 | HTML workbench source-line target | `ref` | Canonical `ref` remains the producer identity; source path/lines land in `extension.source`; selector and DOM slug land in provenance/extension reveal hints |
-| Annotation/Surface Inspector projection | `subject_id` plus drift-prone source metadata | Projection fixture renames join identity to `ref`; `subject_path`, `root_id`, geometry, render status, blockers, and freshness stay projection-only |
+| Native `aos see` canvas semantic target | `ref` | Canonical `agent_ui_target`; canvas id, `do_target`, parent canvas, local geometry, and local DOM id land in provenance/extension |
+| Annotation/Surface Inspector projection | `subject_id` | Projection fixture renames join identity to `ref`; `subject_path`, `root_id`, geometry, render status, blockers, and freshness stay projection-only |
 
 ## Field Accounting
 
@@ -27,14 +28,15 @@ are not copied into the canonical producer identity.
 | Workbench extensions | `extension.annotation_eligible`, `reveal_eligible`, `source.path`, `line_start`, `line_end` | None | Source line identity does not become a producer identity spelling. |
 | Provenance selectors | `provenance.selector` | `source_tree_node_metadata.selector` only as adapter source evidence | Selectors are reveal/provenance hints, never canonical identity. |
 | Local producer frame | `provenance.frame` | `local_space_rect` / `display_space_rect` after projection | Current asserted producer frames are accounted for without making projection fields producer-owned. |
+| Canvas action routing | `provenance.do_target` | None | Derived `canvas:<canvas-id>/<ref>` routing identity for `aos do`; not a top-level producer identity. |
 | Projection fields | Forbidden | Top-level projection fixture fields | Includes `current_render_status`, `display_space_rect`, `refreshed_at`, and `blocker_reasons`. |
 
 ## Drift Exposed
 
-The projection fixtures intentionally include source metadata containing both
-`subject_id` and `target_id` for one record, while the canonical projection join
-key remains `ref`. This exposes today's identity drift without preserving it as
-canonical producer shape.
+The projection fixtures intentionally keep projection identity (`subject_id`,
+`subject_path`, `root_id`) separate from producer identity. The canonical
+projection join key remains `ref`, and legacy producer spellings are no longer
+listed as current sources.
 
 The fixtures also include two projection adapter results for the same
 canonical `ref`: `aos-toolkit-semantic-target` and `aos-canvas-window`. This
