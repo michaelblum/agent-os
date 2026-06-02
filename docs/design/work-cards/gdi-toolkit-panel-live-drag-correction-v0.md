@@ -28,9 +28,10 @@ docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md
 ```
 
 Only refresh this live-drag card after the current-daemon audit,
-cross-process/stale-worktree audit, and toolkit panel placement contract are
-accepted, and after Sigil-owned avatar avoidance has either been implemented or
-explicitly ruled out from the audit/final-frame evidence.
+cross-process/stale-worktree audit, runtime service/input-tap observability,
+and toolkit panel placement contract are accepted, and after Sigil-owned avatar
+avoidance has either been implemented or explicitly ruled out from the
+audit/final-frame evidence.
 
 ## Recipient
 
@@ -73,14 +74,17 @@ Current sequence:
    `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
 2. Route and accept
    `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`.
-3. Define or refresh the toolkit panel placement contract so panels report
+3. Route and accept
+   `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`
+   if live checks still show service/status/input-tap provenance ambiguity.
+4. Define or refresh the toolkit panel placement contract so panels report
    requested and final settled native frames, with opt-in viewport overflow
    behavior such as `allow`, `clamp`, `flip`, or `shift`.
-4. Add Sigil-owned avatar avoidance only if final settled panel frames show the
+5. Add Sigil-owned avatar avoidance only if final settled panel frames show the
    avatar can overlap or win input over its controls panel.
-5. Refresh this live-drag correction card against that accepted observability
+6. Refresh this live-drag correction card against that accepted observability
    and placement head.
-6. Only after drag is corrected, route
+7. Only after drag is corrected, route
    `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
 
 Older avatar object-graph, context-menu data-driven-controls, and 3D thing
