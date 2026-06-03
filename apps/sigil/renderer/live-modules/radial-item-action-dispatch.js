@@ -41,7 +41,7 @@ export function createSigilRadialItemActionDispatcher({
     enterAnnotationReticle = () => null,
     enterSelectionMode = () => null,
     requestAnnotationSnapshot = () => false,
-    openContextMenuAt = () => false,
+    openAvatarControlsAt = () => false,
     toggleUtilityCanvas = () => false,
     openWikiWorkbench = () => Promise.resolve(false),
 } = {}) {
@@ -91,11 +91,11 @@ export function createSigilRadialItemActionDispatcher({
         }
 
         const activation = postActivationStart(item, snapshot, context);
-        if (action === 'contextMenu') {
+        if (action === 'avatarControls') {
             const avatarPos = getAvatarPos() || {};
-            const opened = openContextMenuAt(avatarPos.x, avatarPos.y, { force: true });
-            sendActivationUpdate(activation, 'completed', { result: { opened: 'context-menu' } });
-            return { action: 'context_menu_opened', opened };
+            const opened = openAvatarControlsAt(avatarPos.x, avatarPos.y, { force: true });
+            sendActivationUpdate(activation, 'completed', { result: { opened: 'avatar-controls' } });
+            return { action: 'avatar_controls_opened', opened };
         }
         if (action === 'agentTerminal' || action === 'codexTerminal') {
             const result = toggleUtilityCanvas('agent-terminal');
@@ -118,7 +118,7 @@ export function createSigilRadialItemActionDispatcher({
         return { action };
     }
 
-    function dispatchContextMenuOpen(pointer, payload = {}) {
+    function dispatchAvatarControlsOpen(pointer, payload = {}) {
         if (payload.context?.item) {
             return dispatch(payload.context.item, payload.context.snapshot, {
                 ...(payload.context || {}),
@@ -126,7 +126,7 @@ export function createSigilRadialItemActionDispatcher({
             });
         }
         return pointer && typeof pointer.x === 'number' && typeof pointer.y === 'number'
-            ? openContextMenuAt(pointer.x, pointer.y)
+            ? openAvatarControlsAt(pointer.x, pointer.y)
             : false;
     }
 
@@ -134,7 +134,7 @@ export function createSigilRadialItemActionDispatcher({
         radialReleaseItem: (item, payload = {}) => (
             dispatch(item, payload.context?.snapshot || null, payload.context || {})
         ),
-        contextMenuOpen: dispatchContextMenuOpen,
+        avatarControlsOpen: dispatchAvatarControlsOpen,
         annotationReticleEnter: (pointer, payload = {}) => (
             dispatch(payload.context?.item || { id: annotationReticleItemId, action: 'annotationMode' }, payload.context?.snapshot || null, {
                 ...(payload.context || {}),

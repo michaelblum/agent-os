@@ -1,13 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  contextMenuOpenCommandOpened,
-  resolveContextMenuRightClickRoute,
-} from '../../apps/sigil/renderer/live-modules/context-menu-input.js'
+  avatarControlsOpenCommandOpened,
+  resolveAvatarControlsRightClickRoute,
+} from '../../apps/sigil/renderer/live-modules/avatar-controls-input.js'
 
-test('context menu right-click routing suppresses duplicate open echoes before toggle', () => {
+test('avatar controls right-click routing suppresses duplicate open echoes before toggle', () => {
   const calls = []
-  const route = resolveContextMenuRightClickRoute({ type: 'right_mouse_down', x: 10, y: 20 }, {
+  const route = resolveAvatarControlsRightClickRoute({ type: 'right_mouse_down', x: 10, y: 20 }, {
     isOpen: true,
     isDuplicateOpenClick(x, y) {
       calls.push([x, y])
@@ -22,25 +22,25 @@ test('context menu right-click routing suppresses duplicate open echoes before t
   assert.deepEqual(calls, [[10, 20]])
 })
 
-test('context menu right-click routing chooses toggle for non-duplicate open menus', () => {
-  const route = resolveContextMenuRightClickRoute({ type: 'right_mouse_down', x: 12, y: 24 }, {
+test('avatar controls right-click routing chooses toggle for non-duplicate open controls', () => {
+  const route = resolveAvatarControlsRightClickRoute({ type: 'right_mouse_down', x: 12, y: 24 }, {
     isOpen: true,
     isDuplicateOpenClick: () => false,
   })
 
   assert.equal(route.handled, true)
   assert.equal(route.command, 'toggle')
-  assert.equal(route.input.nodeId, 'sigil.avatar.context_menu')
+  assert.equal(route.input.nodeId, 'sigil.avatar.controls')
   assert.equal(route.input.mode, 'global')
   assert.equal(route.input.gesture, 'pointer.right.click')
   assert.deepEqual(route.pointer, { x: 12, y: 24, valid: true })
 })
 
-test('context menu right-click routing chooses open only with numeric coordinates and closed menu', () => {
-  const open = resolveContextMenuRightClickRoute({ type: 'right_mouse_down', x: 1, y: 2 }, {
+test('avatar controls right-click routing chooses open only with numeric coordinates and closed controls', () => {
+  const open = resolveAvatarControlsRightClickRoute({ type: 'right_mouse_down', x: 1, y: 2 }, {
     isOpen: false,
   })
-  const missingCoordinates = resolveContextMenuRightClickRoute({ type: 'right_mouse_down', x: '1', y: 2 }, {
+  const missingCoordinates = resolveAvatarControlsRightClickRoute({ type: 'right_mouse_down', x: '1', y: 2 }, {
     isOpen: false,
   })
 
@@ -53,16 +53,16 @@ test('context menu right-click routing chooses open only with numeric coordinate
   assert.equal(missingCoordinates.command, undefined)
 })
 
-test('context menu right-click routing exposes rejected open commands as not opened', () => {
-  assert.equal(contextMenuOpenCommandOpened({
+test('avatar controls right-click routing exposes rejected open commands as not opened', () => {
+  assert.equal(avatarControlsOpenCommandOpened({
     executed: true,
     handler_result: true,
   }), true)
-  assert.equal(contextMenuOpenCommandOpened({
+  assert.equal(avatarControlsOpenCommandOpened({
     executed: true,
     handler_result: false,
   }), false)
-  assert.equal(contextMenuOpenCommandOpened({
+  assert.equal(avatarControlsOpenCommandOpened({
     executed: false,
     reason: 'handler_not_registered',
   }), false)

@@ -7,7 +7,7 @@ export function renderLoopContinuationReasons(frame = {}) {
     if (frame.fastTravelActive) reasons.push('fast-travel');
     if (frame.radialActivationTransitionActive) reasons.push('radial-activation-transition');
     if (frame.radialGestureActive) reasons.push('radial-gesture');
-    if (frame.contextMenuOpen) reasons.push('context-menu');
+    if (frame.avatarControlsOpen) reasons.push('avatar-controls');
     if (frame.annotationReticleActive) reasons.push('annotation-reticle');
     if (frame.selectionModeActive) reasons.push('selection-mode');
     if (frame.selectionModeEffectActive) reasons.push('selection-mode-effect');

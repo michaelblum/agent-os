@@ -1,15 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildContextMenuSnapshot,
-} from '../../apps/sigil/context-menu/snapshot-projection.js';
+  buildAvatarControlsSnapshot,
+} from '../../apps/sigil/avatar-controls/snapshot-projection.js';
 
-test('context menu snapshot projection clones bounds and reads compact surface state', () => {
+test('avatar controls snapshot projection clones bounds and reads compact surface state', () => {
   const bounds = { x: 24, y: 48, w: 292, h: 448 };
   const controls = [
     {
-      id: 'sigil-menu-opacity',
-      descriptor_id: 'sigil-menu-opacity',
+      id: 'sigil-avatar-controls-opacity',
+      descriptor_id: 'sigil-avatar-controls-opacity',
       role: 'slider',
       value: 0.8,
     },
@@ -23,7 +23,7 @@ test('context menu snapshot projection clones bounds and reads compact surface s
     },
   };
 
-  const snapshot = buildContextMenuSnapshot(
+  const snapshot = buildAvatarControlsSnapshot(
     { open: true, bounds },
     compactSurface,
   );
@@ -31,6 +31,8 @@ test('context menu snapshot projection clones bounds and reads compact surface s
   assert.deepEqual(snapshot, {
     open: true,
     bounds,
+    surface: 'embedded',
+    panelId: null,
     stack: null,
     activeTab: 'appearance',
     controls,
@@ -38,10 +40,12 @@ test('context menu snapshot projection clones bounds and reads compact surface s
   assert.notEqual(snapshot.bounds, bounds);
 });
 
-test('context menu snapshot projection preserves closed null surface shape', () => {
-  assert.deepEqual(buildContextMenuSnapshot({ open: false, bounds: null }, null), {
+test('avatar controls snapshot projection preserves closed null surface shape', () => {
+  assert.deepEqual(buildAvatarControlsSnapshot({ open: false, bounds: null }, null), {
     open: false,
     bounds: null,
+    surface: null,
+    panelId: null,
     stack: null,
     activeTab: null,
     controls: [],

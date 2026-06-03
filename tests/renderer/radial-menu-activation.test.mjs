@@ -81,15 +81,15 @@ test('Sigil radial wiki action targets the current graph-first browser surface',
 test('Sigil radial activation preserves target-surface click input metadata', () => {
   const request = createSigilRadialActivationRequest({
     item: {
-      id: 'context-menu',
-      label: 'Context Menu',
-      action: 'contextMenu',
+      id: 'avatar-controls',
+      label: 'Avatar Controls',
+      action: 'avatarControls',
       center: { x: 80, y: 96 },
     },
     snapshot: {
       ...snapshot,
-      activeItemId: 'context-menu',
-      committed: { type: 'item', itemId: 'context-menu' },
+      activeItemId: 'avatar-controls',
+      committed: { type: 'item', itemId: 'avatar-controls' },
     },
     input: {
       kind: 'click',
@@ -102,7 +102,7 @@ test('Sigil radial activation preserves target-surface click input metadata', ()
   assert.equal(request.input, 'click')
   assert.equal(request.source, 'sigil.radial-target-surface')
   assert.equal(request.input_source.canvas_id, 'sigil-radial-menu-avatar-main')
-  assert.equal(request.target_surface.kind, 'sigil-context-menu')
+  assert.equal(request.target_surface.kind, 'sigil-avatar-controls')
   assert.equal(request.transition.preset, 'radial-3d-vanilla')
   assert.equal(request.transition.menu.hold_active_item, true)
 })

@@ -416,7 +416,7 @@ test('resolveRadialItemMotion allows menu-level defaults and item-level override
 
 test('resolveRadialHoverConfig reads data-driven scale and wheel spin axes', async () => {
   const { DEFAULT_SIGIL_RADIAL_ITEMS } = await import('../../apps/sigil/renderer/radial-menu-defaults.js')
-  const context = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
+  const context = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'avatar-controls')
   const reticle = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-mode')
   const terminal = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
 
@@ -509,10 +509,10 @@ test('closing radial visuals reverse their ingress animation before disappearing
 
 test('Sigil radial item modules own fallback glyph creation hooks', async () => {
   const { resolveSigilRadialItemModule } = await import('../../apps/sigil/renderer/radial-menu/item-registry.js')
-  const moduleDef = resolveSigilRadialItemModule({ id: 'context-menu' })
+  const moduleDef = resolveSigilRadialItemModule({ id: 'avatar-controls' })
   const glyph = moduleDef.createGlyph()
 
-  assert.equal(moduleDef.ref, 'sigil.radial.geometry.context-menu')
+  assert.equal(moduleDef.ref, 'sigil.radial.geometry.avatar-controls')
   assert.ok(glyph.children.length >= 3)
 })
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createSigilUxTree } from '../../apps/sigil/renderer/live-modules/ux-tree.js'
 import {
   SIGIL_AVATAR_COMMAND_INPUTS,
-  SIGIL_CONTEXT_MENU_COMMAND_INPUTS,
+  SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS,
   SIGIL_RADIAL_COMMAND_INPUTS,
   SIGIL_SELECTION_MODE_COMMAND_INPUTS,
   SIGIL_SELECTION_MODE_ESCAPE_COMMAND_INPUT,
@@ -79,61 +79,61 @@ test('Sigil UX command adapter reports missing handler without executing', () =>
   assert.equal(result.errors[0].code, 'command.handler.missing')
 })
 
-test('Sigil UX command adapter executes context menu open handler with pointer context', () => {
+test('Sigil UX command adapter executes avatar controls open handler with pointer context', () => {
   const pointer = { x: 44, y: 55, valid: true }
   let seenPointer = null
   const registry = createSigilUxTreeCommandRegistry({
-    contextMenuOpen(nextPointer) {
+    avatarControlsOpen(nextPointer) {
       seenPointer = nextPointer
       return true
     },
   })
 
   const result = executeSigilUxTreeCommand(createSigilUxTree(), {
-    input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
+    input: SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.open,
     registry,
     context: { pointer },
   })
 
   assert.equal(seenPointer, pointer)
-  assert.equal(result.command_id, 'sigil.context_menu.open')
-  assert.equal(result.binding_id, 'sigil.avatar.context_menu.right_click')
+  assert.equal(result.command_id, 'sigil.avatar.controls.open')
+  assert.equal(result.binding_id, 'sigil.avatar.controls.right_click')
   assert.equal(result.executed, true)
   assert.equal(result.handler_result, true)
 })
 
-test('Sigil UX command adapter executes context menu toggle handler with pointer context', () => {
+test('Sigil UX command adapter executes avatar controls toggle handler with pointer context', () => {
   const pointer = { x: 66, y: 77, valid: true }
   let seenPointer = null
   const registry = createSigilUxTreeCommandRegistry({
-    contextMenuToggle(nextPointer) {
+    avatarControlsToggle(nextPointer) {
       seenPointer = nextPointer
       return { closed: true }
     },
   })
 
   const result = executeSigilUxTreeCommand(createSigilUxTree(), {
-    input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.toggle,
+    input: SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.toggle,
     registry,
     context: { pointer },
   })
 
   assert.equal(seenPointer, pointer)
-  assert.equal(result.command_id, 'sigil.context_menu.toggle')
-  assert.equal(result.binding_id, 'sigil.avatar.context_menu.right_click_toggle')
+  assert.equal(result.command_id, 'sigil.avatar.controls.toggle')
+  assert.equal(result.binding_id, 'sigil.avatar.controls.right_click_toggle')
   assert.equal(result.executed, true)
   assert.deepEqual(result.handler_result, { closed: true })
 })
 
-test('Sigil UX command adapter reports missing context menu handler without executing', () => {
+test('Sigil UX command adapter reports missing avatar controls handler without executing', () => {
   const result = executeSigilUxTreeCommand(createSigilUxTree(), {
-    input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
+    input: SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.open,
     registry: createSigilUxTreeCommandRegistry(),
   })
 
   assert.equal(result.matched, true)
   assert.equal(result.executed, false)
-  assert.equal(result.command_id, 'sigil.context_menu.open')
+  assert.equal(result.command_id, 'sigil.avatar.controls.open')
   assert.equal(result.reason, 'handler_not_registered')
   assert.equal(result.errors[0].code, 'command.handler.missing')
 })
@@ -499,7 +499,7 @@ test('Sigil avatar press runtime stores valid drag-origin points for fast-travel
 test('Sigil UX command adapter routes radial item actions through their command handlers', () => {
   const calls = []
   const registry = createSigilUxTreeCommandRegistry({
-    contextMenuOpen(pointer, payload) {
+    avatarControlsOpen(pointer, payload) {
       calls.push(['context', pointer, payload.context.item.id])
       return { opened: true }
     },
@@ -522,7 +522,7 @@ test('Sigil UX command adapter routes radial item actions through their command 
   })
   const pointer = { x: 33, y: 44, valid: true }
   const cases = [
-    ['context-menu', 'sigil.context_menu.open'],
+    ['avatar-controls', 'sigil.avatar.controls.open'],
     ['agent-terminal', 'sigil.agent_terminal.open'],
     ['annotation-mode', 'sigil.selection_mode.enter'],
     ['annotation-camera', 'sigil.annotation_camera.capture_bundle'],
@@ -577,7 +577,7 @@ test('Sigil UX command route catalog is derived from adapter-resolved command in
   const routeIds = new Set(catalog.map((route) => route.binding_id))
 
   assert.equal(catalog.length, tree.bindings.length)
-  assert.ok(routeIds.has('sigil.avatar.context_menu.right_click'))
+  assert.ok(routeIds.has('sigil.avatar.controls.right_click'))
   assert.ok(routeIds.has('sigil.selection_mode.left_click_acquire'))
   assert.ok(routeIds.has('sigil.selection_mode.snapshot_button'))
   assert.ok(routeIds.has('sigil.selection_mode.record_button'))

@@ -1,7 +1,7 @@
 import {
-    applyContextMenuDescriptorUpdate,
-    contextMenuControlDescriptors,
-    getContextMenuControlDescriptor,
+    applyAvatarControlsDescriptorUpdate,
+    avatarControlsControlDescriptors,
+    getAvatarControlsControlDescriptor,
 } from './descriptors.js';
 
 function text(value) {
@@ -14,12 +14,12 @@ function statePathText(value) {
         .join('.');
 }
 
-export function contextMenuDescriptorForVisualObjectDescriptor(descriptor = {}) {
+export function avatarControlsDescriptorForVisualObjectDescriptor(descriptor = {}) {
     if (!descriptor) return null;
-    return getContextMenuControlDescriptor(descriptor.id)
-        || getContextMenuControlDescriptor(descriptor.state_path)
-        || getContextMenuControlDescriptor(descriptor.action_id)
-        || contextMenuControlDescriptors.find((entry) => (
+    return getAvatarControlsControlDescriptor(descriptor.id)
+        || getAvatarControlsControlDescriptor(descriptor.state_path)
+        || getAvatarControlsControlDescriptor(descriptor.action_id)
+        || avatarControlsControlDescriptors.find((entry) => (
             statePathText(entry.statePath) === statePathText(descriptor.state_path)
             && (!descriptor.route || entry.route === descriptor.route)
         ))
@@ -34,11 +34,11 @@ export function createVisualObjectBindingAdapter({
 
     function applyVisualObjectDescriptorUpdate(bindingContext = {}) {
         const { descriptor, mutation } = bindingContext;
-        const compatibility = contextMenuDescriptorForVisualObjectDescriptor(descriptor);
+        const compatibility = avatarControlsDescriptorForVisualObjectDescriptor(descriptor);
         if (!compatibility) return false;
 
         const updateContext = context();
-        const result = applyContextMenuDescriptorUpdate(
+        const result = applyAvatarControlsDescriptorUpdate(
             compatibility.id,
             mutation?.value,
             {

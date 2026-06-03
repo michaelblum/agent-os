@@ -61,7 +61,7 @@ class SigilContextHarness:
         return self.eval_json(
             """(() => {
               window.__sigilDebug.dispatch({ type: 'key_down', key_code: 53 })
-              return JSON.stringify(window.__sigilDebug.snapshot().contextMenu)
+              return JSON.stringify(window.__sigilDebug.snapshot().avatarControls)
             })()"""
         )
 
@@ -108,7 +108,7 @@ class SigilContextHarness:
             }})()"""
         )
 
-    def open_context_menu_from_avatar(self, label="context menu open from real right click"):
+    def open_avatar_controls_from_avatar(self, label="avatar controls open from real right click"):
         initial = self.eval_json(
             """(() => {
               const snap = window.__sigilDebug.snapshot()
@@ -119,8 +119,8 @@ class SigilContextHarness:
         avatar_center = {"x": frame[0] + frame[2] / 2, "y": frame[1] + frame[3] / 2}
         self.click(avatar_center, "--right")
         return self.wait_until(
-            lambda: self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu)")
-            if self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu.open)") is True
+            lambda: self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().avatarControls)")
+            if self.eval_json("JSON.stringify(window.__sigilDebug.snapshot().avatarControls.open)") is True
             else None,
             label=label,
         )
@@ -226,13 +226,13 @@ class SigilContextHarness:
             and a["y"] + a["h"] > b["y"]
         )
 
-    def assert_menu_clear_avatar(self, label):
+    def assert_avatar_controls_clear_avatar(self, label):
         state = self.eval_json(
             """(() => {
               const snap = window.__sigilDebug.snapshot()
               const radius = snap.avatarHitRadius || 40
               return JSON.stringify({
-                menu: snap.contextMenu.bounds,
+                controls: snap.avatarControls.bounds,
                 avatar: {
                   x: snap.avatarPos.x - radius,
                   y: snap.avatarPos.y - radius,
@@ -242,8 +242,8 @@ class SigilContextHarness:
               })
             })()"""
         )
-        if not state["menu"]:
-            raise SystemExit(f"FAIL: missing menu bounds for {label}")
-        if self.rects_overlap(state["menu"], state["avatar"]):
-            raise SystemExit(f"FAIL: context menu overlaps avatar for {label}: {state}")
+        if not state["controls"]:
+            raise SystemExit(f"FAIL: missing avatar controls bounds for {label}")
+        if self.rects_overlap(state["controls"], state["avatar"]):
+            raise SystemExit(f"FAIL: avatar controls overlaps avatar for {label}: {state}")
         return state

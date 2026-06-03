@@ -39,9 +39,9 @@ export function sigilRadialTargetSurfaceForItem(item = {}, {
             },
         };
     }
-    if (action === 'contextMenu') {
+    if (action === 'avatarControls') {
         return {
-            kind: 'sigil-context-menu',
+            kind: 'sigil-avatar-controls',
             parent_canvas_id: 'avatar-main',
         };
     }

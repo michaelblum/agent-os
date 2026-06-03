@@ -207,7 +207,7 @@ function itemGeometry(id) {
     return cloneConfig(DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === id)?.geometry || {});
 }
 
-export const CONTEXT_COG_MODEL = itemGeometry('context-menu');
+export const CONTEXT_COG_MODEL = itemGeometry('avatar-controls');
 export const WIKI_BRAIN_HOLOGRAM_MODEL = itemGeometry('wiki-graph');
 export const AGENT_TERMINAL_TABLET_MODEL = itemGeometry('agent-terminal');
 export const ANNOTATION_RETICLE_GEOMETRY = itemGeometry('annotation-mode');

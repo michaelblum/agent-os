@@ -1,6 +1,6 @@
-# Sigil Context Menu Playbook
+# Sigil Avatar Controls Playbook
 
-Use this playbook when diagnosing or changing the live avatar context menu.
+Use this playbook when diagnosing or changing the live avatar avatar controls.
 
 ## Perception Path
 
@@ -20,11 +20,11 @@ Start with AOS perception and only escalate as needed.
 `./aos show eval --id avatar-main --js ...` can inspect DOM structure inside
 the canvas, but it is a developer bridge under the `show` verb, not general
 perception. Prefer it for targeted verification and tests, not as the primary
-way to understand the menu.
+way to understand the controls.
 
-## Menu Map
+## Surface Map
 
-The root menu has four tabs:
+The root surface has four tabs:
 
 - Shape: alpha/omega geometry and material controls.
 - Look: primary colors and color submenus.
@@ -37,9 +37,9 @@ settings entries for line trail, wormhole, lightning, magnetic, and path/trail.
 
 ## Accessibility Contract
 
-The context menu is ordinary HTML. Keep it readable through web standards:
+The avatar controls is ordinary HTML. Keep it readable through web standards:
 
-- The menu root is a `role="dialog"` with a concise label.
+- The controls root is a `role="dialog"` with a concise label.
 - Scrollable cards are named `role="region"` containers.
 - Tabs use `role="tablist"`, `role="tab"`, `aria-selected`, and
   `aria-controls`.
@@ -62,7 +62,7 @@ For user-input regressions, spot-check with actual AOS events:
 AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input.sh
 AOS_REAL_INPUT_OK=1 bash tests/scenarios/sigil/radial-menu/real-input-desktop-world-path.sh
 bash tests/sigil-real-input-status-avatar.sh
-bash tests/sigil-context-menu-real-input.sh
+bash tests/sigil-avatar-controls-real-input.sh
 ```
 
 Use these named entrypoints instead of ad hoc `./aos do` sequences. Shared
@@ -78,7 +78,7 @@ targets before any screenshot or pixel fallback.
 `tests/sigil-real-input-status-avatar.sh` is the default entry-path smoke. It
 uses the status item as the user would: locate the AOS status item, click it
 with `./aos do click`, wait for the avatar/hit target, right-click the avatar,
-then interact with the context menu through real mouse events.
+then interact with the avatar controls through real mouse events.
 
 Real-input checks share the user's mouse. If the human moves the mouse during a
 test, the test may fail for reasons unrelated to the product behavior. Treat
@@ -90,7 +90,7 @@ status-item smoke targets its isolated daemon PID and fails if another matching
 status item overlaps that target, so global menu-bar ambiguity is bounded and
 reported instead of silently contaminating the click.
 
-`tests/sigil-context-menu-real-input.sh` starts from an already-visible avatar
+`tests/sigil-avatar-controls-real-input.sh` starts from an already-visible avatar
 and exercises deeper menu behavior: Effects, real wheel scrolling, Line Trail
 Settings, trail-mode selection, back navigation, Wormhole Settings, and card
 scrolling.

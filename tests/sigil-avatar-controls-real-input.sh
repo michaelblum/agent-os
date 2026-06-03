@@ -6,7 +6,7 @@ source "$(dirname "$0")/lib/real-input-surface-harness.sh"
 
 aos_real_input_surface_require_enabled || exit $?
 
-PREFIX="aos-sigil-context-menu-real-input"
+PREFIX="aos-sigil-avatar-controls-real-input"
 aos_test_cleanup_prefix "$PREFIX"
 
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
@@ -49,15 +49,15 @@ def selector_for(descriptor_id, suffix=""):
 
 
 harness = SigilContextHarness()
-harness.arm_trace("real-input-context-menu-smoke")
-harness.open_context_menu_from_avatar()
-main_menu_clearance = harness.assert_menu_clear_avatar("main display")
+harness.arm_trace("real-input-avatar-controls-smoke")
+harness.open_avatar_controls_from_avatar()
+main_controls_clearance = harness.assert_avatar_controls_clear_avatar("main display")
 
-context_menu = harness.wait_until(
+avatar_controls = harness.wait_until(
     lambda: (
-        lambda menu: menu if menu.get("surface") == "toolkit-panel" and len(menu.get("controls") or []) > 0 else None
-    )(harness.eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu)")),
-    label="compact avatar panel controls projected to context menu snapshot",
+        lambda controls: controls if controls.get("surface") == "toolkit-panel" and len(controls.get("controls") or []) > 0 else None
+    )(harness.eval_json("JSON.stringify(window.__sigilDebug.snapshot().avatarControls)")),
+    label="compact avatar panel controls projected to avatar controls snapshot",
 )
 
 travel_ready = harness.wait_until(
@@ -68,17 +68,17 @@ travel_ready = harness.wait_until(
 )
 travel_click = harness.eval_json(aos_native_click_tab_js("sigil-hit-avatar-main", "travel"))
 harness.wait_until(
-    lambda: True if harness.eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu.activeTab)") == "travel" else None,
+    lambda: True if harness.eval_json("JSON.stringify(window.__sigilDebug.snapshot().avatarControls.activeTab)") == "travel" else None,
     label="travel tab selected through AOS control record",
 )
 
 trail_ready = harness.wait_until(
     lambda: (
         lambda result: result if result.get("ok") else None
-    )(harness.eval_json(aos_native_segmented_ready_js("sigil-menu-line-trail-mode", "shrink"))),
+    )(harness.eval_json(aos_native_segmented_ready_js("sigil-avatar-controls-line-trail-mode", "shrink"))),
     label="line trail mode AOS control record",
 )
-trail_click = harness.eval_json(aos_native_click_segmented_js("sigil-hit-avatar-main", "sigil-menu-line-trail-mode", "shrink"))
+trail_click = harness.eval_json(aos_native_click_segmented_js("sigil-hit-avatar-main", "sigil-avatar-controls-line-trail-mode", "shrink"))
 trail_result = harness.wait_until(
     lambda: (
         lambda state: state if state["mode"] == "shrink" else None
@@ -87,11 +87,11 @@ trail_result = harness.wait_until(
 )
 
 print("PASS", json.dumps({
-    "main_menu_clearance": main_menu_clearance,
-    "contextMenu": {
-        "surface": context_menu.get("surface"),
-        "panelId": context_menu.get("panelId"),
-        "controlCount": len(context_menu.get("controls") or []),
+    "main_controls_clearance": main_controls_clearance,
+    "avatarControls": {
+        "surface": avatar_controls.get("surface"),
+        "panelId": avatar_controls.get("panelId"),
+        "controlCount": len(avatar_controls.get("controls") or []),
     },
     "travelReady": travel_ready,
     "travelClick": travel_click,

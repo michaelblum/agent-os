@@ -88,9 +88,9 @@ doc lands at `~/.config/aos/{mode}/wiki/sigil/agents/default.md`.
 |------|------|
 | `renderer/index.html` | Live avatar renderer entrypoint. Boots the ES-module runtime from `renderer/live-modules/main.js` into a transparent passthrough canvas. |
 | `renderer/live-modules/*.js` | Sigil-owned interaction/runtime modules: host bridge, boot sequence, PRESS/RADIAL/FAST_TRAVEL/GOTO state machine, fast-travel, display geometry helpers, overlay drawing, and hit-target lifecycle. |
-| `renderer/live-modules/input-regions.js` | Sigil's app adapter for generic daemon `input_region.*` claims. Keep avatar/context-menu region ids, owner selection, register/update/remove recovery, and debug state here instead of growing more inline renderer glue. |
+| `renderer/live-modules/input-regions.js` | Sigil's app adapter for generic daemon `input_region.*` claims. Keep avatar and avatar-controls region ids, owner selection, register/update/remove recovery, and debug state here instead of growing more inline renderer glue. |
 | `renderer/*.js` | Avatar visual subsystems and shared data modules (`agent-loader`, `appearance`, `birthplace-resolver`, `state`, `geometry`, `colors`, `aura`, `phenomena`, `skins`, `presets`, `fx-registry`, `omega`, `magnetic`, `lightning`, `particles`). |
-| `context-menu/` | Live avatar context menu implementation and agent playbook for menu diagnostics. |
+| `avatar-controls/` | Live avatar controls implementation and agent playbook for surface diagnostics. |
 | `agent-terminal/` | Canonical Sigil Agent Terminal entrypoint. Launch with `apps/sigil/agent-terminal/launch.sh`; the entrypoint wraps the toolkit-owned Agent Terminal surface at `packages/toolkit/components/agent-terminal/` with `surface=sigil` so Sigil can add avatar controls. |
 | `codex-terminal/` | Historical compatibility and bridge/server path for the Agent Terminal evolved from the Codex-only MVP. The rendered terminal surface now lives in toolkit; the remaining decomposition step is moving this bridge/server substrate out of Sigil when that slice is small enough. tmux is preferred for durable resume/reattach, with a process fallback for machines without tmux. |
 | legacy configuration surface | Decommissioned avatar configuration surface, retained for reference only. Do not launch it, route users to it, or use the old product name in new user-facing copy. |
@@ -128,7 +128,7 @@ removal gate.
 
 Sigil native input claims use generic daemon input regions registered by the
 renderer, not daemon product hooks. Do not add or revive daemon actions or state
-machines named for Sigil, avatar, chat, radial menu, or context menu; keep that
+machines named for Sigil, avatar, chat, radial menu, or avatar controls; keep that
 policy in Sigil and express native consumption through `input_region.*`.
 
 If a hit canvas forwards native DOM events, the renderer must immediately

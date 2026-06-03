@@ -45,14 +45,14 @@ export const SIGIL_SELECTION_MODE_COMMAND_INPUTS = Object.freeze({
     }),
 });
 
-export const SIGIL_CONTEXT_MENU_COMMAND_INPUTS = Object.freeze({
+export const SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS = Object.freeze({
     open: Object.freeze({
         nodeId: 'sigil.avatar.body',
         mode: 'idle',
         gesture: 'pointer.right.click',
     }),
     toggle: Object.freeze({
-        nodeId: 'sigil.avatar.context_menu',
+        nodeId: 'sigil.avatar.controls',
         mode: 'global',
         gesture: 'pointer.right.click',
     }),
@@ -88,8 +88,8 @@ export const SIGIL_RADIAL_COMMAND_INPUTS = Object.freeze({
 });
 
 export const SIGIL_UX_TREE_STATIC_COMMAND_INPUTS = Object.freeze([
-    SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
-    SIGIL_CONTEXT_MENU_COMMAND_INPUTS.toggle,
+    SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.open,
+    SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.toggle,
     SIGIL_AVATAR_COMMAND_INPUTS.pressBegin,
     SIGIL_AVATAR_COMMAND_INPUTS.gotoBegin,
     SIGIL_AVATAR_COMMAND_INPUTS.radialBegin,
@@ -234,22 +234,22 @@ export function createSigilUxTreeCommandRegistry({
     selectionModeRecord,
     selectionModeCycleTarget,
     selectionModeAcquire,
-    contextMenuOpen,
-    contextMenuToggle,
+    avatarControlsOpen,
+    avatarControlsToggle,
     annotationReticleEnter,
     annotationCameraCaptureBundle,
     wikiGraphOpen,
     agentTerminalOpen,
 } = {}) {
     const registry = {};
-    if (typeof contextMenuOpen === 'function') {
-        registry['sigil.context_menu.open'] = (payload = {}) => (
-            contextMenuOpen(payload.context?.pointer || null, payload)
+    if (typeof avatarControlsOpen === 'function') {
+        registry['sigil.avatar.controls.open'] = (payload = {}) => (
+            avatarControlsOpen(payload.context?.pointer || null, payload)
         );
     }
-    if (typeof contextMenuToggle === 'function') {
-        registry['sigil.context_menu.toggle'] = (payload = {}) => (
-            contextMenuToggle(payload.context?.pointer || null, payload)
+    if (typeof avatarControlsToggle === 'function') {
+        registry['sigil.avatar.controls.toggle'] = (payload = {}) => (
+            avatarControlsToggle(payload.context?.pointer || null, payload)
         );
     }
     if (typeof avatarPressBegin === 'function') {
@@ -372,7 +372,7 @@ export function createSigilUxTreeCommandRuntime({
     acquireSelectionModeCandidates = () => null,
     cycleSelectionModeTarget = () => null,
     commitSelectionMode = () => null,
-    contextMenu = null,
+    avatarControls = null,
     cancelInteraction = () => {},
     wikiPath = '',
 } = {}) {
@@ -419,9 +419,9 @@ export function createSigilUxTreeCommandRuntime({
         selectionModeRecord: (pointer, payload = {}) => selectionModeRecord(pointer, payload),
         selectionModeCycleTarget: (delta) => cycleSelectionModeTarget(delta),
         selectionModeAcquire: (pointer) => acquireSelectionModeCandidates(pointer),
-        contextMenuOpen: radialItemActionDispatcher?.commandHandlers?.contextMenuOpen,
-        contextMenuToggle: () => {
-            contextMenu?.close?.('right-click-toggle');
+        avatarControlsOpen: radialItemActionDispatcher?.commandHandlers?.avatarControlsOpen,
+        avatarControlsToggle: () => {
+            avatarControls?.close?.('right-click-toggle');
             cancelInteraction('right-click-toggle');
             return true;
         },
@@ -462,7 +462,7 @@ export function createSigilUxTreeCommandRuntime({
         executeAvatarRadialBegin(msg = {}, context = {}) {
             return executeWithContext(SIGIL_AVATAR_COMMAND_INPUTS.radialBegin, msg, context);
         },
-        executeContextMenuRightClick(route = {}, msg = {}) {
+        executeAvatarControlsRightClick(route = {}, msg = {}) {
             return executeWithContext(route.input || {}, msg, {
                 source: 'handleInputEvent',
                 pointer: route.pointer || null,

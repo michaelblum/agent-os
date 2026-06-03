@@ -26,16 +26,16 @@ function summarize(entry = {}) {
       return `${data.type || '?'} ${data.x ?? ''},${data.y ?? ''}`
     case 'host-message':
       return `${data.rawType || '?'} -> ${data.type || '?'} ${data.x ?? ''},${data.y ?? ''}`
-    case 'context-menu:pointer:target':
+    case 'avatar-controls:pointer:target':
       return `${data.kind || '?'} target=${data.target?.id || data.target?.tag || '?'} input=${data.input?.id || data.input?.tag || '?'}`
-    case 'context-menu:checkbox-toggle':
+    case 'avatar-controls:checkbox-toggle':
       return `${data.id || '?'}=${data.checked ? 'on' : 'off'} via ${data.via || '?'}`
-    case 'context-menu:duplicate-check':
+    case 'avatar-controls:duplicate-check':
       return `${data.duplicate ? 'duplicate' : 'not duplicate'} ${data.reason || ''} dt=${Math.round(data.elapsed ?? 0)}`
-    case 'context-menu:open':
-    case 'context-menu:open-request':
+    case 'avatar-controls:open':
+    case 'avatar-controls:open-request':
       return `${data.x ?? data.point?.x ?? ''},${data.y ?? data.point?.y ?? ''}`
-    case 'context-menu:close':
+    case 'avatar-controls:close':
       return data.reason || 'close'
     default:
       return JSON.stringify(data).slice(0, 180)
@@ -58,7 +58,7 @@ function renderDetails(trace) {
   const entries = trace.entries || []
   const runtime = trace.runtime || {}
   const snap = trace.snapshot || {}
-  const contextMenu = snap.contextMenu || {}
+  const avatarControls = snap.avatarControls || {}
   const capture = trace.capture || null
   const latestCapture = trace.latestCapture || null
   const rows = entries.slice(-180).reverse().map(renderEntry).join('')
@@ -66,7 +66,7 @@ function renderDetails(trace) {
     `<div class="trace-summary">`
       + `<span class="pill">events ${esc(trace.count || 0)}</span>`
       + `<span class="pill">state ${esc(snap.state || 'unknown')}</span>`
-      + `<span class="pill">menu ${contextMenu.open ? 'open' : 'closed'}</span>`
+      + `<span class="pill">menu ${avatarControls.open ? 'open' : 'closed'}</span>`
       + `<span class="pill">trace ${trace.enabled === false ? 'off' : 'on'}</span>`
       + `<span class="pill">capture ${capture ? `armed ${capture.count || 0}` : 'idle'}</span>`
       + `<span class="mono runtime">${esc(runtime.loadedAt || '')}</span>`
@@ -81,7 +81,7 @@ function renderDetails(trace) {
         avatarPos: snap.avatarPos,
         hitTargetFrame: snap.hitTargetFrame,
         hitTargetInteractive: snap.hitTargetInteractive,
-        contextMenu: snap.contextMenu,
+        avatarControls: snap.avatarControls,
         surface: snap.surface,
       }, null, 2))}</pre>`
       + `</div>`

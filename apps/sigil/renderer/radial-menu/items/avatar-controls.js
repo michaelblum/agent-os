@@ -1,6 +1,6 @@
 import { addEdges, material } from '../item-helpers.js';
 
-export function createContextMenuGlyph() {
+export function createAvatarControlsGlyph() {
     const group = new THREE.Group();
     const core = material('#7df8d7', 0.68);
     const accent = material('#d8fff5', 0.82);
@@ -23,9 +23,9 @@ export function createContextMenuGlyph() {
     return group;
 }
 
-export const contextMenuRadialItemModule = {
-    ref: 'sigil.radial.geometry.context-menu',
-    itemIds: ['context-menu'],
-    fallbackGlyph: 'context-menu',
-    createGlyph: createContextMenuGlyph,
+export const avatarControlsRadialItemModule = {
+    ref: 'sigil.radial.geometry.avatar-controls',
+    itemIds: ['avatar-controls'],
+    fallbackGlyph: 'avatar-controls',
+    createGlyph: createAvatarControlsGlyph,
 };

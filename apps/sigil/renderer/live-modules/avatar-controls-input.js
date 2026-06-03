@@ -1,11 +1,11 @@
-import { SIGIL_CONTEXT_MENU_COMMAND_INPUTS } from './ux-tree-command-registry.js';
+import { SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS } from './ux-tree-command-registry.js';
 
 function pointerFromMessage(msg = {}) {
     if (typeof msg.x !== 'number' || typeof msg.y !== 'number') return null;
     return { x: msg.x, y: msg.y, valid: true };
 }
 
-export function resolveContextMenuRightClickRoute(msg = {}, {
+export function resolveAvatarControlsRightClickRoute(msg = {}, {
     isOpen = false,
     isDuplicateOpenClick = () => false,
 } = {}) {
@@ -25,7 +25,7 @@ export function resolveContextMenuRightClickRoute(msg = {}, {
         return {
             handled: true,
             command: 'toggle',
-            input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.toggle,
+            input: SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.toggle,
             pointer,
         };
     }
@@ -42,11 +42,11 @@ export function resolveContextMenuRightClickRoute(msg = {}, {
     return {
         handled: true,
         command: 'open',
-        input: SIGIL_CONTEXT_MENU_COMMAND_INPUTS.open,
+        input: SIGIL_AVATAR_CONTROLS_COMMAND_INPUTS.open,
         pointer,
     };
 }
 
-export function contextMenuOpenCommandOpened(result = {}) {
+export function avatarControlsOpenCommandOpened(result = {}) {
     return result?.executed === true && result?.handler_result === true;
 }

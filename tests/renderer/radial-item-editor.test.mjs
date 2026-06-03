@@ -102,7 +102,7 @@ if errors:
 
 test('editableRadialItems exposes the current glTF radial item subjects', () => {
   assert.deepEqual(editableRadialItems(DEFAULT_SIGIL_RADIAL_ITEMS).map((item) => item.id), [
-    'context-menu',
+    'avatar-controls',
     'agent-terminal',
     'wiki-graph',
   ])

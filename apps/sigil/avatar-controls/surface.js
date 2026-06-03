@@ -11,9 +11,9 @@ import {
 } from '../renderer/transition-registry.js';
 import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/tesseron.js';
 import {
-    applyContextMenuDescriptorUpdate,
+    applyAvatarControlsDescriptorUpdate,
 } from './descriptors.js';
-import { buildContextMenuSnapshot } from './snapshot-projection.js';
+import { buildAvatarControlsSnapshot } from './snapshot-projection.js';
 import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
 import { buildSigilAvatarCompactSurfaceViewModel } from '../avatar-editor/surface-view-model.js';
 
@@ -195,7 +195,7 @@ export function resolveAvatarPanelAvoidancePosition({
     } : null;
 }
 
-export function resolveContextMenuOrigin(point, options = {}) {
+export function resolveAvatarControlsOrigin(point, options = {}) {
     const width = options.width ?? MENU_WIDTH;
     const height = options.height ?? MENU_HEIGHT;
     const offset = options.offset ?? MENU_OFFSET;
@@ -249,7 +249,7 @@ export function resolveContextMenuOrigin(point, options = {}) {
     return { x: rect.x, y: rect.y };
 }
 
-export function findContextMenuElementAt(anchor, point, doc = document) {
+export function findAvatarControlsElementAt(anchor, point, doc = document) {
     if (!anchor || !point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
     const viewportHit = doc?.elementFromPoint?.(point.x, point.y);
     if (viewportHit && elementContains(anchor, viewportHit)) return viewportHit;
@@ -285,21 +285,21 @@ export function findContextMenuElementAt(anchor, point, doc = document) {
     return null;
 }
 
-export function menuMarkup() {
-    return '<div id="sigil-context-menu" class="ctx-anchor sigil-context-menu" role="dialog" aria-modal="false" aria-label="Sigil avatar control surface" aria-hidden="true"></div>';
+export function avatarControlsMarkup() {
+    return '<div id="sigil-avatar-controls" class="avatar-controls-anchor sigil-avatar-controls" role="dialog" aria-modal="false" aria-label="Sigil avatar control surface" aria-hidden="true"></div>';
 }
 
-export function contextMenuContentProps(open) {
+export function avatarControlsContentProps(open) {
     const isOpen = !!open;
     return {
         'aria-label': 'Sigil avatar control surface',
         'aria-hidden': isOpen ? 'false' : 'true',
         'data-state': isOpen ? 'open' : 'closed',
-        class: `ctx-anchor sigil-context-menu${isOpen ? ' visible' : ''}`,
+        class: `avatar-controls-anchor sigil-avatar-controls${isOpen ? ' visible' : ''}`,
     };
 }
 
-export function contextMenuSurfaceScrollDelta(event = {}) {
+export function avatarControlsSurfaceScrollDelta(event = {}) {
     const sourceOrigin = event.sourceIdentity?.sourceOrigin
         ?? event.sourceIdentity?.source_origin
         ?? event.sourceOrigin
@@ -320,7 +320,7 @@ export function contextMenuSurfaceScrollDelta(event = {}) {
     };
 }
 
-export function createSigilContextMenu({
+export function createSigilAvatarControls({
     state,
     liveJs,
     projectPoint,
@@ -344,22 +344,23 @@ export function createSigilContextMenu({
     actionDispatcher = null,
     panelId = 'sigil-avatar-controls-avatar-main',
     panelUrl = null,
+    panelFrameToBounds = null,
     panelWidth = PANEL_WIDTH,
     panelHeight = PANEL_HEIGHT,
     trace,
     allowTestAnchorFallback = false,
 } = {}) {
     const layer = document.createElement('div');
-    layer.className = 'sigil-context-menu-layer';
-    layer.innerHTML = menuMarkup();
+    layer.className = 'sigil-avatar-controls-layer';
+    layer.innerHTML = avatarControlsMarkup();
     document.body.appendChild(layer);
 
-    let anchor = layer.querySelector('#sigil-context-menu');
+    let anchor = layer.querySelector('#sigil-avatar-controls');
     if (!anchor) {
         if (allowTestAnchorFallback) {
             anchor = document.createElement('div');
-            anchor.id = 'sigil-context-menu';
-            anchor.className = 'ctx-anchor sigil-context-menu';
+            anchor.id = 'sigil-avatar-controls';
+            anchor.className = 'avatar-controls-anchor sigil-avatar-controls';
             anchor.setAttribute('role', 'dialog');
             anchor.setAttribute('aria-modal', 'false');
             anchor.setAttribute('aria-label', 'Sigil avatar control surface');
@@ -368,9 +369,9 @@ export function createSigilContextMenu({
         }
     }
     if (!anchor) {
-        throw new TypeError('Sigil context menu markup must include #sigil-context-menu.');
+        throw new TypeError('Sigil avatar controls markup must include #sigil-avatar-controls.');
     }
-    let menuState = {
+    let surfaceState = {
         open: false,
         bounds: null,
         activeSlider: null,
@@ -391,7 +392,7 @@ export function createSigilContextMenu({
     });
 
     function recordTrace(stage, data = {}) {
-        trace?.record?.(`context-menu:${stage}`, data);
+        trace?.record?.(`avatar-controls:${stage}`, data);
     }
 
     function describeElement(element) {
@@ -410,7 +411,7 @@ export function createSigilContextMenu({
     }
 
     function snapshot() {
-        return buildContextMenuSnapshot(menuState, compactSurface, {
+        return buildAvatarControlsSnapshot(surfaceState, compactSurface, {
             panelControls,
             panelActiveTab,
             panelId: usesPanel ? panelId : null,
@@ -418,15 +419,15 @@ export function createSigilContextMenu({
     }
 
     function syncSnapshot() {
-        menuState.snapshot = {
+        surfaceState.snapshot = {
             activeTab: compactSurface?.getActiveTab?.() || panelActiveTab || null,
             controlCount: compactControlRecords().length,
             surface: usesPanel ? 'toolkit-panel' : 'embedded',
             panelId: usesPanel ? panelId : null,
         };
-        anchor.setAttribute('aria-hidden', menuState.open ? 'false' : 'true');
-        anchor.setAttribute('data-state', menuState.open ? 'open' : 'closed');
-        if (liveJs) liveJs.contextMenu = snapshot();
+        anchor.setAttribute('aria-hidden', surfaceState.open ? 'false' : 'true');
+        anchor.setAttribute('data-state', surfaceState.open ? 'open' : 'closed');
+        if (liveJs) liveJs.avatarControls = snapshot();
     }
 
     function setControlValue(id, value, checked = null) {
@@ -444,7 +445,7 @@ export function createSigilContextMenu({
     }
 
     function syncSharedShapeParameterControls(prefix = '') {
-        const id = (suffix) => prefix ? `sigil-menu-${prefix}-${suffix}` : `sigil-menu-${suffix}`;
+        const id = (suffix) => prefix ? `sigil-avatar-controls-${prefix}-${suffix}` : `sigil-avatar-controls-${suffix}`;
         setControlValue(id('tetartoid-a'), state.tetartoidA ?? 1);
         setControlValue(id('tetartoid-b'), state.tetartoidB ?? 1);
         setControlValue(id('tetartoid-c'), state.tetartoidC ?? 1);
@@ -484,7 +485,7 @@ export function createSigilContextMenu({
     }
 
     function routeDescriptorUpdate(id, value) {
-        const result = applyContextMenuDescriptorUpdate(id, value, descriptorContext());
+        const result = applyAvatarControlsDescriptorUpdate(id, value, descriptorContext());
         if (result?.descriptor) recordTrace('descriptor-update', {
             id,
             descriptorId: result.descriptor.id,
@@ -705,119 +706,119 @@ export function createSigilContextMenu({
         const trail = effects.trail ?? {};
         const colors = appearance.colors ?? state.colors ?? {};
 
-        setControlValue('sigil-menu-shape-select', shape.type ?? state.currentGeometryType ?? state.currentType);
-        setControlValue('sigil-menu-mother-scale', shape.size?.base ?? state.avatarBase ?? 153);
+        setControlValue('sigil-avatar-controls-shape-select', shape.type ?? state.currentGeometryType ?? state.currentType);
+        setControlValue('sigil-avatar-controls-mother-scale', shape.size?.base ?? state.avatarBase ?? 153);
         syncSharedShapeParameterControls();
         shape.tesseron = normalizeTesseronConfig(shape.tesseron);
         const tesseronSupported = isTesseronSupportedShape(shape.type ?? state.currentGeometryType ?? state.currentType);
-        setControlValue('sigil-menu-tesseron', null, shape.tesseron.enabled);
-        setControlValue('sigil-menu-tesseron-proportion', shape.tesseron.proportion);
-        setControlValue('sigil-menu-tesseron-match', null, shape.tesseron.matchMother);
-        setControlDisabled('sigil-menu-tesseron', !tesseronSupported);
-        setControlDisabled('sigil-menu-tesseron-proportion', !tesseronSupported || !shape.tesseron.enabled);
-        setControlDisabled('sigil-menu-tesseron-match', !tesseronSupported || !shape.tesseron.enabled);
-        setControlDisabled('sigil-menu-stellation', tesseronSupported && shape.tesseron.enabled);
-        setControlValue('sigil-menu-stellation', shape.stellationFactor ?? 0);
-        setControlValue('sigil-menu-opacity', appearance.opacity ?? 0.8);
-        setControlValue('sigil-menu-edge-opacity', appearance.edgeOpacity ?? 0.6);
-        setControlValue('sigil-menu-xray', null, appearance.interiorEdges);
-        setControlValue('sigil-menu-specular', null, appearance.specular);
-        setControlValue('sigil-menu-aura-reach', aura.reach ?? 1);
-        setControlValue('sigil-menu-aura-intensity', aura.intensity ?? 1);
-        setControlValue('sigil-menu-spin', avatar.transform?.idleSpin ?? state.idleSpinSpeed ?? 0.01);
-        setControlValue('sigil-menu-ring', avatar.interaction?.menuRingRadius ?? state.menuRingRadius ?? 120);
-        setControlValue('sigil-menu-avatar-above-menu', null, (avatar.windowing?.avatarLevel ?? state.avatarWindowLevel) === 'screen_saver');
-        setControlValue('sigil-menu-pulsar', null, effects.phenomena?.pulsar?.enabled);
-        setControlValue('sigil-menu-accretion', null, effects.phenomena?.accretion?.enabled);
-        setControlValue('sigil-menu-gamma', null, effects.phenomena?.gamma?.enabled);
-        setControlValue('sigil-menu-neutrino', null, effects.phenomena?.neutrino?.enabled);
-        setControlValue('sigil-menu-lightning', null, lightning.enabled);
-        setControlValue('sigil-menu-magnetic', null, magnetic.enabled);
-        setControlValue('sigil-menu-line-interdim', null, state.fastTravelLineInterDimensional ?? true);
-        setControlValue('sigil-menu-line-trail-enabled', null, state.fastTravelLineInterDimensional ?? true);
-        setControlValue('sigil-menu-line-duration', state.fastTravelLineDuration ?? 0.22);
-        setControlValue('sigil-menu-line-delay', state.fastTravelLineDelay ?? 0);
-        setControlValue('sigil-menu-line-repeat-count', state.fastTravelLineRepeatCount ?? 10);
-        setControlValue('sigil-menu-line-repeat-duration', state.fastTravelLineRepeatDuration ?? 2);
-        setControlValue('sigil-menu-line-lag', state.fastTravelLineLag ?? 0.05);
-        setControlValue('sigil-menu-line-scale', state.fastTravelLineScale ?? 1.5);
-        setControlValue('sigil-menu-line-trail-mode', state.fastTravelLineTrailMode ?? 'fade');
+        setControlValue('sigil-avatar-controls-tesseron', null, shape.tesseron.enabled);
+        setControlValue('sigil-avatar-controls-tesseron-proportion', shape.tesseron.proportion);
+        setControlValue('sigil-avatar-controls-tesseron-match', null, shape.tesseron.matchMother);
+        setControlDisabled('sigil-avatar-controls-tesseron', !tesseronSupported);
+        setControlDisabled('sigil-avatar-controls-tesseron-proportion', !tesseronSupported || !shape.tesseron.enabled);
+        setControlDisabled('sigil-avatar-controls-tesseron-match', !tesseronSupported || !shape.tesseron.enabled);
+        setControlDisabled('sigil-avatar-controls-stellation', tesseronSupported && shape.tesseron.enabled);
+        setControlValue('sigil-avatar-controls-stellation', shape.stellationFactor ?? 0);
+        setControlValue('sigil-avatar-controls-opacity', appearance.opacity ?? 0.8);
+        setControlValue('sigil-avatar-controls-edge-opacity', appearance.edgeOpacity ?? 0.6);
+        setControlValue('sigil-avatar-controls-xray', null, appearance.interiorEdges);
+        setControlValue('sigil-avatar-controls-specular', null, appearance.specular);
+        setControlValue('sigil-avatar-controls-aura-reach', aura.reach ?? 1);
+        setControlValue('sigil-avatar-controls-aura-intensity', aura.intensity ?? 1);
+        setControlValue('sigil-avatar-controls-spin', avatar.transform?.idleSpin ?? state.idleSpinSpeed ?? 0.01);
+        setControlValue('sigil-avatar-controls-ring', avatar.interaction?.menuRingRadius ?? state.menuRingRadius ?? 120);
+        setControlValue('sigil-avatar-controls-avatar-above-menu', null, (avatar.windowing?.avatarLevel ?? state.avatarWindowLevel) === 'screen_saver');
+        setControlValue('sigil-avatar-controls-pulsar', null, effects.phenomena?.pulsar?.enabled);
+        setControlValue('sigil-avatar-controls-accretion', null, effects.phenomena?.accretion?.enabled);
+        setControlValue('sigil-avatar-controls-gamma', null, effects.phenomena?.gamma?.enabled);
+        setControlValue('sigil-avatar-controls-neutrino', null, effects.phenomena?.neutrino?.enabled);
+        setControlValue('sigil-avatar-controls-lightning', null, lightning.enabled);
+        setControlValue('sigil-avatar-controls-magnetic', null, magnetic.enabled);
+        setControlValue('sigil-avatar-controls-line-interdim', null, state.fastTravelLineInterDimensional ?? true);
+        setControlValue('sigil-avatar-controls-line-trail-enabled', null, state.fastTravelLineInterDimensional ?? true);
+        setControlValue('sigil-avatar-controls-line-duration', state.fastTravelLineDuration ?? 0.22);
+        setControlValue('sigil-avatar-controls-line-delay', state.fastTravelLineDelay ?? 0);
+        setControlValue('sigil-avatar-controls-line-repeat-count', state.fastTravelLineRepeatCount ?? 10);
+        setControlValue('sigil-avatar-controls-line-repeat-duration', state.fastTravelLineRepeatDuration ?? 2);
+        setControlValue('sigil-avatar-controls-line-lag', state.fastTravelLineLag ?? 0.05);
+        setControlValue('sigil-avatar-controls-line-scale', state.fastTravelLineScale ?? 1.5);
+        setControlValue('sigil-avatar-controls-line-trail-mode', state.fastTravelLineTrailMode ?? 'fade');
         setControlValue(
-            'sigil-menu-fast-travel-effect',
+            'sigil-avatar-controls-fast-travel-effect',
             normalizeFastTravelEffect(state.transitionFastTravelEffect, DEFAULT_FAST_TRAVEL_EFFECT)
         );
-        setControlValue('sigil-menu-lightning-origin-center', null, lightning.originCenter);
-        setControlValue('sigil-menu-lightning-solid-block', null, lightning.solidBlock);
-        setControlValue('sigil-menu-lightning-length', lightning.boltLength ?? 100);
-        setControlValue('sigil-menu-lightning-frequency', lightning.frequency ?? 2);
-        setControlValue('sigil-menu-lightning-duration', lightning.duration ?? 0.8);
-        setControlValue('sigil-menu-lightning-branching', lightning.branching ?? 0.08);
-        setControlValue('sigil-menu-lightning-brightness', lightning.brightness ?? 1);
-        setControlValue('sigil-menu-magnetic-count', magnetic.tentacleCount ?? 10);
-        setControlValue('sigil-menu-magnetic-speed', magnetic.tentacleSpeed ?? 1);
-        setControlValue('sigil-menu-magnetic-wander', magnetic.wander ?? 3);
-        setControlValue('sigil-menu-wormhole-shading', null, state.wormholeShadingEnabled ?? true);
-        setControlValue('sigil-menu-wormhole-object', null, state.wormholeObjectEnabled ?? true);
-        setControlValue('sigil-menu-wormhole-particles', null, state.wormholeParticlesEnabled ?? true);
-        setControlValue('sigil-menu-wormhole-radius', state.wormholeCaptureRadius ?? 96);
-        setControlValue('sigil-menu-wormhole-implosion', state.wormholeImplosionDuration ?? 1.5);
-        setControlValue('sigil-menu-wormhole-transit', state.wormholeTravelDuration ?? 0.5);
-        setControlValue('sigil-menu-wormhole-rebound', state.wormholeReboundDuration ?? 1.2);
-        setControlValue('sigil-menu-wormhole-distortion', state.wormholeDistortionStrength ?? 1.2);
-        setControlValue('sigil-menu-wormhole-twist', state.wormholeTwist ?? 3.14);
-        setControlValue('sigil-menu-wormhole-zoom', state.wormholeZoom ?? 3.5);
-        setControlValue('sigil-menu-wormhole-object-height', state.wormholeObjectHeight ?? 0.8);
-        setControlValue('sigil-menu-wormhole-object-spin', state.wormholeObjectSpin ?? 4.5);
-        setControlValue('sigil-menu-wormhole-particle-density', state.wormholeParticleDensity ?? 0.05);
-        setControlValue('sigil-menu-wormhole-shadow', state.wormholeTunnelShadow ?? 0.8);
-        setControlValue('sigil-menu-wormhole-specular', state.wormholeSpecularIntensity ?? 0.4);
-        setControlValue('sigil-menu-wormhole-light-angle', state.wormholeLightAngle ?? 2.35);
-        setControlValue('sigil-menu-wormhole-flash', state.wormholeFlashIntensity ?? 1.5);
-        setControlValue('sigil-menu-wormhole-white', state.wormholeWhitePointIntensity ?? 1);
-        setControlValue('sigil-menu-wormhole-starburst', state.wormholeStarburstIntensity ?? 0.95);
-        setControlValue('sigil-menu-wormhole-lens', state.wormholeLensFlareIntensity ?? 0.8);
-        setControlValue('sigil-menu-grid-mode', state.gridMode ?? 'off');
-        setControlValue('sigil-menu-omega-enabled', null, omega.enabled);
-        setControlValue('sigil-menu-omega-shape', omega.shape?.type ?? state.omegaGeometryType ?? state.omegaType ?? 4);
+        setControlValue('sigil-avatar-controls-lightning-origin-center', null, lightning.originCenter);
+        setControlValue('sigil-avatar-controls-lightning-solid-block', null, lightning.solidBlock);
+        setControlValue('sigil-avatar-controls-lightning-length', lightning.boltLength ?? 100);
+        setControlValue('sigil-avatar-controls-lightning-frequency', lightning.frequency ?? 2);
+        setControlValue('sigil-avatar-controls-lightning-duration', lightning.duration ?? 0.8);
+        setControlValue('sigil-avatar-controls-lightning-branching', lightning.branching ?? 0.08);
+        setControlValue('sigil-avatar-controls-lightning-brightness', lightning.brightness ?? 1);
+        setControlValue('sigil-avatar-controls-magnetic-count', magnetic.tentacleCount ?? 10);
+        setControlValue('sigil-avatar-controls-magnetic-speed', magnetic.tentacleSpeed ?? 1);
+        setControlValue('sigil-avatar-controls-magnetic-wander', magnetic.wander ?? 3);
+        setControlValue('sigil-avatar-controls-wormhole-shading', null, state.wormholeShadingEnabled ?? true);
+        setControlValue('sigil-avatar-controls-wormhole-object', null, state.wormholeObjectEnabled ?? true);
+        setControlValue('sigil-avatar-controls-wormhole-particles', null, state.wormholeParticlesEnabled ?? true);
+        setControlValue('sigil-avatar-controls-wormhole-radius', state.wormholeCaptureRadius ?? 96);
+        setControlValue('sigil-avatar-controls-wormhole-implosion', state.wormholeImplosionDuration ?? 1.5);
+        setControlValue('sigil-avatar-controls-wormhole-transit', state.wormholeTravelDuration ?? 0.5);
+        setControlValue('sigil-avatar-controls-wormhole-rebound', state.wormholeReboundDuration ?? 1.2);
+        setControlValue('sigil-avatar-controls-wormhole-distortion', state.wormholeDistortionStrength ?? 1.2);
+        setControlValue('sigil-avatar-controls-wormhole-twist', state.wormholeTwist ?? 3.14);
+        setControlValue('sigil-avatar-controls-wormhole-zoom', state.wormholeZoom ?? 3.5);
+        setControlValue('sigil-avatar-controls-wormhole-object-height', state.wormholeObjectHeight ?? 0.8);
+        setControlValue('sigil-avatar-controls-wormhole-object-spin', state.wormholeObjectSpin ?? 4.5);
+        setControlValue('sigil-avatar-controls-wormhole-particle-density', state.wormholeParticleDensity ?? 0.05);
+        setControlValue('sigil-avatar-controls-wormhole-shadow', state.wormholeTunnelShadow ?? 0.8);
+        setControlValue('sigil-avatar-controls-wormhole-specular', state.wormholeSpecularIntensity ?? 0.4);
+        setControlValue('sigil-avatar-controls-wormhole-light-angle', state.wormholeLightAngle ?? 2.35);
+        setControlValue('sigil-avatar-controls-wormhole-flash', state.wormholeFlashIntensity ?? 1.5);
+        setControlValue('sigil-avatar-controls-wormhole-white', state.wormholeWhitePointIntensity ?? 1);
+        setControlValue('sigil-avatar-controls-wormhole-starburst', state.wormholeStarburstIntensity ?? 0.95);
+        setControlValue('sigil-avatar-controls-wormhole-lens', state.wormholeLensFlareIntensity ?? 0.8);
+        setControlValue('sigil-avatar-controls-grid-mode', state.gridMode ?? 'off');
+        setControlValue('sigil-avatar-controls-omega-enabled', null, omega.enabled);
+        setControlValue('sigil-avatar-controls-omega-shape', omega.shape?.type ?? state.omegaGeometryType ?? state.omegaType ?? 4);
         syncSharedShapeParameterControls('omega');
         omega.shape.tesseron = normalizeTesseronConfig(omega.shape?.tesseron);
         const omegaTesseronSupported = isTesseronSupportedShape(omega.shape?.type ?? state.omegaGeometryType ?? state.omegaType);
-        setControlValue('sigil-menu-omega-tesseron', null, omega.shape.tesseron.enabled);
-        setControlValue('sigil-menu-omega-tesseron-proportion', omega.shape.tesseron.proportion);
-        setControlValue('sigil-menu-omega-tesseron-match', null, omega.shape.tesseron.matchMother);
-        setControlDisabled('sigil-menu-omega-tesseron', !omegaTesseronSupported);
-        setControlDisabled('sigil-menu-omega-tesseron-proportion', !omegaTesseronSupported || !omega.shape.tesseron.enabled);
-        setControlDisabled('sigil-menu-omega-tesseron-match', !omegaTesseronSupported || !omega.shape.tesseron.enabled);
-        setControlDisabled('sigil-menu-omega-stellation', omegaTesseronSupported && omega.shape.tesseron.enabled);
-        setControlValue('sigil-menu-omega-scale', omega.scale ?? 1);
-        setControlValue('sigil-menu-omega-stellation', omega.shape?.stellationFactor ?? 0);
-        setControlValue('sigil-menu-omega-counterspin', null, omega.counterSpin);
-        setControlValue('sigil-menu-omega-lock', null, omega.lockPosition);
-        setControlValue('sigil-menu-trail-enabled', null, trail.enabled);
-        setControlValue('sigil-menu-trail-length', trail.length ?? 20);
-        setControlValue('sigil-menu-trail-opacity', trail.opacity ?? 0.5);
-        setControlValue('sigil-menu-trail-fade', trail.fadeMs ?? 400);
-        setControlValue('sigil-menu-trail-style', trail.style ?? 'omega');
-        setControlValue('sigil-menu-cancel-radius', liveJs?.dragCancelRadius ?? state.dragCancelRadius ?? 40);
-        setColorValue('sigil-menu-primary-color', colors.face?.[0]);
-        setColorValue('sigil-menu-edge-color', colors.edge?.[0]);
-        setColorValue('sigil-menu-face1', colors.face?.[0]);
-        setColorValue('sigil-menu-face2', colors.face?.[1]);
-        setColorValue('sigil-menu-edge1', colors.edge?.[0]);
-        setColorValue('sigil-menu-edge2', colors.edge?.[1]);
-        setColorValue('sigil-menu-aura1', colors.aura?.[0]);
-        setColorValue('sigil-menu-aura2', colors.aura?.[1]);
-        setColorValue('sigil-menu-lightning1', colors.lightning?.[0]);
-        setColorValue('sigil-menu-lightning2', colors.lightning?.[1]);
-        setColorValue('sigil-menu-magnetic1', colors.magnetic?.[0]);
-        setColorValue('sigil-menu-magnetic2', colors.magnetic?.[1]);
-        setColorValue('sigil-menu-grid1', colors.grid?.[0]);
-        setColorValue('sigil-menu-grid2', colors.grid?.[1]);
+        setControlValue('sigil-avatar-controls-omega-tesseron', null, omega.shape.tesseron.enabled);
+        setControlValue('sigil-avatar-controls-omega-tesseron-proportion', omega.shape.tesseron.proportion);
+        setControlValue('sigil-avatar-controls-omega-tesseron-match', null, omega.shape.tesseron.matchMother);
+        setControlDisabled('sigil-avatar-controls-omega-tesseron', !omegaTesseronSupported);
+        setControlDisabled('sigil-avatar-controls-omega-tesseron-proportion', !omegaTesseronSupported || !omega.shape.tesseron.enabled);
+        setControlDisabled('sigil-avatar-controls-omega-tesseron-match', !omegaTesseronSupported || !omega.shape.tesseron.enabled);
+        setControlDisabled('sigil-avatar-controls-omega-stellation', omegaTesseronSupported && omega.shape.tesseron.enabled);
+        setControlValue('sigil-avatar-controls-omega-scale', omega.scale ?? 1);
+        setControlValue('sigil-avatar-controls-omega-stellation', omega.shape?.stellationFactor ?? 0);
+        setControlValue('sigil-avatar-controls-omega-counterspin', null, omega.counterSpin);
+        setControlValue('sigil-avatar-controls-omega-lock', null, omega.lockPosition);
+        setControlValue('sigil-avatar-controls-trail-enabled', null, trail.enabled);
+        setControlValue('sigil-avatar-controls-trail-length', trail.length ?? 20);
+        setControlValue('sigil-avatar-controls-trail-opacity', trail.opacity ?? 0.5);
+        setControlValue('sigil-avatar-controls-trail-fade', trail.fadeMs ?? 400);
+        setControlValue('sigil-avatar-controls-trail-style', trail.style ?? 'omega');
+        setControlValue('sigil-avatar-controls-cancel-radius', liveJs?.dragCancelRadius ?? state.dragCancelRadius ?? 40);
+        setColorValue('sigil-avatar-controls-primary-color', colors.face?.[0]);
+        setColorValue('sigil-avatar-controls-edge-color', colors.edge?.[0]);
+        setColorValue('sigil-avatar-controls-face1', colors.face?.[0]);
+        setColorValue('sigil-avatar-controls-face2', colors.face?.[1]);
+        setColorValue('sigil-avatar-controls-edge1', colors.edge?.[0]);
+        setColorValue('sigil-avatar-controls-edge2', colors.edge?.[1]);
+        setColorValue('sigil-avatar-controls-aura1', colors.aura?.[0]);
+        setColorValue('sigil-avatar-controls-aura2', colors.aura?.[1]);
+        setColorValue('sigil-avatar-controls-lightning1', colors.lightning?.[0]);
+        setColorValue('sigil-avatar-controls-lightning2', colors.lightning?.[1]);
+        setColorValue('sigil-avatar-controls-magnetic1', colors.magnetic?.[0]);
+        setColorValue('sigil-avatar-controls-magnetic2', colors.magnetic?.[1]);
+        setColorValue('sigil-avatar-controls-grid1', colors.grid?.[0]);
+        setColorValue('sigil-avatar-controls-grid2', colors.grid?.[1]);
         compactSurface?.refreshVisibility?.();
     }
 
     function clampToVisible(point) {
-        return resolveContextMenuOrigin(point, {
+        return resolveAvatarControlsOrigin(point, {
             width: usesPanel ? panelWidth : MENU_WIDTH,
             height: usesPanel ? panelHeight : MENU_HEIGHT,
             displays: liveJs?.displays || [],
@@ -835,8 +836,8 @@ export function createSigilContextMenu({
 
     function syncPosition() {
         if (usesPanel && !panelEmbeddedFallbackActive) return;
-        if (!menuState.open || !menuState.bounds || typeof projectPoint !== 'function') return;
-        const local = projectPoint(menuState.bounds);
+        if (!surfaceState.open || !surfaceState.bounds || typeof projectPoint !== 'function') return;
+        const local = projectPoint(surfaceState.bounds);
         if (!local) {
             anchor.style.display = 'none';
             return;
@@ -847,14 +848,14 @@ export function createSigilContextMenu({
     }
 
     function surfaceBounds() {
-        if (usesPanel && !panelEmbeddedFallbackActive) return menuState.bounds ? { ...menuState.bounds } : null;
-        if (!menuState.bounds) return null;
+        if (usesPanel && !panelEmbeddedFallbackActive) return surfaceState.bounds ? { ...surfaceState.bounds } : null;
+        if (!surfaceState.bounds) return null;
         const surfaceRect = anchor.querySelector('.sigil-avatar-control-surface')?.getBoundingClientRect?.();
-        if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) return { ...menuState.bounds };
+        if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) return { ...surfaceState.bounds };
         const anchorRect = anchor.getBoundingClientRect();
         return {
-            x: menuState.bounds.x + (surfaceRect.left - anchorRect.left),
-            y: menuState.bounds.y + (surfaceRect.top - anchorRect.top),
+            x: surfaceState.bounds.x + (surfaceRect.left - anchorRect.left),
+            y: surfaceState.bounds.y + (surfaceRect.top - anchorRect.top),
             w: surfaceRect.width,
             h: surfaceRect.height,
         };
@@ -864,15 +865,15 @@ export function createSigilContextMenu({
         if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return null;
         syncFromState();
         const origin = clampToVisible(point);
-        menuState.open = true;
-        menuState.bounds = {
+        surfaceState.open = true;
+        surfaceState.bounds = {
             x: origin.x,
             y: origin.y,
             w: usesPanel ? panelWidth : MENU_WIDTH,
             h: usesPanel ? panelHeight : MENU_HEIGHT,
         };
         if (state) state.isMenuOpen = true;
-        recordTrace('open', { point, origin, bounds: menuState.bounds });
+        recordTrace('open', { point, origin, bounds: surfaceState.bounds });
         syncPosition();
         if (usesPanel) {
             compactSurface?.destroy?.();
@@ -912,18 +913,18 @@ export function createSigilContextMenu({
                 sendPanelUpdate('open');
                 globalThis.setTimeout?.(() => {
                     recordTrace('panel-embedded-fallback-check', {
-                        open: menuState.open,
+                        open: surfaceState.open,
                         panelControlCount: panelControls.length,
                         compactSurfaceActive: !!compactSurface,
                         panelReady,
                         panelActiveTab,
                     });
-                    if (!menuState.open || panelControls.length > 0 || compactSurface) return;
+                    if (!surfaceState.open || panelControls.length > 0 || compactSurface) return;
                     panelEmbeddedFallbackActive = true;
                     anchor.classList.add('visible');
                     anchor.style.display = '';
                     void mountCompactSurface(panelActiveTab || null).then(() => {
-                        if (!menuState.open || !panelEmbeddedFallbackActive) return;
+                        if (!surfaceState.open || !panelEmbeddedFallbackActive) return;
                         syncFromState();
                         seedCompactValueCache();
                         syncPosition();
@@ -942,7 +943,7 @@ export function createSigilContextMenu({
             return snapshot();
         }
         void mountCompactSurface().then(() => {
-            if (!menuState.open) return;
+            if (!surfaceState.open) return;
             syncFromState();
             seedCompactValueCache();
             syncPosition();
@@ -956,10 +957,10 @@ export function createSigilContextMenu({
     }
 
     function close(reason = 'close') {
-        if (!menuState.open) return;
-        menuState.open = false;
-        menuState.bounds = null;
-        menuState.activeSlider = null;
+        if (!surfaceState.open) return;
+        surfaceState.open = false;
+        surfaceState.bounds = null;
+        surfaceState.activeSlider = null;
         panelReady = false;
         panelControls = [];
         panelActiveTab = null;
@@ -984,9 +985,9 @@ export function createSigilContextMenu({
 
     function applySnapshot(next = {}) {
         const open = !!next.open;
-        menuState.open = open;
-        menuState.bounds = open && next.bounds ? { ...next.bounds } : null;
-        menuState.activeSlider = null;
+        surfaceState.open = open;
+        surfaceState.bounds = open && next.bounds ? { ...next.bounds } : null;
+        surfaceState.activeSlider = null;
         interactionRouter.reset();
         if (state) state.isMenuOpen = open;
         if (!open) {
@@ -1015,7 +1016,7 @@ export function createSigilContextMenu({
             return;
         }
         void mountCompactSurface(next.activeTab || null).then(() => {
-            if (!menuState.open) return;
+            if (!surfaceState.open) return;
             syncFromState();
             seedCompactValueCache();
             syncPosition();
@@ -1029,7 +1030,7 @@ export function createSigilContextMenu({
     function containsDesktopPoint(point) {
         if (!point) return false;
         if (usesPanel) {
-            const b = menuState.bounds;
+            const b = surfaceState.bounds;
             return !!(b
                 && point.x >= b.x
                 && point.y >= b.y
@@ -1038,7 +1039,7 @@ export function createSigilContextMenu({
         }
         const target = elementAt(point);
         if (target && elementContains(anchor, target)) return true;
-        const b = surfaceBounds() || menuState.bounds;
+        const b = surfaceBounds() || surfaceState.bounds;
         return !!(b
             && point.x >= b.x
             && point.y >= b.y
@@ -1054,7 +1055,7 @@ export function createSigilContextMenu({
     function elementAt(point) {
         const local = localClientPoint(point);
         if (!local) return null;
-        return findContextMenuElementAt(anchor, local, document);
+        return findAvatarControlsElementAt(anchor, local, document);
     }
 
     function activeScrollableSurface(target) {
@@ -1068,7 +1069,7 @@ export function createSigilContextMenu({
         if (target && elementContains(anchor, target)) {
             surface = activeScrollableSurface(target);
         } else {
-            const b = surfaceBounds() || menuState.bounds;
+            const b = surfaceBounds() || surfaceState.bounds;
             if (
                 !b
                 || point.x < b.x
@@ -1081,7 +1082,7 @@ export function createSigilContextMenu({
             surface = activeScrollableSurface(null);
         }
         if (!surface) return false;
-        const scroll = contextMenuSurfaceScrollDelta(event);
+        const scroll = avatarControlsSurfaceScrollDelta(event);
         if (scroll.dy === 0 && scroll.dx === 0) return false;
         surface.scrollTop += scroll.dy;
         surface.scrollLeft += scroll.dx;
@@ -1101,14 +1102,52 @@ export function createSigilContextMenu({
         return true;
     }
 
+    function normalizeBoundsRect(rect) {
+        if (!rect || typeof rect !== 'object') return null;
+        const x = Number(rect.x);
+        const y = Number(rect.y);
+        const w = Number(rect.w ?? rect.width);
+        const h = Number(rect.h ?? rect.height);
+        if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+        return { x, y, w, h };
+    }
+
+    function boundsFromFrame(frame) {
+        if (!frame) return null;
+        if (typeof panelFrameToBounds === 'function') {
+            const converted = normalizeBoundsRect(panelFrameToBounds(frame));
+            if (converted) return converted;
+        }
+        if (Array.isArray(frame) && frame.length >= 4) {
+            return normalizeBoundsRect({
+                x: frame[0],
+                y: frame[1],
+                w: frame[2],
+                h: frame[3],
+            });
+        }
+        return normalizeBoundsRect(frame);
+    }
+
+    function updatePanelFrame(frame, reason = 'panel-frame') {
+        if (!usesPanel || !surfaceState.open) return false;
+        const bounds = boundsFromFrame(frame);
+        if (!bounds) return false;
+        surfaceState.bounds = bounds;
+        recordTrace('panel-frame', { reason, bounds });
+        syncSnapshot();
+        onBoundsChange?.(snapshot());
+        return true;
+    }
+
     function handleMenuPointer(event) {
         const kind = event.type;
         const point = event.point;
         if (kind === 'scroll_wheel') return scrollSurfaceAt(point, event);
-        if (menuState.activeSlider && (kind === 'left_mouse_dragged' || kind === 'mouse_moved' || kind === 'left_mouse_up')) {
-            const active = menuState.activeSlider;
+        if (surfaceState.activeSlider && (kind === 'left_mouse_dragged' || kind === 'mouse_moved' || kind === 'left_mouse_up')) {
+            const active = surfaceState.activeSlider;
             const handled = updateCompactSliderAt(active.sliderRoot, point, { commit: kind === 'left_mouse_up' });
-            if (kind === 'left_mouse_up') menuState.activeSlider = null;
+            if (kind === 'left_mouse_up') surfaceState.activeSlider = null;
             return handled;
         }
         if (kind !== 'left_mouse_down' && kind !== 'left_mouse_up') return true;
@@ -1139,13 +1178,13 @@ export function createSigilContextMenu({
 
         const sliderRoot = closestAny(input, ['[data-aos-slider-root]']);
         if (kind === 'left_mouse_down' && sliderRoot) {
-            menuState.activeSlider = { sliderRoot };
+            surfaceState.activeSlider = { sliderRoot };
             return updateCompactSliderAt(sliderRoot, point);
         }
 
         if (kind === 'left_mouse_up') {
             if (sliderRoot) {
-                menuState.activeSlider = null;
+                surfaceState.activeSlider = null;
                 return updateCompactSliderAt(sliderRoot, point, { commit: true });
             }
             if (input.matches('input[type="checkbox"]')) {
@@ -1174,14 +1213,14 @@ export function createSigilContextMenu({
     }
 
     interactionRouter.registerRegion({
-        id: 'sigil-context-menu',
+        id: 'sigil-avatar-controls',
         priority: 100,
         contains: containsDesktopPoint,
         onPointer: handleMenuPointer,
     });
 
     function handlePointerEvent(kind, point, options = {}) {
-        if (!menuState.open) return false;
+        if (!surfaceState.open) return false;
         if (usesPanel) {
             const raw = options.raw || {};
             const sourceIdentity = options.sourceIdentity || raw.sourceIdentity || {};
@@ -1240,7 +1279,7 @@ export function createSigilContextMenu({
             reason,
             panel_id: panelId,
             view_model: viewModel,
-            active_tab: panelActiveTab || menuState.snapshot?.activeTab || null,
+            active_tab: panelActiveTab || surfaceState.snapshot?.activeTab || null,
         };
     }
 
@@ -1257,7 +1296,7 @@ export function createSigilContextMenu({
     }
 
     function sendPanelUpdate(reason = 'sync') {
-        if (!usesPanel || !menuState.open || !panelReady) return false;
+        if (!usesPanel || !surfaceState.open || !panelReady) return false;
         const message = {
             type: 'sigil.avatar_panel.update',
             payload: buildPanelUpdatePayload(reason),
@@ -1280,6 +1319,7 @@ export function createSigilContextMenu({
             return true;
         }
         if (type === 'sigil.avatar_panel.snapshot') {
+            updatePanelFrame(payload.frame || payload.panel_frame, payload.reason || 'snapshot');
             panelControls = Array.isArray(payload.controls) ? payload.controls : [];
             panelActiveTab = payload.active_tab || payload.activeTab || panelActiveTab;
             syncSnapshot();
@@ -1310,22 +1350,23 @@ export function createSigilContextMenu({
         openAt,
         close,
         isOpen() {
-            return menuState.open;
+            return surfaceState.open;
         },
         usesExternalPanel() {
             return usesPanel;
         },
         bounds() {
-            return menuState.bounds ? { ...menuState.bounds } : null;
+            return surfaceState.bounds ? { ...surfaceState.bounds } : null;
         },
         interactiveBounds() {
             if (usesPanel) return null;
-            return surfaceBounds() || (menuState.bounds ? { ...menuState.bounds } : null);
+            return surfaceBounds() || (surfaceState.bounds ? { ...surfaceState.bounds } : null);
         },
         updateSegmentPosition: syncPosition,
         containsDesktopPoint,
         handlePointerEvent,
         handlePanelMessage,
+        updatePanelFrame,
         sendPanelUpdate,
         applySnapshot,
         snapshot,

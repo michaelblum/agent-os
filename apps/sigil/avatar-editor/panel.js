@@ -6,7 +6,7 @@ import {
 } from '../renderer/live-modules/content-roots.js'
 import { createSigilAvatarCompactControlSurface } from './compact-surface.js'
 
-const { mountPanel, Single } = await import(toolkitSpecifier('panel/index.js', {
+const { frameFromWindow, mountPanel, Single } = await import(toolkitSpecifier('panel/index.js', {
   local: '../../../packages/toolkit/panel/index.js',
 }))
 
@@ -52,6 +52,7 @@ function sendSnapshot(reason = 'snapshot') {
       panel_id: PANEL_ID,
       active_tab: surface?.getActiveTab?.() || activeTab,
       controls: compactControls(),
+      frame: frameFromWindow(window),
     },
   })
 }

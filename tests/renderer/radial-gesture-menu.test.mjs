@@ -38,17 +38,17 @@ function createMenu(options = {}) {
 test('Sigil radial menu commits configured context item on release', () => {
   const { menu, commits } = createMenu()
   const started = menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
-  const contextItem = started.items.find((item) => item.id === 'context-menu')
+  const contextItem = started.items.find((item) => item.id === 'avatar-controls')
 
   const moved = menu.move({ ...contextItem.center, valid: true })
   assert.equal(moved.snapshot.phase, 'radial')
-  assert.equal(moved.snapshot.activeItemId, 'context-menu')
+  assert.equal(moved.snapshot.activeItemId, 'avatar-controls')
 
   const released = menu.release({ ...contextItem.center, valid: true })
   assert.equal(released.phase, 'committed')
   assert.equal(released.committed.type, 'item')
   assert.equal(commits.length, 1)
-  assert.equal(commits[0].item.action, 'contextMenu')
+  assert.equal(commits[0].item.action, 'avatarControls')
   assert.deepEqual(commits[0].context.pointer, { ...contextItem.center, valid: true })
   assert.equal(menu.snapshot(), null)
 })
@@ -56,7 +56,7 @@ test('Sigil radial menu commits configured context item on release', () => {
 test('Sigil radial menu preserves release context for activation adapters', () => {
   const { menu, commits } = createMenu()
   const started = menu.start({ x: 200, y: 200, valid: true }, { x: 260, y: 200, valid: true })
-  const contextItem = started.items.find((item) => item.id === 'context-menu')
+  const contextItem = started.items.find((item) => item.id === 'avatar-controls')
 
   menu.move({ ...contextItem.center, valid: true })
   menu.release({ ...contextItem.center, valid: true }, {
@@ -126,13 +126,13 @@ test('Sigil radial menu keeps its egress vector stable and adjusts it to fit the
 })
 
 test('Sigil radial menu config carries native wiki model geometry', () => {
-  const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'context-menu')
+  const contextItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'avatar-controls')
   const agentTerminalItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'agent-terminal')
   const annotationItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-mode')
   const cameraItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'annotation-camera')
   const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
 
-  assert.equal(contextItem.action, 'contextMenu')
+  assert.equal(contextItem.action, 'avatarControls')
   assert.equal(contextItem.geometry.type, 'gltf')
   assert.equal(contextItem.geometry.modelUid, '158a1e27214841589dce6d7361f1a422')
   assert.match(contextItem.geometry.src, /cog\/scene\.gltf$/)
@@ -278,7 +278,7 @@ test('Sigil radial menu leaves an egress lane on the threshold vector', () => {
 
   assert.equal(rightward.items.length, 4)
   assert.deepEqual(deltas, {
-    'context-menu': -56,
+    'avatar-controls': -56,
     'agent-terminal': -18.667,
     'annotation-mode': 18.667,
     'wiki-graph': 56,
@@ -321,7 +321,7 @@ test('Sigil radial menu uses array order to put middle items beside the egress l
 
   assert.equal(visibleCamera.items.length, 5)
   assert.deepEqual(deltas, {
-    'context-menu': -56,
+    'avatar-controls': -56,
     'agent-terminal': -33.6,
     'annotation-mode': -11.2,
     'annotation-camera': 11.2,

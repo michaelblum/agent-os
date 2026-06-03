@@ -1,8 +1,8 @@
-export function buildContextMenuSnapshot(menuState, compactSurface, options = {}) {
+export function buildAvatarControlsSnapshot(surfaceState, compactSurface, options = {}) {
     const controls = compactSurface?.getControlRecords?.() || options.panelControls || [];
     return {
-        open: !!menuState.open,
-        bounds: menuState.bounds ? { ...menuState.bounds } : null,
+        open: !!surfaceState.open,
+        bounds: surfaceState.bounds ? { ...surfaceState.bounds } : null,
         surface: compactSurface ? 'embedded' : options.panelId ? 'toolkit-panel' : null,
         panelId: options.panelId || null,
         stack: null,

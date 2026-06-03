@@ -1,5 +1,5 @@
 export const SIGIL_AVATAR_INPUT_REGION_ID = 'sigil-avatar-main-input-region';
-export const SIGIL_CONTEXT_MENU_INPUT_REGION_ID = 'sigil-context-menu-input-region';
+export const SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID = 'sigil-avatar-controls-input-region';
 export const SIGIL_SELECTION_MODE_INPUT_REGION_ID = 'sigil-selection-mode-input-region';
 
 const CAPTURE_STATES = new Set(['IDLE', 'PRESS', 'RADIAL', 'FAST_TRAVEL']);
@@ -40,8 +40,8 @@ export function createSigilInputRegionAdapter({
     isPrimarySegment = () => true,
     avatarNativeFrame,
     avatarRegionEnabled = () => true,
-    contextMenuNativeFrame,
-    contextMenuIsOpen = () => false,
+    avatarControlsNativeFrame,
+    avatarControlsIsOpen = () => false,
     selectionModeNativeFrame,
     selectionModeIsActive = () => false,
     logger = console,
@@ -113,7 +113,7 @@ export function createSigilInputRegionAdapter({
     function removeAll() {
         const removed = [
             remove(SIGIL_AVATAR_INPUT_REGION_ID),
-            remove(SIGIL_CONTEXT_MENU_INPUT_REGION_ID),
+            remove(SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID),
             remove(SIGIL_SELECTION_MODE_INPUT_REGION_ID),
         ];
         return removed.some(Boolean);
@@ -138,16 +138,16 @@ export function createSigilInputRegionAdapter({
         }));
     }
 
-    function syncContextMenu() {
-        if (!isPrimarySegment() || !contextMenuIsOpen()) {
-            return remove(SIGIL_CONTEXT_MENU_INPUT_REGION_ID);
+    function syncAvatarControls() {
+        if (!isPrimarySegment() || !avatarControlsIsOpen()) {
+            return remove(SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID);
         }
-        const frame = contextMenuNativeFrame?.();
-        if (!frame) return remove(SIGIL_CONTEXT_MENU_INPUT_REGION_ID);
-        return syncRegion(SIGIL_CONTEXT_MENU_INPUT_REGION_ID, payloadFor(SIGIL_CONTEXT_MENU_INPUT_REGION_ID, frame, {
-            semanticLabel: 'Sigil context menu input claim',
+        const frame = avatarControlsNativeFrame?.();
+        if (!frame) return remove(SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID);
+        return syncRegion(SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID, payloadFor(SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID, frame, {
+            semanticLabel: 'Sigil avatar controls input claim',
             priority: 120,
-            purpose: 'context-menu-pointer-capture',
+            purpose: 'avatar-controls-pointer-capture',
         }));
     }
 
@@ -166,9 +166,9 @@ export function createSigilInputRegionAdapter({
 
     function sync() {
         const avatarChanged = syncAvatar();
-        const contextMenuChanged = syncContextMenu();
+        const avatarControlsChanged = syncAvatarControls();
         const selectionModeChanged = syncSelectionMode();
-        return avatarChanged || contextMenuChanged || selectionModeChanged;
+        return avatarChanged || avatarControlsChanged || selectionModeChanged;
     }
 
     function snapshot() {
@@ -179,9 +179,9 @@ export function createSigilInputRegionAdapter({
                     id: SIGIL_AVATAR_INPUT_REGION_ID,
                     ...regionSnapshot(regions.get(SIGIL_AVATAR_INPUT_REGION_ID)),
                 },
-                contextMenu: {
-                    id: SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
-                    ...regionSnapshot(regions.get(SIGIL_CONTEXT_MENU_INPUT_REGION_ID)),
+                avatarControls: {
+                    id: SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID,
+                    ...regionSnapshot(regions.get(SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID)),
                 },
                 selectionMode: {
                     id: SIGIL_SELECTION_MODE_INPUT_REGION_ID,
@@ -194,13 +194,13 @@ export function createSigilInputRegionAdapter({
     return {
         ids: {
             avatar: SIGIL_AVATAR_INPUT_REGION_ID,
-            contextMenu: SIGIL_CONTEXT_MENU_INPUT_REGION_ID,
+            avatarControls: SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID,
             selectionMode: SIGIL_SELECTION_MODE_INPUT_REGION_ID,
         },
         currentOwnerCanvasId,
         sync,
         syncAvatar,
-        syncContextMenu,
+        syncAvatarControls,
         syncSelectionMode,
         remove,
         removeAll,

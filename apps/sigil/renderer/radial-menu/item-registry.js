@@ -1,11 +1,11 @@
-import { contextMenuRadialItemModule } from './items/context-menu.js';
+import { avatarControlsRadialItemModule } from './items/avatar-controls.js';
 import { agentTerminalRadialItemModule } from './items/agent-terminal.js';
 import { annotationReticleRadialItemModule } from './items/annotation-reticle.js';
 import { annotationCameraRadialItemModule } from './items/annotation-camera.js';
 import { wikiBrainRadialItemModule } from './items/wiki-brain.js';
 
 export const SIGIL_RADIAL_ITEM_MODULES = Object.freeze([
-    contextMenuRadialItemModule,
+    avatarControlsRadialItemModule,
     agentTerminalRadialItemModule,
     annotationReticleRadialItemModule,
     annotationCameraRadialItemModule,

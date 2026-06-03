@@ -26,13 +26,13 @@ test('Sigil UX tree exposes avatar, radial, selection mode, reticle, camera, and
   assert.ok(nodeIds.has('sigil.avatar'))
   assert.ok(nodeIds.has('sigil.avatar.body'))
   assert.ok(nodeIds.has('sigil.avatar.radial_menu'))
-  assert.ok(nodeIds.has('sigil.avatar.context_menu'))
+  assert.ok(nodeIds.has('sigil.avatar.controls'))
   assert.ok(nodeIds.has('sigil.avatar.selection_mode'))
   assert.ok(nodeIds.has('sigil.avatar.selection_mode.cursor_overlay'))
   assert.ok(nodeIds.has('sigil.avatar.selection_mode.lineage_bar'))
   assert.ok(nodeIds.has('sigil.avatar.annotation_reticle'))
   assert.ok(nodeIds.has('sigil.avatar.annotation_camera'))
-  assert.ok(nodeIds.has('sigil.avatar.radial_menu.item.context-menu'))
+  assert.ok(nodeIds.has('sigil.avatar.radial_menu.item.avatar-controls'))
   assert.ok(nodeIds.has('sigil.avatar.radial_menu.item.agent-terminal'))
   assert.ok(nodeIds.has('sigil.avatar.radial_menu.item.annotation-mode'))
   assert.ok(nodeIds.has('sigil.avatar.radial_menu.item.annotation-camera'))
@@ -44,8 +44,8 @@ test('Sigil UX tree represents current command allowlist and plain radial settin
   const commandIds = new Set(tree.commands.map((command) => command.id))
 
   for (const id of [
-    'sigil.context_menu.open',
-    'sigil.context_menu.toggle',
+    'sigil.avatar.controls.open',
+    'sigil.avatar.controls.toggle',
     'sigil.avatar.press.begin',
     'sigil.avatar.goto.begin',
     'sigil.radial.begin',
@@ -65,7 +65,7 @@ test('Sigil UX tree represents current command allowlist and plain radial settin
     assert.ok(commandIds.has(id), `${id} command missing`)
   }
   assert.equal(tree.settings.radial.menu_config.id, 'sigil.radial.main')
-  assert.equal(tree.settings.radial.items['context-menu'].action, 'contextMenu')
+  assert.equal(tree.settings.radial.items['avatar-controls'].action, 'avatarControls')
   assert.equal(typeof tree.commands[0].handler_ref, 'string')
 })
 
@@ -74,15 +74,15 @@ test('Sigil UX tree exposes generic trigger, open, anchor, and target relations'
   const relations = new Map(tree.relations.map((relation) => [relation.id, relation]))
 
   assert.equal(tree.validation.ok, true)
-  assert.deepEqual(relations.get('sigil.avatar.body.opens_context_menu'), {
-    id: 'sigil.avatar.body.opens_context_menu',
+  assert.deepEqual(relations.get('sigil.avatar.body.opens_avatar_controls'), {
+    id: 'sigil.avatar.body.opens_avatar_controls',
     relation_type: 'opens',
     from_node_id: 'sigil.avatar.body',
-    to_node_id: 'sigil.avatar.context_menu',
+    to_node_id: 'sigil.avatar.controls',
     source_metadata: {
-      source: 'apps/sigil/renderer/live-modules/context-menu-input.js',
-      binding_id: 'sigil.avatar.context_menu.right_click',
-      command_id: 'sigil.context_menu.open',
+      source: 'apps/sigil/renderer/live-modules/avatar-controls-input.js',
+      binding_id: 'sigil.avatar.controls.right_click',
+      command_id: 'sigil.avatar.controls.open',
     },
     metadata: {
       gesture: 'pointer.right.click',
@@ -94,15 +94,15 @@ test('Sigil UX tree exposes generic trigger, open, anchor, and target relations'
   assert.equal(relations.get('sigil.avatar.radial_reticle.triggers_selection_mode').to_node_id, 'sigil.avatar.selection_mode')
   assert.equal(relations.get('sigil.avatar.radial_reticle.triggers_selection_mode').metadata.gesture, 'pointer.left.release')
   assert.equal(relations.get('sigil.avatar.anchors_radial_menu').from_node_id, 'sigil.avatar')
-  assert.equal(relations.get('sigil.avatar.body.anchors_context_menu').relation_type, 'anchors')
+  assert.equal(relations.get('sigil.avatar.body.anchors_avatar_controls').relation_type, 'anchors')
   assert.equal(relations.get('sigil.avatar.radial_menu.targets_items').to_node_id, 'sigil.avatar.radial_menu.item.*')
   assert.equal(
     relations.get('sigil.avatar.radial_menu.targets_items').metadata.target_surface.hit_source_ref,
     'radialTargetSurface',
   )
   assert.equal(
-    relations.get('sigil.avatar.context_menu.targets_input_region').metadata.target_surface.hit_source_ref,
-    'sigil-context-menu-input-region',
+    relations.get('sigil.avatar.controls.targets_input_region').metadata.target_surface.hit_source_ref,
+    'sigil-avatar-controls-input-region',
   )
   assert.equal(
     relations.get('sigil.avatar.selection_mode.targets_input_region').metadata.target_surface.hit_source_ref,
@@ -115,12 +115,12 @@ test('Sigil shadow resolver maps avatar and Selection Mode gestures to current c
     nodeId: 'sigil.avatar.body',
     mode: 'idle',
     gesture: 'pointer.right.click',
-  }), 'sigil.context_menu.open')
+  }), 'sigil.avatar.controls.open')
   assert.equal(commandFor({
-    nodeId: 'sigil.avatar.context_menu',
+    nodeId: 'sigil.avatar.controls',
     mode: 'global',
     gesture: 'pointer.right.click',
-  }), 'sigil.context_menu.toggle')
+  }), 'sigil.avatar.controls.toggle')
   assert.equal(commandFor({
     nodeId: 'sigil.avatar.body',
     mode: 'idle',
@@ -174,7 +174,7 @@ test('Sigil shadow resolver maps radial item release using the item id', () => {
   const context = resolver.resolve({
     mode: 'radial',
     gesture: 'pointer.left.release',
-    itemId: 'context-menu',
+    itemId: 'avatar-controls',
   })
   const terminal = resolver.resolve({
     mode: 'radial',
@@ -188,9 +188,9 @@ test('Sigil shadow resolver maps radial item release using the item id', () => {
   })
 
   assert.equal(context.matched, true)
-  assert.equal(context.item_id, 'context-menu')
+  assert.equal(context.item_id, 'avatar-controls')
   assert.equal(context.binding.parameters.release_command_id, 'sigil.radial.release_item')
-  assert.equal(context.command_id, 'sigil.context_menu.open')
+  assert.equal(context.command_id, 'sigil.avatar.controls.open')
   assert.equal(terminal.command_id, 'sigil.agent_terminal.open')
   assert.equal(reticle.command_id, 'sigil.selection_mode.enter')
 })

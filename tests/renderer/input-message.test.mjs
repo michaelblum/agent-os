@@ -118,7 +118,7 @@ test('normalizeMessage delegates canvas-origin child input identity to toolkit n
 test('Sigil live child input path does not reintroduce private hit-target flags', async () => {
   const [main, menu] = await Promise.all([
     readFile(new URL('../../apps/sigil/renderer/live-modules/main.js', import.meta.url), 'utf8'),
-    readFile(new URL('../../apps/sigil/context-menu/menu.js', import.meta.url), 'utf8'),
+    readFile(new URL('../../apps/sigil/avatar-controls/surface.js', import.meta.url), 'utf8'),
   ])
 
   assert.match(main, /hitTarget\.ensureCreated\(\)\s*\n\s*\.then\(\(\) => \{\s*\n\s*syncHitTargetToAvatar\(\);/s)

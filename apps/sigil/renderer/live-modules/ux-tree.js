@@ -16,7 +16,7 @@ const SIGIL_UX_SOURCE_REFS = Object.freeze([
     { id: 'sigil-main', kind: 'source', ref: 'apps/sigil/renderer/live-modules/main.js' },
     { id: 'selection-mode-input', kind: 'source', ref: 'apps/sigil/renderer/live-modules/selection-mode-input.js' },
     { id: 'input-regions', kind: 'source', ref: 'apps/sigil/renderer/live-modules/input-regions.js' },
-    { id: 'context-menu-input', kind: 'source', ref: 'apps/sigil/renderer/live-modules/context-menu-input.js' },
+    { id: 'avatar-controls-input', kind: 'source', ref: 'apps/sigil/renderer/live-modules/avatar-controls-input.js' },
     { id: 'radial-gesture-menu', kind: 'source', ref: 'apps/sigil/renderer/live-modules/radial-gesture-menu.js' },
     { id: 'radial-menu-activation', kind: 'source', ref: 'apps/sigil/renderer/live-modules/radial-menu-activation.js' },
     { id: 'radial-menu-target-surface', kind: 'source', ref: 'apps/sigil/renderer/live-modules/radial-menu-target-surface.js' },
@@ -97,7 +97,7 @@ function radialItemNodeId(itemId) {
 }
 
 function radialItemCommandId(item = {}) {
-    if (item.action === 'contextMenu') return 'sigil.context_menu.open';
+    if (item.action === 'avatarControls') return 'sigil.avatar.controls.open';
     if (item.action === 'agentTerminal' || item.action === 'codexTerminal') return 'sigil.agent_terminal.open';
     if (item.id === 'annotation-mode' || item.action === 'annotationMode') return 'sigil.selection_mode.enter';
     if (item.action === 'annotationSnapshot') return 'sigil.annotation_camera.capture_bundle';
@@ -120,8 +120,8 @@ function modeList() {
 
 function commandList() {
     return [
-        command('sigil.context_menu.open', 'Open context menu', 'Open the current Sigil context menu.'),
-        command('sigil.context_menu.toggle', 'Toggle context menu', 'Toggle the current Sigil context menu.'),
+        command('sigil.avatar.controls.open', 'Open avatar controls', 'Open the current Sigil avatar controls.'),
+        command('sigil.avatar.controls.toggle', 'Toggle avatar controls', 'Toggle the current Sigil avatar controls.'),
         command('sigil.avatar.press.begin', 'Begin avatar press', 'Begin the existing avatar left-press state.'),
         command('sigil.avatar.goto.begin', 'Begin GOTO', 'Begin the existing avatar GOTO behavior.'),
         command('sigil.radial.begin', 'Begin radial gesture', 'Begin the existing radial gesture path.'),
@@ -165,7 +165,7 @@ function nodeList(radialMenu) {
             children: [
                 'sigil.avatar.body',
                 'sigil.avatar.radial_menu',
-                'sigil.avatar.context_menu',
+                'sigil.avatar.controls',
                 'sigil.avatar.selection_mode',
                 'sigil.avatar.annotation_reticle',
                 'sigil.avatar.annotation_camera',
@@ -190,10 +190,10 @@ function nodeList(radialMenu) {
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/radial-gesture-menu.js'),
         }),
         ...radialItemNodes,
-        node('sigil.avatar.context_menu', 'Context Menu', 'menu', 'context_menu', {
+        node('sigil.avatar.controls', 'Avatar Controls', 'menu', 'avatar_controls', {
             parent_id: 'sigil.avatar',
-            hit_source: { kind: 'input_region', ref: 'sigil-context-menu-input-region' },
-            source_metadata: sourceMetadata('apps/sigil/context-menu/menu.js'),
+            hit_source: { kind: 'input_region', ref: 'sigil-avatar-controls-input-region' },
+            source_metadata: sourceMetadata('apps/sigil/avatar-controls/surface.js'),
         }),
         node('sigil.avatar.selection_mode', 'Selection Mode', 'mode', 'mode_scope', {
             parent_id: 'sigil.avatar',
@@ -251,11 +251,11 @@ function bindingList(radialMenu) {
         }
     ));
     return [
-        binding('sigil.avatar.context_menu.right_click', 'sigil.avatar.body', 'idle', 'pointer.right.click', 'sigil.context_menu.open', {
+        binding('sigil.avatar.controls.right_click', 'sigil.avatar.body', 'idle', 'pointer.right.click', 'sigil.avatar.controls.open', {
             consume_policy: 'route',
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js', { event_type: 'right_mouse_down' }),
         }),
-        binding('sigil.avatar.context_menu.right_click_toggle', 'sigil.avatar.context_menu', 'global', 'pointer.right.click', 'sigil.context_menu.toggle', {
+        binding('sigil.avatar.controls.right_click_toggle', 'sigil.avatar.controls', 'global', 'pointer.right.click', 'sigil.avatar.controls.toggle', {
             priority: 90,
             consume_policy: 'route',
             source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/main.js', { event_type: 'right_mouse_down' }),
@@ -295,10 +295,10 @@ function bindingList(radialMenu) {
 
 function relationList() {
     return [
-        relation('sigil.avatar.body.opens_context_menu', 'opens', 'sigil.avatar.body', 'sigil.avatar.context_menu', {
-            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/context-menu-input.js', {
-                binding_id: 'sigil.avatar.context_menu.right_click',
-                command_id: 'sigil.context_menu.open',
+        relation('sigil.avatar.body.opens_avatar_controls', 'opens', 'sigil.avatar.body', 'sigil.avatar.controls', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/avatar-controls-input.js', {
+                binding_id: 'sigil.avatar.controls.right_click',
+                command_id: 'sigil.avatar.controls.open',
             }),
             metadata: {
                 gesture: 'pointer.right.click',
@@ -332,12 +332,12 @@ function relationList() {
                 },
             },
         }),
-        relation('sigil.avatar.body.anchors_context_menu', 'anchors', 'sigil.avatar.body', 'sigil.avatar.context_menu', {
-            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/context-menu-input.js'),
+        relation('sigil.avatar.body.anchors_avatar_controls', 'anchors', 'sigil.avatar.body', 'sigil.avatar.controls', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/avatar-controls-input.js'),
             metadata: {
                 anchor: {
                     kind: 'pointer_open_point',
-                    state_ref: 'contextMenu.openPoint',
+                    state_ref: 'avatarControls.openPoint',
                 },
             },
         }),
@@ -352,13 +352,13 @@ function relationList() {
                 },
             },
         }),
-        relation('sigil.avatar.context_menu.targets_input_region', 'targets', 'sigil.avatar.context_menu', 'sigil.avatar.context_menu', {
-            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/context-menu-input.js'),
+        relation('sigil.avatar.controls.targets_input_region', 'targets', 'sigil.avatar.controls', 'sigil.avatar.controls', {
+            source_metadata: sourceMetadata('apps/sigil/renderer/live-modules/avatar-controls-input.js'),
             metadata: {
                 target_surface: {
                     kind: 'input_region',
-                    lifecycle: 'context_menu_open',
-                    hit_source_ref: 'sigil-context-menu-input-region',
+                    lifecycle: 'avatar_controls_open',
+                    hit_source_ref: 'sigil-avatar-controls-input-region',
                     consume_policy: 'captured',
                 },
             },

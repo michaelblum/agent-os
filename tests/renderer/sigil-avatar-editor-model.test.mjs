@@ -151,10 +151,10 @@ test('classifies every compact surface descriptor as canonical avatar editing or
   const classification = classifySigilAvatarControlSurfaceDescriptors();
 
   assert.equal(classification.unmapped.length, 0);
-  assert.ok(classification.canonical.includes('sigil-menu-shape-select'));
-  assert.ok(classification.canonical.includes('sigil-menu-omega-shape'));
-  assert.ok(classification.canonical.includes('sigil-menu-lightning'));
-  assert.ok(classification.canonical.includes('sigil-menu-magnetic'));
+  assert.ok(classification.canonical.includes('sigil-avatar-controls-shape-select'));
+  assert.ok(classification.canonical.includes('sigil-avatar-controls-omega-shape'));
+  assert.ok(classification.canonical.includes('sigil-avatar-controls-lightning'));
+  assert.ok(classification.canonical.includes('sigil-avatar-controls-magnetic'));
   assert.ok(classification.projection_only.includes('toggle-inspector'));
   assert.ok(classification.projection_only.includes('toggle-trace'));
   assert.ok(classification.projection_only.includes('toggle-render-performance'));
@@ -162,8 +162,8 @@ test('classifies every compact surface descriptor as canonical avatar editing or
   assert.ok(classification.projection_only.includes('copy'));
   assert.ok(classification.projection_only.includes('save'));
   assert.ok(classification.projection_only.includes('import'));
-  assert.ok(classification.projection_only.includes('sigil-menu-grid-mode'));
-  assert.ok(classification.projection_only.includes('sigil-menu-avatar-above-menu'));
+  assert.ok(classification.projection_only.includes('sigil-avatar-controls-grid-mode'));
+  assert.ok(classification.projection_only.includes('sigil-avatar-controls-avatar-above-menu'));
 });
 
 test('renderer state exposes a canonical JSON-serializable avatar graph', () => {
@@ -230,7 +230,7 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
     ],
   );
 
-  const alphaGeometry = getSigilAvatarEditorControl(model, 'sigil-menu-shape-select');
+  const alphaGeometry = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-shape-select');
   assert.equal(alphaGeometry.state_path, 'avatar.shape.type');
   assert.equal(alphaGeometry.value, 12);
   assert.equal(alphaGeometry.route, 'canvas_object.transform.patch');
@@ -238,7 +238,7 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   assert.deepEqual(alphaGeometry.options, SIGIL_AVATAR_GEOMETRY_OPTIONS.map((option) => ({ ...option })));
   assert.ok(alphaGeometry.options.some((option) => option.value === 6 && option.label === 'Box'));
 
-  const prismSides = getSigilAvatarEditorControl(model, 'sigil-menu-prism-sides');
+  const prismSides = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-prism-sides');
   assert.equal(prismSides.kind ?? prismSides.type, 'slider');
   assert.equal(prismSides.state_path, 'avatar.shape.params.cylinder.sides');
   assert.equal(prismSides.value, 9);
@@ -248,30 +248,30 @@ test('buildSigilAvatarEditorModel exposes stable subject, child objects, groups,
   assert.deepEqual(prismSides.visible_when, { field: alphaGeometry.id, equals: 93 });
   assert.deepEqual(prismSides.renderer_sync, ['updateGeometry']);
 
-  const tetartoidA = getSigilAvatarEditorControl(model, 'sigil-menu-tetartoid-a');
+  const tetartoidA = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-tetartoid-a');
   assert.equal(tetartoidA.state_path, 'avatar.shape.params.tetartoid.a');
   assert.equal(tetartoidA.value, 0.8);
   assert.deepEqual(tetartoidA.visible_when, { field: alphaGeometry.id, equals: 90 });
 
-  const omegaGeometry = getSigilAvatarEditorControl(model, 'sigil-menu-omega-shape');
+  const omegaGeometry = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-omega-shape');
   assert.equal(omegaGeometry.state_path, 'avatar.effects.omega.shape.type');
   assert.equal(omegaGeometry.value, 8);
   assert.equal(omegaGeometry.object_ids[0], SIGIL_AVATAR_CHILD_OBJECT_IDS.omegaShape);
-  const omegaTorusTube = getSigilAvatarEditorControl(model, 'sigil-menu-omega-torus-tube');
+  const omegaTorusTube = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-omega-torus-tube');
   assert.equal(omegaTorusTube.state_path, 'avatar.effects.omega.shape.params.torus.tube');
   assert.equal(omegaTorusTube.value, 0.35);
   assert.deepEqual(omegaTorusTube.renderer_sync, ['updateOmegaGeometry']);
   assert.deepEqual(omegaTorusTube.visible_when, { field: omegaGeometry.id, equals: 92 });
 
-  const lightning = getSigilAvatarEditorControl(model, 'sigil-menu-lightning');
+  const lightning = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-lightning');
   assert.equal(lightning.group_key, 'lightning-effects');
   assert.equal(lightning.object_ids[0], SIGIL_AVATAR_CHILD_OBJECT_IDS.lightning);
 
-  const magnetic = getSigilAvatarEditorControl(model, 'sigil-menu-magnetic');
+  const magnetic = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-magnetic');
   assert.equal(magnetic.group_key, 'magnetic-effects');
   assert.equal(magnetic.object_ids[0], SIGIL_AVATAR_CHILD_OBJECT_IDS.magnetic);
 
-  const lightningColor = getSigilAvatarEditorControl(model, 'sigil-menu-lightning1');
+  const lightningColor = getSigilAvatarEditorControl(model, 'sigil-avatar-controls-lightning1');
   assert.equal(lightningColor.group_key, 'appearance-materials');
   assert.ok(lightningColor.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.lightning));
   assert.ok(lightningColor.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.magnetic));
@@ -281,7 +281,7 @@ test('Sigil avatar model exposes reusable visual object descriptors for canonica
   const model = buildSigilAvatarEditorModel(avatarState());
   const descriptors = new Map(model.visual_object_descriptors.map((descriptor) => [descriptor.id, descriptor]));
 
-  const alphaGeometry = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-menu-shape-select').id);
+  const alphaGeometry = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-avatar-controls-shape-select').id);
   assert.equal(alphaGeometry.contract, VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID);
   assert.equal(alphaGeometry.technology, 'threejs-3d');
   assert.equal(alphaGeometry.projection.classification, 'editable');
@@ -291,13 +291,13 @@ test('Sigil avatar model exposes reusable visual object descriptors for canonica
   assert.ok(alphaGeometry.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.primaryShape));
   assert.ok(alphaGeometry.options.some((option) => option.value === 12 && option.label === 'Dodecahedron'));
 
-  const omegaGeometry = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-menu-omega-shape').id);
+  const omegaGeometry = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-avatar-controls-omega-shape').id);
   assert.equal(omegaGeometry.state_path, 'avatar.effects.omega.shape.type');
   assert.equal(omegaGeometry.route, 'canvas_object.transform.patch');
   assert.deepEqual(omegaGeometry.renderer_sync, ['updateOmegaGeometry']);
   assert.ok(omegaGeometry.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.omegaShape));
 
-  const lightning = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-menu-lightning').id);
+  const lightning = descriptors.get(getSigilAvatarEditorControl(model, 'sigil-avatar-controls-lightning').id);
   assert.equal(lightning.route, 'canvas_object.effects.patch');
   assert.ok(lightning.object_ids.includes(SIGIL_AVATAR_CHILD_OBJECT_IDS.lightning));
 });
@@ -322,8 +322,8 @@ test('compact control surface projection keeps shortcuts out of canonical avatar
     'copy',
     'save',
     'import',
-    'sigil-menu-grid-mode',
-    'sigil-menu-avatar-above-menu',
+    'sigil-avatar-controls-grid-mode',
+    'sigil-avatar-controls-avatar-above-menu',
   ]) {
     assert.equal(canonicalIds.has(id), false, id);
     assert.ok(projectionIds.includes(id), id);

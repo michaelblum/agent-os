@@ -96,7 +96,7 @@ const AOSNativeControls = (() => {
     return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   }
   const snapshot = () => window.__sigilDebug.snapshot()
-  const contextMenuSnapshot = () => snapshot().contextMenu || {}
+  const avatarControlsSnapshot = () => snapshot().avatarControls || {}
   const desktopWorldBounds = () => snapshot().surface?.segment?.dw_bounds || [0, 0, 0, 0]
   const nativeBounds = () => snapshot().surface?.segment?.native_bounds || desktopWorldBounds()
   const toNative = (point) => {
@@ -137,12 +137,12 @@ const AOSNativeControls = (() => {
     }
   }
   const controlRecord = (descriptorId) => {
-    const controls = snapshot().contextMenu?.controls || []
+    const controls = snapshot().avatarControls?.controls || []
     return controls.find((control) => control.descriptor_id === descriptorId || control.id === descriptorId) || null
   }
   const tabRecord = (value) => {
     const textValue = String(value)
-    const controls = snapshot().contextMenu?.controls || []
+    const controls = snapshot().avatarControls?.controls || []
     return controls.find((control) => (
       (String(control.role || '').toLowerCase() === 'tab'
         || String(control.role || '').toLowerCase() === 'axtab'
@@ -164,8 +164,8 @@ const AOSNativeControls = (() => {
     return left === 0 && top === 0 && width <= 1 && height <= 1
   }
   const prefersRecordAction = (record) => {
-    const contextMenu = contextMenuSnapshot()
-    if (contextMenu.surface === 'toolkit-panel' || contextMenu.panelId) return true
+    const avatarControls = avatarControlsSnapshot()
+    if (avatarControls.surface === 'toolkit-panel' || avatarControls.panelId) return true
     return !!record && isPlaceholderFrame(recordFrame(record))
   }
   const recordPointOrFallback = ({ record, fallbackElement, ratio = 0.5 }) => {
@@ -244,7 +244,7 @@ const AOSNativeControls = (() => {
       fallbackElement: () => brokenContractTabElement(value)
     })
     if (!point && routeMode !== 'record-only') {
-      const controls = contextMenuSnapshot().controls || []
+      const controls = avatarControlsSnapshot().controls || []
       const tabs = controls.filter((control) => (
         String(control.role || '').toLowerCase() === 'tab'
         || String(control.role || '').toLowerCase() === 'axtab'
@@ -262,7 +262,7 @@ const AOSNativeControls = (() => {
         error: `missing or hidden AOS tab record ${value}`,
         controlCount: controls.length,
         tabs,
-        contextMenu: contextMenuSnapshot() || null,
+        avatarControls: avatarControlsSnapshot() || null,
         traceTail: window.__sigilDebug.interactionTrace?.().entries?.slice?.(-10) || []
       }
     }
