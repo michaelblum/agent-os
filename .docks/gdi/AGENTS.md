@@ -167,7 +167,7 @@ in `aos` binary.
 
 When a goal appears to require Swift/native changes that would need a fresh
 repo binary, stop and report the binary/native ownership issue to Foreman.
-Foreman owns binary corrections and the post-build permission handoff.
+Foreman owns binary corrections and any manual post-build TCC handoff.
 
 ## Human-Needed TCC Stall
 
@@ -180,14 +180,8 @@ goal. Run the bounded stall helper once:
 ```
 
 Then stop and report `human_needed` with the script output. After the human
-returns with "finished", run:
-
-```bash
-./aos ready --post-permission
-```
-
-Continue only when that reports ready. If it still reports a blocker, return to
-Foreman with the exact blocker instead of starting ad-hoc repair loops.
+returns with "finished", return to Foreman with the exact blocker instead of
+starting ad-hoc repair loops.
 
 For this deterministic TCC stall, the final GDI chat tail must include the
 helper's human-action block without relying on memory:
@@ -196,20 +190,15 @@ helper's human-action block without relying on memory:
 human_needed: TCC reset needed
 
 Human action:
-1. Open macOS System Settings -> Privacy & Security.
-2. Physically remove and re-add the repo-mode AOS runtime in Accessibility,
-   Input Monitoring, and Screen & System Audio Recording if the grant is stale
-   or missing.
-3. Return to the GDI session, or the next turn for that same session, and say:
-   finished.
-4. Do not start a new goal for the same work.
-
-After the human says finished, GDI runs:
-  ./aos ready --post-permission
+1. Return this blocker to Foreman.
+2. Foreman decides whether Michael needs to physically remove and re-add the
+   repo-mode AOS runtime in Accessibility, Input Monitoring, and Screen &
+   System Audio Recording if the grant is stale or missing.
+3. Do not run permission reset, Settings-open, rebuild, or readiness-repair loops.
 ```
 
-The helper and dock hooks own the stop-condition marker and spoken notice for
-this stall. Do not add a second direct `./aos say` call in the helper.
+The helper prints this stop-only report. Hooks do not own TCC markers, Settings
+focus, permission reset, or spoken reset notices.
 
 When retiring or reusing a GDI CLI session after a completed active goal, clear
 completed goal state with `/goal clear` before starting unrelated work.

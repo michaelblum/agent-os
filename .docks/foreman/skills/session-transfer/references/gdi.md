@@ -71,13 +71,8 @@ goal and run:
 ```
 
 Then GDI reports `human_needed` with the script output and waits for the human.
-After the human returns with "finished", run:
-
-```bash
-./aos ready --post-permission
-```
-
-Only continue if it reports ready.
+After the human returns with "finished", return the exact blocker to Foreman.
+Foreman owns any binary rebuild and manual TCC regrant handoff.
 
 Keep the copied GDI dispatch plain. Do not prepend `/goal`, and do not add
 addressee ceremony. If the work is TCC-sensitive, put the TCC stop branch in the
@@ -87,10 +82,8 @@ work card or append a plain suffix to the dispatch, for example:
 follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed
 ```
 
-The GDI helper and Stop hook provide deterministic reinforcement for this stall:
-the helper prints the human-action command sequence and records a short-lived
-`tcc_permission_reset` stop condition; the Stop hook consumes that condition and
-speaks `GDI needs TCC reset.`.
+The GDI helper is stop-only: it prints the human-needed blocker and does not
+write hook markers, reset permissions, open Settings, or start AOS.
 
 ## Bad Assumptions To Prevent
 

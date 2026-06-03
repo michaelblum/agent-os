@@ -255,7 +255,6 @@ for full-screen capture.
 ./aos dev docks list --json
 ./aos dev docks capabilities foreman --json
 ./aos dev build
-./aos dev build-checkpoint --json
 ./aos dev gh context --json
 ./aos dev gh issue comment 298 --body-file /tmp/comment.md
 ./aos dev gh ci inspect --pr 298 --json
@@ -267,19 +266,12 @@ the set is hot-swappable or TCC-sensitive. `recommend` adds ordered commands
 and verification steps. The rules live in `docs/dev/workflow-rules.json` and
 are validated by `shared/schemas/dev-workflow-rules.schema.json`.
 
-`build` wraps the repo `build.sh` and emits a `post_build_checkpoint` object in
-JSON mode. `build-checkpoint --json` exposes that same
-`aos.dev_build.post_build_checkpoint.v1` contract without rebuilding. Dock
-hooks consume this contract for post-rebuild pause/resume commands, human TCC
-instructions, and post-permission readiness guidance instead of duplicating
-permission ritual text in hook scripts.
-
-For dock sessions, hooks own the visible lifecycle around this checkpoint:
-successful GDI `aos dev build` shows the non-interactive human-needed surface
-and writes the completed-build marker; successful `aos ready --post-permission`
-removes that surface and clears the marker. Plain `aos ready` does not clear
-the marker, so incidental readiness probes cannot dismiss an active human-needed
-handoff.
+`build` wraps the repo `build.sh`, forces `--no-restart` unless the caller has
+already passed it, and reports whether the repo-mode `./aos` binary was rebuilt
+in JSON mode. Dock hooks do not automate post-build TCC handling: they do not
+reset permissions, open System Settings, show a human-needed surface, write
+completed-build markers, or inject provider input. Repo-mode binary rebuilds
+are Foreman-owned and intentionally rare.
 
 `capabilities` is read-only discovery over
 `docs/dev/agent-capabilities.json`. It lists or explains typed agent

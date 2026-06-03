@@ -5914,38 +5914,6 @@
         {
           "args" : [
             {
-              "id" : "json",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Emit the machine-readable post-build checkpoint contract",
-              "token" : "--json",
-              "value_type" : "bool"
-            }
-          ],
-          "examples" : [
-            "aos dev build-checkpoint --json"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "dev-build-checkpoint",
-          "output" : {
-            "default_mode" : "text",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : true
-          },
-          "usage" : "aos dev build-checkpoint [--json]"
-        },
-        {
-          "args" : [
-            {
               "id" : "packet",
               "kind" : "flag",
               "required" : true,

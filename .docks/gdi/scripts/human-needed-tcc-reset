@@ -3,22 +3,16 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 cd "$repo_root"
-aos_bin="${AOS_DOCK_AOS_BIN:-./aos}"
-
-"$repo_root/.docks/harness/stop-condition.sh" write "$repo_root" gdi tcc_permission_reset 600
 
 echo "human_needed: TCC reset needed"
 echo
 echo "GDI must stop the current goal loop here. Do not keep retrying live checks."
 echo
-echo "Running targeted repo-mode runtime reset:"
-"$aos_bin" permissions reset-runtime --mode repo || true
-echo
-echo "TCC reset needed. User must do this."
-"$repo_root/.docks/harness/dev-build-checkpoint-contract.sh" "$repo_root" stop_system_message
 cat <<'EOF'
+This helper intentionally does not reset TCC, open System Settings, write hook
+markers, or start AOS.
 
-Continue only if post-permission readiness reports ready=true. If it still
-reports a blocker, report that exact blocker to Foreman instead of trying
-ad-hoc loops.
+Return this blocker to Foreman. Foreman owns repo-mode binary rebuilds and will
+tell Michael exactly when the repo-mode AOS runtime needs to be removed and
+re-added in macOS TCC.
 EOF

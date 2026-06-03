@@ -307,8 +307,9 @@ GDI rounds are one-goal sessions. If the next expected work is validation only,
 say validation only. If the next expected work is a correction, name the exact
 finding or path. If a live AOS/TCC blocker may stall the round, put the
 repo-standard stall path in the card:
-`.docks/gdi/scripts/human-needed-tcc-reset`, then
-`./aos ready --post-permission` after the human returns with `finished`.
+`.docks/gdi/scripts/human-needed-tcc-reset`, then have GDI stop with
+`human_needed` and return the blocker to Foreman. Foreman owns any binary
+rebuild and manual TCC regrant handoff.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
 the concise plain work-card instruction, then add human-facing manual steps in

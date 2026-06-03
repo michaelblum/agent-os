@@ -159,21 +159,6 @@ fi
 run_optional_hook "pre-stop"
 
 system_message=""
-condition="$("$REPO_ROOT/.docks/harness/stop-condition.sh" consume "$REPO_ROOT" "$dock" tcc_permission_reset 2>/dev/null || true)"
-if [[ "$condition" == "tcc_permission_reset" ]]; then
-  notice_name="$name"
-  case "$dock" in
-    gdi) notice_name="GDI" ;;
-    foreman) notice_name="Foreman" ;;
-    operator) notice_name="Operator" ;;
-  esac
-  stop_notice="$notice_name needs TCC reset."
-  if "$REPO_ROOT/.docks/harness/dev-build-checkpoint.sh" peek "$REPO_ROOT" "$dock" >/dev/null 2>&1; then
-    system_message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" stop_system_message_after_build)"
-  else
-    system_message="$("$REPO_ROOT/.docks/harness/dev-build-checkpoint-contract.sh" "$REPO_ROOT" stop_system_message)"
-  fi
-fi
 
 if [[ "$voice_enabled" == "true" && -n "$voice_slot" ]]; then
   say_args=("$AOS_BIN" say --voice-slot "$voice_slot")

@@ -82,12 +82,11 @@ or inactive input-tap blockers, include the deterministic GDI stop branch:
 .docks/gdi/scripts/human-needed-tcc-reset
 ```
 
-The GDI helper prints the human-needed TCC reset block, records a short-lived
-`tcc_permission_reset` stop condition for the Stop hook, and GDI must stop with
+The GDI helper prints the human-needed TCC blocker and does not write hook
+markers, reset permissions, open Settings, or start AOS. GDI must stop with
 `human_needed` instead of retrying live checks or running permission setup
-commands. After the human returns with `finished`, GDI runs
-`./aos ready --post-permission`. The human should keep using the same GDI
-session rather than starting a new goal.
+commands. After the human returns with `finished`, GDI returns the blocker to
+Foreman for the next controlled step.
 
 ### Existing Code To Inspect
 

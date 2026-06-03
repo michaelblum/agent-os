@@ -271,39 +271,33 @@ assert "buildArgs.push('--no-restart')" in source
 assert "build_wrapper: 'build.sh'" in source
 assert "build_source: 'repo-root/build.sh'" in source
 assert "next: null" in source
-assert "post_build_checkpoint: binaryRebuilt ? checkpointContract() : null" in source
+assert "post_build_checkpoint" not in source
+assert "checkpointContract" not in source
+assert "permissions reset-runtime --mode repo" not in source
+assert "ready --post-permission" not in source
 assert "permission_note" not in source
 assert "Next: ./aos ready" not in source
 PY
 then
-    pass "dev build reports its wrapper source and avoids readiness ritual"
+    pass "dev build reports wrapper source without post-build ritual"
 else
     fail "dev build wrapper telemetry or readiness boundary regressed"
 fi
 
-# --- 20. dev build-checkpoint owns post-build pause/recovery contract ---
-OUT=$(./aos dev build-checkpoint --json 2>/dev/null)
-if OUT="$OUT" python3 - <<'PY'
+# --- 20. dev build-checkpoint remains retired ---
+if python3 - <<'PY'
 import json
-import os
+from pathlib import Path
 
-data = json.loads(os.environ["OUT"])
-assert data["schema"] == "aos.dev_build.post_build_checkpoint.v1", data
-assert data["pause_command"] == "/goal pause", data
-assert data["resume_command"] == "/goal resume", data
-assert data["return_signal"] == "finished", data
-commands = data["commands"]
-assert commands["reset_runtime"] == "./aos permissions reset-runtime --mode repo", commands
-assert commands["post_permission_ready"] == "./aos ready --post-permission", commands
-assert "goal_pause_required: repo-mode AOS permission repair" in data["post_tool_system_message"], data
-assert "rebuilt the repo-mode AOS binary" in data["post_tool_system_message"], data
-assert "dev_build_checkpoint_already_completed" in data["repeated_build_system_message"], data
-assert data["canvas"]["title"] == "AOS permission reset needed", data
+external = Path("manifests/commands/aos-external-commands.json").read_text(encoding="utf-8")
+commands = Path("manifests/commands/aos-commands.json").read_text(encoding="utf-8")
+assert "build-checkpoint" not in external
+assert "build-checkpoint" not in commands
 PY
 then
-    pass "dev build-checkpoint owns post-build pause/recovery contract"
+    pass "dev build-checkpoint is not registered"
 else
-    fail "dev build-checkpoint contract regressed: $OUT"
+    fail "dev build-checkpoint command was re-registered"
 fi
 
 # --- 21. dev afk-session-trigger help exposes guarded trigger flags ---
