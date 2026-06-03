@@ -257,6 +257,12 @@ struct AOSSemanticTargetStateJSON: Codable {
     let expanded: Bool?
     let disabled: Bool?
     let value: String?
+    let values: [Double]?
+    let min: Double?
+    let max: Double?
+    let step: Double?
+    let orientation: String?
+    let thumb_count: Int?
 }
 
 struct AOSSemanticTargetJSON: Codable {
@@ -267,11 +273,14 @@ struct AOSSemanticTargetJSON: Codable {
     let role: String
     let name: String?
     let action: String?
+    let actions: [String]?
     let surface: String?
     let parent_canvas: String?
     let enabled: Bool
     let bounds: BoundsJSON
     let center: CursorJSON
+    let geometry: JSONValue?
+    let metadata: JSONValue?
     let state: AOSSemanticTargetStateJSON?
 }
 

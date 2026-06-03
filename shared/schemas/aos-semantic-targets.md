@@ -16,7 +16,8 @@ canvas already owns:
 - bounds and center from the element's DOM frame in the capture image's local
   coordinate space
 - AOS ownership metadata from `data-aos-ref`, `data-aos-action`,
-  `data-aos-surface`, `data-semantic-target-id`, and `data-aos-parent-canvas`
+  `data-aos-actions`, `data-aos-surface`, `data-semantic-target-id`, and
+  `data-aos-parent-canvas`
 
 The CLI gathers this data through a fixed internal probe. Agents should prefer
 this field for AOS-owned canvases and reserve `show eval` for developer
@@ -35,6 +36,7 @@ diagnostics.
       "role": "button",
       "name": "Wiki Graph",
       "action": "wiki-graph",
+      "actions": ["click"],
       "surface": "sigil-radial-menu",
       "parent_canvas": "avatar-main",
       "enabled": true,
@@ -68,11 +70,27 @@ control role.
 
 `action` is the AOS action id from `data-aos-action`.
 
+`actions` is the canonical primitive action list for the target. It names what
+`aos do` can attempt, such as `click`, `drag`, `set-value`, `focus`, `select`,
+`toggle`, or `open`. `action` remains the app/product command id and must not be
+used as the primitive capability list.
+
 `surface` and `parent_canvas` identify the AOS surface relationship without
 polluting the accessible name.
 
 `bounds` and `center` use the same local image coordinate space as capture/xray
 output for that canvas.
 
+`geometry` is optional control-specific actionable geometry. Toolkit sliders
+may include `control_bounds`, `track_bounds`, and `thumb_bounds` in the same
+local image coordinate space so action code can resolve current points for
+human playback without asking agents to choose pixels.
+
 `state` is present only when the control exposes state such as `current`,
-`pressed`, `selected`, `checked`, `expanded`, `disabled`, or `value`.
+`pressed`, `selected`, `checked`, `expanded`, `disabled`, or `value`. Sliders
+may additionally expose `values`, `min`, `max`, `step`, `orientation`, and
+`thumb_count`. Multi-thumb sliders should advertise `drag` but not single-value
+`set-value` unless a thumb-specific target exists.
+
+`metadata` is optional JSON metadata copied from `data-aos-metadata` for
+debugging and higher-level routing. It is not required for target resolution.

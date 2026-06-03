@@ -476,11 +476,13 @@ not role-whitelist them into an "interactive" vocabulary. For AOS-owned canvas
 captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
 project standard DOM/AX/ARIA facts plus thin AOS ownership metadata such as
-`canvas_id`, `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
-`data-semantic-target-id`. Entries with both `canvas_id` and `ref` also include
+`canvas_id`, `data-aos-ref`, `data-aos-action`, `data-aos-actions`,
+`data-aos-surface`, and `data-semantic-target-id`. Entries with both `canvas_id`
+and `ref` also include
 `do_target`, the exact `canvas:<canvas-id>/<ref>` string accepted by
-`aos do click`. The probe does not use caller-supplied JavaScript; `show eval`
-remains a developer diagnostic bridge, not the agent perception contract.
+target-addressed `aos do` forms. The probe does not use caller-supplied
+JavaScript; `show eval` remains a developer diagnostic bridge, not the agent
+perception contract.
 
 See [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md)
 for the response shape.
@@ -594,12 +596,12 @@ Primary public verbs:
 | --- | --- |
 | `click` | click coordinates, browser refs, or AOS canvas semantic refs |
 | `hover` | move cursor |
-| `drag` | drag between coordinates |
+| `drag` | drag between coordinates or AOS canvas semantic refs |
 | `scroll` | scroll at a point |
 | `type` | type text |
 | `key` | key combo |
 | `press` | semantic AX press |
-| `set-value` | semantic AX set-value |
+| `set-value` | semantic AX or AOS canvas semantic set-value |
 | `focus` | semantic AX focus |
 | `raise` | raise an app/window |
 | `move` | move a window |
@@ -653,6 +655,34 @@ the target dialect, canvas id, ref, local semantic-target center, global click
 point, coordinate space, capture scale factor, and source
 `aos_semantic_targets`. Coordinate fallback remains available for surfaces that
 do not expose a semantic ref or for unsupported segmented canvases.
+
+`set-value` and `drag` also accept current AOS canvas semantic refs:
+
+```bash
+aos do set-value canvas:<canvas-id>/<slider-ref> <value>
+aos do set-value canvas:<canvas-id>/<slider-ref> --value <value>
+aos do drag canvas:<canvas-id>/<drag-handle-ref> --by <dx>,<dy>
+aos do drag canvas:<canvas-id>/<slider-ref> --to-value <value> --playback human
+```
+
+Playback modes are `--playback immediate`, `--playback human`, and
+`--playback auto`. `auto` prefers immediate semantic execution for AOS-owned
+canvas controls. Coordinate actions and `--playback human` continue to require
+the input-tap preflight. Immediate canvas semantic actions resolve the current
+target at action time and do not require agents to choose or pass target
+coordinates.
+
+For V0, single-thumb toolkit sliders support immediate `set-value` and
+`drag --to-value` through the canvas semantic action route. Multi-thumb sliders
+advertise `drag` but not single-value `set-value` unless a future thumb-specific
+target exists. Toolkit panel drag handles support immediate `drag --by` by
+updating the current canvas frame; `--playback human` resolves the current
+target center and uses CGEvent as a visible playback implementation detail.
+
+Target-addressed responses include the action, backend, playback mode,
+`execution.strategy`, `execution.backend`, `execution.fallback_used`, the
+correlation `state_id` when supplied, resolved target details, and post-action
+semantic state when the target can be collected after execution.
 
 ## `aos graph`
 

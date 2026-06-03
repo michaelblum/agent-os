@@ -34,6 +34,8 @@ const DEFAULT_SEMANTIC_TARGET_ATTRIBUTE_ORDER = Object.freeze([
   'data-aos-parent-canvas',
   'role',
   'data-aos-action',
+  'data-aos-actions',
+  'data-aos-metadata',
   'aria-disabled',
   'aria-pressed',
   'aria-current',
@@ -63,6 +65,12 @@ function pickName(target = {}) {
 
 function pickAction(target = {}) {
   return text(target.action ?? target.actionId ?? target.command, '')
+}
+
+function normalizeActions(target = {}) {
+  const source = target.actions ?? target.primitiveActions ?? target.primitive_actions
+  if (Array.isArray(source)) return [...new Set(source.map((item) => text(item)).filter(Boolean))]
+  return text(source).split(/[\s,]+/).filter(Boolean)
 }
 
 function normalizeRole(role = 'button') {
@@ -159,6 +167,7 @@ export function normalizeSemanticTarget(target = {}, options = {}) {
     role,
     name,
     action,
+    actions: normalizeActions(target),
     enabled: target.enabled === undefined ? true : !!target.enabled,
     current: target.current ?? target.active ?? null,
     pressed: target.pressed ?? null,
@@ -196,6 +205,8 @@ export function semanticTargetAttributeEntries(target = {}, options = {}) {
     ['data-semantic-target-id', normalized.id],
     ['data-aos-parent-canvas', options.includeParentCanvas === false ? null : normalized.parentCanvasId],
     ['data-aos-action', normalized.action],
+    ['data-aos-actions', normalized.actions.join(' ')],
+    ['data-aos-metadata', Object.keys(normalized.metadata).length ? JSON.stringify(normalized.metadata) : null],
     ['aria-disabled', normalized.enabled ? null : 'true'],
     ['aria-pressed', normalized.pressed === null ? null : boolAttr(normalized.pressed)],
     ['aria-current', normalized.current === null ? null : normalized.current === true ? 'true' : normalized.current],
@@ -260,9 +271,11 @@ export function applySemanticTargetAttributes(element, target = {}, options = {}
   if ('disabled' in element) element.disabled = nativeTag === 'button' && !normalized.enabled
   setDataset(element, 'aosRef', normalized.aosRef)
   setDataset(element, 'aosAction', normalized.action)
+  setDataset(element, 'aosActions', normalized.actions.join(' '))
   setDataset(element, 'aosSurface', normalized.surface)
   setDataset(element, 'semanticTargetId', normalized.id)
   setDataset(element, 'aosParentCanvas', normalized.parentCanvasId)
+  setDataset(element, 'aosMetadata', Object.keys(normalized.metadata).length ? JSON.stringify(normalized.metadata) : '')
 
   if (normalized.frame && element.style) {
     element.style.position = options.position || 'absolute'

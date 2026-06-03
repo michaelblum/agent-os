@@ -57,6 +57,7 @@ export function mountChrome(container, {
   const header = document.createElement('div')
   header.className = 'aos-header'
   header.dataset.draggable = String(draggable)
+  stampPanelDragTarget(header, title)
 
   const gripEl = document.createElement('span')
   gripEl.className = 'aos-panel-grip'
@@ -210,7 +211,10 @@ export function mountChrome(container, {
     maximizeController,
     dragController,
     resizeController,
-    setTitle(text) { titleEl.textContent = text },
+    setTitle(text) {
+      titleEl.textContent = text
+      stampPanelDragTarget(header, text)
+    },
     setControls(html) { customControlsEl.innerHTML = html },
   }
 }
@@ -864,7 +868,24 @@ export function syncMaximizeButton(button, state = {}) {
 }
 
 function currentCanvasId() {
+  if (typeof window === 'undefined') return null
   return window.__aosCanvasId || window.__aosSurfaceCanvasId || null
+}
+
+function panelDragTargetRef(title = 'AOS') {
+  const surface = currentCanvasId() || 'aos-panel'
+  return `${surface}:drag-handle`
+}
+
+function stampPanelDragTarget(header, title = 'AOS') {
+  if (!header) return
+  header.setAttribute('role', 'button')
+  header.setAttribute('aria-label', `Drag ${title || 'AOS'} panel`)
+  header.dataset.aosRef = panelDragTargetRef(title)
+  header.dataset.aosSurface = currentCanvasId() || 'aos-panel'
+  header.dataset.semanticTargetId = 'drag-handle'
+  header.dataset.aosAction = 'panel_drag'
+  header.dataset.aosActions = 'drag'
 }
 
 function defaultClose() {

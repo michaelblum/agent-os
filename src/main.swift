@@ -66,6 +66,41 @@ private func hasBrowserTarget(_ args: [String]) -> Bool {
     return args.first(where: { !$0.hasPrefix("--") })?.hasPrefix("browser:") == true
 }
 
+private func firstDoPositional(_ args: [String]) -> String? {
+    var skipNext = false
+    let valuedFlags = Set([
+        "--pid", "--role", "--title", "--label", "--identifier", "--index",
+        "--near", "--match", "--depth", "--timeout", "--profile", "--value",
+        "--to", "--dy", "--dx", "--window", "--delay", "--variance",
+        "--dwell", "--steps", "--speed", "--state-id", "--by", "--to-value",
+        "--playback",
+    ])
+    for arg in args {
+        if skipNext {
+            skipNext = false
+            continue
+        }
+        if arg.hasPrefix("--") {
+            if valuedFlags.contains(arg) { skipNext = true }
+            continue
+        }
+        return arg
+    }
+    return nil
+}
+
+private func doPrimitiveRequiresInputTap(_ primitive: String, args: [String]) -> Bool {
+    let playback = getArg(args, "--playback") ?? "auto"
+    let first = firstDoPositional(args)
+    if primitive == "set-value", first?.hasPrefix("canvas:") == true {
+        return playback == "human"
+    }
+    if primitive == "drag", first?.hasPrefix("canvas:") == true {
+        return playback == "human"
+    }
+    return true
+}
+
 private func handleDoPrimitive(args: [String]) {
     guard let sub = args.first else {
         exitError("__do requires a primitive", code: "MISSING_ARG")
@@ -80,7 +115,7 @@ private func handleDoPrimitive(args: [String]) {
         ensureInteractivePreflight(command: "aos do hover", requiresInputTap: true)
         cliHover(args: subArgs)
     case "drag":
-        ensureInteractivePreflight(command: "aos do drag", requiresInputTap: true)
+        ensureInteractivePreflight(command: "aos do drag", requiresInputTap: doPrimitiveRequiresInputTap("drag", args: subArgs))
         cliDrag(args: subArgs)
     case "scroll":
         ensureInteractivePreflight(command: "aos do scroll", requiresInputTap: true)
@@ -95,7 +130,7 @@ private func handleDoPrimitive(args: [String]) {
         ensureInteractivePreflight(command: "aos do press", requiresInputTap: true)
         cliPress(args: subArgs)
     case "set-value":
-        ensureInteractivePreflight(command: "aos do set-value", requiresInputTap: true)
+        ensureInteractivePreflight(command: "aos do set-value", requiresInputTap: doPrimitiveRequiresInputTap("set-value", args: subArgs))
         cliSetValue(args: subArgs)
     case "focus":
         ensureInteractivePreflight(command: "aos do focus", requiresInputTap: true)

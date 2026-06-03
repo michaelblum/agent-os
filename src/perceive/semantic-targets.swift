@@ -36,6 +36,17 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
         if (!value || value === 'undefined' || value === 'mixed') return null;
         return value === 'true';
       };
+      const numberAttr = (el, name) => {
+        const value = Number(attr(el, name));
+        return Number.isFinite(value) ? value : null;
+      };
+      const jsonAttr = (el, name, fallback = null) => {
+        const value = attr(el, name);
+        if (!value) return fallback;
+        try { return JSON.parse(value); } catch { return fallback; }
+      };
+      const words = (value) => clean(value).split(/[\\s,]+/).map((item) => clean(item)).filter(Boolean);
+      const unique = (items) => Array.from(new Set(items));
       const nativeRole = (el) => {
         const tag = clean(el.tagName).toLowerCase();
         const type = attr(el, 'type').toLowerCase();
@@ -60,6 +71,23 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
         || id
         || ref
       );
+      const sliderStateFor = (el) => {
+        if ((attr(el, 'role') || nativeRole(el)) !== 'slider') return {};
+        const root = el.matches?.('[data-aos-slider-root]') ? el : el.closest?.('[data-aos-slider-root]');
+        const thumbs = Array.from(root?.querySelectorAll?.('[data-aos-slider-thumb]') || []);
+        const values = jsonAttr(el, 'data-aos-values', null)
+          || jsonAttr(root, 'data-aos-values', null)
+          || thumbs.map((thumb) => numberAttr(thumb, 'aria-valuenow')).filter((value) => value !== null);
+        const firstThumb = thumbs[0] || el;
+        return {
+          values: Array.isArray(values) ? values.map(Number).filter(Number.isFinite) : null,
+          min: numberAttr(el, 'aria-valuemin') ?? numberAttr(root, 'aria-valuemin') ?? numberAttr(firstThumb, 'aria-valuemin'),
+          max: numberAttr(el, 'aria-valuemax') ?? numberAttr(root, 'aria-valuemax') ?? numberAttr(firstThumb, 'aria-valuemax'),
+          step: numberAttr(el, 'data-aos-step') ?? numberAttr(root, 'data-aos-step'),
+          orientation: attr(el, 'aria-orientation') || attr(el, 'data-orientation') || attr(root, 'data-orientation') || null,
+          thumb_count: Number.isFinite(Number(attr(el, 'data-aos-thumb-count'))) ? Number(attr(el, 'data-aos-thumb-count')) : thumbs.length || null,
+        };
+      };
       const stateFor = (el, disabled) => {
         const state = {};
         const current = attr(el, 'aria-current');
@@ -70,8 +98,45 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
         }
         const value = attr(el, 'aria-valuetext') || attr(el, 'aria-valuenow') || (el.value !== undefined ? clean(el.value) : '');
         if (value) state.value = value;
+        const slider = sliderStateFor(el);
+        if (slider.values?.length) state.values = slider.values;
+        for (const key of ['min', 'max', 'step', 'orientation', 'thumb_count']) {
+          if (slider[key] !== null && slider[key] !== undefined) state[key] = slider[key];
+        }
         if (disabled) state.disabled = true;
         return Object.keys(state).length ? state : null;
+      };
+      const actionsFor = (el) => {
+        const role = attr(el, 'role') || nativeRole(el);
+        const explicit = [
+          ...words(attr(el, 'data-aos-actions')),
+          ...words(attr(el, 'data-aos-primitive-actions')),
+        ];
+        if (explicit.length) return unique(explicit);
+        if (role === 'slider') return ['drag', 'set-value'];
+        if (role === 'button' || role === 'link' || role === 'checkbox' || role === 'radio') return ['click'];
+        if (role === 'textbox' || role === 'searchbox' || role === 'combobox') return ['focus', 'set-value'];
+        return [];
+      };
+      const geometryFor = (el, bounds) => {
+        const role = attr(el, 'role') || nativeRole(el);
+        const root = el.matches?.('[data-aos-slider-root]') ? el : el.closest?.('[data-aos-slider-root]');
+        if (role !== 'slider' || !root) return null;
+        const partRect = (part) => {
+          const rect = part?.getBoundingClientRect?.();
+          if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+          return {
+            x: Math.round(rect.left * scale),
+            y: Math.round(rect.top * scale),
+            width: Math.max(1, Math.round(rect.width * scale)),
+            height: Math.max(1, Math.round(rect.height * scale)),
+          };
+        };
+        return {
+          control_bounds: partRect(root.querySelector?.('[data-aos-slider-control]')) || bounds,
+          track_bounds: partRect(root.querySelector?.('[data-aos-slider-track]')),
+          thumb_bounds: Array.from(root.querySelectorAll?.('[data-aos-slider-thumb]') || []).map(partRect).filter(Boolean),
+        };
       };
 
       return JSON.stringify(Array.from(document.querySelectorAll(selector)).map((el) => {
@@ -95,6 +160,7 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
           role: attr(el, 'role') || nativeRole(el),
           name: targetName(el, id, ref) || null,
           action: data(el, 'aosAction') || attr(el, 'data-aos-action') || null,
+          actions: actionsFor(el),
           surface: data(el, 'aosSurface') || attr(el, 'data-aos-surface') || null,
           parent_canvas: data(el, 'aosParentCanvas') || attr(el, 'data-aos-parent-canvas') || null,
           enabled: !disabled,
@@ -103,6 +169,8 @@ private func semanticTargetProbeJS(canvasID: String, scaleFactor: Double) -> Str
             x: Math.round(bounds.x + bounds.width / 2),
             y: Math.round(bounds.y + bounds.height / 2),
           },
+          geometry: geometryFor(el, bounds),
+          metadata: jsonAttr(el, 'data-aos-metadata', null),
           state: stateFor(el, disabled),
         };
       }).filter(Boolean));

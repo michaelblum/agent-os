@@ -30,6 +30,7 @@ test('createSlider exposes single-thumb value through Zag slider semantics', () 
     step: 0.05,
     unit: 'x',
   });
+  const control = slider.el.querySelector('[data-aos-slider-control]');
   const thumb = slider.el.querySelector('[data-aos-slider-thumb]');
   const output = slider.el.querySelector('[data-aos-slider-output]');
   const changes = [];
@@ -40,12 +41,55 @@ test('createSlider exposes single-thumb value through Zag slider semantics', () 
   assert.equal(thumb.getAttribute('role'), 'slider');
   assert.equal(thumb.getAttribute('aria-valuenow'), '0.45');
   assert.equal(output.textContent, '0.45 x');
+  assert.equal(control.getAttribute('role'), 'slider');
+  assert.equal(control.dataset.aosActions, 'drag set-value');
+  assert.equal(control.dataset.aosValues, '[0.45]');
+  assert.equal(control.dataset.aosMin, '0');
+  assert.equal(control.dataset.aosMax, '1');
+  assert.equal(control.dataset.aosStep, '0.05');
+  assert.equal(control.dataset.aosThumbCount, '1');
 
   slider.setValue(0.75, { emit: true });
 
   assert.equal(slider.getValue(), 0.75);
   assert.deepEqual(changes, [0.75]);
   assert.equal(output.textContent, '0.75 x');
+  assert.equal(control.getAttribute('aria-valuenow'), '0.75');
+  assert.equal(control.dataset.aosValues, '[0.75]');
+});
+
+test('createSlider handles internal AOS semantic set-value events', () => {
+  const document = createPatchedDocument();
+  const slider = createSlider({
+    document,
+    id: 'opacity',
+    surface: 'panel',
+    label: 'Opacity',
+    value: 0.25,
+    min: 0,
+    max: 1,
+    step: 0.05,
+  });
+  const control = slider.el.querySelector('[data-aos-slider-control]');
+  const changes = [];
+  const commits = [];
+
+  slider.on('change', (value) => changes.push(value));
+  slider.on('commit', (value) => commits.push(value));
+
+  const event = new FakeEvent('aos:semantic-action', {
+    bubbles: true,
+    detail: { action: 'set-value', value: 0.8 },
+  });
+  control.dispatchEvent(event);
+
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(slider.getValue(), 0.8);
+  assert.deepEqual(changes, [0.8]);
+  assert.deepEqual(commits, [0.8]);
+  assert.equal(control.dataset.aosRef, 'panel:opacity');
+  assert.equal(control.dataset.semanticTargetId, 'opacity');
+  assert.equal(control.getAttribute('aria-valuenow'), '0.8');
 });
 
 test('createSlider updates value from pointer drag on the control', () => {
@@ -199,6 +243,7 @@ test('createSlider preserves array value shape for two-thumb sliders', () => {
   assert.deepEqual(slider.getValue(), [0.2, 0.8]);
   assert.deepEqual(slider.getValues(), [0.2, 0.8]);
   assert.equal(slider.el.querySelectorAll('[data-aos-slider-thumb]').length, 2);
+  assert.equal(slider.el.querySelector('[data-aos-slider-control]').dataset.aosActions, 'drag');
 
   slider.setValue([0.3, 0.7]);
 
@@ -224,8 +269,16 @@ test('createColorField exposes hex value and falls back for invalid colors', () 
 });
 
 test('slider and color render helpers emit semantic markup', () => {
-  assert.match(renderSliderHtml({ label: 'Scale', value: 2, min: 0, max: 4, step: 0.25 }), /data-aos-slider-root/);
-  assert.match(renderSliderHtml({ label: 'Scale', value: [1, 3] }), /data-index="1"/);
+  const single = renderSliderHtml({ id: 'scale', surface: 'panel', label: 'Scale', value: 2, min: 0, max: 4, step: 0.25 });
+  assert.match(single, /data-aos-slider-root/);
+  assert.match(single, /role="slider"/);
+  assert.match(single, /data-aos-ref="panel:scale"/);
+  assert.match(single, /data-aos-actions="drag set-value"/);
+  assert.match(single, /data-aos-values="\[2\]"/);
+  const multi = renderSliderHtml({ label: 'Scale', value: [1, 3] });
+  assert.match(multi, /data-index="1"/);
+  assert.match(multi, /data-aos-actions="drag"/);
+  assert.doesNotMatch(multi, /data-aos-actions="drag set-value"/);
   assert.match(renderColorFieldHtml({ label: 'Face', value: '#abcdef' }), /type="color"/);
   assert.match(renderColorFieldHtml({ label: 'Face', value: 'bad' }), /value="#000000"/);
 });

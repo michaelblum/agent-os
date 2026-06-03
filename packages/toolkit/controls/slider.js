@@ -37,8 +37,46 @@ function rootId(config = {}) {
   return `aos-slider-${nextSliderId}`;
 }
 
+function sliderAosRef(config = {}, id = rootId(config)) {
+  if (config.aosRef) return String(config.aosRef);
+  const surface = String(config.surface || config.surfaceId || '').trim();
+  return surface ? `${surface}:${id}` : id;
+}
+
+function sliderName(config = {}, id = '') {
+  return String(config.ariaLabel || config.label || config.name || id || 'Slider');
+}
+
+function sliderSemanticParts(config = {}, values = [], id = rootId(config)) {
+  const min = finiteNumber(config.min, 0);
+  const max = finiteNumber(config.max, 100);
+  const step = finiteNumber(config.step, 1);
+  const orientation = String(config.orientation || 'horizontal');
+  const parts = [
+    'role="slider"',
+    `aria-label="${escapeHtml(sliderName(config, id))}"`,
+    `aria-valuemin="${escapeHtml(min)}"`,
+    `aria-valuemax="${escapeHtml(max)}"`,
+    `aria-valuenow="${escapeHtml(values[0] ?? min)}"`,
+    `aria-valuetext="${escapeHtml(outputText(values, config.unit))}"`,
+    `aria-orientation="${escapeHtml(orientation)}"`,
+    `data-aos-ref="${escapeHtml(sliderAosRef(config, id))}"`,
+    `data-aos-surface="${escapeHtml(config.surface || config.surfaceId || '')}"`,
+    `data-semantic-target-id="${escapeHtml(config.semanticTargetId || id)}"`,
+    `data-aos-actions="${values.length === 1 ? 'drag set-value' : 'drag'}"`,
+    `data-aos-values="${escapeHtml(JSON.stringify(values))}"`,
+    `data-aos-min="${escapeHtml(min)}"`,
+    `data-aos-max="${escapeHtml(max)}"`,
+    `data-aos-step="${escapeHtml(step)}"`,
+    `data-aos-thumb-count="${escapeHtml(values.length)}"`,
+  ];
+  if (config.disabled) parts.push('aria-disabled="true"');
+  return parts.filter((part) => !part.endsWith('=""'));
+}
+
 export function renderSliderHtml(config = {}) {
   const values = sliderValues(config.value, config.min);
+  const id = rootId(config);
   const rootParts = [
     'class="aos-slider"',
     'data-aos-slider-root',
@@ -60,7 +98,7 @@ export function renderSliderHtml(config = {}) {
   return `
     <div ${rootParts.join(' ')}>
       ${label}
-      <div class="aos-slider-control" data-aos-slider-control>
+      <div class="aos-slider-control" data-aos-slider-control ${sliderSemanticParts(config, values, id).join(' ')}>
         <div class="aos-slider-track" data-aos-slider-track>
           <div class="aos-slider-range" data-aos-slider-range></div>
         </div>
@@ -155,6 +193,29 @@ export function createSlider(config = {}) {
     if (outputEl) outputEl.textContent = outputText(values, config.unit);
   }
 
+  function syncSemanticMetadata() {
+    const min = finiteNumber(config.min, 0);
+    const max = finiteNumber(config.max, 100);
+    const step = finiteNumber(config.step, 1);
+    controlEl.setAttribute('role', 'slider');
+    controlEl.setAttribute('aria-label', sliderName(config, id));
+    controlEl.setAttribute('aria-valuemin', String(min));
+    controlEl.setAttribute('aria-valuemax', String(max));
+    controlEl.setAttribute('aria-valuenow', String(values[0] ?? min));
+    controlEl.setAttribute('aria-valuetext', outputText(values, config.unit));
+    controlEl.setAttribute('aria-orientation', String(config.orientation || 'horizontal'));
+    controlEl.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    controlEl.dataset.aosRef = sliderAosRef(config, id);
+    controlEl.dataset.aosSurface = String(config.surface || config.surfaceId || '');
+    controlEl.dataset.semanticTargetId = String(config.semanticTargetId || id);
+    controlEl.dataset.aosActions = values.length === 1 ? 'drag set-value' : 'drag';
+    controlEl.dataset.aosValues = JSON.stringify(values);
+    controlEl.dataset.aosMin = String(min);
+    controlEl.dataset.aosMax = String(max);
+    controlEl.dataset.aosStep = String(step);
+    controlEl.dataset.aosThumbCount = String(values.length);
+  }
+
   function createThumb(index) {
     const thumb = doc.createElement('div');
     thumb.classList.add('aos-slider-thumb');
@@ -177,6 +238,7 @@ export function createSlider(config = {}) {
 
   function bindAll() {
     pendingBind = false;
+    syncSemanticMetadata();
     adapter.cleanupBindings();
     adapter.bindRoot(el);
     if (labelEl) adapter.bindLabel(labelEl);
@@ -200,7 +262,32 @@ export function createSlider(config = {}) {
 
   syncThumbs();
   updateOutput();
+  syncSemanticMetadata();
   bindAll();
+
+  el.addEventListener('aos:semantic-action', (event) => {
+    const detail = event?.detail || {};
+    const action = detail.action || detail.primitive;
+    if (disabled || values.length !== 1) return;
+    if (action !== 'set-value' && action !== 'drag') return;
+    const nextValue = finiteNumber(detail.value ?? detail.toValue ?? detail.to_value, NaN);
+    if (!Number.isFinite(nextValue)) return;
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    const min = finiteNumber(config.min, 0);
+    const max = finiteNumber(config.max, 100);
+    const clamped = Math.min(Math.max(nextValue, min), max);
+    values = [clamped];
+    syncThumbs();
+    updateOutput();
+    syncSemanticMetadata();
+    suppressAdapterChange = true;
+    adapter.setValue(values);
+    suppressAdapterChange = false;
+    bindAll();
+    emitChange();
+    emitCommit();
+  });
 
   return {
     el,
@@ -223,6 +310,7 @@ export function createSlider(config = {}) {
     setDisabled(nextDisabled = true) {
       disabled = !!nextDisabled;
       adapter.update({ disabled });
+      syncSemanticMetadata();
       bindAll();
     },
     on(type, callback) {

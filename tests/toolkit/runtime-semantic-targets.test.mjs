@@ -75,6 +75,7 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     role: 'button',
     name: 'Wiki Graph',
     action: 'wikiGraph',
+    actions: [],
     enabled: true,
     current: true,
     pressed: null,
@@ -121,6 +122,7 @@ test('semanticTargetAttributeEntries serializes standard semantic target refs', 
     role: 'AXButton',
     name: 'Save',
     action: 'save_markdown',
+    actions: ['click'],
     surface: 'markdown-workbench',
     parentCanvasId: 'avatar-main',
     pressed: false,
@@ -135,7 +137,29 @@ test('semanticTargetAttributeEntries serializes standard semantic target refs', 
     ['data-semantic-target-id', 'save'],
     ['data-aos-parent-canvas', 'avatar-main'],
     ['data-aos-action', 'save_markdown'],
+    ['data-aos-actions', 'click'],
     ['aria-pressed', 'false'],
+  ])
+})
+
+test('semantic target attributes serialize primitive actions and metadata separately from app action', () => {
+  const entries = semanticTargetAttributeEntries({
+    id: 'opacity',
+    role: 'slider',
+    name: 'Opacity',
+    action: 'edit_opacity',
+    actions: ['drag', 'set-value'],
+    surface: 'panel',
+    metadata: { descriptor_id: 'avatar-opacity' },
+    value: 0.5,
+  })
+
+  assert.deepEqual(entries.filter(([name]) => name.startsWith('data-aos')), [
+    ['data-aos-ref', 'panel:opacity'],
+    ['data-aos-surface', 'panel'],
+    ['data-aos-action', 'edit_opacity'],
+    ['data-aos-actions', 'drag set-value'],
+    ['data-aos-metadata', '{"descriptor_id":"avatar-opacity"}'],
   ])
 })
 
@@ -173,6 +197,7 @@ test('createSemanticTargetElement stamps native button semantics and metadata wi
     role: 'AXButton',
     name: 'Context Menu',
     action: 'contextMenu',
+    actions: ['click'],
     frame: { x: 38, y: 38, w: 56, h: 56 },
     surface: 'sigil-radial-menu',
   })
@@ -184,6 +209,7 @@ test('createSemanticTargetElement stamps native button semantics and metadata wi
   assert.equal(element.getAttribute('id'), 'aos-semantic-target-context-menu')
   assert.equal(element.dataset.aosRef, 'sigil-radial-menu:context-menu')
   assert.equal(element.dataset.aosAction, 'contextMenu')
+  assert.equal(element.dataset.aosActions, 'click')
   assert.equal(element.dataset.aosSurface, 'sigil-radial-menu')
   assert.equal(element.dataset.semanticTargetId, 'context-menu')
   assert.equal(element.style.left, '38px')

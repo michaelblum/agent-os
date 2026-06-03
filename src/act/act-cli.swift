@@ -72,13 +72,85 @@ private func positionalArgs(_ args: [String]) -> [String] {
                                "--index", "--near", "--match", "--depth", "--timeout",
                                "--profile", "--value", "--to", "--dy", "--dx", "--window",
                                "--delay", "--variance", "--dwell", "--steps", "--speed",
-                               "--state-id"]
+                               "--state-id", "--by", "--to-value", "--playback"]
             if valuedFlags.contains(arg) { skipNext = true }
             continue
         }
         result.append(arg)
     }
     return result
+}
+
+private func playbackMode(args: [String]) -> String {
+    let mode = getArg(args, "--playback") ?? "auto"
+    switch mode {
+    case "auto", "immediate", "human":
+        return mode
+    default:
+        exitError("unsupported playback mode '\(mode)'", code: "INVALID_PLAYBACK")
+    }
+}
+
+private func printCanvasTargetActionResult(
+    action: String,
+    backend: String = "canvas",
+    strategy: String,
+    target: CanvasRefClickTargetInfo,
+    playback: String,
+    dryRun: Bool,
+    stateID: String?,
+    detail: String? = nil,
+    actionResult: [String: Any]? = nil,
+    postTarget: AOSSemanticTargetJSON? = nil
+) {
+    struct Payload: Encodable {
+        let status: String
+        let action: String
+        let backend: String
+        let playback: String
+        let target: CanvasRefClickTargetInfo
+        let detail: String?
+        let action_result: JSONValue?
+        let post_target: AOSSemanticTargetJSON?
+        let execution: ActionExecutionMetadata
+    }
+    let resultValue = actionResult.flatMap { JSONValue($0) }
+    let payload = Payload(
+        status: dryRun ? "dry_run" : "success",
+        action: action,
+        backend: backend,
+        playback: playback,
+        target: target,
+        detail: detail,
+        action_result: resultValue,
+        post_target: postTarget,
+        execution: ActionExecutionMetadata(
+            strategy: dryRun ? "dry_run_\(strategy)" : strategy,
+            backend: backend,
+            fallback_used: backend == "cgevent",
+            state_id: stateID
+        )
+    )
+    writeJSONLine(payload)
+}
+
+private func sliderValuePoint(target: CanvasRefClickTargetInfo, value: Double) -> CGPoint? {
+    guard
+        let minimum = target.state?.min,
+        let maximum = target.state?.max,
+        maximum > minimum,
+        let canvas = readCanvasInfo(id: target.canvas_id),
+        canvas.at.count == 4
+    else {
+        return nil
+    }
+    let ratio = Swift.min(1.0, Swift.max(0.0, (value - minimum) / (maximum - minimum)))
+    let localX = Double(target.bounds.x) + Double(target.bounds.width) * ratio
+    let localY = Double(target.bounds.y) + Double(target.bounds.height) / 2.0
+    return CGPoint(
+        x: Double(canvas.at[0]) + localX / target.capture_scale_factor,
+        y: Double(canvas.at[1]) + localY / target.capture_scale_factor
+    )
 }
 
 // MARK: - AX Backend CLI Commands
@@ -115,6 +187,12 @@ func cliPress(args: [String]) {
 
 /// `aos do set-value` — set the value of an AX element.
 func cliSetValue(args: [String]) {
+    let positional = positionalArgs(args)
+    if let first = positional.first, first.hasPrefix("canvas:") {
+        cliSetCanvasRefValue(targetString: first, args: args, positional: positional)
+        return
+    }
+
     let dryRun = hasFlag(args, "--dry-run")
     let state = cliSessionState(args: args)
     let t = axTargetingFields(args: args)
@@ -148,6 +226,56 @@ func cliSetValue(args: [String]) {
         exitError(resp.error ?? "set-value failed", code: resp.code ?? "UNKNOWN")
     }
     cliPrintLegacy(action: "set-value", backend: "ax", target: target, dryRun: false)
+}
+
+private func cliSetCanvasRefValue(targetString: String, args: [String], positional: [String]) {
+    let dryRun = hasFlag(args, "--dry-run")
+    let stateID = getArg(args, "--state-id")
+    let playback = playbackMode(args: args)
+    guard playback != "human" else {
+        exitError("set-value canvas targets do not support --playback human", code: "UNSUPPORTED_PLAYBACK")
+    }
+    let value = getArg(args, "--value") ?? positional.dropFirst().first
+    guard let value else {
+        exitError("set-value requires --value or a positional value", code: "MISSING_ARG")
+    }
+    let resolution = resolveCanvasRefTarget(targetString, primitive: "set-value")
+
+    if dryRun {
+        printCanvasTargetActionResult(
+            action: "set-value",
+            strategy: "canvas_semantic_set_value",
+            target: resolution.target,
+            playback: playback == "auto" ? "immediate" : playback,
+            dryRun: true,
+            stateID: stateID,
+            detail: "value=\(value)"
+        )
+        return
+    }
+
+    let result = dispatchCanvasSemanticValueAction(
+        canvasID: resolution.target.canvas_id,
+        ref: resolution.target.ref,
+        value: value,
+        primitive: "set-value"
+    )
+    let postTarget = currentCanvasTargetSnapshot(
+        canvasID: resolution.target.canvas_id,
+        ref: resolution.target.ref,
+        scaleFactor: resolution.target.capture_scale_factor
+    )
+    printCanvasTargetActionResult(
+        action: "set-value",
+        strategy: "canvas_semantic_set_value",
+        target: resolution.target,
+        playback: "immediate",
+        dryRun: false,
+        stateID: stateID,
+        detail: "value=\(value)",
+        actionResult: result,
+        postTarget: postTarget
+    )
 }
 
 /// `aos do focus` — focus an AX element.
@@ -420,6 +548,10 @@ func cliHover(args: [String]) {
 /// `aos do drag` — drag from one point to another.
 func cliDrag(args: [String]) {
     let positional = positionalArgs(args)
+    if let first = positional.first, first.hasPrefix("canvas:") {
+        cliDragCanvasRef(targetString: first, args: args)
+        return
+    }
     let dryRun = hasFlag(args, "--dry-run")
     let stateID = getArg(args, "--state-id")
     let state = cliSessionState(args: args)
@@ -457,6 +589,158 @@ func cliDrag(args: [String]) {
         exitError(resp.error ?? "drag failed", code: resp.code ?? "UNKNOWN")
     }
     cliPrintLegacy(action: "drag", backend: "cgevent", target: target, dryRun: false, stateID: stateID)
+}
+
+private func cliDragCanvasRef(targetString: String, args: [String]) {
+    let dryRun = hasFlag(args, "--dry-run")
+    let stateID = getArg(args, "--state-id")
+    let playback = playbackMode(args: args)
+    let by = getArg(args, "--by").flatMap(parseCoords)
+    let toValue = getArg(args, "--to-value")
+    guard by != nil || toValue != nil else {
+        exitError("drag canvas target requires --by dx,dy or --to-value value", code: "MISSING_ARG")
+    }
+    let resolution = resolveCanvasRefTarget(targetString, primitive: "drag")
+
+    if let toValue {
+        if dryRun {
+            printCanvasTargetActionResult(
+                action: "drag",
+                strategy: playback == "human" ? "cgevent_canvas_ref_drag_to_value" : "canvas_semantic_drag_to_value",
+                backend: playback == "human" ? "cgevent" : "canvas",
+                target: resolution.target,
+                playback: playback == "auto" ? "immediate" : playback,
+                dryRun: true,
+                stateID: stateID,
+                detail: "to-value=\(toValue)"
+            )
+            return
+        }
+        if playback == "human" {
+            guard
+                let value = parseDouble(toValue),
+                let current = resolution.target.state?.values?.first ?? parseDouble(resolution.target.state?.value),
+                let origin = sliderValuePoint(target: resolution.target, value: current),
+                let destination = sliderValuePoint(target: resolution.target, value: value)
+            else {
+                exitError("Unable to resolve slider value geometry for human playback", code: "TARGET_GEOMETRY_UNAVAILABLE")
+            }
+            let state = cliSessionState(args: args)
+            let req = ActionRequest(
+                action: "drag",
+                x: Double(destination.x),
+                y: Double(destination.y),
+                from: CursorPosition(x: Double(origin.x), y: Double(origin.y)),
+                state_id: stateID
+            )
+            let resp = handleDrag(req, state: state)
+            if resp.status == "error" {
+                exitError(resp.error ?? "drag failed", code: resp.code ?? "UNKNOWN")
+            }
+            let postTarget = currentCanvasTargetSnapshot(
+                canvasID: resolution.target.canvas_id,
+                ref: resolution.target.ref,
+                scaleFactor: resolution.target.capture_scale_factor
+            )
+            printCanvasTargetActionResult(
+                action: "drag",
+                backend: "cgevent",
+                strategy: "cgevent_canvas_ref_drag_to_value",
+                target: resolution.target,
+                playback: "human",
+                dryRun: false,
+                stateID: stateID,
+                detail: "to-value=\(toValue)",
+                postTarget: postTarget
+            )
+            return
+        }
+        let result = dispatchCanvasSemanticValueAction(
+            canvasID: resolution.target.canvas_id,
+            ref: resolution.target.ref,
+            value: toValue,
+            primitive: "drag"
+        )
+        let postTarget = currentCanvasTargetSnapshot(
+            canvasID: resolution.target.canvas_id,
+            ref: resolution.target.ref,
+            scaleFactor: resolution.target.capture_scale_factor
+        )
+        printCanvasTargetActionResult(
+            action: "drag",
+            strategy: "canvas_semantic_drag_to_value",
+            target: resolution.target,
+            playback: "immediate",
+            dryRun: false,
+            stateID: stateID,
+            detail: "to-value=\(toValue)",
+            actionResult: result,
+            postTarget: postTarget
+        )
+        return
+    }
+
+    guard let delta = by else {
+        exitError("drag canvas target requires --by dx,dy or --to-value value", code: "MISSING_ARG")
+    }
+    let to = CGPoint(x: resolution.point.x + CGFloat(delta.0), y: resolution.point.y + CGFloat(delta.1))
+    let detail = "by=\(delta.0),\(delta.1)"
+
+    if dryRun {
+        printCanvasTargetActionResult(
+            action: "drag",
+            strategy: playback == "human" ? "cgevent_canvas_ref_drag" : "canvas_semantic_drag_by",
+            target: resolution.target,
+            playback: playback == "auto" ? "immediate" : playback,
+            dryRun: true,
+            stateID: stateID,
+            detail: detail
+        )
+        return
+    }
+
+    if playback == "human" {
+        let state = cliSessionState(args: args)
+        let req = ActionRequest(
+            action: "drag",
+            x: Double(to.x),
+            y: Double(to.y),
+            from: CursorPosition(x: Double(resolution.point.x), y: Double(resolution.point.y)),
+            state_id: stateID
+        )
+        let resp = handleDrag(req, state: state)
+        if resp.status == "error" {
+            exitError(resp.error ?? "drag failed", code: resp.code ?? "UNKNOWN")
+        }
+        printCanvasTargetActionResult(
+            action: "drag",
+            backend: "cgevent",
+            strategy: "cgevent_canvas_ref_drag",
+            target: resolution.target,
+            playback: "human",
+            dryRun: false,
+            stateID: stateID,
+            detail: detail
+        )
+        return
+    }
+
+    updateCanvasFrameForSemanticDrag(canvasID: resolution.target.canvas_id, dx: delta.0, dy: delta.1)
+    let postTarget = currentCanvasTargetSnapshot(
+        canvasID: resolution.target.canvas_id,
+        ref: resolution.target.ref,
+        scaleFactor: resolution.target.capture_scale_factor
+    )
+    printCanvasTargetActionResult(
+        action: "drag",
+        strategy: "canvas_semantic_drag_by",
+        target: resolution.target,
+        playback: "immediate",
+        dryRun: false,
+        stateID: stateID,
+        detail: detail,
+        postTarget: postTarget
+    )
 }
 
 /// `aos do scroll` — scroll at coordinates.

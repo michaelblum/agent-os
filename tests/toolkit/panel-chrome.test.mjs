@@ -8,6 +8,7 @@ import {
   createDragController,
   createMaximizeController,
   createMinimizeController,
+  mountChrome,
   createPanelWindowController,
   createResizeController,
   dragFrameFromPointer,
@@ -77,6 +78,20 @@ test('suspendOnClose requests canvas suspend without removing the panel', async 
 
 class FakeNode {}
 
+class FakeClassList {
+  constructor() {
+    this.items = new Set();
+  }
+
+  add(...names) {
+    for (const name of names) this.items.add(name);
+  }
+
+  contains(name) {
+    return this.items.has(name);
+  }
+}
+
 class FakeElement extends FakeNode {
   constructor() {
     super();
@@ -85,6 +100,7 @@ class FakeElement extends FakeNode {
     this.attributes = new Map();
     this.listeners = new Map();
     this.capturedPointers = new Set();
+    this.classList = new FakeClassList();
     this.className = '';
   }
 
@@ -238,6 +254,35 @@ test('frame helper prefers daemon boot frame before WebKit window coordinates se
   });
 
   assert.deepEqual(frameFromWindow(globalThis.window), [1400, 80, 420, 260]);
+});
+
+test('mountChrome stamps stock header as a semantic drag target', (t) => {
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = new FakeDocument();
+  globalThis.window = { __aosCanvasId: 'panel-contract' };
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  });
+  const container = new FakeElement();
+  const chrome = mountChrome(container, {
+    title: 'Contract',
+    draggable: false,
+    minimize: false,
+    close: false,
+  });
+
+  assert.equal(chrome.headerEl.getAttribute('role'), 'button');
+  assert.equal(chrome.headerEl.getAttribute('aria-label'), 'Drag Contract panel');
+  assert.equal(chrome.headerEl.dataset.aosRef, 'panel-contract:drag-handle');
+  assert.equal(chrome.headerEl.dataset.semanticTargetId, 'drag-handle');
+  assert.equal(chrome.headerEl.dataset.aosActions, 'drag');
+
+  chrome.setTitle('Renamed');
+  assert.equal(chrome.headerEl.getAttribute('aria-label'), 'Drag Renamed panel');
 });
 
 test('chip frame helper avoids menu bar and clamps to available work area', () => {
