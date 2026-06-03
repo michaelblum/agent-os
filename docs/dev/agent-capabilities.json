@@ -51,6 +51,107 @@
       }
     },
     {
+      "id": "dev.github.issue_list",
+      "label": "GitHub Issue List",
+      "summary": "List GitHub issues through ./aos dev gh with bounded read-only inventory filters.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "list"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "filters",
+          "summary": "Optional --state, --limit, --label, --author, --assignee, and --search filters.",
+          "required": false,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "issues_json",
+          "summary": "Issue inventory records from gh issue list.",
+          "required": true,
+          "schema": {
+            "type": "array"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.issue_view",
+      "label": "GitHub Issue View",
+      "summary": "Read one GitHub issue through ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "view"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "issue_number",
+          "summary": "GitHub issue number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "issue_json",
+          "summary": "Issue title, state, body, labels, and comments.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
       "id": "dev.github.issue_comment",
       "label": "GitHub Issue Comment",
       "summary": "Write a GitHub issue comment through a body file using ./aos dev gh.",
@@ -102,6 +203,107 @@
           "required": true,
           "schema": {
             "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.pr_list",
+      "label": "GitHub PR List",
+      "summary": "List GitHub pull requests through ./aos dev gh with bounded read-only inventory filters.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "pr", "list"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "filters",
+          "summary": "Optional --state, --limit, --label, --author, --assignee, --search, --base, --head, and --draft filters.",
+          "required": false,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pull_requests_json",
+          "summary": "Pull request inventory records from gh pr list.",
+          "required": true,
+          "schema": {
+            "type": "array"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.pr_view",
+      "label": "GitHub PR View",
+      "summary": "Read one GitHub pull request through ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "pr", "view"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "pr_number",
+          "summary": "Optional GitHub PR number; omitted value lets gh infer the current branch PR.",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "pull_request_json",
+          "summary": "Pull request title, state, refs, body, comments, and reviews.",
+          "required": true,
+          "schema": {
+            "type": "object"
           }
         }
       ],

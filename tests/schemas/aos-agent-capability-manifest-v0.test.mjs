@@ -133,6 +133,19 @@ test('typed AOS GitHub capabilities stay non-raw and body-file backed for writes
   assert.equal(context.execution.raw_process, false);
   assert.equal(context.mutability.class, 'read_only');
 
+  for (const id of [
+    'dev.github.issue_list',
+    'dev.github.issue_view',
+    'dev.github.pr_list',
+    'dev.github.pr_view',
+  ]) {
+    const capability = capabilities.get(id);
+    assert.equal(capability.adapter.kind, 'aos_cli');
+    assert.equal(capability.execution.raw_process, false);
+    assert.equal(capability.mutability.class, 'read_only');
+    assert.equal(capability.failure_policy.bubble_up, true);
+  }
+
   const comment = capabilities.get('dev.github.issue_comment');
   assert.equal(comment.adapter.kind, 'aos_cli');
   assert.equal(comment.execution.raw_process, false);
@@ -147,7 +160,11 @@ test('canonical manifest includes the initial developer capability set', async (
 
   for (const id of [
     'dev.github.context',
+    'dev.github.issue_list',
+    'dev.github.issue_view',
     'dev.github.issue_comment',
+    'dev.github.pr_list',
+    'dev.github.pr_view',
     'dev.github.ci_inspect',
     'dev.github.review_comments',
     'dev.build.aos',

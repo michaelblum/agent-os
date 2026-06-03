@@ -256,6 +256,8 @@ for full-screen capture.
 ./aos dev docks capabilities foreman --json
 ./aos dev build
 ./aos dev gh context --json
+./aos dev gh issue list --state open --limit 50 --json
+./aos dev gh pr list --state all --limit 30 --json
 ./aos dev gh issue comment 298 --body-file /tmp/comment.md
 ./aos dev gh ci inspect --pr 298 --json
 ./aos dev gh review-comments --pr 298 --json
@@ -288,11 +290,15 @@ turning the profile into a rigid executor.
 `dev gh` is the repo GitHub control surface. It deliberately uses the real
 `gh` executable from `PATH`, the user's existing `gh` authentication, and the
 local git checkout to infer `owner/repo` unless `--repo owner/name` is supplied.
-Direct operations such as `issue view`, `issue comment`, `pr view`, `pr checks`,
-and `pr comment` forward to `gh` and preserve its exit behavior. The composite
-helpers cover repo-specific repeated loops: `ci inspect` reads PR checks and
-fetches failed GitHub Actions logs when the check links to an Actions run, while
-`review-comments` uses `gh api graphql` to read review-thread resolution state.
+Direct operations such as `issue list`, `issue view`, `issue comment`,
+`pr list`, `pr view`, `pr checks`, and `pr comment` forward to `gh` and
+preserve its exit behavior. List operations expose the repo-safe inventory
+filters Foreman and GDI need most often: `--state`, `--limit`, `--label`,
+`--author`, `--assignee`, and `--search`, plus PR-specific `--base`, `--head`,
+and `--draft`. The composite helpers cover repo-specific repeated loops:
+`ci inspect` reads PR checks and fetches failed GitHub Actions logs when the
+check links to an Actions run, while `review-comments` uses `gh api graphql` to
+read review-thread resolution state.
 
 ### Wiki Repo Docs Projection
 
