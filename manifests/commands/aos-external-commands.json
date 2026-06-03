@@ -24,10 +24,16 @@
     },
     {
       "path": ["status"],
-      "summary": "Inspect runtime status through the native status primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__status"],
-      "cwd": "repo"
+      "summary": "Inspect runtime status through external status composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["ready"],

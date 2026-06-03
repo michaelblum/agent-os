@@ -155,7 +155,6 @@ test('external command manifest only routes bootstrap families to Swift', async 
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([
     ['serve', ['__serve']],
-    ['status', ['__status']],
     ['doctor', ['__doctor']],
     ['permissions', ['__permissions']],
   ]);
@@ -207,6 +206,15 @@ test('ready public route is externally composed', async () => {
   assert.equal(ready.env.AOS_PATH, '$AOS_PATH');
 });
 
+test('status public route is externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  const status = manifest.commands.find((command) => command.path.join(' ') === 'status');
+  assert.ok(status, 'status route missing');
+  assert.equal(status.executable, '/usr/bin/env');
+  assert.deepEqual(status.argv_prefix, ['node', 'scripts/aos-status.mjs']);
+  assert.equal(status.env.AOS_PATH, '$AOS_PATH');
+});
+
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);
@@ -231,14 +239,13 @@ test('private Swift primitives are reachable only through expected external wrap
   const manifest = await loadJson(manifestPath);
   const expectedBootstrapRoutes = new Map([
     ['__serve', 'serve'],
-    ['__status', 'status'],
     ['__doctor', 'doctor'],
     ['__permissions', 'permissions'],
   ]);
   const expectedWrapperFiles = new Map([
     ['__daemon', ['scripts/aos-ready.mjs']],
-    ['__runtime', ['scripts/aos-ready.mjs']],
-    ['__permissions', ['scripts/aos-ready.mjs']],
+    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs']],
+    ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
@@ -542,7 +549,7 @@ test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
   const externalPaths = new Set(manifest.commands.map((command) => command.path.join('\0')));
-  const bootstrapFamilies = new Set(['serve', 'status', 'ready', 'doctor', 'permissions']);
+  const bootstrapFamilies = new Set(['serve', 'ready', 'doctor', 'permissions']);
 
   for (const command of registry.commands) {
     for (const form of command.forms) {
