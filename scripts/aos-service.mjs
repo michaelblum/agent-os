@@ -47,6 +47,11 @@ function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
 
+function explicitStateRootOverride() {
+  return Boolean(process.env.AOS_STATE_ROOT)
+    && process.env.AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL !== '1';
+}
+
 function installAppPath() {
   return process.env.AOS_INSTALL_PATH || path.join(os.homedir(), 'Applications/AOS.app');
 }
@@ -133,6 +138,10 @@ function isServiceLoaded(label) {
 }
 
 function servicePID(label) {
+  if (process.env.AOS_TEST_SERVICE_PID) {
+    const pid = Number(process.env.AOS_TEST_SERVICE_PID);
+    if (Number.isInteger(pid) && pid > 0) return pid;
+  }
   const output = run('/bin/launchctl', ['print', `${launchDomain()}/${label}`]);
   if (output.status !== 0) return null;
   for (const rawLine of output.stdout.split(/\r?\n/)) {
@@ -370,6 +379,9 @@ function daemonHealthView(payload) {
       };
   if (!input.status || input.attempts === undefined) return null;
   return {
+    pid: Number.isInteger(payload.pid) ? payload.pid : undefined,
+    mode: typeof payload.mode === 'string' ? payload.mode : undefined,
+    socket_path: typeof payload.socket_path === 'string' ? payload.socket_path : undefined,
     input_tap: {
       status: input.status,
       attempts: Number(input.attempts),
@@ -415,8 +427,46 @@ async function readinessResponse(mode, budgetMs, restartContext = false) {
   const outcome = await verifyOutcome(mode, budgetMs);
   const response = { ...base };
   let exitCode = 0;
+  const requireLaunchdOwner = !explicitStateRootOverride();
+  const daemonView = outcome.view
+    ? {
+        pid: outcome.view.pid,
+        mode: outcome.view.mode,
+        socket_path: outcome.view.socket_path,
+        input_tap: outcome.view.input_tap,
+      }
+    : null;
+  if (daemonView) response.daemon_view = daemonView;
 
-  if (outcome.kind === 'ok') {
+  const servicePid = Number.isInteger(base.pid) ? base.pid : null;
+  const daemonPid = Number.isInteger(outcome.view?.pid) ? outcome.view.pid : null;
+  const ownershipMismatch = requireLaunchdOwner
+    && servicePid != null
+    && daemonPid != null
+    && daemonPid !== servicePid;
+  const serviceNotRunning = requireLaunchdOwner && servicePid == null;
+
+  if (outcome.view && serviceNotRunning) {
+    response.status = 'degraded';
+    response.reason = 'service_not_running';
+    response.input_tap = outcome.view.input_tap;
+    response.recovery = [`./aos service start --mode ${mode}`, './aos clean'];
+    response.notes = [
+      ...(response.notes || []),
+      `Daemon socket answered with pid=${daemonPid ?? 'unknown'}, but launchd service ${serviceLabel(mode)} is not running. Clean the unmanaged daemon before treating service start as successful.`,
+    ];
+    exitCode = 1;
+  } else if (outcome.view && ownershipMismatch) {
+    response.status = 'degraded';
+    response.reason = 'daemon_ownership_mismatch';
+    response.input_tap = outcome.view.input_tap;
+    response.recovery = ['./aos clean', `./aos service restart --mode ${mode}`];
+    response.notes = [
+      ...(response.notes || []),
+      `Daemon socket answered with pid=${daemonPid}, but launchd service ${serviceLabel(mode)} is pid=${servicePid}. Clean the unmanaged socket owner before treating service start as successful.`,
+    ];
+    exitCode = 1;
+  } else if (outcome.kind === 'ok') {
     response.input_tap = outcome.view.input_tap;
   } else if (outcome.kind === 'input_tap_not_active') {
     const tap = outcome.view.input_tap;

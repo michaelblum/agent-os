@@ -74,6 +74,10 @@ assert tap.get("duplicate_tcc_rows_observable") is False, tap
 assert "unavailable" in tap.get("duplicate_tcc_rows_observability", ""), tap
 assert "daemon_unmanaged" in ids, blockers
 assert any(
+    a.get("command", "") == "./aos clean"
+    for a in d.get("next_actions", [])
+), d.get("next_actions", [])
+assert not any(
     a.get("command", "").endswith("service restart --mode repo")
     for a in d.get("next_actions", [])
 ), d.get("next_actions", [])

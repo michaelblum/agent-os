@@ -1385,14 +1385,14 @@ private func readyAutoRepairReason(_ response: ReadyResponse, postPermission: Bo
     if blockerIDs.contains("stale_daemons") {
         return nil
     }
+    if blockerIDs.contains("daemon_unmanaged") {
+        return nil
+    }
     if postPermission && hasRepairableRuntimeBlocker {
         return "post-permission bounded daemon restart/recheck"
     }
     if blockerIDs.contains("daemon_ownership_mismatch") {
         return "automatic after daemon ownership mismatch"
-    }
-    if blockerIDs.contains("daemon_unmanaged") {
-        return "automatic after unmanaged daemon"
     }
     if blockerIDs.contains("input_tap_not_active") {
         return "automatic after input tap inactive"
@@ -1691,7 +1691,6 @@ private func readyBlockers(
 private func isRepairableRuntimeBlockerID(_ id: String) -> Bool {
     return id == "daemon_unreachable" ||
         id == "daemon_ownership_mismatch" ||
-        id == "daemon_unmanaged" ||
         id == "stale_daemons" ||
         id == "input_tap_not_active"
 }
@@ -1713,6 +1712,7 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
 
     let hasPermissionBlocker = blockers.contains(where: { $0.kind == "permission" })
     let hasRepairableRuntimeBlocker = blockers.contains(where: { isRepairableRuntimeBlockerID($0.id) })
+    let hasUnmanagedDaemon = blockers.contains(where: { $0.id == "daemon_unmanaged" })
 
     if hasPermissionBlocker {
         append(ReadyNextAction(
@@ -1732,24 +1732,30 @@ private func readyNextActions(blockers: [ReadyBlocker], setup: PermissionsSetupS
         ))
     }
 
-    if hasRepairableRuntimeBlocker && !hasPermissionBlocker {
-        if blockers.contains(where: { $0.id == "stale_daemons" }) {
+    if (hasRepairableRuntimeBlocker || hasUnmanagedDaemon) && !hasPermissionBlocker {
+        if blockers.contains(where: { $0.id == "stale_daemons" }) || hasUnmanagedDaemon {
             append(ReadyNextAction(
                 type: "command",
-                label: "clean stale daemon processes and stale runtime resources",
+                label: hasUnmanagedDaemon
+                    ? "clean the unmanaged daemon that owns the repo socket"
+                    : "clean stale daemon processes and stale runtime resources",
                 command: "\(prefix) clean"
             ))
         }
-        append(ReadyNextAction(
-            type: "command",
-            label: "run automated repair: restart/recheck, then print human instructions if needed",
-            command: "\(prefix) ready --repair"
-        ))
-        append(ReadyNextAction(
-            type: "command",
-            label: "restart the managed daemon and re-check readiness",
-            command: "\(prefix) service restart --mode \(mode.rawValue)"
-        ))
+        if hasRepairableRuntimeBlocker {
+            append(ReadyNextAction(
+                type: "command",
+                label: "run automated repair: restart/recheck, then print human instructions if needed",
+                command: "\(prefix) ready --repair"
+            ))
+        }
+        if hasRepairableRuntimeBlocker && !hasUnmanagedDaemon {
+            append(ReadyNextAction(
+                type: "command",
+                label: "restart the managed daemon and re-check readiness",
+                command: "\(prefix) service restart --mode \(mode.rawValue)"
+            ))
+        }
     }
 
     if !setup.setup_completed && !hasPermissionBlocker {

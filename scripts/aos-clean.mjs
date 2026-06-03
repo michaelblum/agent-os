@@ -41,6 +41,11 @@ function stateRoot() {
   return path.join(os.homedir(), '.config', 'aos');
 }
 
+function explicitStateRootOverride() {
+  return Boolean(process.env.AOS_STATE_ROOT)
+    && process.env.AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL !== '1';
+}
+
 function runtimeMode() {
   const override = process.env.AOS_RUNTIME_MODE?.toLowerCase();
   if (override === 'installed') return 'installed';
@@ -527,9 +532,15 @@ function runClean(dryRun) {
   const protectedRoots = [
     launchdManagedPID(serviceLabel(mode)),
     launchdManagedPID(serviceLabel(alternateMode)),
-    daemonLockOwnerPID(mode),
-    daemonLockOwnerPID(alternateMode),
   ].filter((pid) => pid != null);
+  if (explicitStateRootOverride()) {
+    protectedRoots.push(
+      ...[
+        daemonLockOwnerPID(mode),
+        daemonLockOwnerPID(alternateMode),
+      ].filter((pid) => pid != null),
+    );
+  }
   const protectedPIDs = addProcessFamily(protectedRoots);
 
   const staleDaemons = [];
