@@ -118,6 +118,27 @@ Foreman is the default git/GitHub steward. GDI and Operator should perform
 GitHub operations only when the assigned goal or transfer explicitly includes
 that work.
 
+## Issues, Work Cards, And Execution State
+
+Use GitHub issues as a coarse workstream ledger, not as the execution system.
+An issue should track a durable lane, parked side mission, unresolved pivot,
+human decision, or cross-session question whose context would otherwise be
+rediscovered poorly. Do not create an issue for every work card.
+
+Keep artifact roles distinct:
+
+- GitHub issues explain durable threads, side missions, parked ideas, and why a
+  lane exists.
+- Work cards define bounded GDI, Operator, correction, or validation rounds.
+- Branches and commits are implementation checkpoints.
+- Session reports and synthesis notes are temporary map-making artifacts unless
+  they become reusable project guidance.
+
+When a thread is larger than one session, has several plausible next slices, is
+parked, or depends on external/human judgment, prefer updating or creating an
+issue over leaving the state only in chat. When the next action is already a
+single machine-checkable round, use a work card instead of a new issue.
+
 ## Cross-Session Transfers
 
 Use precise transfer language so dock roles do not inherit the wrong workflow:

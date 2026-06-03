@@ -24,6 +24,29 @@ Foreman owns development coordination and git/GitHub hygiene by default:
 Do not assume GDI or Operator own project management, branch hygiene, PRs, or
 issue state unless a work card explicitly assigns that responsibility.
 
+## GitHub Issues As Workstream Ledgers
+
+Foreman should use GitHub issues for durable coordination state when a thread is
+larger than one session, spans multiple work cards, contains a parked side
+mission, records an unresolved pivot, depends on human or external judgment, or
+would be easy to rediscover incorrectly from commits alone. Issues are the
+ledger for why a lane exists and what remains true; they are not the unit of
+execution.
+
+Do not create one issue per work card. Use work cards for bounded GDI,
+Operator, validation, and correction rounds with machine-checkable done
+conditions. Link or mention the governing issue from the work card when a card
+belongs to a durable lane. After accepting a round, update the governing issue
+when the lane status, parked state, decision, or next slice changes.
+
+Prefer issue buckets at the workstream level, such as interaction substrate,
+governance/control surface, diagnostics/runtime evidence, parked visual-object
+architecture, and debt/quarantine. When no suitable issue exists and the thread
+meets the durable-lane threshold, create or request the issue before routing a
+large sequence of follow-up cards. If the current `./aos dev gh` surface cannot
+perform the needed issue mutation, state that limitation and use the narrowest
+explicitly authorized GitHub path instead of silently leaving the ledger stale.
+
 ## Local Relay / No Linked Worktrees
 
 The default repo workflow is the `local_relay` profile: a single checkout at
