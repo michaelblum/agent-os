@@ -46,9 +46,7 @@ The target outcome is not a full observability product. It is a V0 ledger that l
 
 - `AGENTS.md`
 - `.docks/foreman/AGENTS.md`
-- `.docks/harness/post-tool-use-runner.sh`
 - `.docks/harness/dock-hook-runner.sh`
-- `.docks/*/hooks/post-tool-use.sh`
 - `.docks/*/hooks/stop.sh`
 - `.docks/dock-defaults.json`
 - `.docks/gdi/dock.json`
@@ -73,7 +71,7 @@ Run:
 git status --short --branch
 git worktree list --porcelain
 ./aos status --json
-./aos dev recommend --json --files .docks/harness/post-tool-use-runner.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
+./aos dev recommend --json --files .docks/harness/dock-hook-runner.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
 ```
 
 If live readiness is not needed for the deterministic slice, do not spend time repairing live runtime state. This card is primarily hook, schema, and command-surface work.
@@ -83,7 +81,10 @@ If live readiness is not needed for the deterministic slice, do not spend time r
 - `./aos dev recommend --json` already owns expected deterministic batteries for changed files.
 - `./aos introspect review --json` records some AOS command usage, but it is narrow and may be empty for dock/provider work.
 - `packages/host/src/session-telemetry.ts` already extracts Codex/Claude context-token snapshots from provider transcript/statusline sources.
-- `.docks/harness/post-tool-use-runner.sh` already receives post-tool-use payloads and recognizes selected command lifecycle events.
+- Per-tool dock hooks are intentionally absent. Do not restore provider
+  `PostToolUse`/`PreToolUse` collection for this ledger; it adds latency to
+  every tool call and conflicts with the current no-automatic-build-hook
+  contract.
 - `.docks/harness/dock-hook-runner.sh` already receives stop payloads and is a bounded hook path.
 - `shared/schemas/aos-work-record-v0.schema.json` is a durable evidence/provenance shape, but it is too heavy for every hook event. Treat it as a later export target, not the V0 hot path.
 
@@ -254,7 +255,10 @@ GDI should inspect first, then choose the narrow layer. Likely areas:
 
 - A small shared recorder module or script under `scripts/` or `.docks/harness/`.
 - A schema under `shared/schemas/` for the compact event/summary shape.
-- Hook calls from `.docks/harness/post-tool-use-runner.sh` and possibly `.docks/harness/dock-hook-runner.sh`.
+- Explicit command-side recording in `scripts/aos-dev-workflow.mjs` or another
+  user-invoked command surface. Avoid provider per-tool hooks.
+- Optional bounded Stop-hook accounting in `.docks/harness/dock-hook-runner.sh`
+  only if it does not inspect large payloads or affect stop latency.
 - A read-only AOS command branch in `scripts/aos-dev-workflow.mjs`, or the nearest canonical command surface if this file delegates elsewhere.
 - Focused tests with fixture hook payloads and fixture ledgers.
 
@@ -263,7 +267,7 @@ GDI should inspect first, then choose the narrow layer. Likely areas:
 Run the deterministic recommendation first and include it in the completion report:
 
 ```bash
-./aos dev recommend --json --files .docks/harness/post-tool-use-runner.sh .docks/harness/dock-hook-runner.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
+./aos dev recommend --json --files .docks/harness/dock-hook-runner.sh scripts/aos-dev-workflow.mjs packages/host/src/session-telemetry.ts
 ```
 
 Expected focused verification should include the new tests plus existing command-surface tests, for example:
@@ -277,8 +281,8 @@ node --test tests/schemas/agent-session-telemetry.test.mjs
 
 Add and run focused tests for:
 
-- valid post-tool-use payload produces a bounded sanitized event;
-- malformed payload does not fail the hook;
+- provider per-tool hooks remain absent from dock configs;
+- deleted per-tool hook wrappers/runners remain absent;
 - unknown/sensitive command stores hash/summary, not raw text;
 - allowlisted deterministic commands are visible enough for compliance matching;
 - collection over-limit behavior is bounded and does not persist raw over-limit content;

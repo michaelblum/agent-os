@@ -36,6 +36,7 @@ def assert_dock_codex_hooks(root):
         _, session_start = flatten_commands(payload, "SessionStart")
         _, stop_hooks = flatten_commands(payload, "Stop")
         _, post_tool = flatten_commands(payload, "PostToolUse")
+        _, pre_tool = flatten_commands(payload, "PreToolUse")
 
         if session_start:
             raise SystemExit(f"FAIL: {role} Codex hooks should not declare SessionStart: {session_start}")
@@ -43,12 +44,10 @@ def assert_dock_codex_hooks(root):
             raise SystemExit(f"FAIL: {role} Codex hooks should not use repo-root Stop final-response hook: {stop_hooks}")
         if not any(f".docks/{role}/hooks/stop.sh" in command for command in stop_hooks):
             raise SystemExit(f"FAIL: {role} Codex hooks missing role-local Stop hook: {stop_hooks}")
-        if not any(f".docks/{role}/hooks/post-tool-use.sh" in command for command in post_tool):
-            raise SystemExit(f"FAIL: {role} Codex hooks missing role-local PostToolUse hook: {post_tool}")
-        if role == "gdi":
-            _, pre_tool = flatten_commands(payload, "PreToolUse")
-            if not any(".docks/gdi/hooks/pre-tool-use.sh" in command for command in pre_tool):
-                raise SystemExit(f"FAIL: GDI Codex hooks missing role-local PreToolUse hook: {pre_tool}")
+        if post_tool:
+            raise SystemExit(f"FAIL: {role} Codex hooks should not declare PostToolUse: {post_tool}")
+        if pre_tool:
+            raise SystemExit(f"FAIL: {role} Codex hooks should not declare PreToolUse: {pre_tool}")
 
 assert_dock_codex_hooks(sys.argv[1])
 assert_claude_hooks(sys.argv[2])

@@ -1,17 +1,5 @@
 {
   "hooks": {
-    "PostToolUse": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /Users/Michael/Code/agent-os/.docks/operator/hooks/post-tool-use.sh",
-            "statusMessage": "Checking post-build readiness pause guard",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [

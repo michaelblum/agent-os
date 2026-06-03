@@ -16,16 +16,12 @@ if shared.exists():
     raise SystemExit(f"FAIL: shared dock hook directory must stay deleted: {shared}")
 
 runner = root / ".docks" / "harness" / "dock-hook-runner.sh"
-pre_tool_runner = root / ".docks" / "harness" / "pre-tool-use-runner.sh"
-post_tool_runner = root / ".docks" / "harness" / "post-tool-use-runner.sh"
 provider_input_control = root / ".docks" / "harness" / "provider-input-control.sh"
 pty_input_control = root / ".docks" / "harness" / "pty-input-control.sh"
 defaults_path = root / ".docks" / "dock-defaults.json"
 
 for label, path in (
     ("shared dock hook runner", runner),
-    ("shared pre-tool-use runner", pre_tool_runner),
-    ("shared post-tool-use runner", post_tool_runner),
     ("shared provider input control helper", provider_input_control),
     ("shared PTY input control helper", pty_input_control),
 ):
@@ -39,9 +35,19 @@ for retired in (
     root / ".docks" / "harness" / "human-needed-surface.sh",
     root / ".docks" / "harness" / "dev-build-checkpoint.sh",
     root / ".docks" / "harness" / "dev-build-checkpoint-contract.sh",
+    root / ".docks" / "harness" / "pre-tool-use-runner.sh",
+    root / ".docks" / "harness" / "post-tool-use-runner.sh",
 ):
     if retired.exists():
         raise SystemExit(f"FAIL: retired hook helper still exists: {retired}")
+
+for role in ("gdi", "foreman", "operator"):
+    for retired in (
+        root / ".docks" / role / "hooks" / "pre-tool-use.sh",
+        root / ".docks" / role / "hooks" / "post-tool-use.sh",
+    ):
+        if retired.exists():
+            raise SystemExit(f"FAIL: retired per-tool hook still exists: {retired}")
 
 defaults = json.loads(defaults_path.read_text())
 if defaults.get("voice") != {
@@ -65,13 +71,7 @@ for required in (
     if required not in runner_text:
         raise SystemExit(f"FAIL: shared dock runner missing {required!r}")
 
-pre_tool_runner_text = pre_tool_runner.read_text()
-post_tool_runner_text = post_tool_runner.read_text()
-for label, text in (
-    ("shared dock runner", runner_text),
-    ("pre-tool-use runner", pre_tool_runner_text),
-    ("post-tool-use runner", post_tool_runner_text),
-):
+for label, text in (("shared dock runner", runner_text),):
     for forbidden in (
         "gdi_binary_change_forbidden",
         "repo_binary_build",
@@ -85,13 +85,6 @@ for label, text in (
     ):
         if forbidden in text:
             raise SystemExit(f"FAIL: {label} still contains hook automation token {forbidden!r}")
-
-for label, text in (
-    ("pre-tool-use runner", pre_tool_runner_text),
-    ("post-tool-use runner", post_tool_runner_text),
-):
-    if 'printf \'{"continue":true}\\n\'' not in text and 'printf \'{"continue":true}' not in text:
-        raise SystemExit(f"FAIL: {label} should be an inert pass-through")
 
 if "Handoff on clipboard!" in runner_text:
     raise SystemExit("FAIL: shared dock runner still uses clipboard-themed stop notice")
@@ -133,20 +126,14 @@ for role in ("gdi", "foreman", "operator"):
         for hook in matcher.get("hooks", [])
     ]
     expected_stop = f".docks/{role}/hooks/stop.sh"
-    expected_post_tool = f".docks/{role}/hooks/post-tool-use.sh"
-    expected_pre_tool = f".docks/{role}/hooks/pre-tool-use.sh"
     hook_names = set(payload.get("hooks", {}).keys())
-    expected_hook_names = {"Stop", "PostToolUse"}
-    if role == "gdi":
-        expected_hook_names.add("PreToolUse")
+    expected_hook_names = {"Stop"}
     if hook_names != expected_hook_names:
         raise SystemExit(f"FAIL: {role} hooks mismatch: got {sorted(hook_names)} expected {sorted(expected_hook_names)}")
     if not any(expected_stop in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks do not use isolated stop script: {commands}")
-    if role == "gdi" and not any(expected_pre_tool in command for command in commands):
-        raise SystemExit(f"FAIL: {role} hooks do not use isolated pre-tool-use script: {commands}")
-    if not any(expected_post_tool in command for command in commands):
-        raise SystemExit(f"FAIL: {role} hooks do not use isolated post-tool-use script: {commands}")
+    if any("pre-tool-use" in command or "post-tool-use" in command for command in commands):
+        raise SystemExit(f"FAIL: {role} must not install per-tool hooks: {commands}")
     if any("session-start.sh" in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks must not require startup hooks: {commands}")
     if any(".docks/hooks/" in command or "AOS_DOCK_ROLE=" in command for command in commands):
@@ -193,20 +180,6 @@ for role in ("gdi", "foreman", "operator"):
         raise SystemExit(f"FAIL: {role} stop.sh should exec the shared harness")
     if ".agents/hooks/session-common.sh" in script or "aos_resolve_session_id" in script:
         raise SystemExit(f"FAIL: {role} stop.sh still duplicates shared harness mechanics")
-
-    post_tool_script_path = root / ".docks" / role / "hooks" / "post-tool-use.sh"
-    if not os.access(post_tool_script_path, os.X_OK):
-        raise SystemExit(f"FAIL: {role} post-tool-use.sh is not executable")
-    if ".docks/harness/post-tool-use-runner.sh" not in post_tool_script_path.read_text():
-        raise SystemExit(f"FAIL: {role} post-tool-use.sh is not a shared harness wrapper")
-    pre_tool_script_path = root / ".docks" / role / "hooks" / "pre-tool-use.sh"
-    if role == "gdi":
-        if not os.access(pre_tool_script_path, os.X_OK):
-            raise SystemExit(f"FAIL: {role} pre-tool-use.sh is not executable")
-        if ".docks/harness/pre-tool-use-runner.sh" not in pre_tool_script_path.read_text():
-            raise SystemExit(f"FAIL: {role} pre-tool-use.sh is not a shared harness wrapper")
-    elif pre_tool_script_path.exists():
-        raise SystemExit(f"FAIL: {role} should not have a pre-tool-use hook")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 foreman_transfer_skill_path = root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md"
@@ -336,61 +309,6 @@ grep -q 'TMUX:paste-buffer -d -b aos-dock-pty-input-' "$tmux_log" || {
   cat "$tmux_log" >&2
   exit 1
 }
-
-for role in gdi foreman operator; do
-  for cmd in './aos dev build' './aos dev build --json' 'bash build.sh --no-restart' 'bash -lc "./aos dev build"'; do
-    payload="$(python3 - "$cmd" <<'PY'
-import json
-import sys
-print(json.dumps({"tool_name": "exec_command", "tool_input": {"cmd": sys.argv[1]}}))
-PY
-)"
-    if [[ "$role" == "gdi" ]]; then
-      pre_out="$(printf '%s' "$payload" | bash ".docks/gdi/hooks/pre-tool-use.sh")"
-      python3 - "$pre_out" <<'PY'
-import json
-import sys
-payload = json.loads(sys.argv[1])
-if payload != {"continue": True}:
-    raise SystemExit(f"FAIL: pre-tool hook should pass through build commands, got {payload}")
-PY
-    fi
-    post_log="$TMPDIR_ROOT/post-$role.log"
-    open_log="$TMPDIR_ROOT/open-$role.log"
-    fake_open="$TMPDIR_ROOT/open-$role"
-    cat >"$fake_open" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
-printf 'OPEN:%s\n' "$*" >>"$AOS_FAKE_OPEN_LOG"
-SH
-    chmod +x "$fake_open"
-    : >"$post_log"
-    : >"$open_log"
-    post_payload="$(python3 - "$cmd" <<'PY'
-import json
-import sys
-print(json.dumps({
-    "tool_name": "exec_command",
-    "tool_input": {"cmd": sys.argv[1]},
-    "tool_response": {"exit_code": 0, "output": "Build succeeded"}
-}))
-PY
-)"
-    post_out="$(printf '%s' "$post_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$post_log" AOS_DOCK_OPEN_BIN="$fake_open" AOS_FAKE_OPEN_LOG="$open_log" bash ".docks/$role/hooks/post-tool-use.sh")"
-    python3 - "$post_out" <<'PY'
-import json
-import sys
-payload = json.loads(sys.argv[1])
-if payload != {"continue": True}:
-    raise SystemExit(f"FAIL: post-tool hook should pass through build commands, got {payload}")
-PY
-    if [[ -s "$post_log" || -s "$open_log" ]]; then
-      echo "FAIL: post-tool hook should not call AOS or open Settings for build command" >&2
-      cat "$post_log" "$open_log" >&2
-      exit 1
-    fi
-  done
-done
 
 helper_aos="$TMPDIR_ROOT/helper-aos"
 cat >"$helper_aos" <<'SH'
