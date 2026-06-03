@@ -64,6 +64,14 @@ The repo-mode `./aos` binary is stable infrastructure at
 manual TCC regrant handoff; GDI work cards should not ask GDI to rebuild or
 depend on branch-local or linked-worktree binaries.
 
+Foreman must enforce the TCC capability broker boundary in
+`docs/adr/0015-aos-tcc-capability-broker-boundary.md`. Reject or reroute
+policy, composition, help, recovery, presentation, or product-behavior changes
+disguised as native work unless the work card gives an explicit
+native-boundary justification for a privileged fact, privileged action,
+privileged stream, daemon/socket substrate change, macOS framework integration,
+or TCC permission class.
+
 ## AOS-First Runtime Control
 
 When coordinating live repo sessions, treat `./aos` as the primary control

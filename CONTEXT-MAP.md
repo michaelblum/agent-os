@@ -24,6 +24,9 @@ source root. This file is a routing map, not a replacement for those sources.
 - Schemas and cross-tool contracts: `shared/schemas/`, especially
   `shared/schemas/CONTRACT-GOVERNANCE.md`.
 - AOS Execution Model V0: `docs/adr/0013-aos-execution-model-v0.md`.
+- AOS TCC capability broker boundary:
+  `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.
+- Command-surface extraction contract: `docs/dev/command-surface.md`.
 - Packaging and activation vocabulary for Capability Packages, Skills,
   Plugins, Work Cards, Docks, and GitHub labels is defined in ADR-0013 and
   `CONTEXT.md`; these concepts are not execution ladder rungs.

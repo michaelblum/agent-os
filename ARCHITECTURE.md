@@ -1,18 +1,49 @@
 # Agent OS — Ecosystem Architecture Blueprint
 
-A macOS automation ecosystem built around a single unified Swift binary (`aos`) with Unix-style subcommand groups. An LLM orchestrator drives the binary by invoking subcommands and piping structured JSON between them. Subcommands are independent at the verb level — perception doesn't know about action, action doesn't know about projection — but they share one daemon, one socket, and one spatial contract.
+A macOS automation ecosystem built around `./aos` as a stable TCC capability
+broker with a privileged IPC surface. An LLM orchestrator drives public command
+behavior through hot-swappable manifests, scripts, packages, and recipes, while
+the broker holds the permissioned process identity and exposes the smallest
+durable set of privileged native facts, actions, and streams. Verb primitives
+remain independent at the capability level - perception doesn't know about
+action, action doesn't know about projection - but they share one daemon, one
+socket, one runtime mode, and one spatial contract.
 
 ## 1. Philosophy & Design Principles
 
 ### Agent Tokens Are For Decisions, Not Plumbing
 
-The agent (LLM) is the brain. The daemon is the nervous system. The agent decides WHAT to do and WHY; the daemon handles HOW — finding elements, tracking the cursor, converting text to speech, showing visual feedback. To serve this, OS-layer capability ships as a single binary (`aos`) with subcommand groups (`see`, `show`, `do`, `say`) over one daemon, one socket, one CGEventTap, and shared state. Separate CLIs per capability wasted agent tokens on inter-tool plumbing and fragmented state across sockets that had to be kept in sync. **The unified binary is the canonical architecture.** Any doc language suggesting per-capability standalone CLIs is drift from an earlier iteration — squash it.
+The agent (LLM) is the brain. The daemon is the nervous system. The agent
+decides WHAT to do and WHY; the broker handles permission-gated native HOW -
+finding elements, tracking the cursor, converting text to speech, showing
+visual feedback, and emitting native state. To serve this, the permissioned
+process identity stays unified in `./aos`: one TCC capability broker, one
+daemon/socket substrate, one CGEventTap, and shared runtime state.
+
+Public command behavior is not the broker's source of truth. Help metadata,
+argument shape, recovery policy, workflow composition, next-action text, and
+product behavior live in external composition layers whenever they can be built
+from stable privileged facts, privileged actions, or privileged streams.
+Separate per-capability broker binaries would fragment TCC identity and socket
+state; putting public policy back into Swift would make the permission identity
+high-churn. Both are architectural drift.
 
 ### Unix-Style Composition
 
-Within the unified binary, each subcommand does one thing. Perception is separate from action. Action is separate from projection. Voice is separate from vision. Agent-facing command forms communicate through structured JSON on stdout (success) and stderr (errors). Discovery and user-facing surfaces, such as `aos help` without `--json`, may intentionally default to text. An orchestrator — any orchestrator — pipes the machine-readable forms together.
+At the stable primitive surface, each native capability does one thing.
+Perception is separate from action. Action is separate from projection. Voice is
+separate from vision. Agent-facing public command forms communicate through
+structured JSON on stdout (success) and stderr (errors), but their command
+behavior, help, and presentation are external unless a native primitive is
+required. Discovery and user-facing surfaces, such as `aos help` without
+`--json`, may intentionally default to text. An orchestrator - any orchestrator
+- pipes the machine-readable forms together.
 
-`aos see`, `aos show`, `aos do`, and `aos say` are independently useful at the verb level: a consumer can use perception without action, action without projection. The binary is the shared runtime; the subcommand is the unit of composition.
+`aos see`, `aos show`, `aos do`, `aos tell`, and `aos listen` are independently
+useful at the verb level: a consumer can use perception without action, action
+without projection, or communication without display. The binary is the shared
+permissioned runtime; the stable primitive and external public command route are
+the units of composition.
 
 ### JSON-First I/O Contract
 
@@ -123,19 +154,32 @@ When exposing capabilities to agents, use APIs they already know from pre-traini
 
 ---
 
-## 2. The OS Layer — the `aos` Binary
+## 2. The OS Layer - the `aos` Broker
 
-A single Swift binary using only Apple frameworks. Zero external dependencies. Manages its own macOS permissions (Screen Recording, Accessibility, Microphone). Treats the computer as a physical object — pixels, mouse events, audio hardware.
+A single Swift broker using only Apple frameworks. Zero external dependencies.
+It manages the permissioned process identity for macOS capabilities such as
+Screen Recording, Accessibility, Input Monitoring, and Microphone. It treats the
+computer as a physical object - pixels, mouse events, audio hardware - and
+exposes policy-free native primitives through the daemon/socket and private
+broker command surface.
 
 | Subsystem | Role | Frameworks | Status |
 |-----------|------|------------|--------|
-| `aos` perception | **Perception** — screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production |
-| `aos` action | **Action** — multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
-| `aos` display | **Projection** — display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML→bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
-| `aos` voice | **Audio** — `aos say` (TTS), daemon-driven announcements, config-driven voice/rate, registry-backed provider-pluggable voice selection. STT (`aos listen` or similar) and persona routing land here as extensions | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT + persona planned |
-| `aos` communication | **Communication** — `aos tell` (outbound: TTS, channels, direct session routing, presence), `aos listen` (inbound: channel/direct-session reads and follow today; STT and aggregated sources later). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Production for daemon-native coordination; STT + broader inbound aggregation planned |
+| `aos` perception | **Perception** - screenshots, AX tree traversal, spatial metadata, focus channels, graph navigation | ScreenCaptureKit, ApplicationServices, CoreGraphics | Production |
+| `aos` action | **Action** - multi-backend actuator: AX semantic actions, CGEvent physical input, AppleScript app verbs, behavioral profiles, focus channels, session mode | ApplicationServices (AX), CoreGraphics (CGEvent), Foundation (NSAppleScript) | Production |
+| `aos` display | **Projection** - display server: persistent WKWebView canvases, `aos serve` daemon, content HTTP server, render mode (HTML to bitmap) | WebKit (WKWebView), AppKit (NSWindow) | Production |
+| `aos` voice | **Audio** - `aos say` (TTS), daemon-driven announcements, config-driven voice/rate, registry-backed provider-pluggable voice selection. STT (`aos listen` or similar) and persona routing land here as extensions | AVFoundation / NSSpeechSynthesizer | Production (TTS); STT + persona planned |
+| `aos` communication | **Communication** - `aos tell` (outbound: TTS, channels, direct session routing, presence), `aos listen` (inbound: channel/direct-session reads and follow today; STT and aggregated sources later). Daemon routes by audience/source. | Foundation (daemon socket), AVFoundation (TTS/STT) | Production for daemon-native coordination; STT + broader inbound aggregation planned |
 
-All capability ships inside the unified `aos` binary (`src/perceive/`, `src/display/`, `src/act/`, `src/voice/`). No per-capability standalone CLI escape hatches — new audio/perception/action functionality lands as subcommands on the existing subsystems.
+Privileged native capability ships through the unified `aos` broker
+(`src/perceive/`, `src/display/`, `src/act/`, `src/voice/`, `src/daemon/`).
+No per-capability standalone broker binaries or socket islands: new privileged
+audio, perception, action, display, communication, or lifecycle functionality
+lands as stable broker primitives on the existing substrate. Public command
+behavior and composition stay outside Swift unless they are true
+bootstrap/native primitive surfaces. See
+`docs/adr/0015-aos-tcc-capability-broker-boundary.md` and
+`docs/dev/command-surface.md`.
 
 ### Verb Taxonomy: Unified Communication
 
@@ -205,10 +249,10 @@ stateless at the subcommand level — the daemon and orchestrator hold state.
 
 ### Monorepo Structure
 
-The `aos` unified binary is the canonical primitive. `packages/` holds
-supporting Node.js services, extracted CLI/daemon package work, shared design
-tokens, and the reusable toolkit surface layer. `apps/` holds product
-consumers.
+The `aos` broker is the canonical permissioned native primitive substrate.
+`packages/` holds supporting Node.js services, extracted CLI/daemon package
+work, shared design tokens, and the reusable toolkit surface layer. `apps/`
+holds product consumers.
 
 ```
 agent-os/

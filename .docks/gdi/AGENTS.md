@@ -199,6 +199,13 @@ When a goal appears to require Swift/native changes that would need a fresh
 repo binary, stop and report the binary/native ownership issue to Foreman.
 Foreman owns binary corrections and any manual post-build TCC handoff.
 
+GDI must also enforce the TCC capability broker canon in
+`docs/adr/0015-aos-tcc-capability-broker-boundary.md`. If a goal appears to
+require Swift but could be solved by externalizing public behavior or by adding
+a smaller stable privileged fact, action, or stream, stop and report the
+native-boundary issue to Foreman instead of implementing policy or composition
+inside Swift.
+
 ## Human-Needed TCC Stall
 
 If `./aos ready`, live AOS verification, Accessibility, Input Monitoring, or an
