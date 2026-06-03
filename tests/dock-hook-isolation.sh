@@ -676,15 +676,11 @@ for required in (
     if required not in message:
         raise SystemExit(f"FAIL: dev-build post-tool hook systemMessage missing {required!r}: {message!r}")
 PY
-for _ in $(seq 1 50); do
-  grep -q 'POST_TOOL_AOS:show create --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log" 2>/dev/null && break
-  sleep 0.02
-done
-grep -q 'POST_TOOL_AOS:show create --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log" || {
-  echo "FAIL: successful dev build hook should show the human-needed canvas" >&2
-  cat "$post_tool_log" >&2 2>/dev/null || true
+if grep -q 'POST_TOOL_AOS:show create --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log"; then
+  echo "FAIL: successful dev build hook must not auto-start AOS by creating a human-needed canvas" >&2
+  cat "$post_tool_log" >&2
   exit 1
-}
+fi
 if ! AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" peek "$PWD" gdi >/dev/null; then
   echo "FAIL: successful dev build hook should write durable completed-build checkpoint" >&2
   find "$post_tool_condition_dir" -maxdepth 4 -type f -print -exec cat {} \; >&2 || true
@@ -840,11 +836,11 @@ payload = json.loads(sys.argv[1])
 if payload != {"continue": True}:
     raise SystemExit(f"FAIL: post-permission ready hook should continue quietly, got {payload}")
 PY
-grep -q 'POST_TOOL_AOS:show remove --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log" || {
-  echo "FAIL: post-permission ready hook should clear the human-needed canvas" >&2
+if grep -q 'POST_TOOL_AOS:show remove --id aos-human-needed-gdi-tcc_permission_reset' "$post_tool_log"; then
+  echo "FAIL: post-permission ready hook must not auto-start AOS by clearing a disabled human-needed canvas" >&2
   cat "$post_tool_log" >&2
   exit 1
-}
+fi
 if AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" ".docks/harness/dev-build-checkpoint.sh" peek "$PWD" gdi >/dev/null; then
   echo "FAIL: post-permission ready hook should clear completed-build checkpoint" >&2
   exit 1

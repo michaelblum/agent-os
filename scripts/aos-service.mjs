@@ -204,7 +204,7 @@ function plistXML(paths) {
   const values = {
     Label: paths.label,
     RunAtLoad: true,
-    KeepAlive: true,
+    KeepAlive: false,
     WorkingDirectory: path.dirname(paths.binaryPath),
     StandardOutPath: paths.stdoutLogPath,
     StandardErrorPath: paths.stderrLogPath,

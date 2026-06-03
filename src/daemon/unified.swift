@@ -102,6 +102,7 @@ class UnifiedDaemon {
     )
     private var inputSafetyPassthroughTimer: DispatchSourceTimer?
     private var inputSafetyPassthroughDeadline: Date?
+    private var inputSafetyEmergencyExitScheduled = false
     private var speechEngine: SpeechEngine?
     private var speechCancelTap: CFMachPort?
     private var speechCancelTapSource: CFRunLoopSource?
@@ -235,7 +236,7 @@ class UnifiedDaemon {
             self?.handleInputEvent(event: event, data: data) ?? false
         }
         perception.onInputSafetyHotkeyTriggered = { [weak self] deadline in
-            self?.activateInputSafetyPassthrough(until: deadline)
+            self?.activateInputSafetyEmergencyExit(until: deadline)
         }
 
         // Wire canvas events -> broadcast
@@ -3442,30 +3443,22 @@ class UnifiedDaemon {
         return events.contains("input_event")
     }
 
-    private func activateInputSafetyPassthrough(until deadline: Date) {
+    private func activateInputSafetyEmergencyExit(until deadline: Date) {
+        guard !inputSafetyEmergencyExitScheduled else { return }
+        inputSafetyEmergencyExitScheduled = true
         inputSafetyPassthroughDeadline = deadline
-        canvasManager.setInputPassthrough(true)
-        inputSafetyVisualFeedbackPresenter.trigger(deadline: deadline)
-        scheduleInputSafetyPassthroughRestore(for: deadline)
-    }
-
-    private func scheduleInputSafetyPassthroughRestore(for deadline: Date) {
         inputSafetyPassthroughTimer?.cancel()
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + max(0, deadline.timeIntervalSinceNow))
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            if let activeDeadline = self.inputSafetyPassthroughDeadline,
-               Date() < activeDeadline {
-                self.scheduleInputSafetyPassthroughRestore(for: activeDeadline)
-                return
-            }
-            self.canvasManager.setInputPassthrough(false)
-            self.inputSafetyPassthroughDeadline = nil
-            self.inputSafetyPassthroughTimer = nil
+        inputSafetyPassthroughTimer = nil
+        canvasManager.setInputPassthrough(true)
+        teardownSpeechCancelTap()
+        perception.stop()
+        fputs("AOS input safety escape hatch triggered; released input ownership and exiting daemon\n", stderr)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) {
+            NSApp.terminate(nil)
         }
-        timer.resume()
-        inputSafetyPassthroughTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+            Darwin.exit(0)
+        }
     }
 
     private func handleInputEvent(event: String, data: [String: Any]) -> Bool {

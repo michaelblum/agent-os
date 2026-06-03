@@ -25,8 +25,8 @@ open_bin="${AOS_DOCK_OPEN_BIN:-open}"
 canvas_id="aos-human-needed-${dock}-${reason}"
 
 if [[ "$command" == "clear" ]]; then
-  if [[ -x "$aos_bin" ]]; then
-    "$aos_bin" show remove --id "$canvas_id" >/dev/null 2>&1 || true
+  if [[ "${AOS_DOCK_ENABLE_HUMAN_NEEDED_CANVAS:-}" == "1" && -x "$aos_bin" ]]; then
+    AOS_DISABLE_DAEMON_AUTOSTART=1 "$aos_bin" show remove --id "$canvas_id" >/dev/null 2>&1 || true
   fi
   printf 'cleared\n'
   exit 0
@@ -41,6 +41,11 @@ fi
 
 if ! [[ -x "$aos_bin" ]]; then
   printf 'aos_unavailable\n'
+  exit 0
+fi
+
+if [[ "${AOS_DOCK_ENABLE_HUMAN_NEEDED_CANVAS:-}" != "1" ]]; then
+  printf 'canvas_disabled\n'
   exit 0
 fi
 
@@ -105,7 +110,7 @@ print(f"""<!doctype html>
 PY
 )"
 
-"$aos_bin" show create \
+AOS_DISABLE_DAEMON_AUTOSTART=1 "$aos_bin" show create \
   --id "$canvas_id" \
   --at "${AOS_DOCK_HUMAN_NEEDED_CANVAS_FRAME:-420,140,680,190}" \
   --window-level floating \
