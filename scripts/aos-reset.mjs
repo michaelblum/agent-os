@@ -6,7 +6,6 @@ import os from 'node:os';
 import path from 'node:path';
 
 const modes = ['repo', 'installed'];
-const legacyLabels = ['com.agent-os.sigil', 'com.agent-os.sigil.repo', 'com.agent-os.sigil.installed'];
 
 function printJSON(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -123,10 +122,6 @@ function reset(mode) {
     const label = serviceLabel(item);
     if (stopLaunchAgent(label)) stoppedServices.push(label);
   }
-  for (const label of legacyLabels) {
-    if (stopLaunchAgent(label)) stoppedServices.push(label);
-  }
-
   for (const item of selectedModes) {
     removeIfExists(stateDir(item), removedPaths);
   }
@@ -149,7 +144,6 @@ function reset(mode) {
   const remainingPaths = [
     installAppPath(),
     ...modes.map((item) => servicePlistPath(serviceLabel(item))),
-    ...legacyLabels.map(servicePlistPath),
   ].filter((item) => fs.existsSync(item)).sort();
 
   if (!fs.existsSync(installAppPath())) notes.push('Installed runtime app is not present.');

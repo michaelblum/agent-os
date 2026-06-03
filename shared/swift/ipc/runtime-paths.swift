@@ -210,14 +210,6 @@ func aosAllServiceLabels() -> [String] {
     AOSRuntimeMode.allCases.map { aosServiceLabel(for: $0) }
 }
 
-/// Retired Sigil launchd service labels. `aos reset` unloads these so stale
-/// agents left over from the avatar-sub retirement don't keep running.
-let aosLegacyServiceLabels = [
-    "com.agent-os.sigil",
-    "com.agent-os.sigil.repo",
-    "com.agent-os.sigil.installed",
-]
-
 func aosInstalledBinaryPath(_ executableName: String) -> String {
     "\(aosInstallAppPath())/Contents/MacOS/\(executableName)"
 }
