@@ -42,7 +42,7 @@ changed:
 bash tests/wiki-seed.sh
 bash tests/content/wiki-list.test.sh
 ./aos runtime status --json
-./aos show create --id demo --url aos://sigil/renderer/index.html
+./aos show create --id demo --url aos://demo/surface/index.html
 ```
 
 Requires macOS 14+ and Accessibility permission.
@@ -253,9 +253,9 @@ auditions the new voice (does not pin).
 The daemon runs a local HTTP file server for serving HTML surfaces to WKWebView canvases. This eliminates the need to bundle multi-file web apps (ES modules, CSS imports) into single HTML files.
 
 ```bash
-aos set content.roots.sigil apps/sigil    # Register a content root
+aos set content.roots.demo path/to/demo   # Register a content root
 aos content status [--json]               # Show server address and roots
-aos content wait --root sigil             # Wait until the daemon is serving that root
+aos content wait --root demo              # Wait until the daemon is serving that root
 aos show wait --id demo --manifest foo    # Wait until a canvas bridge + manifest are live
 ```
 
@@ -263,7 +263,7 @@ Use canonical root names only on `main`. Topic worktrees should use
 branch-scoped sibling roots via `scripts/aos-content-scope.sh` so parallel
 sessions do not make the daemon serve another checkout's content.
 
-Canvases load via URL: `aos://sigil/renderer/index.html` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
+Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 
 ### Wiki (aos wiki)
 

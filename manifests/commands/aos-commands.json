@@ -1051,8 +1051,8 @@
           },
           "examples" : [
             "aos show create --id ball --at 100,100,200,200 --html \"<div>hello<\/div>\"",
-            "aos show create --id avatar --url aos:\/\/sigil\/renderer\/index.html --track union",
-            "aos show create --id overlay --url aos:\/\/sigil\/renderer\/index.html --surface desktop-world",
+            "aos show create --id surface --url aos:\/\/demo\/surface\/index.html --surface desktop-world",
+            "aos show create --id overlay --url aos:\/\/demo\/overlay\/index.html --surface desktop-world",
             "aos show create --id annot --anchor-browser browser:todo\/e21 --html \"<div class='badge'>42<\/div>\""
           ],
           "execution" : {
@@ -1442,7 +1442,7 @@
             }
           ],
           "examples" : [
-            "aos show eval --id avatar --js \"document.title\""
+            "aos show eval --id surface --js \"document.title\""
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1598,7 +1598,7 @@
             }
           ],
           "examples" : [
-            "aos show exists --id avatar"
+            "aos show exists --id surface"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -1630,7 +1630,7 @@
             }
           ],
           "examples" : [
-            "aos show get --id avatar"
+            "aos show get --id surface"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -1662,7 +1662,7 @@
             }
           ],
           "examples" : [
-            "aos show to-front --id avatar"
+            "aos show to-front --id surface"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1702,7 +1702,7 @@
             }
           ],
           "examples" : [
-            "aos show post --id avatar --event '{\"type\":\"update\"}'"
+            "aos show post --id surface --event '{\"type\":\"update\"}'"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
