@@ -185,7 +185,7 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
   }));
   await validate(createSigilAgentSubject({
     path: 'sigil/agents/default.md',
-    type: 'agent',
+    type: 'entity',
     id: 'default',
     name: 'Default',
     tags: ['sigil', 'orchestrator'],

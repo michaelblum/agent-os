@@ -57,7 +57,7 @@ export function wikiSubjectType(page = {}) {
   if (pageType === 'workflow' || path.includes('/plugins/') && basename(path) === 'SKILL.md') {
     return 'wiki.workflow';
   }
-  if (pageType === 'entity' || pageType === 'agent' || path.startsWith('sigil/agents/')) {
+  if (pageType === 'entity') {
     return 'wiki.entity';
   }
   if (pageType === 'concept') return page.plugin ? 'wiki.reference' : 'wiki.concept';

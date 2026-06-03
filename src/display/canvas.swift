@@ -1762,7 +1762,7 @@ class CanvasManager {
                         let cg = canvas.cgFrame
 
                         // No display-snap: let the canvas straddle displays freely,
-                        // same as the avatar animation path. updatePosition's retry
+                        // same as the renderer animation path. updatePosition's retry
                         // logic handles any single-frame OS rejection at boundaries.
                         self.moveCanvas(canvas, to: CGRect(x: newX, y: newY, width: cg.width, height: cg.height), geometry: self.geometryContext(
                             change: change,

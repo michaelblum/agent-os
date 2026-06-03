@@ -284,7 +284,6 @@ private func wikiGraphPageKind(path relativePath: String, type rawType: String?,
 
     if context.isSkill { return "workflow" }
     if context.isReference { return "reference" }
-    if relativePath.hasPrefix("sigil/agents/") || raw == "agent" { return "entity" }
     if wikiGraphPageKinds.contains(raw) { return raw }
     return "page"
 }

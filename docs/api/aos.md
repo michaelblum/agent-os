@@ -924,10 +924,8 @@ Primary public verbs for knowledge-base consumers:
 
 `nodes[].type` is the wiki graph page kind, not a Workbench Subject
 `subject_type` and not arbitrary raw frontmatter. The V0 page-kind vocabulary is
-`page`, `concept`, `entity`, `workflow`, and `reference`. Compatibility
-normalization maps legacy Sigil agent wiki documents such as
-`sigil/agents/default.md` and frontmatter `type: agent` to `entity`; plugin
-pages under `references/` map to `reference`.
+`page`, `concept`, `entity`, `workflow`, and `reference`. Plugin pages under
+`references/` map to `reference`.
 
 ## Auxiliary Consumer Surfaces
 

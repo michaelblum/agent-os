@@ -130,8 +130,6 @@ def page_kind(relative_path, raw_type, plugin):
         return "workflow"
     if context["is_reference"]:
         return "reference"
-    if relative_path.startswith("sigil/agents/") or raw == "agent":
-        return "entity"
     if raw in PAGE_KINDS:
         return raw
     return "page"

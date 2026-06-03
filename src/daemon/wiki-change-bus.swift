@@ -43,7 +43,7 @@ final class WikiChangeBus {
         // Also forward to subscribed canvases via JS eval.
         //
         // Canvas-side dispatch in handleLiveJsMessage() routes by msg.type.
-        // The wiki frontmatter "type" field (e.g. "agent") would collide with
+        // The wiki frontmatter "type" field (e.g. "entity") would collide with
         // that dispatch key if passed through verbatim, so the canvas payload
         // carries the event name in `type` and renames the frontmatter field
         // to `wiki_type`. Socket subscribers keep the original `data` shape.

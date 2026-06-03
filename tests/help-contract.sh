@@ -284,7 +284,24 @@ else
     fail "dev build wrapper telemetry or readiness boundary regressed"
 fi
 
-# --- 20. dev build-checkpoint remains retired ---
+# --- 20. native source keeps product names out of the repo-mode binary path ---
+if python3 - <<'PY'
+from pathlib import Path
+
+wiki_graph = Path("src/commands/wiki-graph.swift").read_text(encoding="utf-8")
+config = Path("src/shared/config.swift").read_text(encoding="utf-8")
+assert "sigil/agents/" not in wiki_graph
+assert ('raw == "' + 'agent"') not in wiki_graph
+assert 'toggle_id: "avatar"' not in config
+assert 'toggle_id: "status-item-canvas"' in config
+PY
+then
+    pass "native source keeps product-specific names out of generic binary paths"
+else
+    fail "native source reintroduced product-specific binary strings"
+fi
+
+# --- 21. dev build-checkpoint remains retired ---
 if python3 - <<'PY'
 import json
 from pathlib import Path
@@ -300,7 +317,7 @@ else
     fail "dev build-checkpoint command was re-registered"
 fi
 
-# --- 21. dev afk-session-trigger help exposes guarded trigger flags ---
+# --- 22. dev afk-session-trigger help exposes guarded trigger flags ---
 OUT=$(./aos help dev afk-session-trigger --json 2>/dev/null)
 if OUT="$OUT" python3 - <<'PY'
 import json

@@ -241,7 +241,7 @@ auditions the new voice (does not pin).
 | content.port | int | 0 | Content server port (0 = OS-assigned) |
 | content.roots.{name} | string | — | Content root: URL prefix → directory path |
 | status_item.enabled | bool | false | Show menu bar icon |
-| status_item.toggle_id | string | "avatar" | Canvas ID to toggle on click |
+| status_item.toggle_id | string | "status-item-canvas" | Canvas ID to toggle on click |
 | status_item.toggle_url | string | — | URL loaded in toggled canvas |
 | status_item.toggle_track | string | — | Optional track target (e.g. "union") |
 | status_item.icon | string | "hexagon" | Icon style |

@@ -1,5 +1,5 @@
 ---
-type: agent
+type: entity
 id: default
 name: Default
 tags: [sigil, orchestrator]

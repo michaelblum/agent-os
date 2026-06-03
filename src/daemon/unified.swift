@@ -155,11 +155,9 @@ class UnifiedDaemon {
     private var displayGeometryBroadcastScheduled = false
     private let displayGeometryCoalesceMs: Int = 100
 
-    // Per-agent last-known position, keyed by agent id (e.g. "default" from
-    // `sigil/agents/default.md`). In-memory only — wiped on daemon restart.
-    // Written by the renderer on every transition to IDLE; read by the
-    // renderer on boot to resume the avatar where the user last left it.
-    // Spec: docs/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md
+    // Caller-published last-known surface positions. In-memory only — wiped on
+    // daemon restart. Written by a renderer on every transition to IDLE; read
+    // by the same renderer on boot to resume where the user last left it.
     var configChangeHandler: ((AosConfig) -> Void)?
     var canvasInspectorAnnotationModeHandler: ((Bool) -> Void)?
     var statusItemStateHandler: ((String, Bool) -> Void)?

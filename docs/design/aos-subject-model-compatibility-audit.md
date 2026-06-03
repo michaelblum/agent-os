@@ -1,21 +1,20 @@
-# AOS Subject Model Compatibility Audit
+# AOS Subject Model Cutover Audit
 
-**Status:** compatibility audit with 2026-05-06 v-next cutover notes
+**Status:** cutover audit with 2026-06 strict-contract notes
 **Date:** 2026-05-06
 
 ## Purpose
 
-The glossary and ADR pass defines the target subject model, but several live
-helpers, tests, and API docs still encode older assumptions. This note records
-the drift before schema work begins so the next pass can migrate deliberately
-instead of turning legacy behavior into a new contract.
+The glossary and ADR pass defines the target subject model. This note records
+old drift and the strict-contract cutover so stale behavior does not become a
+new contract.
 
 ## Findings
 
 ### 1. Wiki helpers minted domain subject types at audit time
 
 At audit time, `packages/toolkit/workbench/wiki-subject.js` mapped
-`sigil/agents/*` paths or wiki pages with `type: agent` to
+product-specific Sigil wiki paths and non-canonical wiki types to
 `subject_type: sigil.agent`. `tests/toolkit/wiki-subject.test.mjs` asserted
 that behavior, and `docs/api/toolkit.md` listed `sigil.agent` under wiki page
 subjects.
@@ -33,13 +32,12 @@ Migration direction:
   `subject_type`;
 - update the tests and `docs/api/toolkit.md` together.
 
-Migration status: the focused helper slice now keeps Sigil agent wiki documents
-as `wiki.entity` Subjects and adds `createSigilAgentSubject()` for the separate
-`sigil.agent` domain Subject. The live schema remains versioned as
-`2026-05-03`, but it accepts top-level `subject_references[]`. Live helpers now
-write top-level `subject_references[]` only; the remaining
-`metadata.subject_references[]` support is isolated in the legacy reader adapter
-for archived descriptors.
+Cutover status: active wiki documents use canonical wiki page kinds only.
+`createWikiPageSubject()` does not infer Sigil domain subjects from paths or
+non-canonical wiki types. Sigil source documents are `wiki.entity` Subjects, and
+`createSigilAgentSubject()` creates the separate `sigil.agent` domain Subject
+explicitly. The live schema remains versioned as `2026-05-03`, but it accepts
+top-level `subject_references[]`; live helpers write that field directly.
 
 ### 2. `capabilities[]` mixes high-level capabilities and operation contracts
 

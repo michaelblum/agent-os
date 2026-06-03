@@ -24,7 +24,7 @@ trap cleanup EXIT
 # Seed two agent docs via PUT
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
   --data-binary "---
-type: agent
+type: entity
 id: ${TEST_ID}-alpha
 name: ${TEST_ID} Alpha
 tags: [sigil]
@@ -37,7 +37,7 @@ tags: [sigil]
   "http://127.0.0.1:$PORT/wiki/$ALPHA_PATH" > /dev/null
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
   --data-binary "---
-type: agent
+type: entity
 id: ${TEST_ID}-beta
 name: ${TEST_ID} Beta
 tags: [sigil]

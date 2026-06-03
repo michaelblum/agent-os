@@ -20,14 +20,14 @@ assert "raw" in graph and graph["raw"] == {}, graph
 PY
 
 mkdir -p "$ROOT/repo/wiki/aos/entities"
-cat > "$ROOT/repo/wiki/aos/entities/agent-frontmatter-compat.md" <<'EOF'
+cat > "$ROOT/repo/wiki/aos/entities/entity-frontmatter-canonical.md" <<'EOF'
 ---
-type: agent
-name: Taxonomy Alignment Test Agent
-tags: [taxonomy, compatibility]
+type: entity
+name: Taxonomy Alignment Test Entity
+tags: [taxonomy]
 ---
 
-# Taxonomy Alignment Test Agent
+# Taxonomy Alignment Test Entity
 EOF
 
 ./aos wiki reindex --json >/dev/null
@@ -37,9 +37,8 @@ import json
 import os
 
 graph = json.loads(os.environ["OUT"])
-node = next((item for item in graph["nodes"] if item["path"] == "aos/entities/agent-frontmatter-compat.md"), None)
+node = next((item for item in graph["nodes"] if item["path"] == "aos/entities/entity-frontmatter-canonical.md"), None)
 assert node and node["type"] == "entity", graph
-assert all(item["type"] != "agent" for item in graph["nodes"]), graph
 PY
 
 OUT="$(./aos wiki graph --raw --json)"
