@@ -95,6 +95,8 @@ for required in (
     "dev-build-checkpoint.sh",
     "dev-build-checkpoint-contract.sh",
     "repeated_build_system_message",
+    "gdi_binary_change_forbidden",
+    "repo_binary_build",
 ):
     if required not in pre_tool_runner_text:
         raise SystemExit(f"FAIL: pre-tool-use runner missing {required!r}")
@@ -582,6 +584,35 @@ if payloads != expected:
 PY
 : >"$tmux_log"
 
+for blocked_cmd in './aos dev build' './aos dev build --json' 'bash build.sh --no-restart' 'scripts/aos-after-build -- ./aos ready --json' 'bash -lc "./aos dev build"'; do
+  blocked_payload="$(python3 - "$blocked_cmd" <<'PY'
+import json
+import sys
+print(json.dumps({"tool_name": "exec_command", "tool_input": {"cmd": sys.argv[1]}}))
+PY
+)"
+  blocked_pre_out="$(printf '%s' "$blocked_payload" | AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/pre-tool-use.sh")"
+  python3 - "$blocked_cmd" "$blocked_pre_out" <<'PY'
+import json
+import sys
+cmd, raw = sys.argv[1:]
+payload = json.loads(raw)
+if payload.get("continue") is not False:
+    raise SystemExit(f"FAIL: GDI binary build command should be blocked before execution for {cmd!r}, got {payload}")
+message = payload.get("systemMessage", "")
+for required in (
+    "gdi_binary_change_forbidden",
+    "GDI must not rebuild",
+    "Stop and return this to Foreman",
+    "./aos dev build",
+    "build.sh",
+    "scripts/aos-after-build",
+):
+    if required not in message:
+        raise SystemExit(f"FAIL: GDI binary guard message missing {required!r} for {cmd!r}: {message!r}")
+PY
+done
+
 noop_build_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos dev build"},"tool_response":{"exit_code":0,"output":"Up to date: ./aos (dev, 31M)\n"}}'
 : >"$post_tool_log"
 : >"$tmux_log"
@@ -665,16 +696,15 @@ import json
 import sys
 payload = json.loads(sys.argv[1])
 if payload.get("continue") is not False:
-    raise SystemExit(f"FAIL: completed-build checkpoint should block repeated dev build before post-permission ready, got {payload}")
+    raise SystemExit(f"FAIL: GDI binary guard should block repeated dev build before post-permission ready, got {payload}")
 message = payload.get("systemMessage", "")
 for required in (
-    "dev_build_checkpoint_already_completed",
-    "Do not run ./aos dev build again.",
-    "./aos ready --post-permission",
-    "continue with the next planned step after the",
+    "gdi_binary_change_forbidden",
+    "GDI must not rebuild",
+    "Stop and return this to Foreman",
 ):
     if required not in message:
-        raise SystemExit(f"FAIL: completed-build checkpoint pre-tool message missing {required!r}: {message!r}")
+        raise SystemExit(f"FAIL: GDI binary guard message missing {required!r}: {message!r}")
 PY
 ready_pre_payload='{"tool_name":"exec_command","tool_input":{"cmd":"./aos ready --post-permission"}}'
 ready_pre_out="$(printf '%s' "$ready_pre_payload" | AOS_DOCK_STOP_CONDITION_DIR="$post_tool_condition_dir" bash ".docks/gdi/hooks/pre-tool-use.sh")"

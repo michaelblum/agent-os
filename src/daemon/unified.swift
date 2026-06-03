@@ -1368,6 +1368,10 @@ class UnifiedDaemon {
         request.parent = (payload["parent"] as? String) ?? callerID
         request.cascade = payload["cascade"] as? Bool
         request.suspended = payload["suspended"] as? Bool
+        if let geometry = payload["geometry"] as? [String: Any],
+           let converted = JSONValue(geometry)?.objectValue {
+            request.geometry = converted
+        }
         return request
     }
 
@@ -1725,7 +1729,7 @@ class UnifiedDaemon {
             return
         }
 
-        // Build the CanvasRequest. Only `frame`, `interactive`, and `window_level` are accepted for update.
+        // Build the CanvasRequest. `geometry` carries generic audit/placement metadata.
         let requestID = payload["request_id"] as? String
         let parsedFrame = parseCanvasFrame(payload["frame"], required: false)
         if let code = parsedFrame.code {
@@ -1739,10 +1743,10 @@ class UnifiedDaemon {
         let geometry = payload["geometry"] as? [String: Any]
         let convertedGeometry = geometry.flatMap { JSONValue($0)?.objectValue }
 
-        guard at != nil || interactive != nil || windowLevel != nil else {
+        guard at != nil || interactive != nil || windowLevel != nil || convertedGeometry != nil else {
             fputs("[canvas-mut] update dropped caller=\(callerID) target=\(targetID) reason=no-fields\n", stderr)
             dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "NO_FIELDS", message: "canvas.update requires frame, interactive, or window_level")
+                status: "error", code: "NO_FIELDS", message: "canvas.update requires frame, interactive, window_level, or geometry")
             return
         }
 

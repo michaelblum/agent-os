@@ -158,6 +158,17 @@ For all profiles, the git boundary is:
 GDI does not open PRs, merge branches, close issues, or rewrite branch history
 unless the work card explicitly assigns that operation.
 
+## Binary / Native Boundary
+
+GDI must not rebuild, refresh, replace, or otherwise mutate the repo-mode
+`./aos` binary. Do not run `./aos dev build`, `build.sh`,
+`scripts/aos-after-build`, or equivalent shell wrappers. Do not edit the checked
+in `aos` binary.
+
+When a goal appears to require Swift/native changes that would need a fresh
+repo binary, stop and report the binary/native ownership issue to Foreman.
+Foreman owns binary corrections and the post-build permission handoff.
+
 ## Human-Needed TCC Stall
 
 If `./aos ready`, live AOS verification, Accessibility, Input Monitoring, or an

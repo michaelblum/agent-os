@@ -51,20 +51,55 @@ def command_candidates(value):
                     candidates.append(inner)
     return candidates
 
-def normalizes_to_dev_build(command):
+def split_command(command):
     try:
-        parts = shlex.split(command)
+        return shlex.split(command)
     except ValueError:
-        parts = command.split()
-    return len(parts) >= 3 and pathlib.Path(parts[0]).name == "aos" and parts[1:3] == ["dev", "build"]
+        return command.split()
 
-found = any(normalizes_to_dev_build(candidate) for candidate in command_candidates(payload))
-print("dev_build" if found else "ignore")
+def command_contains_repo_binary_build(command, depth=0):
+    if depth > 2:
+        return False
+    parts = split_command(command)
+    if not parts:
+        return False
+    executable = pathlib.Path(parts[0]).name
+    if executable == "aos" and len(parts) >= 3 and parts[1:3] == ["dev", "build"]:
+        return True
+    if executable == "build.sh":
+        return True
+    if executable == "aos-after-build":
+        return True
+    if executable in {"bash", "sh", "zsh"}:
+        if len(parts) >= 2 and pathlib.Path(parts[1]).name == "build.sh":
+            return True
+        for index, part in enumerate(parts):
+            if part in {"-c", "-lc"} and index + 1 < len(parts):
+                return command_contains_repo_binary_build(parts[index + 1], depth + 1)
+    return False
+
+found = any(command_contains_repo_binary_build(candidate) for candidate in command_candidates(payload))
+print("repo_binary_build" if found else "ignore")
 PY
 )"
 
-if [[ "$python_result" != "dev_build" ]]; then
+if [[ "$python_result" != "repo_binary_build" ]]; then
   printf '{"continue":true}\n'
+  exit 0
+fi
+
+if [[ "$dock" == "gdi" ]]; then
+  message='gdi_binary_change_forbidden
+
+GDI must not rebuild, refresh, or mutate the repo-mode ./aos binary. Stop and return this to Foreman as a binary/native ownership issue.
+
+Blocked commands include ./aos dev build, build.sh, and scripts/aos-after-build. Foreman owns this binary correction and any post-build permission handoff.'
+  python3 - "$message" <<'PY'
+import json
+import sys
+
+print(json.dumps({"continue": False, "systemMessage": sys.argv[1]}))
+PY
   exit 0
 fi
 

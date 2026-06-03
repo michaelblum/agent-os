@@ -308,6 +308,7 @@ class Canvas {
     var owner: CanvasOwnerInfo?
     private(set) var sourceURL: String?
     var placement: [String: JSONValue]?
+    var logicalSurfaceKey: String?
     private var inputPassthrough = false
 
     /// Direct create/update into a mixed-DPI straddling rect can still land at
@@ -539,7 +540,8 @@ window.__aosInitialFrame = [\(cgFrame.origin.x), \(cgFrame.origin.y), \(cgFrame.
             lifecycleState: lifecycleState,
             windowNumbers: windowNumbers,
             segments: nil,
-            owner: owner
+            owner: owner,
+            logicalSurfaceKey: logicalSurfaceKey
         )
     }
 }
@@ -675,7 +677,9 @@ class CanvasManager {
             row["native_join_status"] = windowNumbers.isEmpty
                 ? "no_window_numbers"
                 : (windowNumbers.allSatisfy { nativeByWindowNumber[$0] != nil } ? "matched" : "missing_native_window")
-            row["logical_surface_key"] = logicalSurfaceKey(info)
+            if let logicalSurfaceKey = info.logicalSurfaceKey {
+                row["logical_surface_key"] = logicalSurfaceKey
+            }
             return row
         }
 
@@ -840,6 +844,9 @@ class CanvasManager {
         }
         if let owner = info.owner, let ownerDict = owner.dictionary() {
             row["owner"] = ownerDict
+        }
+        if let logicalSurfaceKey = info.logicalSurfaceKey {
+            row["logical_surface_key"] = logicalSurfaceKey
         }
         return row
     }
@@ -1097,23 +1104,11 @@ class CanvasManager {
         return nil
     }
 
-    private func logicalSurfaceKey(_ info: CanvasInfo) -> String {
-        let id = info.id.lowercased()
-        let url = (info.url ?? "").lowercased()
-        let parent = (info.parent ?? "").lowercased()
-        if id.contains("avatar-controls") || url.contains("avatar-panel") {
-            return "sigil.avatar.controls"
-        }
-        if parent == "avatar-main" && (id.contains("radial-menu") || url.contains("radial-menu-surface")) {
-            return "sigil.avatar.controls"
-        }
-        if id.contains("avatar-main") || parent == "avatar-main" {
-            return "sigil.avatar.\(id)"
-        }
-        if let parent = info.parent, !parent.isEmpty {
-            return "\(parent).\(info.id)"
-        }
-        return info.id
+    private func logicalSurfaceKey(from metadata: [String: JSONValue]?) -> String? {
+        guard let value = metadata?["logical_surface_key"] else { return nil }
+        guard case .string(let raw) = value else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func inputTargetWinner(
@@ -1683,6 +1678,9 @@ class CanvasManager {
         }
         canvas.cascadeFromParent = req.cascade ?? true
         canvas.owner = req.owner
+        if let logicalSurfaceKey = logicalSurfaceKey(from: req.geometry) {
+            canvas.logicalSurfaceKey = logicalSurfaceKey
+        }
         // Explicit parent from request (implicit parent set by daemon layer)
         if let explicitParent = req.parent {
             guard let parentCanvas = canvases[explicitParent] else {
@@ -2034,11 +2032,15 @@ class CanvasManager {
             }
         }
 
+        if let placement = req.geometry?["placement"]?.objectValue {
+            canvas.placement = placement
+        }
+        if let logicalSurfaceKey = logicalSurfaceKey(from: req.geometry) {
+            canvas.logicalSurfaceKey = logicalSurfaceKey
+        }
+
         if let at = req.at, at.count == 4 {
             let newFrame = CGRect(x: at[0], y: at[1], width: at[2], height: at[3])
-            if let placement = req.geometry?["placement"]?.objectValue {
-                canvas.placement = placement
-            }
             if moveCanvas(canvas, to: newFrame, geometry: geometryContext(
                 change: req.geometryChange,
                 cause: req.geometryCause,

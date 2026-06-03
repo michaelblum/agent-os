@@ -191,13 +191,16 @@ bash tests/sigil-context-menu-real-input.sh
 bash tests/sigil-avatar-interactions.sh
 ```
 
-If Swift or toolkit placement code changes unexpectedly, also run:
+Swift/native code is now Foreman-owned for this workstream. If this GDI card is
+reused and Swift or repo-binary work appears necessary, stop and report the
+binary/native ownership issue to Foreman instead of rebuilding `./aos`.
+
+Foreman-owned verification after native changes may include:
 
 ```bash
 node --test tests/toolkit/panel-chrome.test.mjs tests/toolkit/panel-drag-transfer.test.mjs
 bash tests/canvas-window-placement.sh
 ./aos dev build
-bash build.sh --no-restart
 ```
 
 Live proof is required unless the TCC/input-tap stop branch above is triggered.

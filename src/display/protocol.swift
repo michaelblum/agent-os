@@ -260,6 +260,7 @@ struct CanvasInfo: Codable {
     var windowNumbers: [Int]?   // native window numbers backing this canvas
     var segments: [DesktopWorldSurfaceSegment]?  // present for DesktopWorldSurface canvases
     var owner: CanvasOwnerInfo? // optional caller/session metadata that created the canvas
+    var logicalSurfaceKey: String? // optional caller-published grouping key for audit diagnostics
 }
 
 // MARK: - Encode/Decode Helpers
