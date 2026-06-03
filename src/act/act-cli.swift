@@ -606,8 +606,8 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
         if dryRun {
             printCanvasTargetActionResult(
                 action: "drag",
-                strategy: playback == "human" ? "cgevent_canvas_ref_drag_to_value" : "canvas_semantic_drag_to_value",
                 backend: playback == "human" ? "cgevent" : "canvas",
+                strategy: playback == "human" ? "cgevent_canvas_ref_drag_to_value" : "canvas_semantic_drag_to_value",
                 target: resolution.target,
                 playback: playback == "auto" ? "immediate" : playback,
                 dryRun: true,
@@ -689,6 +689,7 @@ private func cliDragCanvasRef(targetString: String, args: [String]) {
     if dryRun {
         printCanvasTargetActionResult(
             action: "drag",
+            backend: playback == "human" ? "cgevent" : "canvas",
             strategy: playback == "human" ? "cgevent_canvas_ref_drag" : "canvas_semantic_drag_by",
             target: resolution.target,
             playback: playback == "auto" ? "immediate" : playback,
