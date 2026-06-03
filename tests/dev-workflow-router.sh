@@ -483,6 +483,8 @@ assert data["manifest"] == "docs/dev/agent-capabilities.json", data
 assert "dev.github.issue_list" in ids, ids
 assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
+assert "dev.github.pr_comment" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 assert all("adapter_kind" in item for item in data["capabilities"]), data
@@ -517,6 +519,24 @@ then
     pass "dev capabilities explain returns full capability metadata"
 else
     fail "dev capabilities explain did not return expected capability metadata"
+fi
+
+if OUT="$(./aos dev capabilities explain dev.github.pr_comment --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+capability = data["capability"]
+assert capability["id"] == "dev.github.pr_comment", data
+assert capability["adapter"]["kind"] == "aos_cli", data
+assert capability["mutability"]["class"] == "external_write", data
+assert capability["mutability"]["requires_body_file"] is True, data
+assert capability["execution"]["raw_process"] is False, data
+PY
+then
+    pass "dev capabilities explain returns PR comment metadata"
+else
+    fail "dev capabilities explain did not return expected PR comment metadata"
 fi
 
 if ERR="$(./aos dev capabilities explain no.such.capability --json 2>&1 >/dev/null)"; then
@@ -564,6 +584,8 @@ assert data["active_entry_path"] == "aos_developer", data
 assert "dev.github.issue_list" in ids, ids
 assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
+assert "dev.github.pr_comment" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.build.aos" in ids, ids
 PY
 then
@@ -598,7 +620,9 @@ data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
 assert "dev.github.issue_list" in ids, ids
 assert "dev.github.pr_list" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
+assert "dev.github.pr_comment" not in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 PY
@@ -632,8 +656,10 @@ ids = {item["id"] for item in data["capabilities"]}
 assert "dev.github.context" in ids, ids
 assert "dev.github.issue_list" in ids, ids
 assert "dev.github.pr_list" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.github.ci_inspect" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
+assert "dev.github.pr_comment" not in ids, ids
 assert all(item["mutability_class"] == "read_only" for item in data["capabilities"]), data
 PY
 then

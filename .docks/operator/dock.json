@@ -25,6 +25,7 @@
     "dev.github.issue_view",
     "dev.github.pr_list",
     "dev.github.pr_view",
+    "dev.github.pr_checks",
     "dev.github.ci_inspect",
     "dev.github.review_comments"
   ],

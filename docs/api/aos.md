@@ -252,6 +252,7 @@ for full-screen capture.
 ./aos dev recommend --paths src/main.swift,packages/toolkit/runtime/canvas.js --json
 ./aos dev capabilities list --json
 ./aos dev capabilities explain dev.github.issue_comment --json
+./aos dev capabilities explain dev.github.pr_checks --json
 ./aos dev docks list --json
 ./aos dev docks capabilities foreman --json
 ./aos dev build

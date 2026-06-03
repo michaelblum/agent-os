@@ -6488,7 +6488,8 @@
           "examples" : [
             "aos dev capabilities list --json",
             "aos dev capabilities list --role foreman --entry-path aos_developer --json",
-            "aos dev capabilities explain dev.github.issue_comment --json"
+            "aos dev capabilities explain dev.github.issue_comment --json",
+            "aos dev capabilities explain dev.github.pr_checks --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

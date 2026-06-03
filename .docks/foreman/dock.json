@@ -30,6 +30,8 @@
     "dev.github.issue_comment",
     "dev.github.pr_list",
     "dev.github.pr_view",
+    "dev.github.pr_checks",
+    "dev.github.pr_comment",
     "dev.github.ci_inspect",
     "dev.github.review_comments",
     "dev.build.aos",

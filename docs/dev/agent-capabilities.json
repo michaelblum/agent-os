@@ -313,6 +313,117 @@
       }
     },
     {
+      "id": "dev.github.pr_checks",
+      "label": "GitHub PR Checks",
+      "summary": "Read GitHub pull request check status through ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "pr", "checks"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "pr_number",
+          "summary": "Optional GitHub PR number; omitted value lets gh infer the current branch PR.",
+          "required": false,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "checks_json",
+          "summary": "Pull request check records from gh pr checks.",
+          "required": true,
+          "schema": {
+            "type": "array"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.pr_comment",
+      "label": "GitHub PR Comment",
+      "summary": "Write a GitHub pull request comment through a body file using ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "pr", "comment"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_pr_comment"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "pr_number",
+          "summary": "GitHub PR number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "body_file",
+          "summary": "Markdown file containing the comment body.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "comment_url",
+          "summary": "GitHub URL for the posted comment.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
       "id": "dev.github.ci_inspect",
       "label": "GitHub CI Inspect",
       "summary": "Inspect PR checks and retrieve failed GitHub Actions logs through ./aos dev gh.",
