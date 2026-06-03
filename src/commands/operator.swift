@@ -418,6 +418,129 @@ private struct DaemonHealthState {
     let daemonAccessibility: Bool?
 }
 
+private struct DaemonHealthInputTapFacts: Encodable {
+    let status: String
+    let attempts: Int
+    let listen_access: Bool?
+    let post_access: Bool?
+    let last_error_at: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case status, attempts, listen_access, post_access, last_error_at
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(status, forKey: .status)
+        try c.encode(attempts, forKey: .attempts)
+        try c.encodeIfPresent(listen_access, forKey: .listen_access)
+        try c.encodeIfPresent(post_access, forKey: .post_access)
+        try c.encodeIfPresent(last_error_at, forKey: .last_error_at)
+    }
+}
+
+private struct DaemonHealthPermissionsFacts: Encodable {
+    let accessibility: Bool?
+
+    private enum CodingKeys: String, CodingKey {
+        case accessibility
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(accessibility, forKey: .accessibility)
+    }
+}
+
+private struct DaemonHealthFacts: Encodable {
+    let mode: String
+    let socket_path: String
+    let socket_exists: Bool
+    let reachable: Bool
+    let pid: Int?
+    let uptime_seconds: Double?
+    let input_tap: DaemonHealthInputTapFacts?
+    let permissions: DaemonHealthPermissionsFacts
+
+    private enum CodingKeys: String, CodingKey {
+        case mode, socket_path, socket_exists, reachable, pid
+        case uptime_seconds, input_tap, permissions
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(mode, forKey: .mode)
+        try c.encode(socket_path, forKey: .socket_path)
+        try c.encode(socket_exists, forKey: .socket_exists)
+        try c.encode(reachable, forKey: .reachable)
+        try c.encodeIfPresent(pid, forKey: .pid)
+        try c.encodeIfPresent(uptime_seconds, forKey: .uptime_seconds)
+        try c.encodeIfPresent(input_tap, forKey: .input_tap)
+        try c.encode(permissions, forKey: .permissions)
+    }
+}
+
+private func currentDaemonHealthFacts() -> DaemonHealthFacts {
+    let mode = aosCurrentRuntimeMode()
+    let socketPath = aosSocketPath(for: mode)
+    let socketExists = FileManager.default.fileExists(atPath: socketPath)
+    let socketReachable = socketIsReachable(socketPath)
+    let health = fetchDaemonHealth(socketPath: socketPath)
+
+    let inputTap: DaemonHealthInputTapFacts?
+    if let status = health?.inputTapStatus,
+       let attempts = health?.inputTapAttempts {
+        inputTap = DaemonHealthInputTapFacts(
+            status: status,
+            attempts: attempts,
+            listen_access: health?.inputTapListenAccess,
+            post_access: health?.inputTapPostAccess,
+            last_error_at: health?.inputTapLastErrorAt
+        )
+    } else {
+        inputTap = nil
+    }
+
+    return DaemonHealthFacts(
+        mode: mode.rawValue,
+        socket_path: socketPath,
+        socket_exists: socketExists,
+        reachable: socketReachable,
+        pid: health?.servingPID,
+        uptime_seconds: health?.uptime,
+        input_tap: inputTap,
+        permissions: DaemonHealthPermissionsFacts(accessibility: health?.daemonAccessibility)
+    )
+}
+
+// MARK: - Broker Primitive Commands
+
+func daemonBrokerCommand(args: [String]) {
+    guard args.first == "health" else {
+        exitError("__daemon requires the health primitive.", code: "UNKNOWN_SUBCOMMAND")
+    }
+    let subArgs = Array(args.dropFirst())
+    guard subArgs == ["--json"] else {
+        exitError("__daemon health requires --json.", code: "INVALID_ARG")
+    }
+
+    print(jsonString(currentDaemonHealthFacts()))
+}
+
+func runtimeBrokerCommand(args: [String]) {
+    guard args.first == "status-facts" else {
+        exitError("__runtime requires the status-facts primitive.", code: "UNKNOWN_SUBCOMMAND")
+    }
+    let subArgs = Array(args.dropFirst())
+    guard subArgs == ["--json"] else {
+        exitError("__runtime status-facts requires --json.", code: "INVALID_ARG")
+    }
+
+    let mode = aosCurrentRuntimeMode()
+    let health = fetchDaemonHealth(socketPath: aosSocketPath(for: mode))
+    print(jsonString(currentRuntimeState(preFetchedHealth: health)))
+}
+
 // MARK: - Public Commands
 
 func readyCommand(args: [String]) {

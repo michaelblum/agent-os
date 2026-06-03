@@ -29,6 +29,10 @@ struct AOS {
         switch command {
         case "__serve":
             handleServe(args: Array(args.dropFirst()))
+        case "__daemon":
+            daemonBrokerCommand(args: Array(args.dropFirst()))
+        case "__runtime":
+            runtimeBrokerCommand(args: Array(args.dropFirst()))
         case "__status":
             statusCommand(args: Array(args.dropFirst()))
         case "__ready":
