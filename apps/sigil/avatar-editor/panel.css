@@ -9,6 +9,8 @@ body {
 }
 
 body {
+  --sigil-avatar-panel-title-weight: 850;
+  --sigil-avatar-panel-title-size: 12px;
   --bg-panel: var(--sigil-context-menu-card-bg);
   --bg-panel-header: rgba(5, 12, 18, 0.94);
   --bg-panel-content: transparent;
@@ -22,6 +24,13 @@ body {
   --aos-panel-grip-color: var(--sigil-context-menu-color-accent-strong);
   font-family: var(--sigil-context-menu-font-family);
   background: transparent;
+}
+
+.aos-panel-root .aos-title {
+  color: var(--sigil-context-menu-color-primary);
+  font-size: var(--sigil-avatar-panel-title-size);
+  font-weight: var(--sigil-avatar-panel-title-weight);
+  text-transform: uppercase;
 }
 
 .sigil-avatar-panel-placeholder {

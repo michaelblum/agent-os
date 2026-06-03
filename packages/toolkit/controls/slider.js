@@ -85,6 +85,7 @@ export function createSlider(config = {}) {
   let disabled = !!config.disabled;
   let suppressAdapterChange = false;
   let thumbEls = [];
+  let pendingBind = false;
 
   el.classList.add('aos-slider');
   dataPart(el, 'data-aos-slider-root');
@@ -125,12 +126,13 @@ export function createSlider(config = {}) {
       values = sliderValues(details.value, config.min);
       syncThumbs();
       updateOutput();
-      bindAll();
+      scheduleBindAll();
       if (!suppressAdapterChange) emitChange();
     },
     onValueChangeEnd(details = {}) {
       values = sliderValues(details.value, config.min);
       updateOutput();
+      scheduleBindAll();
       if (!suppressAdapterChange) emitCommit();
     },
   });
@@ -174,6 +176,7 @@ export function createSlider(config = {}) {
   }
 
   function bindAll() {
+    pendingBind = false;
     adapter.cleanupBindings();
     adapter.bindRoot(el);
     if (labelEl) adapter.bindLabel(labelEl);
@@ -183,6 +186,15 @@ export function createSlider(config = {}) {
     if (outputEl) adapter.bindOutput(outputEl);
     thumbEls.forEach((thumb, index) => {
       adapter.bindThumb(thumb, { value: String(index) }, index);
+    });
+  }
+
+  function scheduleBindAll() {
+    if (pendingBind) return;
+    pendingBind = true;
+    const defer = globalThis.queueMicrotask || ((callback) => Promise.resolve().then(callback));
+    defer(() => {
+      if (pendingBind) bindAll();
     });
   }
 

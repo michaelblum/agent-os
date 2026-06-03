@@ -48,6 +48,37 @@ test('createSlider exposes single-thumb value through Zag slider semantics', () 
   assert.equal(output.textContent, '0.75 x');
 });
 
+test('createSlider updates value from pointer drag on the control', () => {
+  const document = createPatchedDocument();
+  const slider = createSlider({
+    document,
+    value: 0,
+    min: 0,
+    max: 1,
+    step: 0.05,
+  });
+  const control = slider.el.querySelector('[data-aos-slider-control]');
+  const changes = [];
+
+  control.getBoundingClientRect = () => ({
+    left: 10,
+    top: 0,
+    right: 210,
+    bottom: 24,
+    width: 200,
+    height: 24,
+  });
+  slider.on('change', (value) => changes.push(value));
+
+  control.dispatchEvent(Object.assign(new FakeEvent('pointerdown', { bubbles: true }), { clientX: 10 }));
+  document.dispatchEvent(Object.assign(new FakeEvent('pointermove'), { clientX: 110 }));
+  document.dispatchEvent(Object.assign(new FakeEvent('pointerup'), { clientX: 160 }));
+
+  assert.equal(slider.getValue(), 0.75);
+  assert.deepEqual(changes, [0, 0.5, 0.75]);
+  assert.equal(slider.el.querySelector('[data-aos-slider-output]').textContent, '0.75');
+});
+
 test('slider descriptor mutation syncs through setValue without replacing the root element', () => {
   const document = createPatchedDocument();
   const slider = createSlider({

@@ -128,17 +128,6 @@ function createElement(doc, tagName, className = '') {
   return element;
 }
 
-function createHeader(doc, viewModel) {
-  const headerEl = createElement(doc, 'header', 'sigil-avatar-control-surface__header');
-  const titleEl = createElement(doc, 'div', 'sigil-avatar-control-surface__title');
-  const metaEl = createElement(doc, 'div', 'sigil-avatar-control-surface__meta');
-
-  titleEl.textContent = 'Avatar';
-  metaEl.textContent = text(viewModel.avatar_id, 'avatar-main');
-  headerEl.append(titleEl, metaEl);
-  return headerEl;
-}
-
 function createProjectionTools({
   doc,
   root,
@@ -315,7 +304,6 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
   tabListEl.setAttribute('data-density', 'compact');
   tabListEl.setAttribute('data-layout', 'equal');
 
-  rootEl.appendChild(createHeader(doc, viewModel));
   rootEl.appendChild(tabRootEl);
   tabRootEl.append(tabListEl, panelStackEl);
 

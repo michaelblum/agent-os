@@ -82,7 +82,7 @@ const GROUP_DEFINITIONS = [
     },
     {
         key: 'primary-polyhedron',
-        label: 'Alpha Primary Polyhedron',
+        label: 'Primary Polyhedron',
         facet: 'primary-shape',
         objectIds: [AVATAR_PRIMARY_OBJECT_ID, AVATAR_PRIMARY_TESSERON_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.transform.patch', 'canvas_object.effects.patch'],

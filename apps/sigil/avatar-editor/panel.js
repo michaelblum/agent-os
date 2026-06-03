@@ -115,7 +115,7 @@ function renderSurface(payload = {}) {
 const content = {
   manifest: {
     name: 'sigil-avatar-controls-panel',
-    title: 'Avatar',
+    title: 'AVATAR',
     accepts: ['sigil.avatar_panel.update', 'lifecycle'],
     emits: ['canvas.send'],
     metadata: {
@@ -143,7 +143,7 @@ const content = {
 }
 
 mountPanel({
-  title: 'Avatar',
+  title: 'AVATAR',
   layout: Single(content),
   placement: { viewportOverflowPolicy: 'allow' },
   draggable: true,
