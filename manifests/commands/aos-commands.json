@@ -6633,6 +6633,78 @@
               "value_type" : "string"
             },
             {
+              "id" : "state",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list state filter: open, closed, merged, or all",
+              "token" : "--state",
+              "value_type" : "string"
+            },
+            {
+              "id" : "limit",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Maximum issue or PR list result count",
+              "token" : "--limit",
+              "value_type" : "int"
+            },
+            {
+              "id" : "label",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list label filter; repeat for multiple labels",
+              "token" : "--label",
+              "value_type" : "string"
+            },
+            {
+              "id" : "author",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list author login filter",
+              "token" : "--author",
+              "value_type" : "string"
+            },
+            {
+              "id" : "assignee",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list assignee login filter",
+              "token" : "--assignee",
+              "value_type" : "string"
+            },
+            {
+              "id" : "search",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list search query",
+              "token" : "--search",
+              "value_type" : "string"
+            },
+            {
+              "id" : "base",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "PR list base branch filter",
+              "token" : "--base",
+              "value_type" : "string"
+            },
+            {
+              "id" : "head",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "PR list head branch filter",
+              "token" : "--head",
+              "value_type" : "string"
+            },
+            {
+              "id" : "draft",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "PR list draft filter",
+              "token" : "--draft",
+              "value_type" : "bool"
+            },
+            {
               "id" : "arg",
               "kind" : "positional",
               "required" : false,
@@ -6643,8 +6715,10 @@
           ],
           "examples" : [
             "aos dev gh context --json",
+            "aos dev gh issue list --state open --limit 50 --json",
             "aos dev gh issue view 298 --json",
             "aos dev gh issue comment 298 --body-file \/tmp\/comment.md",
+            "aos dev gh pr list --state all --limit 30 --json",
             "aos dev gh ci inspect --pr 298 --json",
             "aos dev gh review-comments --pr 298 --json"
           ],
@@ -6664,7 +6738,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner\/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n]"
+          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner\/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n] [--state <state>] [--limit n] [--label <name>] [--author <login>] [--assignee <login>] [--search <query>] [--base <branch>] [--head <branch>] [--draft]"
         }
       ],
       "path" : [

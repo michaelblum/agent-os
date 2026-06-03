@@ -13,14 +13,30 @@ function die(message, code = 'ERROR', exitCode = 1) {
   process.exit(exitCode);
 }
 
-function parseOptions(args) {
+function parseOptions(args, config = {}) {
   const options = {
     json: false,
     repo: null,
     cwd: null,
     bodyFile: null,
     prNumber: null,
+    state: null,
+    limit: null,
+    labels: [],
+    author: null,
+    assignee: null,
+    search: null,
+    base: null,
+    head: null,
+    draft: false,
     positionals: [],
+  };
+  const listKind = config.listKind ?? null;
+  const requireValue = (index, flag, summary) => {
+    if (index < 0 || index + 1 >= args.length || args[index + 1].startsWith('--')) {
+      die(`${flag} requires ${summary}`, 'MISSING_ARG');
+    }
+    return args[index + 1];
   };
   for (let i = 0; i < args.length;) {
     const arg = args[i];
@@ -43,6 +59,35 @@ function parseOptions(args) {
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--pr requires a PR number', 'MISSING_ARG');
       options.prNumber = args[i + 1];
       i += 2;
+    } else if (arg === '--state' && listKind) {
+      const stateSummary = listKind === 'pr' ? 'open, closed, merged, or all' : 'open, closed, or all';
+      options.state = requireValue(i, arg, stateSummary);
+      i += 2;
+    } else if (arg === '--limit' && listKind) {
+      options.limit = requireValue(i, arg, 'a numeric result limit');
+      if (!/^[0-9]+$/.test(options.limit)) die(`--limit must be numeric: ${options.limit}`, 'INVALID_ARG');
+      i += 2;
+    } else if (arg === '--label' && listKind) {
+      options.labels.push(requireValue(i, arg, 'a label name'));
+      i += 2;
+    } else if (arg === '--author' && listKind) {
+      options.author = requireValue(i, arg, 'a GitHub login');
+      i += 2;
+    } else if (arg === '--assignee' && listKind) {
+      options.assignee = requireValue(i, arg, 'a GitHub login or @me');
+      i += 2;
+    } else if (arg === '--search' && listKind) {
+      options.search = requireValue(i, arg, 'a search query');
+      i += 2;
+    } else if (arg === '--base' && listKind === 'pr') {
+      options.base = requireValue(i, arg, 'a base branch name');
+      i += 2;
+    } else if (arg === '--head' && listKind === 'pr') {
+      options.head = requireValue(i, arg, 'a head branch name');
+      i += 2;
+    } else if (arg === '--draft' && listKind === 'pr') {
+      options.draft = true;
+      i += 1;
     } else if (arg.startsWith('--')) {
       die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
@@ -156,6 +201,20 @@ function normalizeRepoTail(tail) {
 
 function appendRepo(args, repoFullName) {
   if (repoFullName) args.push('--repo', repoFullName);
+}
+
+function appendListFilters(args, options, kind) {
+  if (options.state) args.push('--state', options.state);
+  if (options.limit) args.push('--limit', options.limit);
+  for (const label of options.labels) args.push('--label', label);
+  if (options.author) args.push('--author', options.author);
+  if (options.assignee) args.push('--assignee', options.assignee);
+  if (options.search) args.push('--search', options.search);
+  if (kind === 'pr') {
+    if (options.base) args.push('--base', options.base);
+    if (options.head) args.push('--head', options.head);
+    if (options.draft) args.push('--draft');
+  }
 }
 
 function repositoryInfo(repoFullName, repoRoot) {
@@ -301,21 +360,34 @@ function contextCommand(args) {
 
 function issueCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh issue requires a subcommand: view or comment', 'MISSING_SUBCOMMAND');
-  const options = parseOptions(args.slice(1));
-  const repoRoot = repoRootFrom(options);
-  const repoFullName = repositoryFullName(options, repoRoot);
-  if (action === 'view') {
+  if (!action) die('dev gh issue requires a subcommand: list, view, or comment', 'MISSING_SUBCOMMAND');
+  if (action === 'list') {
+    const options = parseOptions(args.slice(1), { listKind: 'issue' });
+    if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['issue', 'list'];
+    appendRepo(ghArgs, repoFullName);
+    appendListFilters(ghArgs, options, 'issue');
+    if (options.json) ghArgs.push('--json', 'number,title,state,url,createdAt,updatedAt,labels,assignees,author');
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'view') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh issue view requires exactly one issue number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const ghArgs = ['issue', 'view', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     if (options.json) ghArgs.push('--json', 'number,title,state,url,body,labels,comments');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh issue comment requires exactly one issue number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     if (!options.bodyFile) die('dev gh issue comment requires --body-file <path>', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const bodyFile = resolveUserPath(options.bodyFile);
     if (!fs.existsSync(bodyFile)) die(`Missing issue comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');
     const ghArgs = ['issue', 'comment', options.positionals[0]];
@@ -329,28 +401,44 @@ function issueCommand(args) {
 
 function prCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh pr requires a subcommand: view, checks, or comment', 'MISSING_SUBCOMMAND');
-  const options = parseOptions(args.slice(1));
-  const repoRoot = repoRootFrom(options);
-  const repoFullName = repositoryFullName(options, repoRoot);
-  if (action === 'view') {
+  if (!action) die('dev gh pr requires a subcommand: list, view, checks, or comment', 'MISSING_SUBCOMMAND');
+  if (action === 'list') {
+    const options = parseOptions(args.slice(1), { listKind: 'pr' });
+    if (options.positionals.length > 0) die(`Unknown dev gh pr argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['pr', 'list'];
+    appendRepo(ghArgs, repoFullName);
+    appendListFilters(ghArgs, options, 'pr');
+    if (options.json) ghArgs.push('--json', 'number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author');
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'view') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length > 1) die('dev gh pr view accepts at most one PR number', 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const ghArgs = ['pr', 'view'];
     if (options.positionals[0]) ghArgs.push(options.positionals[0]);
     appendRepo(ghArgs, repoFullName);
     if (options.json) ghArgs.push('--json', 'number,title,state,url,headRefName,baseRefName,isDraft,body,comments,reviews');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'checks') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length > 1) die('dev gh pr checks accepts at most one PR number', 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const ghArgs = ['pr', 'checks'];
     if (options.positionals[0]) ghArgs.push(options.positionals[0]);
     appendRepo(ghArgs, repoFullName);
     if (options.json) ghArgs.push('--json', 'name,state,bucket,link,startedAt,completedAt,workflow');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
+    const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh pr comment requires exactly one PR number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh pr argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     if (!options.bodyFile) die('dev gh pr comment requires --body-file <path>', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
     const bodyFile = resolveUserPath(options.bodyFile);
     if (!fs.existsSync(bodyFile)) die(`Missing PR comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');
     const ghArgs = ['pr', 'comment', options.positionals[0]];

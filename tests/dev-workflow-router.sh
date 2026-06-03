@@ -480,6 +480,8 @@ data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
 assert data["status"] == "success", data
 assert data["manifest"] == "docs/dev/agent-capabilities.json", data
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
@@ -559,6 +561,8 @@ data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
 assert data["dock"] == "foreman", data
 assert data["active_entry_path"] == "aos_developer", data
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
 assert "dev.build.aos" in ids, ids
 PY
@@ -592,6 +596,8 @@ import os
 
 data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
@@ -624,6 +630,8 @@ import os
 data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
 assert "dev.github.context" in ids, ids
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
 assert "dev.github.ci_inspect" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
 assert all(item["mutability_class"] == "read_only" for item in data["capabilities"]), data
@@ -665,6 +673,14 @@ if [[ "$cmd" == "pr view --repo michaelblum/agent-os --json number,url,headRefNa
 fi
 if [[ "$cmd" == issue\ comment\ 298\ --repo\ michaelblum/agent-os\ --body-file\ * ]]; then
     echo "https://github.com/michaelblum/agent-os/issues/298#issuecomment-test"
+    exit 0
+fi
+if [[ "$cmd" == "issue list --repo michaelblum/agent-os --state all --limit 20 --label bug --label docs --search semantic target --json number,title,state,url,createdAt,updatedAt,labels,assignees,author" ]]; then
+    echo '[{"number":399,"title":"Track semantic target cleanup","state":"CLOSED","url":"https://github.com/michaelblum/agent-os/issues/399"}]'
+    exit 0
+fi
+if [[ "$cmd" == "pr list --repo michaelblum/agent-os --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author" ]]; then
+    echo '[{"number":404,"title":"Reuse semantic target primitives","state":"MERGED","headRefName":"gdi/example","baseRefName":"main","isDraft":true}]'
     exit 0
 fi
 if [[ "$cmd" == "pr checks 298 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then
@@ -720,6 +736,28 @@ else
     fail "dev gh issue view extra positional error mismatch: $ERR"
 fi
 
+if OUT="$(./aos dev gh issue list --state all --limit 20 --label bug --label docs --search "semantic target" --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data[0]["number"] == 399, data
+assert data[0]["state"] == "CLOSED", data
+PY
+then
+    pass "dev gh issue list forwards filtered inventory queries"
+else
+    fail "dev gh issue list did not forward expected filtered query"
+fi
+
+if ERR="$(./aos dev gh issue list --limit --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue list should reject missing --limit values before a flag"
+elif echo "$ERR" | grep -q -- '--limit requires a numeric result limit'; then
+    pass "dev gh issue list treats flag-after---limit as missing value"
+else
+    fail "dev gh issue list missing --limit error mismatch: $ERR"
+fi
+
 BODY="$TMPDIR/comment.md"
 printf 'accepted state\n' > "$BODY"
 : > "$GH_ARGS_LOG"
@@ -753,6 +791,29 @@ elif echo "$ERR" | grep -q 'Unknown dev gh pr argument: extra'; then
     pass "dev gh pr comment rejects extra positional args"
 else
     fail "dev gh pr comment extra positional error mismatch: $ERR"
+fi
+
+if OUT="$(./aos dev gh pr list --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data[0]["number"] == 404, data
+assert data[0]["headRefName"] == "gdi/example", data
+assert data[0]["isDraft"] is True, data
+PY
+then
+    pass "dev gh pr list forwards filtered PR inventory queries"
+else
+    fail "dev gh pr list did not forward expected filtered query"
+fi
+
+if ERR="$(./aos dev gh pr list --base --json 2>&1 >/dev/null)"; then
+    fail "dev gh pr list should reject missing --base values before a flag"
+elif echo "$ERR" | grep -q -- '--base requires a base branch name'; then
+    pass "dev gh pr list treats flag-after---base as missing value"
+else
+    fail "dev gh pr list missing --base error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev gh ci inspect --json 2>/dev/null)"; then
