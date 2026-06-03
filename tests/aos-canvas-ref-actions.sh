@@ -42,7 +42,7 @@ cat > "$HTML_PATH" <<'HTML'
     <section id="root" style="width:100vw;height:100vh"></section>
     <script type="module">
       import { mountChrome } from 'aos://toolkit/panel/chrome.js'
-      import { createSlider } from 'aos://toolkit/controls/index.js'
+      import { createSlider } from 'aos://toolkit/controls/slider.js'
 
       window.__aosCanvasId = 'CANVAS_ID_PLACEHOLDER'
       const chrome = mountChrome(document.getElementById('root'), {
@@ -83,7 +83,11 @@ PY
   --file "$HTML_PATH" \
   >/dev/null
 
-sleep 0.8
+./aos show wait \
+  --id "$CANVAS_ID" \
+  --js 'Boolean(window.__aosActionContractSlider) && document.querySelectorAll("[data-aos-ref]").length >= 2' \
+  --timeout 5s \
+  >/dev/null
 
 CAPTURE="$(./aos see capture --canvas "$CANVAS_ID" --xray --out "$PNG_PATH" 2>/dev/null)"
 STATE_ID="$(printf '%s' "$CAPTURE" | jq -r '.state_id')"
