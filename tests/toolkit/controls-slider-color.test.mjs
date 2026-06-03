@@ -75,8 +75,52 @@ test('createSlider updates value from pointer drag on the control', () => {
   document.dispatchEvent(Object.assign(new FakeEvent('pointerup'), { clientX: 160 }));
 
   assert.equal(slider.getValue(), 0.75);
-  assert.deepEqual(changes, [0, 0.5, 0.75]);
+  assert.deepEqual(changes, [0.5, 0.75]);
   assert.equal(slider.el.querySelector('[data-aos-slider-output]').textContent, '0.75');
+});
+
+test('createSlider starts pointer drag from the thumb target', () => {
+  const document = createPatchedDocument();
+  const slider = createSlider({
+    document,
+    value: 0.5,
+    min: 0,
+    max: 1,
+    step: 0.05,
+  });
+  const control = slider.el.querySelector('[data-aos-slider-control]');
+  const thumb = slider.el.querySelector('[data-aos-slider-thumb]');
+  const changes = [];
+
+  control.getBoundingClientRect = () => ({
+    left: 10,
+    top: 0,
+    right: 210,
+    bottom: 24,
+    width: 200,
+    height: 24,
+  });
+  thumb.getBoundingClientRect = () => ({
+    left: 104,
+    top: 6,
+    right: 116,
+    bottom: 18,
+    width: 12,
+    height: 12,
+  });
+  slider.on('change', (value) => changes.push(value));
+
+  thumb.dispatchEvent(Object.assign(new FakeEvent('pointerdown', { bubbles: true }), {
+    clientX: 110,
+    currentTarget: thumb,
+    pointerId: 1,
+  }));
+  document.dispatchEvent(Object.assign(new FakeEvent('pointermove'), { clientX: 170, pointerId: 1 }));
+  document.dispatchEvent(Object.assign(new FakeEvent('pointerup'), { clientX: 170, pointerId: 1 }));
+
+  assert.equal(slider.getValue(), 0.8);
+  assert.deepEqual(changes, [0.8]);
+  assert.equal(slider.el.querySelector('[data-aos-slider-output]').textContent, '0.8');
 });
 
 test('slider descriptor mutation syncs through setValue without replacing the root element', () => {

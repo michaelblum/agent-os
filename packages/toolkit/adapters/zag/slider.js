@@ -63,6 +63,10 @@ function valueText(values = []) {
   return values.map((value) => Number.parseFloat(finiteNumber(value, 0).toFixed(4)).toString()).join(' - ');
 }
 
+function sameValues(a = [], b = []) {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -106,6 +110,7 @@ export function createAosZagSlider(context = {}) {
   let controlElement = null;
   let activePointer = null;
   let activeThumbIndex = 0;
+  let captureElement = null;
 
   function getRootProps(extra = {}) {
     return mergeProps({
@@ -221,6 +226,7 @@ export function createAosZagSlider(context = {}) {
     for (const cleanup of cleanups) cleanup();
     cleanups.clear();
     controlElement = null;
+    captureElement = null;
   }
 
   function bindPart(element, props) {
@@ -272,8 +278,9 @@ export function createAosZagSlider(context = {}) {
     const nextValues = [...values];
     const index = activeThumbIndex ?? nearestThumbIndex(nextValue);
     nextValues[index] = nextValue;
+    const changed = !sameValues(values, nextValues);
     values = nextValues;
-    currentProps.onValueChange?.({ value: [...values] });
+    if (changed) currentProps.onValueChange?.({ value: [...values] });
     if (commit) currentProps.onValueChangeEnd?.({ value: [...values] });
     return true;
   }
@@ -281,7 +288,11 @@ export function createAosZagSlider(context = {}) {
   function endPointerDrag(event = {}) {
     if (!activePointer) return;
     applyPointerValue(event, { commit: true });
+    if (activePointer.pointerId !== null) {
+      captureElement?.releasePointerCapture?.(activePointer.pointerId);
+    }
     activePointer = null;
+    captureElement = null;
     const doc = controlElement?.ownerDocument;
     const view = doc?.defaultView;
     const target = doc || view;
@@ -300,6 +311,7 @@ export function createAosZagSlider(context = {}) {
   }
 
   function startPointerDrag(event = {}) {
+    if (activePointer) return;
     if (disabled()) return;
     const pointerId = event.pointerId ?? null;
     const initialValue = valueFromPointer(event);
@@ -307,7 +319,10 @@ export function createAosZagSlider(context = {}) {
     event.preventDefault?.();
     activeThumbIndex = nearestThumbIndex(initialValue);
     activePointer = { pointerId };
-    controlElement?.setPointerCapture?.(pointerId);
+    captureElement = event.currentTarget || event.target || controlElement;
+    if (pointerId !== null) {
+      captureElement?.setPointerCapture?.(pointerId);
+    }
     applyPointerValue(event);
     const doc = controlElement?.ownerDocument;
     const view = doc?.defaultView;
@@ -346,7 +361,16 @@ export function createAosZagSlider(context = {}) {
   }
 
   function bindThumb(element, extraProps = {}, index = 0) {
-    return bindPart(element, getThumbProps({ index }, extraProps.extra || {}));
+    const cleanup = bindPart(element, getThumbProps({ index }, extraProps.extra || {}));
+    if (element) {
+      element.addEventListener?.('pointerdown', startPointerDrag);
+      element.addEventListener?.('mousedown', startPointerDrag);
+      cleanups.add(() => {
+        element.removeEventListener?.('pointerdown', startPointerDrag);
+        element.removeEventListener?.('mousedown', startPointerDrag);
+      });
+    }
+    return cleanup;
   }
 
   function bindMany(root, selector, binder, getProps = null) {
