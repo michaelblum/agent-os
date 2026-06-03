@@ -72,6 +72,50 @@ private struct PermissionsSetupState: Encodable {
     let recommended_command: String?
 }
 
+private struct PermissionsIdentityFacts: Encodable {
+    let executable_path: String
+    let bundle_path: String
+}
+
+private struct PermissionsFactsResponse: Encodable {
+    let status: String
+    let mode: String
+    let permissions: PermissionsState
+    let identity: PermissionsIdentityFacts
+}
+
+private struct PermissionsSetupMarkerFacts: Encodable {
+    let marker_exists: Bool
+    let marker_path: String
+    let completed_at: String?
+    let bundle_path: String?
+    let current_bundle_path: String
+    let bundle_matches_current: Bool
+    let setup_completed: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case marker_exists, marker_path, completed_at, bundle_path
+        case current_bundle_path, bundle_matches_current, setup_completed
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(marker_exists, forKey: .marker_exists)
+        try c.encode(marker_path, forKey: .marker_path)
+        try c.encodeIfPresent(completed_at, forKey: .completed_at)
+        try c.encodeIfPresent(bundle_path, forKey: .bundle_path)
+        try c.encode(current_bundle_path, forKey: .current_bundle_path)
+        try c.encode(bundle_matches_current, forKey: .bundle_matches_current)
+        try c.encode(setup_completed, forKey: .setup_completed)
+    }
+}
+
+private struct PermissionsSetupMarkerWriteResponse: Encodable {
+    let status: String
+    let action: String
+    let marker: PermissionsSetupMarkerFacts
+}
+
 private struct RuntimeInputTapBlock: Encodable {
     let status: String
     let attempts: Int
@@ -932,6 +976,10 @@ func permissionsCommand(args: [String]) {
                   code: "MISSING_SUBCOMMAND")
     }
     switch sub {
+    case "facts":
+        permissionsFactsCommand(args: Array(args.dropFirst()))
+    case "setup-marker":
+        permissionsSetupMarkerCommand(args: Array(args.dropFirst()))
     case "check":
         permissionsCheckCommand(args: Array(args.dropFirst()), usage: "aos permissions check [--json]")
     case "preflight":
@@ -942,6 +990,59 @@ func permissionsCommand(args: [String]) {
         permissionsResetRuntimeCommand(args: Array(args.dropFirst()))
     default:
         exitError("Unknown permissions subcommand: \(sub)", code: "UNKNOWN_SUBCOMMAND")
+    }
+}
+
+private func permissionsFactsCommand(args: [String]) {
+    guard args == ["--json"] else {
+        exitError("__permissions facts requires --json.", code: "INVALID_ARG")
+    }
+
+    let permissions = currentPermissionsState()
+    let complete = permissions.accessibility &&
+        permissions.screen_recording &&
+        permissions.listen_access &&
+        permissions.post_access
+    let response = PermissionsFactsResponse(
+        status: complete ? "ok" : "degraded",
+        mode: aosCurrentRuntimeMode().rawValue,
+        permissions: permissions,
+        identity: PermissionsIdentityFacts(
+            executable_path: aosExpectedBinaryPath(program: "aos", mode: aosCurrentRuntimeMode()),
+            bundle_path: Bundle.main.bundlePath
+        )
+    )
+    print(jsonString(response))
+}
+
+private func permissionsSetupMarkerCommand(args: [String]) {
+    guard let action = args.first else {
+        exitError("__permissions setup-marker requires get or write.", code: "MISSING_SUBCOMMAND")
+    }
+    let subArgs = Array(args.dropFirst())
+    guard subArgs == ["--json"] else {
+        exitError("__permissions setup-marker \(action) requires --json.", code: "INVALID_ARG")
+    }
+
+    switch action {
+    case "get":
+        let permissions = currentPermissionsState()
+        print(jsonString(currentPermissionsSetupMarkerFacts(permissions: permissions)))
+    case "write":
+        let permissions = currentPermissionsState()
+        let markerPath = aosPermissionsMarkerPath()
+        let writeOK = writePermissionsSetupMarker(path: markerPath, permissions: permissions)
+        let marker = currentPermissionsSetupMarkerFacts(permissions: permissions)
+        print(jsonString(PermissionsSetupMarkerWriteResponse(
+            status: writeOK ? "ok" : "degraded",
+            action: "write",
+            marker: marker
+        )))
+        if !writeOK {
+            exit(1)
+        }
+    default:
+        exitError("Unknown __permissions setup-marker action: \(action)", code: "UNKNOWN_SUBCOMMAND")
     }
 }
 
@@ -1147,6 +1248,20 @@ private func currentPermissionRequirements(permissions: PermissionsState) -> [Pe
 }
 
 private func currentPermissionsSetupState(permissions: PermissionsState) -> PermissionsSetupState {
+    let marker = currentPermissionsSetupMarkerFacts(permissions: permissions)
+    return PermissionsSetupState(
+        marker_exists: marker.marker_exists,
+        marker_path: marker.marker_path,
+        completed_at: marker.completed_at,
+        bundle_path: marker.bundle_path,
+        current_bundle_path: marker.current_bundle_path,
+        bundle_matches_current: marker.bundle_matches_current,
+        setup_completed: marker.setup_completed,
+        recommended_command: marker.setup_completed ? nil : "aos permissions setup --once"
+    )
+}
+
+private func currentPermissionsSetupMarkerFacts(permissions: PermissionsState) -> PermissionsSetupMarkerFacts {
     let markerPath = aosPermissionsMarkerPath()
     let marker = readPermissionsSetupMarker(path: markerPath)
     let currentBundlePath = Bundle.main.bundlePath
@@ -1161,15 +1276,14 @@ private func currentPermissionsSetupState(permissions: PermissionsState) -> Perm
         marker != nil &&
         (bundleMatchesCurrent || mode == .repo)
 
-    return PermissionsSetupState(
+    return PermissionsSetupMarkerFacts(
         marker_exists: marker != nil,
         marker_path: markerPath,
         completed_at: completedAt,
         bundle_path: bundlePath,
         current_bundle_path: currentBundlePath,
         bundle_matches_current: bundleMatchesCurrent,
-        setup_completed: setupCompleted,
-        recommended_command: setupCompleted ? nil : "aos permissions setup --once"
+        setup_completed: setupCompleted
     )
 }
 
@@ -3110,7 +3224,8 @@ private func readPermissionsSetupMarker(path: String) -> [String: Any]? {
     return json
 }
 
-private func writePermissionsSetupMarker(path: String, permissions: PermissionsState) {
+@discardableResult
+private func writePermissionsSetupMarker(path: String, permissions: PermissionsState) -> Bool {
     let dir = (path as NSString).deletingLastPathComponent
     try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
@@ -3126,10 +3241,15 @@ private func writePermissionsSetupMarker(path: String, permissions: PermissionsS
     ]
 
     guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else {
-        return
+        return false
     }
 
-    try? data.write(to: URL(fileURLWithPath: path))
+    do {
+        try data.write(to: URL(fileURLWithPath: path))
+        return true
+    } catch {
+        return false
+    }
 }
 
 private func restartPermissionsDependentServices() -> [String] {
