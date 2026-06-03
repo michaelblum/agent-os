@@ -16,6 +16,21 @@ aos_real_input_surface_run_json() {
   aos_real_input_surface_run "$@" | python3 -m json.tool
 }
 
+aos_real_input_surface_wait_ready() {
+  local timeout="${1:-20}"
+  local aos_bin deadline
+  aos_bin="$(aos_visual_aos)"
+  deadline=$((SECONDS + timeout))
+  while (( SECONDS < deadline )); do
+    if "$aos_bin" ready --json 2>/dev/null | python3 -c 'import json,sys; data=json.load(sys.stdin); runtime=data.get("runtime") or {}; raise SystemExit(0 if (data.get("ready") is True and runtime.get("socket_reachable") is True and runtime.get("input_tap_status") == "active") else 1)' >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.2
+  done
+  echo "FAIL: timed out waiting for AOS ready during real-input surface startup" >&2
+  return 1
+}
+
 aos_real_input_surface_wait_until() {
   local timeout="${1:?timeout seconds required}"
   local label="${2:?label required}"
@@ -197,6 +212,7 @@ aos_real_input_surface_launch_inspector_with_retry() {
   local attempt status
 
   for attempt in 1 2; do
+    aos_real_input_surface_wait_ready 45 || return $?
     if aos_visual_launch_canvas_inspector "$inspector_id"; then
       return 0
     else
@@ -205,7 +221,7 @@ aos_real_input_surface_launch_inspector_with_retry() {
     if (( attempt < 2 )); then
       echo "INFO: surface-inspector launch retry: id=$inspector_id attempt=$attempt status=$status" >&2
       aos_visual_remove_canvas "$inspector_id" 5
-      sleep 0.5
+      aos_real_input_surface_wait_ready 45 || return $?
     fi
   done
 

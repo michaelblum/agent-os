@@ -380,6 +380,7 @@ export function createSigilContextMenu({
     let panelReady = false;
     let panelControls = [];
     let panelActiveTab = null;
+    let panelEmbeddedFallbackActive = false;
     const compactValueCache = new Map();
     const usesPanel = typeof actionDispatcher === 'function' && !!panelUrl;
     const interactionRouter = createDesktopWorldInteractionRouter({
@@ -409,7 +410,11 @@ export function createSigilContextMenu({
     }
 
     function snapshot() {
-        return buildContextMenuSnapshot(menuState, compactSurface);
+        return buildContextMenuSnapshot(menuState, compactSurface, {
+            panelControls,
+            panelActiveTab,
+            panelId: usesPanel ? panelId : null,
+        });
     }
 
     function syncSnapshot() {
@@ -829,7 +834,7 @@ export function createSigilContextMenu({
     }
 
     function syncPosition() {
-        if (usesPanel) return;
+        if (usesPanel && !panelEmbeddedFallbackActive) return;
         if (!menuState.open || !menuState.bounds || typeof projectPoint !== 'function') return;
         const local = projectPoint(menuState.bounds);
         if (!local) {
@@ -842,7 +847,7 @@ export function createSigilContextMenu({
     }
 
     function surfaceBounds() {
-        if (usesPanel) return menuState.bounds ? { ...menuState.bounds } : null;
+        if (usesPanel && !panelEmbeddedFallbackActive) return menuState.bounds ? { ...menuState.bounds } : null;
         if (!menuState.bounds) return null;
         const surfaceRect = anchor.querySelector('.sigil-avatar-control-surface')?.getBoundingClientRect?.();
         if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) return { ...menuState.bounds };
@@ -872,6 +877,7 @@ export function createSigilContextMenu({
         if (usesPanel) {
             compactSurface?.destroy?.();
             compactSurface = null;
+            panelEmbeddedFallbackActive = false;
             anchor.replaceChildren();
             anchor.classList.remove('visible');
             anchor.style.display = 'none';
@@ -904,6 +910,31 @@ export function createSigilContextMenu({
                 },
             }).then(() => {
                 sendPanelUpdate('open');
+                globalThis.setTimeout?.(() => {
+                    recordTrace('panel-embedded-fallback-check', {
+                        open: menuState.open,
+                        panelControlCount: panelControls.length,
+                        compactSurfaceActive: !!compactSurface,
+                        panelReady,
+                        panelActiveTab,
+                    });
+                    if (!menuState.open || panelControls.length > 0 || compactSurface) return;
+                    panelEmbeddedFallbackActive = true;
+                    anchor.classList.add('visible');
+                    anchor.style.display = '';
+                    void mountCompactSurface(panelActiveTab || null).then(() => {
+                        if (!menuState.open || !panelEmbeddedFallbackActive) return;
+                        syncFromState();
+                        seedCompactValueCache();
+                        syncPosition();
+                        syncSnapshot();
+                        onBoundsChange?.(snapshot());
+                        recordTrace('panel-embedded-fallback', { reason: 'panel-controls-timeout' });
+                    }).catch((error) => {
+                        console.warn('[sigil] avatar control embedded fallback failed:', error);
+                        recordTrace('panel-embedded-fallback-failed', { error: String(error) });
+                    });
+                }, 750);
             }).catch((error) => {
                 console.warn('[sigil] avatar control panel action failed:', error);
                 recordTrace('panel-action-failed', { error: String(error) });
@@ -932,6 +963,7 @@ export function createSigilContextMenu({
         panelReady = false;
         panelControls = [];
         panelActiveTab = null;
+        panelEmbeddedFallbackActive = false;
         interactionRouter.reset();
         compactSurface?.destroy?.();
         compactSurface = null;
@@ -960,6 +992,7 @@ export function createSigilContextMenu({
         if (!open) {
             compactSurface?.destroy?.();
             compactSurface = null;
+            panelEmbeddedFallbackActive = false;
             compactValueCache.clear();
             panelReady = false;
             panelControls = [];
@@ -1163,8 +1196,18 @@ export function createSigilContextMenu({
                 || raw.owner_canvas_id
                 || null;
             if (sourceCanvasId === panelId || ownerCanvasId === panelId) return true;
+            if (panelEmbeddedFallbackActive) {
+                return interactionRouter.route(
+                    { type: kind, x: point.x, y: point.y, ...raw },
+                    {
+                        source: options.source || 'global',
+                        sourceIdentity,
+                        regionId: options.regionId,
+                    }
+                );
+            }
             const inside = containsDesktopPoint(point);
-            if (!inside && kind === 'left_mouse_down') return true;
+            if (!inside && kind === 'left_mouse_down') return false;
             return inside || kind !== 'left_mouse_down';
         }
         const raw = options.raw || {};

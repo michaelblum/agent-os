@@ -159,7 +159,6 @@ class UnifiedDaemon {
     // daemon restart. Written by a renderer on every transition to IDLE; read
     // by the same renderer on boot to resume where the user last left it.
     var configChangeHandler: ((AosConfig) -> Void)?
-    var canvasInspectorAnnotationModeHandler: ((Bool) -> Void)?
     var statusItemStateHandler: ((String, Bool) -> Void)?
     private var lastPositions: [String: (x: Double, y: Double)] = [:]
     private let lastPositionsLock = NSLock()
@@ -359,12 +358,6 @@ class UnifiedDaemon {
                 case "canvas_inspector.request_bundle_config":
                     self.sendCanvasInspectorSeeBundleConfig(canvasID: canvasID)
                     return
-                case "canvas_inspector.annotation_state":
-                    let active = (inner?["annotation_mode_active"] as? Bool) ?? false
-                    DispatchQueue.main.async { [weak self] in
-                        self?.canvasInspectorAnnotationModeHandler?(active)
-                    }
-                    return
                 case "clipboard.read":
                     let text = NSPasteboard.general.string(forType: .string) ?? ""
                     self.dispatchCanvasResponse(to: canvasID, requestID: inner?["request_id"] as? String,
@@ -397,13 +390,6 @@ class UnifiedDaemon {
         canvasManager.onCanvasLifecycle = { [weak self] canvasInfo, action in
             guard let self = self else { return }
             self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
-            if canvasInfo.id == "surface-inspector",
-               action == "removed" || canvasInfo.suspended == true {
-                DispatchQueue.main.async { [weak self] in
-                    self?.canvasInspectorAnnotationModeHandler?(false)
-                }
-            }
-
             if action == "removed" {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
             } else if canvasInfo.suspended == true {
@@ -1181,6 +1167,12 @@ class UnifiedDaemon {
             handlePanelAction(callerID: callerID, action: action, payload: payload, mode: "close")
         case "macos.open_url":
             handleMacOSOpenURLAction(callerID: callerID, payload: payload)
+        case "app.quit":
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "ok", extra: aosActionResponseExtra(callerID: callerID, action: action, payload: payload))
+            DispatchQueue.main.async {
+                NSApp.terminate(nil)
+            }
         default:
             dispatchCanvasResponse(to: callerID, requestID: requestID,
                 status: "error", code: "UNKNOWN_ACTION", message: "unknown aos.action '\(action)'")

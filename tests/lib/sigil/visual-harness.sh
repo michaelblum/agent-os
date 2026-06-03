@@ -7,10 +7,20 @@ source "$SIGIL_VISUAL_HARNESS_DIR/../visual-harness.sh"
 source "$SIGIL_VISUAL_HARNESS_ROOT/apps/sigil/scripts/launch-common.sh"
 
 aos_visual_sigil_renderer_url() {
-  local sigil_key toolkit_key
+  local sigil_key toolkit_key cache_bust query
   sigil_key="$(aos_visual_content_root_key sigil)"
   toolkit_key="$(aos_visual_content_root_key toolkit)"
-  aos_visual_content_url "$sigil_key" "renderer/index.html" "toolkit-root=$toolkit_key"
+  query="toolkit-root=$toolkit_key"
+  if [[ "${AOS_VISUAL_DISABLE_CACHE_BUST:-}" != "1" ]]; then
+    cache_bust="$(
+      {
+        git -C "$SIGIL_VISUAL_HARNESS_ROOT" rev-parse --short HEAD 2>/dev/null || true
+        git -C "$SIGIL_VISUAL_HARNESS_ROOT" diff -- apps/sigil packages/toolkit tests/lib 2>/dev/null || true
+      } | shasum | awk '{ print $1 }'
+    )"
+    query="$query&aos-cache-bust=$cache_bust"
+  fi
+  aos_visual_content_url "$sigil_key" "renderer/index.html" "$query"
 }
 
 aos_visual_assert_sigil_renderer_fresh() {
@@ -373,7 +383,11 @@ aos_visual_launch_sigil_with_inspector() {
 
   aos_visual_remove_canvas "$avatar_id"
   aos_visual_remove_canvas "$inspector_id"
-  aos_visual_launch_canvas_inspector "$inspector_id"
+  if declare -F aos_real_input_surface_launch_inspector_with_retry >/dev/null; then
+    aos_real_input_surface_launch_inspector_with_retry "$inspector_id"
+  else
+    aos_visual_launch_canvas_inspector "$inspector_id"
+  fi
   aos_visual_launch_sigil_avatar "$avatar_id"
   aos_visual_wait_sigil_avatar_ready "$avatar_id"
   aos_visual_show_sigil_avatar "$avatar_id" "$fast_travel_effect"
@@ -392,7 +406,11 @@ aos_visual_launch_sigil_with_inspector_via_status_item() {
   aos_visual_configure_sigil_status_item "$avatar_id"
   aos_visual_remove_canvas "$avatar_id"
   aos_visual_remove_canvas "$inspector_id"
-  aos_visual_launch_canvas_inspector "$inspector_id"
+  if declare -F aos_real_input_surface_launch_inspector_with_retry >/dev/null; then
+    aos_real_input_surface_launch_inspector_with_retry "$inspector_id"
+  else
+    aos_visual_launch_canvas_inspector "$inspector_id"
+  fi
   aos_visual_show_sigil_avatar_via_real_status_click "$state_root" "$avatar_id"
   if [[ "$placement" == "manual-visible" ]]; then
     aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"
@@ -410,7 +428,11 @@ aos_visual_launch_sigil_with_inspector_via_live_status_item() {
   aos_visual_remove_canvas "sigil-hit-$avatar_id"
   aos_visual_remove_canvas "sigil-radial-menu-$avatar_id"
   aos_visual_remove_canvas "$inspector_id"
-  aos_visual_launch_canvas_inspector "$inspector_id"
+  if declare -F aos_real_input_surface_launch_inspector_with_retry >/dev/null; then
+    aos_real_input_surface_launch_inspector_with_retry "$inspector_id"
+  else
+    aos_visual_launch_canvas_inspector "$inspector_id"
+  fi
   aos_visual_show_sigil_avatar_via_live_status_click "$avatar_id"
   if [[ "$placement" == "manual-visible" ]]; then
     aos_visual_place_sigil_avatar_for_manual_test "$avatar_id"

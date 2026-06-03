@@ -359,7 +359,7 @@ test('panel context menu treats child panel canvas input as inside the menu', ()
 
     assert.equal(menu.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
       raw: { source_canvas_id: 'other-panel' },
-    }), true)
+    }), false)
     assert.equal(menu.isOpen(), true)
     assert.deepEqual(closes, [])
   } finally {

@@ -1140,6 +1140,99 @@ function isUtilityCanvasVisible(id) {
     return !!current && current.suspended !== true;
 }
 
+function publishStatusMenuItems() {
+    if (!isPrimarySurfaceSegment()) return;
+    host.setStatusMenuItems([
+        {
+            id: 'sigil.status.console',
+            title: 'Console Log',
+            checked: isUtilityCanvasVisible('__log__'),
+        },
+        {
+            id: 'sigil.status.surface_inspector',
+            title: 'Surface Inspector',
+            checked: isUtilityCanvasVisible('surface-inspector'),
+        },
+        {
+            id: 'sigil.status.annotation_mode',
+            title: 'Annotation Mode',
+            checked: isUtilityCanvasVisible('surface-inspector') && !!annotationReticle.active,
+        },
+        { type: 'separator' },
+        {
+            id: 'sigil.status.reload',
+            title: 'Reload',
+            key_equivalent: 'r',
+        },
+        {
+            id: 'sigil.status.remove',
+            title: 'Remove',
+        },
+        { type: 'separator' },
+        {
+            id: 'aos.app.quit',
+            title: 'Quit AOS',
+        },
+    ]);
+}
+
+async function reloadFromStatusMenu() {
+    try {
+        await Promise.allSettled([
+            hitTarget.remove(),
+            radialTargetSurface.remove(),
+            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
+        ]);
+    } catch (error) {
+        console.warn('[sigil] status menu reload cleanup failed:', error);
+    } finally {
+        window.location.reload();
+    }
+}
+
+async function handleStatusMenuAction(msg = {}) {
+    const id = String(msg.id || msg.action_id || '').trim();
+    if (!id) return false;
+    if (id === 'sigil.status.console') {
+        await toggleUtilityCanvas('log-console');
+        return true;
+    }
+    if (id === 'sigil.status.surface_inspector') {
+        await toggleUtilityCanvas('surface-inspector');
+        return true;
+    }
+    if (id === 'sigil.status.annotation_mode') {
+        await ensureUtilityCanvasVisible('surface-inspector', { focus: true });
+        host.post('canvas.send', {
+            target: 'surface-inspector',
+            message: {
+                type: 'canvas_inspector.annotation_toggle',
+                reason: 'status_item_menu',
+            },
+        });
+        publishStatusMenuItems();
+        return true;
+    }
+    if (id === 'sigil.status.reload') {
+        void reloadFromStatusMenu();
+        return true;
+    }
+    if (id === 'sigil.status.remove') {
+        await Promise.allSettled([
+            hitTarget.remove(),
+            radialTargetSurface.remove(),
+            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
+        ]);
+        host.post('canvas.remove', { id: 'avatar-main' });
+        return true;
+    }
+    if (id === 'aos.app.quit') {
+        await host.aosAction({ action: 'app.quit', source: 'status_item_menu' });
+        return true;
+    }
+    return false;
+}
+
 function finiteOrNull(value) {
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
@@ -1394,6 +1487,8 @@ async function toggleUtilityCanvas(kind) {
             }
         }
         console.warn('[sigil] utility toggle failed:', kind, error);
+    } finally {
+        publishStatusMenuItems();
     }
 }
 
@@ -1448,6 +1543,7 @@ async function ensureUtilityCanvasVisible(kind, { focus = true } = {}) {
         if (liveJs.utilityCanvasOpenPromises.get(config.id) === promise) {
             liveJs.utilityCanvasOpenPromises.delete(config.id);
         }
+        publishStatusMenuItems();
     }
 }
 
@@ -4299,8 +4395,16 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
-    if (typeof msg.type === 'string' && msg.type.startsWith('sigil.avatar_panel.')) {
-        if (contextMenu.handlePanelMessage(msg)) return;
+    const panelMessage = (
+        msg.type === 'canvas_message'
+        && msg.payload
+        && typeof msg.payload.type === 'string'
+        && msg.payload.type.startsWith('sigil.avatar_panel.')
+    )
+        ? msg.payload
+        : msg;
+    if (typeof panelMessage.type === 'string' && panelMessage.type.startsWith('sigil.avatar_panel.')) {
+        if (contextMenu.handlePanelMessage(panelMessage)) return;
     }
 
     if (msg.type === 'canvas_lifecycle') {
@@ -4360,6 +4464,7 @@ function handleHostMessage(rawMsg) {
                     }
                 }
             }
+            publishStatusMenuItems();
         }
         return;
     }
@@ -4377,6 +4482,13 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'canvas_object.effects.patch') {
         handleCanvasObjectEffectsPatch(msg);
+        return;
+    }
+
+    if (msg.type === 'status_item.menu_action') {
+        void handleStatusMenuAction(msg).catch((error) => {
+            console.warn('[sigil] status menu action failed:', error);
+        });
         return;
     }
 
@@ -4556,6 +4668,7 @@ let primarySurfaceServicesStarted = false;
 function startPrimarySurfaceServices() {
     if (primarySurfaceServicesStarted) return;
     primarySurfaceServicesStarted = true;
+    publishStatusMenuItems();
     host.subscribe([
         'display_geometry',
         'input_event',
@@ -4588,6 +4701,7 @@ function startPrimarySurfaceServices() {
 async function setupHostSurface() {
     host.install();
     host.onMessage(handleHostMessage);
+    publishStatusMenuItems();
     overlay.mount();
     visibilityTransition.mount();
     fastTravel.mount();
@@ -5102,6 +5216,7 @@ export async function boot() {
         y: Math.round(liveJs.avatarPos.y),
         boot_elapsed_ms: bootElapsedMs(),
     });
+    publishStatusMenuItems();
     window.headsup.statusItemReady = true;
     emitStatusItemState();
 }

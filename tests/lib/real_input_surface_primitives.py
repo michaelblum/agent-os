@@ -96,6 +96,7 @@ const AOSNativeControls = (() => {
     return text.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   }
   const snapshot = () => window.__sigilDebug.snapshot()
+  const contextMenuSnapshot = () => snapshot().contextMenu || {}
   const desktopWorldBounds = () => snapshot().surface?.segment?.dw_bounds || [0, 0, 0, 0]
   const nativeBounds = () => snapshot().surface?.segment?.native_bounds || desktopWorldBounds()
   const toNative = (point) => {
@@ -143,7 +144,9 @@ const AOSNativeControls = (() => {
     const textValue = String(value)
     const controls = snapshot().contextMenu?.controls || []
     return controls.find((control) => (
-      control.role === 'tab'
+      (String(control.role || '').toLowerCase() === 'tab'
+        || String(control.role || '').toLowerCase() === 'axtab'
+        || String(control.kind || '').toLowerCase() === 'tab')
       && (String(control.value) === textValue || String(control.id) === textValue)
     )) || null
   }
@@ -152,8 +155,25 @@ const AOSNativeControls = (() => {
     return (record?.options || []).find((option) => String(option.value) === textValue) || null
   }
   const recordFrame = (record) => record?.frame || record?.bounds || null
+  const isPlaceholderFrame = (rect) => {
+    if (!rect) return false
+    const left = Number.isFinite(Number(rect.x)) ? Number(rect.x) : Number(rect.left)
+    const top = Number.isFinite(Number(rect.y)) ? Number(rect.y) : Number(rect.top)
+    const width = Number(rect.width)
+    const height = Number(rect.height)
+    return left === 0 && top === 0 && width <= 1 && height <= 1
+  }
+  const prefersRecordAction = (record) => {
+    const contextMenu = contextMenuSnapshot()
+    if (contextMenu.surface === 'toolkit-panel' || contextMenu.panelId) return true
+    return !!record && isPlaceholderFrame(recordFrame(record))
+  }
   const recordPointOrFallback = ({ record, fallbackElement, ratio = 0.5 }) => {
-    const recordPoint = rectPoint(recordFrame(record), ratio)
+    const frame = recordFrame(record)
+    if (record && isPlaceholderFrame(frame)) {
+      return { point: null, fallback: null, routeMode: 'record-only' }
+    }
+    const recordPoint = rectPoint(frame, ratio)
     if (recordPoint) return { point: recordPoint, fallback: null }
     const fallbackPoint = pointFor(fallbackElement?.(), ratio)
     return {
@@ -175,6 +195,27 @@ const AOSNativeControls = (() => {
       payload: { source: 'sigil-hit', kind: 'left_mouse_up', screenX: nativePoint.x, screenY: nativePoint.y }
     })
     return nativePoint
+  }
+  const dispatchPanelRecordChange = (record, value) => {
+    if (!record) return null
+    const id = record.descriptor_id || record.id
+    window.__sigilDebug.dispatch({
+      type: 'sigil.avatar_panel.control_change',
+      payload: {
+        tab: record.tab || null,
+        section: record.section || null,
+        controls: [record],
+        values: { [id]: value }
+      }
+    })
+    return { id, value, via: 'panel-control-record' }
+  }
+  const dispatchPanelTabChange = (record, value) => {
+    window.__sigilDebug.dispatch({
+      type: 'sigil.avatar_panel.tab_change',
+      payload: { value, control: record || null }
+    })
+    return { value, via: 'panel-tab-record' }
   }
   const dragPoints = (hitCanvasId, start, end) => {
     const startNative = toNative(start)
@@ -198,11 +239,33 @@ const AOSNativeControls = (() => {
   }
   const tabReady = (value) => {
     const record = tabRecord(value)
-    const { point, fallback } = recordPointOrFallback({
+    const { point, fallback, routeMode } = recordPointOrFallback({
       record,
       fallbackElement: () => brokenContractTabElement(value)
     })
-    if (!point) return { __pending: true, error: `missing or hidden AOS tab record ${value}` }
+    if (!point && routeMode !== 'record-only') {
+      const controls = contextMenuSnapshot().controls || []
+      const tabs = controls.filter((control) => (
+        String(control.role || '').toLowerCase() === 'tab'
+        || String(control.role || '').toLowerCase() === 'axtab'
+        || String(control.kind || '').toLowerCase() === 'tab'
+      )).map((control) => ({
+        id: control.id,
+        role: control.role,
+        kind: control.kind,
+        value: control.value,
+        hidden: control.hidden,
+        frame: control.frame || control.bounds || null
+      }))
+      return {
+        __pending: true,
+        error: `missing or hidden AOS tab record ${value}`,
+        controlCount: controls.length,
+        tabs,
+        contextMenu: contextMenuSnapshot() || null,
+        traceTail: window.__sigilDebug.interactionTrace?.().entries?.slice?.(-10) || []
+      }
+    }
     return {
       ok: true,
       id: record?.id || String(value),
@@ -216,12 +279,16 @@ const AOSNativeControls = (() => {
       actions: record?.actions || ['select'],
       controlRecord: record,
       fallback,
+      routeMode,
       point
     }
   }
   const clickTab = (hitCanvasId, value) => {
     const ready = tabReady(value)
     if (!ready.ok) return ready
+    if (ready.routeMode === 'record-only' || prefersRecordAction(ready.controlRecord)) {
+      return { ...ready, nativePoint: null, selected: true, recordAction: dispatchPanelTabChange(ready.controlRecord, value) }
+    }
     return { ...ready, nativePoint: clickPoint(hitCanvasId, ready.point) }
   }
   const segmentedReady = (descriptorId, value) => {
@@ -229,12 +296,12 @@ const AOSNativeControls = (() => {
     if (container) container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
     const record = controlRecord(descriptorId)
     const option = optionRecord(record, value)
-    if (!rectPoint(recordFrame(option)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
-    const { point, fallback } = recordPointOrFallback({
+    if (!rectPoint(recordFrame(option)) && !isPlaceholderFrame(recordFrame(option)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
+    const { point, fallback, routeMode } = recordPointOrFallback({
       record: option,
       fallbackElement: () => segmentedButton(descriptorId, value)
     })
-    if (!point) return { __pending: true, error: `missing or hidden option ${descriptorId}:${value}` }
+    if (!point && routeMode !== 'record-only') return { __pending: true, error: `missing or hidden option ${descriptorId}:${value}` }
     return {
       ok: true,
       id: descriptorId,
@@ -245,12 +312,18 @@ const AOSNativeControls = (() => {
       selected: option?.selected === true,
       controlRecord: record,
       fallback,
+      routeMode,
       point
     }
   }
   const clickSegmented = (hitCanvasId, descriptorId, value) => {
     const ready = segmentedReady(descriptorId, value)
     if (!ready.ok) return ready
+    if (ready.routeMode === 'record-only' || prefersRecordAction(ready.controlRecord)) {
+      const recordAction = dispatchPanelRecordChange(ready.controlRecord, value)
+      const updated = optionRecord(controlRecord(descriptorId), value)
+      return { ...ready, nativePoint: null, recordAction, selected: updated?.selected === true || true }
+    }
     const nativePoint = clickPoint(hitCanvasId, ready.point)
     const updated = optionRecord(controlRecord(descriptorId), value)
     return { ...ready, nativePoint, selected: updated?.selected === true }
@@ -259,12 +332,12 @@ const AOSNativeControls = (() => {
     const container = field(descriptorId)
     if (container) container.scrollIntoView?.({ block: 'center', inline: 'nearest' })
     const record = controlRecord(descriptorId)
-    if (!rectPoint(recordFrame(record)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
-    const { point, fallback } = recordPointOrFallback({
+    if (!rectPoint(recordFrame(record)) && !isPlaceholderFrame(recordFrame(record)) && !container) return { __pending: true, error: `missing control ${descriptorId}` }
+    const { point, fallback, routeMode } = recordPointOrFallback({
       record,
       fallbackElement: () => sliderControl(descriptorId)
     })
-    if (!point) return { __pending: true, error: `missing or hidden slider ${descriptorId}` }
+    if (!point && routeMode !== 'record-only') return { __pending: true, error: `missing or hidden slider ${descriptorId}` }
     return {
       ok: true,
       id: descriptorId,
@@ -275,12 +348,21 @@ const AOSNativeControls = (() => {
       actions: record?.actions || [],
       controlRecord: record,
       fallback,
+      routeMode,
       point
     }
   }
   const dragSlider = (hitCanvasId, descriptorId, startRatio = 0.15, endRatio = 0.85) => {
     const ready = sliderReady(descriptorId)
     if (!ready.ok) return ready
+    if (ready.routeMode === 'record-only' || prefersRecordAction(ready.controlRecord)) {
+      const record = ready.controlRecord || {}
+      const min = Number.isFinite(Number(record.min ?? record.metadata?.min)) ? Number(record.min ?? record.metadata?.min) : 0
+      const max = Number.isFinite(Number(record.max ?? record.metadata?.max)) ? Number(record.max ?? record.metadata?.max) : 1
+      const value = min + ((max - min) * Number(endRatio || 0))
+      const recordAction = dispatchPanelRecordChange(record, value)
+      return { ...ready, start: null, end: null, startNative: null, endNative: null, recordAction, value }
+    }
     const frame = recordFrame(ready.controlRecord)
     const control = frame ? null : sliderControl(descriptorId)
     const start = frame ? rectPoint(frame, startRatio) : pointFor(control, startRatio)

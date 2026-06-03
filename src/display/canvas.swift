@@ -574,7 +574,7 @@ class CanvasManager {
     var aosSchemeHandler: WKURLSchemeHandler?
     var onCanvasCountChanged: (() -> Void)?
     var onEvent: ((String, Any) -> Void)?   // (canvasID, payload) — relayed to subscribers
-    var onMenuItems: ((String, [[String: String]]) -> Void)?  // (canvasID, items)
+    var onMenuItems: ((String, [[String: Any]]) -> Void)?  // (canvasID, items)
     /// (canvasInfo, action) — relayed to subscribers as canvas_lifecycle events
     var onCanvasLifecycle: ((CanvasInfo, String) -> Void)?
     /// (payload) — relayed to subscribers as canvas_geometry events
@@ -1396,6 +1396,18 @@ class CanvasManager {
         return result
     }
 
+    private func statusMenuItems(from dict: [String: Any]) -> [[String: Any]]? {
+        let payload = dict["payload"] as? [String: Any]
+        let rawItems = dict["items"] ?? payload?["items"]
+        if let items = rawItems as? [[String: Any]] {
+            return items
+        }
+        if let items = rawItems as? [[String: String]] {
+            return items.map { item in item.mapValues { $0 as Any } }
+        }
+        return nil
+    }
+
     private final class LifecycleWaiter {
         let id = UUID()
         let action: String
@@ -1935,9 +1947,9 @@ class CanvasManager {
                 }
 
                 // Canvas-provided menu items for the status bar right-click menu.
-                // { type: "set_menu_items", items: [{title: "...", id: "..."}, ...] }
+                // { type: "set_menu_items", payload: {items: [{title: "...", id: "..."}]} }
                 if type == "set_menu_items",
-                   let rawItems = dict["items"] as? [[String: String]] {
+                   let rawItems = self?.statusMenuItems(from: dict) {
                     self?.onMenuItems?(id, rawItems)
                     return
                 }

@@ -102,6 +102,12 @@ export function createHostRuntime() {
         subscribe,
         unsubscribe,
         request,
+        setStatusMenuItems(items = []) {
+            post('set_menu_items', { items });
+        },
+        aosAction(opts = {}) {
+            return request('aos.action', opts);
+        },
         canvasCreate(opts) {
             return request('canvas.create', opts, {
                 mapResult(msg) {
