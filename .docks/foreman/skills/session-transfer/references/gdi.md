@@ -87,7 +87,7 @@ write hook markers, reset permissions, open Settings, or start AOS.
 
 ## Bad Assumptions To Prevent
 
-- Do not read router changed-file counts as dirty worktree state.
+- Do not read router changed-file counts as dirty checkout state.
 - Do not reset to `origin/main` before reading a work card that may only exist
   on a feature branch.
 - Do not use a successor-Foreman handoff as a work card.

@@ -7,6 +7,18 @@ development workflow profiles.
 Work in `/Users/Michael/Code/agent-os` unless the task explicitly changes dock
 configuration, hooks, skills, or local instructions under `.docks/`.
 
+## Single-Checkout Default
+
+The active default repo workflow is local and single-checkout. Do not create
+linked git worktrees or route agents into `/Users/Michael/Code/agent-os-worktrees`
+unless the user explicitly requests that workflow or the active profile says so.
+Use local branches, scoped commits, and named stashes to preserve work instead.
+
+The repo-mode `./aos` binary is stable infrastructure and belongs at
+`/Users/Michael/Code/agent-os/aos`. Do not create, rebuild, or rely on
+branch-local or linked-worktree `aos` binaries unless the user explicitly assigns
+native binary work.
+
 ## Cold Start And Role Adoption
 
 Local sessions launched from `.docks/<dock>` inherit that dock's persona through

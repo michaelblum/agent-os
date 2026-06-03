@@ -45,6 +45,24 @@ and no local checkout, local hooks, `./aos`, or local dirty-state visibility.
 - Rollback, fix-forward, and revert are clean because main is never touched
   until the relay authority explicitly merges.
 
+### Local Relay (`local_relay`)
+
+Use this when Foreman, the human, and GDI are sharing one local checkout and the
+branch or stash is the local safety boundary.
+
+- Work only in `/Users/Michael/Code/agent-os`; do not create linked git
+  worktrees for this workflow.
+- Use local branches, scoped commits, and named stashes to preserve unrelated
+  work before switching context.
+- GDI may produce local commits when the work card asks for a checkpoint, but
+  GDI does not push, open pull requests, merge, or clean branches unless that
+  is explicitly assigned.
+- Foreman or the human reviews local branch state and verification before
+  deciding whether to merge, publish to GitHub, or ask for a correction.
+- The repo-mode `./aos` binary is stable infrastructure at
+  `/Users/Michael/Code/agent-os/aos`; do not create or rely on branch-local or
+  linked-worktree binaries.
+
 ### Hybrid Trunk (`hybrid_trunk`)
 
 Use this for a single developer or very tiny team working primarily on `main`.
@@ -54,7 +72,7 @@ Use this for a single developer or very tiny team working primarily on `main`.
 - Keep `main` releasable with disciplined, focused commits and local
   verification.
 - Create short-lived branches only for risky, experimental, multi-day, dirty
-  worktree, or externally collaborative work.
+  checkout, or externally collaborative work.
 - Do not require pull requests by default; use agent relay review, local tests,
   and human review when risk warrants it.
 
@@ -85,6 +103,14 @@ Prefer `agentic_relay` when:
 - you want rollback/fix-forward safety without mandatory pull requests;
 - the remote partner can evaluate and merge via GitHub API without a local
   checkout, and can request local probes when local-only evidence matters.
+
+Prefer `local_relay` when:
+
+- Foreman, the human, and GDI need a nimble local loop in one checkout;
+- branches and stashes are enough isolation and GitHub publication should be an
+  explicit later decision;
+- linked git worktrees or extra `aos` binaries would create more confusion than
+  safety.
 
 Prefer `hybrid_trunk` when:
 

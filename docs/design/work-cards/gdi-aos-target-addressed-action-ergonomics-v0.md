@@ -22,7 +22,7 @@ Deterministic implementation and contract round.
 Do not restart from `origin/main`. This slice depends on the current accepted
 surface, placement, semantic-target, and Sigil panel stack.
 
-The current main worktree may still contain an interrupted diagnostic diff from
+The current main checkout may still contain an interrupted diagnostic diff from
 `gdi/toolkit-panel-live-drag-correction-v1` in:
 
 - `packages/toolkit/panel/chrome.js`
@@ -30,18 +30,19 @@ The current main worktree may still contain an interrupted diagnostic diff from
 
 Treat that diff as diagnostic only. Do not commit it, continue it, or build on
 top of it unless this card's semantic/action work re-derives the same change
-from deterministic evidence. If your checkout contains those dirty edits, use a
-clean branch or linked worktree from `required_start_ref` before editing this
-slice.
+from deterministic evidence. If your checkout contains those dirty edits,
+preserve them with a named stash or checkpoint, then use a clean local branch
+from `required_start_ref` before editing this slice. Do not create a linked
+git worktree.
 
-There is also a stale historical linked worktree at:
+There was also a stale historical linked worktree at:
 
 ```text
 /Users/Michael/Code/agent-os-worktrees/toolkit-panel-live-drag-correction-v0
 ```
 
-Do not reset, delete, rebase, or transplant that worktree. It is not this
-round's base.
+It is not this round's base. Do not recreate or route new work into linked
+worktrees for this workflow.
 
 ## Source Artifact
 
@@ -53,7 +54,7 @@ round's base.
 
 ## Fresh Context Contract
 
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+GDI starts from a fresh context window. Do not assume branch, checkout, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 

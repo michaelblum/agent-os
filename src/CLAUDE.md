@@ -259,9 +259,9 @@ aos content wait --root demo              # Wait until the daemon is serving tha
 aos show wait --id demo --manifest foo    # Wait until a canvas bridge + manifest are live
 ```
 
-Use canonical root names only on `main`. Topic worktrees should use
-branch-scoped sibling roots via `scripts/aos-content-scope.sh` so parallel
-sessions do not make the daemon serve another checkout's content.
+Use canonical root names in the single-checkout local workflow. Branch-scoped
+sibling roots via `scripts/aos-content-scope.sh` are for explicit parallel
+session overrides, not the default local relay loop.
 
 Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 

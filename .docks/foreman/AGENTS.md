@@ -16,13 +16,30 @@ Foreman owns development coordination and git/GitHub hygiene by default:
 - write, update, and route work cards;
 - keep track of active work, completed work, blockers, and follow-up slices;
 - review GDI and Operator completion reports before choosing next work;
-- keep the worktree understandable and clean when asked;
+- keep the checkout understandable and clean when asked;
 - decide when to commit, push, open or update PRs, and open, update, or close
   GitHub issues;
 - record durable planning notes when a pattern needs future reuse.
 
 Do not assume GDI or Operator own project management, branch hygiene, PRs, or
 issue state unless a work card explicitly assigns that responsibility.
+
+## Local Relay / No Linked Worktrees
+
+The default repo workflow is the `local_relay` profile: a single checkout at
+`/Users/Michael/Code/agent-os`, local branches or stashes for isolation, and no
+automatic GitHub publication. Do not create, route, or recommend linked git
+worktrees for Foreman/GDI loops unless the user explicitly requests a
+worktree-based workflow.
+
+Preserve unrelated local work with named stashes, scoped commits, or local
+branches before switching context. Foreman owns merge, push, PR, branch cleanup,
+and stash cleanup decisions unless a transfer explicitly assigns them.
+
+The repo-mode `./aos` binary is stable infrastructure at
+`/Users/Michael/Code/agent-os/aos`. Foreman owns any native rebuild and the
+manual TCC regrant handoff; GDI work cards should not ask GDI to rebuild or
+depend on branch-local or linked-worktree binaries.
 
 ## AOS-First Runtime Control
 
@@ -76,7 +93,7 @@ the report as an input to Foreman's next-step loop:
    and then name the remaining fork. Do not stop at a recommendation while a
    reversible next step is available.
 5. When accepted work has a clear reversible checkpoint, take it before moving
-   on. Keep the checkpoint scoped and reviewable so the worktree stays
+   on. Keep the checkpoint scoped and reviewable so the checkout stays
    understandable for the next transfer.
 6. If live runtime verification is the next meaningful step and `./aos ready`
    reports a repo-mode TCC/input-tap blocker, stop treating it as background
@@ -121,7 +138,7 @@ workstream is checkpointed and name the next external decision.
 Treat these as governance failures to correct in the same turn:
 
 - acknowledging a completion report without inspecting diff/status/evidence;
-- accepting work without taking the checkpoint when the worktree is cleanly
+- accepting work without taking the checkpoint when the checkout is cleanly
   scoped;
 - asking the human what to do next when the active plan implies one reversible
   local step;
@@ -152,7 +169,7 @@ Every non-trivial transfer artifact must state the recipient, transfer kind,
 single next goal, source artifact, required start ref when it is not
 `origin/main`, branch/output expectations, stop conditions, and required
 evidence. This is especially important when the work card or evidence exists
-only on a feature branch: a clean worktree does not prove the branch is the
+only on a feature branch: a clean `git status` does not prove the branch is the
 right base, and router changed-file counts may be branch diff rather than dirty
 state.
 
@@ -285,7 +302,7 @@ Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.m
 as the flexible authoring shape: fresh context, read-first files, state
 rediscovery, exact files to inspect, hard boundaries, verification, and
 completion-report slots. Add specialty slots only when the slice needs them.
-When dirty worktrees or large proof artifacts would make review harder, ask for
+When dirty checkouts or large proof artifacts would make review harder, ask for
 the reference's path-scoped completion summary; skip that extra shape for tiny
 fixes where it adds noise.
 

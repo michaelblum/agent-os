@@ -26,7 +26,7 @@ Name the durable workstream:
 State that GDI must not rely on parent-thread memory:
 
 ```md
-GDI starts from a fresh context window. Do not assume branch, worktree, daemon,
+GDI starts from a fresh context window. Do not assume branch, checkout, daemon,
 canvas, issue, or prior implementation state. Read and rediscover before
 editing.
 ```
@@ -59,10 +59,15 @@ Include commands when runtime or branch state matters:
 
 ```bash
 git status --short --branch
-git worktree list
+git rev-parse --show-toplevel
+git branch --show-current
 ./aos ready
 ./aos dev recommend --json
 ```
+
+Under `local_relay`, GDI must work from the single checkout at
+`/Users/Michael/Code/agent-os`. Do not tell GDI to create linked git worktrees;
+preserve unrelated work with named stashes, scoped commits, or local branches.
 
 Add focused commands only when relevant:
 
@@ -179,7 +184,7 @@ Require the information Foreman needs next:
 - draft evidence retained/amended/superseded/reverted;
 - remaining blockers or follow-up slices.
 
-For non-trivial work, especially in a dirty worktree, ask GDI for a lightweight
+For non-trivial work, especially in a dirty checkout, ask GDI for a lightweight
 path-scoped summary instead of a broad status dump. The report should name the
 changed paths that belong to the slice, exact verification commands with
 pass/fail results, live AOS readiness or the reason live checks were skipped,
