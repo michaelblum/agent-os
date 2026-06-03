@@ -36,6 +36,20 @@ test('avatar controls right-click routing chooses toggle for non-duplicate open 
   assert.deepEqual(route.pointer, { x: 12, y: 24, valid: true })
 })
 
+test('avatar controls right-click routing repositions when an open panel is clicked from the avatar', () => {
+  const route = resolveAvatarControlsRightClickRoute({ type: 'right_mouse_down', x: 32, y: 44 }, {
+    isOpen: true,
+    isDuplicateOpenClick: () => false,
+    isAvatarPointer: () => true,
+  })
+
+  assert.equal(route.handled, true)
+  assert.equal(route.command, 'open')
+  assert.equal(route.reason, 'reposition_existing_panel')
+  assert.equal(route.input.nodeId, 'sigil.avatar.body')
+  assert.deepEqual(route.pointer, { x: 32, y: 44, valid: true })
+})
+
 test('avatar controls right-click routing chooses open only with numeric coordinates and closed controls', () => {
   const open = resolveAvatarControlsRightClickRoute({ type: 'right_mouse_down', x: 1, y: 2 }, {
     isOpen: false,

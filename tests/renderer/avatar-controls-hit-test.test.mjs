@@ -303,10 +303,11 @@ test('avatar controls descriptors carry toolkit form metadata for compact avatar
   assert.deepEqual(grid.options.map((option) => option.value), ['off', 'flat', '3d'])
 })
 
-test('panel avatar controls treats child panel canvas input as inside the surface', () => {
+test('panel avatar controls treats child panel canvas input as inside the surface', async () => {
   const previousDocument = globalThis.document
   const previousWindow = globalThis.window
   const previousEvent = globalThis.Event
+  const previousSetTimeout = globalThis.setTimeout
   const document = createPatchedDocument()
   globalThis.document = document
   globalThis.window = { innerHeight: 900 }
@@ -315,6 +316,11 @@ test('panel avatar controls treats child panel canvas input as inside the surfac
   try {
     const actions = []
     const closes = []
+    const timeoutCalls = []
+    globalThis.setTimeout = (...args) => {
+      timeoutCalls.push(args)
+      return previousSetTimeout(...args)
+    }
     const controls = createSigilAvatarControls({
       state: {
         avatar: createDefaultAvatarState(),
@@ -350,6 +356,11 @@ test('panel avatar controls treats child panel canvas input as inside the surfac
     assert.ok(legacyAnchor)
     assert.equal(legacyAnchor.classList.contains('visible'), false)
     assert.equal(legacyAnchor.querySelector('.sigil-avatar-control-surface'), null)
+    await Promise.resolve()
+    await Promise.resolve()
+    assert.deepEqual(timeoutCalls, [])
+    assert.equal(legacyAnchor.classList.contains('visible'), false)
+    assert.equal(legacyAnchor.querySelector('.sigil-avatar-control-surface'), null)
 
     assert.equal(controls.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
       raw: { source_canvas_id: 'panel-test' },
@@ -366,6 +377,7 @@ test('panel avatar controls treats child panel canvas input as inside the surfac
     globalThis.document = previousDocument
     globalThis.window = previousWindow
     globalThis.Event = previousEvent
+    globalThis.setTimeout = previousSetTimeout
   }
 })
 

@@ -979,7 +979,7 @@ sigilInputRegions = createSigilInputRegionAdapter({
     windowObject: window,
     isPrimarySegment: isPrimarySurfaceSegment,
     avatarNativeFrame: nativeFrameForAvatar,
-    avatarRegionEnabled: () => !hitTarget.hit.interactive,
+    avatarRegionEnabled: () => !hitTarget.hit.interactive && !liveJs.avatarParking,
     avatarControlsIsOpen: () => avatarControls.isOpen(),
     avatarControlsNativeFrame: () => nativeFrameFromDesktopRect(avatarControls.interactiveBounds()),
     selectionModeIsActive: () => liveJs.selectionMode?.active === true,
@@ -3668,6 +3668,10 @@ function openAvatarControlsAt(x, y, options = {}) {
         recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-hidden' });
         return false;
     }
+    if (!options.force && liveJs.avatarParking?.mode === 'status') {
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-parked-at-status' });
+        return false;
+    }
     if (!options.force && liveJs.currentState !== 'IDLE') {
         recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'state-not-idle' });
         return false;
@@ -4074,6 +4078,7 @@ function handleInputEvent(msg) {
                 const route = resolveAvatarControlsRightClickRoute(msg, {
                     isOpen: avatarControls.isOpen(),
                     isDuplicateOpenClick: isDuplicateAvatarControlsOpenClick,
+                    isAvatarPointer: isOnAvatar,
                 });
                 if (route.direct === 'duplicate_open_echo') {
                     recordInteraction('avatar-controls:right-down-duplicate-ignored', { x: msg.x, y: msg.y });

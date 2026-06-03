@@ -381,7 +381,6 @@ export function createSigilAvatarControls({
     let panelReady = false;
     let panelControls = [];
     let panelActiveTab = null;
-    let panelEmbeddedFallbackActive = false;
     const compactValueCache = new Map();
     const usesPanel = typeof actionDispatcher === 'function' && !!panelUrl;
     const interactionRouter = createDesktopWorldInteractionRouter({
@@ -835,7 +834,7 @@ export function createSigilAvatarControls({
     }
 
     function syncPosition() {
-        if (usesPanel && !panelEmbeddedFallbackActive) return;
+        if (usesPanel) return;
         if (!surfaceState.open || !surfaceState.bounds || typeof projectPoint !== 'function') return;
         const local = projectPoint(surfaceState.bounds);
         if (!local) {
@@ -848,7 +847,7 @@ export function createSigilAvatarControls({
     }
 
     function surfaceBounds() {
-        if (usesPanel && !panelEmbeddedFallbackActive) return surfaceState.bounds ? { ...surfaceState.bounds } : null;
+        if (usesPanel) return surfaceState.bounds ? { ...surfaceState.bounds } : null;
         if (!surfaceState.bounds) return null;
         const surfaceRect = anchor.querySelector('.sigil-avatar-control-surface')?.getBoundingClientRect?.();
         if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) return { ...surfaceState.bounds };
@@ -878,7 +877,6 @@ export function createSigilAvatarControls({
         if (usesPanel) {
             compactSurface?.destroy?.();
             compactSurface = null;
-            panelEmbeddedFallbackActive = false;
             anchor.replaceChildren();
             anchor.classList.remove('visible');
             anchor.style.display = 'none';
@@ -911,31 +909,6 @@ export function createSigilAvatarControls({
                 },
             }).then(() => {
                 sendPanelUpdate('open');
-                globalThis.setTimeout?.(() => {
-                    recordTrace('panel-embedded-fallback-check', {
-                        open: surfaceState.open,
-                        panelControlCount: panelControls.length,
-                        compactSurfaceActive: !!compactSurface,
-                        panelReady,
-                        panelActiveTab,
-                    });
-                    if (!surfaceState.open || panelControls.length > 0 || compactSurface) return;
-                    panelEmbeddedFallbackActive = true;
-                    anchor.classList.add('visible');
-                    anchor.style.display = '';
-                    void mountCompactSurface(panelActiveTab || null).then(() => {
-                        if (!surfaceState.open || !panelEmbeddedFallbackActive) return;
-                        syncFromState();
-                        seedCompactValueCache();
-                        syncPosition();
-                        syncSnapshot();
-                        onBoundsChange?.(snapshot());
-                        recordTrace('panel-embedded-fallback', { reason: 'panel-controls-timeout' });
-                    }).catch((error) => {
-                        console.warn('[sigil] avatar control embedded fallback failed:', error);
-                        recordTrace('panel-embedded-fallback-failed', { error: String(error) });
-                    });
-                }, 750);
             }).catch((error) => {
                 console.warn('[sigil] avatar control panel action failed:', error);
                 recordTrace('panel-action-failed', { error: String(error) });
@@ -964,7 +937,6 @@ export function createSigilAvatarControls({
         panelReady = false;
         panelControls = [];
         panelActiveTab = null;
-        panelEmbeddedFallbackActive = false;
         interactionRouter.reset();
         compactSurface?.destroy?.();
         compactSurface = null;
@@ -993,12 +965,20 @@ export function createSigilAvatarControls({
         if (!open) {
             compactSurface?.destroy?.();
             compactSurface = null;
-            panelEmbeddedFallbackActive = false;
             compactValueCache.clear();
             panelReady = false;
             panelControls = [];
             panelActiveTab = null;
             anchor.classList.remove('visible');
+            syncSnapshot();
+            return;
+        }
+        if (usesPanel) {
+            compactSurface?.destroy?.();
+            compactSurface = null;
+            anchor.replaceChildren();
+            anchor.classList.remove('visible');
+            anchor.style.display = 'none';
             syncSnapshot();
             return;
         }
@@ -1235,16 +1215,6 @@ export function createSigilAvatarControls({
                 || raw.owner_canvas_id
                 || null;
             if (sourceCanvasId === panelId || ownerCanvasId === panelId) return true;
-            if (panelEmbeddedFallbackActive) {
-                return interactionRouter.route(
-                    { type: kind, x: point.x, y: point.y, ...raw },
-                    {
-                        source: options.source || 'global',
-                        sourceIdentity,
-                        regionId: options.regionId,
-                    }
-                );
-            }
             const inside = containsDesktopPoint(point);
             if (!inside && kind === 'left_mouse_down') return false;
             return inside || kind !== 'left_mouse_down';
