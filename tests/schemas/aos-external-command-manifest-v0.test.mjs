@@ -155,7 +155,6 @@ test('external command manifest only routes bootstrap families to Swift', async 
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([
     ['serve', ['__serve']],
-    ['doctor', ['__doctor']],
     ['permissions', ['__permissions']],
   ]);
 
@@ -215,6 +214,15 @@ test('status public route is externally composed', async () => {
   assert.equal(status.env.AOS_PATH, '$AOS_PATH');
 });
 
+test('doctor public route is externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  const doctor = manifest.commands.find((command) => command.path.join(' ') === 'doctor');
+  assert.ok(doctor, 'doctor route missing');
+  assert.equal(doctor.executable, '/usr/bin/env');
+  assert.deepEqual(doctor.argv_prefix, ['node', 'scripts/aos-doctor.mjs']);
+  assert.equal(doctor.env.AOS_PATH, '$AOS_PATH');
+});
+
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);
@@ -239,17 +247,17 @@ test('private Swift primitives are reachable only through expected external wrap
   const manifest = await loadJson(manifestPath);
   const expectedBootstrapRoutes = new Map([
     ['__serve', 'serve'],
-    ['__doctor', 'doctor'],
     ['__permissions', 'permissions'],
   ]);
   const expectedWrapperFiles = new Map([
-    ['__daemon', ['scripts/aos-ready.mjs']],
-    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs']],
-    ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs']],
+    ['__daemon', ['scripts/aos-ready.mjs', 'scripts/aos-doctor.mjs']],
+    ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs']],
+    ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
     ['__do', ['scripts/aos-do-native.mjs']],
+    ['__doctor', []],
   ]);
   const privatePrimitives = new Set([...expectedBootstrapRoutes.keys(), ...expectedWrapperFiles.keys()]);
 
@@ -270,6 +278,7 @@ test('private Swift primitives are reachable only through expected external wrap
   }
 
   for (const [primitive, files] of expectedWrapperFiles) {
+    if (primitive === '__doctor') continue;
     for (const relativePath of files) {
       const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
       assert.ok(source.includes(primitive), `${relativePath} must invoke ${primitive}`);
@@ -549,7 +558,7 @@ test('registry concrete usage forms have external routes', async () => {
   const manifest = await loadJson(manifestPath);
   const registry = await loadJson(registryPath);
   const externalPaths = new Set(manifest.commands.map((command) => command.path.join('\0')));
-  const bootstrapFamilies = new Set(['serve', 'ready', 'doctor', 'permissions']);
+  const bootstrapFamilies = new Set(['serve', 'ready', 'permissions']);
 
   for (const command of registry.commands) {
     for (const form of command.forms) {

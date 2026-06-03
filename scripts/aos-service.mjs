@@ -560,18 +560,21 @@ async function restartCommand(args) {
 function serviceStatus(mode) {
   const paths = servicePaths(mode);
   const installed = fs.existsSync(paths.plistPath);
+  const loaded = installed && isServiceLoaded(paths.label);
   const pid = servicePID(paths.label);
   const actualBinaryPath = installed ? plistValue(paths.plistPath, ':ProgramArguments:0') : null;
   const actualLogPath = installed ? plistValue(paths.plistPath, ':StandardErrorPath') : null;
+  const targetMatchesExpected = actualBinaryPath == null ? !installed : actualBinaryPath === paths.binaryPath;
+  const logPathMatchesExpected = actualLogPath == null ? !installed : actualLogPath === paths.stderrLogPath;
   const notes = [];
 
   if (!installed) notes.push('Launch agent plist is not installed.');
-  if (installed && !isServiceLoaded(paths.label)) notes.push('Launch agent is installed but not loaded in launchd.');
+  if (installed && !loaded) notes.push('Launch agent is installed but not loaded in launchd.');
   if (installed && pid === null) notes.push('Service is not running.');
-  if (actualBinaryPath && actualBinaryPath !== paths.binaryPath) {
+  if (!targetMatchesExpected) {
     notes.push(`Launch agent target differs from the expected ${mode} binary.`);
   }
-  if (actualLogPath && actualLogPath !== paths.stderrLogPath) {
+  if (!logPathMatchesExpected) {
     notes.push(`Launch agent log path differs from the expected ${mode} state directory.`);
   }
   if (!isExecutable(paths.binaryPath)) {
@@ -582,13 +585,17 @@ function serviceStatus(mode) {
     status: notes.length ? 'degraded' : 'ok',
     mode,
     installed,
+    loaded,
     running: pid !== null,
     pid: pid ?? undefined,
+    label: paths.label,
     launchd_label: paths.label,
     actual_binary_path: actualBinaryPath ?? undefined,
     expected_binary_path: paths.binaryPath,
     actual_log_path: actualLogPath ?? undefined,
     expected_log_path: paths.stderrLogPath,
+    target_matches_expected: targetMatchesExpected,
+    log_path_matches_expected: logPathMatchesExpected,
     plist_path: paths.plistPath,
     state_dir: paths.logDir,
     notes,

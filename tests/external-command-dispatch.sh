@@ -122,7 +122,7 @@ registry = json.load(open("manifests/commands/aos-commands.json", encoding="utf-
 registry_paths = {tuple(item["path"]) for item in registry["commands"]}
 external_paths = {tuple(item["path"]) for item in manifest["commands"]}
 assert registry_paths <= external_paths, sorted(registry_paths - external_paths)
-bootstrap_families = {"serve", "ready", "doctor", "permissions"}
+bootstrap_families = {"serve", "ready", "permissions"}
 def concrete_usage_path(usage):
     if usage.startswith("aos "):
         aos_usage = usage
@@ -181,12 +181,15 @@ assert update_case, "show update switch case missing"
 assert update_case.group("body").count("mutationCommand(args, 'update')") == 1, update_case.group("body")
 for path, primitive in [
     (("serve",), "__serve"),
-    (("doctor",), "__doctor"),
     (("permissions",), "__permissions"),
 ]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
     assert command["argv_prefix"] == [primitive], command
+command = commands[("doctor",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-doctor.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 command = commands[("ready",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-ready.mjs"], command
