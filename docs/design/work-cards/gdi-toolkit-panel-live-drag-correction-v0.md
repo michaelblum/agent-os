@@ -43,10 +43,22 @@ GDI correction round.
 - `required_start_ref`: the current Foreman routing checkpoint containing this
   refreshed work card, descendant of
   `721accc38e2c58bb984a37c968aade808d11c269`.
-- `expected_output_branch`: `gdi/toolkit-panel-live-drag-correction-v0`
+- `expected_output_branch`: `gdi/toolkit-panel-live-drag-correction-v1`
 
 Do not restart from `origin/main`. This slice depends on the accepted
 observability, placement, avatar avoidance, and avatar-controls identity stack.
+
+There is a stale linked worktree at:
+
+```text
+/Users/Michael/Code/agent-os-worktrees/toolkit-panel-live-drag-correction-v0
+```
+
+That worktree is on the old `gdi/toolkit-panel-live-drag-correction-v0` branch
+at `7d8e593a` and has dirty edits against pre-rename `apps/sigil/context-menu/*`
+paths. Treat it as historical local state. Do not reset it, delete it, rebase
+it, or transplant its dirty diff unless Foreman explicitly asks for forensic
+comparison. Create the new output branch from the required start ref instead.
 
 ## Source Artifact
 
@@ -240,6 +252,10 @@ owner-side bounds bookkeeping.
 - Do not use raw daemon HTTP, direct tmux, state-file probing, or ad-hoc Quartz
   scripts as the primary proof. Use `./aos ready`, `./aos show`, `./aos see`,
   and `./aos do`.
+- Do not port dirty edits from the stale linked worktree unless the same defect
+  is independently reproduced on the current `avatar-controls` stack.
+- Do not reintroduce `apps/sigil/context-menu/*` as the avatar-controls
+  implementation path.
 - Do not remove or rewrite unrelated untracked work cards or reports.
 
 ## Suggested Live Smoke Shape
