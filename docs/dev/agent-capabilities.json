@@ -78,7 +78,7 @@
       "inputs": [
         {
           "name": "filters",
-          "summary": "Optional --state, --limit, --label, --author, --assignee, and --search filters.",
+          "summary": "Optional --state, --limit, --label, --author, --assignee, --search, and --milestone filters.",
           "required": false,
           "schema": {
             "type": "object"
@@ -300,7 +300,7 @@
       "outputs": [
         {
           "name": "pull_request_json",
-          "summary": "Pull request title, state, refs, body, comments, and reviews.",
+          "summary": "Pull request title, state, refs, review decision, body, comments, and reviews.",
           "required": true,
           "schema": {
             "type": "object"

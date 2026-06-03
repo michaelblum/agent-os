@@ -26,13 +26,16 @@ function parseOptions(args, config = {}) {
     author: null,
     assignee: null,
     search: null,
+    milestone: null,
     base: null,
     head: null,
     draft: false,
     positionals: [],
   };
   const listKind = config.listKind ?? null;
-  const requireValue = (index, flag, summary) => {
+  const commonListFlags = new Set(['--state', '--limit', '--label', '--author', '--assignee', '--search']);
+  const prListFlags = new Set(['--base', '--head', '--draft']);
+  const requireValueAt = (index, flag, summary) => {
     if (index < 0 || index + 1 >= args.length || args[index + 1].startsWith('--')) {
       die(`${flag} requires ${summary}`, 'MISSING_ARG');
     }
@@ -59,31 +62,39 @@ function parseOptions(args, config = {}) {
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--pr requires a PR number', 'MISSING_ARG');
       options.prNumber = args[i + 1];
       i += 2;
+    } else if (commonListFlags.has(arg) && !listKind) {
+      die(`${arg} is only valid for list subcommands`, 'UNKNOWN_FLAG');
+    } else if (prListFlags.has(arg) && !listKind) {
+      die(`${arg} is only valid for PR list subcommands`, 'UNKNOWN_FLAG');
     } else if (arg === '--state' && listKind) {
       const stateSummary = listKind === 'pr' ? 'open, closed, merged, or all' : 'open, closed, or all';
-      options.state = requireValue(i, arg, stateSummary);
+      options.state = requireValueAt(i, arg, stateSummary);
       i += 2;
     } else if (arg === '--limit' && listKind) {
-      options.limit = requireValue(i, arg, 'a numeric result limit');
-      if (!/^[0-9]+$/.test(options.limit)) die(`--limit must be numeric: ${options.limit}`, 'INVALID_ARG');
+      const limit = requireValueAt(i, arg, 'a numeric result limit');
+      if (!/^[0-9]+$/.test(limit)) die(`--limit must be numeric: ${limit}`, 'INVALID_ARG');
+      options.limit = Number.parseInt(limit, 10);
       i += 2;
     } else if (arg === '--label' && listKind) {
-      options.labels.push(requireValue(i, arg, 'a label name'));
+      options.labels.push(requireValueAt(i, arg, 'a label name'));
       i += 2;
     } else if (arg === '--author' && listKind) {
-      options.author = requireValue(i, arg, 'a GitHub login');
+      options.author = requireValueAt(i, arg, 'a GitHub login');
       i += 2;
     } else if (arg === '--assignee' && listKind) {
-      options.assignee = requireValue(i, arg, 'a GitHub login or @me');
+      options.assignee = requireValueAt(i, arg, 'a GitHub login or @me');
       i += 2;
     } else if (arg === '--search' && listKind) {
-      options.search = requireValue(i, arg, 'a search query');
+      options.search = requireValueAt(i, arg, 'a search query');
+      i += 2;
+    } else if (arg === '--milestone' && listKind === 'issue') {
+      options.milestone = requireValueAt(i, arg, 'an issue milestone name');
       i += 2;
     } else if (arg === '--base' && listKind === 'pr') {
-      options.base = requireValue(i, arg, 'a base branch name');
+      options.base = requireValueAt(i, arg, 'a base branch name');
       i += 2;
     } else if (arg === '--head' && listKind === 'pr') {
-      options.head = requireValue(i, arg, 'a head branch name');
+      options.head = requireValueAt(i, arg, 'a head branch name');
       i += 2;
     } else if (arg === '--draft' && listKind === 'pr') {
       options.draft = true;
@@ -205,11 +216,12 @@ function appendRepo(args, repoFullName) {
 
 function appendListFilters(args, options, kind) {
   if (options.state) args.push('--state', options.state);
-  if (options.limit) args.push('--limit', options.limit);
+  if (options.limit != null) args.push('--limit', String(options.limit));
   for (const label of options.labels) args.push('--label', label);
   if (options.author) args.push('--author', options.author);
   if (options.assignee) args.push('--assignee', options.assignee);
   if (options.search) args.push('--search', options.search);
+  if (kind === 'issue' && options.milestone) args.push('--milestone', options.milestone);
   if (kind === 'pr') {
     if (options.base) args.push('--base', options.base);
     if (options.head) args.push('--head', options.head);
@@ -420,7 +432,7 @@ function prCommand(args) {
     const ghArgs = ['pr', 'view'];
     if (options.positionals[0]) ghArgs.push(options.positionals[0]);
     appendRepo(ghArgs, repoFullName);
-    if (options.json) ghArgs.push('--json', 'number,title,state,url,headRefName,baseRefName,isDraft,body,comments,reviews');
+    if (options.json) ghArgs.push('--json', 'number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews');
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'checks') {
     const options = parseOptions(args.slice(1));

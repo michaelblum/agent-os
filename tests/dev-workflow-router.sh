@@ -675,8 +675,12 @@ if [[ "$cmd" == issue\ comment\ 298\ --repo\ michaelblum/agent-os\ --body-file\ 
     echo "https://github.com/michaelblum/agent-os/issues/298#issuecomment-test"
     exit 0
 fi
-if [[ "$cmd" == "issue list --repo michaelblum/agent-os --state all --limit 20 --label bug --label docs --search semantic target --json number,title,state,url,createdAt,updatedAt,labels,assignees,author" ]]; then
+if [[ "$cmd" == "issue list --repo michaelblum/agent-os --state all --limit 20 --label bug --label docs --search semantic target --milestone v0 --json number,title,state,url,createdAt,updatedAt,labels,assignees,author" ]]; then
     echo '[{"number":399,"title":"Track semantic target cleanup","state":"CLOSED","url":"https://github.com/michaelblum/agent-os/issues/399"}]'
+    exit 0
+fi
+if [[ "$cmd" == "pr view 298 --repo michaelblum/agent-os --json number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews" ]]; then
+    echo '{"number":298,"title":"Review target","state":"OPEN","reviewDecision":"CHANGES_REQUESTED"}'
     exit 0
 fi
 if [[ "$cmd" == "pr list --repo michaelblum/agent-os --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author" ]]; then
@@ -736,7 +740,7 @@ else
     fail "dev gh issue view extra positional error mismatch: $ERR"
 fi
 
-if OUT="$(./aos dev gh issue list --state all --limit 20 --label bug --label docs --search "semantic target" --json 2>/dev/null)" python3 - <<'PY'
+if OUT="$(./aos dev gh issue list --state all --limit 20 --label bug --label docs --search "semantic target" --milestone v0 --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
 
@@ -756,6 +760,22 @@ elif echo "$ERR" | grep -q -- '--limit requires a numeric result limit'; then
     pass "dev gh issue list treats flag-after---limit as missing value"
 else
     fail "dev gh issue list missing --limit error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue view 298 --state all --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue view should reject list-only flags with a targeted error"
+elif echo "$ERR" | grep -q -- '--state is only valid for list subcommands'; then
+    pass "dev gh issue view rejects list-only flags with a targeted error"
+else
+    fail "dev gh issue view list-only flag error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue list --base main --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue list should reject PR-only flags"
+elif echo "$ERR" | grep -q -- 'Unknown dev gh flag: --base'; then
+    pass "dev gh issue list rejects PR-only flags"
+else
+    fail "dev gh issue list PR-only flag error mismatch: $ERR"
 fi
 
 BODY="$TMPDIR/comment.md"
@@ -814,6 +834,20 @@ elif echo "$ERR" | grep -q -- '--base requires a base branch name'; then
     pass "dev gh pr list treats flag-after---base as missing value"
 else
     fail "dev gh pr list missing --base error mismatch: $ERR"
+fi
+
+if OUT="$(./aos dev gh pr view 298 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["number"] == 298, data
+assert data["reviewDecision"] == "CHANGES_REQUESTED", data
+PY
+then
+    pass "dev gh pr view includes reviewDecision in JSON output"
+else
+    fail "dev gh pr view did not request reviewDecision JSON"
 fi
 
 if OUT="$(./aos dev gh ci inspect --json 2>/dev/null)"; then

@@ -102,7 +102,7 @@ Keep GitHub operations thin and intentional:
   context is unclear;
 - use `./aos dev gh issue list --state <state> --limit <n> --json` and
   `./aos dev gh pr list --state <state> --limit <n> --json` for read-only
-  issue and PR inventory;
+  issue and PR inventory from the AOS developer entry path;
 - use body files for issue and PR comments instead of inline shell strings;
 - use `./aos dev gh ci inspect --pr <n> --json` when a PR check fails and you
   need failed GitHub Actions logs;

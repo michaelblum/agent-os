@@ -6689,6 +6689,14 @@
               "value_type" : "string"
             },
             {
+              "id" : "milestone",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue list milestone filter",
+              "token" : "--milestone",
+              "value_type" : "string"
+            },
+            {
               "id" : "base",
               "kind" : "flag",
               "required" : false,
@@ -6723,7 +6731,7 @@
           ],
           "examples" : [
             "aos dev gh context --json",
-            "aos dev gh issue list --state open --limit 50 --json",
+            "aos dev gh issue list --state open --limit 50 --milestone v0 --json",
             "aos dev gh issue view 298 --json",
             "aos dev gh issue comment 298 --body-file \/tmp\/comment.md",
             "aos dev gh pr list --state all --limit 30 --json",
@@ -6746,7 +6754,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner\/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n] [--state <state>] [--limit n] [--label <name>] [--author <login>] [--assignee <login>] [--search <query>] [--base <branch>] [--head <branch>] [--draft]"
+          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner\/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n] [--state <state>] [--limit n] [--label <name>] [--author <login>] [--assignee <login>] [--search <query>] [--milestone <name>] [--base <branch>] [--head <branch>] [--draft]"
         }
       ],
       "path" : [
