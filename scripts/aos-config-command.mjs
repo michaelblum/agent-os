@@ -132,7 +132,7 @@ function ensureContent(config) {
 function ensureStatusItem(config) {
   config.status_item ??= {
     enabled: false,
-    toggle_id: 'avatar',
+    toggle_id: 'status-item-canvas',
     toggle_url: '',
     toggle_at: [200, 200, 300, 300],
     toggle_track: null,

@@ -128,6 +128,73 @@ function overlapArea(a, b) {
     return x * y;
 }
 
+function rectCenter(rect) {
+    if (!rect) return null;
+    return {
+        x: rect.x + rect.w / 2,
+        y: rect.y + rect.h / 2,
+    };
+}
+
+function clampCenterToViewport(center, size, viewport) {
+    if (!center || !viewport) return center;
+    const halfW = size.w / 2;
+    const halfH = size.h / 2;
+    return {
+        x: clamp(center.x, viewport.x + halfW, viewport.x + Math.max(halfW, viewport.w - halfW)),
+        y: clamp(center.y, viewport.y + halfH, viewport.y + Math.max(halfH, viewport.h - halfH)),
+    };
+}
+
+export function resolveAvatarPanelAvoidancePosition({
+    avatarRect,
+    panelRect,
+    viewport,
+    margin = 12,
+} = {}) {
+    if (!avatarRect || !panelRect || !viewport) return null;
+    if (!rectsOverlap(avatarRect, panelRect)) return null;
+    const size = { w: avatarRect.w, h: avatarRect.h };
+    const current = rectCenter(avatarRect);
+    const candidates = [
+        { side: 'left', x: panelRect.x - margin - size.w / 2, y: current.y },
+        { side: 'right', x: panelRect.x + panelRect.w + margin + size.w / 2, y: current.y },
+        { side: 'above', x: current.x, y: panelRect.y - margin - size.h / 2 },
+        { side: 'below', x: current.x, y: panelRect.y + panelRect.h + margin + size.h / 2 },
+    ].map((candidate, index) => {
+        const center = clampCenterToViewport(candidate, size, viewport);
+        const rect = {
+            x: center.x - size.w / 2,
+            y: center.y - size.h / 2,
+            w: size.w,
+            h: size.h,
+        };
+        const dx = center.x - current.x;
+        const dy = center.y - current.y;
+        return {
+            ...center,
+            side: candidate.side,
+            index,
+            rect,
+            overlap: overlapArea(rect, panelRect),
+            distanceSquared: dx * dx + dy * dy,
+        };
+    });
+    const separated = candidates.filter((candidate) => candidate.overlap === 0);
+    const best = (separated.length > 0 ? separated : candidates)
+        .sort((a, b) => (
+            (a.overlap - b.overlap)
+            || (a.distanceSquared - b.distanceSquared)
+            || (a.index - b.index)
+        ))[0];
+    return best ? {
+        x: best.x,
+        y: best.y,
+        side: best.side,
+        overlap: best.overlap,
+    } : null;
+}
+
 export function resolveContextMenuOrigin(point, options = {}) {
     const width = options.width ?? MENU_WIDTH;
     const height = options.height ?? MENU_HEIGHT;
@@ -802,7 +869,15 @@ export function createSigilContextMenu({
         if (state) state.isMenuOpen = true;
         recordTrace('open', { point, origin, bounds: menuState.bounds });
         syncPosition();
-        anchor.classList.add('visible');
+        if (usesPanel) {
+            compactSurface?.destroy?.();
+            compactSurface = null;
+            anchor.replaceChildren();
+            anchor.classList.remove('visible');
+            anchor.style.display = 'none';
+        } else {
+            anchor.classList.add('visible');
+        }
         syncSnapshot();
         onBoundsChange?.(snapshot());
         if (usesPanel) {
@@ -824,6 +899,9 @@ export function createSigilContextMenu({
                 geometry_change: 'frame',
                 geometry_cause: 'sigil.avatar.right_click',
                 geometry_phase: 'settled',
+                geometry: {
+                    logical_surface_key: 'sigil.avatar.controls',
+                },
             }).then(() => {
                 sendPanelUpdate('open');
             }).catch((error) => {
@@ -1086,7 +1164,7 @@ export function createSigilContextMenu({
                 || null;
             if (sourceCanvasId === panelId || ownerCanvasId === panelId) return true;
             const inside = containsDesktopPoint(point);
-            if (!inside && kind === 'left_mouse_down') close('outside-click');
+            if (!inside && kind === 'left_mouse_down') return true;
             return inside || kind !== 'left_mouse_down';
         }
         const raw = options.raw || {};
@@ -1190,6 +1268,9 @@ export function createSigilContextMenu({
         close,
         isOpen() {
             return menuState.open;
+        },
+        usesExternalPanel() {
+            return usesPanel;
         },
         bounds() {
             return menuState.bounds ? { ...menuState.bounds } : null;

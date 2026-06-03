@@ -15,7 +15,7 @@ RESOURCES_DIR="$CONTENTS_DIR/Resources"
 EXECUTABLE_NAME="aos"
 EXECUTABLE_SRC="$REPO_ROOT/aos"
 EXECUTABLE_DST="$MACOS_DIR/$EXECUTABLE_NAME"
-SIGIL_RESOURCE_ROOT="$RESOURCES_DIR/agent-os"
+AOS_RESOURCE_ROOT="$RESOURCES_DIR/agent-os"
 INFO_PLIST="$CONTENTS_DIR/Info.plist"
 SIGN_SCRIPT="$SCRIPT_DIR/sign-aos-runtime"
 SIGN_OUTPUT=""
@@ -32,9 +32,9 @@ cp "$EXECUTABLE_SRC" "$EXECUTABLE_DST"
 chmod 755 "$EXECUTABLE_DST"
 
 mkdir -p \
-  "$SIGIL_RESOURCE_ROOT/apps/sigil" \
-  "$SIGIL_RESOURCE_ROOT/packages/toolkit/components"
-"$REPO_ROOT/scripts/generate-ops-recipe-index" "$REPO_ROOT" "$SIGIL_RESOURCE_ROOT/recipes-index.json"
+  "$AOS_RESOURCE_ROOT/apps/sigil" \
+  "$AOS_RESOURCE_ROOT/packages/toolkit/components"
+"$REPO_ROOT/scripts/generate-ops-recipe-index" "$REPO_ROOT" "$AOS_RESOURCE_ROOT/recipes-index.json"
 
 # ── aos-gateway (MCP + broker) ─────────────────────────────────
 # Plan: docs/superpowers/plans/2026-04-22-gateway-hardening.md (Task 14)

@@ -145,6 +145,7 @@ const content = {
 mountPanel({
   title: 'Avatar',
   layout: Single(content),
+  placement: { viewportOverflowPolicy: 'allow' },
   draggable: true,
   close: true,
   minimize: false,
@@ -168,4 +169,3 @@ queueMicrotask(() => {
     },
   })
 })
-

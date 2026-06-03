@@ -36,11 +36,10 @@
             }
           ],
           "examples" : [
-            "aos launch sigil",
-            "aos launch sigil legacy-workbench",
-            "aos launch sigil agent-terminal",
-            "aos launch sigil --json",
-            "aos launch sigil --dry-run --json"
+            "aos launch <app>",
+            "aos launch <app> <entry>",
+            "aos launch <app> --json",
+            "aos launch <app> --dry-run --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -144,8 +143,8 @@
             }
           ],
           "examples" : [
-            "aos experience activate sigil --dry-run --json",
-            "aos experience activate sigil"
+            "aos experience activate <experience> --dry-run --json",
+            "aos experience activate <experience>"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1566,7 +1565,7 @@
           ],
           "examples" : [
             "aos show wait --id surface-inspector --manifest surface-inspector",
-            "aos show wait --id sigil-workbench --js '!!document.querySelector(\".surface-frame\")'"
+            "aos show wait --id workbench --js '!!document.querySelector(\".surface-frame\")'"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -5183,7 +5182,7 @@
           ],
           "examples" : [
             "aos content wait --root toolkit --auto-start",
-            "aos content wait --root toolkit --root sigil --timeout 10s"
+            "aos content wait --root toolkit --root app --timeout 10s"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -8037,7 +8036,7 @@
           ],
           "examples" : [
             "aos wiki seed",
-            "aos wiki seed --force --namespace sigil"
+            "aos wiki seed --force --namespace project"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

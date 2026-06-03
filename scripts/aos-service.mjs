@@ -155,6 +155,10 @@ function launchctlBootstrap(plistPath, { tolerateAlreadyBootstrapped = false } =
   );
 }
 
+function launchctlEnable(label) {
+  runChecked('/bin/launchctl', ['enable', `${launchDomain()}/${label}`], 'LAUNCHCTL_ERROR', 'launchctl enable failed');
+}
+
 function launchctlKickstart(label) {
   runChecked('/bin/launchctl', ['kickstart', '-k', `${launchDomain()}/${label}`], 'LAUNCHCTL_ERROR', 'launchctl kickstart failed');
 }
@@ -453,6 +457,7 @@ function installCommand(args) {
   const paths = servicePaths(options.mode);
   guardBinaryExists(paths.binaryPath);
   writeServicePlist(paths);
+  launchctlEnable(paths.label);
   launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
   launchctlKickstart(paths.label);
   verifyReadiness(options.mode, options.json);
@@ -462,6 +467,7 @@ function startCommand(args) {
   const options = parseOptions(args);
   const paths = servicePaths(options.mode);
   guardBinaryExists(paths.binaryPath);
+  launchctlEnable(paths.label);
   if (!fs.existsSync(paths.plistPath)) {
     writeServicePlist(paths);
     launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
@@ -490,6 +496,7 @@ async function restartCommand(args) {
   const paths = servicePaths(options.mode);
   stopService(options.mode);
   guardBinaryExists(paths.binaryPath);
+  launchctlEnable(paths.label);
   if (!fs.existsSync(paths.plistPath)) {
     writeServicePlist(paths);
     launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });

@@ -109,7 +109,10 @@ import {
     configureTransparentSigilRenderer,
     transparentSigilRendererOptions,
 } from './webgl-renderer.js';
-import { createSigilContextMenu } from '../../context-menu/menu.js';
+import {
+    createSigilContextMenu,
+    resolveAvatarPanelAvoidancePosition,
+} from '../../context-menu/menu.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
 import { copyTextToClipboard } from './clipboard-utils.js';
@@ -341,6 +344,99 @@ function nativeFrameForAvatar() {
         size,
         size,
     ];
+}
+
+function rectFromFrame(frame) {
+    if (!Array.isArray(frame) || frame.length < 4) return null;
+    const rect = {
+        x: Number(frame[0]),
+        y: Number(frame[1]),
+        w: Number(frame[2]),
+        h: Number(frame[3]),
+    };
+    if (![rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) return null;
+    if (rect.w <= 0 || rect.h <= 0) return null;
+    return rect;
+}
+
+function frameFromRectDictionary(rect) {
+    if (!rect || typeof rect !== 'object') return null;
+    return rectFromFrame([
+        rect.x,
+        rect.y,
+        rect.w ?? rect.width,
+        rect.h ?? rect.height,
+    ]);
+}
+
+function rectContainsRect(outer, inner) {
+    return !!(outer && inner
+        && inner.x >= outer.x
+        && inner.y >= outer.y
+        && inner.x + inner.w <= outer.x + outer.w
+        && inner.y + inner.h <= outer.y + outer.h);
+}
+
+function nativeVisibleViewportForRect(rect) {
+    const displays = liveJs.displays || [];
+    return displays.map((display) => (
+        frameFromRectDictionary(display.nativeVisibleBounds)
+        || frameFromRectDictionary(display.native_visible_bounds)
+        || frameFromRectDictionary(display.visibleBounds)
+        || frameFromRectDictionary(display.visible_bounds)
+        || frameFromRectDictionary(display.nativeBounds)
+        || frameFromRectDictionary(display.native_bounds)
+        || frameFromRectDictionary(display.bounds)
+    )).find((viewport) => rectContainsRect(viewport, rect))
+        || displays.map((display) => (
+            frameFromRectDictionary(display.nativeVisibleBounds)
+            || frameFromRectDictionary(display.native_visible_bounds)
+            || frameFromRectDictionary(display.visibleBounds)
+            || frameFromRectDictionary(display.visible_bounds)
+            || frameFromRectDictionary(display.nativeBounds)
+            || frameFromRectDictionary(display.native_bounds)
+            || frameFromRectDictionary(display.bounds)
+        )).find((viewport) => {
+            const center = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+            return viewport
+                && center.x >= viewport.x
+                && center.y >= viewport.y
+                && center.x < viewport.x + viewport.w
+                && center.y < viewport.y + viewport.h;
+        })
+        || null;
+}
+
+function panelNativeFrameFromLifecycle(message = {}) {
+    const canvas = message.canvas || {};
+    return rectFromFrame(canvas.placement?.final_settled_frame)
+        || rectFromFrame(canvas.placement?.policy_adjusted_frame)
+        || rectFromFrame(canvas.at)
+        || rectFromFrame(message.at);
+}
+
+function avoidAvatarPanelOverlapFromLifecycle(message = {}) {
+    if (!contextMenu.isOpen() || !liveJs.avatarVisible || !liveJs.avatarPos.valid) return false;
+    const panelRect = panelNativeFrameFromLifecycle(message);
+    const avatarRect = rectFromFrame(nativeFrameForAvatar());
+    const viewport = nativeVisibleViewportForRect(panelRect);
+    const next = resolveAvatarPanelAvoidancePosition({
+        avatarRect,
+        panelRect,
+        viewport,
+        margin: 12,
+    });
+    if (!next || next.overlap !== 0) return false;
+    const desktopPoint = nativeToDesktopWorldPoint({ x: next.x, y: next.y }, liveJs.displays) || { x: next.x, y: next.y };
+    setAvatarPosition(desktopPoint.x, desktopPoint.y);
+    interactionTrace.record('sigil-avatar-panel:avoid-overlap', {
+        panelRect,
+        avatarRect,
+        viewport,
+        next,
+        desktopPoint,
+    });
+    return true;
 }
 
 function nativeFrameForSelectionMode() {
@@ -3845,7 +3941,10 @@ function handleInputEvent(msg) {
             ...(sourceIdentity ? { sourceIdentity } : {}),
             ...(sourceOrigin === 'canvas' && sourceCanvasId === hitTarget.hit.id ? { regionId: 'sigil-context-menu' } : {}),
         };
-        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point, routeOptions)) {
+        if (
+            (inMenu || msg.type !== 'left_mouse_down' || contextMenu.usesExternalPanel?.())
+            && contextMenu.handlePointerEvent(msg.type, point, routeOptions)
+        ) {
             if (msg.type !== 'mouse_moved') recordInteraction('context-menu:routed', { type: msg.type, point, inMenu });
             return;
         }
@@ -4212,6 +4311,8 @@ function handleHostMessage(rawMsg) {
             && (msg.action === 'removed' || msg.suspended === true || msg.canvas?.suspended === true)
         ) {
             contextMenu.close('panel-lifecycle');
+        } else if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID) {
+            avoidAvatarPanelOverlapFromLifecycle(msg);
         }
         if (UTILITY_CANVAS_IDS.has(canvasId)) {
             if (msg.action === 'removed') {

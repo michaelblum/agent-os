@@ -209,7 +209,7 @@ test('Swift external dispatcher does not consume flags as --repo values', async 
 
 test('ready ownership classifier accepts managed parent child daemon shape', async () => {
   const source = await fs.readFile(operatorSwiftPath, 'utf8');
-  const classifier = source.match(/private func currentOwnershipState\([\s\S]*?\n\}/);
+  const classifier = source.match(/private func currentOwnershipClassification\([\s\S]*?\n\}/);
   assert.ok(classifier, 'ready ownership classifier must stay visible');
   assert.ok(
     classifier[0].includes('parentProcessID(of: ownerPID) == servicePID'),

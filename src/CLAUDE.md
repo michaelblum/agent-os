@@ -267,7 +267,7 @@ Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:POR
 
 ### Wiki (aos wiki)
 
-A per-mode content store at `~/.config/aos/{mode}/wiki/`. Used by Sigil (agent docs under `sigil/agents/`) and as a general-purpose namespace for plugin assets. Also exposed via the daemon's content server at `/wiki/...`.
+A per-mode content store at `~/.config/aos/{mode}/wiki/`. Used by product namespaces and as a general-purpose namespace for plugin assets. Also exposed via the daemon's content server at `/wiki/...`.
 
 ```bash
 aos wiki list [--namespace <ns>]      # List entries (defaults to all namespaces)

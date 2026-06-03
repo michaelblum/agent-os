@@ -50,7 +50,7 @@
     },
     "visible_desktop_world_bounds": {
       "$ref": "#/$defs/DesktopWorldBounds",
-      "description": "Union of each display's visible_bounds projected into DesktopWorld. Use for usable-area logic (cursor/avatar clamping)."
+      "description": "Union of each display's visible_bounds projected into DesktopWorld. Use for usable-area logic (cursor/surface clamping)."
     },
     "apps": {
       "type": "array",

@@ -76,7 +76,7 @@ DesktopWorld before toolkit/app/test consumers treat them as shared world
 coordinates.
 
 **VisibleDesktopWorld is derived, not canonical.** Use it for usable-area logic
-such as cursor/avatar clamping. Do not use it as the origin for the shared
+such as cursor/surface clamping. Do not use it as the origin for the shared
 world.
 
 See `shared/schemas/spatial-topology.md` for the full coordinate system specification.
@@ -284,7 +284,7 @@ talk to over a Unix socket.
 The agent's native screen/canvas loop is macOS-first:
 
 1. `aos see capture --xray` perceives the screen
-2. `aos show` draws a spotlight, overlay, or avatar canvas on the native desktop
+2. `aos show` draws a spotlight, overlay, or app canvas on the native desktop
 3. `aos do click` fires at the identified coordinates
 4. `aos say` narrates what happened
 
@@ -313,7 +313,7 @@ is the canonical name.
    desktop-wide visuals and create private full-coverage surfaces only when they
    need a special renderer, lifecycle, or isolation boundary.
 4. **Opt-in topology tracking.** A DesktopWorld surface created with `--surface desktop-world` or `--track union` resolves its segments from the current display topology and auto-updates on topology changes. Canvases created with literal `--at` values stay at their spawn-time bounds regardless of topology changes.
-5. **Position data stays out of canvases.** Any per-agent / per-entity position state (e.g., "where the avatar was last") should live in the owning app or toolkit state, not in the canvas subsystem. The current daemon still carries transitional Sigil/renderer resume position state (`position.get` / `position.set` over an internal last-position store); treat that as convergence debt until the owner layer holds it directly. The canvas itself only knows about its bounds.
+5. **Position data stays out of canvases.** Any per-agent / per-entity position state, including product-specific resume positions, should live in the owning app or toolkit state. The daemon exposes a generic `position.get` / `position.set` key-value path for callers that still need it, but the canvas subsystem must not infer product semantics from IDs, URLs, or keys. The canvas itself only knows about its bounds.
 
 ### Coordinate system contract
 
@@ -321,7 +321,7 @@ is the canonical name.
   - full DesktopWorld from display `bounds`
   - VisibleDesktopWorld from `visible_bounds`
 - DesktopWorld surface bounds and segment `dw_bounds` mean **full DesktopWorld**.
-- Cursor/avatar clamping and other usable-area logic should use
+- Cursor/surface clamping and other usable-area logic should use
   **VisibleDesktopWorld** where appropriate.
 - Re-anchoring from native boundary coordinates into DesktopWorld happens at
   the shared runtime boundary for toolkit/app/test consumers.
@@ -342,7 +342,7 @@ task lists here.
 
 ### Moniker
 
-"Union canvas" is the technical name in specs and code (matches `computeUnion`, `display-union`). User-facing speech can stay informal ("the desktop avatar," "the desktop canvas"). Avoid "global canvas" — too vague.
+"Union canvas" is the technical name in specs and code (matches `computeUnion`, `display-union`). User-facing speech can stay informal ("the desktop surface," "the desktop canvas"). Avoid "global canvas" — too vague.
 
 ---
 

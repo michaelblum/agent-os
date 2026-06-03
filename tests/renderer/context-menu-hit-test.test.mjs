@@ -7,6 +7,7 @@ import {
   contextMenuContentProps,
   findContextMenuElementAt,
   menuMarkup,
+  resolveAvatarPanelAvoidancePosition,
   resolveContextMenuOrigin,
 } from '../../apps/sigil/context-menu/menu.js'
 import {
@@ -342,6 +343,13 @@ test('panel context menu treats child panel canvas input as inside the menu', ()
     assert.equal(menu.isOpen(), true)
     assert.equal(actions[0]?.action, 'panel.toggle')
     assert.equal(actions[0]?.payload?.focus, true)
+    assert.deepEqual(actions[0]?.payload?.geometry, {
+      logical_surface_key: 'sigil.avatar.controls',
+    })
+    const legacyAnchor = document.getElementById('sigil-context-menu')
+    assert.ok(legacyAnchor)
+    assert.equal(legacyAnchor.classList.contains('visible'), false)
+    assert.equal(legacyAnchor.querySelector('.sigil-avatar-control-surface'), null)
 
     assert.equal(menu.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
       raw: { source_canvas_id: 'panel-test' },
@@ -351,14 +359,50 @@ test('panel context menu treats child panel canvas input as inside the menu', ()
 
     assert.equal(menu.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
       raw: { source_canvas_id: 'other-panel' },
-    }), false)
-    assert.equal(menu.isOpen(), false)
-    assert.deepEqual(closes, ['outside-click'])
+    }), true)
+    assert.equal(menu.isOpen(), true)
+    assert.deepEqual(closes, [])
   } finally {
     globalThis.document = previousDocument
     globalThis.window = previousWindow
     globalThis.Event = previousEvent
   }
+})
+
+test('avatar panel avoidance moves overlapped avatar outside final panel frame', () => {
+  const next = resolveAvatarPanelAvoidancePosition({
+    avatarRect: { x: 1220, y: 778, w: 80, h: 80 },
+    panelRect: { x: 1180, y: 442, w: 332, h: 540 },
+    viewport: { x: 0, y: 0, w: 1512, h: 982 },
+    margin: 12,
+  })
+
+  assert.deepEqual(next, {
+    x: 1128,
+    y: 818,
+    side: 'left',
+    overlap: 0,
+  })
+})
+
+test('avatar panel avoidance does nothing when avatar and panel do not overlap', () => {
+  const next = resolveAvatarPanelAvoidancePosition({
+    avatarRect: { x: 1220, y: 778, w: 80, h: 80 },
+    panelRect: { x: 200, y: 120, w: 332, h: 540 },
+    viewport: { x: 0, y: 0, w: 1512, h: 982 },
+  })
+
+  assert.equal(next, null)
+})
+
+test('avatar panel avoidance ignores incomplete lifecycle geometry', () => {
+  const next = resolveAvatarPanelAvoidancePosition({
+    avatarRect: { x: 1220, y: 778, w: 80, h: 80 },
+    panelRect: null,
+    viewport: { x: 0, y: 0, w: 1512, h: 982 },
+  })
+
+  assert.equal(next, null)
 })
 
 test('live context menu compact surface routes canonical controls through visual object binding once', async () => {
