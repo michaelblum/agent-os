@@ -2,39 +2,35 @@
 
 ## Routing Status
 
-Paused / do not dispatch as-is.
+Ready to dispatch.
 
-New human-visible evidence changed the problem shape after this card was
-written: two Avatar/Sigil control surfaces were visible simultaneously across
-displays, one new panel-backed Avatar controls surface and one older compact
-Avatar/Sigil controls surface without panel chrome. That means the live drag
-failure is not proven to be only coordinate drift. Surface identity, registry,
-content-root, branch/worktree, and orphan visible-window drift must be audited
-first.
+The earlier pause guard has been satisfied. Surface visibility audit,
+cross-process native-window audit, runtime/input-tap provenance, passive TCC
+health semantics, toolkit placement/final-frame reporting, initial panel
+placement reporting, Sigil avatar-panel avoidance, and duplicate avatar-controls
+surface suppression are now accepted on the current stack.
 
-The replacement observability slices have been accepted:
+Dispatch this card as the next GDI correction slice from:
 
 ```text
-docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md
-docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md
-docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md
+721accc38e2c58bb984a37c968aade808d11c269
 ```
 
-Toolkit panel placement/final-frame reporting is now accepted:
+That head includes:
 
 ```text
-docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md
+6cd1f386 fix(runtime): keep passive tcc observability non-degrading
+599ff0cb fix(toolkit): report initial panel placement
+a62d4bd2 fix(sigil): avoid avatar panel overlap
+7811e557 fix(sigil): rename avatar controls and preserve panel hits
+721accc3 fix(sigil): prevent duplicate avatar controls surfaces
 ```
 
-The next slice is still not live drag. Route the Sigil avatar-panel final-frame
-avoidance assessment first:
-
-```text
-docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md
-```
-
-Only refresh this live-drag card after Sigil-owned avatar avoidance has either
-been implemented or explicitly ruled out from the audit/final-frame evidence.
+Foreman live checks on that head showed `./aos ready --json`,
+`./aos status --json`, and `./aos service status --mode repo --json` all OK;
+`./aos clean --dry-run --json` clean; and `./aos show audit --json` with no
+duplicate logical surfaces, external AOS native windows, or orphan native
+windows.
 
 ## Recipient
 
@@ -42,34 +38,40 @@ GDI correction round.
 
 ## Branch / Base
 
-- `branch_from`: `gdi/radial-compact-snapshot-extraction-integration-v0`
-- `minimum_code_start_ref`: `21dc331d7bb4ec77493e77ad32541d0d70ba70a1`
-- `required_start_ref`: the latest Foreman docs-alignment checkpoint that is a
-  descendant of `21dc331d7bb4ec77493e77ad32541d0d70ba70a1` and contains this
-  work card.
+- `branch_from`: `gdi/sigil-avatar-panel-final-frame-avoidance-assessment-v0`
+- `minimum_code_start_ref`: `721accc38e2c58bb984a37c968aade808d11c269`
+- `required_start_ref`: the current Foreman routing checkpoint containing this
+  refreshed work card, descendant of
+  `721accc38e2c58bb984a37c968aade808d11c269`.
 - `expected_output_branch`: `gdi/toolkit-panel-live-drag-correction-v0`
 
-Do not restart from `origin/main`. The minimum code start ref is the local
-accepted checkpoint that adds the AOS action bus, browser link demo, and Sigil
-avatar controls panel. If Foreman has committed later docs-only alignment notes,
-start from that later checkpoint so this card and its routing guards are
-available.
+Do not restart from `origin/main`. This slice depends on the accepted
+observability, placement, avatar avoidance, and avatar-controls identity stack.
 
 ## Source Artifact
 
-- Accepted checkpoint: `21dc331d7bb4ec77493e77ad32541d0d70ba70a1`
-- Completion report: action bus, browser link demo, and Sigil avatar panel were
-  implemented and verified, but live `./aos do drag` did not move the panel
-  frame reliably.
+- Accepted checkpoint: `721accc38e2c58bb984a37c968aade808d11c269`
+- Completion evidence on that checkpoint: runtime health is OK, audit has no
+  duplicate/external/orphan AOS windows, toolkit placement metadata is exposed,
+  avatar-panel avoidance is implemented, duplicate avatar-controls opens are
+  suppressed, and focused deterministic checks pass.
+- Remaining original failure: live `./aos do drag` did not reliably move the
+  toolkit/Sigil panel frame. That was intentionally deferred until the
+  observability and overlap preconditions were closed.
 - Related design cards:
+  - `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`
+  - `docs/design/work-cards/gdi-aos-visible-surface-cross-process-audit-v0.md`
+  - `docs/design/work-cards/gdi-aos-runtime-service-input-tap-observability-v0.md`
+  - `docs/design/work-cards/gdi-toolkit-panel-placement-final-frame-contract-v0.md`
+  - `docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`
   - `docs/design/work-cards/panel-drag-coordinate-abstraction-v0.md`
   - `docs/design/work-cards/aos-drag-action-control-surface-v0.md`
   - `docs/design/work-cards/canvas-geometry-lifecycle-render-contract-v0.md`
 
 ## Downstream Routing Guard
 
-Keep this card paused until its preconditions are explicit. Do not route it as
-the next GDI task simply because panel drag remains a known issue.
+This card is now the next GDI task. Do not route resource/object migration until
+the live drag correction has either passed or returned a precise blocker.
 
 Current sequence:
 
@@ -82,18 +84,16 @@ Current sequence:
 4. Accepted: toolkit panel placement contract reports requested,
    policy-adjusted, final settled, and actual native frames, with opt-in
    viewport overflow behavior such as `allow`, `clamp`, `flip`, or `shift`.
-5. Next: route
-   `docs/design/work-cards/gdi-sigil-avatar-panel-final-frame-avoidance-assessment-v0.md`
-   to prove whether the avatar can overlap or win input over its controls panel,
-   and to add Sigil-owned avatar avoidance only if the evidence requires it.
-6. Refresh this live-drag correction card against that accepted observability
-   and placement head.
-7. Only after drag is corrected, route
+5. Accepted: Sigil avatar-panel avoidance and duplicate avatar-controls surface
+   suppression are in the current start ref.
+6. Next: fix or precisely classify live panel drag.
+7. Only after drag is corrected or a smaller blocking primitive is identified,
+   route
    `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
 
-Older avatar object-graph, context-menu data-driven-controls, and 3D thing
-editor cards are historical until refreshed against the accepted audit,
-placement, drag, and resource-migration heads.
+Older avatar object-graph and 3D thing editor cards are historical until
+refreshed against the accepted audit, placement, drag, and resource-migration
+heads.
 
 ## Fresh Context Contract
 
@@ -115,18 +115,14 @@ Foreman accepted the new focused Sigil panel behavior, including:
 - panel chrome is present;
 - `header draggable="true"` is present;
 - close button is present and minimize/maximize are absent;
-- child panel canvas input is routed as inside the Sigil menu.
+- child panel canvas input is routed as inside the avatar-controls surface.
 
 The remaining failure is live: dragging the panel header with `./aos do drag`
 did not reliably change the panel's frame in `./aos show list`, even after the
 panel was focused.
 
-Do not treat that as a pure drag primitive failure without first proving visible
-surface exclusivity. The new evidence shows registered AOS state can look
-expected while stale or duplicate visible windows still participate in human
-input. `./aos ready` proves tap/runtime readiness only; it does not prove that
-all visible windows are from the active branch/content root or that the canvas
-registry matches the window server.
+Before editing, re-prove visible-surface exclusivity with AOS audit. If audit is
+dirty, fix or return that blocker first; otherwise diagnose the live drag path.
 
 ## Read First
 
@@ -144,10 +140,16 @@ registry matches the window server.
 - `src/act/act-cli.swift`
 - `src/act/actions.swift`
 - `src/display/canvas.swift`
-- `apps/sigil/context-menu/menu.js`
+- `apps/sigil/avatar-controls/surface.js`
+- `apps/sigil/renderer/live-modules/avatar-controls-input.js`
 - `apps/sigil/renderer/live-modules/main.js`
 - `apps/sigil/avatar-editor/panel.js`
+- `tests/renderer/avatar-controls-hit-test.test.mjs`
+- `tests/renderer/sigil-avatar-controls-input.test.mjs`
 - `tests/toolkit/panel-chrome.test.mjs`
+- `tests/toolkit/runtime-action.test.mjs`
+- `tests/toolkit/aos-action-demo.test.mjs`
+- `tests/sigil-avatar-controls-real-input.sh`
 - `tests/aos-action-bus.sh`
 
 ## Rediscover State
@@ -155,11 +157,15 @@ registry matches the window server.
 ```bash
 git status --short --branch
 git rev-parse HEAD
-git merge-base --is-ancestor 21dc331d7bb4ec77493e77ad32541d0d70ba70a1 HEAD; echo "accepted_checkpoint_ancestor=$?"
+git merge-base --is-ancestor 721accc38e2c58bb984a37c968aade808d11c269 HEAD; echo "avatar_avoidance_head_ancestor=$?"
 ./aos ready --post-permission
-./aos dev recommend --json --paths packages/toolkit/panel/chrome.js,packages/toolkit/runtime/canvas.js,src/act/actions.swift,src/display/canvas.swift,apps/sigil/context-menu/menu.js
+./aos status --json
+./aos service status --mode repo --json
+./aos clean --dry-run --json
+./aos show audit --json
+./aos dev recommend --json --paths packages/toolkit/panel/chrome.js,packages/toolkit/runtime/canvas.js,src/act/actions.swift,src/display/canvas.swift,apps/sigil/avatar-controls/surface.js,apps/sigil/renderer/live-modules/avatar-controls-input.js,apps/sigil/renderer/live-modules/main.js
 ./aos show list --json
-rg -n "wireDrag|createDragController|moveAbsolute|mutateSelf|input_event|left_mouse_dragged|drag_start|drag_end|geometry_change|aos do drag|handleDrag|SIGIL_AVATAR_PANEL_CANVAS_ID|sigil.avatar_panel" packages/toolkit src apps/sigil tests
+rg -n "wireDrag|createDragController|moveAbsolute|mutateSelf|input_event|left_mouse_dragged|drag_start|drag_end|geometry_change|aos do drag|handleDrag|SIGIL_AVATAR_PANEL_CANVAS_ID|sigil-avatar-controls-avatar-main|avatar-controls" packages/toolkit src apps/sigil tests
 ```
 
 If `./aos ready --post-permission` reports a repo-mode TCC, Accessibility,
@@ -196,11 +202,11 @@ in the same GDI session and run:
 - The Sigil panel header can be dragged with `./aos do drag`.
 - The final daemon frame for `sigil-avatar-controls-avatar-main` changes by the
   intended drag delta within a small tolerance.
-- If the panel moves but Sigil's owner-side `contextMenu` snapshot or bounds
+- If the panel moves but Sigil's owner-side avatar-controls snapshot or bounds
   remain stale, fix the smallest owner bookkeeping path needed to track the
   panel's current frame.
-- Child panel canvas events must still be treated as inside the menu after the
-  drag.
+- Child panel canvas events must still be treated as inside avatar controls
+  after the drag.
 
 ### Boundary Diagnosis
 
@@ -277,7 +283,7 @@ Run deterministic checks first:
 ```bash
 git diff --check
 node --test tests/toolkit/panel-chrome.test.mjs tests/toolkit/runtime-action.test.mjs tests/toolkit/aos-action-demo.test.mjs
-node --test tests/renderer/context-menu-hit-test.test.mjs
+node --test tests/renderer/avatar-controls-hit-test.test.mjs tests/renderer/sigil-avatar-controls-input.test.mjs
 bash tests/aos-action-bus.sh
 ```
 
@@ -295,6 +301,8 @@ Run live checks when `./aos ready --post-permission` passes:
 
 ```bash
 ./aos ready --post-permission
+./aos status --json
+./aos show audit --json
 # generic toolkit panel live drag smoke
 # Sigil avatar controls panel live drag smoke
 ./aos show list --json
@@ -308,7 +316,7 @@ Include:
 
 - branch name and head SHA;
 - confirmation that work started from
-  `21dc331d7bb4ec77493e77ad32541d0d70ba70a1`;
+  `721accc38e2c58bb984a37c968aade808d11c269`;
 - changed paths;
 - root cause and owning layer;
 - whether generic panel drag, Sigil panel drag, or both were fixed;
