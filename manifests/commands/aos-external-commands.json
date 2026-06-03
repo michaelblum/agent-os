@@ -31,10 +31,16 @@
     },
     {
       "path": ["ready"],
-      "summary": "Run readiness checks through the native ready primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__ready"],
-      "cwd": "repo"
+      "summary": "Run readiness checks through external readiness composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ready.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["doctor"],

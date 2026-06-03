@@ -182,13 +182,16 @@ assert update_case.group("body").count("mutationCommand(args, 'update')") == 1, 
 for path, primitive in [
     (("serve",), "__serve"),
     (("status",), "__status"),
-    (("ready",), "__ready"),
     (("doctor",), "__doctor"),
     (("permissions",), "__permissions"),
 ]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
     assert command["argv_prefix"] == [primitive], command
+command = commands[("ready",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-ready.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
 for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
     native = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-native.mjs", primitive]]
     assert len(native) == 1, (primitive, native)

@@ -156,7 +156,6 @@ test('external command manifest only routes bootstrap families to Swift', async 
   const allowedSwiftRoutes = new Map([
     ['serve', ['__serve']],
     ['status', ['__status']],
-    ['ready', ['__ready']],
     ['doctor', ['__doctor']],
     ['permissions', ['__permissions']],
   ]);
@@ -181,6 +180,8 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
     '__ready',
     '__doctor',
     '__permissions',
+    '__daemon',
+    '__runtime',
     '__render',
     '__see',
     '__say',
@@ -195,6 +196,15 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
   assert.equal(source.includes('case "help"'), false, 'help must stay external');
   assert.equal(source.includes('helpCommand(args:'), false, 'Swift help renderer must not return');
   assert.equal(source.includes('buildCommandRegistry'), false, 'Swift command registry must not return');
+});
+
+test('ready public route is externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  const ready = manifest.commands.find((command) => command.path.join(' ') === 'ready');
+  assert.ok(ready, 'ready route missing');
+  assert.equal(ready.executable, '/usr/bin/env');
+  assert.deepEqual(ready.argv_prefix, ['node', 'scripts/aos-ready.mjs']);
+  assert.equal(ready.env.AOS_PATH, '$AOS_PATH');
 });
 
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
@@ -222,11 +232,13 @@ test('private Swift primitives are reachable only through expected external wrap
   const expectedBootstrapRoutes = new Map([
     ['__serve', 'serve'],
     ['__status', 'status'],
-    ['__ready', 'ready'],
     ['__doctor', 'doctor'],
     ['__permissions', 'permissions'],
   ]);
   const expectedWrapperFiles = new Map([
+    ['__daemon', ['scripts/aos-ready.mjs']],
+    ['__runtime', ['scripts/aos-ready.mjs']],
+    ['__permissions', ['scripts/aos-ready.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
