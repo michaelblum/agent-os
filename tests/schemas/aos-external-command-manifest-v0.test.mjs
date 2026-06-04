@@ -140,6 +140,24 @@ test('external command manifest executable targets exist', async () => {
   }
 });
 
+test('external help passthrough routes stay script-owned', async () => {
+  const manifest = await loadJson(manifestPath);
+  const passthroughRoutes = manifest.commands.filter((command) => command.help_passthrough === true);
+
+  assert.ok(
+    passthroughRoutes.some((command) => command.path.join(' ') === 'dev gh'),
+    'dev gh must declare script-owned help passthrough',
+  );
+
+  for (const command of passthroughRoutes) {
+    assert.notEqual(command.executable, '$AOS_PATH', `${command.path.join(' ')} help passthrough must not route to Swift`);
+    assert.ok(
+      (command.argv_prefix || []).some((arg) => arg.startsWith('scripts/') || arg.startsWith('packages/')),
+      `${command.path.join(' ')} help passthrough must name an external script target`,
+    );
+  }
+});
+
 test('external command manifest placeholders are resolved by Swift dispatcher', async () => {
   const manifest = await loadJson(manifestPath);
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');

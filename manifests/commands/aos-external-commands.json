@@ -528,6 +528,7 @@
       "summary": "Run GitHub workflow helpers through the external dev gh command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-dev-gh.mjs"],
+      "help_passthrough": true,
       "cwd": "repo",
       "env": {
         "REPO_ROOT": "$REPO_ROOT"
