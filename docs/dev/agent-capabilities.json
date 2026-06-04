@@ -212,6 +212,184 @@
       }
     },
     {
+      "id": "dev.github.issue_create",
+      "label": "GitHub Issue Create",
+      "summary": "Create a GitHub issue through a title and body file using ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "create"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_issue_create"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": true
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "title",
+          "summary": "GitHub issue title.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "body_file",
+          "summary": "Markdown file containing the issue body.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "metadata",
+          "summary": "Optional --label, --assignee, and --milestone metadata.",
+          "required": false,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "issue_url",
+          "summary": "GitHub URL for the created issue.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.issue_close",
+      "label": "GitHub Issue Close",
+      "summary": "Close a GitHub issue through ./aos dev gh with an optional close reason.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "close"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_issue_close"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "issue_number",
+          "summary": "GitHub issue number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "reason",
+          "summary": "Optional GitHub close reason passed as --reason.",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "close_result",
+          "summary": "Output from gh issue close.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.label_list",
+      "label": "GitHub Label List",
+      "summary": "List GitHub repository labels through ./aos dev gh with bounded read-only filters.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "label", "list"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "filters",
+          "summary": "Optional --limit, --search, --sort, and --order label filters.",
+          "required": false,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "labels_json",
+          "summary": "Label inventory records from gh label list.",
+          "required": true,
+          "schema": {
+            "type": "array"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
       "id": "dev.github.pr_list",
       "label": "GitHub PR List",
       "summary": "List GitHub pull requests through ./aos dev gh with bounded read-only inventory filters.",
@@ -412,6 +590,84 @@
         {
           "name": "comment_url",
           "summary": "GitHub URL for the posted comment.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.pr_merge",
+      "label": "GitHub PR Merge",
+      "summary": "Merge a GitHub pull request through an explicit strategy using ./aos dev gh.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "pr", "merge"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_pr_merge"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 60,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "pr_number",
+          "summary": "GitHub PR number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "strategy",
+          "summary": "Exactly one merge strategy: --squash, --merge, or --rebase.",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": ["squash", "merge", "rebase"]
+          }
+        },
+        {
+          "name": "match_head_commit",
+          "summary": "Optional reviewed head commit guard passed as --match-head-commit.",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        {
+          "name": "body_file",
+          "summary": "Optional Markdown file containing the merge commit body.",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "merge_result",
+          "summary": "Output from gh pr merge.",
           "required": true,
           "schema": {
             "type": "string"
