@@ -19,22 +19,31 @@ function parseOptions(args, config = {}) {
     repo: null,
     cwd: null,
     bodyFile: null,
+    title: null,
     prNumber: null,
     state: null,
     limit: null,
     labels: [],
     author: null,
     assignee: null,
+    assignees: [],
     search: null,
     milestone: null,
     base: null,
     head: null,
     draft: false,
+    mergeStrategy: null,
+    autoMerge: false,
+    deleteBranch: false,
+    matchHeadCommit: null,
     positionals: [],
   };
   const listKind = config.listKind ?? null;
-  const commonListFlags = new Set(['--state', '--limit', '--label', '--author', '--assignee', '--search']);
+  const issueCreate = config.issueCreate ?? false;
+  const prMerge = config.prMerge ?? false;
+  const commonListOnlyFlags = new Set(['--state', '--limit', '--author', '--search']);
   const prListFlags = new Set(['--base', '--head', '--draft']);
+  const prMergeStrategyFlags = new Set(['--squash', '--merge', '--rebase']);
   const requireValueAt = (index, flag, summary) => {
     if (index < 0 || index + 1 >= args.length || args[index + 1].startsWith('--')) {
       die(`${flag} requires ${summary}`, 'MISSING_ARG');
@@ -58,14 +67,21 @@ function parseOptions(args, config = {}) {
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--body-file requires a path', 'MISSING_ARG');
       options.bodyFile = args[i + 1];
       i += 2;
+    } else if (arg === '--title' && issueCreate) {
+      options.title = requireValueAt(i, arg, 'an issue title');
+      i += 2;
+    } else if (arg === '--title') {
+      die('--title is only valid for issue create subcommands', 'UNKNOWN_FLAG');
     } else if (arg === '--pr') {
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--pr requires a PR number', 'MISSING_ARG');
       options.prNumber = args[i + 1];
       i += 2;
-    } else if (commonListFlags.has(arg) && !listKind) {
+    } else if (commonListOnlyFlags.has(arg) && !listKind) {
       die(`${arg} is only valid for list subcommands`, 'UNKNOWN_FLAG');
     } else if (prListFlags.has(arg) && !listKind) {
       die(`${arg} is only valid for PR list subcommands`, 'UNKNOWN_FLAG');
+    } else if ((prMergeStrategyFlags.has(arg) || arg === '--auto' || arg === '--delete-branch' || arg === '--match-head-commit') && !prMerge) {
+      die(`${arg} is only valid for PR merge subcommands`, 'UNKNOWN_FLAG');
     } else if (arg === '--state' && listKind) {
       const stateSummary = listKind === 'pr' ? 'open, closed, merged, or all' : 'open, closed, or all';
       options.state = requireValueAt(i, arg, stateSummary);
@@ -75,19 +91,26 @@ function parseOptions(args, config = {}) {
       if (!/^[0-9]+$/.test(limit)) die(`--limit must be numeric: ${limit}`, 'INVALID_ARG');
       options.limit = Number.parseInt(limit, 10);
       i += 2;
-    } else if (arg === '--label' && listKind) {
+    } else if (arg === '--label' && (listKind || issueCreate)) {
       options.labels.push(requireValueAt(i, arg, 'a label name'));
       i += 2;
+    } else if (arg === '--label') {
+      die('--label is only valid for issue create and list subcommands', 'UNKNOWN_FLAG');
     } else if (arg === '--author' && listKind) {
       options.author = requireValueAt(i, arg, 'a GitHub login');
+      i += 2;
+    } else if (arg === '--assignee' && issueCreate) {
+      options.assignees.push(requireValueAt(i, arg, 'a GitHub login or @me'));
       i += 2;
     } else if (arg === '--assignee' && listKind) {
       options.assignee = requireValueAt(i, arg, 'a GitHub login or @me');
       i += 2;
+    } else if (arg === '--assignee') {
+      die('--assignee is only valid for issue create and list subcommands', 'UNKNOWN_FLAG');
     } else if (arg === '--search' && listKind) {
       options.search = requireValueAt(i, arg, 'a search query');
       i += 2;
-    } else if (arg === '--milestone' && listKind === 'issue') {
+    } else if (arg === '--milestone' && (listKind === 'issue' || issueCreate)) {
       options.milestone = requireValueAt(i, arg, 'an issue milestone name');
       i += 2;
     } else if (arg === '--base' && listKind === 'pr') {
@@ -99,6 +122,19 @@ function parseOptions(args, config = {}) {
     } else if (arg === '--draft' && listKind === 'pr') {
       options.draft = true;
       i += 1;
+    } else if (prMergeStrategyFlags.has(arg) && prMerge) {
+      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
+      options.mergeStrategy = arg;
+      i += 1;
+    } else if (arg === '--auto' && prMerge) {
+      options.autoMerge = true;
+      i += 1;
+    } else if (arg === '--delete-branch' && prMerge) {
+      options.deleteBranch = true;
+      i += 1;
+    } else if (arg === '--match-head-commit' && prMerge) {
+      options.matchHeadCommit = requireValueAt(i, arg, 'a commit SHA');
+      i += 2;
     } else if (arg.startsWith('--')) {
       die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
@@ -370,9 +406,15 @@ function contextCommand(args) {
   else process.stdout.write(`dev gh context: ${status}\n`);
 }
 
+function appendIssueCreateMetadata(args, options) {
+  for (const label of options.labels) args.push('--label', label);
+  for (const assignee of options.assignees) args.push('--assignee', assignee);
+  if (options.milestone) args.push('--milestone', options.milestone);
+}
+
 function issueCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh issue requires a subcommand: list, view, or comment', 'MISSING_SUBCOMMAND');
+  if (!action) die('dev gh issue requires a subcommand: list, view, create, or comment', 'MISSING_SUBCOMMAND');
   if (action === 'list') {
     const options = parseOptions(args.slice(1), { listKind: 'issue' });
     if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
@@ -406,6 +448,20 @@ function issueCommand(args) {
     appendRepo(ghArgs, repoFullName);
     ghArgs.push('--body-file', bodyFile);
     runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'create') {
+    const options = parseOptions(args.slice(1), { issueCreate: true });
+    if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    if (!options.title) die('dev gh issue create requires --title <title>', 'MISSING_ARG');
+    if (!options.bodyFile) die('dev gh issue create requires --body-file <path>', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const bodyFile = resolveUserPath(options.bodyFile);
+    if (!fs.existsSync(bodyFile)) die(`Missing issue body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+    const ghArgs = ['issue', 'create'];
+    appendRepo(ghArgs, repoFullName);
+    ghArgs.push('--title', options.title, '--body-file', bodyFile);
+    appendIssueCreateMetadata(ghArgs, options);
+    runGhAndExit(ghArgs, repoRoot);
   } else {
     die(`Unknown dev gh issue subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
   }
@@ -413,7 +469,7 @@ function issueCommand(args) {
 
 function prCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh pr requires a subcommand: list, view, checks, or comment', 'MISSING_SUBCOMMAND');
+  if (!action) die('dev gh pr requires a subcommand: list, view, checks, comment, or merge', 'MISSING_SUBCOMMAND');
   if (action === 'list') {
     const options = parseOptions(args.slice(1), { listKind: 'pr' });
     if (options.positionals.length > 0) die(`Unknown dev gh pr argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
@@ -456,6 +512,27 @@ function prCommand(args) {
     const ghArgs = ['pr', 'comment', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     ghArgs.push('--body-file', bodyFile);
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'merge') {
+    const options = parseOptions(args.slice(1), { prMerge: true });
+    if (options.positionals.length === 0) die('dev gh pr merge requires exactly one PR number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh pr argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    const prNumber = options.positionals[0];
+    if (!/^[0-9]+$/.test(prNumber)) die(`PR number must be numeric for merge: ${prNumber}`, 'INVALID_PR');
+    if (!options.mergeStrategy) die('dev gh pr merge requires one of --squash, --merge, or --rebase', 'MISSING_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['pr', 'merge', prNumber];
+    appendRepo(ghArgs, repoFullName);
+    ghArgs.push(options.mergeStrategy);
+    if (options.autoMerge) ghArgs.push('--auto');
+    if (options.deleteBranch) ghArgs.push('--delete-branch');
+    if (options.matchHeadCommit) ghArgs.push('--match-head-commit', options.matchHeadCommit);
+    if (options.bodyFile) {
+      const bodyFile = resolveUserPath(options.bodyFile);
+      if (!fs.existsSync(bodyFile)) die(`Missing PR merge body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+      ghArgs.push('--body-file', bodyFile);
+    }
     runGhAndExit(ghArgs, repoRoot);
   } else {
     die(`Unknown dev gh pr subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');

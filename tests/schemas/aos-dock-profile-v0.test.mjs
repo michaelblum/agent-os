@@ -137,9 +137,15 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_comment'));
   assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_comment'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_comment'));
+  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_create'));
+  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_create'));
+  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_create'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_comment'));
   assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_comment'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_comment'));
+  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_merge'));
+  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_merge'));
+  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_merge'));
 
   for (const profileName of ['foreman', 'gdi', 'operator']) {
     const allowed = profiles.get(profileName).allowed_capabilities;

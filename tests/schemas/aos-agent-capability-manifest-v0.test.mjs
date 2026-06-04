@@ -124,7 +124,7 @@ test('raw process capabilities remain developer/testing scoped', async () => {
   }
 });
 
-test('typed AOS GitHub capabilities stay non-raw and body-file backed for writes', async () => {
+test('typed AOS GitHub capabilities stay non-raw and explicit for writes', async () => {
   const manifest = await loadJson(canonicalPath);
   const capabilities = new Map(manifest.capabilities.map((capability) => [capability.id, capability]));
 
@@ -147,14 +147,24 @@ test('typed AOS GitHub capabilities stay non-raw and body-file backed for writes
     assert.equal(capability.failure_policy.bubble_up, true);
   }
 
-  for (const id of ['dev.github.issue_comment', 'dev.github.pr_comment']) {
-    const comment = capabilities.get(id);
-    assert.equal(comment.adapter.kind, 'aos_cli');
-    assert.equal(comment.execution.raw_process, false);
-    assert.equal(comment.mutability.class, 'external_write');
-    assert.equal(comment.mutability.requires_body_file, true);
-    assert.equal(comment.failure_policy.bubble_up, true);
+  for (const id of [
+    'dev.github.issue_comment',
+    'dev.github.issue_create',
+    'dev.github.pr_comment',
+    'dev.github.pr_merge',
+  ]) {
+    const write = capabilities.get(id);
+    assert.equal(write.adapter.kind, 'aos_cli');
+    assert.equal(write.execution.raw_process, false);
+    assert.equal(write.mutability.class, 'external_write');
+    assert.equal(write.mutability.requires_explicit_assignment, true);
+    assert.equal(write.failure_policy.bubble_up, true);
   }
+
+  assert.equal(capabilities.get('dev.github.issue_comment').mutability.requires_body_file, true);
+  assert.equal(capabilities.get('dev.github.issue_create').mutability.requires_body_file, true);
+  assert.equal(capabilities.get('dev.github.pr_comment').mutability.requires_body_file, true);
+  assert.equal(capabilities.get('dev.github.pr_merge').mutability.requires_body_file, false);
 });
 
 test('canonical manifest includes the initial developer capability set', async () => {
@@ -166,10 +176,12 @@ test('canonical manifest includes the initial developer capability set', async (
     'dev.github.issue_list',
     'dev.github.issue_view',
     'dev.github.issue_comment',
+    'dev.github.issue_create',
     'dev.github.pr_list',
     'dev.github.pr_view',
     'dev.github.pr_checks',
     'dev.github.pr_comment',
+    'dev.github.pr_merge',
     'dev.github.ci_inspect',
     'dev.github.review_comments',
     'dev.build.aos',
