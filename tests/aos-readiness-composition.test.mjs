@@ -9,9 +9,11 @@ import {
   missingPermissionIDsFor,
   permissionRequirements,
   planPermissionSetup,
+  readyAutoRepairReason,
   readyBlockers,
   readyEvaluationSnake,
   readyNextActions,
+  readyRepairPlan,
   runSetupPromptPlan,
 } from '../scripts/lib/aos-readiness.mjs';
 
@@ -281,4 +283,46 @@ test('setup planner preserves already-granted skip branch', () => {
 test('input monitoring guidance accepts daemon camelCase and runtime snake_case tap facts', () => {
   assert.match(inputMonitoringSubGuidance({ listenAccess: false, postAccess: true }, '/repo/aos'), /listen=false, post=true/);
   assert.match(inputMonitoringSubGuidance({ listen_access: true, post_access: false }, '/repo/aos'), /listen=true, post=false/);
+});
+
+test('ready auto-repair reason stays null for ready, stale, and unmanaged states', () => {
+  assert.equal(readyAutoRepairReason({ ready: true, blockers: [] }), null);
+  assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }), null);
+  assert.equal(readyAutoRepairReason({ ready: false, blockers: [{ id: 'daemon_unmanaged', kind: 'runtime' }] }), null);
+});
+
+test('ready auto-repair reason is deterministic for ownership and input-tap blockers', () => {
+  assert.equal(
+    readyAutoRepairReason({ ready: false, blockers: [{ id: 'daemon_ownership_mismatch', kind: 'runtime' }] }),
+    'automatic after daemon ownership mismatch',
+  );
+  assert.equal(
+    readyAutoRepairReason({ ready: false, blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }] }),
+    'automatic after input tap inactive',
+  );
+});
+
+test('post-permission readiness enables bounded restart for repairable runtime blockers', () => {
+  assert.equal(
+    readyAutoRepairReason(
+      { ready: false, blockers: [{ id: 'daemon_unreachable', kind: 'runtime' }] },
+      { postPermission: true },
+    ),
+    'post-permission bounded daemon restart/recheck',
+  );
+});
+
+test('explicit repair branch plan chooses clean, restart, then permission handoff', () => {
+  assert.deepEqual(
+    readyRepairPlan({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }),
+    { branch: 'clean', clean: true, runtimeRestart: false, humanPermissionHandoff: false },
+  );
+  assert.deepEqual(
+    readyRepairPlan({ ready: false, blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }] }),
+    { branch: 'restart', clean: false, runtimeRestart: true, humanPermissionHandoff: false },
+  );
+  assert.deepEqual(
+    readyRepairPlan({ ready: false, blockers: [{ id: 'accessibility', kind: 'permission' }] }),
+    { branch: 'permission_handoff', clean: false, runtimeRestart: false, humanPermissionHandoff: true },
+  );
 });

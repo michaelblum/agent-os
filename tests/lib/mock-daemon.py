@@ -26,7 +26,18 @@ def parse_bool(value: str) -> bool:
     return value.lower() in ("1", "true", "yes")
 
 
+def current_tap_status(args: argparse.Namespace) -> str:
+    if args.ready_after_pings <= 0:
+        return args.tap_status
+    with args.ping_lock:
+        args.ping_count += 1
+        if args.ping_count >= args.ready_after_pings:
+            return "active"
+        return args.tap_status
+
+
 def build_ping_payload(args: argparse.Namespace) -> dict[str, Any]:
+    tap_status = current_tap_status(args)
     payload: dict[str, Any] = {
         "status": "ok",
         "uptime": 1.0,
@@ -39,16 +50,16 @@ def build_ping_payload(args: argparse.Namespace) -> dict[str, Any]:
         # Legacy flat fields. A pre-input-tap-readiness-contract daemon emitted
         # only these — newer daemons emit them alongside the structured blocks
         # for compatibility (CONTRACT-GOVERNANCE rule 4).
-        "input_tap_status": args.tap_status,
+        "input_tap_status": tap_status,
         "input_tap_attempts": args.attempts,
     }
     if not args.legacy:
         payload["input_tap"] = {
-            "status": args.tap_status,
+            "status": tap_status,
             "attempts": args.attempts,
             "listen_access": parse_bool(args.listen_access),
             "post_access": parse_bool(args.post_access),
-            "last_error_at": None if args.tap_status == "active" else "2026-04-24T00:00:00Z",
+            "last_error_at": None if tap_status == "active" else "2026-04-24T00:00:00Z",
         }
         payload["permissions"] = {
             "accessibility": parse_bool(args.accessibility),
@@ -125,6 +136,8 @@ def main() -> None:
     parser.add_argument("--mode", default="repo", choices=("repo", "installed"))
     parser.add_argument("--tap-status", default="active",
                         choices=("active", "retrying", "unavailable"))
+    parser.add_argument("--ready-after-pings", type=int, default=0,
+                        help="After this many system.ping calls, report an active input tap.")
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--listen-access", default="true")
     parser.add_argument("--post-access", default="true")
@@ -134,6 +147,8 @@ def main() -> None:
                              "input_tap/permissions blocks (simulates a "
                              "pre-readiness-contract daemon binary).")
     args = parser.parse_args()
+    args.ping_count = 0
+    args.ping_lock = threading.Lock()
 
     if os.path.exists(args.socket):
         os.unlink(args.socket)

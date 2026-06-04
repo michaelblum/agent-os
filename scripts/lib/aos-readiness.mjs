@@ -304,6 +304,31 @@ export function isRepairableRuntimeBlockerID(id) {
     || id === 'input_tap_not_active';
 }
 
+export function readyAutoRepairReason(response, { postPermission = false } = {}) {
+  if (response.ready) return null;
+  const blockerIDs = new Set((response.blockers ?? []).map((blocker) => blocker.id));
+  const hasRepairableRuntimeBlocker = (response.blockers ?? [])
+    .some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
+  if (blockerIDs.has('stale_daemons')) return null;
+  if (blockerIDs.has('daemon_unmanaged')) return null;
+  if (postPermission && hasRepairableRuntimeBlocker) return 'post-permission bounded daemon restart/recheck';
+  if (blockerIDs.has('daemon_ownership_mismatch')) return 'automatic after daemon ownership mismatch';
+  if (blockerIDs.has('input_tap_not_active')) return 'automatic after input tap inactive';
+  return null;
+}
+
+export function readyRepairPlan(response) {
+  if (response.ready) return { branch: 'none', clean: false, runtimeRestart: false, humanPermissionHandoff: false };
+  const blockers = response.blockers ?? [];
+  const hasStaleDaemons = blockers.some((blocker) => blocker.id === 'stale_daemons');
+  const hasRepairableRuntimeBlocker = blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
+  const hasPermissionBlocker = blockers.some((blocker) => blocker.kind === 'permission');
+  if (hasStaleDaemons) return { branch: 'clean', clean: true, runtimeRestart: false, humanPermissionHandoff: false };
+  if (hasRepairableRuntimeBlocker) return { branch: 'restart', clean: false, runtimeRestart: true, humanPermissionHandoff: false };
+  if (hasPermissionBlocker) return { branch: 'permission_handoff', clean: false, runtimeRestart: false, humanPermissionHandoff: true };
+  return { branch: 'none', clean: false, runtimeRestart: false, humanPermissionHandoff: false };
+}
+
 export function readyPhase(ready, blockers) {
   if (ready) return 'ready';
   if (blockers.some((b) => b.id === 'daemon_unreachable')) return 'runtime_blocked';
