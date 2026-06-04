@@ -3,6 +3,12 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  devGhGroups,
+  devGhSubcommandsFor,
+  findDevGhCommandSpec,
+  formatDevGhHelp,
+} from './aos-dev-gh-spec.mjs';
 
 function printJSON(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -11,6 +17,26 @@ function printJSON(value) {
 function die(message, code = 'ERROR', exitCode = 1) {
   process.stderr.write(`error: ${message}\n`);
   process.exit(exitCode);
+}
+
+function invocationDisplayName() {
+  return process.env.AOS_INVOCATION_DISPLAY_NAME || './aos';
+}
+
+function printHelpAndExit(pathParts) {
+  const help = formatDevGhHelp(pathParts, { invocation: invocationDisplayName() });
+  process.stdout.write(help);
+  process.exit(0);
+}
+
+function pathIsDispatchable(pathParts) {
+  return findDevGhCommandSpec(pathParts) != null;
+}
+
+function requireDispatchable(pathParts) {
+  if (!pathIsDispatchable(pathParts)) {
+    die(`Unknown dev gh command: ${pathParts.join(' ')}`, 'UNKNOWN_SUBCOMMAND');
+  }
 }
 
 const COMMON_FLAGS = new Set(['--json', '--repo', '--cwd', '--body-file', '--pr']);
@@ -550,7 +576,8 @@ function appendIssueEditMetadata(args, options) {
 
 function issueCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh issue requires a subcommand: list, view, create, comment, edit, or close', 'MISSING_SUBCOMMAND');
+  if (!action) die(`dev gh issue requires a subcommand: ${devGhSubcommandsFor('issue').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['issue', action]);
   if (action === 'list') {
     const options = parseOptions(args.slice(1), 'issue:list');
     if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
@@ -634,7 +661,8 @@ function issueCommand(args) {
 
 function labelCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh label requires a subcommand: list', 'MISSING_SUBCOMMAND');
+  if (!action) die(`dev gh label requires a subcommand: ${devGhSubcommandsFor('label').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['label', action]);
   if (action === 'list') {
     const options = parseOptions(args.slice(1), 'label:list');
     if (options.positionals.length > 0) die(`Unknown dev gh label argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
@@ -652,7 +680,8 @@ function labelCommand(args) {
 
 function prCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh pr requires a subcommand: list, view, checks, comment, or merge', 'MISSING_SUBCOMMAND');
+  if (!action) die(`dev gh pr requires a subcommand: ${devGhSubcommandsFor('pr').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['pr', action]);
   if (action === 'list') {
     const options = parseOptions(args.slice(1), 'pr:list');
     if (options.positionals.length > 0) die(`Unknown dev gh pr argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
@@ -722,7 +751,8 @@ function prCommand(args) {
 
 function ciCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh ci requires a subcommand: inspect', 'MISSING_SUBCOMMAND');
+  if (!action) die(`dev gh ci requires a subcommand: ${devGhSubcommandsFor('ci').join(', ')}`, 'MISSING_SUBCOMMAND');
+  requireDispatchable(['ci', action]);
   if (action !== 'inspect') die(`Unknown dev gh ci subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
   const options = parseOptions(args.slice(1));
   if (options.positionals.length > 1) die('dev gh ci inspect accepts at most one PR number', 'UNKNOWN_ARG');
@@ -828,16 +858,26 @@ function reviewCommentsCommand(args) {
   else process.stdout.write(`dev gh review-comments: PR #${prNumber}\n`);
 }
 
-const [group, ...rest] = process.argv.slice(2);
-if (!group) {
-  process.stdout.write('Usage: aos dev gh <context|issue|label|pr|ci|review-comments> ...\n');
-  process.exit(0);
+const cliArgs = process.argv.slice(2);
+if (cliArgs.includes('--help') || cliArgs.includes('-h')) {
+  printHelpAndExit(cliArgs.filter((arg) => arg !== '--help' && arg !== '-h'));
 }
 
-if (group === 'context') contextCommand(rest);
+const [group, ...rest] = cliArgs;
+if (!group) {
+  printHelpAndExit([]);
+}
+
+if (group === 'context') {
+  requireDispatchable(['context']);
+  contextCommand(rest);
+}
 else if (group === 'issue') issueCommand(rest);
 else if (group === 'label') labelCommand(rest);
 else if (group === 'pr') prCommand(rest);
 else if (group === 'ci') ciCommand(rest);
-else if (group === 'review-comments') reviewCommentsCommand(rest);
-else die(`Unknown dev gh group: ${group}`, 'UNKNOWN_SUBCOMMAND');
+else if (group === 'review-comments') {
+  requireDispatchable(['review-comments']);
+  reviewCommentsCommand(rest);
+}
+else die(`Unknown dev gh group: ${group}. Expected one of: ${devGhGroups().join(', ')}`, 'UNKNOWN_SUBCOMMAND');

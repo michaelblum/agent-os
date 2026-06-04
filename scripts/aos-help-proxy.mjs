@@ -31,6 +31,11 @@ function registryPath() {
   return path.join(repoRootFrom(process.cwd()), 'manifests/commands/aos-commands.json');
 }
 
+function externalManifestPath() {
+  if (process.env.AOS_EXTERNAL_COMMAND_MANIFEST) return process.env.AOS_EXTERNAL_COMMAND_MANIFEST;
+  return path.join(repoRootFrom(process.cwd()), 'manifests/commands/aos-external-commands.json');
+}
+
 function loadRegistry() {
   const file = registryPath();
   try {
@@ -44,6 +49,20 @@ function loadRegistry() {
       error(`Missing command registry manifest. Checked: ${file}`, 'MISSING_COMMAND_REGISTRY');
     }
     error(`Invalid command registry manifest ${file}: ${err.message}`, 'INVALID_COMMAND_REGISTRY');
+  }
+}
+
+function loadExternalManifest() {
+  const file = externalManifestPath();
+  try {
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!Array.isArray(manifest.commands)) {
+      error(`Invalid external command manifest ${file}: missing commands`, 'INVALID_MANIFEST');
+    }
+    return manifest;
+  } catch (err) {
+    if (err?.code === 'ENOENT') return { commands: [] };
+    error(`Invalid external command manifest ${file}: ${err.message}`, 'INVALID_MANIFEST');
   }
 }
 
@@ -95,6 +114,67 @@ function findCommand(commands, pathArgs) {
 
 function arrayEqual(left, right) {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function externalRouteMatches(command, args) {
+  if (args.length < command.path.length) return false;
+  if (!command.path.every((part, index) => args[index] === part)) return false;
+  if (!command.when) return true;
+  const childArgs = args.slice(command.path.length);
+  const childArgIndex = command.when.child_arg_index;
+  if (childArgIndex === undefined) return true;
+  const childArg = childArgs[childArgIndex];
+  if (childArg === undefined) return command.when.child_arg_missing === true;
+  if (command.when.child_arg_missing === true) return false;
+  if (command.when.prefix !== undefined && !childArg.startsWith(command.when.prefix)) return false;
+  if (command.when.excluded_prefixes?.some((prefix) => childArg.startsWith(prefix))) return false;
+  if (command.when.excluded_values?.includes(childArg)) return false;
+  return true;
+}
+
+function findHelpPassthrough(pathArgs) {
+  const manifest = loadExternalManifest();
+  return (manifest.commands || [])
+    .filter((command) => command.help_passthrough === true)
+    .filter((command) => externalRouteMatches(command, pathArgs))
+    .sort((left, right) => right.path.length - left.path.length)[0] ?? null;
+}
+
+function resolveExternalValue(value, repoRoot) {
+  if (value === '$REPO_ROOT') return repoRoot;
+  if (value?.startsWith('$REPO_ROOT/')) return path.join(repoRoot, value.slice('$REPO_ROOT/'.length));
+  if (value === '$AOS_PATH') return process.env.AOS_PATH || './aos';
+  if (value === '$AOS_INVOCATION_DISPLAY_NAME') return invocationDisplayName();
+  if (value === '$AOS_RUNTIME_MODE') return process.env.AOS_RUNTIME_MODE || 'repo';
+  if (value === '$AOS_STATE_ROOT') return process.env.AOS_STATE_ROOT || '';
+  if (value === '$AOS_SESSION_KEY') return process.env.AOS_SESSION_KEY || '';
+  if (value === '$AOS_SESSION_HARNESS') return process.env.AOS_SESSION_HARNESS || '';
+  return value;
+}
+
+function runHelpPassthrough(command, pathArgs) {
+  const repoRoot = repoRootFrom(process.cwd());
+  const childArgs = pathArgs.slice(command.path.length);
+  const executable = resolveExternalValue(command.executable, repoRoot);
+  const argv = (command.argv_prefix || []).map((arg) => resolveExternalValue(arg, repoRoot)).concat(childArgs, '--help');
+  const cwd = command.cwd === 'repo'
+    ? repoRoot
+    : command.cwd
+      ? resolveExternalValue(command.cwd, repoRoot)
+      : process.cwd();
+  const env = { ...process.env };
+  for (const [key, value] of Object.entries(command.env || {})) {
+    env[key] = resolveExternalValue(value, repoRoot);
+  }
+  if (!env.AOS_INVOCATION_DISPLAY_NAME) env.AOS_INVOCATION_DISPLAY_NAME = invocationDisplayName();
+
+  const result = spawnSync(executable, argv, { cwd, env, encoding: 'utf8' });
+  if (result.error) {
+    error(`Help passthrough failed for ${command.path.join(' ')}: ${result.error.message}`, 'HELP_PASSTHROUGH_FAILED');
+  }
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  process.exit(result.status ?? 1);
 }
 
 function printFullRegistryJSON(registry) {
@@ -220,6 +300,11 @@ if (pathArgs.length === 0) {
   if (jsonMode) printFullRegistryJSON(registry);
   else printFullRegistryText(registry);
 } else {
+  if (!jsonMode) {
+    const passthrough = findHelpPassthrough(pathArgs);
+    if (passthrough) runHelpPassthrough(passthrough, pathArgs);
+  }
+
   const command = findCommand(registry.commands, pathArgs);
   if (!command) {
     error(`Unknown command: ${pathArgs.join(' ')}. Run '${invocationDisplayName()} help --json' for full registry.`, 'UNKNOWN_COMMAND');

@@ -141,6 +141,7 @@
         "manifests/commands/*.json",
         "shared/schemas/aos-external-command-manifest-v0.schema.json",
         "tests/schemas/aos-external-command-manifest-v0.test.mjs",
+        "tests/aos-dev-gh-help-parity.test.mjs",
         "tests/external-command-dispatch.sh",
         "tests/help-contract.sh"
       ],
@@ -165,6 +166,11 @@
           "id": "external-command-dispatch",
           "command": "bash tests/external-command-dispatch.sh",
           "reason": "Manifest-backed command routes must still dispatch through external modules."
+        },
+        {
+          "id": "dev-gh-help-parity",
+          "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
+          "reason": "Script-owned dev gh subcommands must stay dispatchable and discoverable through real ./aos help."
         },
         {
           "id": "help-contract",
@@ -206,6 +212,11 @@
           "id": "external-parser-flags",
           "command": "bash tests/external-parser-flags.sh",
           "reason": "External command wrappers should reject malformed flags and arguments before falling through to Swift primitives."
+        },
+        {
+          "id": "dev-gh-help-parity",
+          "command": "node --test tests/aos-dev-gh-help-parity.test.mjs",
+          "reason": "Script-owned dev gh subcommands must stay dispatchable and discoverable through real ./aos help."
         },
         {
           "id": "help-contract",
