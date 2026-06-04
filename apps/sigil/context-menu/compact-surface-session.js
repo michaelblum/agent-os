@@ -51,11 +51,11 @@ export function createContextMenuCompactSurfaceSession({
     }
 
     function controlRecords() {
-        return compactSurface?.getControlRecords() || [];
+        return compactSurface?.getControlRecords?.() || [];
     }
 
     function activeTab() {
-        return compactSurface?.getActiveTab() || null;
+        return compactSurface?.getActiveTab?.() || null;
     }
 
     function refreshVisibility() {
@@ -120,6 +120,8 @@ export function createContextMenuCompactSurfaceSession({
     async function mount(activeTab = null) {
         const { createSigilAvatarCompactControlSurface } = await loadCompactSurfaceModule();
         const previousActiveTab = compactSurface?.getActiveTab?.() || undefined;
+        const previousScrollTop = compactSurface?.el?.scrollTop ?? 0;
+        const previousScrollLeft = compactSurface?.el?.scrollLeft ?? 0;
         compactSurface?.destroy?.();
         compactSurface = createSigilAvatarCompactControlSurface(anchor, state || {}, {
             document,
@@ -144,6 +146,10 @@ export function createContextMenuCompactSurfaceSession({
                 publishSnapshot();
             },
         });
+        if (previousScrollTop > 0 || previousScrollLeft > 0) {
+            compactSurface.el.scrollTop = previousScrollTop;
+            compactSurface.el.scrollLeft = previousScrollLeft;
+        }
         seedValueCache(compactSurface);
         publishSnapshot();
         return compactSurface;

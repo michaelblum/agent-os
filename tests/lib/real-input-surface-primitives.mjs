@@ -8,6 +8,10 @@ import {
   nativeToDesktopWorldRect,
   normalizeDisplays,
 } from '../../packages/toolkit/runtime/spatial.js'
+import {
+  pointAtAngle,
+  resolveRadialGestureConfig,
+} from '../../packages/toolkit/runtime/radial-gesture.js'
 
 function finite(value, fallback = 0) {
   const number = Number(value)
@@ -147,6 +151,39 @@ export function desktopWorldFigureEightPath(displays = [], { radialMenuRadius = 
   }
 }
 
+const RADIAL_DRAG_EPSILON_PX = 3
+
+export function resolveRadialDragPoint(origin = {}, config = {}, {
+  phase = 'fastTravel',
+  angle = 0,
+  epsilon = RADIAL_DRAG_EPSILON_PX,
+  source = 'radialGestureMenu',
+} = {}) {
+  const resolved = resolveRadialGestureConfig(config || {})
+  const thresholdField = phase === 'radial' ? 'deadZoneRadiusPx' : 'handoffRadiusPx'
+  const configField = phase === 'radial' ? 'deadZoneRadius' : 'handoffRadius'
+  const thresholdPx = finite(resolved[thresholdField])
+  const distancePx = thresholdPx + Math.max(0, finite(epsilon, RADIAL_DRAG_EPSILON_PX))
+  return {
+    source,
+    phase,
+    configField,
+    thresholdField,
+    radiusBasis: resolved.radiusBasis,
+    thresholdPx,
+    epsilonPx: Math.max(0, finite(epsilon, RADIAL_DRAG_EPSILON_PX)),
+    distancePx,
+    origin: {
+      x: finite(origin.x),
+      y: finite(origin.y),
+    },
+    point: {
+      ...pointAtAngle(origin, angle, distancePx),
+      valid: true,
+    },
+  }
+}
+
 async function readStdinJson() {
   const chunks = []
   for await (const chunk of process.stdin) chunks.push(chunk)
@@ -179,6 +216,10 @@ async function main() {
   }
   if (action === 'desktop-world-figure-eight-path') {
     console.log(JSON.stringify(desktopWorldFigureEightPath(input.displays || [], input.options || {})))
+    return
+  }
+  if (action === 'radial-drag-point') {
+    console.log(JSON.stringify(resolveRadialDragPoint(input.origin || {}, input.config || {}, input.options || {})))
     return
   }
   throw new Error(`unknown real-input surface primitive action: ${action}`)

@@ -701,6 +701,17 @@ export function createSigilContextMenu({
         syncPosition();
         anchor.classList.add('visible');
         syncSnapshot();
+        const compactSurface = compactSurfaceSession.surface();
+        if (compactSurface) {
+            if (next.activeTab && compactSurface.getActiveTab?.() !== next.activeTab) {
+                compactSurface.setActiveTab?.(next.activeTab);
+            }
+            syncFromState();
+            compactSurfaceSession.seedValueCache();
+            syncPosition();
+            syncSnapshot();
+            return;
+        }
         void compactSurfaceSession.mount(next.activeTab || null).then(() => {
             if (!menuState.open) return;
             syncFromState();

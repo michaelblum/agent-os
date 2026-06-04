@@ -24,7 +24,10 @@ aos_visual_launch_sigil_with_inspector avatar-main surface-inspector "" manual-v
 
 python3 - <<'PY'
 import json
+import os
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path("tests/lib").resolve()))
@@ -45,6 +48,11 @@ surface = harness.wait_until(
     lambda: harness.native_point_for('[data-sigil-avatar-control-surface]'),
     label="compact avatar control surface rendered",
 )
+
+artifact_dir = Path(os.environ.get("AOS_REAL_INPUT_ARTIFACT_DIR") or tempfile.gettempdir()) / "aos-sigil-context-menu-real-input"
+artifact_dir.mkdir(parents=True, exist_ok=True)
+before_capture_path = artifact_dir / f"compact-scroll-before-{os.getpid()}.png"
+after_delay_capture_path = artifact_dir / f"compact-scroll-after-delay-{os.getpid()}.png"
 
 legacy_check = harness.eval_json(
     """(() => JSON.stringify({
@@ -134,14 +142,28 @@ before_scroll = harness.eval_json(
     })()"""
 )
 after_scroll = before_scroll
+after_delay_scroll = before_scroll
+scroll_result = None
 if before_scroll["scrollHeight"] > before_scroll["clientHeight"]:
-    harness.scroll(surface, -8)
+    before_capture = harness.aos.run_json_capture("see", "capture", "main", "--canvas", "avatar-main", "--perception", "--xray", "--out", str(before_capture_path))
+    if not before_capture.get("ok"):
+        raise SystemExit(f"FAIL: compact scroll before capture failed: {before_capture}")
+    scroll_result = harness.scroll(surface, -80)
     after_scroll = harness.wait_until(
         lambda: (
             lambda state: state if state["scrollTop"] > before_scroll["scrollTop"] else None
         )(harness.eval_json("JSON.stringify({ scrollTop: document.querySelector('[data-sigil-avatar-control-surface]')?.scrollTop ?? null })")),
-        label="compact avatar surface scrollTop changed from real wheel",
+        label="compact avatar surface immediate scrollTop changed from real wheel",
     )
+    time.sleep(0.45)
+    after_delay_scroll = harness.eval_json(
+        "JSON.stringify({ scrollTop: document.querySelector('[data-sigil-avatar-control-surface]')?.scrollTop ?? null })"
+    )
+    if after_delay_scroll["scrollTop"] < after_scroll["scrollTop"]:
+        raise SystemExit(f"FAIL: compact avatar surface scrollTop snapped back after real wheel: before={before_scroll} immediate={after_scroll} delayed={after_delay_scroll}")
+    after_capture = harness.aos.run_json_capture("see", "capture", "main", "--canvas", "avatar-main", "--perception", "--xray", "--out", str(after_delay_capture_path))
+    if not after_capture.get("ok"):
+        raise SystemExit(f"FAIL: compact scroll after-delay capture failed: {after_capture}")
 
 harness.eval_json(
     """(() => {
@@ -179,6 +201,12 @@ print("PASS", json.dumps({
     "omega": omega_result,
     "before_scroll": before_scroll,
     "after_scroll": after_scroll,
+    "after_delay_scroll": after_delay_scroll,
+    "scroll_result": scroll_result,
+    "scroll_captures": {
+        "before": str(before_capture_path),
+        "after_delay": str(after_delay_capture_path),
+    },
     "trail": trail_result,
 }, sort_keys=True))
 PY
