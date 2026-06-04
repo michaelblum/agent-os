@@ -25,13 +25,12 @@ function invocationDisplayName() {
 
 function printHelpAndExit(pathParts) {
   const help = formatDevGhHelp(pathParts, { invocation: invocationDisplayName() });
-  if (!help) die(`Unknown dev gh command: ${pathParts.join(' ')}`, 'UNKNOWN_SUBCOMMAND');
   process.stdout.write(help);
   process.exit(0);
 }
 
 function pathIsDispatchable(pathParts) {
-  return findDevGhCommandSpec(pathParts)?.handler != null;
+  return findDevGhCommandSpec(pathParts) != null;
 }
 
 function requireDispatchable(pathParts) {
