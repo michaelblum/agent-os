@@ -1,18 +1,15 @@
 # Agent Relay Readiness Narrative Ledger
 
 **Date:** 2026-06-04
-**Status:** Foreman narrative checkpoint after #407 / #412 settlement
-**Current baseline:** `main` at `25064f72`, aligned with `origin/main` before
-this note, with repo-mode `./aos ready --json` reporting `ready=true`
-**Governing ledger:** #407 for local relay and AOS GitHub control-surface
-governance
+**Kind:** Historical Foreman narrative checkpoint after the #407 / #412
+settlement
 
 This note preserves the story that is easy to lose if a future agent only reads
 branch names, work cards, stashes, and PR titles. It is not a work card. It is
-the orientation layer for the current repo state: why the live-drag work
-started, why it turned into runtime and governance side quests, what is actually
-settled on `main`, and which leftover artifacts should not be mistaken for
-active product direction.
+not a current-status source. Use live Git, GitHub, and `./aos` commands for
+current branch, issue, PR, stash, and runtime facts; use this note only for why
+the live-drag work started, why it turned into runtime and governance side
+quests, and why some historical artifacts exist.
 
 ## Short Version
 
@@ -34,11 +31,11 @@ That stress test exposed several deeper weaknesses:
 - Foreman/GDI coordination was producing branches, stashes, work cards, and
   GitHub issue comments faster than durable memory could keep up.
 
-The repo is not random today, but the artifact trail is noisy because the
-architecture was discovered through debugging rather than planned in one clean
-sequence. Future agents should treat this note, the current `main`, and the
-governing issues as the source of truth. Do not infer active work merely from a
-markdown work card existing under `docs/design/work-cards/`.
+The repo was not random at the time of writing, but the artifact trail was noisy
+because the architecture was discovered through debugging rather than planned in
+one clean sequence. Future agents must query live state before drawing current
+conclusions. Do not infer active work merely from this note or from a markdown
+work card existing under `docs/design/work-cards/`.
 
 ## How The Current State Happened
 
@@ -111,9 +108,9 @@ PR #412 then expanded `./aos dev gh` so Foreman can perform the common GitHub
 ledger loop without falling back to raw `gh` for ordinary issue and PR
 operations.
 
-## What Is Settled On Current Main
+## Historical Settlement Snapshot
 
-As of the handoff that preceded this note:
+At the handoff that preceded this note, live checks observed:
 
 - `main` was clean and exactly aligned with `origin/main` at `25064f72`.
 - No PRs were open.
@@ -124,69 +121,71 @@ As of the handoff that preceded this note:
   that tranche.
 - #412 settled the immediate Foreman-owned `./aos dev gh` control-surface gap:
   issue create, issue close, label list, and guarded PR merge are available.
-- #411 exists as a parked readiness diagnosis/remediation spec. It is not
-  started by this note.
+- #411 was created as a separate readiness diagnosis/remediation spec. Query
+  GitHub for its current title, labels, and state.
 
-The status-item target drift reported by `./aos status` is known and narrow:
-the current Sigil status item target still points at an older
-`gdi_toolkit_panel_live_drag_correction_v1` URL instead of the canonical
-`aos://sigil/renderer/index.html?toolkit-root=toolkit`. Repairing that with
-`./aos experience activate sigil` is useful only when live Sigil evidence is
-the next proof. It is not needed for branch, stash, or agent-relay cleanup.
+The status-item target drift reported by `./aos status` at that time was narrow:
+Sigil's status item target pointed at an older
+`gdi_toolkit_panel_live_drag_correction_v1` URL. Query `./aos status --json`
+before assuming that drift is still present.
 
-## What Is Not Settled
+## Follow-Up Threads Recorded At Write Time
 
 ### Provenance/accounting lane
 
-The only real unmerged local branch is
-`gdi/aos-dock-run-provenance-ledger-v0`, with a matching remote branch. It is
-not generic scratch. It contains an eight-commit provenance/accounting lane
-touching dock hook harnesses, `scripts/aos-provenance-ledger.mjs`, workflow
-scripts, command manifests, Agent Terminal modules, schemas, fixtures, and
-tests.
+The branch named `gdi/aos-dock-run-provenance-ledger-v0` was observed as a real
+provenance/accounting lane, not generic scratch. Its live existence, ahead/behind
+state, and relevance must be checked with Git before acting on it.
 
 This branch looks relevant to agent-relay observability, but it needs an
 explicit promote, rebase, park, or retire decision. Do not delete it as branch
 cleanup.
 
-### Parser simplification
+### Parser simplification recommendation
 
 The #412 correction left a recommendation to simplify
 `scripts/aos-dev-gh.mjs` parsing. That is a follow-up recommendation, not
-active work. Do not start it unless the human asks or Foreman explicitly routes
-it after the cleanup checkpoint.
+an issue identity and not an automatic dispatch. Query commits and active
+issues before treating it as remaining work.
 
 ### Readiness diagnosis/remediation split
 
-Issue #411 records the open design question around separating readiness diagnosis
+#411 was created for the design question around separating readiness diagnosis
 from remediation and whether plain `ready` should auto-act on the default path.
-This is deliberately separate from #410 and #412. Do not fold it into cleanup.
+Use `./aos dev gh issue view 411 --json` for its current title, labels, and
+state.
 
 ### Live Sigil and live-drag correction
 
-Recent stashes preserve code-bearing live-drag diagnostics. They should stay
-parked until live Sigil evidence is the next meaningful proof. Do not promote
-them opportunistically just because they are recent.
+Recent stashes preserved code-bearing live-drag diagnostics at the time of this
+note. Stash names and ordering are live Git facts; run `git stash list` and
+inspect each candidate before promoting, retaining, or dropping it.
 
 ## Artifact Wake Classification
 
-Use this classification before asking another agent to reason from leftover
-files, branches, or stashes.
+This table is historical classification only. Query live state before asking
+another agent to reason from leftover files, branches, issues, or stashes.
 
 | Artifact | Classification | What future agents should do |
 | --- | --- | --- |
-| `docs/design/work-cards/` as a directory | Durable transfer-contract archive with many historical cards | Do not infer active work from file presence. Active work must be backed by current branch state, issue ledger state, or a fresh Foreman dispatch. |
+| `docs/design/work-cards/` as a directory | Durable transfer-contract archive with many historical cards | Do not infer active work from file presence. Active work must be backed by live branch/PR/issue state or a fresh Foreman dispatch. |
 | `docs/dev/reports/` | Durable reports and audits | Read only the report relevant to the current lane. Do not bulk-load these as active instructions. |
 | `docs/design/agent-ui-affordance-synthesis-v0*.md` | Durable synthesis and review notes restored from the cleanup stash | Treat as design memory for agent-visible target architecture, not an automatic implementation dispatch. |
-| #407 | Governance/control-surface ledger | Still useful, but after #412 its body and `lane:active` label may be stale. Update deliberately when issue hygiene is authorized. |
-| #411 | Parked spec lane | Do not start during cleanup. Use only when the human asks for readiness diagnosis/remediation design. |
-| `gdi/aos-dock-run-provenance-ledger-v0` | Real unmerged implementation lane | Preserve. Decide promote/rebase/park/retire explicitly. |
-| 114 merged local branches | Cleanup candidates | Safe to delete locally after an explicit branch cleanup pass. Exclude the provenance branch. |
+| #407 | Governance/control-surface history | Query GitHub for state and labels. Do not infer current lane status from this note. |
+| #411 | Readiness diagnosis/remediation spec reference | Query GitHub for state and labels. Do not infer active work from this note. |
+| `gdi/aos-dock-run-provenance-ledger-v0` | Provenance/accounting branch reference | Query Git for existence and ahead/behind state before deciding promote/rebase/park/retire. |
+| merged local branches | Cleanup candidates observed during the original cleanup | Recompute with `git branch --merged` before deleting anything. |
 | Former `stash@{0}` from 2026-06-04 11:20 | Restored and dropped during cleanup | Durable markdown/config material was restored into repo-local docs; generated `tests/lib/__pycache__/` bytecode and a blank-line-only skill edit were discarded. |
 | Former `stash@{1}` from 2026-06-03 12:54 | Dropped after explicit approval | Superseded dev-gh inventory/control-surface draft after #412. |
-| Current `stash@{0}` from 2026-06-03 11:43 | Small code-bearing panel live-drag patch | Keep parked unless live-drag work resumes. |
-| Current `stash@{1}` from 2026-06-03 11:42 | Larger code-bearing Sigil/toolkit/native live-drag diagnostics | Keep parked unless live Sigil/input evidence is the next proof. |
-| Older stashes | Historical or side-lane state | Inspect newest-to-oldest before any drop. Do not drop blindly. |
+| stash entries observed as live-drag diagnostics | Code-bearing panel/Sigil/toolkit/native live-drag patches | Recompute with `git stash list`; keep parked unless live-drag work resumes. |
+| other stash entries | Historical or side-lane state | Inspect newest-to-oldest before any drop. Do not drop blindly. |
+
+True-up note from 2026-06-04: a later live `git stash list` showed six stash
+entries. Two newest entries were labeled as live-drag diagnostics. Four older
+entries, labeled `preserve-gdi-dock-config`, `wormhole transitions WIP
+isolation`, `probe-revert-working-tree-canvas-swift`, and `codex: stash dirty
+files 2026-04-19`, had no durable pointer in this note and require live triage
+before use or cleanup.
 
 ## How To Read The Markdown Wake
 
@@ -197,33 +196,32 @@ provenance but not as a command to continue.
 
 Use this hierarchy for rediscovery:
 
-1. Current `git status`, current branch, and `origin/main` alignment.
-2. Open PRs and governing GitHub issues.
-3. The latest Foreman narrative or ledger note for the lane.
+1. Live Git state: `git status`, current branch, `origin/main` alignment,
+   local/remote branches, and stashes.
+2. Live GitHub state: issue and PR list/view JSON through `./aos dev gh`.
+3. Live AOS state: `./aos ready --json` and `./aos status --json`.
 4. Accepted commits on `main`.
-5. Stashes and local branches.
-6. Historical work cards and reports.
+5. Historical notes, work cards, reports, and issue comments as rationale only.
 
-If items 5 or 6 appear to contradict items 1 through 4, treat them as parked
-or stale until Foreman reclassifies them.
+If historical prose contradicts live state, live state wins. Update or ignore
+the prose; do not derive current status from it.
 
-## Current Safe Next Steps
+## Safe Next-Step Pattern
 
-The cleanup work should preserve a clean, understandable checkout before
-starting new implementation. The safe sequence is:
+Cleanup work should preserve a clean, understandable checkout before starting
+new implementation. A safe pattern is:
 
-1. Keep `main` clean and avoid live Sigil repair unless live evidence is the
-   next proof.
+1. Query live Git/GitHub/AOS state first.
 2. Keep the restored cleanup-stash docs checkpoint unless later review finds a
    specific artifact that should be retired. The chosen storage locations are
    `docs/design/` for synthesis notes, `docs/design/work-cards/` for transfer
    contracts, and `docs/dev/reports/` for audits and investigation reports.
-3. Keep current `stash@{0}` and `stash@{1}` parked for live-drag context.
-4. Prepare and run a local merged-branch deletion pass, explicitly excluding
-   `gdi/aos-dock-run-provenance-ledger-v0`.
-5. Update #407 only when issue hygiene is authorized, likely moving it from
-   active implementation to settled or parked governance state.
-6. Decide whether the provenance branch is the next agent-relay-enabling lane.
+3. Inspect stashes before use or cleanup; do not rely on old `stash@{n}`
+   numbering.
+4. Recompute merged branches before any branch cleanup.
+5. Query issue/PR JSON before updating or referencing lane status.
+6. Decide whether any provenance/accounting branch that still exists is the next
+   agent-relay-enabling lane.
 
 ## Non-Goals For Future Cleanup Agents
 
@@ -239,5 +237,4 @@ Do not create linked worktrees for Foreman/GDI loops under the default
 `local_relay` workflow.
 
 Do not treat stale markdown, generated proof artifacts, or old branch names as
-truth without comparing them to current `main`, the governing issue, and this
-ledger.
+truth without comparing them to live Git, GitHub, and AOS state.

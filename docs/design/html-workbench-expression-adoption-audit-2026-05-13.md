@@ -95,10 +95,9 @@ written, but issue #263 later integrated Artifact Bundle Subject V0. Future
 agents should treat that note as historical analysis plus adaptation rationale,
 not current implementation status.
 
-The second tension is issue lifecycle. Issue #301 says V0 is covered in PR #307
-and should close after merge if review finds no missing acceptance item. As of
-this audit, PR #307 is still open and draft, so #301 should remain open even
-though the local worktree contains the implementation.
+The second tension is issue lifecycle. At the time of this audit, #301 and #307
+were related lifecycle references for the V0 implementation. Query GitHub for
+current #301 and #307 state before drawing any current conclusion.
 
 The third tension is scope naming. Issue #300 calls HTML the "default rich
 workbench expression for human-facing artifacts," while implementation stays
@@ -120,40 +119,24 @@ producer contract for source hashes, output locators, cleanup/archive policy,
 privacy/redaction policy, and the structured result that survives if generated
 HTML is deleted.
 
-The fifth tension is Design Operator history. Issue #140 remains open as a
-design-operator context tracker, but its comments already warn that older
-`docs/superpowers` path guidance is stale and that artifact/workspace ideas now
-route through AOS workbench subjects and #263. Do not implement from the old
+The fifth tension is Design Operator history. #140 was used as a
+design-operator context tracker at the time of writing, but its comments already
+warned that older `docs/superpowers` path guidance was stale and that
+artifact/workspace ideas routed through AOS workbench subjects and #263. Query
+GitHub for current #140 state before acting on it; do not implement from the old
 path wording without checking current design docs.
 
-## GitHub Issue Audit
+## Related Issue IDs
 
-- #300 is the correct parent epic for HTML Workbench Expressions. Its principle
-  is aligned with current repo state and should stay open as the broader
-  workstream.
-- #301 is the concrete V0 implementation tracker. It should close only after PR
-  #307 lands and review confirms no missing acceptance item.
-- #263 is closed and should be treated as completed adoption of Artifact Bundle
-  Subject V0, not future speculation.
-- #293 remains a valid abstraction gate for neutral evidence workflow blocks.
-  HTML expressions can become rich review projections for evidence workflow
-  artifacts, but extraction should still wait for stabilized cross-domain
-  reuse.
-- #295, #297, #298, and #299 are adjacent annotation/projection issues. HTML
-  expressions should reduce synthetic Markdown geometry when these issues touch
-  human-review surfaces, but should not force generic annotation behavior into
-  the HTML expression contract itself.
-- #141 remains the broader human-intent / steerable-collection context. HTML
-  expressions are checkpointable review/control surfaces within that direction,
-  not a replacement for collection/session workflow semantics.
-- #129 remains relevant for control-surface molecules. The durable connection is
-  generated controls over structured state, not arbitrary custom UI.
-- #140 is historical context for design workflows. Current implementation
-  should route through workbench subjects, artifact bundles, and explicit
-  licensing/IP boundaries.
-- #302 is the broader lore-consistency tracker. This audit reinforces its
-  warning: keep daemon/toolkit/app boundaries loud and avoid turning projection
-  surfaces into new product-specific platform forks.
+This audit used #300, #301, #263, #293, #295, #297, #298, #299, #141, #129,
+#140, and #302 as related issue references at the time of writing. Query GitHub
+for their current titles, states, labels, and PR links before acting on them.
+
+The durable design signal is that HTML expressions can become rich review
+projections for evidence workflow artifacts, but extraction should still wait
+for stabilized cross-domain reuse. They can also serve as checkpointable
+review/control surfaces within human-intent and steerable-collection workflows,
+but they do not replace collection/session workflow semantics.
 
 ## Recommended Next Work
 

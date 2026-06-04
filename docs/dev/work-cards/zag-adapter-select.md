@@ -128,9 +128,10 @@ includes out-of-scope edits to `packages/toolkit/controls/_html.js` and
 control changes are absent from this card. Keep package manifest or lockfile
 changes only if they are required for `@zag-js/select`.
 
-PR #324 (`gdi/retrofit-shared-controls-sweep`) is still open and touches
-`packages/toolkit/controls/button.js`. If it remains open when reporting
-completion, list it in `open_prs_on_same_files`.
+PR #324 (`gdi/retrofit-shared-controls-sweep`) touched
+`packages/toolkit/controls/button.js` when this card was written. Query live PR
+state when reporting completion and list any current overlap in
+`open_prs_on_same_files`.
 
 ## Git Section
 

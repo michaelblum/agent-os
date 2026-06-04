@@ -35,9 +35,10 @@ execution.
 
 Do not create one issue per work card. Use work cards for bounded GDI,
 Operator, validation, and correction rounds with machine-checkable done
-conditions. Link or mention the governing issue from the work card when a card
-belongs to a durable lane. After accepting a round, update the governing issue
-when the lane status, parked state, decision, or next slice changes.
+conditions. Link or mention the issue ID from the work card when a card belongs
+to a durable lane, then query that issue live before deriving current state.
+After accepting a round, update the relevant issue when the lane status, parked
+state, decision, or next slice changes.
 
 Prefer issue buckets at the workstream level, such as interaction substrate,
 governance/control surface, diagnostics/runtime evidence, parked visual-object
@@ -84,6 +85,24 @@ are last-resort diagnostics. They are appropriate only when an `./aos` command
 is missing or broken, when the assigned task explicitly tests that adapter, or
 when Foreman is repairing the AOS control surface itself. State the reason for
 the bypass in the work note, review, or completion report.
+
+## Live Orientation First
+
+When asked to summarize current state, when starting from a cold context, or
+when deciding the next workstream step, query live systems before reading
+narrative artifacts:
+
+- Git for branch, commit, dirty-file, local-branch, remote-branch, and stash
+  facts.
+- `./aos dev gh ... --json` for issue and PR title, state, labels, review, and
+  comment facts.
+- `./aos ready --json` and `./aos status --json` for runtime readiness and
+  daemon/session facts.
+
+Treat ledgers, work cards, reports, issue bodies, and issue comments as
+historical rationale unless live state confirms the specific fact. Cite issue
+and PR numbers by ID; do not restate their title, labels, state, or lane as
+standing prose.
 
 ## Evergreen Strict Contracts
 

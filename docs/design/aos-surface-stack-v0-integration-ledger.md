@@ -5,9 +5,10 @@
 **Epic:** #223 AOS Surface System
 
 This ledger turns the completed surface-stack slices, live-smoke evidence, and
-Foreman issue reconciliation into one source of truth for the V0 checkpoint.
-Foreman reviewed GitHub issue bodies on 2026-05-12, closed the V0-complete
-issues, and commented remaining scope on the issues that should stay open.
+Foreman issue reconciliation into historical rationale for the V0 checkpoint.
+Foreman reviewed and updated related GitHub issues on 2026-05-12. Query GitHub
+for current issue titles, states, and labels before acting on any issue ID
+listed here.
 
 ## Completed Slices
 
