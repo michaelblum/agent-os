@@ -152,6 +152,7 @@ test('typed AOS GitHub capabilities stay non-raw and explicit for writes', async
     'dev.github.issue_comment',
     'dev.github.issue_create',
     'dev.github.issue_close',
+    'dev.github.issue_edit',
     'dev.github.pr_comment',
     'dev.github.pr_merge',
   ]) {
@@ -166,6 +167,7 @@ test('typed AOS GitHub capabilities stay non-raw and explicit for writes', async
   assert.equal(capabilities.get('dev.github.issue_comment').mutability.requires_body_file, true);
   assert.equal(capabilities.get('dev.github.issue_create').mutability.requires_body_file, true);
   assert.equal(capabilities.get('dev.github.issue_close').mutability.requires_body_file, false);
+  assert.equal(capabilities.get('dev.github.issue_edit').mutability.requires_body_file, false);
   assert.equal(capabilities.get('dev.github.pr_comment').mutability.requires_body_file, true);
   assert.equal(capabilities.get('dev.github.pr_merge').mutability.requires_body_file, false);
 });
@@ -181,6 +183,7 @@ test('canonical manifest includes the initial developer capability set', async (
     'dev.github.issue_comment',
     'dev.github.issue_create',
     'dev.github.issue_close',
+    'dev.github.issue_edit',
     'dev.github.label_list',
     'dev.github.pr_list',
     'dev.github.pr_view',

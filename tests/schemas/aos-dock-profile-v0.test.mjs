@@ -143,6 +143,9 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_close'));
   assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_close'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_close'));
+  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_edit'));
+  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_edit'));
+  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_edit'));
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_comment'));
   assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_comment'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_comment'));

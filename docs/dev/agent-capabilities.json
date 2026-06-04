@@ -340,6 +340,65 @@
       }
     },
     {
+      "id": "dev.github.issue_edit",
+      "label": "GitHub Issue Edit",
+      "summary": "Edit GitHub issue lifecycle metadata through ./aos dev gh with explicit non-interactive flags.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "edit"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_issue_edit"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "issue_number",
+          "summary": "GitHub issue number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "metadata",
+          "summary": "One or more explicit --add-label, --remove-label, --add-assignee, --remove-assignee, --milestone, --title, or --body-file edits.",
+          "required": true,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "edit_result",
+          "summary": "Output from gh issue edit.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
       "id": "dev.github.label_list",
       "label": "GitHub Label List",
       "summary": "List GitHub repository labels through ./aos dev gh with bounded read-only filters.",

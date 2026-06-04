@@ -263,6 +263,7 @@ for full-screen capture.
 ./aos dev gh issue comment 298 --body-file /tmp/comment.md
 ./aos dev gh issue create --title "Follow-up tracker" --body-file /tmp/issue.md
 ./aos dev gh issue close 298 --reason completed
+./aos dev gh issue edit 298 --remove-label lane:active --add-label lane:parked
 ./aos dev gh pr merge 410 --merge --match-head-commit abc123
 ./aos dev gh ci inspect --pr 298 --json
 ./aos dev gh review-comments --pr 298 --json
@@ -296,7 +297,7 @@ turning the profile into a rigid executor.
 `gh` executable from `PATH`, the user's existing `gh` authentication, and the
 local git checkout to infer `owner/repo` unless `--repo owner/name` is supplied.
 Direct operations such as `issue list`, `issue view`, `issue comment`,
-`issue create`, `issue close`, `label list`, `pr list`, `pr view`,
+`issue create`, `issue close`, `issue edit`, `label list`, `pr list`, `pr view`,
 `pr checks`, `pr comment`, and `pr merge` forward to `gh` and preserve its exit
 behavior. List operations expose the repo-safe inventory filters Foreman and
 GDI need most often: issue and PR lists support `--state`, `--limit`,
@@ -305,8 +306,11 @@ GDI need most often: issue and PR lists support `--state`, `--limit`,
 support `--limit`, `--search`, `--sort`, and `--order`. Write operations are
 non-interactive: `issue create` requires `--title` and `--body-file`,
 `issue close` requires an issue number and optionally accepts `--reason`, and
-`pr merge` requires a PR number and exactly one of `--squash`, `--merge`, or
-`--rebase`; use `--match-head-commit` when merging a reviewed head. The
+`issue edit` requires an issue number and at least one explicit edit flag:
+`--add-label`, `--remove-label`, `--add-assignee`, `--remove-assignee`,
+`--milestone`, `--title`, or `--body-file`. `pr merge` requires a PR number
+and exactly one of `--squash`, `--merge`, or `--rebase`; use
+`--match-head-commit` when merging a reviewed head. The
 composite helpers cover repo-specific repeated loops:
 `ci inspect` reads PR checks and fetches failed GitHub Actions logs when the
 check links to an Actions run, while `review-comments` uses `gh api graphql` to
