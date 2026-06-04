@@ -830,6 +830,15 @@ if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os --json number,title,
     echo '{"number":298,"title":"Governance ledger","state":"OPEN","url":"https://github.com/michaelblum/agent-os/issues/298","labels":[],"comments":[]}'
     exit 0
 fi
+if [[ "$cmd" == issue\ view\ 298\ --repo\ michaelblum/agent-os\ --json\ number,title,state,url,body,labels,comments\ --template\ * ]]; then
+    echo "#298 Governance ledger"
+    echo "https://github.com/michaelblum/agent-os/issues/298"
+    exit 0
+fi
+if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os" ]]; then
+    echo "GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)" >&2
+    exit 1
+fi
 if [[ "$cmd" == issue\ view\ 298\ --repo\ michaelblum/agent-os\ --json\ *projectCards* ]]; then
     echo "GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)" >&2
     exit 1
@@ -907,22 +916,14 @@ else
     fail "dev gh issue view extra positional error mismatch: $ERR"
 fi
 
-if OUT="$(./aos dev gh issue view 298 --json 2>/dev/null)" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["OUT"])
-assert data["number"] == 298, data
-assert data["title"] == "Governance ledger", data
-PY
-then
-    if grep -q "projectCards" "$GH_ARGS_LOG"; then
-        fail "dev gh issue view requested deprecated projectCards JSON field"
-    else
-        pass "dev gh issue view avoids deprecated projectCards JSON field"
-    fi
+: > "$GH_ARGS_LOG"
+if OUT="$(./aos dev gh issue view 298 2>/dev/null)" &&
+   echo "$OUT" | grep -q "#298 Governance ledger" &&
+   grep -q "issue view 298 --repo michaelblum/agent-os --json number,title,state,url,body,labels,comments --template" "$GH_ARGS_LOG" &&
+   ! grep -q "projectCards" "$GH_ARGS_LOG"; then
+    pass "dev gh issue view avoids deprecated projectCards on non-json output"
 else
-    fail "dev gh issue view did not return expected JSON"
+    fail "dev gh issue view did not force safe non-json fields"
 fi
 
 if OUT="$(./aos dev gh issue list --state all --limit 20 --label bug --label docs --search "semantic target" --milestone v0 --json 2>/dev/null)" python3 - <<'PY'

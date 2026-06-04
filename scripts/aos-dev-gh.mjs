@@ -27,6 +27,7 @@ const ISSUE_EDIT_VALUE_FLAGS = new Set([
   '--body-file',
 ]);
 const ISSUE_VIEW_JSON_FIELDS = 'number,title,state,url,body,labels,comments';
+const ISSUE_VIEW_TEMPLATE = '{{printf "#%v %s\\n%s\\n\\n%s\\n" .number .title .url .body}}';
 
 const FLAG_SPECS = {
   '--json': { assign: (options) => { options.json = true; } },
@@ -573,6 +574,7 @@ function issueCommand(args) {
     const ghArgs = ['issue', 'view', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     if (options.json) ghArgs.push('--json', ISSUE_VIEW_JSON_FIELDS);
+    else ghArgs.push('--json', ISSUE_VIEW_JSON_FIELDS, '--template', ISSUE_VIEW_TEMPLATE);
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
     const options = parseOptions(args.slice(1));
