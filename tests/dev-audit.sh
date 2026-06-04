@@ -21,6 +21,8 @@ expected = {
     "dev-help-forms",
     "dev-classify-help-flags",
     "dev-recommend-help-flags",
+    "dev-situation-help-flags",
+    "dev-drift-lint-help-flags",
     "dev-audit-help-flags",
     "dev-workflow-self-routes",
     "dev-workflow-self-verifies",

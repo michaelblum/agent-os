@@ -534,6 +534,27 @@
       }
     },
     {
+      "path": ["dev", "situation"],
+      "summary": "Aggregate sourced live orientation facts through the external dev situation command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-situation.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
+      "path": ["dev", "drift-lint"],
+      "summary": "Run the heuristic durable-status drift tripwire through the external dev drift-lint command.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-dev-drift-lint.mjs"],
+      "cwd": "repo",
+      "env": {
+        "REPO_ROOT": "$REPO_ROOT"
+      }
+    },
+    {
       "path": ["dev", "build"],
       "summary": "Run the AOS build wrapper from the external dev build command.",
       "executable": "/usr/bin/env",

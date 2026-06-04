@@ -59,11 +59,12 @@ source maps, semantic targets, Mermaid preservation records, capability flags,
 security policy, and resume/export behavior. It deliberately does not mutate
 source Markdown automatically.
 
-Artifact Bundle Subject V0 is also already integrated, not merely proposed.
-Issue #263 is closed as complete, with a read-only artifact-bundle subject,
-fixture, canonical subject helper, artifact bundle workbench, catalog/browser
-opening path, docs, tests, and live AOS verification evidence. The artifact
-bundle workbench covers gallery, preview, source, exports, provenance,
+Artifact Bundle Subject V0 is also already integrated, not merely proposed. At
+the time of writing, Issue #263 was closed as complete, with a read-only
+artifact-bundle subject, fixture, canonical subject helper, artifact bundle
+workbench, catalog/browser opening path, docs, tests, and live AOS verification
+evidence. The artifact bundle workbench covers gallery, preview, source, exports,
+provenance,
 validation, and linked work-record evidence.
 
 ## Reinforced Design Rule

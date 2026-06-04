@@ -60,7 +60,8 @@ These remain salient but are not the next two slices:
   parts of `avatar-main` remain transitional. Retire only with confidence
   evidence, telemetry, or a fresh regression proving the fallback is now debt
   rather than resilience.
-- **Test harness organization:** #162 remains valid. The serial live-canvas
+- **Test harness organization:** At the time of writing, #162 remained valid.
+  The serial live-canvas
   contract and test primitive/molecule guidance reduced risk, but broader file
   organization should wait for a cleaner routing window.
 - **Evidence workflow blocks:** #293 remains a useful abstraction gate. Do not

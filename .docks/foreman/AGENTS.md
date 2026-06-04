@@ -90,7 +90,10 @@ the bypass in the work note, review, or completion report.
 
 When asked to summarize current state, when starting from a cold context, or
 when deciding the next workstream step, query live systems before reading
-narrative artifacts:
+narrative artifacts. Start with `./aos dev situation --json`; it aggregates the
+canonical Git, GitHub, and runtime sources below and records per-source command
+status. If a source reports partial failure, query that source directly instead
+of guessing the missing fact:
 
 - Git for branch, commit, dirty-file, local-branch, remote-branch, and stash
   facts.
@@ -103,6 +106,11 @@ Treat ledgers, work cards, reports, issue bodies, and issue comments as
 historical rationale unless live state confirms the specific fact. Cite issue
 and PR numbers by ID; do not restate their title, labels, state, or lane as
 standing prose.
+
+`./aos dev drift-lint --json` is only a heuristic tripwire for unmarked durable
+status prose. A clean lint result does not prove docs are drift-free or current;
+the acceptance gate is reproducing the cold-session orientation from sourced
+live facts.
 
 ## Evergreen Strict Contracts
 

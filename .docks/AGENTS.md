@@ -94,7 +94,10 @@ change permissions.
 
 When asked "where are we," when starting from a cold context, or when current
 execution state matters, orient from live systems before reading narrative
-artifacts:
+artifacts. Start with `./aos dev situation --json`; it aggregates the canonical
+Git, GitHub, and runtime sources below and records per-source command status.
+If a source reports partial failure, query that source directly instead of
+guessing the missing fact:
 
 - Git owns branch, commit, dirty-file, local-branch, remote-branch, and stash
   facts.
@@ -108,6 +111,11 @@ why a lane existed or why a decision was made. They are not authoritative for
 current issue/PR/branch/stash/runtime status. Cite issue and PR numbers by ID
 and query their current JSON instead of paraphrasing their title, labels, or
 state into new prose.
+
+`./aos dev drift-lint --json` is only a heuristic tripwire for unmarked durable
+status prose. A clean lint result does not prove docs are drift-free or current;
+the acceptance gate is reproducing the cold-session orientation from sourced
+live facts.
 
 ## GitHub Control Surface
 

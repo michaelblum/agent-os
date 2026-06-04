@@ -7,12 +7,12 @@ Tracking issue: #263.
 
 ## 2026-05-13 Status Update
 
-Issue #263 is closed as integrated. The repo now has a read-only Artifact
-Bundle Subject V0 with fixture, canonical subject helper, artifact bundle
-workbench, catalog/browser opening path, docs, tests, and live AOS verification
-evidence. The analysis in this note remains useful as adaptation rationale, but
-the "Proposed Narrow Path" section is historical. Future work should build from
-the live `aos.artifact_bundle` subject and
+As of 2026-05-13, issue #263 was closed as integrated. The repo had a read-only
+Artifact Bundle Subject V0 with fixture, canonical subject helper, artifact
+bundle workbench, catalog/browser opening path, docs, tests, and live AOS
+verification evidence. The analysis in this note remains useful as adaptation
+rationale, but the "Proposed Narrow Path" section is historical. Future work
+should build from the live `aos.artifact_bundle` subject and
 `aos://toolkit/components/artifact-bundle-workbench/index.html`, not restart the
 proposal.
 
