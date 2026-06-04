@@ -317,16 +317,10 @@ export function readyAutoRepairReason(response, { postPermission = false } = {})
   return null;
 }
 
-export function readyRepairPlan(response) {
-  if (response.ready) return { branch: 'none', clean: false, runtimeRestart: false, humanPermissionHandoff: false };
+export function hasRestartableReadyRuntimeBlocker(response) {
   const blockers = response.blockers ?? [];
-  const hasStaleDaemons = blockers.some((blocker) => blocker.id === 'stale_daemons');
-  const hasRepairableRuntimeBlocker = blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
-  const hasPermissionBlocker = blockers.some((blocker) => blocker.kind === 'permission');
-  if (hasStaleDaemons) return { branch: 'clean', clean: true, runtimeRestart: false, humanPermissionHandoff: false };
-  if (hasRepairableRuntimeBlocker) return { branch: 'restart', clean: false, runtimeRestart: true, humanPermissionHandoff: false };
-  if (hasPermissionBlocker) return { branch: 'permission_handoff', clean: false, runtimeRestart: false, humanPermissionHandoff: true };
-  return { branch: 'none', clean: false, runtimeRestart: false, humanPermissionHandoff: false };
+  if (blockers.some((blocker) => blocker.id === 'stale_daemons')) return false;
+  return blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
 }
 
 export function readyPhase(ready, blockers) {

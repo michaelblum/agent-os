@@ -5,6 +5,7 @@ import { setupState } from '../scripts/lib/aos-facts.mjs';
 import {
   disagreementFor,
   evaluateReadyForTesting,
+  hasRestartableReadyRuntimeBlocker,
   inputMonitoringSubGuidance,
   missingPermissionIDsFor,
   permissionRequirements,
@@ -13,7 +14,6 @@ import {
   readyBlockers,
   readyEvaluationSnake,
   readyNextActions,
-  readyRepairPlan,
   runSetupPromptPlan,
 } from '../scripts/lib/aos-readiness.mjs';
 
@@ -312,17 +312,23 @@ test('post-permission readiness enables bounded restart for repairable runtime b
   );
 });
 
-test('explicit repair branch plan chooses clean, restart, then permission handoff', () => {
-  assert.deepEqual(
-    readyRepairPlan({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }),
-    { branch: 'clean', clean: true, runtimeRestart: false, humanPermissionHandoff: false },
+test('ready restart predicate is explicit and excludes stale daemon cleanup', () => {
+  assert.equal(
+    hasRestartableReadyRuntimeBlocker({ ready: false, blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }] }),
+    true,
   );
-  assert.deepEqual(
-    readyRepairPlan({ ready: false, blockers: [{ id: 'input_tap_not_active', kind: 'runtime' }] }),
-    { branch: 'restart', clean: false, runtimeRestart: true, humanPermissionHandoff: false },
+  assert.equal(
+    hasRestartableReadyRuntimeBlocker({ ready: false, blockers: [{ id: 'stale_daemons', kind: 'runtime' }] }),
+    false,
   );
-  assert.deepEqual(
-    readyRepairPlan({ ready: false, blockers: [{ id: 'accessibility', kind: 'permission' }] }),
-    { branch: 'permission_handoff', clean: false, runtimeRestart: false, humanPermissionHandoff: true },
+  assert.equal(
+    hasRestartableReadyRuntimeBlocker({
+      ready: false,
+      blockers: [
+        { id: 'stale_daemons', kind: 'runtime' },
+        { id: 'input_tap_not_active', kind: 'runtime' },
+      ],
+    }),
+    false,
   );
 });

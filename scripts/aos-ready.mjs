@@ -14,6 +14,7 @@ import {
 import { brokerFacts } from './lib/aos-facts.mjs';
 import {
   evaluateReadyForTesting,
+  hasRestartableReadyRuntimeBlocker,
   permissionFixLines,
   permissionResetSafeSequenceLines,
   readyAutoRepairReason,
@@ -22,7 +23,6 @@ import {
   readyNextActions,
   readyNotes,
   readyPhase,
-  readyRepairPlan,
 } from './lib/aos-readiness.mjs';
 
 function parseArgs(args) {
@@ -82,11 +82,9 @@ function runReadyServiceAction(action, mode) {
         `${JSON.stringify({ action, mode })}\n`,
       );
     }
-    const parsedExitCode = Number.parseInt(process.env[`AOS_TEST_READY_SERVICE_${action.toUpperCase()}_EXIT_CODE`] ?? '0', 10);
-    const exitCode = Number.isFinite(parsedExitCode) ? parsedExitCode : 0;
     return {
-      exitCode,
-      stdout: JSON.stringify({ status: exitCode === 0 ? 'ok' : 'degraded', action, mode }),
+      exitCode: 0,
+      stdout: JSON.stringify({ status: 'ok', action, mode }),
       stderr: '',
     };
   }
@@ -268,32 +266,19 @@ if (!options.repair && process.env.AOS_TEST_SKIP_READY_SERVICE_START !== '1') {
 }
 
 if (options.repair && !response.ready) {
-  let cleaned = false;
-  let restarted = false;
-  let handedOff = false;
-  while (!response.ready) {
-    const plan = readyRepairPlan(response);
-    if (plan.clean && !cleaned) {
-      cleaned = true;
-      response = runReadyCleanRepair(decision.startup, response.action_trace, mode, prefix);
-      continue;
-    }
-    if (plan.runtimeRestart && !restarted) {
-      restarted = true;
-      response = runReadyRuntimeRepair(decision.startup, response.action_trace, mode, prefix, 20_000, null);
-      continue;
-    }
-    if (plan.humanPermissionHandoff && !handedOff) {
-      handedOff = true;
-      const trace = [...response.action_trace, {
-        step: 'runtime_tcc_reset_handoff',
-        result: 'human_required',
-        detail: `${prefix} permissions reset-runtime --mode ${mode}`,
-      }];
-      response = buildReadyResponse(decision.startup, trace, mode, prefix);
-      continue;
-    }
-    break;
+  if (response.blockers.some((blocker) => blocker.id === 'stale_daemons')) {
+    response = runReadyCleanRepair(decision.startup, response.action_trace, mode, prefix);
+  }
+  if (hasRestartableReadyRuntimeBlocker(response)) {
+    response = runReadyRuntimeRepair(decision.startup, response.action_trace, mode, prefix, 20_000, null);
+  }
+  if (!response.ready && response.blockers.some((blocker) => blocker.kind === 'permission')) {
+    const trace = [...response.action_trace, {
+      step: 'runtime_tcc_reset_handoff',
+      result: 'human_required',
+      detail: `${prefix} permissions reset-runtime --mode ${mode}`,
+    }];
+    response = buildReadyResponse(decision.startup, trace, mode, prefix);
   }
 }
 
