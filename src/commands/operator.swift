@@ -116,6 +116,36 @@ private struct PermissionsSetupMarkerWriteResponse: Encodable {
     let marker: PermissionsSetupMarkerFacts
 }
 
+private struct PermissionsPromptResponse: Encodable {
+    let status: String
+    let permission: String
+    let native_trigger: String
+    let attempted: Bool
+    let trigger_result: Bool?
+    let before: PermissionsState
+    let after: PermissionsState
+    let granted: Bool
+}
+
+private struct PermissionsResetTargetResponse: Encodable {
+    let status: String
+    let mode: String
+    let target_path: String
+    let tcc_identifier: String
+    let available: Bool
+    let command: String
+    let arguments: [String]
+    let unavailable_reason: String?
+}
+
+private struct PermissionsTCCResetResponse: Encodable {
+    let status: String
+    let mode: String
+    let target_path: String
+    let tcc_identifier: String
+    let tcc_reset: PermissionsResetRuntimeStep
+}
+
 private struct RuntimeInputTapBlock: Encodable {
     let status: String
     let attempts: Int
@@ -980,6 +1010,12 @@ func permissionsCommand(args: [String]) {
         permissionsFactsCommand(args: Array(args.dropFirst()))
     case "setup-marker":
         permissionsSetupMarkerCommand(args: Array(args.dropFirst()))
+    case "prompt":
+        permissionsPromptCommand(args: Array(args.dropFirst()))
+    case "reset-target":
+        permissionsResetTargetCommand(args: Array(args.dropFirst()))
+    case "tcc-reset":
+        permissionsTCCResetCommand(args: Array(args.dropFirst()))
     case "check":
         permissionsCheckCommand(args: Array(args.dropFirst()), usage: "aos permissions check [--json]")
     case "preflight":
@@ -1044,6 +1080,203 @@ private func permissionsSetupMarkerCommand(args: [String]) {
     default:
         exitError("Unknown __permissions setup-marker action: \(action)", code: "UNKNOWN_SUBCOMMAND")
     }
+}
+
+private enum PermissionPromptKind: String {
+    case accessibility
+    case screenRecording = "screen-recording"
+    case listenEvent = "listen-event"
+    case postEvent = "post-event"
+
+    var permissionID: String {
+        switch self {
+        case .accessibility:
+            return "accessibility"
+        case .screenRecording:
+            return "screen_recording"
+        case .listenEvent:
+            return "listen_access"
+        case .postEvent:
+            return "post_access"
+        }
+    }
+
+    var nativeTrigger: String {
+        switch self {
+        case .accessibility:
+            return "AXIsProcessTrustedWithOptions"
+        case .screenRecording:
+            return "CGRequestScreenCaptureAccess"
+        case .listenEvent:
+            return "CGRequestListenEventAccess"
+        case .postEvent:
+            return "CGRequestPostEventAccess"
+        }
+    }
+}
+
+private func permissionsPromptCommand(args: [String]) {
+    guard args.count == 2, let rawPermission = args.first, args[1] == "--json" else {
+        exitError("__permissions prompt requires <accessibility|screen-recording|listen-event|post-event> --json.",
+                  code: "INVALID_ARG")
+    }
+    guard let kind = PermissionPromptKind(rawValue: rawPermission) else {
+        exitError("Unknown __permissions prompt permission: \(rawPermission)", code: "UNKNOWN_PERMISSION")
+    }
+
+    let before = currentPermissionsState()
+    let attempted: Bool
+    let triggerResult: Bool?
+    if permissionGranted(kind, in: before) {
+        attempted = false
+        triggerResult = nil
+    } else {
+        attempted = true
+        triggerResult = triggerPermissionPrompt(kind)
+    }
+
+    let after = currentPermissionsState()
+    let granted = permissionGranted(kind, in: after)
+    print(jsonString(PermissionsPromptResponse(
+        status: granted ? "ok" : "degraded",
+        permission: kind.permissionID,
+        native_trigger: kind.nativeTrigger,
+        attempted: attempted,
+        trigger_result: triggerResult,
+        before: before,
+        after: after,
+        granted: granted
+    )))
+    exit(granted ? 0 : 1)
+}
+
+private func permissionGranted(_ kind: PermissionPromptKind, in permissions: PermissionsState) -> Bool {
+    switch kind {
+    case .accessibility:
+        return permissions.accessibility
+    case .screenRecording:
+        return permissions.screen_recording
+    case .listenEvent:
+        return permissions.listen_access
+    case .postEvent:
+        return permissions.post_access
+    }
+}
+
+private func triggerPermissionPrompt(_ kind: PermissionPromptKind) -> Bool {
+    switch kind {
+    case .accessibility:
+        let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
+        return AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
+    case .screenRecording:
+        return CGRequestScreenCaptureAccess()
+    case .listenEvent:
+        return requestListenEventAccess()
+    case .postEvent:
+        return requestPostEventAccess()
+    }
+}
+
+private func permissionsResetTargetCommand(args: [String]) {
+    let mode = parsePermissionsResetPrimitiveArgs(args, command: "reset-target")
+    let facts = currentPermissionsResetTargetResponse(mode: mode)
+    print(jsonString(facts))
+}
+
+private func permissionsTCCResetCommand(args: [String]) {
+    let mode = parsePermissionsResetPrimitiveArgs(args, command: "tcc-reset")
+    let targetPath = permissionResetTargetPath(mode: mode)
+    let target = tccResetTargetForRuntime(mode: mode, targetPath: targetPath)
+    let resetArgs = permissionsTCCResetArguments(identifier: target.identifier)
+    let resetCommand = permissionsTCCResetCommandString(arguments: resetArgs)
+
+    if !target.available {
+        print(jsonString(PermissionsTCCResetResponse(
+            status: "degraded",
+            mode: mode.rawValue,
+            target_path: targetPath,
+            tcc_identifier: target.identifier,
+            tcc_reset: PermissionsResetRuntimeStep(
+                command: resetCommand,
+                attempted: false,
+                exit_code: nil,
+                status: "unavailable",
+                stdout: nil,
+                stderr: target.unavailableReason
+            )
+        )))
+        exit(1)
+    }
+
+    let result = runProcess("/usr/bin/tccutil", arguments: resetArgs)
+    let resetOK = result.exitCode == 0
+    print(jsonString(PermissionsTCCResetResponse(
+        status: resetOK ? "ok" : "degraded",
+        mode: mode.rawValue,
+        target_path: targetPath,
+        tcc_identifier: target.identifier,
+        tcc_reset: PermissionsResetRuntimeStep(
+            command: resetCommand,
+            attempted: true,
+            exit_code: result.exitCode,
+            status: resetOK ? "ok" : "failed",
+            stdout: trimmedOutput(result.stdout),
+            stderr: trimmedOutput(result.stderr)
+        )
+    )))
+    exit(resetOK ? 0 : 1)
+}
+
+private func parsePermissionsResetPrimitiveArgs(_ args: [String], command: String) -> AOSRuntimeMode {
+    var asJSON = false
+    var mode: AOSRuntimeMode? = nil
+    var i = 0
+
+    while i < args.count {
+        switch args[i] {
+        case "--json":
+            asJSON = true
+        case "--mode":
+            i += 1
+            guard i < args.count, let parsed = AOSRuntimeMode(rawValue: args[i]) else {
+                exitError("--mode must be 'repo' or 'installed'", code: "INVALID_ARG")
+            }
+            mode = parsed
+        default:
+            exitError("Unknown flag: \(args[i]). Usage: aos __permissions \(command) [--mode repo|installed] --json",
+                      code: "UNKNOWN_FLAG")
+        }
+        i += 1
+    }
+
+    guard asJSON else {
+        exitError("__permissions \(command) requires --json.", code: "INVALID_ARG")
+    }
+    return mode ?? aosCurrentRuntimeMode()
+}
+
+private func currentPermissionsResetTargetResponse(mode: AOSRuntimeMode) -> PermissionsResetTargetResponse {
+    let targetPath = permissionResetTargetPath(mode: mode)
+    let target = tccResetTargetForRuntime(mode: mode, targetPath: targetPath)
+    let resetArgs = permissionsTCCResetArguments(identifier: target.identifier)
+    return PermissionsResetTargetResponse(
+        status: "ok",
+        mode: mode.rawValue,
+        target_path: targetPath,
+        tcc_identifier: target.identifier,
+        available: target.available,
+        command: permissionsTCCResetCommandString(arguments: resetArgs),
+        arguments: resetArgs,
+        unavailable_reason: target.unavailableReason
+    )
+}
+
+private func permissionsTCCResetArguments(identifier: String) -> [String] {
+    ["reset", "All", identifier]
+}
+
+private func permissionsTCCResetCommandString(arguments: [String]) -> String {
+    "tccutil \(arguments.joined(separator: " "))"
 }
 
 private func decideReadyStartup(

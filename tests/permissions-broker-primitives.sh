@@ -96,4 +96,87 @@ assert "notes" not in d, d
 PY
 echo "PASS: __permissions setup-marker get --json after write"
 
+for prompt in accessibility screen-recording listen-event post-event; do
+  PROMPT_JSON="$(./aos __permissions prompt "$prompt" --json)"
+  python3 - "$PROMPT_JSON" "$prompt" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+prompt = sys.argv[2]
+ids = {
+    "accessibility": "accessibility",
+    "screen-recording": "screen_recording",
+    "listen-event": "listen_access",
+    "post-event": "post_access",
+}
+assert d.get("status") == "ok", d
+assert d.get("permission") == ids[prompt], d
+assert d.get("attempted") is False, d
+assert "trigger_result" not in d, d
+assert d.get("granted") is True, d
+assert isinstance(d.get("native_trigger"), str) and d["native_trigger"], d
+before = d.get("before") or {}
+after = d.get("after") or {}
+for permissions in (before, after):
+    assert permissions == {
+        "accessibility": True,
+        "screen_recording": True,
+        "listen_access": True,
+        "post_access": True,
+    }, d
+for policy_key in ("notes", "next_actions", "recommended_command", "setup"):
+    assert policy_key not in d, (policy_key, d)
+PY
+done
+echo "PASS: __permissions prompt <permission> --json"
+
+RESET_TARGET_JSON="$(./aos __permissions reset-target --mode repo --json)"
+python3 - "$RESET_TARGET_JSON" "$ROOT/aos" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+target = sys.argv[2]
+assert d.get("status") == "ok", d
+assert d.get("mode") == "repo", d
+assert d.get("target_path") == target, d
+assert isinstance(d.get("tcc_identifier"), str) and d["tcc_identifier"], d
+assert d.get("available") is False, d
+assert "bare repo" in (d.get("unavailable_reason") or ""), d
+assert d.get("arguments") == ["reset", "All", d["tcc_identifier"]], d
+assert d.get("command") == f"tccutil reset All {d['tcc_identifier']}", d
+for policy_key in ("service_stop", "service_resets", "next_actions", "fallback", "notes"):
+    assert policy_key not in d, (policy_key, d)
+PY
+echo "PASS: __permissions reset-target --mode repo --json"
+
+set +e
+TCC_RESET_JSON="$(./aos __permissions tcc-reset --mode repo --json)"
+TCC_RESET_RC=$?
+set -e
+python3 - "$TCC_RESET_JSON" "$ROOT/aos" <<'PY'
+import json
+import sys
+
+d = json.loads(sys.argv[1])
+target = sys.argv[2]
+assert d.get("status") == "degraded", d
+assert d.get("mode") == "repo", d
+assert d.get("target_path") == target, d
+assert isinstance(d.get("tcc_identifier"), str) and d["tcc_identifier"], d
+reset = d.get("tcc_reset") or {}
+assert reset.get("attempted") is False, d
+assert reset.get("status") == "unavailable", d
+assert "bare repo" in (reset.get("stderr") or ""), d
+assert reset.get("command") == f"tccutil reset All {d['tcc_identifier']}", d
+for policy_key in ("service_stop", "service_resets", "next_actions", "fallback", "notes"):
+    assert policy_key not in d, (policy_key, d)
+PY
+if [[ "$TCC_RESET_RC" -eq 0 ]]; then
+  echo "FAIL: __permissions tcc-reset --mode repo unexpectedly exited 0 for unavailable bare repo target"
+  exit 1
+fi
+echo "PASS: __permissions tcc-reset --mode repo --json unavailable"
+
 echo "PASS"
