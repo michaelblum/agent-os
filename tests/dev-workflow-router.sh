@@ -817,7 +817,7 @@ if [[ "$cmd" == "pr checks 298 --repo michaelblum/agent-os --json name,state,buc
     echo '[{"name":"unit","state":"failure","bucket":"fail","link":"https://github.com/michaelblum/agent-os/actions/runs/987","workflow":"CI"}]'
     exit 0
 fi
-if [[ "$cmd" == pr\ merge\ 410\ --repo\ michaelblum/agent-os\ --merge\ --delete-branch\ --match-head-commit\ abc123\ --body-file\ * ]]; then
+if [[ "$cmd" == pr\ merge\ 410\ --repo\ michaelblum/agent-os\ --merge\ --match-head-commit\ abc123\ --body-file\ * ]]; then
     echo "Merged pull request #410"
     exit 0
 fi
@@ -960,6 +960,14 @@ else
     fail "dev gh issue create missing --body-file error mismatch: $ERR"
 fi
 
+if ERR="$(./aos dev gh issue create --title "Strategic follow-up" --body-file "$TMPDIR/missing-issue-body.md" 2>&1 >/dev/null)"; then
+    fail "dev gh issue create should reject missing body files"
+elif echo "$ERR" | grep -q -- 'Missing issue body file:'; then
+    pass "dev gh issue create rejects missing body files"
+else
+    fail "dev gh issue create missing body file error mismatch: $ERR"
+fi
+
 : > "$GH_ARGS_LOG"
 if OUT="$(./aos dev gh issue close 411 --reason completed 2>/dev/null)" &&
    grep -q "issue close 411 --repo michaelblum/agent-os --reason completed" "$GH_ARGS_LOG" &&
@@ -1061,8 +1069,8 @@ else
 fi
 
 : > "$GH_ARGS_LOG"
-if OUT="$(./aos dev gh pr merge 410 --merge --delete-branch --match-head-commit abc123 --body-file "$BODY" 2>/dev/null)" &&
-   grep -q "pr merge 410 --repo michaelblum/agent-os --merge --delete-branch --match-head-commit abc123 --body-file $BODY" "$GH_ARGS_LOG" &&
+if OUT="$(./aos dev gh pr merge 410 --merge --match-head-commit abc123 --body-file "$BODY" 2>/dev/null)" &&
+   grep -q "pr merge 410 --repo michaelblum/agent-os --merge --match-head-commit abc123 --body-file $BODY" "$GH_ARGS_LOG" &&
    echo "$OUT" | grep -q "Merged pull request #410"; then
     pass "dev gh pr merge shells out with explicit strategy and head guard"
 else
@@ -1091,6 +1099,30 @@ elif echo "$ERR" | grep -q -- 'PR number must be numeric for merge: current'; th
     pass "dev gh pr merge rejects non-numeric PR identifiers"
 else
     fail "dev gh pr merge non-numeric PR error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr merge 410 --merge --auto 2>&1 >/dev/null)"; then
+    fail "dev gh pr merge should reject --auto"
+elif echo "$ERR" | grep -q -- 'Unknown dev gh flag: --auto'; then
+    pass "dev gh pr merge rejects --auto"
+else
+    fail "dev gh pr merge --auto error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr merge 410 --merge --delete-branch 2>&1 >/dev/null)"; then
+    fail "dev gh pr merge should reject --delete-branch"
+elif echo "$ERR" | grep -q -- 'Unknown dev gh flag: --delete-branch'; then
+    pass "dev gh pr merge rejects --delete-branch"
+else
+    fail "dev gh pr merge --delete-branch error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh pr merge 410 --merge --body-file "$TMPDIR/missing-pr-merge-body.md" 2>&1 >/dev/null)"; then
+    fail "dev gh pr merge should reject missing body files"
+elif echo "$ERR" | grep -q -- 'Missing PR merge body file:'; then
+    pass "dev gh pr merge rejects missing body files"
+else
+    fail "dev gh pr merge missing body file error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev gh ci inspect --json 2>/dev/null)"; then

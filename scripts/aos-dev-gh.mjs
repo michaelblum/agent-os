@@ -33,8 +33,6 @@ function parseOptions(args, config = {}) {
     head: null,
     draft: false,
     mergeStrategy: null,
-    autoMerge: false,
-    deleteBranch: false,
     matchHeadCommit: null,
     closeReason: null,
     sort: null,
@@ -100,7 +98,7 @@ function parseOptions(args, config = {}) {
       die(`${arg} is only valid for list subcommands`, 'UNKNOWN_FLAG');
     } else if (prListFlags.has(arg) && !listKind) {
       die(`${arg} is only valid for PR list subcommands`, 'UNKNOWN_FLAG');
-    } else if ((prMergeStrategyFlags.has(arg) || arg === '--auto' || arg === '--delete-branch' || arg === '--match-head-commit') && !prMerge) {
+    } else if ((prMergeStrategyFlags.has(arg) || arg === '--match-head-commit') && !prMerge) {
       die(`${arg} is only valid for PR merge subcommands`, 'UNKNOWN_FLAG');
     } else if (arg === '--state' && listKind && !labelList) {
       const stateSummary = listKind === 'pr' ? 'open, closed, merged, or all' : 'open, closed, or all';
@@ -145,12 +143,6 @@ function parseOptions(args, config = {}) {
     } else if (prMergeStrategyFlags.has(arg) && prMerge) {
       if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
       options.mergeStrategy = arg;
-      i += 1;
-    } else if (arg === '--auto' && prMerge) {
-      options.autoMerge = true;
-      i += 1;
-    } else if (arg === '--delete-branch' && prMerge) {
-      options.deleteBranch = true;
       i += 1;
     } else if (arg === '--match-head-commit' && prMerge) {
       options.matchHeadCommit = requireValueAt(i, arg, 'a commit SHA');
@@ -583,8 +575,6 @@ function prCommand(args) {
     const ghArgs = ['pr', 'merge', prNumber];
     appendRepo(ghArgs, repoFullName);
     ghArgs.push(options.mergeStrategy);
-    if (options.autoMerge) ghArgs.push('--auto');
-    if (options.deleteBranch) ghArgs.push('--delete-branch');
     if (options.matchHeadCommit) ghArgs.push('--match-head-commit', options.matchHeadCommit);
     if (options.bodyFile) {
       const bodyFile = resolveUserPath(options.bodyFile);
