@@ -10,8 +10,8 @@ started" notes. Put reusable guidance in repo docs instead.
 Repo-specific GitHub operations should go through `./aos dev gh`, which shells
 out to the authenticated local `gh` CLI while preserving the repo's workflow
 boundary. Use it for context discovery, issue reads, issue comments, issue
-creation, PR context, PR merge, CI inspection, and review-comment reads when
-GitHub work is explicitly in scope.
+creation, issue close, label inventory, PR context, PR merge, CI inspection,
+and review-comment reads when GitHub work is explicitly in scope.
 
 Do not open or update issues or PRs unless the assigned goal or handoff
 explicitly includes that mutation. When a skill says to publish to the issue

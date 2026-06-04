@@ -29,6 +29,8 @@
     "dev.github.issue_view",
     "dev.github.issue_comment",
     "dev.github.issue_create",
+    "dev.github.issue_close",
+    "dev.github.label_list",
     "dev.github.pr_list",
     "dev.github.pr_view",
     "dev.github.pr_checks",

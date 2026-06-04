@@ -280,6 +280,116 @@
       }
     },
     {
+      "id": "dev.github.issue_close",
+      "label": "GitHub Issue Close",
+      "summary": "Close a GitHub issue through ./aos dev gh with an optional close reason.",
+      "status": "active",
+      "roles": ["foreman"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "issue", "close"]
+      },
+      "mutability": {
+        "class": "external_write",
+        "side_effects": ["github_issue_close"],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "required"
+      },
+      "inputs": [
+        {
+          "name": "issue_number",
+          "summary": "GitHub issue number.",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        {
+          "name": "reason",
+          "summary": "Optional GitHub close reason passed as --reason.",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "close_result",
+          "summary": "Output from gh issue close.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
+      "id": "dev.github.label_list",
+      "label": "GitHub Label List",
+      "summary": "List GitHub repository labels through ./aos dev gh with bounded read-only filters.",
+      "status": "active",
+      "roles": ["foreman", "gdi", "operator"],
+      "entry_paths": ["aos_developer"],
+      "adapter": {
+        "kind": "aos_cli",
+        "command": ["./aos", "dev", "gh", "label", "list"]
+      },
+      "mutability": {
+        "class": "read_only",
+        "side_effects": [],
+        "requires_explicit_assignment": true,
+        "requires_human_approval": false,
+        "requires_body_file": false
+      },
+      "execution": {
+        "cwd_policy": "repo_root",
+        "timeout_seconds": 30,
+        "network": "required",
+        "raw_process": false,
+        "audit": "recommended"
+      },
+      "inputs": [
+        {
+          "name": "filters",
+          "summary": "Optional --limit, --search, --sort, and --order label filters.",
+          "required": false,
+          "schema": {
+            "type": "object"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "labels_json",
+          "summary": "Label inventory records from gh label list.",
+          "required": true,
+          "schema": {
+            "type": "array"
+          }
+        }
+      ],
+      "failure_policy": {
+        "bubble_up": true,
+        "retry": "none"
+      }
+    },
+    {
       "id": "dev.github.pr_list",
       "label": "GitHub PR List",
       "summary": "List GitHub pull requests through ./aos dev gh with bounded read-only inventory filters.",

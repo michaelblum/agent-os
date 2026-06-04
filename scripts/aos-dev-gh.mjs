@@ -36,11 +36,16 @@ function parseOptions(args, config = {}) {
     autoMerge: false,
     deleteBranch: false,
     matchHeadCommit: null,
+    closeReason: null,
+    sort: null,
+    order: null,
     positionals: [],
   };
   const listKind = config.listKind ?? null;
   const issueCreate = config.issueCreate ?? false;
+  const issueClose = config.issueClose ?? false;
   const prMerge = config.prMerge ?? false;
+  const labelList = listKind === 'label';
   const commonListOnlyFlags = new Set(['--state', '--limit', '--author', '--search']);
   const prListFlags = new Set(['--base', '--head', '--draft']);
   const prMergeStrategyFlags = new Set(['--squash', '--merge', '--rebase']);
@@ -76,13 +81,28 @@ function parseOptions(args, config = {}) {
       if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--pr requires a PR number', 'MISSING_ARG');
       options.prNumber = args[i + 1];
       i += 2;
+    } else if (arg === '--reason' && issueClose) {
+      options.closeReason = requireValueAt(i, arg, 'completed or not planned');
+      i += 2;
+    } else if (arg === '--reason') {
+      die('--reason is only valid for issue close subcommands', 'UNKNOWN_FLAG');
+    } else if (arg === '--sort' && labelList) {
+      options.sort = requireValueAt(i, arg, 'created or name');
+      i += 2;
+    } else if (arg === '--sort') {
+      die('--sort is only valid for label list subcommands', 'UNKNOWN_FLAG');
+    } else if (arg === '--order' && labelList) {
+      options.order = requireValueAt(i, arg, 'asc or desc');
+      i += 2;
+    } else if (arg === '--order') {
+      die('--order is only valid for label list subcommands', 'UNKNOWN_FLAG');
     } else if (commonListOnlyFlags.has(arg) && !listKind) {
       die(`${arg} is only valid for list subcommands`, 'UNKNOWN_FLAG');
     } else if (prListFlags.has(arg) && !listKind) {
       die(`${arg} is only valid for PR list subcommands`, 'UNKNOWN_FLAG');
     } else if ((prMergeStrategyFlags.has(arg) || arg === '--auto' || arg === '--delete-branch' || arg === '--match-head-commit') && !prMerge) {
       die(`${arg} is only valid for PR merge subcommands`, 'UNKNOWN_FLAG');
-    } else if (arg === '--state' && listKind) {
+    } else if (arg === '--state' && listKind && !labelList) {
       const stateSummary = listKind === 'pr' ? 'open, closed, merged, or all' : 'open, closed, or all';
       options.state = requireValueAt(i, arg, stateSummary);
       i += 2;
@@ -91,18 +111,18 @@ function parseOptions(args, config = {}) {
       if (!/^[0-9]+$/.test(limit)) die(`--limit must be numeric: ${limit}`, 'INVALID_ARG');
       options.limit = Number.parseInt(limit, 10);
       i += 2;
-    } else if (arg === '--label' && (listKind || issueCreate)) {
+    } else if (arg === '--label' && ((listKind && !labelList) || issueCreate)) {
       options.labels.push(requireValueAt(i, arg, 'a label name'));
       i += 2;
     } else if (arg === '--label') {
-      die('--label is only valid for issue create and list subcommands', 'UNKNOWN_FLAG');
-    } else if (arg === '--author' && listKind) {
+      die('--label is only valid for issue create and issue/PR list subcommands', 'UNKNOWN_FLAG');
+    } else if (arg === '--author' && listKind && !labelList) {
       options.author = requireValueAt(i, arg, 'a GitHub login');
       i += 2;
     } else if (arg === '--assignee' && issueCreate) {
       options.assignees.push(requireValueAt(i, arg, 'a GitHub login or @me'));
       i += 2;
-    } else if (arg === '--assignee' && listKind) {
+    } else if (arg === '--assignee' && listKind && !labelList) {
       options.assignee = requireValueAt(i, arg, 'a GitHub login or @me');
       i += 2;
     } else if (arg === '--assignee') {
@@ -265,6 +285,13 @@ function appendListFilters(args, options, kind) {
   }
 }
 
+function appendLabelListFilters(args, options) {
+  if (options.limit != null) args.push('--limit', String(options.limit));
+  if (options.search) args.push('--search', options.search);
+  if (options.sort) args.push('--sort', options.sort);
+  if (options.order) args.push('--order', options.order);
+}
+
 function repositoryInfo(repoFullName, repoRoot) {
   const args = ['repo', 'view'];
   if (repoFullName) args.push(repoFullName);
@@ -414,7 +441,7 @@ function appendIssueCreateMetadata(args, options) {
 
 function issueCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh issue requires a subcommand: list, view, create, or comment', 'MISSING_SUBCOMMAND');
+  if (!action) die('dev gh issue requires a subcommand: list, view, create, comment, or close', 'MISSING_SUBCOMMAND');
   if (action === 'list') {
     const options = parseOptions(args.slice(1), { listKind: 'issue' });
     if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
@@ -462,8 +489,39 @@ function issueCommand(args) {
     ghArgs.push('--title', options.title, '--body-file', bodyFile);
     appendIssueCreateMetadata(ghArgs, options);
     runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'close') {
+    const options = parseOptions(args.slice(1), { issueClose: true });
+    if (options.positionals.length === 0) die('dev gh issue close requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    if (options.bodyFile) die('dev gh issue close does not accept --body-file; post a separate issue comment first', 'UNKNOWN_FLAG');
+    const issueNumber = options.positionals[0];
+    if (!/^[0-9]+$/.test(issueNumber)) die(`Issue number must be numeric for close: ${issueNumber}`, 'INVALID_ISSUE');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['issue', 'close', issueNumber];
+    appendRepo(ghArgs, repoFullName);
+    if (options.closeReason) ghArgs.push('--reason', options.closeReason);
+    runGhAndExit(ghArgs, repoRoot);
   } else {
     die(`Unknown dev gh issue subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
+  }
+}
+
+function labelCommand(args) {
+  const action = args[0];
+  if (!action) die('dev gh label requires a subcommand: list', 'MISSING_SUBCOMMAND');
+  if (action === 'list') {
+    const options = parseOptions(args.slice(1), { listKind: 'label' });
+    if (options.positionals.length > 0) die(`Unknown dev gh label argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['label', 'list'];
+    appendRepo(ghArgs, repoFullName);
+    appendLabelListFilters(ghArgs, options);
+    if (options.json) ghArgs.push('--json', 'name,description,color,isDefault,url');
+    runGhAndExit(ghArgs, repoRoot);
+  } else {
+    die(`Unknown dev gh label subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');
   }
 }
 
@@ -649,12 +707,13 @@ function reviewCommentsCommand(args) {
 
 const [group, ...rest] = process.argv.slice(2);
 if (!group) {
-  process.stdout.write('Usage: aos dev gh <context|issue|pr|ci|review-comments> ...\n');
+  process.stdout.write('Usage: aos dev gh <context|issue|label|pr|ci|review-comments> ...\n');
   process.exit(0);
 }
 
 if (group === 'context') contextCommand(rest);
 else if (group === 'issue') issueCommand(rest);
+else if (group === 'label') labelCommand(rest);
 else if (group === 'pr') prCommand(rest);
 else if (group === 'ci') ciCommand(rest);
 else if (group === 'review-comments') reviewCommentsCommand(rest);
