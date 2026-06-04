@@ -17,17 +17,12 @@ const COMMON_FLAGS = new Set(['--json', '--repo', '--cwd', '--body-file', '--pr'
 const LIST_FLAGS = new Set(['--state', '--limit', '--label', '--author', '--assignee', '--search']);
 const PR_LIST_FLAGS = new Set(['--base', '--head', '--draft']);
 const PR_MERGE_STRATEGY_FLAGS = new Set(['--squash', '--merge', '--rebase']);
-const ISSUE_EDIT_VALUE_FLAGS = new Set([
-  '--add-label',
-  '--remove-label',
-  '--add-assignee',
-  '--remove-assignee',
-  '--milestone',
-  '--title',
-  '--body-file',
-]);
 const ISSUE_VIEW_JSON_FIELDS = 'number,title,state,url,body,labels,comments';
 const ISSUE_VIEW_TEMPLATE = '{{printf "#%v %s\\n%s\\n\\n%s\\n" .number .title .url .body}}';
+
+function appendOperation(options, value, _command, flag) {
+  options.issueEditOperations.push({ flag, value });
+}
 
 const FLAG_SPECS = {
   '--json': { assign: (options) => { options.json = true; } },
@@ -41,14 +36,16 @@ const FLAG_SPECS = {
   },
   '--body-file': {
     summary: 'a path',
-    assign: (options, value) => {
+    assign: (options, value, command, flag) => {
       options.bodyFile = value;
+      if (command === 'issue:edit') appendOperation(options, value, command, flag);
     },
   },
   '--title': {
     summary: 'an issue title',
-    assign: (options, value) => {
+    assign: (options, value, command, flag) => {
       options.title = value;
+      if (command === 'issue:edit') appendOperation(options, value, command, flag);
     },
     invalid: '--title is only valid for issue create and edit subcommands',
   },
@@ -91,12 +88,12 @@ const FLAG_SPECS = {
   },
   '--add-label': {
     summary: 'a label name',
-    assign: () => {},
+    assign: appendOperation,
     invalid: '--add-label is only valid for issue edit subcommands',
   },
   '--remove-label': {
     summary: 'a label name',
-    assign: () => {},
+    assign: appendOperation,
     invalid: '--remove-label is only valid for issue edit subcommands',
   },
   '--author': {
@@ -105,7 +102,7 @@ const FLAG_SPECS = {
     invalid: '--author is only valid for list subcommands',
   },
   '--assignee': {
-    summary: (command) => command === 'issue:create' ? 'a GitHub login or @me' : 'a GitHub login or @me',
+    summary: 'a GitHub login or @me',
     assign: (options, value, command) => {
       if (command === 'issue:create') options.assignees.push(value);
       else options.assignee = value;
@@ -114,12 +111,12 @@ const FLAG_SPECS = {
   },
   '--add-assignee': {
     summary: 'a GitHub login or @me',
-    assign: () => {},
+    assign: appendOperation,
     invalid: '--add-assignee is only valid for issue edit subcommands',
   },
   '--remove-assignee': {
     summary: 'a GitHub login or @me',
-    assign: () => {},
+    assign: appendOperation,
     invalid: '--remove-assignee is only valid for issue edit subcommands',
   },
   '--search': {
@@ -129,8 +126,9 @@ const FLAG_SPECS = {
   },
   '--milestone': {
     summary: 'an issue milestone name',
-    assign: (options, value) => {
+    assign: (options, value, command, flag) => {
       options.milestone = value;
+      if (command === 'issue:edit') appendOperation(options, value, command, flag);
     },
   },
   '--base': {
@@ -193,7 +191,8 @@ function flagErrorMessage(flag, command, allowedFlags) {
   const spec = FLAG_SPECS[flag];
   if (!spec) return null;
   if (allowedFlags.has(flag)) return null;
-  if (spec.invalid && !allowedFlags.has(flag)) return spec.invalid;
+  if (command === 'label:list' && flag === '--state') return `Unknown dev gh flag: ${flag}`;
+  if (spec.invalid) return spec.invalid;
   if (LIST_FLAGS.has(flag) && !command.endsWith(':list')) return `${flag} is only valid for list subcommands`;
   if (PR_LIST_FLAGS.has(flag) && !command.endsWith(':list')) return `${flag} is only valid for PR list subcommands`;
   if ((PR_MERGE_STRATEGY_FLAGS.has(flag) || flag === '--match-head-commit') && command !== 'pr:merge') {
@@ -247,9 +246,6 @@ function parseOptions(args, command = 'common') {
         const summary = typeof spec.summary === 'function' ? spec.summary(command) : spec.summary;
         const value = requireValueAt(i, arg, summary);
         spec.assign(options, value, command, arg);
-        if (command === 'issue:edit' && ISSUE_EDIT_VALUE_FLAGS.has(arg)) {
-          options.issueEditOperations.push({ flag: arg, value });
-        }
         i += 2;
       } else {
         spec.assign(options, null, command, arg);
