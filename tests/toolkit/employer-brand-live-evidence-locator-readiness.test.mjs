@@ -10,7 +10,7 @@ import {
   buildEmployerBrandLiveEvidenceLocatorReadiness,
   loadEmployerBrandLiveEvidenceLocatorReadiness,
   validateEmployerBrandLiveEvidenceLocatorReadiness,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-locator-readiness.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-locator-readiness.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

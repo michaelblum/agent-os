@@ -133,7 +133,7 @@ test('panel tab semantic targets carry stable AOS refs', () => {
     name: 'Alpha',
     action: 'tabs/activate',
     surface: 'panel-tabs',
-    aosRef: 'panel-tabs:tabs-smoke:alpha',
+    ref: 'panel-tabs:tabs-smoke:alpha',
     selected: true,
   });
 });

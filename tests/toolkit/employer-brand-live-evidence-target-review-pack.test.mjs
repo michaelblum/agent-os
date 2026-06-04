@@ -7,13 +7,13 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   buildDraftEmployerBrandLiveEvidenceTargetPlanFromProject,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-target-plan.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-target-plan.js';
 import {
   buildEmployerBrandLiveEvidenceTargetReviewPackFromPlan,
   loadEmployerBrandLiveEvidenceTargetReviewPack,
   normalizeEmployerBrandLiveEvidenceTargetReviewPack,
   validateEmployerBrandLiveEvidenceTargetReviewPack,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-target-review-pack.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-target-review-pack.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

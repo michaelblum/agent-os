@@ -9,14 +9,14 @@ import { fileURLToPath } from 'node:url';
 import {
   loadEmployerBrandRepairedCaptureVisibilityReviewPack,
   validateEmployerBrandRepairedCaptureVisibilityReviewPack,
-} from '../../packages/toolkit/workbench/employer-brand-repaired-capture-visibility-review-pack.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-repaired-capture-visibility-review-pack.js';
 import {
   VISIBILITY_REPAIR_DECISIONS,
   applyEmployerBrandRepairedCaptureVisibilityRepairPatch,
   loadEmployerBrandRepairedCaptureVisibilityRepairPatch,
   loadEmployerBrandRepairedCaptureVisibilityRepairPatchApplication,
   validateEmployerBrandRepairedCaptureVisibilityRepairPatch,
-} from '../../packages/toolkit/workbench/employer-brand-repaired-capture-visibility-repair-patch.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-repaired-capture-visibility-repair-patch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

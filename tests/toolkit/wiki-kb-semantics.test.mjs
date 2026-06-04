@@ -50,7 +50,7 @@ test('applyWikiKBSemanticTarget preserves visible button text while stamping met
     id: 'sidebar-close',
     name: 'Close details',
     action: 'close_details',
-    aosRef: wikiKBAosRef('sidebar', 'close'),
+    ref: wikiKBAosRef('sidebar', 'close'),
   })
 
   assert.equal(button.getAttribute('role'), null)
@@ -86,7 +86,7 @@ test('applyWikiKBSemanticTarget exposes checkbox and slider state without genera
     name: 'Graph depth',
     action: 'set_depth',
     value: '2',
-    aosRef: wikiKBAosRef('graph', 'depth'),
+    ref: wikiKBAosRef('graph', 'depth'),
   })
 
   assert.equal(range.getAttribute('id'), 'wiki-kb-depth-input')

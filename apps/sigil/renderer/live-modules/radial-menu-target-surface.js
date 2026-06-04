@@ -63,9 +63,9 @@ export function radialMenuTargetsFromSnapshot(snapshot, options = {}) {
                 role: 'AXButton',
                 name: label,
                 action,
-                aosRef: `sigil-radial-item-${safeId(id)}`,
+                ref: `sigil-radial-item-${safeId(id)}`,
                 surface: options.surfaceId,
-                parentCanvasId: options.parentCanvasId,
+                parent_canvas_id: options.parentCanvasId,
                 current: snapshot.activeItemId === item.id,
             });
             return {
@@ -75,7 +75,7 @@ export function radialMenuTargetsFromSnapshot(snapshot, options = {}) {
                 role: 'AXButton',
                 name: semantic.name,
                 ariaLabel: semantic.name,
-                aosRef: semantic.aosRef,
+                ref: semantic.ref,
                 surface: semantic.surface,
                 active: snapshot.activeItemId === item.id,
                 center: { x, y },

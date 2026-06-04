@@ -73,18 +73,32 @@ STATE_ID="$(printf '%s' "$CAPTURE" | jq -r '.state_id')"
 printf '%s' "$CAPTURE" | jq -e --arg canvas "$CANVAS_ID" '
   .semantic_targets
   | map(select(
-      .canvas_id == $canvas
+      .provenance.canvas_id == $canvas
       and .ref == "contract.primary"
-      and .do_target == ("canvas:" + $canvas + "/contract.primary")
+      and .provenance.do_target == ("canvas:" + $canvas + "/contract.primary")
       and .enabled == true
+      and (.actions | index("commit"))
+      and .extension.dom_id == "primary"
+      and (.provenance.bounds.width | type == "number")
+      and (.provenance.center.x | type == "number")
+      and (has("id") | not)
+      and (has("canvas_id") | not)
+      and (has("do_target") | not)
+      and (has("action") | not)
+      and (has("parent_canvas") | not)
+      and (has("bounds") | not)
+      and (has("center") | not)
+      and (has("target_id") | not)
+      and (has("aos_ref") | not)
+      and (has("data_aos_ref") | not)
     ))
   | length == 1
 ' >/dev/null
 
 DO_TARGET="$(printf '%s' "$CAPTURE" | jq -r --arg canvas "$CANVAS_ID" '
   .semantic_targets
-  | map(select(.canvas_id == $canvas and .ref == "contract.primary" and .enabled == true))
-  | if length == 1 then .[0].do_target else empty end
+  | map(select(.provenance.canvas_id == $canvas and .ref == "contract.primary" and .enabled == true))
+  | if length == 1 then .[0].provenance.do_target else empty end
 ')"
 if [ "$DO_TARGET" != "canvas:${CANVAS_ID}/contract.primary" ]; then
   echo "FAIL: expected do_target canvas:${CANVAS_ID}/contract.primary, got '$DO_TARGET'" >&2
@@ -134,6 +148,8 @@ else
   printf '%s' "$ERR" | jq -e '.code == "UNSUPPORTED_SURFACE"' >/dev/null
 fi
 
+./aos show update --id "$CANVAS_ID" --focus >/dev/null
+sleep 0.1
 ./aos do click "$DO_TARGET" --state-id "$STATE_ID" >/dev/null
 sleep 0.2
 

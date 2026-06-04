@@ -13,15 +13,9 @@ import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/t
 import {
     applyContextMenuDescriptorUpdate,
 } from './descriptors.js';
+import { createContextMenuCompactSurfaceSession } from './compact-surface-session.js';
 import { buildContextMenuSnapshot } from './snapshot-projection.js';
 import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
-
-let compactSurfaceModulePromise = null;
-
-function loadCompactSurfaceModule() {
-    compactSurfaceModulePromise ||= import('../avatar-editor/compact-surface.js');
-    return compactSurfaceModulePromise;
-}
 
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
@@ -292,8 +286,6 @@ export function createSigilContextMenu({
         activeSlider: null,
         snapshot: null,
     };
-    let compactSurface = null;
-    const compactValueCache = new Map();
     const interactionRouter = createDesktopWorldInteractionRouter({
         onOutsidePointer(event) {
             if (event.phase === 'up') close('outside-click');
@@ -317,17 +309,18 @@ export function createSigilContextMenu({
     }
 
     function compactControlRecords() {
-        return compactSurface?.getControlRecords?.() || [];
+        return compactSurfaceSession.controlRecords();
     }
 
     function snapshot() {
-        return buildContextMenuSnapshot(menuState, compactSurface);
+        return buildContextMenuSnapshot(menuState, compactSurfaceSession.surface());
     }
 
     function syncSnapshot() {
+        const controls = compactControlRecords();
         menuState.snapshot = {
-            activeTab: compactSurface?.getActiveTab?.() || null,
-            controlCount: compactControlRecords().length,
+            activeTab: compactSurfaceSession.activeTab(),
+            controlCount: controls.length,
         };
         anchor.setAttribute('aria-hidden', menuState.open ? 'false' : 'true');
         anchor.setAttribute('data-state', menuState.open ? 'open' : 'closed');
@@ -405,110 +398,21 @@ export function createSigilContextMenu({
         recordTrace,
     });
 
-    function cacheKey(value) {
-        if (value === undefined) return 'undefined';
-        try {
-            return JSON.stringify(value);
-        } catch {
-            return String(value);
-        }
-    }
-
-    function seedCompactValueCache(surface = compactSurface) {
-        compactValueCache.clear();
-        if (!surface) return;
-        for (const tab of surface.viewModel.tabs || []) {
-            for (const section of tab.sections || []) {
-                for (const control of section.controls || []) {
-                    compactValueCache.set(control.id, cacheKey(control.value));
-                }
-            }
-        }
-        for (const control of surface.viewModel.projection_tools || []) {
-            compactValueCache.set(control.id, cacheKey(control.value));
-        }
-    }
-
-    function routeChangedControls(controls = [], values = {}) {
-        let changed = false;
-        for (const control of controls) {
-            if (!control?.id || !Object.prototype.hasOwnProperty.call(values, control.id)) continue;
-            const value = values[control.id];
-            const nextKey = cacheKey(value);
-            if (compactValueCache.get(control.id) === nextKey) continue;
-            compactValueCache.set(control.id, nextKey);
-            const result = routeDescriptorUpdate(control.descriptor_id || control.id, value);
-            changed ||= !!result;
-        }
-        if (changed) {
-            syncFromState();
-            syncSnapshot();
-        }
-        return changed;
-    }
-
-    function handleCompactProjectionAction(payload = {}) {
-        const control = payload.control || {};
-        const id = control.descriptor_id || control.id;
-        routeDescriptorUpdate(id, id);
-        if (id?.startsWith?.('toggle-')) {
-            onUtilityAction?.(control.action_id || id);
-            syncSnapshot();
-            return;
-        }
-        Promise.resolve(onAvatarAction?.(id)).then((changed) => {
-            if (changed) {
-                void mountCompactSurface().then(() => {
-                    syncFromState();
-                    seedCompactValueCache();
-                    syncSnapshot();
-                });
-            }
-        }).catch((error) => {
-            console.warn('[sigil] avatar control surface action failed:', error);
-        });
-    }
-
-    async function mountCompactSurface(activeTab = null) {
-        const { createSigilAvatarCompactControlSurface } = await loadCompactSurfaceModule();
-        const previousSurface = compactSurface;
-        const previousTab = previousSurface?.getActiveTab?.();
-        const previousScrollTop = previousSurface?.el?.scrollTop ?? 0;
-        const previousScrollLeft = previousSurface?.el?.scrollLeft ?? 0;
-        compactSurface?.destroy?.();
-        compactSurface = createSigilAvatarCompactControlSurface(anchor, state || {}, {
-            document,
-            defaultTab: activeTab || previousTab || undefined,
-            visualObjectBinding: {
-                state,
-                routeHandlers: visualObjectBinding.routeHandlers,
-                rendererSyncHandlers: visualObjectBinding.rendererSyncHandlers,
-            },
-            onControlChange() {
-                queueMicrotask(() => {
-                    syncFromState();
-                    syncSnapshot();
-                });
-            },
-            onProjectionChange(payload = {}) {
-                routeChangedControls(payload.controls || [], payload.values || {});
-            },
-            onProjectionAction: handleCompactProjectionAction,
-            onTabChange(payload = {}) {
-                recordTrace('surface-tab', { value: payload.value });
-                syncSnapshot();
-            },
-        });
-        if (previousScrollTop > 0 || previousScrollLeft > 0) {
-            compactSurface.el.scrollTop = previousScrollTop;
-            compactSurface.el.scrollLeft = previousScrollLeft;
-        }
-        seedCompactValueCache(compactSurface);
-        syncSnapshot();
-        return compactSurface;
-    }
+    const compactSurfaceSession = createContextMenuCompactSurfaceSession({
+        anchor,
+        state,
+        document,
+        visualObjectBinding,
+        routeDescriptorUpdate,
+        onUtilityAction,
+        onAvatarAction,
+        syncFromState,
+        syncSnapshot,
+        recordTrace,
+    });
 
     function compactFieldRecordByDescriptorId(id) {
+        const compactSurface = compactSurfaceSession.surface();
         if (!compactSurface || !id) return null;
         for (const entry of compactSurface.forms.values()) {
             const fields = Array.from(entry.el.querySelectorAll?.('.aos-form-field') || []);
@@ -532,6 +436,7 @@ export function createSigilContextMenu({
     function compactFieldRecordForElement(element) {
         const fieldEl = closestAny(element, ['.aos-form-field']);
         const fieldId = fieldEl?.dataset?.aosFieldId;
+        const compactSurface = compactSurfaceSession.surface();
         if (!fieldId || !compactSurface) return null;
         for (const entry of compactSurface.forms.values()) {
             if (!elementContains(entry.el, fieldEl)) continue;
@@ -695,7 +600,7 @@ export function createSigilContextMenu({
         setColorValue('sigil-menu-magnetic2', colors.magnetic?.[1]);
         setColorValue('sigil-menu-grid1', colors.grid?.[0]);
         setColorValue('sigil-menu-grid2', colors.grid?.[1]);
-        compactSurface?.refreshVisibility?.();
+        compactSurfaceSession.refreshVisibility();
     }
 
     function clampToVisible(point) {
@@ -750,10 +655,10 @@ export function createSigilContextMenu({
         anchor.classList.add('visible');
         syncSnapshot();
         onBoundsChange?.(snapshot());
-        void mountCompactSurface().then(() => {
+        void compactSurfaceSession.mount().then(() => {
             if (!menuState.open) return;
             syncFromState();
-            seedCompactValueCache();
+            compactSurfaceSession.seedValueCache();
             syncPosition();
             syncSnapshot();
             onBoundsChange?.(snapshot());
@@ -770,9 +675,7 @@ export function createSigilContextMenu({
         menuState.bounds = null;
         menuState.activeSlider = null;
         interactionRouter.reset();
-        compactSurface?.destroy?.();
-        compactSurface = null;
-        compactValueCache.clear();
+        compactSurfaceSession.destroy();
         if (state) state.isMenuOpen = false;
         anchor.classList.remove('visible');
         syncSnapshot();
@@ -790,9 +693,7 @@ export function createSigilContextMenu({
         interactionRouter.reset();
         if (state) state.isMenuOpen = open;
         if (!open) {
-            compactSurface?.destroy?.();
-            compactSurface = null;
-            compactValueCache.clear();
+            compactSurfaceSession.destroy();
             anchor.classList.remove('visible');
             syncSnapshot();
             return;
@@ -800,20 +701,21 @@ export function createSigilContextMenu({
         syncPosition();
         anchor.classList.add('visible');
         syncSnapshot();
+        const compactSurface = compactSurfaceSession.surface();
         if (compactSurface) {
             if (next.activeTab && compactSurface.getActiveTab?.() !== next.activeTab) {
                 compactSurface.setActiveTab?.(next.activeTab);
             }
             syncFromState();
-            seedCompactValueCache();
+            compactSurfaceSession.seedValueCache();
             syncPosition();
             syncSnapshot();
             return;
         }
-        void mountCompactSurface(next.activeTab || null).then(() => {
+        void compactSurfaceSession.mount(next.activeTab || null).then(() => {
             if (!menuState.open) return;
             syncFromState();
-            seedCompactValueCache();
+            compactSurfaceSession.seedValueCache();
             syncPosition();
             syncSnapshot();
         }).catch((error) => {

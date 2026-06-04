@@ -10,7 +10,7 @@ import {
   buildEmployerBrandLiveEvidenceUrlOpenRun,
   loadEmployerBrandLiveEvidenceUrlOpenRun,
   validateEmployerBrandLiveEvidenceUrlOpenRun,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-url-open-run.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-url-open-run.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

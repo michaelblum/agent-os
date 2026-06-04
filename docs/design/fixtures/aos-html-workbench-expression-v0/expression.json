@@ -15,382 +15,743 @@
   },
   "semantic_targets": [
     {
-      "target_id": "document",
-      "data_aos_ref": "html-workbench-expression:document",
-      "aos_ref": "html-workbench-expression:document",
+      "ref": "html-workbench-expression:document",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "AOS HTML Workbench Expression V0",
       "kind": "document",
-      "accessible_label": "AOS HTML Workbench Expression V0",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 1,
-      "source_line_end": 294,
-      "selector": "[data-aos-ref=\"html-workbench-expression:document\"]",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 1,
+          "line_end": 294
+        }
+      },
+      "provenance": {
+        "dom_id": "document",
+        "selector": "[data-aos-ref=\"html-workbench-expression:document\"]",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "aos-html-workbench-expression-v0",
-      "data_aos_ref": "html-workbench-expression:aos-html-workbench-expression-v0",
-      "aos_ref": "html-workbench-expression:aos-html-workbench-expression-v0",
+      "ref": "html-workbench-expression:aos-html-workbench-expression-v0",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "AOS HTML Workbench Expression V0",
       "kind": "section",
-      "accessible_label": "AOS HTML Workbench Expression V0",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 1,
-      "source_line_end": 2,
-      "selector": "#aos-html-workbench-expression-v0",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 1,
+          "line_end": 2
+        }
+      },
+      "provenance": {
+        "dom_id": "aos-html-workbench-expression-v0",
+        "selector": "#aos-html-workbench-expression-v0",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "tracker",
-      "data_aos_ref": "html-workbench-expression:tracker",
-      "aos_ref": "html-workbench-expression:tracker",
+      "ref": "html-workbench-expression:tracker",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Tracker",
       "kind": "section",
-      "accessible_label": "Tracker",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 3,
-      "source_line_end": 12,
-      "selector": "#tracker",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 3,
+          "line_end": 12
+        }
+      },
+      "provenance": {
+        "dom_id": "tracker",
+        "selector": "#tracker",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "goal",
-      "data_aos_ref": "html-workbench-expression:goal",
-      "aos_ref": "html-workbench-expression:goal",
+      "ref": "html-workbench-expression:goal",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Goal",
       "kind": "section",
-      "accessible_label": "Goal",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 13,
-      "source_line_end": 29,
-      "selector": "#goal",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 13,
+          "line_end": 29
+        }
+      },
+      "provenance": {
+        "dom_id": "goal",
+        "selector": "#goal",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "why",
-      "data_aos_ref": "html-workbench-expression:why",
-      "aos_ref": "html-workbench-expression:why",
+      "ref": "html-workbench-expression:why",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Why",
       "kind": "section",
-      "accessible_label": "Why",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 30,
-      "source_line_end": 45,
-      "selector": "#why",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 30,
+          "line_end": 45
+        }
+      },
+      "provenance": {
+        "dom_id": "why",
+        "selector": "#why",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "existing-code-to-inspect",
-      "data_aos_ref": "html-workbench-expression:existing-code-to-inspect",
-      "aos_ref": "html-workbench-expression:existing-code-to-inspect",
+      "ref": "html-workbench-expression:existing-code-to-inspect",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Existing Code To Inspect",
       "kind": "section",
-      "accessible_label": "Existing Code To Inspect",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 46,
-      "source_line_end": 66,
-      "selector": "#existing-code-to-inspect",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 46,
+          "line_end": 66
+        }
+      },
+      "provenance": {
+        "dom_id": "existing-code-to-inspect",
+        "selector": "#existing-code-to-inspect",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "scope",
-      "data_aos_ref": "html-workbench-expression:scope",
-      "aos_ref": "html-workbench-expression:scope",
+      "ref": "html-workbench-expression:scope",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Scope",
       "kind": "section",
-      "accessible_label": "Scope",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 67,
-      "source_line_end": 88,
-      "selector": "#scope",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 67,
+          "line_end": 88
+        }
+      },
+      "provenance": {
+        "dom_id": "scope",
+        "selector": "#scope",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "contract",
-      "data_aos_ref": "html-workbench-expression:contract",
-      "aos_ref": "html-workbench-expression:contract",
+      "ref": "html-workbench-expression:contract",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Contract",
       "kind": "section",
-      "accessible_label": "Contract",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 89,
-      "source_line_end": 124,
-      "selector": "#contract",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 89,
+          "line_end": 124
+        }
+      },
+      "provenance": {
+        "dom_id": "contract",
+        "selector": "#contract",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "markdown-work-card-adapter",
-      "data_aos_ref": "html-workbench-expression:markdown-work-card-adapter",
-      "aos_ref": "html-workbench-expression:markdown-work-card-adapter",
+      "ref": "html-workbench-expression:markdown-work-card-adapter",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Markdown Work-Card Adapter",
       "kind": "section",
-      "accessible_label": "Markdown Work-Card Adapter",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 125,
-      "source_line_end": 147,
-      "selector": "#markdown-work-card-adapter",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 125,
+          "line_end": 147
+        }
+      },
+      "provenance": {
+        "dom_id": "markdown-work-card-adapter",
+        "selector": "#markdown-work-card-adapter",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "human-facing-surface",
-      "data_aos_ref": "html-workbench-expression:human-facing-surface",
-      "aos_ref": "html-workbench-expression:human-facing-surface",
+      "ref": "html-workbench-expression:human-facing-surface",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Human-Facing Surface",
       "kind": "section",
-      "accessible_label": "Human-Facing Surface",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 148,
-      "source_line_end": 170,
-      "selector": "#human-facing-surface",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 148,
+          "line_end": 170
+        }
+      },
+      "provenance": {
+        "dom_id": "human-facing-surface",
+        "selector": "#human-facing-surface",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "annotation-and-checkpoint-path",
-      "data_aos_ref": "html-workbench-expression:annotation-and-checkpoint-path",
-      "aos_ref": "html-workbench-expression:annotation-and-checkpoint-path",
+      "ref": "html-workbench-expression:annotation-and-checkpoint-path",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Annotation And Checkpoint Path",
       "kind": "section",
-      "accessible_label": "Annotation And Checkpoint Path",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 171,
-      "source_line_end": 189,
-      "selector": "#annotation-and-checkpoint-path",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 171,
+          "line_end": 189
+        }
+      },
+      "provenance": {
+        "dom_id": "annotation-and-checkpoint-path",
+        "selector": "#annotation-and-checkpoint-path",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "work-card-authoring-flow",
-      "data_aos_ref": "html-workbench-expression:work-card-authoring-flow",
-      "aos_ref": "html-workbench-expression:work-card-authoring-flow",
+      "ref": "html-workbench-expression:work-card-authoring-flow",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Work-Card Authoring Flow",
       "kind": "section",
-      "accessible_label": "Work-Card Authoring Flow",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 190,
-      "source_line_end": 203,
-      "selector": "#work-card-authoring-flow",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 190,
+          "line_end": 203
+        }
+      },
+      "provenance": {
+        "dom_id": "work-card-authoring-flow",
+        "selector": "#work-card-authoring-flow",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "security-and-safety",
-      "data_aos_ref": "html-workbench-expression:security-and-safety",
-      "aos_ref": "html-workbench-expression:security-and-safety",
+      "ref": "html-workbench-expression:security-and-safety",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Security And Safety",
       "kind": "section",
-      "accessible_label": "Security And Safety",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 204,
-      "source_line_end": 217,
-      "selector": "#security-and-safety",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 204,
+          "line_end": 217
+        }
+      },
+      "provenance": {
+        "dom_id": "security-and-safety",
+        "selector": "#security-and-safety",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "non-goals",
-      "data_aos_ref": "html-workbench-expression:non-goals",
-      "aos_ref": "html-workbench-expression:non-goals",
+      "ref": "html-workbench-expression:non-goals",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Non-Goals",
       "kind": "non_goal",
-      "accessible_label": "Non-Goals",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 218,
-      "source_line_end": 229,
-      "selector": "#non-goals",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 218,
+          "line_end": 229
+        }
+      },
+      "provenance": {
+        "dom_id": "non-goals",
+        "selector": "#non-goals",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "deliverables",
-      "data_aos_ref": "html-workbench-expression:deliverables",
-      "aos_ref": "html-workbench-expression:deliverables",
+      "ref": "html-workbench-expression:deliverables",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Deliverables",
       "kind": "section",
-      "accessible_label": "Deliverables",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 230,
-      "source_line_end": 243,
-      "selector": "#deliverables",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 230,
+          "line_end": 243
+        }
+      },
+      "provenance": {
+        "dom_id": "deliverables",
+        "selector": "#deliverables",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "suggested-verification",
-      "data_aos_ref": "html-workbench-expression:suggested-verification",
-      "aos_ref": "html-workbench-expression:suggested-verification",
+      "ref": "html-workbench-expression:suggested-verification",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Suggested Verification",
       "kind": "verification",
-      "accessible_label": "Suggested Verification",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 244,
-      "source_line_end": 278,
-      "selector": "#suggested-verification",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 244,
+          "line_end": 278
+        }
+      },
+      "provenance": {
+        "dom_id": "suggested-verification",
+        "selector": "#suggested-verification",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "completion-audit",
-      "data_aos_ref": "html-workbench-expression:completion-audit",
-      "aos_ref": "html-workbench-expression:completion-audit",
+      "ref": "html-workbench-expression:completion-audit",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Completion Audit",
       "kind": "section",
-      "accessible_label": "Completion Audit",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 279,
-      "source_line_end": 294,
-      "selector": "#completion-audit",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 279,
+          "line_end": 294
+        }
+      },
+      "provenance": {
+        "dom_id": "completion-audit",
+        "selector": "#completion-audit",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "code-block-1",
-      "data_aos_ref": "html-workbench-expression:code-block-1",
-      "aos_ref": "html-workbench-expression:code-block-1",
+      "ref": "html-workbench-expression:code-block-1",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "bash block 1",
       "kind": "code_block",
-      "accessible_label": "bash block 1",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 248,
-      "source_line_end": 250,
-      "selector": "[data-semantic-target-id=\"code-block-1\"]",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 248,
+          "line_end": 250
+        }
+      },
+      "provenance": {
+        "dom_id": "code-block-1",
+        "selector": "[data-semantic-target-id=\"code-block-1\"]",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "code-block-2",
-      "data_aos_ref": "html-workbench-expression:code-block-2",
-      "aos_ref": "html-workbench-expression:code-block-2",
+      "ref": "html-workbench-expression:code-block-2",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "bash block 2",
       "kind": "code_block",
-      "accessible_label": "bash block 2",
-      "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
-      "source_line_start": 254,
-      "source_line_end": 262,
-      "selector": "[data-semantic-target-id=\"code-block-2\"]",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
+          "line_start": 254,
+          "line_end": 262
+        }
+      },
+      "provenance": {
+        "dom_id": "code-block-2",
+        "selector": "[data-semantic-target-id=\"code-block-2\"]",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     }
   ],
   "source_map": [
     {
-      "target_id": "document",
+      "ref": "html-workbench-expression:document",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 1,
       "source_line_end": 294,
       "selector": "[data-aos-ref=\"html-workbench-expression:document\"]"
     },
     {
-      "target_id": "aos-html-workbench-expression-v0",
+      "ref": "html-workbench-expression:aos-html-workbench-expression-v0",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 1,
       "source_line_end": 2,
       "selector": "#aos-html-workbench-expression-v0"
     },
     {
-      "target_id": "tracker",
+      "ref": "html-workbench-expression:tracker",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 3,
       "source_line_end": 12,
       "selector": "#tracker"
     },
     {
-      "target_id": "goal",
+      "ref": "html-workbench-expression:goal",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 13,
       "source_line_end": 29,
       "selector": "#goal"
     },
     {
-      "target_id": "why",
+      "ref": "html-workbench-expression:why",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 30,
       "source_line_end": 45,
       "selector": "#why"
     },
     {
-      "target_id": "existing-code-to-inspect",
+      "ref": "html-workbench-expression:existing-code-to-inspect",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 46,
       "source_line_end": 66,
       "selector": "#existing-code-to-inspect"
     },
     {
-      "target_id": "scope",
+      "ref": "html-workbench-expression:scope",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 67,
       "source_line_end": 88,
       "selector": "#scope"
     },
     {
-      "target_id": "contract",
+      "ref": "html-workbench-expression:contract",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 89,
       "source_line_end": 124,
       "selector": "#contract"
     },
     {
-      "target_id": "markdown-work-card-adapter",
+      "ref": "html-workbench-expression:markdown-work-card-adapter",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 125,
       "source_line_end": 147,
       "selector": "#markdown-work-card-adapter"
     },
     {
-      "target_id": "human-facing-surface",
+      "ref": "html-workbench-expression:human-facing-surface",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 148,
       "source_line_end": 170,
       "selector": "#human-facing-surface"
     },
     {
-      "target_id": "annotation-and-checkpoint-path",
+      "ref": "html-workbench-expression:annotation-and-checkpoint-path",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 171,
       "source_line_end": 189,
       "selector": "#annotation-and-checkpoint-path"
     },
     {
-      "target_id": "work-card-authoring-flow",
+      "ref": "html-workbench-expression:work-card-authoring-flow",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 190,
       "source_line_end": 203,
       "selector": "#work-card-authoring-flow"
     },
     {
-      "target_id": "security-and-safety",
+      "ref": "html-workbench-expression:security-and-safety",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 204,
       "source_line_end": 217,
       "selector": "#security-and-safety"
     },
     {
-      "target_id": "non-goals",
+      "ref": "html-workbench-expression:non-goals",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 218,
       "source_line_end": 229,
       "selector": "#non-goals"
     },
     {
-      "target_id": "deliverables",
+      "ref": "html-workbench-expression:deliverables",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 230,
       "source_line_end": 243,
       "selector": "#deliverables"
     },
     {
-      "target_id": "suggested-verification",
+      "ref": "html-workbench-expression:suggested-verification",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 244,
       "source_line_end": 278,
       "selector": "#suggested-verification"
     },
     {
-      "target_id": "completion-audit",
+      "ref": "html-workbench-expression:completion-audit",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 279,
       "source_line_end": 294,
       "selector": "#completion-audit"
     },
     {
-      "target_id": "code-block-1",
+      "ref": "html-workbench-expression:code-block-1",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 248,
       "source_line_end": 250,
       "selector": "[data-semantic-target-id=\"code-block-1\"]"
     },
     {
-      "target_id": "code-block-2",
+      "ref": "html-workbench-expression:code-block-2",
       "source_path": "docs/design/work-cards/aos-html-workbench-expression-v0.md",
       "source_line_start": 254,
       "source_line_end": 262,
@@ -424,97 +785,97 @@
   },
   "outline": [
     {
-      "target_id": "aos-html-workbench-expression-v0",
+      "ref": "html-workbench-expression:aos-html-workbench-expression-v0",
       "label": "AOS HTML Workbench Expression V0",
       "level": 1,
       "selector": "#aos-html-workbench-expression-v0"
     },
     {
-      "target_id": "tracker",
+      "ref": "html-workbench-expression:tracker",
       "label": "Tracker",
       "level": 2,
       "selector": "#tracker"
     },
     {
-      "target_id": "goal",
+      "ref": "html-workbench-expression:goal",
       "label": "Goal",
       "level": 2,
       "selector": "#goal"
     },
     {
-      "target_id": "why",
+      "ref": "html-workbench-expression:why",
       "label": "Why",
       "level": 2,
       "selector": "#why"
     },
     {
-      "target_id": "existing-code-to-inspect",
+      "ref": "html-workbench-expression:existing-code-to-inspect",
       "label": "Existing Code To Inspect",
       "level": 2,
       "selector": "#existing-code-to-inspect"
     },
     {
-      "target_id": "scope",
+      "ref": "html-workbench-expression:scope",
       "label": "Scope",
       "level": 2,
       "selector": "#scope"
     },
     {
-      "target_id": "contract",
+      "ref": "html-workbench-expression:contract",
       "label": "Contract",
       "level": 2,
       "selector": "#contract"
     },
     {
-      "target_id": "markdown-work-card-adapter",
+      "ref": "html-workbench-expression:markdown-work-card-adapter",
       "label": "Markdown Work-Card Adapter",
       "level": 2,
       "selector": "#markdown-work-card-adapter"
     },
     {
-      "target_id": "human-facing-surface",
+      "ref": "html-workbench-expression:human-facing-surface",
       "label": "Human-Facing Surface",
       "level": 2,
       "selector": "#human-facing-surface"
     },
     {
-      "target_id": "annotation-and-checkpoint-path",
+      "ref": "html-workbench-expression:annotation-and-checkpoint-path",
       "label": "Annotation And Checkpoint Path",
       "level": 2,
       "selector": "#annotation-and-checkpoint-path"
     },
     {
-      "target_id": "work-card-authoring-flow",
+      "ref": "html-workbench-expression:work-card-authoring-flow",
       "label": "Work-Card Authoring Flow",
       "level": 2,
       "selector": "#work-card-authoring-flow"
     },
     {
-      "target_id": "security-and-safety",
+      "ref": "html-workbench-expression:security-and-safety",
       "label": "Security And Safety",
       "level": 2,
       "selector": "#security-and-safety"
     },
     {
-      "target_id": "non-goals",
+      "ref": "html-workbench-expression:non-goals",
       "label": "Non-Goals",
       "level": 2,
       "selector": "#non-goals"
     },
     {
-      "target_id": "deliverables",
+      "ref": "html-workbench-expression:deliverables",
       "label": "Deliverables",
       "level": 2,
       "selector": "#deliverables"
     },
     {
-      "target_id": "suggested-verification",
+      "ref": "html-workbench-expression:suggested-verification",
       "label": "Suggested Verification",
       "level": 2,
       "selector": "#suggested-verification"
     },
     {
-      "target_id": "completion-audit",
+      "ref": "html-workbench-expression:completion-audit",
       "label": "Completion Audit",
       "level": 2,
       "selector": "#completion-audit"

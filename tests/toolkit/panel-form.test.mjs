@@ -264,19 +264,17 @@ test('getControlRecords exposes normalized AOS control targets for agent operati
   setRect(sliderControl, { left: 10, top: 72, width: 160, height: 28 });
 
   const records = form.getControlRecords();
-  const mode = records.find((record) => record.descriptor_id === 'avatar-mode');
+  const mode = records.find((record) => record.extension.descriptor_id === 'avatar-mode');
   const opacity = form.getControlRecord('opacity');
 
-  assert.equal(mode.id, 'avatar-mode');
-  assert.equal(mode.field_id, 'mode');
+  assert.equal(mode.extension.descriptor_id, 'avatar-mode');
+  assert.equal(mode.extension.field_id, 'mode');
   assert.equal(mode.ref, 'toolkit.panel.form:avatar-mode');
-  assert.equal(mode.aosRef, 'toolkit.panel.form:avatar-mode');
-  assert.equal(mode.ref, `${mode.surface}:${mode.id}`);
   assert.equal(mode.role, 'radiogroup');
   assert.equal(mode.name, 'Mode');
-  assert.equal(mode.value, 'alpha');
+  assert.equal(mode.state.value, 'alpha');
   assert.deepEqual(mode.actions, ['select']);
-  assert.deepEqual(mode.options.map(({ value, label, selected, frame }) => ({
+  assert.deepEqual(mode.extension.options.map(({ value, label, selected, frame }) => ({
     value,
     label,
     selected,
@@ -285,15 +283,16 @@ test('getControlRecords exposes normalized AOS control targets for agent operati
     { value: 'alpha', label: 'Alpha', selected: true, frame: { x: 10, y: 20, width: 50, height: 24 } },
     { value: 'omega', label: 'Omega', selected: false, frame: { x: 64, y: 20, width: 60, height: 24 } },
   ]);
-  assert.equal(opacity.id, 'avatar-opacity');
-  assert.equal(opacity.field_id, 'opacity');
+  assert.equal(mode.provenance.source_payload_id, 'avatar-mode');
+  assert.equal(Object.hasOwn(mode, 'aosRef'), false);
+  assert.equal(Object.hasOwn(mode, 'id'), false);
+  assert.equal(opacity.extension.descriptor_id, 'avatar-opacity');
+  assert.equal(opacity.extension.field_id, 'opacity');
   assert.equal(opacity.ref, 'toolkit.panel.form:avatar-opacity');
-  assert.equal(opacity.aosRef, 'toolkit.panel.form:avatar-opacity');
-  assert.equal(opacity.ref, `${opacity.surface}:${opacity.id}`);
   assert.equal(opacity.role, 'slider');
   assert.equal(opacity.name, 'Opacity');
-  assert.equal(opacity.value, 0.55);
-  assert.deepEqual(opacity.frame, { x: 10, y: 72, width: 160, height: 28 });
+  assert.equal(opacity.state.value, 0.55);
+  assert.deepEqual(opacity.provenance.frame, { x: 10, y: 72, width: 160, height: 28 });
   assert.deepEqual(opacity.actions, ['drag', 'set-value']);
 });
 

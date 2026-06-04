@@ -659,7 +659,7 @@ export default function WikiSubjectBrowser(options = {}) {
         applyWikiSubjectBrowserSemanticTarget(item, {
           id: `subject-catalog-entry-${entry.key}`,
           name: entry.label,
-          aosRef: catalogEntryRef(entry),
+          ref: catalogEntryRef(entry),
         });
 
         const title = document.createElement('div');
@@ -689,7 +689,7 @@ export default function WikiSubjectBrowser(options = {}) {
             role: 'AXButton',
             action: 'open_subject',
             enabled: entry.affordances?.openable === true,
-            aosRef: catalogEntryRef(entry, 'open'),
+            ref: catalogEntryRef(entry, 'open'),
           },
           onClick: () => {
           openCatalogEntry(entry.id).catch((error) => {
@@ -748,7 +748,7 @@ export default function WikiSubjectBrowser(options = {}) {
             id: `subject-index-entry-${entry.key}`,
             name: entry.label,
             selected: focused,
-            aosRef: entry.semantic_ref,
+            ref: entry.semantic_ref,
           });
 
           const title = document.createElement('div');
@@ -778,7 +778,7 @@ export default function WikiSubjectBrowser(options = {}) {
               role: 'AXButton',
               action: 'inspect_subject',
               current: focused ? 'true' : null,
-              aosRef: entry.inspect_ref,
+              ref: entry.inspect_ref,
             },
             onClick: () => {
             inspectSubjectIndexEntry(entry);
@@ -796,7 +796,7 @@ export default function WikiSubjectBrowser(options = {}) {
               role: 'AXButton',
               action: 'open_subject',
               enabled: canOpen,
-              aosRef: entry.open_ref,
+              ref: entry.open_ref,
             },
             onClick: () => {
             openSubjectIndexEntry(entry.key).catch((error) => {
@@ -871,7 +871,7 @@ export default function WikiSubjectBrowser(options = {}) {
       id: `subject-details-subject-${details.key}`,
       name: `Focused Subject ${details.label}`,
       selected: true,
-      aosRef: details.semantic_ref,
+      ref: details.semantic_ref,
     });
     const title = document.createElement('div');
     title.className = 'wiki-subject-browser-details-title';
@@ -904,7 +904,7 @@ export default function WikiSubjectBrowser(options = {}) {
         name: 'Clear focused Subject details',
         role: 'AXButton',
         action: 'clear_subject_focus',
-        aosRef: details.clear_ref,
+        ref: details.clear_ref,
       },
       onClick: () => {
       clearSubjectIndexFocus(state);
@@ -943,7 +943,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(item, {
         id: `subject-details-${reference.direction}-reference-${reference.id}`,
         name: `${labelText} ${reference.relationship}`,
-        aosRef: reference.semantic_ref,
+        ref: reference.semantic_ref,
       });
 
       const title = document.createElement('div');
@@ -966,7 +966,7 @@ export default function WikiSubjectBrowser(options = {}) {
           role: 'AXButton',
           action: 'open_subject',
           enabled: canOpen,
-          aosRef: target.open_ref || wikiSubjectBrowserAosRef('subject-details', 'related', 'unresolved', target.key || reference.id),
+          ref: target.open_ref || wikiSubjectBrowserAosRef('subject-details', 'related', 'unresolved', target.key || reference.id),
         },
         onClick: () => {
         openRelatedSubject(target).catch((error) => {
@@ -1009,7 +1009,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(item, {
         id: `subject-details-facet-${facet.key}`,
         name: facet.label || facet.key,
-        aosRef: facet.semantic_ref,
+        ref: facet.semantic_ref,
       });
       item.innerHTML = '<strong></strong><span></span>';
       item.querySelector('strong').textContent = facet.label || facet.key;
@@ -1048,7 +1048,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(item, {
         id: `subject-details-host-${hostReference.id}`,
         name: `${hostReference.facet_key} ${hostReference.kind} host`,
-        aosRef: hostReference.semantic_ref,
+        ref: hostReference.semantic_ref,
       });
       item.innerHTML = '<strong></strong><span></span>';
       item.querySelector('strong').textContent = `${hostReference.facet_key || 'facet'} host`;
@@ -1096,7 +1096,7 @@ export default function WikiSubjectBrowser(options = {}) {
           role: 'AXButton',
           action: 'open_subject',
           current: entry.entry_handle === latest ? 'page' : null,
-          aosRef: entry.open_ref,
+          ref: entry.open_ref,
         },
       });
       const label = document.createElement('span');
@@ -1174,7 +1174,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(rootEl, {
         id: 'root',
         name: 'Wiki Subject Browser V0',
-        aosRef: wikiSubjectBrowserAosRef('root'),
+        ref: wikiSubjectBrowserAosRef('root'),
       });
       rootEl.innerHTML = `
         <header class="wiki-subject-browser-pathbar" aria-label="Subject path">
@@ -1265,14 +1265,14 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(pathCrumbsEl, {
         id: 'active-path',
         name: 'Active drilldown path',
-        aosRef: wikiSubjectBrowserAosRef('path'),
+        ref: wikiSubjectBrowserAosRef('path'),
       });
       applyWikiSubjectBrowserSemanticTarget(rootClearEl, {
         id: 'root-clear',
         name: 'Clear Subject Browser to graph root',
         role: 'AXButton',
         action: 'clear_subject_browser_root',
-        aosRef: wikiSubjectBrowserAosRef('path', 'clear-root'),
+        ref: wikiSubjectBrowserAosRef('path', 'clear-root'),
       });
       rootClearEl.title = 'Clear Subject Browser to graph root';
       rootClearEl.textContent = 'Clear Browser';
@@ -1285,7 +1285,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(catalogAside, {
         id: 'subject-catalog',
         name: 'Subject catalog',
-        aosRef: wikiSubjectBrowserAosRef('subject-catalog'),
+        ref: wikiSubjectBrowserAosRef('subject-catalog'),
       });
       catalogAside.innerHTML = catalogMarkup;
       catalogStatusEl = catalogAside.querySelector('[data-role="catalog-status"]');
@@ -1301,7 +1301,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(catalogContextEl, {
         id: 'subject-catalog-context',
         name: 'Subject catalog context',
-        aosRef: wikiSubjectBrowserAosRef('subject-catalog', 'context'),
+        ref: wikiSubjectBrowserAosRef('subject-catalog', 'context'),
       });
       catalogContextEl.innerHTML = catalogContextMarkup;
       catalogEl = catalogContextEl.querySelector('[data-role="catalog-list"]');
@@ -1312,12 +1312,12 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(catalogStatusEl, {
         id: 'subject-catalog-status',
         name: 'Subject catalog status',
-        aosRef: wikiSubjectBrowserAosRef('subject-catalog-status'),
+        ref: wikiSubjectBrowserAosRef('subject-catalog-status'),
       });
       applyWikiSubjectBrowserSemanticTarget(subjectIndexEl, {
         id: 'subject-index',
         name: 'Subject graph index',
-        aosRef: wikiSubjectBrowserAosRef('subject-index'),
+        ref: wikiSubjectBrowserAosRef('subject-index'),
       });
       subjectIndexEl.innerHTML = subjectIndexMarkup;
       subjectIndexStatusEl = subjectIndexEl.querySelector('[data-role="subject-index-status"]');
@@ -1341,25 +1341,25 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(subjectIndexStatusEl, {
         id: 'subject-index-status',
         name: 'Subject graph index status',
-        aosRef: wikiSubjectBrowserAosRef('subject-index-status'),
+        ref: wikiSubjectBrowserAosRef('subject-index-status'),
       });
       applyWikiSubjectBrowserSemanticTarget(subjectIndexSummaryEl, {
         id: 'subject-index-summary',
         name: 'Subject graph index summary',
-        aosRef: wikiSubjectBrowserAosRef('subject-index-summary'),
+        ref: wikiSubjectBrowserAosRef('subject-index-summary'),
       });
       applyWikiSubjectBrowserSemanticTarget(subjectSearchEl, {
         id: 'subject-search',
         name: 'Search indexed Subjects',
         role: 'AXSearchField',
         action: 'filter_subjects',
-        aosRef: wikiSubjectBrowserAosRef('subject-search'),
+        ref: wikiSubjectBrowserAosRef('subject-search'),
       });
       const subjectFiltersMarkup = subjectFiltersEl.innerHTML;
       applyWikiSubjectBrowserSemanticTarget(subjectFiltersEl, {
         id: 'subject-filters',
         name: 'Subject index filters',
-        aosRef: wikiSubjectBrowserAosRef('subject-filters'),
+        ref: wikiSubjectBrowserAosRef('subject-filters'),
       });
       subjectFiltersEl.innerHTML = subjectFiltersMarkup;
       for (const filterKey of SUBJECT_BROWSER_INDEX_FILTER_KEYS) {
@@ -1381,7 +1381,7 @@ export default function WikiSubjectBrowser(options = {}) {
           name: `${subjectFilterName(filterKey)} filter`,
           role: 'AXPopUpButton',
           action: 'filter_subjects',
-          aosRef: wikiSubjectBrowserAosRef('subject-filter', role),
+          ref: wikiSubjectBrowserAosRef('subject-filter', role),
         });
         if (sharedSelectTrigger) {
           applyWikiSubjectBrowserSemanticTarget(sharedSelectTrigger, {
@@ -1389,7 +1389,7 @@ export default function WikiSubjectBrowser(options = {}) {
             name: `${subjectFilterName(filterKey)} filter`,
             role: 'AXPopUpButton',
             action: 'filter_subjects',
-            aosRef: wikiSubjectBrowserAosRef('subject-filter', role),
+            ref: wikiSubjectBrowserAosRef('subject-filter', role),
           });
         }
       }
@@ -1405,7 +1405,7 @@ export default function WikiSubjectBrowser(options = {}) {
         name: 'Reset Subject index filters',
         role: 'AXButton',
         action: 'reset_subject_filters',
-        aosRef: wikiSubjectBrowserAosRef('subject-filters', 'reset'),
+        ref: wikiSubjectBrowserAosRef('subject-filters', 'reset'),
       });
       subjectFiltersResetEl?.addEventListener('click', () => {
         resetSubjectIndexFilters(state);
@@ -1414,12 +1414,12 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(subjectListStatusEl, {
         id: 'subject-list-status',
         name: 'Subject list status',
-        aosRef: wikiSubjectBrowserAosRef('subject-list-status'),
+        ref: wikiSubjectBrowserAosRef('subject-list-status'),
       });
       applyWikiSubjectBrowserSemanticTarget(subjectListEl, {
         id: 'subject-list',
         name: 'Indexed Subject list',
-        aosRef: wikiSubjectBrowserAosRef('subject-list'),
+        ref: wikiSubjectBrowserAosRef('subject-list'),
       });
       subjectSearchEl?.addEventListener('input', () => {
         applySubjectNavigationQuery(state, subjectSearchEl.value);
@@ -1431,7 +1431,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(subjectDetailsSectionEl, {
         id: 'subject-details',
         name: 'Focused Subject details',
-        aosRef: wikiSubjectBrowserAosRef('subject-details'),
+        ref: wikiSubjectBrowserAosRef('subject-details'),
       });
       subjectDetailsSectionEl.innerHTML = subjectDetailsMarkup;
       subjectDetailsStatusEl = subjectDetailsSectionEl.querySelector('[data-role="subject-details-status"]');
@@ -1439,12 +1439,12 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(subjectDetailsStatusEl, {
         id: 'subject-details-status',
         name: 'Focused Subject details status',
-        aosRef: wikiSubjectBrowserAosRef('subject-details-status'),
+        ref: wikiSubjectBrowserAosRef('subject-details-status'),
       });
       applyWikiSubjectBrowserSemanticTarget(subjectDetailsEl, {
         id: 'subject-details-body',
         name: 'Focused Subject details body',
-        aosRef: wikiSubjectBrowserAosRef('subject-details-body'),
+        ref: wikiSubjectBrowserAosRef('subject-details-body'),
       });
 
       const navigationTrailSectionEl = catalogAside.querySelector('[data-role="navigation-trail-section"]');
@@ -1452,7 +1452,7 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(navigationTrailSectionEl, {
         id: 'navigation-trail',
         name: 'Navigation trail',
-        aosRef: wikiSubjectBrowserAosRef('navigation-trail'),
+        ref: wikiSubjectBrowserAosRef('navigation-trail'),
       });
       navigationTrailSectionEl.innerHTML = navigationTrailMarkup;
       navigationTrailStatusEl = navigationTrailSectionEl.querySelector('[data-role="navigation-trail-status"]');
@@ -1460,12 +1460,12 @@ export default function WikiSubjectBrowser(options = {}) {
       applyWikiSubjectBrowserSemanticTarget(navigationTrailStatusEl, {
         id: 'navigation-trail-status',
         name: 'Navigation trail status',
-        aosRef: wikiSubjectBrowserAosRef('navigation-trail-status'),
+        ref: wikiSubjectBrowserAosRef('navigation-trail-status'),
       });
       applyWikiSubjectBrowserSemanticTarget(navigationTrailEl, {
         id: 'navigation-trail-list',
         name: 'Navigation trail list',
-        aosRef: wikiSubjectBrowserAosRef('navigation-trail-list'),
+        ref: wikiSubjectBrowserAosRef('navigation-trail-list'),
       });
 
       workbench = MarkdownWorkbench({

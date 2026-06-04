@@ -7,11 +7,11 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   executeEmployerBrandRepairedLiveElementCapture,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-element-capture.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-element-capture.js';
 import {
   loadEmployerBrandRepairedCaptureRuntimeDiagnostics,
   validateEmployerBrandRepairedCaptureRuntimeDiagnostics,
-} from '../../packages/toolkit/workbench/employer-brand-repaired-capture-runtime-diagnostics.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-repaired-capture-runtime-diagnostics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

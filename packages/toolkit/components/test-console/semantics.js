@@ -53,7 +53,7 @@ export function applyTestConsoleSemanticTarget(element, target = {}, options = {
     role: target.role || 'AXButton',
     name: target.name,
     action: target.action,
-    aosRef: target.aosRef || testConsoleAosRef(target.id),
+    ref: target.ref || testConsoleAosRef(target.id),
     surface: TEST_CONSOLE_SURFACE,
     enabled: target.enabled,
     selected: target.selected,
@@ -144,7 +144,7 @@ export function applyTestConsoleSemantics(rootEl, state = {}) {
       id: targetId,
       name: `Open evidence ${ref}`,
       action: 'open_evidence',
-      aosRef: testConsoleAosRef('evidence', 'open', refPart(ref)),
+      ref: testConsoleAosRef('evidence', 'open', refPart(ref)),
       enabled: !!state.step,
     }, {
       preserveText: true,

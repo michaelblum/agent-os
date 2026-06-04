@@ -18,8 +18,8 @@ function payloadFromMessage(message = {}) {
 
 function expressionTitle(metadata = {}) {
   return text(
-    metadata.semantic_targets?.find?.((target) => target.kind === 'document')?.accessible_label
-      || metadata.semantic_targets?.[0]?.accessible_label
+    metadata.semantic_targets?.find?.((target) => target.kind === 'document')?.name
+      || metadata.semantic_targets?.[0]?.name
       || metadata.expression_id,
     'HTML Workbench Expression',
   )
@@ -82,8 +82,8 @@ function rectPayload(rect = null) {
   return { x, y, w, h }
 }
 
-function targetId(target = {}) {
-  return text(target.id || target.target_id || target.semantic_target_id || target.ref || target.data_aos_ref)
+function targetRevealEligible(target = {}) {
+  return target.extension?.reveal_eligible ?? target.reveal_eligible
 }
 
 function cssEscape(value) {
@@ -93,11 +93,12 @@ function cssEscape(value) {
 
 function targetSelectors(target = {}) {
   const selectors = []
+  const ref = text(target.ref)
+  const domId = text(target.provenance?.dom_id || target.extension?.dom_id)
+  if (target.provenance?.selector) selectors.push(String(target.provenance.selector))
   if (target.selector) selectors.push(String(target.selector))
-  if (target.target_id) selectors.push(`[data-semantic-target-id="${cssEscape(target.target_id)}"]`)
-  if (target.id) selectors.push(`[data-semantic-target-id="${cssEscape(target.id)}"]`)
-  if (target.data_aos_ref) selectors.push(`[data-aos-ref="${cssEscape(target.data_aos_ref)}"]`)
-  if (target.aos_ref) selectors.push(`[data-aos-ref="${cssEscape(target.aos_ref)}"]`)
+  if (domId) selectors.push(`[data-semantic-target-id="${cssEscape(domId)}"]`)
+  if (ref) selectors.push(`[data-aos-ref="${cssEscape(ref)}"]`)
   return [...new Set(selectors.filter(Boolean))]
 }
 
@@ -117,11 +118,11 @@ export function revealHtmlWorkbenchSemanticTarget(state, target = {}, {
   scheduleRefresh = null,
   now = new Date().toISOString(),
 } = {}) {
-  const candidateIds = [target.subject_id, target.id, target.target_id, target.semantic_target_id]
+  const candidateIds = [target.ref, target.subject_id, target.id]
     .map((value) => String(value ?? '').trim())
     .filter(Boolean)
   const metadataTarget = state.metadata?.semantic_targets?.find?.((item) => {
-    const id = targetId(item)
+    const id = text(item.ref)
     return id && candidateIds.includes(String(id))
   }) || target.source_tree_node_metadata || target
   const element = resolveTargetElement(document_, metadataTarget)
@@ -129,7 +130,7 @@ export function revealHtmlWorkbenchSemanticTarget(state, target = {}, {
     return {
       status: 'target_absent',
       adapter_id: 'aos-toolkit-semantic-target',
-      subject_id: target.subject_id || target.id || targetId(metadataTarget),
+      subject_id: target.subject_id || target.ref || text(metadataTarget.ref),
       blocker_reason: 'semantic_target_not_found',
       completed_at: now,
     }
@@ -154,7 +155,7 @@ export function revealHtmlWorkbenchSemanticTarget(state, target = {}, {
   return {
     status: alreadyVisible ? 'already_visible' : (visible ? 'revealed' : 'blocked'),
     adapter_id: 'aos-toolkit-semantic-target',
-    subject_id: target.subject_id || target.id || targetId(metadataTarget),
+    subject_id: target.subject_id || target.ref || text(metadataTarget.ref),
     blocker_reason: visible ? '' : 'scroll_into_view_did_not_make_target_visible',
     completed_at: now,
     projection: {
@@ -185,14 +186,15 @@ export function buildHtmlWorkbenchSemanticTargetsPayload(state, {
         ? rect.x + rect.w >= viewportRect.x && rect.y + rect.h >= viewportRect.y && rect.x <= viewportRect.x + viewportRect.w && rect.y <= viewportRect.y + viewportRect.h
         : rect.x + rect.w >= 0 && rect.y + rect.h >= 0
     ))
-    const canReveal = target.reveal_eligible !== false && Boolean(element || target.selector || target.target_id || target.data_aos_ref || target.aos_ref)
+    const ref = text(target.ref)
+    const domId = text(target.provenance?.dom_id || target.extension?.dom_id)
+    const canReveal = targetRevealEligible(target) !== false && Boolean(element || target.provenance?.selector || target.selector || domId || ref)
     return {
       ...target,
-      id: targetId(target),
       canvas_id: HTML_WORKBENCH_EXPRESSION_SURFACE,
       surface: HTML_WORKBENCH_EXPRESSION_SURFACE,
-      name: target.accessible_label || target.name || targetId(target),
-      label: target.accessible_label || target.label || targetId(target),
+      name: target.name || target.label || ref,
+      label: target.name || target.label || ref,
       current_render_status: visible ? 'visible' : (canReveal ? 'offscreen_scrollable' : 'unsupported'),
       display_space_rect: visible ? rect : null,
       local_space_rect: rect,

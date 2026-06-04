@@ -11,7 +11,7 @@ import {
   loadEmployerBrandLiveEvidenceLocatorResolutionResult,
   resolveLocatorFromDurableUrlOpenMetadata,
   validateEmployerBrandLiveEvidenceLocatorResolutionResult,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-locator-resolution-result.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-locator-resolution-result.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

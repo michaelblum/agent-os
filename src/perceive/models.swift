@@ -250,29 +250,46 @@ struct AXElementJSON: Encodable {
 // MARK: - AOS-owned Canvas Semantic Target Output
 
 struct AOSSemanticTargetStateJSON: Codable {
+    let value: String?
     let current: String?
     let pressed: Bool?
     let selected: Bool?
     let checked: Bool?
     let expanded: Bool?
-    let disabled: Bool?
-    let value: String?
+}
+
+struct AOSSemanticTargetExtensionSourceJSON: Codable {
+    let path: String?
+    let line_start: Int?
+    let line_end: Int?
+}
+
+struct AOSSemanticTargetExtensionJSON: Codable {
+    let dom_id: String?
+    let source: AOSSemanticTargetExtensionSourceJSON?
+}
+
+struct AOSSemanticTargetProvenanceJSON: Codable {
+    let canvas_id: String?
+    let do_target: String?
+    let parent_canvas_id: String?
+    let source_payload_id: String?
+    let bounds: BoundsJSON?
+    let frame: BoundsJSON?
+    let center: CursorJSON?
 }
 
 struct AOSSemanticTargetJSON: Codable {
-    let canvas_id: String?
-    let id: String?
-    let ref: String?
-    let do_target: String?
+    let ref: String
+    let surface: String?
     let role: String
     let name: String?
-    let action: String?
-    let surface: String?
-    let parent_canvas: String?
+    let kind: String
     let enabled: Bool
-    let bounds: BoundsJSON
-    let center: CursorJSON
     let state: AOSSemanticTargetStateJSON?
+    let actions: [String]
+    let `extension`: AOSSemanticTargetExtensionJSON
+    let provenance: AOSSemanticTargetProvenanceJSON
 }
 
 // MARK: - Annotation Output Model (annotation.schema.json v0.1.0)

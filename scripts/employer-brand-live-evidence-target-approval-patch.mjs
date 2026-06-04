@@ -7,7 +7,7 @@ import {
   EMPLOYER_BRAND_LIVE_EVIDENCE_TARGET_APPROVAL_PATCH_TYPE,
   applyEmployerBrandLiveEvidenceTargetApprovalPatch,
   validateEmployerBrandLiveEvidenceTargetApprovalPatch,
-} from '../packages/toolkit/workbench/employer-brand-live-evidence-target-approval-patch.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-target-approval-patch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

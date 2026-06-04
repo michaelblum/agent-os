@@ -41,7 +41,7 @@ can exercise the artifact shape without autonomous browsing.
 Employer Brand Audit Project V0 fixtures can also be compiled into manifest
 skeletons by
 `compileBrowserEvidenceManifestFromEmployerBrandAuditProject()` in
-`packages/toolkit/workbench/employer-brand-project-browser-evidence.js`, or by
+`packages/toolkit/workbench/_reference/employer-brand/employer-brand-project-browser-evidence.js`, or by
 the script wrapper
 `node scripts/employer-brand-project-browser-evidence-manifest.mjs --project <project.json> --out <manifest.json>`.
 That compiler is a deterministic planning bridge only. It derives request

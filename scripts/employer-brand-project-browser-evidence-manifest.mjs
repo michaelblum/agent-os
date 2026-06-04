@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   compileBrowserEvidenceManifestFromEmployerBrandAuditProject,
-} from '../packages/toolkit/workbench/employer-brand-project-browser-evidence.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-project-browser-evidence.js';
 
 function usage() {
   return `Usage: node scripts/employer-brand-project-browser-evidence-manifest.mjs --project <project.json> --out <manifest.json> [--html-root html]
