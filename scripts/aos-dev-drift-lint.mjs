@@ -18,21 +18,42 @@ const defaultExcludedPrefixes = [
   'docs/dev/work-cards/',
 ];
 
-const markerPattern = /\b(at the time of writing|as of\s+(?:\d{4}-\d{2}-\d{2}|[0-9a-f]{7,40})|observed (?:on|at)\s+\d{4}-\d{2}-\d{2}|historical|former|then-current|at commit\s+[0-9a-f]{7,40}|recorded at write time|snapshot|settlement)\b/i;
-const pastTensePattern = /\b(was merged|was closed|was observed|was created|was reported|was restored|was dropped|was settled|was retargeted|had been|reported|observed|created on|closed on|merged on)\b/i;
+const lifecycleKeywords = [
+  'open',
+  'closed',
+  'merged',
+  'active',
+  'parked',
+  'blocked',
+  'valid',
+  'closable',
+  'ready',
+  'waiting',
+];
+const lifecycleKeywordPattern = lifecycleKeywords.map(escapeRegex).join('|');
+const lifecycleKeywordLookaheads = lifecycleKeywords.map((keyword) => `(?!${escapeRegex(keyword)}\\b)`).join('');
+
+const claimMarkerPattern = /\b(at the time of writing|as of\s+(?:\d{4}-\d{2}-\d{2}|[0-9a-f]{7,40})|observed (?:on|at)\s+\d{4}-\d{2}-\d{2}|historical|former|then-current|at commit\s+[0-9a-f]{7,40}|recorded at write time|snapshot|settlement)\b/i;
+const evidenceHeadingPattern = /\b(\d{4}-\d{2}-\d{2}|as of\s+(?:\d{4}-\d{2}-\d{2}|[0-9a-f]{7,40})|observed (?:on|at)\s+\d{4}-\d{2}-\d{2}|at commit\s+[0-9a-f]{7,40})\b/i;
+const pastTensePattern = /\b(was merged|was closed|was observed|was created|was reported|was restored|was dropped|was removed|was settled|was retargeted|had been|reported|observed|created on|closed on|merged on)\b/i;
 const liveQueryPattern = /\b(Query (?:GitHub|Git|live|`?\.\/aos)|run `?git stash list`?|use `?\.\/aos dev gh|Use `?\.\/aos dev gh|GitHub for current|before assuming|before acting)\b/i;
+const pastTenseLicensedRuleIds = new Set([
+  'lane_label_standing_claim',
+  'stash_lifecycle_standing_claim',
+  'runtime_lifecycle_standing_claim',
+]);
 
 const rules = [
   {
     id: 'issue_lifecycle_standing_claim',
     reason: 'Issue or PR lifecycle status should be dated/historical or queried live.',
-    pattern: /(?:\b(?:issue|pr|pull request)\s+)?#\d+\s+(?:is|are|remains?|stays?|should\s+stay|still)\s+(?:open|closed|merged|active|parked|blocked|valid|closable|ready\b|waiting\b)/i,
+    pattern: new RegExp(String.raw`(?:\b(?:issue|pr|pull request)\s+)?#\d+\s+(?:is|are|remains?|stays?|should\s+stay|still)\s+(?:${lifecycleKeywordPattern})\b`, 'i'),
     suggested_fix: 'Cite the issue or PR number and query live JSON, or move the claim into a dated historical block.',
   },
   {
     id: 'issue_identity_paraphrase',
     reason: 'Issue identity should be cited by number and queried; scope paraphrases become stale.',
-    pattern: /(?:\b(?:issue|pr|pull request)\s+)?#\d+\s+(?:is|are)\s+(?!not\b)(?!the\b)(?!an?\s+older\b)(?!a\s+historical\b)(?!history\b)(?!open\b)(?!closed\b)(?!merged\b)(?!active\b)(?!parked\b)(?!blocked\b)(?!valid\b)(?!closable\b)(?!ready\b)(?!waiting\b)[^.!?\n]{3,}/i,
+    pattern: new RegExp(String.raw`(?:\b(?:issue|pr|pull request)\s+)?#\d+\s+(?:is|are)\s+(?!not\b)(?!an?\s+older\b)(?!a\s+historical\b)(?!history\b)${lifecycleKeywordLookaheads}[^.!?\n]{3,}`, 'i'),
     suggested_fix: 'Cite the number and query its current title, labels, and state instead of paraphrasing scope.',
   },
   {
@@ -62,12 +83,20 @@ const rules = [
 ];
 
 function printJSON(value) {
-  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  process.stdout.write(formatJSON(value));
+}
+
+function formatJSON(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 function exitError(message, code) {
-  process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
+  process.stderr.write(formatJSON({ code, error: message }));
   process.exit(1);
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function runGit(args, cwd) {
@@ -164,29 +193,58 @@ function headingText(line) {
   return line.replace(/^#{1,6}\s+/, '').trim();
 }
 
-function blockLicensed(text, headings) {
-  const scopeText = [text, ...headings].join('\n');
-  return markerPattern.test(scopeText) || pastTensePattern.test(text) || liveQueryPattern.test(text);
+function hasEvidenceHeading(headings) {
+  return headings.some((heading) => evidenceHeadingPattern.test(heading));
+}
+
+function claimScope(text, start, end) {
+  let scopeStart = 0;
+  for (const match of text.matchAll(/[.!?;\n]/g)) {
+    if (match.index < start) scopeStart = match.index + 1;
+    else break;
+  }
+  let scopeEnd = text.length;
+  for (const match of text.matchAll(/[.!?;\n]/g)) {
+    if (match.index >= end) {
+      scopeEnd = match.index;
+      break;
+    }
+  }
+  return text.slice(scopeStart, scopeEnd).trim();
+}
+
+function claimLicensed(prose, match, headings, rule) {
+  if (hasEvidenceHeading(headings)) return true;
+  const scope = claimScope(prose, match.index, match.index + match.text.length);
+  if (claimMarkerPattern.test(scope) || liveQueryPattern.test(scope)) return true;
+  return pastTenseLicensedRuleIds.has(rule.id) && pastTensePattern.test(scope);
+}
+
+function ruleMatches(rule, prose) {
+  const flags = rule.pattern.flags.includes('g') ? rule.pattern.flags : `${rule.pattern.flags}g`;
+  const pattern = new RegExp(rule.pattern.source, flags);
+  return [...prose.matchAll(pattern)].map((match) => ({
+    text: match[0],
+    index: match.index ?? 0,
+  }));
 }
 
 function checkBlock(block, headings, file, findings) {
-  const blockText = block.map((item) => stripInlineCode(item.text)).join('\n');
-  const licensed = blockLicensed(blockText, headings);
   for (const item of block) {
     const prose = stripInlineCode(item.text);
     if (!prose.trim()) continue;
     for (const rule of rules) {
-      const match = prose.match(rule.pattern);
-      if (!match) continue;
-      if (licensed) continue;
-      findings.push({
-        path: file,
-        line: item.line,
-        token: match[0].trim(),
-        rule_id: rule.id,
-        reason: rule.reason,
-        suggested_fix: rule.suggested_fix,
-      });
+      for (const match of ruleMatches(rule, prose)) {
+        if (claimLicensed(prose, match, headings, rule)) continue;
+        findings.push({
+          path: file,
+          line: item.line,
+          token: match.text.trim(),
+          rule_id: rule.id,
+          reason: rule.reason,
+          suggested_fix: rule.suggested_fix,
+        });
+      }
     }
   }
 }
@@ -256,7 +314,9 @@ function lint(options) {
       proof: false,
       notice: detectorNotice,
       denylist_complete: false,
-      block_scoped_markers: true,
+      block_scoped_markers: false,
+      claim_scoped_markers: true,
+      dated_heading_scoped_markers: true,
       excludes_fenced_code_blocks: true,
       excludes_inline_code_spans: true,
     },

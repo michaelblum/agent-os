@@ -13,6 +13,10 @@ STANDING="tests/fixtures/dev-drift-lint/standing-status.md"
 IDENTITY="tests/fixtures/dev-drift-lint/identity-paraphrase.md"
 BLOCK_SCOPE="tests/fixtures/dev-drift-lint/block-scope.md"
 CODE_SPANS="tests/fixtures/dev-drift-lint/code-spans.md"
+DATED_SAMELINE="tests/fixtures/dev-drift-lint/dated-sameline.md"
+SAME_LINE_CONTAMINATION="tests/fixtures/dev-drift-lint/same-line-contamination.md"
+SOFT_HEADING_SCOPE="tests/fixtures/dev-drift-lint/soft-heading-scope.md"
+COMBINED_CONTAMINATION="tests/fixtures/dev-drift-lint/combined-contamination.md"
 NARRATIVE="docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md"
 export NARRATIVE
 
@@ -25,6 +29,8 @@ assert data["status"] == "success", data
 assert data["detector"]["kind"] == "heuristic_tripwire", data
 assert data["detector"]["proof"] is False, data
 assert data["detector"]["denylist_complete"] is False, data
+assert data["detector"]["block_scoped_markers"] is False, data
+assert data["detector"]["claim_scoped_markers"] is True, data
 assert data["summary"]["finding_count"] == 0, data
 assert data["scanned_files"] == ["tests/fixtures/dev-drift-lint/historical-status.md"], data
 PY
@@ -83,9 +89,87 @@ assert finding["line"] == 5, finding
 assert finding["token"] == "#222 is open", finding
 PY
 then
-    pass "dev drift-lint uses block-scoped markers instead of nearby-marker proximity"
+    pass "dev drift-lint keeps nearby markers from licensing later claims"
 else
-    fail "dev drift-lint block-scoping behavior drifted"
+    fail "dev drift-lint nearby-marker behavior drifted"
+fi
+
+if OUT="$(./aos dev drift-lint --files "$DATED_SAMELINE" --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "success", data
+assert data["summary"]["finding_count"] == 0, data
+PY
+then
+    pass "dev drift-lint permits same-clause dated status claims"
+else
+    fail "dev drift-lint over-flagged same-clause dated fixture"
+fi
+
+if OUT="$(./aos dev drift-lint --files "$SAME_LINE_CONTAMINATION" --json 2>/dev/null)"; then
+    fail "dev drift-lint should fail same-line two-sentence contamination"
+elif OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "failed", data
+assert data["summary"]["finding_count"] == 1, data
+finding = data["findings"][0]
+assert finding["line"] == 3, finding
+assert finding["token"] == "#407 is open", finding
+assert finding["rule_id"] == "issue_lifecycle_standing_claim", finding
+PY
+then
+    pass "dev drift-lint catches same-line two-sentence contamination"
+else
+    fail "dev drift-lint missed same-line contamination"
+fi
+
+if OUT="$(./aos dev drift-lint --files "$SOFT_HEADING_SCOPE" --json 2>/dev/null)"; then
+    fail "dev drift-lint should fail fresh status under soft historical heading"
+elif OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["status"] == "failed", data
+assert data["summary"]["finding_count"] == 1, data
+finding = data["findings"][0]
+assert finding["line"] == 5, finding
+assert finding["token"] == "#407 is open", finding
+PY
+then
+    pass "dev drift-lint catches soft-heading scope contamination"
+else
+    fail "dev drift-lint missed soft-heading contamination"
+fi
+
+if OUT="$(./aos dev drift-lint --files "$COMBINED_CONTAMINATION" --json 2>/dev/null)"; then
+    fail "dev drift-lint should fail realistic ledger contamination"
+elif OUT="$OUT" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+tokens = {finding["token"] for finding in data["findings"]}
+rules = {finding["rule_id"] for finding in data["findings"]}
+assert data["status"] == "failed", data
+assert data["summary"]["finding_count"] == 4, data
+assert "#407 is open" in tokens, tokens
+assert "#411 is the parser simplification work" in tokens, tokens
+assert "#415 is closable" in tokens, tokens
+assert "lane:active" in tokens, tokens
+assert "issue_lifecycle_standing_claim" in rules, rules
+assert "issue_identity_paraphrase" in rules, rules
+assert "lane_label_standing_claim" in rules, rules
+PY
+then
+    pass "dev drift-lint catches every claim in realistic ledger contamination"
+else
+    fail "dev drift-lint missed realistic ledger contamination"
 fi
 
 if OUT="$(./aos dev drift-lint --files "$CODE_SPANS" --json 2>/dev/null)" python3 - <<'PY'
@@ -123,7 +207,15 @@ fi
 
 if ERR="$(./aos dev drift-lint --bogus 2>&1 >/dev/null)"; then
     fail "dev drift-lint should reject unknown flags"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_FLAG"'; then
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "UNKNOWN_FLAG", data
+assert "Unknown dev drift-lint flag" in data["error"], data
+PY
+then
     pass "dev drift-lint rejects unknown flags"
 else
     fail "dev drift-lint unknown flag error drifted: $ERR"

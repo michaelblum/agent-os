@@ -4,11 +4,15 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 function printJSON(value) {
-  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  process.stdout.write(formatJSON(value));
+}
+
+function formatJSON(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
 }
 
 function exitError(message, code) {
-  process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
+  process.stderr.write(formatJSON({ code, error: message }));
   process.exit(1);
 }
 
@@ -159,6 +163,21 @@ function setTrace(trace, key, ids) {
   trace[key] = ids.filter(Boolean);
 }
 
+function limitedCount(value, limit) {
+  if (!Array.isArray(value)) {
+    return {
+      count: null,
+      limit,
+      limitReached: null,
+    };
+  }
+  return {
+    count: value.length,
+    limit,
+    limitReached: value.length >= limit,
+  };
+}
+
 function buildSituation(options) {
   const repoRoot = resolveRepoRoot(options.repo);
   const sources = [];
@@ -211,20 +230,30 @@ function buildSituation(options) {
   setTrace(trace, 'git.remote_branches', ['git_remote_branches']);
   setTrace(trace, 'git.stashes', ['git_stashes']);
 
+  const openIssueCount = limitedCount(openIssues, options.issueLimit);
+  const openPRCount = limitedCount(openPRs, options.prLimit);
   const summary = {
     clean: gitPayload.dirty_files === null ? null : gitPayload.dirty_files === 0,
     synced_with_origin_main: gitPayload.ahead_of_origin_main === null || gitPayload.behind_origin_main === null
       ? null
       : gitPayload.ahead_of_origin_main === 0 && gitPayload.behind_origin_main === 0,
-    open_pr_count: Array.isArray(openPRs) ? openPRs.length : null,
-    open_issue_count: Array.isArray(openIssues) ? openIssues.length : null,
+    open_pr_count: openPRCount.count,
+    open_pr_count_limit: openPRCount.limit,
+    open_pr_count_limit_reached: openPRCount.limitReached,
+    open_issue_count: openIssueCount.count,
+    open_issue_count_limit: openIssueCount.limit,
+    open_issue_count_limit_reached: openIssueCount.limitReached,
     stash_count: Array.isArray(gitPayload.stashes) ? gitPayload.stashes.length : null,
     runtime_ready: readyJSON && typeof readyJSON.ready === 'boolean' ? readyJSON.ready : null,
   };
   setTrace(trace, 'summary.clean', ['git_status']);
   setTrace(trace, 'summary.synced_with_origin_main', ['git_ahead_behind']);
   setTrace(trace, 'summary.open_pr_count', ['github_open_prs']);
+  setTrace(trace, 'summary.open_pr_count_limit', ['github_open_prs']);
+  setTrace(trace, 'summary.open_pr_count_limit_reached', ['github_open_prs']);
   setTrace(trace, 'summary.open_issue_count', ['github_open_issues']);
+  setTrace(trace, 'summary.open_issue_count_limit', ['github_open_issues']);
+  setTrace(trace, 'summary.open_issue_count_limit_reached', ['github_open_issues']);
   setTrace(trace, 'summary.stash_count', ['git_stashes']);
   setTrace(trace, 'summary.runtime_ready', ['aos_ready']);
 
@@ -259,12 +288,17 @@ function printText(payload) {
   process.stdout.write(`Head: ${payload.git.head ?? 'unknown'}\n`);
   process.stdout.write(`Clean: ${payload.summary.clean}\n`);
   process.stdout.write(`Synced with origin/main: ${payload.summary.synced_with_origin_main}\n`);
-  process.stdout.write(`Open PRs: ${payload.summary.open_pr_count ?? 'unknown'}\n`);
-  process.stdout.write(`Open issues: ${payload.summary.open_issue_count ?? 'unknown'}\n`);
+  process.stdout.write(`Open PRs: ${limitedCountText(payload.summary.open_pr_count, payload.summary.open_pr_count_limit, payload.summary.open_pr_count_limit_reached)}\n`);
+  process.stdout.write(`Open issues: ${limitedCountText(payload.summary.open_issue_count, payload.summary.open_issue_count_limit, payload.summary.open_issue_count_limit_reached)}\n`);
   process.stdout.write(`Stashes: ${payload.summary.stash_count ?? 'unknown'}\n`);
   process.stdout.write(`Runtime ready: ${payload.summary.runtime_ready ?? 'unknown'}\n`);
   const failed = payload.sources.filter((source) => source.status !== 'success');
   for (const source of failed) process.stdout.write(`Source failed: ${source.id} exit=${source.exit_code}${source.note ? ` ${source.note}` : ''}\n`);
+}
+
+function limitedCountText(count, limit, limitReached) {
+  if (count === null || count === undefined) return 'unknown';
+  return limitReached ? `${count} (limit ${limit} reached)` : String(count);
 }
 
 const options = parseArgs(process.argv.slice(2));

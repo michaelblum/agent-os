@@ -256,8 +256,9 @@ accepted through the pure snapshot projection correction.
 
 - Action: Park the idea against #164 only as "underlying target record needed,"
   not as a commitment to top-level Playwright-style aliases.
-  - Why: #164 is the closest strategic owner, but it contains older dialect
-    language that can regress the current strict `see/do` discipline.
+  - Why: At the time of writing, #164 was the closest strategic owner, but it
+    contained older dialect language that can regress the current strict
+    `see/do` discipline. Query GitHub before treating it as the current owner.
   - Estimated effort: S.
   - Expected impact: medium.
 

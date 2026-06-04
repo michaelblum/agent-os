@@ -271,8 +271,9 @@ subject executable or inspectable. Tracked in #237.
 
 ## Relationship To Existing Work
 
-- #141 is the browser-only steerable-collection V0 projection. It should stay
-  scoped and can adopt work-record vocabulary when stable.
+- At the time of writing, #141 was the browser-only steerable-collection V0
+  projection. It should stay scoped and can adopt work-record vocabulary when
+  stable.
 - #148 should keep replay codegen deferred until #239 defines how codegen
   attaches to AOS work records.
 - #149 supervised runs already wants run control, timelines, evidence packs,

@@ -80,7 +80,11 @@ assert data["git"]["behind_origin_main"] == 0, data
 assert data["summary"]["clean"] is True, data
 assert data["summary"]["synced_with_origin_main"] is True, data
 assert data["summary"]["open_issue_count"] == 2, data
+assert data["summary"]["open_issue_count_limit"] == 2, data
+assert data["summary"]["open_issue_count_limit_reached"] is True, data
 assert data["summary"]["open_pr_count"] == 1, data
+assert data["summary"]["open_pr_count_limit"] == 4, data
+assert data["summary"]["open_pr_count_limit_reached"] is False, data
 assert data["summary"]["stash_count"] == 1, data
 assert data["summary"]["runtime_ready"] is True, data
 assert "notes" not in data["summary"], data["summary"]
@@ -90,7 +94,11 @@ for key, source_id in {
     "summary.clean": "git_status",
     "summary.synced_with_origin_main": "git_ahead_behind",
     "summary.open_issue_count": "github_open_issues",
+    "summary.open_issue_count_limit": "github_open_issues",
+    "summary.open_issue_count_limit_reached": "github_open_issues",
     "summary.open_pr_count": "github_open_prs",
+    "summary.open_pr_count_limit": "github_open_prs",
+    "summary.open_pr_count_limit_reached": "github_open_prs",
     "summary.stash_count": "git_stashes",
     "summary.runtime_ready": "aos_ready",
 }.items():
@@ -166,7 +174,15 @@ fi
 
 if ERR="$(./aos dev situation --bogus 2>&1 >/dev/null)"; then
     fail "dev situation should reject unknown flags"
-elif echo "$ERR" | grep -q '"code" : "UNKNOWN_FLAG"'; then
+elif ERR="$ERR" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["ERR"])
+assert data["code"] == "UNKNOWN_FLAG", data
+assert "Unknown dev situation flag" in data["error"], data
+PY
+then
     pass "dev situation rejects unknown flags"
 else
     fail "dev situation unknown flag error drifted: $ERR"
