@@ -17,6 +17,15 @@ const COMMON_FLAGS = new Set(['--json', '--repo', '--cwd', '--body-file', '--pr'
 const LIST_FLAGS = new Set(['--state', '--limit', '--label', '--author', '--assignee', '--search']);
 const PR_LIST_FLAGS = new Set(['--base', '--head', '--draft']);
 const PR_MERGE_STRATEGY_FLAGS = new Set(['--squash', '--merge', '--rebase']);
+const ISSUE_EDIT_VALUE_FLAGS = new Set([
+  '--add-label',
+  '--remove-label',
+  '--add-assignee',
+  '--remove-assignee',
+  '--milestone',
+  '--title',
+  '--body-file',
+]);
 const ISSUE_VIEW_JSON_FIELDS = 'number,title,state,url,body,labels,comments';
 
 const FLAG_SPECS = {
@@ -31,12 +40,16 @@ const FLAG_SPECS = {
   },
   '--body-file': {
     summary: 'a path',
-    assign: (options, value) => { options.bodyFile = value; },
+    assign: (options, value) => {
+      options.bodyFile = value;
+    },
   },
   '--title': {
     summary: 'an issue title',
-    assign: (options, value) => { options.title = value; },
-    invalid: '--title is only valid for issue create subcommands',
+    assign: (options, value) => {
+      options.title = value;
+    },
+    invalid: '--title is only valid for issue create and edit subcommands',
   },
   '--pr': {
     summary: 'a PR number',
@@ -75,6 +88,16 @@ const FLAG_SPECS = {
     assign: (options, value) => { options.labels.push(value); },
     invalid: '--label is only valid for issue create and issue/PR list subcommands',
   },
+  '--add-label': {
+    summary: 'a label name',
+    assign: () => {},
+    invalid: '--add-label is only valid for issue edit subcommands',
+  },
+  '--remove-label': {
+    summary: 'a label name',
+    assign: () => {},
+    invalid: '--remove-label is only valid for issue edit subcommands',
+  },
   '--author': {
     summary: 'a GitHub login',
     assign: (options, value) => { options.author = value; },
@@ -88,6 +111,16 @@ const FLAG_SPECS = {
     },
     invalid: '--assignee is only valid for issue create and list subcommands',
   },
+  '--add-assignee': {
+    summary: 'a GitHub login or @me',
+    assign: () => {},
+    invalid: '--add-assignee is only valid for issue edit subcommands',
+  },
+  '--remove-assignee': {
+    summary: 'a GitHub login or @me',
+    assign: () => {},
+    invalid: '--remove-assignee is only valid for issue edit subcommands',
+  },
   '--search': {
     summary: 'a search query',
     assign: (options, value) => { options.search = value; },
@@ -95,7 +128,9 @@ const FLAG_SPECS = {
   },
   '--milestone': {
     summary: 'an issue milestone name',
-    assign: (options, value) => { options.milestone = value; },
+    assign: (options, value) => {
+      options.milestone = value;
+    },
   },
   '--base': {
     summary: 'a base branch name',
@@ -139,6 +174,15 @@ const COMMAND_FLAGS = new Map([
   ['issue:list', new Set([...COMMON_FLAGS, ...LIST_FLAGS, '--milestone'])],
   ['issue:create', new Set([...COMMON_FLAGS, '--title', '--label', '--assignee', '--milestone'])],
   ['issue:close', new Set([...COMMON_FLAGS, '--reason'])],
+  ['issue:edit', new Set([
+    ...COMMON_FLAGS,
+    '--add-label',
+    '--remove-label',
+    '--add-assignee',
+    '--remove-assignee',
+    '--milestone',
+    '--title',
+  ])],
   ['label:list', new Set([...COMMON_FLAGS, '--limit', '--search', '--sort', '--order'])],
   ['pr:list', new Set([...COMMON_FLAGS, ...LIST_FLAGS, ...PR_LIST_FLAGS])],
   ['pr:merge', new Set([...COMMON_FLAGS, ...PR_MERGE_STRATEGY_FLAGS, '--match-head-commit'])],
@@ -181,6 +225,7 @@ function parseOptions(args, command = 'common') {
     closeReason: null,
     sort: null,
     order: null,
+    issueEditOperations: [],
     positionals: [],
   };
   const allowedFlags = COMMAND_FLAGS.get(command) ?? COMMAND_FLAGS.get('common');
@@ -201,6 +246,9 @@ function parseOptions(args, command = 'common') {
         const summary = typeof spec.summary === 'function' ? spec.summary(command) : spec.summary;
         const value = requireValueAt(i, arg, summary);
         spec.assign(options, value, command, arg);
+        if (command === 'issue:edit' && ISSUE_EDIT_VALUE_FLAGS.has(arg)) {
+          options.issueEditOperations.push({ flag: arg, value });
+        }
         i += 2;
       } else {
         spec.assign(options, null, command, arg);
@@ -490,9 +538,22 @@ function appendIssueCreateMetadata(args, options) {
   if (options.milestone) args.push('--milestone', options.milestone);
 }
 
+function appendIssueEditMetadata(args, options) {
+  for (const operation of options.issueEditOperations) {
+    if (operation.flag === '--body-file') {
+      const bodyFile = resolveUserPath(operation.value);
+      if (!fs.existsSync(bodyFile)) die(`Missing issue body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+      args.push(operation.flag, bodyFile);
+    } else {
+      args.push(operation.flag, operation.value);
+    }
+  }
+  return options.issueEditOperations.length;
+}
+
 function issueCommand(args) {
   const action = args[0];
-  if (!action) die('dev gh issue requires a subcommand: list, view, create, comment, or close', 'MISSING_SUBCOMMAND');
+  if (!action) die('dev gh issue requires a subcommand: list, view, create, comment, edit, or close', 'MISSING_SUBCOMMAND');
   if (action === 'list') {
     const options = parseOptions(args.slice(1), 'issue:list');
     if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
@@ -552,6 +613,21 @@ function issueCommand(args) {
     const ghArgs = ['issue', 'close', issueNumber];
     appendRepo(ghArgs, repoFullName);
     if (options.closeReason) ghArgs.push('--reason', options.closeReason);
+    runGhAndExit(ghArgs, repoRoot);
+  } else if (action === 'edit') {
+    const options = parseOptions(args.slice(1), 'issue:edit');
+    if (options.positionals.length === 0) die('dev gh issue edit requires exactly one issue number', 'MISSING_ARG');
+    if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
+    const issueNumber = options.positionals[0];
+    if (!/^[0-9]+$/.test(issueNumber)) die(`Issue number must be numeric for edit: ${issueNumber}`, 'INVALID_ISSUE');
+    const repoRoot = repoRootFrom(options);
+    const repoFullName = repositoryFullName(options, repoRoot);
+    const ghArgs = ['issue', 'edit', issueNumber];
+    appendRepo(ghArgs, repoFullName);
+    const editCount = appendIssueEditMetadata(ghArgs, options);
+    if (editCount === 0) {
+      die('dev gh issue edit requires at least one edit flag', 'MISSING_ARG');
+    }
     runGhAndExit(ghArgs, repoRoot);
   } else {
     die(`Unknown dev gh issue subcommand: ${action}`, 'UNKNOWN_SUBCOMMAND');

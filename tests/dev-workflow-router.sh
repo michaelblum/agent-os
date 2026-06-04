@@ -485,6 +485,7 @@ assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
 assert "dev.github.issue_create" in ids, ids
 assert "dev.github.issue_close" in ids, ids
+assert "dev.github.issue_edit" in ids, ids
 assert "dev.github.label_list" in ids, ids
 assert "dev.github.pr_comment" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
@@ -579,6 +580,27 @@ else
     fail "dev capabilities explain did not return expected issue close metadata"
 fi
 
+if OUT="$(./aos dev capabilities explain dev.github.issue_edit --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+capability = data["capability"]
+assert capability["id"] == "dev.github.issue_edit", data
+assert capability["adapter"]["kind"] == "aos_cli", data
+assert capability["mutability"]["class"] == "external_write", data
+assert capability["mutability"]["requires_explicit_assignment"] is True, data
+assert capability["mutability"]["requires_human_approval"] is False, data
+assert capability["mutability"]["requires_body_file"] is False, data
+assert capability["execution"]["audit"] == "required", data
+assert capability["execution"]["raw_process"] is False, data
+PY
+then
+    pass "dev capabilities explain returns issue edit metadata"
+else
+    fail "dev capabilities explain did not return expected issue edit metadata"
+fi
+
 if OUT="$(./aos dev capabilities explain dev.github.label_list --json 2>/dev/null)" python3 - <<'PY'
 import json
 import os
@@ -662,6 +684,7 @@ assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
 assert "dev.github.issue_create" in ids, ids
 assert "dev.github.issue_close" in ids, ids
+assert "dev.github.issue_edit" in ids, ids
 assert "dev.github.label_list" in ids, ids
 assert "dev.github.pr_comment" in ids, ids
 assert "dev.github.pr_merge" in ids, ids
@@ -705,6 +728,7 @@ assert "dev.github.pr_checks" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
 assert "dev.github.issue_create" not in ids, ids
 assert "dev.github.issue_close" not in ids, ids
+assert "dev.github.issue_edit" not in ids, ids
 assert "dev.github.pr_comment" not in ids, ids
 assert "dev.github.pr_merge" not in ids, ids
 assert "dev.build.aos" in ids, ids
@@ -746,6 +770,7 @@ assert "dev.github.ci_inspect" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
 assert "dev.github.issue_create" not in ids, ids
 assert "dev.github.issue_close" not in ids, ids
+assert "dev.github.issue_edit" not in ids, ids
 assert "dev.github.pr_comment" not in ids, ids
 assert "dev.github.pr_merge" not in ids, ids
 assert all(item["mutability_class"] == "read_only" for item in data["capabilities"]), data
@@ -795,6 +820,10 @@ if [[ "$cmd" == issue\ create\ --repo\ michaelblum/agent-os\ --title\ Strategic\
 fi
 if [[ "$cmd" == "issue close 411 --repo michaelblum/agent-os --reason completed" ]]; then
     echo "✓ Closed issue michaelblum/agent-os#411"
+    exit 0
+fi
+if [[ "$cmd" == issue\ edit\ 407\ --repo\ michaelblum/agent-os\ --remove-label\ lane:active\ --add-label\ lane:parked\ --add-assignee\ @me\ --remove-assignee\ old-owner\ --milestone\ v1\ --title\ Parked\ ledger\ --body-file\ * ]]; then
+    echo "https://github.com/michaelblum/agent-os/issues/407"
     exit 0
 fi
 if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os --json number,title,state,url,body,labels,comments" ]]; then
@@ -1017,6 +1046,47 @@ elif echo "$ERR" | grep -q -- 'dev gh issue close does not accept --body-file'; 
     pass "dev gh issue close rejects body files"
 else
     fail "dev gh issue close body-file error mismatch: $ERR"
+fi
+
+: > "$GH_ARGS_LOG"
+if OUT="$(./aos dev gh issue edit 407 --remove-label lane:active --add-label lane:parked --add-assignee @me --remove-assignee old-owner --milestone v1 --title "Parked ledger" --body-file "$BODY" 2>/dev/null)" &&
+   grep -q "issue edit 407 --repo michaelblum/agent-os --remove-label lane:active --add-label lane:parked --add-assignee @me --remove-assignee old-owner --milestone v1 --title Parked ledger --body-file $BODY" "$GH_ARGS_LOG" &&
+   echo "$OUT" | grep -q "issues/407"; then
+    pass "dev gh issue edit shells out with explicit lifecycle flags"
+else
+    fail "dev gh issue edit did not shell out through expected gh invocation"
+fi
+
+if ERR="$(./aos dev gh issue edit 2>&1 >/dev/null)"; then
+    fail "dev gh issue edit should require an issue number"
+elif echo "$ERR" | grep -q -- 'dev gh issue edit requires exactly one issue number'; then
+    pass "dev gh issue edit requires an issue number"
+else
+    fail "dev gh issue edit missing issue error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue edit current --add-label lane:parked 2>&1 >/dev/null)"; then
+    fail "dev gh issue edit should require a numeric issue"
+elif echo "$ERR" | grep -q -- 'Issue number must be numeric for edit: current'; then
+    pass "dev gh issue edit rejects non-numeric issues"
+else
+    fail "dev gh issue edit non-numeric issue error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue edit 407 2>&1 >/dev/null)"; then
+    fail "dev gh issue edit should reject no-op edits"
+elif echo "$ERR" | grep -q -- 'dev gh issue edit requires at least one edit flag'; then
+    pass "dev gh issue edit rejects no-op edits"
+else
+    fail "dev gh issue edit no-op error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue edit 407 --body-file "$TMPDIR/missing-issue-edit-body.md" 2>&1 >/dev/null)"; then
+    fail "dev gh issue edit should reject missing body files"
+elif echo "$ERR" | grep -q -- 'Missing issue body file:'; then
+    pass "dev gh issue edit rejects missing body files"
+else
+    fail "dev gh issue edit missing body file error mismatch: $ERR"
 fi
 
 if OUT="$(./aos dev gh label list --limit 10 --search governance --sort name --order desc --json 2>/dev/null)" python3 - <<'PY'
