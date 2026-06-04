@@ -1,38 +1,29 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
-import path from 'node:path';
 
-function printJSON(value) {
-  process.stdout.write(`${JSON.stringify(sanitizeForJSON(value), null, 2)}\n`);
-}
-
-function exitError(message, code) {
-  process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
-  process.exit(1);
-}
-
-function repoRoot() {
-  if (process.env.AOS_REPO_ROOT) return path.resolve(process.env.AOS_REPO_ROOT);
-  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
-  return path.resolve(scriptDir, '..');
-}
-
-function aosPath() {
-  return process.env.AOS_PATH || path.join(repoRoot(), 'aos');
-}
-
-function invocationName() {
-  return process.env.AOS_INVOCATION_DISPLAY_NAME || './aos';
-}
-
-function currentMode() {
-  const override = process.env.AOS_RUNTIME_MODE?.toLowerCase();
-  if (override === 'repo' || override === 'installed') return override;
-  return 'repo';
-}
+import {
+  currentMode,
+  exitError,
+  expectedBinaryPath,
+  invocationName,
+  parseJSONOutput,
+  printJSON,
+  repoRoot,
+  run,
+  runAOS,
+} from './lib/aos-cli.mjs';
+import {
+  brokerFacts,
+  cleanReport,
+  identity,
+  runtimeHealthNotes,
+} from './lib/aos-facts.mjs';
+import {
+  inputMonitoringSubGuidance,
+  inputTapRecoveryGuidance,
+} from './lib/aos-readiness.mjs';
 
 function parseArgs(args) {
   const options = { json: false };
@@ -43,93 +34,16 @@ function parseArgs(args) {
   return options;
 }
 
-function run(executable, args, options = {}) {
-  const result = spawnSync(executable, args, {
-    cwd: options.cwd ?? repoRoot(),
-    env: options.env ?? process.env,
-    encoding: 'utf8',
+function parsePrimitive(result, label) {
+  return parseJSONOutput(result, label, {
+    failureCode: 'STATUS_PRIMITIVE_FAILED',
+    jsonCode: 'STATUS_PRIMITIVE_JSON_INVALID',
   });
-  return {
-    exitCode: result.status ?? 127,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? (result.error ? `${result.error.message}\n` : ''),
-  };
-}
-
-function parseJSONOutput(result, label) {
-  if (result.exitCode !== 0) {
-    const detail = (result.stderr || result.stdout).trim();
-    exitError(`${label} failed${detail ? `: ${detail}` : ''}`, 'STATUS_PRIMITIVE_FAILED');
-  }
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    exitError(`${label} did not return JSON`, 'STATUS_PRIMITIVE_JSON_INVALID');
-  }
-}
-
-function runAOS(args) {
-  return run(aosPath(), args, {
-    env: { ...process.env, AOS_RUNTIME_MODE: currentMode() },
-  });
-}
-
-function runNodeScript(script, args) {
-  return run('/usr/bin/env', ['node', script, ...args], {
-    env: { ...process.env, AOS_RUNTIME_MODE: currentMode(), AOS_PATH: aosPath() },
-  });
-}
-
-function compactProcessDetail(output) {
-  const combined = [output.stderr, output.stdout]
-    .map((part) => String(part || '').trim())
-    .filter(Boolean)
-    .join('\n')
-    .trim();
-  if (!combined) return undefined;
-
-  try {
-    const object = JSON.parse(combined);
-    if (object.error && typeof object.error === 'object') {
-      const code = object.error.code ?? 'unknown';
-      const message = object.error.message ?? '';
-      return message ? `error=${code}: ${message}` : `error=${code}`;
-    }
-    const parts = [
-      object.status ? `status=${object.status}` : null,
-      object.reason ? `reason=${object.reason}` : null,
-      object.input_tap?.status ? `tap=${object.input_tap.status}` : null,
-      object.input_tap?.attempts !== undefined ? `attempts=${object.input_tap.attempts}` : null,
-    ].filter(Boolean);
-    if (parts.length) return parts.join(' ');
-  } catch {
-    // Fall through to clipped text.
-  }
-
-  const clipped = combined.split(/\r?\n/).slice(0, 6).join('\n');
-  return clipped.length <= 700 ? clipped : `${clipped.slice(0, 700)}...`;
-}
-
-function cleanReport() {
-  const result = runNodeScript('scripts/aos-clean.mjs', ['--dry-run', '--json']);
-  if (result.exitCode === 0) {
-    try {
-      return JSON.parse(result.stdout);
-    } catch {
-      return { status: 'unknown', stale_daemons: [], canvases: [], notes: ['clean dry-run failed'] };
-    }
-  }
-  return {
-    status: 'unknown',
-    stale_daemons: [],
-    canvases: [],
-    notes: [compactProcessDetail(result) || 'clean dry-run failed'],
-  };
 }
 
 function gitStatus() {
   const root = repoRoot();
-  if (!fs.existsSync(path.join(root, '.git'))) return null;
+  if (!fs.existsSync(`${root}/.git`)) return null;
   const branch = run('/usr/bin/git', ['-C', root, 'branch', '--show-current']);
   const ahead = run('/usr/bin/git', ['-C', root, 'rev-list', '--count', 'origin/main..HEAD']);
   const dirty = run('/usr/bin/git', ['-C', root, 'status', '--porcelain']);
@@ -142,37 +56,6 @@ function gitStatus() {
     dirty_files: dirty.stdout.split(/\r?\n/).filter(Boolean).length,
     worktrees: Math.max(worktrees.stdout.split(/\r?\n/).filter(Boolean).length, 1),
   };
-}
-
-function repoCommitShort() {
-  const result = run('/usr/bin/git', ['-C', repoRoot(), 'rev-parse', '--short', 'HEAD']);
-  return result.exitCode === 0 ? result.stdout.trim() : undefined;
-}
-
-function binaryTimestamp(file) {
-  try {
-    return fs.statSync(file).mtime.toISOString().replace(/\.\d{3}Z$/, 'Z');
-  } catch {
-    return undefined;
-  }
-}
-
-function identity(runtime, permissionsFacts) {
-  const permissionIdentity = permissionsFacts.identity ?? {};
-  const mode = runtime.mode ?? currentMode();
-  const value = {
-    program: 'aos',
-    mode,
-    executable_path: permissionIdentity.executable_path || aosPath(),
-    state_dir: runtime.state_dir,
-    socket_path: runtime.socket_path,
-  };
-  if (mode === 'repo') {
-    value.build_timestamp = binaryTimestamp(value.executable_path);
-    value.repo_root = repoRoot();
-    value.git_commit = repoCommitShort();
-  }
-  return value;
 }
 
 function connectOnce(socketPath, timeoutMs = 250) {
@@ -246,60 +129,11 @@ async function daemonSnapshot(socketPath) {
   };
 }
 
-function inputTapRecoveryGuidance(status, attempts) {
-  return [
-    `Input tap is not active (status=${status}, attempts=${attempts}).`,
-    'Try:',
-    '  ./aos service restart              # restart the managed daemon and re-check readiness',
-    '  ./aos permissions setup --once     # refresh macOS permission onboarding',
-    '  ./aos serve --idle-timeout none    # temporary foreground fallback for this session',
-  ].join('\n');
-}
-
-function inputMonitoringSubGuidance(tap, daemonBinaryPath) {
-  const render = (value) => value === undefined || value === null ? 'unknown' : String(Boolean(value));
-  return [
-    `Daemon lacks Input Monitoring access (listen=${render(tap?.listen_access)}, post=${render(tap?.post_access)}).`,
-    'In repo mode, prefer:',
-    '  ./aos permissions reset-runtime --mode repo',
-    '  ./aos permissions setup --once',
-    '  ./aos ready --post-permission',
-    'Manual Settings fallback: Privacy & Security > Input Monitoring for daemon binary:',
-    `  ${daemonBinaryPath}`,
-  ].join('\n');
-}
-
-function runtimeHealthNotes(runtime) {
-  const notes = [];
-  if (runtime.ownership_state === 'mismatch') {
-    const serving = runtime.serving_pid ?? 'none';
-    const lock = runtime.lock_owner_pid ?? 'none';
-    const service = runtime.service_pid ?? 'none';
-    notes.push(`Daemon ownership mismatch: serving pid=${serving}, lock pid=${lock}, service pid=${service}.`);
-  } else if (runtime.ownership_state === 'unmanaged') {
-    const owner = runtime.owner_pid ?? 'unknown';
-    notes.push(`Reachable repo daemon is unmanaged: owner pid=${owner}, service pid=none. Use '${invocationName()} service start --mode ${runtime.mode}' or '${invocationName()} ready --repair'.`);
-  }
-  if (runtime.event_tap_expected && runtime.input_tap_status && runtime.input_tap_status !== 'active' && !runtime.input_tap) {
-    notes.push(`Perception input tap is not active (status=${runtime.input_tap_status}).`);
-  }
-  return notes;
-}
-
-function expectedBinaryPath(mode) {
-  if (process.env.AOS_SERVICE_BINARY) return path.resolve(process.env.AOS_SERVICE_BINARY);
-  if (mode === 'installed') {
-    const installPath = process.env.AOS_INSTALL_PATH || path.join(process.env.HOME || '', 'Applications/AOS.app');
-    return path.join(installPath, 'Contents/MacOS/aos');
-  }
-  return path.join(repoRoot(), 'aos');
-}
-
 function statusNotes({ runtime, permissions, setup, clean, snapshot }) {
   const notes = [];
   if (!runtime.daemon_running) notes.push('Daemon is not running.');
   else if (!runtime.socket_reachable) notes.push('Daemon process appears to be running, but the socket is not reachable.');
-  notes.push(...runtimeHealthNotes(runtime));
+  notes.push(...runtimeHealthNotes(runtime, invocationName()));
   if (runtime.socket_reachable && runtime.input_tap && runtime.input_tap.status !== 'active') {
     notes.push(inputTapRecoveryGuidance(runtime.input_tap.status, runtime.input_tap.attempts));
     if (runtime.input_tap.listen_access === false || runtime.input_tap.post_access === false) {
@@ -323,48 +157,28 @@ function statusNotes({ runtime, permissions, setup, clean, snapshot }) {
   return notes;
 }
 
-function setupState(marker) {
-  return {
-    marker_exists: Boolean(marker.marker_exists),
-    marker_path: marker.marker_path,
-    completed_at: marker.completed_at,
-    bundle_path: marker.bundle_path,
-    current_bundle_path: marker.current_bundle_path,
-    bundle_matches_current: Boolean(marker.bundle_matches_current),
-    setup_completed: Boolean(marker.setup_completed),
-    recommended_command: marker.setup_completed ? undefined : 'aos permissions setup --once',
-  };
-}
-
-function sanitizeForJSON(value) {
-  if (Array.isArray(value)) return value.map(sanitizeForJSON);
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value)
-      .filter(([, child]) => child !== undefined)
-      .map(([key, child]) => [key, sanitizeForJSON(child)]));
-  }
-  return value;
-}
-
 async function buildStatusResponse() {
-  const runtime = parseJSONOutput(runAOS(['__runtime', 'status-facts', '--json']), '__runtime status-facts');
-  const permissionsFacts = parseJSONOutput(runAOS(['__permissions', 'facts', '--json']), '__permissions facts');
-  const setup = setupState(parseJSONOutput(runAOS(['__permissions', 'setup-marker', 'get', '--json']), '__permissions setup-marker get'));
+  const facts = brokerFacts({
+    failureCode: 'STATUS_PRIMITIVE_FAILED',
+    jsonCode: 'STATUS_PRIMITIVE_JSON_INVALID',
+    includeRuntime: true,
+  });
+  const runtime = facts.runtime ?? parsePrimitive(runAOS(['__runtime', 'status-facts', '--json']), '__runtime status-facts');
   const clean = cleanReport();
   const snapshot = await daemonSnapshot(runtime.socket_path);
   const notes = statusNotes({
     runtime,
-    permissions: permissionsFacts.permissions,
-    setup,
+    permissions: facts.permissions,
+    setup: facts.setup,
     clean,
     snapshot,
   });
-  return sanitizeForJSON({
+  return {
     status: notes.length ? 'degraded' : 'ok',
-    identity: identity(runtime, permissionsFacts),
+    identity: identity(runtime, facts.permissionsFacts),
     runtime,
-    permissions: permissionsFacts.permissions,
-    permissions_setup: setup,
+    permissions: facts.permissions,
+    permissions_setup: facts.setup,
     daemon_snapshot: snapshot.snapshot,
     stale_resources: {
       status: clean.status,
@@ -379,7 +193,7 @@ async function buildStatusResponse() {
       `${invocationName()} clean`,
     ],
     notes,
-  });
+  };
 }
 
 function printText(response) {

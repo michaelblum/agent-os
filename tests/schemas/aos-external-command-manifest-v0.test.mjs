@@ -295,9 +295,13 @@ test('private Swift primitives are reachable only through expected external wrap
   }
 
   for (const [primitive, files] of expectedWrapperFiles) {
+    const sharedCompositionSource = await fs.readFile(path.join(repoRoot, 'scripts/lib/aos-facts.mjs'), 'utf8');
     for (const relativePath of files) {
       const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
-      assert.ok(source.includes(primitive), `${relativePath} must invoke ${primitive}`);
+      assert.ok(
+        `${source}\n${sharedCompositionSource}`.includes(primitive),
+        `${relativePath} must invoke ${primitive} directly or through scripts/lib/aos-facts.mjs`,
+      );
     }
   }
 

@@ -1,99 +1,47 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
-import os from 'node:os';
-import path from 'node:path';
+import {
+  currentMode,
+  exitError,
+  invocationName,
+  parseJSONOutput,
+  printJSON,
+  run,
+  runAOS,
+} from './lib/aos-cli.mjs';
+import {
+  brokerFacts,
+  daemonViewFromHealth,
+  setupState,
+} from './lib/aos-facts.mjs';
+import {
+  disagreementFor,
+  evaluateReadyForTesting,
+  missingPermissionIDsFor,
+  permissionCheckNotes,
+  permissionRecoveryNotes,
+  permissionRequirements,
+  planPermissionSetup,
+  readyEvaluationSnake,
+  runSetupPromptPlan,
+} from './lib/aos-readiness.mjs';
 
-function printJSON(value) {
-  process.stdout.write(`${JSON.stringify(omitNulls(value), null, 2)}\n`);
-}
-
-function omitNulls(value) {
-  if (Array.isArray(value)) return value.map(omitNulls);
-  if (!value || typeof value !== 'object') return value;
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([, item]) => item !== null && item !== undefined)
-      .map(([key, item]) => [key, omitNulls(item)]),
-  );
-}
-
-function exitError(message, code) {
-  process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
-  process.exit(1);
-}
-
-function repoRoot() {
-  if (process.env.AOS_REPO_ROOT) return path.resolve(process.env.AOS_REPO_ROOT);
-  const scriptDir = path.dirname(new URL(import.meta.url).pathname);
-  return path.resolve(scriptDir, '..');
-}
-
-function aosPath() {
-  return process.env.AOS_PATH || path.join(repoRoot(), 'aos');
-}
-
-function invocationName() {
-  return process.env.AOS_INVOCATION_DISPLAY_NAME || './aos';
-}
-
-function currentMode() {
-  const override = process.env.AOS_RUNTIME_MODE?.toLowerCase();
-  if (override === 'repo' || override === 'installed') return override;
-  return 'repo';
-}
-
-function expectedBinaryPath(mode) {
-  if (process.env.AOS_SERVICE_BINARY) return path.resolve(process.env.AOS_SERVICE_BINARY);
-  if (mode === 'installed') {
-    const installPath = process.env.AOS_INSTALL_PATH || path.join(os.homedir(), 'Applications/AOS.app');
-    return path.join(installPath, 'Contents/MacOS/aos');
-  }
-  return path.join(repoRoot(), 'aos');
-}
-
-function run(executable, args, options = {}) {
-  const result = spawnSync(executable, args, {
-    cwd: options.cwd ?? repoRoot(),
-    env: options.env ?? process.env,
-    encoding: 'utf8',
+function parsePrimitive(result, label, errorCode = 'PERMISSIONS_PRIMITIVE_FAILED') {
+  return parseJSONOutput(result, label, {
+    failureCode: errorCode,
+    jsonCode: 'PERMISSIONS_PRIMITIVE_JSON_INVALID',
   });
-  return {
-    exitCode: result.status ?? 127,
-    stdout: result.stdout ?? '',
-    stderr: result.stderr ?? (result.error ? `${result.error.message}\n` : ''),
-  };
 }
 
-function runAOS(args) {
-  return run(aosPath(), args, {
-    env: { ...process.env, AOS_RUNTIME_MODE: currentMode() },
+function parsePrimitiveLoose(result, label) {
+  return parseJSONOutput(result, label, {
+    jsonCode: 'PERMISSIONS_PRIMITIVE_JSON_INVALID',
+    requireZeroExit: false,
   });
 }
 
 function runService(args, mode = currentMode()) {
   return runAOS(['service', ...args, '--mode', mode, '--json']);
-}
-
-function parseJSONOutput(result, label, errorCode = 'PERMISSIONS_PRIMITIVE_FAILED') {
-  if (result.exitCode !== 0) {
-    const detail = (result.stderr || result.stdout).trim();
-    exitError(`${label} failed${detail ? `: ${detail}` : ''}`, errorCode);
-  }
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    exitError(`${label} did not return JSON`, 'PERMISSIONS_PRIMITIVE_JSON_INVALID');
-  }
-}
-
-function parseJSONOutputLoose(result, label) {
-  try {
-    return JSON.parse(result.stdout);
-  } catch {
-    const detail = (result.stderr || result.stdout).trim();
-    exitError(`${label} did not return JSON${detail ? `: ${detail}` : ''}`, 'PERMISSIONS_PRIMITIVE_JSON_INVALID');
-  }
 }
 
 function parseArgs(args) {
@@ -104,200 +52,17 @@ function parseArgs(args) {
   return { subcommand };
 }
 
-function setupState(marker) {
-  const setupCompleted = Boolean(marker.setup_completed);
-  const state = {
-    marker_exists: Boolean(marker.marker_exists),
-    marker_path: marker.marker_path,
-    completed_at: marker.completed_at,
-    bundle_path: marker.bundle_path,
-    current_bundle_path: marker.current_bundle_path,
-    bundle_matches_current: Boolean(marker.bundle_matches_current),
-    setup_completed: setupCompleted,
-  };
-  if (!setupCompleted) state.recommended_command = 'aos permissions setup --once';
-  return state;
-}
-
-function permissionRequirements(permissions) {
-  return [
-    {
-      id: 'accessibility',
-      granted: Boolean(permissions.accessibility),
-      required_for: ['global input tap', 'mouse/keyboard actions', 'AX element actions'],
-      setup_trigger: 'AXIsProcessTrustedWithOptions prompt',
-    },
-    {
-      id: 'screen_recording',
-      granted: Boolean(permissions.screen_recording),
-      required_for: ['screen capture', 'perception', 'visual debugging'],
-      setup_trigger: 'CGRequestScreenCaptureAccess prompt',
-    },
-    {
-      id: 'listen_access',
-      granted: Boolean(permissions.listen_access),
-      required_for: ['global input tap', 'input event fan-out', 'hotkeys'],
-      setup_trigger: 'CGRequestListenEventAccess prompt',
-    },
-    {
-      id: 'post_access',
-      granted: Boolean(permissions.post_access),
-      required_for: ['synthetic events', 'mouse/keyboard actions', 'AX element actions'],
-      setup_trigger: 'CGRequestPostEventAccess prompt',
-    },
-  ];
-}
-
-function daemonViewFromHealth(health) {
-  if (!health?.reachable || !health.input_tap) {
-    return { comparable: null, block: { reachable: false } };
-  }
-
-  const tap = {
-    status: health.input_tap.status,
-    attempts: health.input_tap.attempts,
-  };
-  if (health.input_tap.listen_access !== undefined) tap.listen_access = Boolean(health.input_tap.listen_access);
-  if (health.input_tap.post_access !== undefined) tap.post_access = Boolean(health.input_tap.post_access);
-
-  const block = {
-    reachable: true,
-    input_tap: tap,
-  };
-  if (health.permissions?.accessibility !== undefined) {
-    block.accessibility = Boolean(health.permissions.accessibility);
-  }
-
-  return {
-    comparable: {
-      inputTap: {
-        status: health.input_tap.status,
-        attempts: Number(health.input_tap.attempts ?? 0),
-        listenAccess: health.input_tap.listen_access === undefined ? undefined : Boolean(health.input_tap.listen_access),
-        postAccess: health.input_tap.post_access === undefined ? undefined : Boolean(health.input_tap.post_access),
-      },
-      permissions: {
-        accessibility: health.permissions?.accessibility === undefined
-          ? undefined
-          : Boolean(health.permissions.accessibility),
-      },
-    },
-    block,
-  };
-}
-
-function evaluateReadyForTesting(daemon, cli, setup) {
-  if (daemon && daemon.inputTap.status !== 'active') {
-    return { ready_for_testing: false, ready_source: 'daemon' };
-  }
-  if (daemon && daemon.permissions.accessibility !== undefined) {
-    return {
-      ready_for_testing: Boolean(daemon.permissions.accessibility && cli.screen_recording && setup.setup_completed),
-      ready_source: 'daemon',
-    };
-  }
-  return {
-    ready_for_testing: Boolean(cli.accessibility && cli.screen_recording && setup.setup_completed),
-    ready_source: 'cli',
-  };
-}
-
-function missingPermissionIDsFor(daemon, cli) {
-  const missing = [];
-  const accessibility = daemon?.permissions.accessibility ?? cli.accessibility;
-  const listen = daemon?.inputTap.listenAccess ?? cli.listen_access;
-  const post = daemon?.inputTap.postAccess ?? cli.post_access;
-  if (!accessibility) missing.push('accessibility');
-  if (!cli.screen_recording) missing.push('screen_recording');
-  if (!listen) missing.push('listen_access');
-  if (!post) missing.push('post_access');
-  return missing;
-}
-
-function disagreementFor(daemon, cli) {
-  if (!daemon) return undefined;
-  const disagreement = {};
-  if (daemon.permissions.accessibility !== undefined && daemon.permissions.accessibility !== cli.accessibility) {
-    disagreement.accessibility = { cli: cli.accessibility, daemon: daemon.permissions.accessibility };
-  }
-  if (daemon.inputTap.listenAccess !== undefined && daemon.inputTap.listenAccess !== cli.listen_access) {
-    disagreement.listen_access = { cli: cli.listen_access, daemon: daemon.inputTap.listenAccess };
-  }
-  if (daemon.inputTap.postAccess !== undefined && daemon.inputTap.postAccess !== cli.post_access) {
-    disagreement.post_access = { cli: cli.post_access, daemon: daemon.inputTap.postAccess };
-  }
-  return Object.keys(disagreement).length ? disagreement : undefined;
-}
-
-function inputTapRecoveryGuidance(status, attempts) {
-  return [
-    `Input tap is not active (status=${status}, attempts=${attempts}).`,
-    'Try:',
-    '  ./aos service restart              # restart the managed daemon and re-check readiness',
-    '  ./aos permissions setup --once     # refresh macOS permission onboarding',
-    '  ./aos serve --idle-timeout none    # temporary foreground fallback for this session',
-  ].join('\n');
-}
-
-function inputMonitoringSubGuidance(tap, daemonBinaryPath) {
-  const render = (value) => value === undefined || value === null ? 'unknown' : String(Boolean(value));
-  return [
-    `Daemon lacks Input Monitoring access (listen=${render(tap?.listenAccess)}, post=${render(tap?.postAccess)}).`,
-    'In repo mode, prefer:',
-    '  ./aos permissions reset-runtime --mode repo',
-    '  ./aos permissions setup --once',
-    '  ./aos ready --post-permission',
-    'Manual Settings fallback: Privacy & Security > Input Monitoring for daemon binary:',
-    `  ${daemonBinaryPath}`,
-  ].join('\n');
-}
-
-function notesFor(cli, setup, daemon, mode) {
-  const notes = [];
-  if (!cli.accessibility) notes.push('Accessibility permission is not granted (CLI view).');
-  if (!cli.screen_recording) notes.push('Screen Recording permission is not granted.');
-  if (!cli.listen_access) notes.push('Input Monitoring listen access is not granted (CLI view).');
-  if (!cli.post_access) notes.push('Input Monitoring post access is not granted (CLI view).');
-  if (!setup.marker_exists) {
-    notes.push('Permission onboarding has not been completed for this runtime identity.');
-  } else if (!setup.bundle_matches_current && !setup.setup_completed) {
-    notes.push('Permission onboarding marker belongs to a different app bundle path.');
-  }
-  if (setup.recommended_command) {
-    notes.push(`Run '${setup.recommended_command}' before interactive testing.`);
-  }
-  if (!daemon) {
-    notes.push('Daemon unreachable; readiness computed from CLI preflights only.');
-  } else if (daemon.inputTap.status !== 'active') {
-    notes.push(inputTapRecoveryGuidance(daemon.inputTap.status, daemon.inputTap.attempts));
-    if (daemon.inputTap.listenAccess === false || daemon.inputTap.postAccess === false) {
-      notes.push(inputMonitoringSubGuidance(daemon.inputTap, expectedBinaryPath(mode)));
-    }
-  }
-  return notes;
-}
-
 function currentFacts() {
-  const permissionsFacts = parseJSONOutput(runAOS(['__permissions', 'facts', '--json']), '__permissions facts');
-  const marker = parseJSONOutput(runAOS(['__permissions', 'setup-marker', 'get', '--json']), '__permissions setup-marker get');
-  const daemonResult = runAOS(['__daemon', 'health', '--json']);
-  let daemonHealth = null;
-  if (daemonResult.exitCode === 0) {
-    try {
-      daemonHealth = JSON.parse(daemonResult.stdout);
-    } catch {
-      daemonHealth = null;
-    }
-  }
-  return {
-    permissions: permissionsFacts.permissions ?? {},
-    setup: setupState(marker),
-    daemonHealth,
-  };
+  return brokerFacts({
+    failureCode: 'PERMISSIONS_PRIMITIVE_FAILED',
+    jsonCode: 'PERMISSIONS_PRIMITIVE_JSON_INVALID',
+    daemonRequired: false,
+    includeRuntime: false,
+  });
 }
 
 function permissionsFromFacts() {
-  const facts = parseJSONOutput(runAOS(['__permissions', 'facts', '--json']), '__permissions facts');
+  const facts = parsePrimitive(runAOS(['__permissions', 'facts', '--json']), '__permissions facts');
   return {
     accessibility: Boolean(facts.permissions?.accessibility),
     screen_recording: Boolean(facts.permissions?.screen_recording),
@@ -307,7 +72,7 @@ function permissionsFromFacts() {
 }
 
 function setupFacts() {
-  return setupState(parseJSONOutput(runAOS(['__permissions', 'setup-marker', 'get', '--json']), '__permissions setup-marker get'));
+  return setupState(parsePrimitive(runAOS(['__permissions', 'setup-marker', 'get', '--json']), '__permissions setup-marker get'));
 }
 
 function daemonFacts() {
@@ -330,8 +95,8 @@ function runCheck() {
     post_access: Boolean(facts.permissions.post_access),
   };
   const daemon = daemonViewFromHealth(facts.daemonHealth);
-  const evaluation = evaluateReadyForTesting(daemon.comparable, cli, facts.setup);
-  const notes = notesFor(cli, facts.setup, daemon.comparable, mode);
+  const evaluation = readyEvaluationSnake(evaluateReadyForTesting(daemon.comparable, cli, facts.setup));
+  const notes = permissionCheckNotes(cli, facts.setup, daemon.comparable, mode);
   const disagreement = disagreementFor(daemon.comparable, cli);
   const response = {
     status: notes.length ? 'degraded' : 'ok',
@@ -346,7 +111,7 @@ function runCheck() {
     notes,
   };
   if (disagreement) response.disagreement = disagreement;
-  printJSON(response);
+  printJSON(response, { omit: true });
 }
 
 function parseSetupArgs(args) {
@@ -432,26 +197,10 @@ function setupResponse({ status, completed, permissions, setup, missing, restart
   };
 }
 
-function permissionRecoveryNotes(missing, mode) {
-  const notes = [];
-  if (missing.includes('accessibility')) {
-    notes.push('Daemon or CLI Accessibility permission is stale or missing.');
-  }
-  if (missing.includes('screen_recording')) {
-    notes.push('Screen Recording permission is still not granted.');
-  }
-  if (missing.includes('listen_access') || missing.includes('post_access')) {
-    notes.push('Daemon-owned Input Monitoring permission is stale or missing.');
-  }
-  notes.push(`Run '${invocationName()} permissions reset-runtime --mode ${mode}' before requesting fresh prompts.`);
-  notes.push(`Then run '${invocationName()} permissions setup --once' and '${invocationName()} ready --post-permission'.`);
-  return notes;
-}
-
 function restartPermissionsDependentServices(mode) {
-  const status = parseJSONOutputLoose(runService(['status'], mode), 'service status');
+  const status = parsePrimitiveLoose(runService(['status'], mode), 'service status');
   if (status.loaded !== true) return [];
-  const restart = parseJSONOutputLoose(runService(['restart'], mode), 'service restart');
+  const restart = parsePrimitiveLoose(runService(['restart'], mode), 'service restart');
   if (restart.status === 'ok' || restart.running === true) return [serviceLabel(mode)];
   return [];
 }
@@ -460,24 +209,39 @@ function serviceLabel(mode) {
   return `com.agent-os.aos.${mode}`;
 }
 
-function promptMissingPermissions(initialPermissions) {
-  const order = [
-    ['accessibility', 'accessibility'],
-    ['screen_recording', 'screen-recording'],
-    ['listen_access', 'listen-event'],
-    ['post_access', 'post-event'],
-  ];
-  const notes = [];
-  for (const [permissionID, primitiveID] of order) {
-    if (initialPermissions[permissionID]) continue;
-    const result = runAOS(['__permissions', 'prompt', primitiveID, '--json']);
-    const response = parseJSONOutputLoose(result, `__permissions prompt ${primitiveID}`);
-    if (response.granted !== true) {
-      notes.push(`${permissionID} permission setup was cancelled before completion.`);
-      break;
-    }
+function promptMissingPermissions(plan) {
+  return runSetupPromptPlan({
+    plan,
+    prompt: ({ primitiveID }) => parsePrimitiveLoose(
+      runAOS(['__permissions', 'prompt', primitiveID, '--json']),
+      `__permissions prompt ${primitiveID}`,
+    ),
+  });
+}
+
+function printSetupResult(response, json) {
+  if (json) {
+    printJSON(response, { omit: true });
+    return;
   }
-  return notes;
+  process.stdout.write(`completed=${response.completed} accessibility=${response.permissions.accessibility} screen_recording=${response.permissions.screen_recording} listen_access=${response.permissions.listen_access} post_access=${response.permissions.post_access}\n`);
+  const evaluation = readyEvaluationSnake(evaluateReadyForTesting(null, response.permissions, response.setup));
+  process.stdout.write(`ready_for_testing=${evaluation.ready_for_testing}\n`);
+  if (response.restarted_services.length) {
+    process.stdout.write(`restarted=${response.restarted_services.join(',')}\n`);
+  }
+  for (const note of response.notes) process.stdout.write(`${note}\n`);
+}
+
+function writeSetupMarkerAndRestart(mode, permissions, baseNote) {
+  const marker = parsePrimitive(runAOS(['__permissions', 'setup-marker', 'write', '--json']), '__permissions setup-marker write');
+  const finalSetup = setupState(marker.marker ?? marker);
+  const restartedServices = restartPermissionsDependentServices(mode);
+  const notes = [baseNote];
+  notes.push(restartedServices.length
+    ? `Restarted services: ${restartedServices.join(', ')}.`
+    : 'No managed services were running to restart.');
+  return { finalSetup, restartedServices, notes, permissions };
 }
 
 function runSetup(args) {
@@ -487,74 +251,61 @@ function runSetup(args) {
   const initialSetup = setupFacts();
   const initialDaemon = daemonViewFromHealth(daemonFacts()).comparable;
   const initialMissing = missingPermissionIDsFor(initialDaemon, initialPermissions);
+  const plan = planPermissionSetup({
+    initialPermissions,
+    initialSetup,
+    initialMissing,
+    once: options.once,
+    mode,
+    prefix: invocationName(),
+  });
 
-  if (options.once && initialSetup.setup_completed && initialMissing.length === 0) {
+  if (plan.branch === 'already_complete') {
     printSetupResult(setupResponse({
-      status: 'ok',
-      completed: true,
+      status: plan.status,
+      completed: plan.completed,
       permissions: initialPermissions,
       setup: initialSetup,
       missing: [],
       restartedServices: [],
-      notes: ['Permissions are already granted; onboarding was skipped.'],
+      notes: plan.notes,
     }), options.json);
     return;
   }
 
-  if (options.once && initialSetup.setup_completed && initialMissing.length > 0) {
+  if (plan.branch === 'completed_but_missing' || plan.branch === 'cli_granted_daemon_missing') {
     printSetupResult(setupResponse({
-      status: 'degraded',
+      status: plan.status,
       completed: false,
       permissions: initialPermissions,
       setup: initialSetup,
       missing: initialMissing,
       restartedServices: [],
-      notes: permissionRecoveryNotes(initialMissing, mode),
+      notes: plan.notes,
     }), options.json);
     process.exitCode = 1;
     return;
   }
 
-  const allCLIGranted = initialPermissions.accessibility
-    && initialPermissions.screen_recording
-    && initialPermissions.listen_access
-    && initialPermissions.post_access;
-
-  if (options.once && allCLIGranted && initialMissing.length === 0) {
-    const marker = parseJSONOutput(runAOS(['__permissions', 'setup-marker', 'write', '--json']), '__permissions setup-marker write');
-    const finalSetup = setupState(marker.marker ?? marker);
-    const restartedServices = restartPermissionsDependentServices(mode);
-    const notes = ['Permissions were already granted; onboarding marker was recorded without additional prompts.'];
-    notes.push(restartedServices.length
-      ? `Restarted services: ${restartedServices.join(', ')}.`
-      : 'No managed services were running to restart.');
+  if (plan.branch === 'record_marker_without_prompts') {
+    const recorded = writeSetupMarkerAndRestart(
+      mode,
+      initialPermissions,
+      'Permissions were already granted; onboarding marker was recorded without additional prompts.',
+    );
     printSetupResult(setupResponse({
       status: 'ok',
       completed: true,
       permissions: initialPermissions,
-      setup: finalSetup,
+      setup: recorded.finalSetup,
       missing: [],
-      restartedServices,
-      notes,
+      restartedServices: recorded.restartedServices,
+      notes: recorded.notes,
     }), options.json);
     return;
   }
 
-  if (options.once && allCLIGranted && initialMissing.length > 0) {
-    printSetupResult(setupResponse({
-      status: 'degraded',
-      completed: false,
-      permissions: initialPermissions,
-      setup: initialSetup,
-      missing: initialMissing,
-      restartedServices: [],
-      notes: permissionRecoveryNotes(initialMissing, mode),
-    }), options.json);
-    process.exitCode = 1;
-    return;
-  }
-
-  const notes = promptMissingPermissions(initialPermissions);
+  const notes = promptMissingPermissions(plan);
   const finalPermissions = permissionsFromFacts();
   if (!finalPermissions.accessibility) notes.push('Accessibility permission is still not granted.');
   if (!finalPermissions.screen_recording) notes.push('Screen Recording permission is still not granted.');
@@ -569,7 +320,7 @@ function runSetup(args) {
   let finalSetup = setupFacts();
   let restartedServices = [];
   if (completedByCLI) {
-    const marker = parseJSONOutput(runAOS(['__permissions', 'setup-marker', 'write', '--json']), '__permissions setup-marker write');
+    const marker = parsePrimitive(runAOS(['__permissions', 'setup-marker', 'write', '--json']), '__permissions setup-marker write');
     finalSetup = setupState(marker.marker ?? marker);
     restartedServices = restartPermissionsDependentServices(mode);
     notes.push(restartedServices.length
@@ -579,7 +330,7 @@ function runSetup(args) {
 
   const finalDaemon = daemonViewFromHealth(daemonFacts()).comparable;
   const missing = missingPermissionIDsFor(finalDaemon, finalPermissions);
-  if (completedByCLI && missing.length > 0) notes.push(...permissionRecoveryNotes(missing, mode));
+  if (completedByCLI && missing.length > 0) notes.push(...permissionRecoveryNotes(missing, mode, invocationName()));
   const completed = completedByCLI && missing.length === 0;
   printSetupResult(setupResponse({
     status: completed ? 'ok' : 'degraded',
@@ -591,20 +342,6 @@ function runSetup(args) {
     notes,
   }), options.json);
   if (!completed) process.exitCode = 1;
-}
-
-function printSetupResult(response, json) {
-  if (json) {
-    printJSON(response);
-    return;
-  }
-  process.stdout.write(`completed=${response.completed} accessibility=${response.permissions.accessibility} screen_recording=${response.permissions.screen_recording} listen_access=${response.permissions.listen_access} post_access=${response.permissions.post_access}\n`);
-  const evaluation = evaluateReadyForTesting(null, response.permissions, response.setup);
-  process.stdout.write(`ready_for_testing=${evaluation.ready_for_testing}\n`);
-  if (response.restarted_services.length) {
-    process.stdout.write(`restarted=${response.restarted_services.join(',')}\n`);
-  }
-  for (const note of response.notes) process.stdout.write(`${note}\n`);
 }
 
 function resetRuntimeStep(command, attempted, status, result = null, stderr = null) {
@@ -662,7 +399,7 @@ function serviceResetStep(service, dryRun) {
 
 function printResetRuntimeResult(response, json) {
   if (json) {
-    printJSON(response);
+    printJSON(response, { omit: true });
     return;
   }
   process.stdout.write(`status=${response.status} mode=${response.mode} dry_run=${response.dry_run}\n`);
@@ -688,13 +425,13 @@ function printResetRuntimeResult(response, json) {
 }
 
 function serviceStopReportedStopped(result) {
-  const parsed = parseJSONOutputLoose(result, 'service stop');
+  const parsed = parsePrimitiveLoose(result, 'service stop');
   return parsed.running === false;
 }
 
 function runResetRuntime(args) {
   const options = parseResetRuntimeArgs(args);
-  const target = parseJSONOutput(runAOS(['__permissions', 'reset-target', '--mode', options.mode, '--json']), '__permissions reset-target');
+  const target = parsePrimitive(runAOS(['__permissions', 'reset-target', '--mode', options.mode, '--json']), '__permissions reset-target');
   const stopCommand = `${invocationName()} service stop --mode ${options.mode} --json`;
   const tccResetCommand = target.available
     ? (target.command ?? `tccutil reset All ${target.tcc_identifier}`)
@@ -789,7 +526,7 @@ function runResetRuntime(args) {
   }
 
   const resetResult = runAOS(['__permissions', 'tcc-reset', '--mode', options.mode, '--json']);
-  const resetPayload = parseJSONOutputLoose(resetResult, '__permissions tcc-reset');
+  const resetPayload = parsePrimitiveLoose(resetResult, '__permissions tcc-reset');
   const resetStep = resetPayload.tcc_reset ?? resetRuntimeStep(tccResetCommand, true, resetResult.exitCode === 0 ? 'ok' : 'failed', resetResult);
   const resetOK = resetResult.exitCode === 0 && resetStep.status === 'ok';
   const serviceResetSteps = resetOK || !options.allowServiceReset
