@@ -33,12 +33,6 @@ struct AOS {
             daemonBrokerCommand(args: Array(args.dropFirst()))
         case "__runtime":
             runtimeBrokerCommand(args: Array(args.dropFirst()))
-        case "__status":
-            statusCommand(args: Array(args.dropFirst()))
-        case "__ready":
-            readyCommand(args: Array(args.dropFirst()))
-        case "__doctor":
-            doctorCommand(args: Array(args.dropFirst()))
         case "__permissions":
             permissionsCommand(args: Array(args.dropFirst()))
         case "__render":

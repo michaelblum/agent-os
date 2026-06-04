@@ -181,7 +181,6 @@ assert update_case, "show update switch case missing"
 assert update_case.group("body").count("mutationCommand(args, 'update')") == 1, update_case.group("body")
 for path, primitive in [
     (("serve",), "__serve"),
-    (("permissions",), "__permissions"),
 ]:
     command = commands[path]
     assert command["executable"] == "$AOS_PATH", command
@@ -206,6 +205,13 @@ for subcommand in ["check", "preflight", "setup", "reset-runtime"]:
     assert command["env"]["AOS_INVOCATION_DISPLAY_NAME"] == "$AOS_INVOCATION_DISPLAY_NAME", command
     assert command["env"]["AOS_RUNTIME_MODE"] == "$AOS_RUNTIME_MODE", command
     assert command["env"]["AOS_STATE_ROOT"] == "$AOS_STATE_ROOT", command
+command = commands[("permissions",)]
+assert command["executable"] == "/usr/bin/env", command
+assert command["argv_prefix"] == ["node", "scripts/aos-permissions.mjs"], command
+assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+assert command["env"]["AOS_INVOCATION_DISPLAY_NAME"] == "$AOS_INVOCATION_DISPLAY_NAME", command
+assert command["env"]["AOS_RUNTIME_MODE"] == "$AOS_RUNTIME_MODE", command
+assert command["env"]["AOS_STATE_ROOT"] == "$AOS_STATE_ROOT", command
 for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
     native = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-native.mjs", primitive]]
     assert len(native) == 1, (primitive, native)

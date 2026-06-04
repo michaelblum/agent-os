@@ -155,7 +155,6 @@ test('external command manifest only routes bootstrap families to Swift', async 
   const manifest = await loadJson(manifestPath);
   const allowedSwiftRoutes = new Map([
     ['serve', ['__serve']],
-    ['permissions', ['__permissions']],
   ]);
 
   for (const command of manifest.commands) {
@@ -174,9 +173,6 @@ test('Swift entry point exposes only private bootstrap and native primitives', a
 
   const allowedCases = new Set([
     '__serve',
-    '__status',
-    '__ready',
-    '__doctor',
     '__permissions',
     '__daemon',
     '__runtime',
@@ -237,9 +233,13 @@ test('permissions public workflow routes are externally composed', async () => {
   }
 
   const fallback = manifest.commands.find((item) => item.path.join(' ') === 'permissions');
-  assert.ok(fallback, 'permissions native fallback route missing');
-  assert.equal(fallback.executable, '$AOS_PATH');
-  assert.deepEqual(fallback.argv_prefix, ['__permissions']);
+  assert.ok(fallback, 'permissions catch-all route missing');
+  assert.equal(fallback.executable, '/usr/bin/env');
+  assert.deepEqual(fallback.argv_prefix, ['node', 'scripts/aos-permissions.mjs']);
+  assert.equal(fallback.env.AOS_PATH, '$AOS_PATH');
+  assert.equal(fallback.env.AOS_INVOCATION_DISPLAY_NAME, '$AOS_INVOCATION_DISPLAY_NAME');
+  assert.equal(fallback.env.AOS_RUNTIME_MODE, '$AOS_RUNTIME_MODE');
+  assert.equal(fallback.env.AOS_STATE_ROOT, '$AOS_STATE_ROOT');
 });
 
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
@@ -266,7 +266,6 @@ test('private Swift primitives are reachable only through expected external wrap
   const manifest = await loadJson(manifestPath);
   const expectedBootstrapRoutes = new Map([
     ['__serve', 'serve'],
-    ['__permissions', 'permissions'],
   ]);
   const expectedWrapperFiles = new Map([
     ['__daemon', ['scripts/aos-ready.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
@@ -276,7 +275,6 @@ test('private Swift primitives are reachable only through expected external wrap
     ['__see', ['scripts/aos-see-native.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
     ['__do', ['scripts/aos-do-native.mjs']],
-    ['__doctor', []],
   ]);
   const privatePrimitives = new Set([...expectedBootstrapRoutes.keys(), ...expectedWrapperFiles.keys()]);
 
@@ -297,7 +295,6 @@ test('private Swift primitives are reachable only through expected external wrap
   }
 
   for (const [primitive, files] of expectedWrapperFiles) {
-    if (primitive === '__doctor') continue;
     for (const relativePath of files) {
       const source = await fs.readFile(path.join(repoRoot, relativePath), 'utf8');
       assert.ok(source.includes(primitive), `${relativePath} must invoke ${primitive}`);

@@ -115,11 +115,16 @@
     },
     {
       "path": ["permissions"],
-      "summary": "Run permission workflows through the native permissions primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__permissions"],
+      "summary": "Run permission workflows through external permission composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs"],
       "cwd": "repo",
-      "stdio": "inherit"
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do"],
