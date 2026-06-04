@@ -198,6 +198,14 @@ command = commands[("status",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-status.mjs"], command
 assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+for subcommand in ["check", "preflight"]:
+    command = commands[("permissions", subcommand)]
+    assert command["executable"] == "/usr/bin/env", command
+    assert command["argv_prefix"] == ["node", "scripts/aos-permissions.mjs", subcommand], command
+    assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
+    assert command["env"]["AOS_INVOCATION_DISPLAY_NAME"] == "$AOS_INVOCATION_DISPLAY_NAME", command
+    assert command["env"]["AOS_RUNTIME_MODE"] == "$AOS_RUNTIME_MODE", command
+    assert command["env"]["AOS_STATE_ROOT"] == "$AOS_STATE_ROOT", command
 for primitive in ["click", "hover", "drag", "scroll", "type", "key", "press", "set-value", "focus", "raise", "move", "resize", "tell", "session"]:
     native = [item for item in manifest["commands"] if tuple(item["path"]) == ("do", primitive) and item["argv_prefix"] == ["node", "scripts/aos-do-native.mjs", primitive]]
     assert len(native) == 1, (primitive, native)

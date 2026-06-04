@@ -62,6 +62,32 @@
       }
     },
     {
+      "path": ["permissions", "check"],
+      "summary": "Inspect permissions through external read-only permissions composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "check"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["permissions", "preflight"],
+      "summary": "Run permissions preflight through external read-only permissions composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "preflight"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["permissions"],
       "summary": "Run permission workflows through the native permissions primitive.",
       "executable": "$AOS_PATH",

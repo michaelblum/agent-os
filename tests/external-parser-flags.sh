@@ -58,6 +58,8 @@ check_missing_arg() {
 check_unknown_flag inspect ./aos inspect --bogus
 check_unknown_flag status ./aos status --bogus
 check_unknown_flag doctor ./aos doctor --bogus
+check_unknown_flag permissions-check ./aos permissions check --bogus
+check_unknown_flag permissions-preflight ./aos permissions preflight --bogus
 err="$STATE_ROOT/inspect-at-missing.err"
 if ./aos inspect --at --size 10,10 2>"$err"; then
   echo "FAIL: inspect accepted missing --at value" >&2

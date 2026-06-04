@@ -223,6 +223,25 @@ test('doctor public route is externally composed', async () => {
   assert.equal(doctor.env.AOS_PATH, '$AOS_PATH');
 });
 
+test('permissions check and preflight public routes are externally composed', async () => {
+  const manifest = await loadJson(manifestPath);
+  for (const subcommand of ['check', 'preflight']) {
+    const command = manifest.commands.find((item) => item.path.join(' ') === `permissions ${subcommand}`);
+    assert.ok(command, `permissions ${subcommand} route missing`);
+    assert.equal(command.executable, '/usr/bin/env');
+    assert.deepEqual(command.argv_prefix, ['node', 'scripts/aos-permissions.mjs', subcommand]);
+    assert.equal(command.env.AOS_PATH, '$AOS_PATH');
+    assert.equal(command.env.AOS_INVOCATION_DISPLAY_NAME, '$AOS_INVOCATION_DISPLAY_NAME');
+    assert.equal(command.env.AOS_RUNTIME_MODE, '$AOS_RUNTIME_MODE');
+    assert.equal(command.env.AOS_STATE_ROOT, '$AOS_STATE_ROOT');
+  }
+
+  const fallback = manifest.commands.find((item) => item.path.join(' ') === 'permissions');
+  assert.ok(fallback, 'permissions native fallback route missing');
+  assert.equal(fallback.executable, '$AOS_PATH');
+  assert.deepEqual(fallback.argv_prefix, ['__permissions']);
+});
+
 test('Swift external dispatcher does not consume flags as --repo values', async () => {
   const source = await fs.readFile(path.join(repoRoot, 'src/shared/external-command-dispatch.swift'), 'utf8');
   const rawOptionValue = source.match(/private func rawOptionValue\([\s\S]*?\n\}/);
@@ -250,9 +269,9 @@ test('private Swift primitives are reachable only through expected external wrap
     ['__permissions', 'permissions'],
   ]);
   const expectedWrapperFiles = new Map([
-    ['__daemon', ['scripts/aos-ready.mjs', 'scripts/aos-doctor.mjs']],
+    ['__daemon', ['scripts/aos-ready.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
     ['__runtime', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs']],
-    ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs']],
+    ['__permissions', ['scripts/aos-ready.mjs', 'scripts/aos-status.mjs', 'scripts/aos-doctor.mjs', 'scripts/aos-permissions.mjs']],
     ['__render', ['scripts/aos-show-render.mjs']],
     ['__see', ['scripts/aos-see-native.mjs']],
     ['__say', ['scripts/aos-say.mjs']],
