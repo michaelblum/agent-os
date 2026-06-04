@@ -88,6 +88,32 @@
       }
     },
     {
+      "path": ["permissions", "setup"],
+      "summary": "Run permissions setup through external permission workflow composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "setup"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["permissions", "reset-runtime"],
+      "summary": "Run permissions runtime reset through external permission workflow composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "reset-runtime"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
       "path": ["permissions"],
       "summary": "Run permission workflows through the native permissions primitive.",
       "executable": "$AOS_PATH",

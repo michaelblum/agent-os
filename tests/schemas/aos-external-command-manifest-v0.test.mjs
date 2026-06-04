@@ -223,9 +223,9 @@ test('doctor public route is externally composed', async () => {
   assert.equal(doctor.env.AOS_PATH, '$AOS_PATH');
 });
 
-test('permissions check and preflight public routes are externally composed', async () => {
+test('permissions public workflow routes are externally composed', async () => {
   const manifest = await loadJson(manifestPath);
-  for (const subcommand of ['check', 'preflight']) {
+  for (const subcommand of ['check', 'preflight', 'setup', 'reset-runtime']) {
     const command = manifest.commands.find((item) => item.path.join(' ') === `permissions ${subcommand}`);
     assert.ok(command, `permissions ${subcommand} route missing`);
     assert.equal(command.executable, '/usr/bin/env');

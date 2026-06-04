@@ -198,7 +198,7 @@ command = commands[("status",)]
 assert command["executable"] == "/usr/bin/env", command
 assert command["argv_prefix"] == ["node", "scripts/aos-status.mjs"], command
 assert command["env"]["AOS_PATH"] == "$AOS_PATH", command
-for subcommand in ["check", "preflight"]:
+for subcommand in ["check", "preflight", "setup", "reset-runtime"]:
     command = commands[("permissions", subcommand)]
     assert command["executable"] == "/usr/bin/env", command
     assert command["argv_prefix"] == ["node", "scripts/aos-permissions.mjs", subcommand], command
@@ -223,6 +223,43 @@ then
 else
     fail "native primitive external manifest routing drifted"
 fi
+
+if OUT="$(./aos permissions reset-runtime --mode repo --dry-run --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+d = json.loads(os.environ["OUT"])
+assert d["status"] == "ok", d
+assert d["mode"] == "repo", d
+assert d["dry_run"] is True, d
+assert d["service_stop"]["status"] == "planned", d
+assert d["tcc_reset"]["status"] == "unavailable", d
+PY
+then
+    pass "permissions reset-runtime routes through external dry-run composition"
+else
+    fail "permissions reset-runtime external dry-run route drifted: ${OUT:-}"
+fi
+
+SETUP_ROOT="$(mktemp -d)"
+if AOS_STATE_ROOT="$SETUP_ROOT" AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 ./aos __permissions setup-marker write --json >/dev/null 2>&1 \
+    && OUT="$(AOS_STATE_ROOT="$SETUP_ROOT" AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 AOS_DISABLE_DAEMON_AUTOSTART=1 ./aos permissions setup --once --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+d = json.loads(os.environ["OUT"])
+assert d["status"] == "ok", d
+assert d["completed"] is True, d
+assert d["setup"]["setup_completed"] is True, d
+assert d["missing_permissions"] == [], d
+assert d["restarted_services"] == [], d
+PY
+then
+    pass "permissions setup routes through external once skip composition"
+else
+    fail "permissions setup external once skip route drifted: ${OUT:-}"
+fi
+rm -rf "$SETUP_ROOT"
 
 LISTEN_ROOT="$(mktemp -d)"
 if AOS_STATE_ROOT="$LISTEN_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos show listen >/tmp/aos-show-listen-cleanup.out 2>/tmp/aos-show-listen-cleanup.err < /dev/null; then
