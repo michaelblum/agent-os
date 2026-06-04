@@ -8,7 +8,7 @@
   "default_activation": {
     "kind": "status_item",
     "status_item_first": true,
-    "avatar_entry": "avatar"
+    "primary_entry": "avatar"
   },
   "vanilla_fallback": {
     "status_item": true,
@@ -48,6 +48,15 @@
     "surface_title_prefix": "Sigil",
     "theme_ref": "apps/sigil/context-menu",
     "about": "Sigil is the default first-party AOS experience layer."
+  },
+  "cleanup": {
+    "preserve_canvas_ids": [
+      "avatar-main",
+      "sigil-hit-avatar-main",
+      "sigil-radial-menu-avatar-main",
+      "sigil-agent-terminal",
+      "sigil-wiki-workbench"
+    ]
   },
   "menu": [
     {

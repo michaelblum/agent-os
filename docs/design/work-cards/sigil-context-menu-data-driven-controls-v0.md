@@ -1,15 +1,46 @@
 # Work Card: Sigil Context Menu Data-Driven Controls V0
 
-## Tracker
+## Routing Status
 
-- Continue from branch: `gdi/sigil-avatar-object-graph-adapter-v0`
-- Accepted prerequisite adapter head:
+Historical / do not route as-is.
+
+This card points at stale prerequisite branches and an old staged migration that
+has been partially superseded by the accepted visual-object architecture, the
+avatar object-control adapter, and the `21dc331d` detached Sigil avatar controls
+panel. Its "preserve current UI and behavior" framing is no longer strong enough
+for the active workstream because it can preserve the private
+`sigil.avatar_panel.*` protocol and duplicate target vocabulary.
+
+Current sequence:
+
+1. Accept
+   `docs/design/work-cards/gdi-aos-visible-surface-orphan-audit-v0.md`.
+2. Refresh toolkit panel placement/final-frame reporting, then add Sigil-owned
+   avatar avoidance only if the evidence requires it.
+3. Refresh and accept
+   `docs/design/work-cards/gdi-toolkit-panel-live-drag-correction-v0.md`.
+4. Route
+   `docs/design/work-cards/gdi-sigil-avatar-panel-resource-contract-migration-v0.md`.
+5. Only after that, refresh any remaining context-menu data-driven-control work
+   against the strict resource contract.
+
+When refreshed, the card should require owned callers to migrate to
+`visual_object_descriptors`, `canvas_object.registry`,
+`canvas_object.transform.patch`, and `canvas_object.effects.patch` in the same
+slice, then remove private aliases. Do not keep compatibility buckets unless a
+real external consumer or release boundary is named.
+
+## Historical Tracker
+
+- Historical branch, do not use:
+  `gdi/sigil-avatar-object-graph-adapter-v0`
+- Historical prerequisite adapter head:
   `1e4c44c9d34de3ae8d84481c0fe1a88a127c105f`
 - This card follows the read-only avatar object graph adapter. Keep that
   adapter behavior intact while routing context menu controls through
   descriptors/actions.
 
-## Goal
+## Historical Goal
 
 Refactor Sigil context menu control definitions and update routing to consume
 descriptors/actions while preserving the current UI and behavior.

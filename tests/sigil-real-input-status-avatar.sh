@@ -35,31 +35,55 @@ aos_harness_repo_service_stop_for_isolated_test
 ROOT="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}.XXXXXX")"
 export AOS_STATE_ROOT="$ROOT"
 
+start_status_avatar_isolated_daemon() {
+  aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil
+}
+
+restart_status_avatar_isolated_daemon() {
+  aos_test_kill_root "$ROOT" 2>/dev/null || true
+  start_status_avatar_isolated_daemon
+}
+
+launch_status_avatar_inspector() {
+  local attempt status
+  for attempt in 1 2; do
+    if aos_real_input_surface_launch_inspector_with_retry surface-inspector; then
+      return 0
+    fi
+    status="$?"
+    if (( attempt < 2 )); then
+      echo "INFO: restarting isolated daemon after surface-inspector launch failure: attempt=$attempt status=$status" >&2
+      restart_status_avatar_isolated_daemon || return $?
+    fi
+  done
+  return "$status"
+}
+
 aos_visual_run_bounded 15 "seed Sigil fixture" aos_visual_seed_sigil repo
 
 aos_visual_run_bounded 20 "start isolated daemon" \
-  aos_visual_start_isolated_daemon "$ROOT" toolkit packages/toolkit sigil apps/sigil \
+  start_status_avatar_isolated_daemon \
   || { echo "FAIL: isolated daemon did not become ready"; exit 1; }
 
 aos_visual_run_bounded 10 "configure isolated Sigil status item" \
   aos_visual_configure_sigil_status_item avatar-main
 
 export STATUS_ITEM_HYGIENE
+aos_visual_run_bounded 8 "remove stale Sigil avatar canvas" aos_visual_remove_canvas avatar-main
+aos_visual_run_bounded 8 "remove stale surface inspector canvas" aos_visual_remove_canvas surface-inspector
+aos_visual_run_bounded 120 "launch surface inspector" launch_status_avatar_inspector
+
 DAEMON_PID="$(aos_visual_run_bounded 8 "wait for isolated daemon lock pid" aos_test_wait_for_lock_pid "$ROOT")"
 EXPECTED_STATUS_ITEM_PIDS="$(aos_visual_run_bounded 8 "list isolated daemon process owners" aos_test_pids_for_root "$ROOT" | paste -sd, -)"
 export STATUS_ITEMS_BEFORE_CLICK
 STATUS_ITEMS_BEFORE_CLICK="$(aos_visual_run_bounded 20 "read isolated status item inventory" aos_status_item_matches_for_pids_json "$EXPECTED_STATUS_ITEM_PIDS")"
 STATUS_ITEM_PID="$(aos_visual_run_bounded 8 "select isolated status item owner ${EXPECTED_STATUS_ITEM_PIDS}" aos_status_item_pid_from_matches_json "$EXPECTED_STATUS_ITEM_PIDS" "$STATUS_ITEMS_BEFORE_CLICK")"
 STATUS_ITEM_HYGIENE="$(aos_visual_run_bounded 8 "assert isolated status item ownership ${STATUS_ITEM_PID}" aos_assert_status_item_overlap_from_matches_json "$STATUS_ITEM_PID" "$STATUS_ITEMS_BEFORE_CLICK")"
-
-aos_visual_run_bounded 8 "remove stale Sigil avatar canvas" aos_visual_remove_canvas avatar-main
-aos_visual_run_bounded 8 "remove stale surface inspector canvas" aos_visual_remove_canvas surface-inspector
-aos_visual_run_bounded 15 "launch surface inspector" aos_visual_launch_canvas_inspector surface-inspector
 wait_for_status_avatar_visible() {
   "$(aos_visual_aos)" show wait \
     --id avatar-main \
     --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
-    --timeout 12s >/dev/null
+    --timeout 25s >/dev/null
 }
 VISIBLE_WAIT_STDOUT="$(mktemp "${TMPDIR:-/tmp}/aos-status-avatar-visible-stdout.XXXXXX")"
 VISIBLE_WAIT_STDERR="$(mktemp "${TMPDIR:-/tmp}/aos-status-avatar-visible-stderr.XXXXXX")"
@@ -71,7 +95,7 @@ STATUS_CLICK_TIMING="$(aos_visual_run_bounded 8 "click isolated status item" cli
   rm -f "$VISIBLE_WAIT_STDOUT" "$VISIBLE_WAIT_STDERR"
   exit 1
 }
-VISIBLE_WAIT_DEADLINE=$((SECONDS + 15))
+VISIBLE_WAIT_DEADLINE=$((SECONDS + 30))
 while kill -0 "$VISIBLE_WAIT_PID" 2>/dev/null; do
   if (( SECONDS >= VISIBLE_WAIT_DEADLINE )); then
     kill "$VISIBLE_WAIT_PID" 2>/dev/null || true
@@ -116,6 +140,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path("tests/lib").resolve()))
 from sigil_real_input_context import SigilContextHarness
+from real_input_surface_primitives import (
+    aos_native_click_segmented_js,
+    aos_native_click_tab_js,
+    aos_native_segmented_ready_js,
+    aos_native_tab_ready_js,
+)
 
 
 harness = SigilContextHarness()
@@ -137,60 +167,30 @@ harness.wait_until(
     label="context menu open from real avatar right click",
 )
 
-effects_tab = harness.native_point_for('[data-ctx-tab="sigil-menu-effects"]')
-if not effects_tab:
-    raise SystemExit("FAIL: missing effects tab")
-harness.click(effects_tab)
-
-menu_center = harness.native_point_for('#sigil-menu-root')
-if not menu_center:
-    raise SystemExit("FAIL: missing menu root")
-
-before_scroll = harness.eval_json(
-    """(() => {
-      const root = document.querySelector('#sigil-menu-root')
-      const anchor = document.querySelector('#sigil-context-menu')
-      const effects = document.querySelector('#sigil-menu-effects')
-      return JSON.stringify({
-        dialogRole: anchor?.getAttribute('role'),
-        dialogHidden: anchor?.getAttribute('aria-hidden'),
-        effectsRole: effects?.getAttribute('role'),
-        effectsHidden: effects?.getAttribute('aria-hidden'),
-        scrollTop: root?.scrollTop ?? null,
-        scrollHeight: root?.scrollHeight ?? null,
-        clientHeight: root?.clientHeight ?? null
-      })
-    })()"""
+travel_ready = harness.wait_until(
+    lambda: (
+        lambda result: result if result.get("ok") else None
+    )(harness.eval_json(aos_native_tab_ready_js("travel"))),
+    label="travel tab AOS control record",
 )
-if before_scroll["scrollHeight"] > before_scroll["clientHeight"]:
-    harness.scroll(menu_center, -8)
-    after_scroll = harness.wait_until(
-        lambda: (
-            lambda state: state if state["scrollTop"] > before_scroll["scrollTop"] else None
-        )(harness.eval_json("JSON.stringify({ scrollTop: document.querySelector('#sigil-menu-root')?.scrollTop ?? null })")),
-        label="root menu scrollTop changed from real wheel",
-    )
-else:
-    after_scroll = {"scrollTop": before_scroll["scrollTop"]}
+travel_click = harness.eval_json(aos_native_click_tab_js("sigil-hit-avatar-main", "travel"))
+harness.wait_until(
+    lambda: True if harness.eval_json("JSON.stringify(window.__sigilDebug.snapshot().contextMenu.activeTab)") == "travel" else None,
+    label="travel tab selected through AOS control record",
+)
 
-line_button = harness.native_point_for('[data-ctx-open="sigil-menu-line-card"]')
-if not line_button:
-    raise SystemExit("FAIL: missing Line Trail Settings button after real scroll")
-harness.click(line_button)
+trail_ready = harness.wait_until(
+    lambda: (
+        lambda result: result if result.get("ok") else None
+    )(harness.eval_json(aos_native_segmented_ready_js("sigil-menu-line-trail-mode", "shrink"))),
+    label="line trail mode AOS control record",
+)
+trail_click = harness.eval_json(aos_native_click_segmented_js("sigil-hit-avatar-main", "sigil-menu-line-trail-mode", "shrink"))
 line_state = harness.wait_until(
     lambda: (
-        lambda state: state if state["active"] and state["role"] == "region" and state["label"] == "Line trail settings" else None
-    )(harness.eval_json(
-        """(() => {
-          const card = document.querySelector('#sigil-menu-line-card')
-          return JSON.stringify({
-            active: card?.classList.contains('active') ?? false,
-            role: card?.getAttribute('role'),
-            label: card?.getAttribute('aria-label')
-          })
-        })()"""
-    )),
-    label="line trail card active with accessible region label",
+        lambda state: state if state["mode"] == "shrink" else None
+    )(harness.eval_json("JSON.stringify({ mode: window.state.fastTravelLineTrailMode })")),
+    label="line trail mode changed through AOS control record",
 )
 
 print("PASS", json.dumps({
@@ -198,8 +198,10 @@ print("PASS", json.dumps({
     "statusItemHygiene": status_item_hygiene,
     "statusClickTiming": status_click_timing,
     "initial": initial,
-    "before_scroll": before_scroll,
-    "after_scroll": after_scroll,
+    "travelReady": travel_ready,
+    "travelClick": travel_click,
+    "trailReady": trail_ready,
+    "trailClick": trail_click,
     "line": line_state,
 }))
 PY

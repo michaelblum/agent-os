@@ -339,6 +339,14 @@ workbench styles dim the origin surface to `0.75` opacity during transfer. The
 stage is best-effort: if it is not running, release placement still uses the
 computed destination display frame.
 
+Stock `mountChrome()` headers are also semantic drag targets. The header carries
+`data-aos-ref="<canvas-or-panel-surface>:drag-handle"`,
+`data-semantic-target-id="drag-handle"`, `data-aos-action="panel_drag"`,
+`data-aos-actions="drag"`, and an accessible drag label. Agents should use the
+reported `semantic_targets[].do_target` with
+`aos do drag canvas:<canvas-id>/<drag-handle-ref> --by <dx>,<dy>` instead of
+choosing header pixels.
+
 `createPanelTransferController(options?)` is the lower-level transfer state
 machine used by `createDragController`. It computes destination display outlines
 from daemon display geometry and sends `desktop_world_stage.layer.upsert/remove`

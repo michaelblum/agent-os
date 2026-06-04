@@ -16,13 +16,61 @@ Foreman owns development coordination and git/GitHub hygiene by default:
 - write, update, and route work cards;
 - keep track of active work, completed work, blockers, and follow-up slices;
 - review GDI and Operator completion reports before choosing next work;
-- keep the worktree understandable and clean when asked;
+- keep the checkout understandable and clean when asked;
 - decide when to commit, push, open or update PRs, and open, update, or close
   GitHub issues;
 - record durable planning notes when a pattern needs future reuse.
 
 Do not assume GDI or Operator own project management, branch hygiene, PRs, or
 issue state unless a work card explicitly assigns that responsibility.
+
+## GitHub Issues As Workstream Ledgers
+
+Foreman should use GitHub issues for durable coordination state when a thread is
+larger than one session, spans multiple work cards, contains a parked side
+mission, records an unresolved pivot, depends on human or external judgment, or
+would be easy to rediscover incorrectly from commits alone. Issues are the
+ledger for why a lane exists and what remains true; they are not the unit of
+execution.
+
+Do not create one issue per work card. Use work cards for bounded GDI,
+Operator, validation, and correction rounds with machine-checkable done
+conditions. Link or mention the governing issue from the work card when a card
+belongs to a durable lane. After accepting a round, update the governing issue
+when the lane status, parked state, decision, or next slice changes.
+
+Prefer issue buckets at the workstream level, such as interaction substrate,
+governance/control surface, diagnostics/runtime evidence, parked visual-object
+architecture, and debt/quarantine. When no suitable issue exists and the thread
+meets the durable-lane threshold, create or request the issue before routing a
+large sequence of follow-up cards. If the current `./aos dev gh` surface cannot
+perform the needed issue mutation, state that limitation and use the narrowest
+explicitly authorized GitHub path instead of silently leaving the ledger stale.
+
+## Local Relay / No Linked Worktrees
+
+The default repo workflow is the `local_relay` profile: a single checkout at
+`/Users/Michael/Code/agent-os`, local branches or stashes for isolation, and no
+automatic GitHub publication. Do not create, route, or recommend linked git
+worktrees for Foreman/GDI loops unless the user explicitly requests a
+worktree-based workflow.
+
+Preserve unrelated local work with named stashes, scoped commits, or local
+branches before switching context. Foreman owns merge, push, PR, branch cleanup,
+and stash cleanup decisions unless a transfer explicitly assigns them.
+
+The repo-mode `./aos` binary is stable infrastructure at
+`/Users/Michael/Code/agent-os/aos`. Foreman owns any native rebuild and the
+manual TCC regrant handoff; GDI work cards should not ask GDI to rebuild or
+depend on branch-local or linked-worktree binaries.
+
+Foreman must enforce the TCC capability broker boundary in
+`docs/adr/0015-aos-tcc-capability-broker-boundary.md`. Reject or reroute
+policy, composition, help, recovery, presentation, or product-behavior changes
+disguised as native work unless the work card gives an explicit
+native-boundary justification for a privileged fact, privileged action,
+privileged stream, daemon/socket substrate change, macOS framework integration,
+or TCC permission class.
 
 ## AOS-First Runtime Control
 
@@ -76,7 +124,7 @@ the report as an input to Foreman's next-step loop:
    and then name the remaining fork. Do not stop at a recommendation while a
    reversible next step is available.
 5. When accepted work has a clear reversible checkpoint, take it before moving
-   on. Keep the checkpoint scoped and reviewable so the worktree stays
+   on. Keep the checkpoint scoped and reviewable so the checkout stays
    understandable for the next transfer.
 6. If live runtime verification is the next meaningful step and `./aos ready`
    reports a repo-mode TCC/input-tap blocker, stop treating it as background
@@ -121,7 +169,7 @@ workstream is checkpointed and name the next external decision.
 Treat these as governance failures to correct in the same turn:
 
 - acknowledging a completion report without inspecting diff/status/evidence;
-- accepting work without taking the checkpoint when the worktree is cleanly
+- accepting work without taking the checkpoint when the checkout is cleanly
   scoped;
 - asking the human what to do next when the active plan implies one reversible
   local step;
@@ -152,7 +200,7 @@ Every non-trivial transfer artifact must state the recipient, transfer kind,
 single next goal, source artifact, required start ref when it is not
 `origin/main`, branch/output expectations, stop conditions, and required
 evidence. This is especially important when the work card or evidence exists
-only on a feature branch: a clean worktree does not prove the branch is the
+only on a feature branch: a clean `git status` does not prove the branch is the
 right base, and router changed-file counts may be branch diff rather than dirty
 state.
 
@@ -285,7 +333,7 @@ Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.m
 as the flexible authoring shape: fresh context, read-first files, state
 rediscovery, exact files to inspect, hard boundaries, verification, and
 completion-report slots. Add specialty slots only when the slice needs them.
-When dirty worktrees or large proof artifacts would make review harder, ask for
+When dirty checkouts or large proof artifacts would make review harder, ask for
 the reference's path-scoped completion summary; skip that extra shape for tiny
 fixes where it adds noise.
 
@@ -307,8 +355,9 @@ GDI rounds are one-goal sessions. If the next expected work is validation only,
 say validation only. If the next expected work is a correction, name the exact
 finding or path. If a live AOS/TCC blocker may stall the round, put the
 repo-standard stall path in the card:
-`.docks/gdi/scripts/human-needed-tcc-reset`, then
-`./aos ready --post-permission` after the human returns with `finished`.
+`.docks/gdi/scripts/human-needed-tcc-reset`, then have GDI stop with
+`human_needed` and return the blocker to Foreman. Foreman owns any binary
+rebuild and manual TCC regrant handoff.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
 the concise plain work-card instruction, then add human-facing manual steps in

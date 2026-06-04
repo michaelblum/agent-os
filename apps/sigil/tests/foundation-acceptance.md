@@ -60,7 +60,7 @@ mv /tmp/accept-wiki-bak.c1 "$HOME/.config/aos/repo/wiki/sigil/agents"
 ```
 
 **Expected result:** `default.md` materializes under the wiki agents dir after
-seed runs. File starts with `---\ntype: agent\nid: default\n...`.
+seed runs. File starts with `---\ntype: entity\nid: default\n...`.
 
 **Actual result:** After `rm -rf`, the agents directory is absent.
 `sigilctl-seed.sh` prints `seeded`, and `ls` confirms `default.md` is recreated
@@ -68,7 +68,7 @@ with the expected frontmatter:
 
 ```
 ---
-type: agent
+type: entity
 id: default
 name: Default
 tags: [sigil, orchestrator]

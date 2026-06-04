@@ -56,6 +56,45 @@ check_missing_arg() {
 }
 
 check_unknown_flag inspect ./aos inspect --bogus
+check_unknown_flag status ./aos status --bogus
+check_unknown_flag doctor ./aos doctor --bogus
+check_unknown_flag permissions-check ./aos permissions check --bogus
+check_unknown_flag permissions-preflight ./aos permissions preflight --bogus
+check_unknown_flag permissions-setup ./aos permissions setup --bogus
+check_unknown_flag permissions-reset-runtime ./aos permissions reset-runtime --bogus
+
+err="$STATE_ROOT/permissions-reset-mode-missing.err"
+if ./aos permissions reset-runtime --mode 2>"$err"; then
+  echo "FAIL: permissions reset-runtime accepted missing --mode value" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: permissions reset-runtime missing --mode value did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
+
+err="$STATE_ROOT/permissions-reset-emergency-ack-missing.err"
+if ./aos permissions reset-runtime --mode repo --allow-service-reset --dry-run --json 2>"$err"; then
+  echo "FAIL: permissions reset-runtime accepted service reset without emergency ack" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"EMERGENCY_ACK_REQUIRED"' "$err"; then
+  echo "FAIL: permissions reset-runtime missing emergency ack did not use EMERGENCY_ACK_REQUIRED" >&2
+  cat "$err" >&2
+  exit 1
+fi
+
+err="$STATE_ROOT/permissions-reset-emergency-ack-alone.err"
+if ./aos permissions reset-runtime --mode repo --emergency-ack-other-apps --dry-run --json 2>"$err"; then
+  echo "FAIL: permissions reset-runtime accepted emergency ack without service reset" >&2
+  exit 1
+fi
+if ! grep -Eq '"code"[[:space:]]*:[[:space:]]*"INVALID_ARG"' "$err"; then
+  echo "FAIL: permissions reset-runtime emergency ack alone did not use INVALID_ARG" >&2
+  cat "$err" >&2
+  exit 1
+fi
 err="$STATE_ROOT/inspect-at-missing.err"
 if ./aos inspect --at --size 10,10 2>"$err"; then
   echo "FAIL: inspect accepted missing --at value" >&2

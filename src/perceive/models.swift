@@ -256,6 +256,12 @@ struct AOSSemanticTargetStateJSON: Codable {
     let selected: Bool?
     let checked: Bool?
     let expanded: Bool?
+    let values: [Double]?
+    let min: Double?
+    let max: Double?
+    let step: Double?
+    let orientation: String?
+    let thumb_count: Int?
 }
 
 struct AOSSemanticTargetExtensionSourceJSON: Codable {
@@ -290,6 +296,8 @@ struct AOSSemanticTargetJSON: Codable {
     let actions: [String]
     let `extension`: AOSSemanticTargetExtensionJSON
     let provenance: AOSSemanticTargetProvenanceJSON
+    let geometry: JSONValue?
+    let metadata: JSONValue?
 }
 
 // MARK: - Annotation Output Model (annotation.schema.json v0.1.0)

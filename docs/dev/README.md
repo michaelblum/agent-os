@@ -8,7 +8,9 @@ encode app-specific playbooks here.
 `workflow-profiles.json` is the source of truth for built-in example development
 workflow profiles: branch, commit, review, PR, merge-authority, and release
 postures for repo work without treating that posture as an immutable AOS
-primitive. `agentic_relay` is the GitHub-branch relay procedure for local GDI
+primitive. `local_relay` is the single-checkout local branch/stash procedure for
+tight Foreman-human-GDI loops with no linked git worktrees or automatic pushes.
+`agentic_relay` is the GitHub-branch relay procedure for local GDI
 implementation reviewed by a designated Foreman-compatible relay authority; it
 does not create a separate product role.
 `active-profile.json` is the single repo-local selector for the active profile.

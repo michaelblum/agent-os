@@ -170,8 +170,8 @@ function setRect(element, rect) {
 test('compact avatar control surface renders toolkit tabs and section forms from the avatar object graph view model', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const { surface } = mount(viewModel);
-  const alphaGeometry = controlByDescriptor(viewModel, 'sigil-menu-shape-select').control;
-  const alphaOpacity = controlByDescriptor(viewModel, 'sigil-menu-opacity').control;
+  const alphaGeometry = controlByDescriptor(viewModel, 'sigil-avatar-controls-shape-select').control;
+  const alphaOpacity = controlByDescriptor(viewModel, 'sigil-avatar-controls-opacity').control;
 
   assert.equal(surface.el.getAttribute('data-sigil-avatar-control-surface'), '');
   assert.equal(surface.el.dataset.sigilTheme, 'avatar-control-surface');
@@ -194,7 +194,7 @@ test('compact avatar control surface renders toolkit tabs and section forms from
 test('compact avatar control surface renders Prism as a geometry option', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const { surface } = mount(viewModel);
-  const { control: alphaGeometry } = controlByDescriptor(viewModel, 'sigil-menu-shape-select');
+  const { control: alphaGeometry } = controlByDescriptor(viewModel, 'sigil-avatar-controls-shape-select');
   const field = surface.getForm('alpha:primary-polyhedron').getField(alphaGeometry.id);
 
   field.control.open();
@@ -214,7 +214,7 @@ test('compact avatar control surface reports form changes with tab, section, and
   const { surface } = mount(viewModel, {
     onControlChange: (payload) => changes.push(payload),
   });
-  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-menu-opacity');
+  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-avatar-controls-opacity');
   const alphaForm = surface.getForm('alpha:primary-polyhedron');
 
   alphaForm.setValues({ [alphaOpacity.id]: 0.45 });
@@ -229,18 +229,18 @@ test('compact avatar control surface reports form changes with tab, section, and
 test('compact avatar control surface exposes descriptor-addressed AOS control records', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const { surface } = mount(viewModel);
-  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-menu-opacity');
+  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-avatar-controls-opacity');
   const form = surface.getForm('alpha:primary-polyhedron');
   const sliderControl = form.getField(alphaOpacity.id).control.el.querySelector('[data-aos-slider-control]');
 
   setRect(sliderControl, { left: 24, top: 84, width: 180, height: 28 });
 
-  const record = surface.getControlRecordByDescriptorId('sigil-menu-opacity');
+  const record = surface.getControlRecordByDescriptorId('sigil-avatar-controls-opacity');
   const records = surface.getControlRecords();
 
-  assert.equal(record.extension.descriptor_id, 'sigil-menu-opacity');
+  assert.equal(record.extension.descriptor_id, 'sigil-avatar-controls-opacity');
   assert.equal(record.extension.field_id, alphaOpacity.id);
-  assert.equal(record.ref, 'sigil.avatar.compact_control_surface:sigil-menu-opacity');
+  assert.equal(record.ref, 'sigil.avatar.compact_control_surface:sigil-avatar-controls-opacity');
   assert.equal(record.role, 'slider');
   assert.equal(record.name, 'Face Opacity');
   assert.equal(record.state.value, 0.8);
@@ -252,7 +252,7 @@ test('compact avatar control surface exposes descriptor-addressed AOS control re
     .filter((item) => item.surface === 'sigil.avatar.compact_control_surface' && item.extension?.descriptor_id)
     .every((item) => item.ref === `${item.surface}:${item.extension.descriptor_id}`));
   assert.ok(records.some((item) => (
-    item.extension?.descriptor_id === 'sigil-menu-fast-travel-effect'
+    item.extension?.descriptor_id === 'sigil-avatar-controls-fast-travel-effect'
     && item.role === 'radiogroup'
     && item.extension.options.some((option) => option.value === 'wormhole')
   )));
@@ -321,7 +321,7 @@ test('compact avatar control surface can bind a real canonical control through v
     },
     onControlChange: (payload) => controlChanges.push(payload),
   });
-  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-menu-opacity');
+  const { control: alphaOpacity } = controlByDescriptor(viewModel, 'sigil-avatar-controls-opacity');
   const form = surface.getForm('alpha:primary-polyhedron');
   const field = form.getField(alphaOpacity.id);
   const root = field.control.el;
@@ -347,9 +347,9 @@ test('compact avatar control surface can bind a real canonical control through v
 test('compact avatar control surface reveals geometry parameter sliders for the selected shape', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const { surface } = mount(viewModel);
-  const { control: alphaGeometry } = controlByDescriptor(viewModel, 'sigil-menu-shape-select');
-  const { control: prismSides } = controlByDescriptor(viewModel, 'sigil-menu-prism-sides');
-  const { control: tetartoidA } = controlByDescriptor(viewModel, 'sigil-menu-tetartoid-a');
+  const { control: alphaGeometry } = controlByDescriptor(viewModel, 'sigil-avatar-controls-shape-select');
+  const { control: prismSides } = controlByDescriptor(viewModel, 'sigil-avatar-controls-prism-sides');
+  const { control: tetartoidA } = controlByDescriptor(viewModel, 'sigil-avatar-controls-tetartoid-a');
   const alphaForm = surface.getForm('alpha:primary-polyhedron');
 
   assert.equal(alphaForm.getField(prismSides.id).hidden, true);
@@ -410,20 +410,20 @@ test('compact avatar control surface keeps projection shortcuts separate from ca
   assert.equal(shortcutsPanel.hidden, true);
   assert.equal(containsElement(alphaPanel, inspector.el), false);
   assert.equal(containsElement(shortcutsPanel, inspector.el), true);
-  assert.equal(surface.getValues().projection_tools['projection-tools']['sigil-menu-grid-mode'], 'off');
+  assert.equal(surface.getValues().projection_tools['projection-tools']['sigil-avatar-controls-grid-mode'], 'off');
 
   surface.setActiveTab('shortcuts');
 
   assert.equal(shortcutsPanel.hidden, false);
 
   inspector.el.dispatchEvent(new FakeEvent('click', { bubbles: true }));
-  projectionForm.setValues({ 'sigil-menu-grid-mode': 'grid' });
+  projectionForm.setValues({ 'sigil-avatar-controls-grid-mode': 'grid' });
 
   assert.equal(projectionActions.length, 1);
   assert.equal(projectionActions[0].action_id, 'surface-inspector');
   assert.equal(projectionActions[0].avatar_id, 'avatar-main');
   assert.equal(projectionChanges.length, 1);
-  assert.equal(projectionChanges[0].values['sigil-menu-grid-mode'], 'grid');
+  assert.equal(projectionChanges[0].values['sigil-avatar-controls-grid-mode'], 'grid');
 });
 
 test('compact avatar control surface destroys toolkit forms, tabs, and projection controls', () => {

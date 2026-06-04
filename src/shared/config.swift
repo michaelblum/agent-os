@@ -350,7 +350,7 @@ func setConfigValue(key: String, value: String) {
     case "status_item.enabled":
         if config.status_item == nil {
             config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "avatar", toggle_url: "",
+                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
                 toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
             )
         }
@@ -358,7 +358,7 @@ func setConfigValue(key: String, value: String) {
     case "status_item.toggle_id":
         if config.status_item == nil {
             config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "avatar", toggle_url: "",
+                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
                 toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
             )
         }
@@ -366,7 +366,7 @@ func setConfigValue(key: String, value: String) {
     case "status_item.toggle_url":
         if config.status_item == nil {
             config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "avatar", toggle_url: "",
+                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
                 toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
             )
         }
@@ -374,7 +374,7 @@ func setConfigValue(key: String, value: String) {
     case "status_item.toggle_track":
         if config.status_item == nil {
             config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "avatar", toggle_url: "",
+                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
                 toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
             )
         }
@@ -382,7 +382,7 @@ func setConfigValue(key: String, value: String) {
     case "status_item.icon":
         if config.status_item == nil {
             config.status_item = AosConfig.StatusItemConfig(
-                enabled: false, toggle_id: "avatar", toggle_url: "",
+                enabled: false, toggle_id: "status-item-canvas", toggle_url: "",
                 toggle_at: [200, 200, 300, 300], toggle_track: nil, icon: "hexagon"
             )
         }

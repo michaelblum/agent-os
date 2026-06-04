@@ -36,11 +36,10 @@
             }
           ],
           "examples" : [
-            "aos launch sigil",
-            "aos launch sigil legacy-workbench",
-            "aos launch sigil agent-terminal",
-            "aos launch sigil --json",
-            "aos launch sigil --dry-run --json"
+            "aos launch <app>",
+            "aos launch <app> <entry>",
+            "aos launch <app> --json",
+            "aos launch <app> --dry-run --json"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -144,8 +143,8 @@
             }
           ],
           "examples" : [
-            "aos experience activate sigil --dry-run --json",
-            "aos experience activate sigil"
+            "aos experience activate <experience> --dry-run --json",
+            "aos experience activate <experience>"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1051,8 +1050,8 @@
           },
           "examples" : [
             "aos show create --id ball --at 100,100,200,200 --html \"<div>hello<\/div>\"",
-            "aos show create --id avatar --url aos:\/\/sigil\/renderer\/index.html --track union",
-            "aos show create --id overlay --url aos:\/\/sigil\/renderer\/index.html --surface desktop-world",
+            "aos show create --id surface --url aos:\/\/demo\/surface\/index.html --surface desktop-world",
+            "aos show create --id overlay --url aos:\/\/demo\/overlay\/index.html --surface desktop-world",
             "aos show create --id annot --anchor-browser browser:todo\/e21 --html \"<div class='badge'>42<\/div>\""
           ],
           "execution" : {
@@ -1320,6 +1319,47 @@
         {
           "args" : [
             {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable audit output",
+              "token" : "--json",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "point",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Evaluate native input target at x,y",
+              "token" : "--point",
+              "value_type" : "string"
+            }
+          ],
+          "examples" : [
+            "aos show audit --json",
+            "aos show audit --json --point 90,100"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : true,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "show-audit",
+          "output" : {
+            "default_mode" : "json",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos show audit [--json] [--point x,y]"
+        },
+        {
+          "args" : [
+            {
               "id" : "html",
               "kind" : "flag",
               "required" : false,
@@ -1401,7 +1441,7 @@
             }
           ],
           "examples" : [
-            "aos show eval --id avatar --js \"document.title\""
+            "aos show eval --id surface --js \"document.title\""
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1525,7 +1565,7 @@
           ],
           "examples" : [
             "aos show wait --id surface-inspector --manifest surface-inspector",
-            "aos show wait --id sigil-workbench --js '!!document.querySelector(\".surface-frame\")'"
+            "aos show wait --id workbench --js '!!document.querySelector(\".surface-frame\")'"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1557,7 +1597,7 @@
             }
           ],
           "examples" : [
-            "aos show exists --id avatar"
+            "aos show exists --id surface"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -1589,7 +1629,7 @@
             }
           ],
           "examples" : [
-            "aos show get --id avatar"
+            "aos show get --id surface"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -1621,7 +1661,7 @@
             }
           ],
           "examples" : [
-            "aos show to-front --id avatar"
+            "aos show to-front --id surface"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -1661,7 +1701,7 @@
             }
           ],
           "examples" : [
-            "aos show post --id avatar --event '{\"type\":\"update\"}'"
+            "aos show post --id surface --event '{\"type\":\"update\"}'"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -5142,7 +5182,7 @@
           ],
           "examples" : [
             "aos content wait --root toolkit --auto-start",
-            "aos content wait --root toolkit --root sigil --timeout 10s"
+            "aos content wait --root toolkit --root app --timeout 10s"
           ],
           "execution" : {
             "auto_starts_daemon" : true,
@@ -5873,38 +5913,6 @@
         {
           "args" : [
             {
-              "id" : "json",
-              "kind" : "flag",
-              "required" : false,
-              "summary" : "Emit the machine-readable post-build checkpoint contract",
-              "token" : "--json",
-              "value_type" : "bool"
-            }
-          ],
-          "examples" : [
-            "aos dev build-checkpoint --json"
-          ],
-          "execution" : {
-            "auto_starts_daemon" : false,
-            "interactive" : false,
-            "mutates_state" : false,
-            "read_only" : true,
-            "requires_permissions" : false,
-            "streaming" : false,
-            "supports_dry_run" : false
-          },
-          "id" : "dev-build-checkpoint",
-          "output" : {
-            "default_mode" : "text",
-            "error_mode" : "json_stderr",
-            "streaming" : false,
-            "supports_json_flag" : true
-          },
-          "usage" : "aos dev build-checkpoint [--json]"
-        },
-        {
-          "args" : [
-            {
               "id" : "packet",
               "kind" : "flag",
               "required" : true,
@@ -6480,7 +6488,8 @@
           "examples" : [
             "aos dev capabilities list --json",
             "aos dev capabilities list --role foreman --entry-path aos_developer --json",
-            "aos dev capabilities explain dev.github.issue_comment --json"
+            "aos dev capabilities explain dev.github.issue_comment --json",
+            "aos dev capabilities explain dev.github.pr_checks --json"
           ],
           "execution" : {
             "auto_starts_daemon" : false,
@@ -6633,6 +6642,86 @@
               "value_type" : "string"
             },
             {
+              "id" : "state",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list state filter: open, closed, merged, or all",
+              "token" : "--state",
+              "value_type" : "string"
+            },
+            {
+              "id" : "limit",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Maximum issue or PR list result count",
+              "token" : "--limit",
+              "value_type" : "int"
+            },
+            {
+              "id" : "label",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list label filter; repeat for multiple labels",
+              "token" : "--label",
+              "value_type" : "string"
+            },
+            {
+              "id" : "author",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list author login filter",
+              "token" : "--author",
+              "value_type" : "string"
+            },
+            {
+              "id" : "assignee",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list assignee login filter",
+              "token" : "--assignee",
+              "value_type" : "string"
+            },
+            {
+              "id" : "search",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue or PR list search query",
+              "token" : "--search",
+              "value_type" : "string"
+            },
+            {
+              "id" : "milestone",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Issue list milestone filter",
+              "token" : "--milestone",
+              "value_type" : "string"
+            },
+            {
+              "id" : "base",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "PR list base branch filter",
+              "token" : "--base",
+              "value_type" : "string"
+            },
+            {
+              "id" : "head",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "PR list head branch filter",
+              "token" : "--head",
+              "value_type" : "string"
+            },
+            {
+              "id" : "draft",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "PR list draft filter",
+              "token" : "--draft",
+              "value_type" : "bool"
+            },
+            {
               "id" : "arg",
               "kind" : "positional",
               "required" : false,
@@ -6643,8 +6732,10 @@
           ],
           "examples" : [
             "aos dev gh context --json",
+            "aos dev gh issue list --state open --limit 50 --milestone v0 --json",
             "aos dev gh issue view 298 --json",
             "aos dev gh issue comment 298 --body-file \/tmp\/comment.md",
+            "aos dev gh pr list --state all --limit 30 --json",
             "aos dev gh ci inspect --pr 298 --json",
             "aos dev gh review-comments --pr 298 --json"
           ],
@@ -6664,7 +6755,7 @@
             "streaming" : false,
             "supports_json_flag" : true
           },
-          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner\/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n]"
+          "usage" : "aos dev gh <context|issue|pr|ci|review-comments> [--repo owner\/name] [--cwd <path>] [--json] [--body-file <path>] [--pr n] [--state <state>] [--limit n] [--label <name>] [--author <login>] [--assignee <login>] [--search <query>] [--milestone <name>] [--base <branch>] [--head <branch>] [--draft]"
         }
       ],
       "path" : [
@@ -8028,7 +8119,7 @@
           ],
           "examples" : [
             "aos wiki seed",
-            "aos wiki seed --force --namespace sigil"
+            "aos wiki seed --force --namespace project"
           ],
           "execution" : {
             "auto_starts_daemon" : false,

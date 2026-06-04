@@ -63,7 +63,7 @@ function createRuntime(options = {}) {
   const commands = []
   const activeContexts = []
   const scheduled = []
-  let closedContextMenu = 0
+  let closedAvatarControls = 0
   let exitedReticle = 0
   let clearedGesture = 0
   let syncedRegions = 0
@@ -84,7 +84,7 @@ function createRuntime(options = {}) {
     getCandidateList: () => options.candidates || [],
     projectPoint: options.projectPoint || ((point) => ({ x: point.x + 1, y: point.y + 2, valid: point.valid })),
     getOverlayBounds: () => options.overlayBounds || { x: 0, y: 0, w: 800, h: 600 },
-    closeContextMenu: () => { closedContextMenu += 1 },
+    closeAvatarControls: () => { closedAvatarControls += 1 },
     exitAnnotationReticle: () => { exitedReticle += 1 },
     clearGestureState: () => { clearedGesture += 1 },
     syncInputRegions: () => { syncedRegions += 1 },
@@ -114,7 +114,7 @@ function createRuntime(options = {}) {
     commands,
     activeContexts,
     scheduled,
-    sideEffects: () => ({ closedContextMenu, exitedReticle, clearedGesture, syncedRegions }),
+    sideEffects: () => ({ closedAvatarControls, exitedReticle, clearedGesture, syncedRegions }),
   }
 }
 
@@ -144,7 +144,7 @@ test('Selection Mode runtime owns entry, acquisition, target cycling, comments, 
   runtime.enter({ x: 40, y: 40, valid: true }, 'test')
   assert.equal(liveState.selectionMode.active, true)
   assert.deepEqual(sideEffects(), {
-    closedContextMenu: 1,
+    closedAvatarControls: 1,
     exitedReticle: 1,
     clearedGesture: 1,
     syncedRegions: 1,

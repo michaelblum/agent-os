@@ -2,6 +2,11 @@
 
 Date: 2026-05-24
 
+Status: retired. Per-tool Codex hooks were removed because they added latency
+to every tool result by forcing provider hook payload transfer, and the project
+now relies on Foreman-owned rebuilds plus markdown contracts rather than hook
+enforcement for AOS binary/TCC policy.
+
 ## Problem
 
 Repo-mode Swift rebuilds can invalidate or stale the macOS
@@ -42,44 +47,28 @@ returns, run only `./aos ready --post-permission` before resuming verification.
 This is necessary but not sufficient because natural-language compliance can
 drift.
 
-### 2. Codex Hook Layer
+### 2. Retired Per-Tool Hook Layer
 
-Add a dock/Codex hook on `PostToolUse` or the nearest supported tool-result
-event. This should live in the dock hook configuration, not in a GDI-only work
-habit, so it applies whenever Codex runs `./aos dev build` from Foreman, GDI,
-Operator, or a future dock.
+Do not add a `PostToolUse`, `PreToolUse`, or equivalent provider per-tool hook
+for rebuild/TCC policy. The previous pass-through hooks still forced Codex to
+serialize and pipe hook payloads after every tool call, which made large command
+outputs feel like hook stalls even when the hook did no work.
 
-Responsibilities:
+The current contract is:
 
-- inspect the completed tool call and identify successful invocations of
-  `./aos dev build` from this repo;
-- write the existing short-lived stop-condition marker for the Stop hook;
-- request an out-of-band GDI control injection of `/goal pause` when a tmux pane
-  handle is available;
-- return a concise system message or hook response as a visible fallback;
-- avoid running `ready --repair`, `permissions reset-runtime`, `git status`, or
-  other expensive ritual unless explicitly requested.
+- Foreman owns repo-mode `./aos` rebuilds.
+- GDI and Operator must not auto-build or install hook guardrails for rebuilds.
+- If the binary changes, Foreman stops and tells the human to manually
+  remove/re-add the repo binary in macOS TCC.
+- The Stop hook may remain for dock stop notices, but per-tool hooks stay
+  absent.
 
-The hook packet should begin with a stable token such as
-`goal_pause_required: repo-mode AOS permission repair` and tell Codex to type
-`/goal pause` immediately.
+### 3. Harness Layer
 
-### 3. Harness Enforcement Layer
-
-Because the provider loop may continue after advisory hook output, the
-harness-level control path enforces the pause where a terminal handle is
-available:
-
-- the PostToolUse hook writes the stop-condition marker;
-- the hook calls the goal-pause control helper;
-- for GDI, the helper sends `/goal pause` into the session's tmux pane;
-- for non-GDI docks or missing pane handles, the helper exits quietly and leaves
-  the advisory hook message as the fallback;
-- let the existing Stop hook consume the stop-condition marker and speak the
-  short TCC notice.
-
-This is the stronger form because it does not rely only on instruction
-following.
+No harness-level goal-pause injection is active. The old automatic pause,
+permission-reset, Settings-open, and human-needed surface helpers were removed.
+Future enforcement should stay in explicit work-card instructions and Foreman
+review, not provider per-tool hooks.
 
 ### 4. Optional Wrapper Fallback
 
@@ -90,23 +79,13 @@ the actual tool call.
 
 ### 5. Tests
 
-Use fake `./aos` fixtures rather than real TCC:
+Use fake fixtures rather than real TCC:
 
-- build fails: hook does not hide compiler failure or synthesize a permission
-  pause;
-- build succeeds: hook prints `goal_pause_required`, writes
-  `tcc_permission_reset`, and does not run any `./aos` readiness, repair, or
-  status command;
-- build succeeds in GDI with a tmux pane: helper injects `/goal pause` and
-  presses Enter;
-- non-build commands: hook exits quietly and does not request pause;
-- Stop hook still converts the marker into the existing concise TCC stop notice.
-
-Likely test homes:
-
-- `tests/dock-hook-isolation.sh`
-- `tests/dock-session-pickup.sh`
-- a new focused shell test if the post-tool hook deserves one.
+- dock Codex config declares only the Stop hook;
+- per-tool hook wrappers and runners do not exist;
+- deleted build-checkpoint, permission-reset, Settings-open, and human-needed
+  surface helpers stay absent;
+- Stop hook behavior remains bounded and independent from rebuild/TCC policy.
 
 ### 6. Rollout Into The Long Rearchitecture Goal
 

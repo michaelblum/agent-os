@@ -88,6 +88,15 @@ class PerceptionEngine {
         startAppLookupRefresh()
     }
 
+    func stop() {
+        cancelEventTapRetry()
+        teardownEventTap()
+        cursorIdleTimer?.cancel()
+        cursorIdleTimer = nil
+        _appRefreshTimer?.cancel()
+        _appRefreshTimer = nil
+    }
+
     // MARK: - CGEventTap (Depth 0)
 
     private func startEventTap() {

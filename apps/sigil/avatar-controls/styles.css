@@ -1,0 +1,20 @@
+@import url("../theme/avatar-control-surface.css");
+
+.sigil-avatar-controls-layer {
+    position: fixed;
+    inset: var(--sigil-avatar-controls-layer-inset);
+    z-index: var(--sigil-avatar-controls-layer-z);
+    pointer-events: auto;
+    font-family: var(--sigil-avatar-controls-font-family);
+}
+
+.avatar-controls-anchor {
+    position: absolute;
+    display: none;
+    width: var(--sigil-avatar-controls-anchor-width);
+    z-index: var(--sigil-avatar-controls-anchor-z);
+}
+
+.avatar-controls-anchor.visible {
+    display: block;
+}

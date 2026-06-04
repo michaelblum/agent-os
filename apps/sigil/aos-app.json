@@ -72,7 +72,7 @@
         {
           "kind": "show_eval",
           "surface": "avatar-main",
-          "js": "(function(){if(!window.liveJs) return 'no-liveJs'; var p={x:${avatar_home_x},y:${avatar_home_y},valid:true}; liveJs.travel=null; liveJs.avatarPos=p; liveJs.currentCursor=p; liveJs.cursorTarget=p; if(typeof postLastPositionToDaemon==='function') postLastPositionToDaemon(); return 'staged';})()",
+          "js": "(function(){if(!window.liveJs) return 'no-liveJs'; var p={x:${surface_home_x},y:${surface_home_y},valid:true}; liveJs.travel=null; liveJs.avatarPos=p; liveJs.currentCursor=p; liveJs.cursorTarget=p; if(typeof postLastPositionToDaemon==='function') postLastPositionToDaemon(); return 'staged';})()",
           "success_match": "\"staged\"",
           "retries": 10,
           "retry_delay_ms": 200

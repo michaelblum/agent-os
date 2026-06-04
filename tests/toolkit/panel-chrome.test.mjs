@@ -4,9 +4,11 @@ import { readFile } from 'node:fs/promises';
 import {
   clampFrameToWorkArea,
   chipFrameFromWindow,
+  createPlacementPlan,
   createDragController,
   createMaximizeController,
   createMinimizeController,
+  mountChrome,
   createPanelWindowController,
   createResizeController,
   dragFrameFromPointer,
@@ -76,6 +78,20 @@ test('suspendOnClose requests canvas suspend without removing the panel', async 
 
 class FakeNode {}
 
+class FakeClassList {
+  constructor() {
+    this.items = new Set();
+  }
+
+  add(...names) {
+    for (const name of names) this.items.add(name);
+  }
+
+  contains(name) {
+    return this.items.has(name);
+  }
+}
+
 class FakeElement extends FakeNode {
   constructor() {
     super();
@@ -84,6 +100,7 @@ class FakeElement extends FakeNode {
     this.attributes = new Map();
     this.listeners = new Map();
     this.capturedPointers = new Set();
+    this.classList = new FakeClassList();
     this.className = '';
   }
 
@@ -223,6 +240,51 @@ test('frame and work area helpers normalize current window geometry', () => {
   }), [300, 140, 1200, 800]);
 });
 
+test('frame helper prefers daemon boot frame before WebKit window coordinates settle', (t) => {
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    __aosInitialFrame: [1400, 80, 420, 260],
+    screenX: 0,
+    screenY: 762,
+    outerWidth: 320,
+    outerHeight: 220,
+  };
+  t.after(() => {
+    globalThis.window = previousWindow;
+  });
+
+  assert.deepEqual(frameFromWindow(globalThis.window), [1400, 80, 420, 260]);
+});
+
+test('mountChrome stamps stock header as a semantic drag target', (t) => {
+  const previousDocument = globalThis.document;
+  const previousWindow = globalThis.window;
+  globalThis.document = new FakeDocument();
+  globalThis.window = { __aosCanvasId: 'panel-contract' };
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document;
+    else globalThis.document = previousDocument;
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  });
+  const container = new FakeElement();
+  const chrome = mountChrome(container, {
+    title: 'Contract',
+    draggable: false,
+    minimize: false,
+    close: false,
+  });
+
+  assert.equal(chrome.headerEl.getAttribute('role'), 'button');
+  assert.equal(chrome.headerEl.getAttribute('aria-label'), 'Drag Contract panel');
+  assert.equal(chrome.headerEl.dataset.aosRef, 'panel-contract:drag-handle');
+  assert.equal(chrome.headerEl.dataset.semanticTargetId, 'drag-handle');
+  assert.equal(chrome.headerEl.dataset.aosActions, 'drag');
+
+  chrome.setTitle('Renamed');
+  assert.equal(chrome.headerEl.getAttribute('aria-label'), 'Drag Renamed panel');
+});
+
 test('chip frame helper avoids menu bar and clamps to available work area', () => {
   assert.deepEqual(chipFrameFromWindow({
     screenX: 0,
@@ -271,6 +333,42 @@ test('pointer work area inference keeps stacked-display drags on the cursor disp
     workAreaForPoint({ x: 120, y: 2050 }, stackedDisplays, [0, 0, 1, 1]),
     [-207, 1012, 1920, 976],
   );
+});
+
+test('createPlacementPlan reports requested policy-adjusted final and overflow policy frames', () => {
+  const workArea = [0, 33, 1512, 949];
+  assert.deepEqual(createPlacementPlan({
+    requestedFrame: [1400, 80, 420, 260],
+    workArea,
+    viewportOverflowPolicy: 'allow',
+    cause: 'test.allow',
+  }), {
+    requested_frame: [1400, 80, 420, 260],
+    policy_adjusted_frame: [1400, 80, 420, 260],
+    final_settled_frame: [1400, 80, 420, 260],
+    viewport_overflow_policy: 'allow',
+    cause: 'test.allow',
+  });
+
+  assert.deepEqual(createPlacementPlan({
+    requestedFrame: [1400, 80, 420, 260],
+    workArea,
+    viewportOverflowPolicy: 'clamp',
+  }).final_settled_frame, [1092, 80, 420, 260]);
+
+  assert.deepEqual(createPlacementPlan({
+    requestedFrame: [1400, 80, 420, 260],
+    workArea,
+    viewportOverflowPolicy: 'shift',
+  }).policy_adjusted_frame, [1092, 80, 420, 260]);
+
+  assert.deepEqual(createPlacementPlan({
+    requestedFrame: [1400, 80, 420, 260],
+    workArea,
+    viewportOverflowPolicy: 'flip',
+    anchorFrame: [1320, 80, 60, 40],
+    gap: 8,
+  }).final_settled_frame, [892, 80, 420, 260]);
 });
 
 test('chip frame helper uses top-left display inference when display geometry is available', () => {
@@ -409,6 +507,99 @@ test('createPanelWindowController composes the canonical drag resize maximize an
   assert.equal(result.mode, 'fallback_webview');
   assert.deepEqual(result.restoreFrame, [2832, 620, 600, 420]);
   assert.deepEqual(calls.slice(-3).map((entry) => entry[0]), ['spawn', 'suspend', 'resume']);
+});
+
+test('drag settle update exposes toolkit placement contract metadata', () => {
+  let frame = [1400, 80, 420, 260];
+  const updates = [];
+  const controller = createDragController({
+    getFrame: () => frame,
+    getDragWorkArea: () => [0, 33, 1512, 949],
+    updateFrame(nextFrame, geometry) {
+      frame = nextFrame;
+      updates.push({ frame: nextFrame, geometry });
+    },
+    move(screenX, screenY, offsetX, offsetY) {
+      frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]];
+    },
+    clampOnEnd: true,
+    transfer: false,
+  });
+
+  controller.start({ pointerId: 1, clientX: 10, clientY: 10 });
+  controller.move({ pointerId: 1, screenX: 1600, screenY: 90 });
+  controller.end({ pointerId: 1, screenX: 1600, screenY: 90 });
+
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0].frame, [1092, 80, 420, 260]);
+  assert.deepEqual(updates[0].geometry.placement, {
+    requested_frame: [1590, 80, 420, 260],
+    policy_adjusted_frame: [1092, 80, 420, 260],
+    final_settled_frame: [1092, 80, 420, 260],
+    viewport_overflow_policy: 'clamp',
+    cause: 'placement.policy',
+  });
+});
+
+test('initial panel settle emits placement metadata through the controller', () => {
+  let frame = [1400, 80, 420, 260];
+  const updates = [];
+  const controller = createPanelWindowController({
+    getFrame: () => frame,
+    getWorkArea: () => [0, 33, 1512, 949],
+    updateFrame(nextFrame, geometry) {
+      frame = nextFrame;
+      updates.push({ frame: nextFrame, geometry });
+    },
+    drag: false,
+    minimize: false,
+    initialPlacement: true,
+  });
+
+  const plan = controller.settleInitialPlacement();
+
+  assert.deepEqual(plan, {
+    requested_frame: [1400, 80, 420, 260],
+    policy_adjusted_frame: [1092, 80, 420, 260],
+    final_settled_frame: [1092, 80, 420, 260],
+    viewport_overflow_policy: 'clamp',
+    cause: 'placement.initial',
+  });
+  assert.deepEqual(frame, [1092, 80, 420, 260]);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0].geometry.placement, plan);
+  assert.equal(updates[0].geometry.cause, 'placement.initial');
+  assert.equal(updates[0].geometry.phase, 'settled');
+  assert.equal(controller.settleInitialPlacement(), null);
+});
+
+test('initial panel settle supports opt-in allow overflow policy', () => {
+  let frame = [1400, 80, 420, 260];
+  const updates = [];
+  const controller = createPanelWindowController({
+    getFrame: () => frame,
+    getWorkArea: () => [0, 33, 1512, 949],
+    updateFrame(nextFrame, geometry) {
+      frame = nextFrame;
+      updates.push({ frame: nextFrame, geometry });
+    },
+    drag: false,
+    minimize: false,
+    initialPlacement: { viewportOverflowPolicy: 'allow' },
+  });
+
+  const plan = controller.settleInitialPlacement();
+
+  assert.deepEqual(plan, {
+    requested_frame: [1400, 80, 420, 260],
+    policy_adjusted_frame: [1400, 80, 420, 260],
+    final_settled_frame: [1400, 80, 420, 260],
+    viewport_overflow_policy: 'allow',
+    cause: 'placement.initial',
+  });
+  assert.deepEqual(frame, [1400, 80, 420, 260]);
+  assert.equal(updates.length, 1);
+  assert.deepEqual(updates[0].geometry.placement, plan);
 });
 
 test('createPanelWindowController prewarms the shared stage before minimize click', async (t) => {
@@ -1411,9 +1602,9 @@ test('drag geometry derives pointer frames and clamps final placement', () => {
     },
     getFrame: () => frame,
     getWorkArea: () => [0, 0, 800, 600],
-    updateFrame(nextFrame) {
+    updateFrame(nextFrame, geometry) {
       frame = nextFrame;
-      updates.push(nextFrame);
+      updates.push({ frame: nextFrame, geometry });
     },
     clampOnEnd: true,
     onStateChange(state) {
@@ -1447,7 +1638,8 @@ test('drag geometry derives pointer frames and clamps final placement', () => {
   });
   controller.end();
 
-  assert.deepEqual(updates.at(-1), [560, 440, 240, 160]);
+  assert.deepEqual(updates.at(-1).frame, [560, 440, 240, 160]);
+  assert.deepEqual(updates.at(-1).geometry.placement.final_settled_frame, [560, 440, 240, 160]);
   assert.deepEqual(frame, [560, 440, 240, 160]);
   assert.deepEqual(states.map((state) => state.phase), ['start', 'move', 'end']);
 });
@@ -1464,9 +1656,9 @@ test('drag end clamps to the cursor display instead of a seam-adjacent top-left 
     getDragWorkArea: (nextFrame, pointer) => (
       workAreaForPoint(pointer, stackedDisplays, workAreaForFrameTopLeft(nextFrame, stackedDisplays))
     ),
-    updateFrame(nextFrame) {
+    updateFrame(nextFrame, geometry) {
       frame = nextFrame;
-      updates.push(nextFrame);
+      updates.push({ frame: nextFrame, geometry });
     },
     clampOnEnd: true,
   });
@@ -1475,7 +1667,9 @@ test('drag end clamps to the cursor display instead of a seam-adjacent top-left 
   controller.move({ pointerId: 1, screenX: 120, screenY: 2050 });
   controller.end({ pointerId: 1, screenX: 120, screenY: 2050 });
 
-  assert.deepEqual(updates.at(-1), [100, 1012, 320, 480]);
+  assert.deepEqual(updates.at(-1).frame, [100, 1012, 320, 480]);
+  assert.deepEqual(updates.at(-1).geometry.placement.requested_frame, [100, 980, 320, 480]);
+  assert.deepEqual(updates.at(-1).geometry.placement.final_settled_frame, [100, 1012, 320, 480]);
   assert.deepEqual(frame, [100, 1012, 320, 480]);
 });
 
@@ -1493,9 +1687,9 @@ test('drag end clamps daemon-reported frame instead of stale display-local WebKi
     getDragWorkArea: (nextFrame, pointer) => (
       workAreaForPoint(pointer, stackedDisplays, workAreaForFrameTopLeft(nextFrame, stackedDisplays))
     ),
-    updateFrame(nextFrame) {
+    updateFrame(nextFrame, geometry) {
       frame = nextFrame;
-      updates.push(nextFrame);
+      updates.push({ frame: nextFrame, geometry });
     },
     clampOnEnd: true,
   });
@@ -1504,7 +1698,9 @@ test('drag end clamps daemon-reported frame instead of stale display-local WebKi
   controller.move({ pointerId: 1, screenX: 1360, screenY: 80 });
   controller.end({ pointerId: 1, screenX: 1360, screenY: 1570 });
 
-  assert.deepEqual(updates, []);
+  assert.deepEqual(updates.map((entry) => entry.frame), [[1300, 1550, 360, 230]]);
+  assert.deepEqual(updates[0].geometry.placement.final_settled_frame, [1300, 1550, 360, 230]);
+  assert.equal(updates[0].geometry.placement.viewport_overflow_policy, 'clamp');
   assert.deepEqual(frame, [1300, 1550, 360, 230]);
 });
 

@@ -41,6 +41,11 @@ function stateRoot() {
   return path.join(os.homedir(), '.config', 'aos');
 }
 
+function explicitStateRootOverride() {
+  return Boolean(process.env.AOS_STATE_ROOT)
+    && process.env.AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL !== '1';
+}
+
 function runtimeMode() {
   const override = process.env.AOS_RUNTIME_MODE?.toLowerCase();
   if (override === 'installed') return 'installed';
@@ -60,10 +65,27 @@ function serviceLabel(mode) {
 }
 
 function daemonLockOwnerPID(mode) {
+  const info = daemonLockInfo(mode);
+  return info && info.live ? info.pid : null;
+}
+
+function daemonLockPath(mode) {
+  return path.join(stateDir(mode), 'daemon.lock');
+}
+
+function daemonLockInfo(mode) {
+  const lockPath = daemonLockPath(mode);
   try {
-    const raw = fs.readFileSync(path.join(stateDir(mode), 'daemon.lock'), 'utf8');
+    const raw = fs.readFileSync(lockPath, 'utf8');
     const parsed = JSON.parse(raw);
-    return Number.isInteger(parsed.pid) ? parsed.pid : null;
+    const pid = Number.isInteger(parsed.pid) ? parsed.pid : null;
+    return {
+      mode,
+      path: lockPath,
+      pid,
+      live: pid != null && pidExists(pid),
+      reason: pid == null ? 'malformed daemon lock' : 'daemon lock owner pid is not running',
+    };
   } catch {
     return null;
   }
@@ -170,8 +192,92 @@ function scopedRootName(prefix) {
   return `${prefix}_${suffix}`;
 }
 
-function sigilExpectedStatusItemURL() {
-  return `aos://${scopedRootName('sigil')}/renderer/index.html?toolkit-root=${scopedRootName('toolkit')}`;
+function validExperienceID(id) {
+  return typeof id === 'string' && /^[a-z][a-z0-9-]*$/.test(id);
+}
+
+function readExperienceManifest(id) {
+  if (!validExperienceID(id)) return null;
+  const manifest = readJSONFile(path.join(process.cwd(), 'experiences', id, 'aos-experience.json'));
+  if (!manifest || manifest.id !== id || manifest.schema_version !== 0) return null;
+  return manifest;
+}
+
+function resolveRepoPath(relPath) {
+  if (typeof relPath !== 'string' || !relPath || path.isAbsolute(relPath)) return null;
+  const repoRoot = process.cwd();
+  const resolved = path.resolve(repoRoot, relPath);
+  if (resolved !== repoRoot && !resolved.startsWith(`${repoRoot}${path.sep}`)) return null;
+  return resolved;
+}
+
+function resolveExperienceContentRoots(manifest) {
+  return (manifest?.content_roots || []).flatMap((root) => {
+    const resolved = resolveRepoPath(root.path);
+    if (!root.id || !resolved) return [];
+    return [{
+      id: root.id,
+      key: root.branch_scoped === false ? root.id : scopedRootName(root.id),
+      path: resolved,
+      branch_scoped: root.branch_scoped !== false,
+    }];
+  });
+}
+
+function experienceRootMap(roots) {
+  return Object.fromEntries(roots.map((root) => [root.id, root]));
+}
+
+function templateExperienceValue(value, rootsByID, mode) {
+  if (typeof value !== 'string') return value;
+  let valid = true;
+  const templated = value
+    .replace(/\$\{root:([A-Za-z0-9_-]+)\}/g, (_, id) => {
+      const root = rootsByID[id];
+      if (!root) {
+        valid = false;
+        return '';
+      }
+      return root.key;
+    })
+    .replace(/\$\{mode\}/g, mode)
+    .replace(/\$\{repo_root\}/g, process.cwd());
+  return valid ? templated : null;
+}
+
+function activeExperienceContext(mode) {
+  const id = activeExperience(mode);
+  const manifest = readExperienceManifest(id);
+  if (!manifest) {
+    return {
+      id,
+      manifest: null,
+      preserveCanvasIDs: new Set(),
+      toggleSurface: null,
+      expectedStatusItemURL: null,
+    };
+  }
+
+  const roots = resolveExperienceContentRoots(manifest);
+  const rootsByID = experienceRootMap(roots);
+  const toggleSurface = manifest.status_item?.toggle_surface || null;
+  const expectedStatusItemURL = templateExperienceValue(toggleSurface?.url, rootsByID, mode);
+  const preserveCanvasIDs = new Set(
+    Array.isArray(manifest.cleanup?.preserve_canvas_ids)
+      ? manifest.cleanup.preserve_canvas_ids.filter((id) => typeof id === 'string' && id.length > 0)
+      : [],
+  );
+  if (typeof toggleSurface?.id === 'string' && toggleSurface.id.length > 0) {
+    preserveCanvasIDs.add(toggleSurface.id);
+  }
+
+  return {
+    id,
+    manifest,
+    preserveCanvasIDs,
+    toggleSurface,
+    expectedStatusItemURL,
+  };
 }
 
 function liveContentRoots(mode) {
@@ -186,11 +292,12 @@ function contentRootKeysFromStatusItemURL(rawURL) {
   if (typeof rawURL !== 'string' || !rawURL.startsWith('aos://')) return [];
   try {
     const parsed = new URL(rawURL);
-    const keys = [];
-    if (parsed.hostname) keys.push(parsed.hostname);
-    const toolkitRoot = parsed.searchParams.get('toolkit-root');
-    if (toolkitRoot) keys.push(toolkitRoot);
-    return keys;
+    const keys = new Set();
+    if (parsed.hostname) keys.add(parsed.hostname);
+    for (const [key, value] of parsed.searchParams) {
+      if (key === 'root' || key.endsWith('-root') || key.endsWith('_root')) keys.add(value);
+    }
+    return [...keys];
   } catch {
     return [];
   }
@@ -234,37 +341,38 @@ function equivalentContentURLs(left, right) {
     && leftIdentity.query === rightIdentity.query;
 }
 
-function activeSigilStatusItemDrift(mode, canvases) {
-  if (activeExperience(mode) !== 'sigil') return null;
+function activeExperienceStatusItemDrift(mode, canvases, context = activeExperienceContext(mode)) {
+  if (!context.manifest) return null;
   const config = readJSONFile(path.join(stateDir(mode), 'config.json')) || {};
   const statusItem = config.status_item || {};
   if (statusItem.enabled !== true) return null;
   const roots = liveContentRoots(mode) || config.content?.roots || {};
   const toggleURL = statusItem.toggle_url || '';
-  const expectedURL = sigilExpectedStatusItemURL();
+  const expectedURL = context.expectedStatusItemURL || '';
+  const toggleID = statusItem.toggle_id || context.toggleSurface?.id;
   const missingRoots = contentRootKeysFromStatusItemURL(toggleURL).filter((key) => roots[key] == null);
-  const avatar = canvases.find((canvas) => canvas.id === statusItem.toggle_id);
-  const avatarURL = typeof avatar?.url === 'string' ? avatar.url : null;
-  const avatarDrift = avatarURL != null
-    && !equivalentContentURLs(avatarURL, toggleURL)
-    && !equivalentContentURLs(avatarURL, expectedURL);
-  const targetDrift = toggleURL !== expectedURL;
-  if (!targetDrift && missingRoots.length === 0 && !avatarDrift) return null;
+  const toggleCanvas = canvases.find((canvas) => canvas.id === toggleID);
+  const toggleCanvasURL = typeof toggleCanvas?.url === 'string' ? toggleCanvas.url : null;
+  const toggleCanvasDrift = toggleCanvasURL != null
+    && !equivalentContentURLs(toggleCanvasURL, toggleURL)
+    && (expectedURL.length === 0 || !equivalentContentURLs(toggleCanvasURL, expectedURL));
+  const targetDrift = expectedURL.length > 0 && !equivalentContentURLs(toggleURL, expectedURL);
+  if (!targetDrift && missingRoots.length === 0 && !toggleCanvasDrift) return null;
   const notes = [];
   if (targetDrift) {
-    notes.push(`Active Sigil status item target drift: status_item.toggle_url=${toggleURL || '<empty>'}; expected ${expectedURL}. Run './aos experience activate sigil'.`);
+    notes.push(`Active experience ${context.id} status item target drift: status_item.toggle_url=${toggleURL || '<empty>'}; expected ${expectedURL}. Run './aos experience activate ${context.id}'.`);
   }
   if (missingRoots.length > 0) {
-    notes.push(`Active Sigil status item references missing content root(s): ${missingRoots.join(', ')}. Run './aos experience activate sigil'.`);
+    notes.push(`Active experience ${context.id} status item references missing content root(s): ${missingRoots.join(', ')}. Run './aos experience activate ${context.id}'.`);
   }
-  if (avatarDrift) {
-    notes.push(`Active Sigil canvas ${avatar.id} is loaded at ${avatarURL}, which differs from status_item.toggle_url. Run './aos show remove --id ${avatar.id}' or './aos experience activate sigil'.`);
+  if (toggleCanvasDrift) {
+    notes.push(`Active experience ${context.id} canvas ${toggleCanvas.id} is loaded at ${toggleCanvasURL}, which differs from status_item.toggle_url. Run './aos show remove --id ${toggleCanvas.id}' or './aos experience activate ${context.id}'.`);
   }
   return {
     expectedURL,
     toggleURL,
     missingRoots,
-    canvases: avatarDrift ? [avatar] : [],
+    canvases: toggleCanvasDrift ? [toggleCanvas] : [],
     notes,
   };
 }
@@ -299,27 +407,23 @@ function activeExperience(mode) {
   return null;
 }
 
-const SIGIL_OWNED_CANVAS_IDS = new Set([
-  'avatar-main',
-  'sigil-hit-avatar-main',
-  'sigil-radial-menu-avatar-main',
-  'sigil-agent-terminal',
-  'sigil-wiki-workbench',
-]);
-
-function sigilOwnedCanvas(canvas) {
-  const id = canvas.id || '';
-  const parent = canvas.parent || '';
-  return SIGIL_OWNED_CANVAS_IDS.has(id)
-    || (id === 'aos-desktop-world-stage' && SIGIL_OWNED_CANVAS_IDS.has(parent));
+function activeExperienceOwnedCanvas(canvas, context, canvasesByID) {
+  if (!context.manifest || context.preserveCanvasIDs.size === 0) return false;
+  const seen = new Set();
+  let id = canvas.id || '';
+  while (id && !seen.has(id)) {
+    if (context.preserveCanvasIDs.has(id)) return true;
+    seen.add(id);
+    id = canvasesByID.get(id)?.parent || '';
+  }
+  return false;
 }
 
 function staleCanvasesForMode(mode) {
-  const active = activeExperience(mode);
-  return listCanvases(mode).filter((canvas) => {
-    if (active === 'sigil' && sigilOwnedCanvas(canvas)) return false;
-    return true;
-  });
+  const canvases = listCanvases(mode);
+  const activeContext = activeExperienceContext(mode);
+  const canvasesByID = new Map(canvases.map((canvas) => [canvas.id, canvas]));
+  return canvases.filter((canvas) => !activeExperienceOwnedCanvas(canvas, activeContext, canvasesByID));
 }
 
 function parentFirstCanvases(canvases) {
@@ -406,6 +510,12 @@ function waitForDaemonExit(pids, timeoutMs = 2500) {
   return Array.from(pending);
 }
 
+function staleDaemonLocks(modes) {
+  return modes
+    .map((mode) => daemonLockInfo(mode))
+    .filter((lock) => lock && !lock.live);
+}
+
 function waitForCanvasRemoval(mode, timeoutMs = 2500) {
   const deadline = Date.now() + timeoutMs;
   let remaining = staleCanvasesForMode(mode);
@@ -422,16 +532,37 @@ function runClean(dryRun) {
   const protectedRoots = [
     launchdManagedPID(serviceLabel(mode)),
     launchdManagedPID(serviceLabel(alternateMode)),
-    daemonLockOwnerPID(mode),
-    daemonLockOwnerPID(alternateMode),
   ].filter((pid) => pid != null);
+  if (explicitStateRootOverride()) {
+    protectedRoots.push(
+      ...[
+        daemonLockOwnerPID(mode),
+        daemonLockOwnerPID(alternateMode),
+      ].filter((pid) => pid != null),
+    );
+  }
   const protectedPIDs = addProcessFamily(protectedRoots);
 
   const staleDaemons = [];
   let remainingStaleDaemons = [];
   const orphanedClients = orphanedClientProcesses();
+  const staleLocks = staleDaemonLocks([mode, alternateMode]);
+  let remainingStaleLocks = staleLocks;
   const actions = [];
   const notes = [];
+  for (const lock of staleLocks) {
+    if (!dryRun) {
+      try {
+        fs.rmSync(lock.path, { force: true });
+        actions.push(`removed stale daemon lock mode=${lock.mode} pid=${lock.pid ?? 'unknown'}`);
+      } catch {
+        notes.push(`failed to remove stale daemon lock mode=${lock.mode} path=${lock.path}`);
+      }
+    }
+  }
+  if (!dryRun && staleLocks.length > 0) {
+    remainingStaleLocks = staleDaemonLocks([mode, alternateMode]);
+  }
   for (const pid of allDaemonPIDs().filter((pid) => !protectedPIDs.has(pid))) {
     const args = processArgs(pid);
     staleDaemons.push({ pid, args });
@@ -463,19 +594,20 @@ function runClean(dryRun) {
     }
   }
 
+  const activeContext = activeExperienceContext(mode);
   const listedCurrentCanvases = listCanvases(mode);
-  const sigilDrift = activeSigilStatusItemDrift(mode, listedCurrentCanvases);
+  const experienceDrift = activeExperienceStatusItemDrift(mode, listedCurrentCanvases, activeContext);
   let currentCanvases = parentFirstCanvases(staleCanvasesForMode(mode));
-  if (sigilDrift?.canvases?.length) {
+  if (experienceDrift?.canvases?.length) {
     const byID = new Map(currentCanvases.map((canvas) => [canvas.id, canvas]));
-    for (const canvas of sigilDrift.canvases) byID.set(canvas.id, canvas);
+    for (const canvas of experienceDrift.canvases) byID.set(canvas.id, canvas);
     currentCanvases = parentFirstCanvases(Array.from(byID.values()));
   }
   let otherCanvases = parentFirstCanvases(staleCanvasesForMode(alternateMode));
   if (otherCanvases.length > 0) {
     notes.push(`${otherCanvases.length} canvas(es) on ${alternateMode}-mode daemon`);
   }
-  if (sigilDrift) notes.push(...sigilDrift.notes);
+  if (experienceDrift) notes.push(...experienceDrift.notes);
   const canvases = [...currentCanvases, ...otherCanvases];
 
   if (!dryRun && canvases.length > 0) {
@@ -494,11 +626,11 @@ function runClean(dryRun) {
   }
 
   const remainingCanvases = dryRun ? canvases : [...currentCanvases, ...otherCanvases];
-  const foundResources = staleDaemons.length > 0 || canvases.length > 0 || orphanedClients.length > 0 || sigilDrift != null;
+  const foundResources = staleDaemons.length > 0 || staleLocks.length > 0 || canvases.length > 0 || orphanedClients.length > 0 || experienceDrift != null;
   let status = 'clean';
   if (dryRun && foundResources) {
     status = 'dirty';
-  } else if (!dryRun && (remainingCanvases.length > 0 || remainingStaleDaemons.length > 0)) {
+  } else if (!dryRun && (remainingCanvases.length > 0 || remainingStaleDaemons.length > 0 || remainingStaleLocks.length > 0)) {
     status = 'failed';
   } else if (!dryRun && foundResources) {
     status = 'cleaned';
@@ -506,6 +638,7 @@ function runClean(dryRun) {
   return {
     status,
     stale_daemons: dryRun ? staleDaemons : remainingStaleDaemons,
+    stale_locks: dryRun ? staleLocks : remainingStaleLocks,
     orphaned_clients: orphanedClients,
     canvases: dryRun ? canvases : remainingCanvases,
     actions_taken: actions,
@@ -514,12 +647,16 @@ function runClean(dryRun) {
 }
 
 function printText(report, dryRun) {
-  if (report.stale_daemons.length === 0 && report.orphaned_clients.length === 0 && report.canvases.length === 0) {
+  if (report.stale_daemons.length === 0 && report.stale_locks.length === 0 && report.orphaned_clients.length === 0 && report.canvases.length === 0) {
     process.stdout.write('clean: nothing to clean\n');
   } else {
     for (const daemon of report.stale_daemons) {
       const verb = dryRun ? 'found' : 'killed';
       process.stdout.write(`clean: ${verb} stale daemon pid=${daemon.pid} (${daemon.args})\n`);
+    }
+    for (const lock of report.stale_locks) {
+      const verb = dryRun ? 'found' : 'removed';
+      process.stdout.write(`clean: ${verb} stale daemon lock mode=${lock.mode} pid=${lock.pid ?? 'unknown'} (${lock.reason})\n`);
     }
     for (const client of report.orphaned_clients) {
       const verb = dryRun ? 'found' : 'killed';

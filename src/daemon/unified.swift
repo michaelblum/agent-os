@@ -102,6 +102,7 @@ class UnifiedDaemon {
     )
     private var inputSafetyPassthroughTimer: DispatchSourceTimer?
     private var inputSafetyPassthroughDeadline: Date?
+    private var inputSafetyEmergencyExitScheduled = false
     private var speechEngine: SpeechEngine?
     private var speechCancelTap: CFMachPort?
     private var speechCancelTapSource: CFRunLoopSource?
@@ -154,13 +155,10 @@ class UnifiedDaemon {
     private var displayGeometryBroadcastScheduled = false
     private let displayGeometryCoalesceMs: Int = 100
 
-    // Per-agent last-known position, keyed by agent id (e.g. "default" from
-    // `sigil/agents/default.md`). In-memory only — wiped on daemon restart.
-    // Written by the renderer on every transition to IDLE; read by the
-    // renderer on boot to resume the avatar where the user last left it.
-    // Spec: docs/superpowers/specs/2026-04-13-sigil-birthplace-and-lastposition.md
+    // Caller-published last-known surface positions. In-memory only — wiped on
+    // daemon restart. Written by a renderer on every transition to IDLE; read
+    // by the same renderer on boot to resume where the user last left it.
     var configChangeHandler: ((AosConfig) -> Void)?
-    var canvasInspectorAnnotationModeHandler: ((Bool) -> Void)?
     var statusItemStateHandler: ((String, Bool) -> Void)?
     private var lastPositions: [String: (x: Double, y: Double)] = [:]
     private let lastPositionsLock = NSLock()
@@ -235,7 +233,7 @@ class UnifiedDaemon {
             self?.handleInputEvent(event: event, data: data) ?? false
         }
         perception.onInputSafetyHotkeyTriggered = { [weak self] deadline in
-            self?.activateInputSafetyPassthrough(until: deadline)
+            self?.activateInputSafetyEmergencyExit(until: deadline)
         }
 
         // Wire canvas events -> broadcast
@@ -260,6 +258,9 @@ class UnifiedDaemon {
                     return
                 case "canvas.create":
                     self.handleCanvasCreate(callerID: canvasID, payload: inner ?? [:])
+                    return
+                case "aos.action":
+                    self.handleAosAction(callerID: canvasID, payload: inner ?? [:])
                     return
                 case "canvas.update":
                     self.handleCanvasUpdate(callerID: canvasID, payload: inner ?? [:])
@@ -357,12 +358,6 @@ class UnifiedDaemon {
                 case "canvas_inspector.request_bundle_config":
                     self.sendCanvasInspectorSeeBundleConfig(canvasID: canvasID)
                     return
-                case "canvas_inspector.annotation_state":
-                    let active = (inner?["annotation_mode_active"] as? Bool) ?? false
-                    DispatchQueue.main.async { [weak self] in
-                        self?.canvasInspectorAnnotationModeHandler?(active)
-                    }
-                    return
                 case "clipboard.read":
                     let text = NSPasteboard.general.string(forType: .string) ?? ""
                     self.dispatchCanvasResponse(to: canvasID, requestID: inner?["request_id"] as? String,
@@ -395,13 +390,6 @@ class UnifiedDaemon {
         canvasManager.onCanvasLifecycle = { [weak self] canvasInfo, action in
             guard let self = self else { return }
             self.publishCanvasLifecycle(action: action, canvasInfo: canvasInfo)
-            if canvasInfo.id == "surface-inspector",
-               action == "removed" || canvasInfo.suspended == true {
-                DispatchQueue.main.async { [weak self] in
-                    self?.canvasInspectorAnnotationModeHandler?(false)
-                }
-            }
-
             if action == "removed" {
                 self.removeInputRegionsOwned(by: canvasInfo.id, includeSuspendRetained: true)
             } else if canvasInfo.suspended == true {
@@ -1158,6 +1146,369 @@ class UnifiedDaemon {
         dispatchCanvasResponse(to: canvasID, requestID: requestID, status: "ok")
     }
 
+    private func handleAosAction(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        guard let action = (payload["action"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_ACTION", message: "aos.action requires action")
+            return
+        }
+
+        switch action {
+        case "canvas.create":
+            handleCanvasCreate(callerID: callerID, payload: payload)
+        case "canvas.send":
+            handleCanvasSend(callerID: callerID, payload: payload)
+        case "panel.open":
+            handlePanelAction(callerID: callerID, action: action, payload: payload, mode: "open")
+        case "panel.toggle":
+            handlePanelAction(callerID: callerID, action: action, payload: payload, mode: "toggle")
+        case "panel.close":
+            handlePanelAction(callerID: callerID, action: action, payload: payload, mode: "close")
+        case "macos.open_url":
+            handleMacOSOpenURLAction(callerID: callerID, payload: payload)
+        case "app.quit":
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "ok", extra: aosActionResponseExtra(callerID: callerID, action: action, payload: payload))
+            DispatchQueue.main.async {
+                NSApp.terminate(nil)
+            }
+        default:
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "UNKNOWN_ACTION", message: "unknown aos.action '\(action)'")
+        }
+    }
+
+    private func aosActionResponseExtra(callerID: String, action: String, payload: [String: Any], extra: [String: Any] = [:]) -> [String: Any] {
+        var out: [String: Any] = [
+            "action": action,
+            "source_canvas_id": callerID,
+        ]
+        if let source = payload["source"] { out["source"] = source }
+        if let control = payload["control"] { out["control"] = control }
+        for (key, value) in extra { out[key] = value }
+        return out
+    }
+
+    private func actionTargetID(_ payload: [String: Any]) -> String? {
+        for key in ["id", "panel_id", "target", "target_id"] {
+            if let value = (payload[key] as? String).flatMap({ $0.isEmpty ? nil : $0 }) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func actionURL(_ payload: [String: Any]) -> String? {
+        for key in ["url", "href"] {
+            if let value = (payload[key] as? String).flatMap({ $0.isEmpty ? nil : $0 }) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func rectDictionary(_ value: Any?) -> [String: Double]? {
+        guard let dict = value as? [String: Any] else { return nil }
+        let x = numberValue(dict["x"])
+        let y = numberValue(dict["y"])
+        let w = numberValue(dict["w"]) ?? numberValue(dict["width"])
+        let h = numberValue(dict["h"]) ?? numberValue(dict["height"])
+        guard let x, let y, let w, let h, w.isFinite, h.isFinite, w > 0, h > 0 else { return nil }
+        return ["x": x, "y": y, "w": w, "h": h]
+    }
+
+    private func pointDictionary(_ value: Any?) -> [String: Double]? {
+        guard let dict = value as? [String: Any] else { return nil }
+        guard let x = numberValue(dict["x"]),
+              let y = numberValue(dict["y"]) else { return nil }
+        return ["x": x, "y": y]
+    }
+
+    private func rectContainsPoint(_ rect: [String: Double], _ point: [String: Double]) -> Bool {
+        let x = rect["x"] ?? 0
+        let y = rect["y"] ?? 0
+        let w = rect["w"] ?? 0
+        let h = rect["h"] ?? 0
+        let px = point["x"] ?? 0
+        let py = point["y"] ?? 0
+        return px >= x && py >= y && px < x + w && py < y + h
+    }
+
+    private func displayRectForPoint(_ point: [String: Double], coordinateSpace: String, geometry: [String: Any]) -> [String: Double]? {
+        let displayRectKeys = coordinateSpace == "desktop_world"
+            ? ["visible_desktop_world_bounds", "desktop_world_bounds", "visible_bounds", "bounds"]
+            : ["native_visible_bounds", "visible_bounds", "native_bounds", "bounds"]
+        if let displays = geometry["displays"] as? [[String: Any]] {
+            for key in displayRectKeys {
+                for display in displays {
+                    guard let rect = rectDictionary(display[key]) else { continue }
+                    if rectContainsPoint(rect, point) { return rect }
+                }
+            }
+        }
+        let topLevelKeys = coordinateSpace == "desktop_world"
+            ? ["visible_desktop_world_bounds", "desktop_world_bounds", "global_bounds"]
+            : ["global_bounds"]
+        for key in topLevelKeys {
+            if let rect = rectDictionary(geometry[key]) { return rect }
+        }
+        return nil
+    }
+
+    private func clampFrame(_ frame: [Double], to rect: [String: Double]?) -> [Double] {
+        guard let rect else { return frame }
+        let areaX = rect["x"] ?? 0
+        let areaY = rect["y"] ?? 0
+        let areaW = max(1, rect["w"] ?? 1)
+        let areaH = max(1, rect["h"] ?? 1)
+        let width = min(max(1, frame[2]), areaW)
+        let height = min(max(1, frame[3]), areaH)
+        let maxX = max(areaX, areaX + areaW - width)
+        let maxY = max(areaY, areaY + areaH - height)
+        let x = min(max(frame[0], areaX), maxX)
+        let y = min(max(frame[1], areaY), maxY)
+        return [x, y, width, height]
+    }
+
+    private func nativePointFromDesktopWorld(_ point: [String: Double], geometry: [String: Any]) -> [String: Double] {
+        let global = rectDictionary(geometry["global_bounds"]) ?? ["x": 0, "y": 0, "w": 0, "h": 0]
+        return [
+            "x": (point["x"] ?? 0) + (global["x"] ?? 0),
+            "y": (point["y"] ?? 0) + (global["y"] ?? 0),
+        ]
+    }
+
+    private func resolveActionFrame(_ payload: [String: Any], required: Bool) -> (frame: [CGFloat]?, code: String?, message: String?) {
+        if payload["frame"] != nil {
+            return parseCanvasFrame(payload["frame"], required: required)
+        }
+        if payload["at"] != nil {
+            return parseCanvasFrame(payload["at"], required: required)
+        }
+
+        guard let anchor = payload["anchor"] as? [String: Any] else {
+            if required {
+                return (nil, "INVALID_FRAME", "panel action requires frame, at, or anchor")
+            }
+            return (nil, nil, nil)
+        }
+
+        let point = pointDictionary(anchor["point"])
+            ?? pointDictionary(anchor["desktop_world"])
+            ?? pointDictionary(anchor["desktopWorld"])
+            ?? pointDictionary(anchor)
+        guard let point else {
+            if required {
+                return (nil, "INVALID_ANCHOR", "anchor requires numeric x and y")
+            }
+            return (nil, nil, nil)
+        }
+
+        let width = numberValue(payload["width"]) ?? numberValue(anchor["width"]) ?? numberValue(anchor["w"])
+        let height = numberValue(payload["height"]) ?? numberValue(anchor["height"]) ?? numberValue(anchor["h"])
+        guard let width, let height, width > 0, height > 0 else {
+            if required {
+                return (nil, "INVALID_FRAME", "anchor panel action requires width and height")
+            }
+            return (nil, nil, nil)
+        }
+
+        let offset = pointDictionary(anchor["offset"]) ?? [
+            "x": numberValue(anchor["offset_x"]) ?? numberValue(anchor["offsetX"]) ?? 0.0,
+            "y": numberValue(anchor["offset_y"]) ?? numberValue(anchor["offsetY"]) ?? 0.0,
+        ]
+        let coordinateSpace = (anchor["coordinate_space"] as? String)
+            ?? (anchor["coordinateSpace"] as? String)
+            ?? (payload["coordinate_space"] as? String)
+            ?? "native"
+        let normalizedSpace = coordinateSpace == "desktopWorld" ? "desktop_world" : coordinateSpace
+        let geometry = snapshotDisplayGeometry()
+
+        var frame = [
+            (point["x"] ?? 0) + (offset["x"] ?? 0),
+            (point["y"] ?? 0) + (offset["y"] ?? 0),
+            width,
+            height,
+        ]
+        let area = displayRectForPoint(point, coordinateSpace: normalizedSpace, geometry: geometry)
+        frame = clampFrame(frame, to: area)
+
+        if normalizedSpace == "desktop_world" {
+            let native = nativePointFromDesktopWorld(["x": frame[0], "y": frame[1]], geometry: geometry)
+            frame[0] = native["x"] ?? frame[0]
+            frame[1] = native["y"] ?? frame[1]
+        } else if normalizedSpace != "native" {
+            return (nil, "INVALID_COORDINATE_SPACE", "unsupported anchor coordinate_space '\(coordinateSpace)'")
+        }
+
+        return (frame.map { CGFloat($0) }, nil, nil)
+    }
+
+    private func canvasCreateRequestFromActionPayload(_ payload: [String: Any], id: String, frame: [CGFloat]?, callerID: String) -> CanvasRequest {
+        var request = CanvasRequest(action: "create")
+        request.id = id
+        request.at = frame
+        request.url = actionURL(payload).map { resolveContentURL($0) }
+        request.interactive = payload["interactive"] as? Bool ?? true
+        request.windowLevel = payload["window_level"] as? String
+        request.focus = payload["focus"] as? Bool
+        request.scope = payload["scope"] as? String
+        request.track = payload["track"] as? String
+        request.surface = payload["surface"] as? String
+        request.parent = (payload["parent"] as? String) ?? callerID
+        request.cascade = payload["cascade"] as? Bool
+        request.suspended = payload["suspended"] as? Bool
+        if let geometry = payload["geometry"] as? [String: Any],
+           let converted = JSONValue(geometry)?.objectValue {
+            request.geometry = converted
+        }
+        return request
+    }
+
+    private func canvasUpdateRequestFromActionPayload(_ payload: [String: Any], id: String, frame: [CGFloat]?) -> CanvasRequest {
+        var request = CanvasRequest(action: "update")
+        request.id = id
+        request.at = frame
+        request.interactive = payload["interactive"] as? Bool
+        request.windowLevel = payload["window_level"] as? String
+        request.geometryChange = payload["geometry_change"] as? String ?? (frame == nil ? nil : "frame")
+        request.geometryCause = payload["geometry_cause"] as? String ?? "aos.action"
+        request.geometryPhase = payload["geometry_phase"] as? String ?? (frame == nil ? nil : "settled")
+        request.geometryTransactionID = payload["geometry_transaction_id"] as? String
+        if let geometry = payload["geometry"] as? [String: Any],
+           let converted = JSONValue(geometry)?.objectValue {
+            request.geometry = converted
+        }
+        return request
+    }
+
+    private func handlePanelAction(callerID: String, action: String, payload: [String: Any], mode: String) {
+        let requestID = payload["request_id"] as? String
+        guard let panelID = actionTargetID(payload) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_ID", message: "\(action) requires id")
+            return
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let exists = self.canvasManager.hasCanvas(panelID)
+            if mode == "close" || (mode == "toggle" && exists && (payload["toggle_behavior"] as? String) == "close") {
+                if !exists {
+                    self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok",
+                        extra: self.aosActionResponseExtra(callerID: callerID, action: action, payload: payload, extra: [
+                            "panel": ["id": panelID, "exists": false, "operation": "noop"],
+                        ]))
+                    return
+                }
+                let response = self.canvasManager.handle(CanvasRequest(action: "remove", id: panelID))
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: response.status == "success" ? "ok" : "error",
+                    code: response.code, message: response.error,
+                    extra: self.aosActionResponseExtra(callerID: callerID, action: action, payload: payload, extra: [
+                        "panel": ["id": panelID, "operation": "close"],
+                    ]))
+                return
+            }
+
+            let parsedFrame = self.resolveActionFrame(payload, required: !exists)
+            if let code = parsedFrame.code {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: code, message: parsedFrame.message)
+                return
+            }
+
+            if exists {
+                let update = self.canvasUpdateRequestFromActionPayload(payload, id: panelID, frame: parsedFrame.frame)
+                let updateResponse = self.canvasManager.handle(update)
+                if updateResponse.status != "success" {
+                    self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                        status: "error", code: updateResponse.code, message: updateResponse.error)
+                    return
+                }
+                let resumeResponse = self.canvasManager.handle(CanvasRequest(action: "resume", id: panelID))
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: resumeResponse.status == "success" ? "ok" : "error",
+                    code: resumeResponse.code, message: resumeResponse.error,
+                    extra: self.aosActionResponseExtra(callerID: callerID, action: action, payload: payload, extra: [
+                        "panel": ["id": panelID, "operation": parsedFrame.frame == nil ? "resume" : "reposition"],
+                    ]))
+                return
+            }
+
+            guard actionURL(payload) != nil else {
+                self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                    status: "error", code: "MISSING_URL", message: "\(action) requires url when creating a panel")
+                return
+            }
+            let create = self.canvasCreateRequestFromActionPayload(payload, id: panelID, frame: parsedFrame.frame, callerID: callerID)
+            let createResponse = self.canvasManager.handle(create)
+            if createResponse.status == "success" {
+                self.canvasSubscriptionLock.lock()
+                self.canvasCreatedBy[panelID] = callerID
+                var siblings = self.canvasChildren[callerID] ?? []
+                siblings.insert(panelID)
+                self.canvasChildren[callerID] = siblings
+                self.canvasSubscriptionLock.unlock()
+            }
+            self.dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: createResponse.status == "success" ? "ok" : "error",
+                code: createResponse.code, message: createResponse.error,
+                createdID: createResponse.status == "success" ? panelID : nil,
+                extra: self.aosActionResponseExtra(callerID: callerID, action: action, payload: payload, extra: [
+                    "panel": ["id": panelID, "operation": "open"],
+                ]))
+        }
+    }
+
+    private func handleMacOSOpenURLAction(callerID: String, payload: [String: Any]) {
+        let requestID = payload["request_id"] as? String
+        guard let rawURL = actionURL(payload) else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_URL", message: "macos.open_url requires url")
+            return
+        }
+        let resolved = resolveContentURL(rawURL)
+        guard let url = URL(string: resolved),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "URL_SCHEME_NOT_ALLOWED",
+                message: "macos.open_url allows http, https, and browser-safe resolved AOS URLs")
+            return
+        }
+
+        if let logPath = ProcessInfo.processInfo.environment["AOS_OPEN_URL_LOG"], !logPath.isEmpty {
+            let line = resolved + "\n"
+            let data = Data(line.utf8)
+            FileManager.default.createFile(atPath: logPath, contents: nil)
+            if let handle = FileHandle(forWritingAtPath: logPath) {
+                handle.seekToEndOfFile()
+                handle.write(data)
+                handle.closeFile()
+            }
+            dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok",
+                extra: aosActionResponseExtra(callerID: callerID, action: "macos.open_url", payload: payload, extra: [
+                    "url": resolved,
+                    "opened": true,
+                    "opener": "log",
+                ]))
+            return
+        }
+
+        let opened = NSWorkspace.shared.open(url)
+        dispatchCanvasResponse(to: callerID, requestID: requestID,
+            status: opened ? "ok" : "error",
+            code: opened ? nil : "OPEN_URL_FAILED",
+            message: opened ? nil : "NSWorkspace failed to open \(resolved)",
+            extra: aosActionResponseExtra(callerID: callerID, action: "macos.open_url", payload: payload, extra: [
+                "url": resolved,
+                "opened": opened,
+                "opener": "NSWorkspace",
+            ]))
+    }
+
     private func canvasMutationPermitted(callerID: String, targetID: String) -> Bool {
         if targetID == callerID { return true }
         canvasSubscriptionLock.lock()
@@ -1369,7 +1720,7 @@ class UnifiedDaemon {
             return
         }
 
-        // Build the CanvasRequest. Only `frame`, `interactive`, and `window_level` are accepted for update.
+        // Build the CanvasRequest. `geometry` carries generic audit/placement metadata.
         let requestID = payload["request_id"] as? String
         let parsedFrame = parseCanvasFrame(payload["frame"], required: false)
         if let code = parsedFrame.code {
@@ -1381,11 +1732,12 @@ class UnifiedDaemon {
         let interactive = payload["interactive"] as? Bool
         let windowLevel = payload["window_level"] as? String
         let geometry = payload["geometry"] as? [String: Any]
+        let convertedGeometry = geometry.flatMap { JSONValue($0)?.objectValue }
 
-        guard at != nil || interactive != nil || windowLevel != nil else {
+        guard at != nil || interactive != nil || windowLevel != nil || convertedGeometry != nil else {
             fputs("[canvas-mut] update dropped caller=\(callerID) target=\(targetID) reason=no-fields\n", stderr)
             dispatchCanvasResponse(to: callerID, requestID: requestID,
-                status: "error", code: "NO_FIELDS", message: "canvas.update requires frame, interactive, or window_level")
+                status: "error", code: "NO_FIELDS", message: "canvas.update requires frame, interactive, window_level, or geometry")
             return
         }
 
@@ -1402,7 +1754,8 @@ class UnifiedDaemon {
             geometryChange: geometry?["change"] as? String ?? payload["geometry_change"] as? String,
             geometryCause: geometry?["cause"] as? String ?? payload["geometry_cause"] as? String,
             geometryPhase: geometry?["phase"] as? String ?? payload["geometry_phase"] as? String,
-            geometryTransactionID: geometry?["transaction_id"] as? String ?? payload["geometry_transaction_id"] as? String
+            geometryTransactionID: geometry?["transaction_id"] as? String ?? payload["geometry_transaction_id"] as? String,
+            geometry: convertedGeometry
         )
 
         DispatchQueue.main.async { [weak self] in
@@ -1534,11 +1887,24 @@ class UnifiedDaemon {
     /// Relay an arbitrary message from one canvas to another via headsup.receive.
     /// Payload: { target: "canvas-id", message: { ... } }
     private func handleCanvasSend(callerID: String, payload: [String: Any]) {
-        guard let targetID = payload["target"] as? String, !targetID.isEmpty else { return }
-        guard let message = payload["message"] else { return }
+        let requestID = payload["request_id"] as? String
+        guard let targetID = payload["target"] as? String, !targetID.isEmpty else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_TARGET", message: "canvas.send requires target")
+            return
+        }
+        guard let message = payload["message"] else {
+            dispatchCanvasResponse(to: callerID, requestID: requestID,
+                status: "error", code: "MISSING_MESSAGE", message: "canvas.send requires message")
+            return
+        }
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.canvasManager.postMessageAsync(canvasID: targetID, payload: message)
+            self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: [
+                "target": targetID,
+                "source_canvas_id": callerID,
+            ])
         }
     }
 
@@ -2049,6 +2415,26 @@ class UnifiedDaemon {
         return (service, action, data, ref)
     }
 
+    private func pointFromAuditRequest(_ json: [String: Any]) -> CGPoint? {
+        if let point = json["point"] as? [Double], point.count >= 2 {
+            return CGPoint(x: point[0], y: point[1])
+        }
+        if let point = json["point"] as? [CGFloat], point.count >= 2 {
+            return CGPoint(x: point[0], y: point[1])
+        }
+        guard let x = json["x"], let y = json["y"] else { return nil }
+        func number(_ value: Any) -> CGFloat? {
+            if let value = value as? CGFloat { return value }
+            if let value = value as? Double { return CGFloat(value) }
+            if let value = value as? Int { return CGFloat(value) }
+            if let value = value as? NSNumber { return CGFloat(truncating: value) }
+            if let value = value as? String, let parsed = Double(value) { return CGFloat(parsed) }
+            return nil
+        }
+        guard let px = number(x), let py = number(y) else { return nil }
+        return CGPoint(x: px, y: py)
+    }
+
     /// Map v1 envelope (service, action) to the legacy flat action string
     /// used by the existing switch. Returns nil if the pair is not in the v1 catalog.
     private func legacyActionName(service: String, action: String) -> String? {
@@ -2060,6 +2446,7 @@ class UnifiedDaemon {
         case ("show", "remove"):              return "remove"
         case ("show", "remove_all"):          return "remove-all"
         case ("show", "list"):                return "list"
+        case ("show", "audit"):               return "audit"
         case ("show", "post"):                return "post"
         case ("see", "snapshot"):             return "snapshot"
         case ("tell", "send"):                return "tell"
@@ -2207,6 +2594,19 @@ class UnifiedDaemon {
             if wantsSnapshot { sendSubscriberSnapshots(to: clientFD, events: events) }
 
         // -- Display actions (dispatch to CanvasManager on main thread) --
+        case "audit":
+            let point = pointFromAuditRequest(json)
+            let semaphore = DispatchSemaphore(value: 0)
+            var audit: [String: Any] = ["status": "error", "error": "Internal error", "code": "INTERNAL"]
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { semaphore.signal(); return }
+                audit = self.canvasManager.visibleSurfaceAudit(point: point)
+                self.checkIdle()
+                semaphore.signal()
+            }
+            semaphore.wait()
+            sendResponseJSON(to: clientFD, audit, envelopeActive: envelopeActive, envelopeRef: envelopeRef)
+
         case "create", "update", "remove", "remove-all", "list", "eval", "to-front":
             let requestData = lineData(from: json)
             guard var request = CanvasRequest.from(requestData) else {
@@ -3033,30 +3433,22 @@ class UnifiedDaemon {
         return events.contains("input_event")
     }
 
-    private func activateInputSafetyPassthrough(until deadline: Date) {
+    private func activateInputSafetyEmergencyExit(until deadline: Date) {
+        guard !inputSafetyEmergencyExitScheduled else { return }
+        inputSafetyEmergencyExitScheduled = true
         inputSafetyPassthroughDeadline = deadline
-        canvasManager.setInputPassthrough(true)
-        inputSafetyVisualFeedbackPresenter.trigger(deadline: deadline)
-        scheduleInputSafetyPassthroughRestore(for: deadline)
-    }
-
-    private func scheduleInputSafetyPassthroughRestore(for deadline: Date) {
         inputSafetyPassthroughTimer?.cancel()
-        let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + max(0, deadline.timeIntervalSinceNow))
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            if let activeDeadline = self.inputSafetyPassthroughDeadline,
-               Date() < activeDeadline {
-                self.scheduleInputSafetyPassthroughRestore(for: activeDeadline)
-                return
-            }
-            self.canvasManager.setInputPassthrough(false)
-            self.inputSafetyPassthroughDeadline = nil
-            self.inputSafetyPassthroughTimer = nil
+        inputSafetyPassthroughTimer = nil
+        canvasManager.setInputPassthrough(true)
+        teardownSpeechCancelTap()
+        perception.stop()
+        fputs("AOS input safety escape hatch triggered; released input ownership and exiting daemon\n", stderr)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(50)) {
+            NSApp.terminate(nil)
         }
-        timer.resume()
-        inputSafetyPassthroughTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) {
+            Darwin.exit(0)
+        }
     }
 
     private func handleInputEvent(event: String, data: [String: Any]) -> Bool {

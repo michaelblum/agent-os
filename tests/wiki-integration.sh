@@ -102,14 +102,14 @@ echo "$OUTPUT" | grep -q "gateway" && pass "search finds gateway" || fail "searc
 echo ""
 echo "--- graph ---"
 mkdir -p "$WIKI_DIR/aos/entities"
-cat > "$WIKI_DIR/aos/entities/agent-frontmatter-compat.md" <<'EOF'
+cat > "$WIKI_DIR/aos/entities/entity-frontmatter-canonical.md" <<'EOF'
 ---
-type: agent
-name: Taxonomy Alignment Test Agent
-tags: [taxonomy, compatibility]
+type: entity
+name: Taxonomy Alignment Test Entity
+tags: [taxonomy]
 ---
 
-# Taxonomy Alignment Test Agent
+# Taxonomy Alignment Test Entity
 EOF
 $AOS wiki reindex > /dev/null
 OUTPUT=$($AOS wiki graph --json)
@@ -117,11 +117,11 @@ echo "$OUTPUT" | grep -q '"graphView"' && echo "$OUTPUT" | grep -q 'gateway.md' 
 echo "$OUTPUT" | python3 -c '
 import json, sys
 graph = json.load(sys.stdin)
-node = next((n for n in graph.get("nodes", []) if n.get("path") == "aos/entities/agent-frontmatter-compat.md"), None)
-if node and node.get("type") == "entity" and all(n.get("type") != "agent" for n in graph.get("nodes", [])):
+node = next((n for n in graph.get("nodes", []) if n.get("path") == "aos/entities/entity-frontmatter-canonical.md"), None)
+if node and node.get("type") == "entity":
     sys.exit(0)
 sys.exit(1)
-' && pass "graph normalizes agent frontmatter compatibility input" || fail "graph normalizes agent frontmatter compatibility input"
+' && pass "graph preserves canonical entity frontmatter" || fail "graph preserves canonical entity frontmatter"
 
 # Test: graph --raw
 OUTPUT=$($AOS wiki graph --raw --json)

@@ -97,8 +97,8 @@ func sayCommand(args: [String]) {
     var text = textParts.joined(separator: " ")
     if text.isEmpty {
         // Try reading from stdin (non-blocking check)
-        if let stdinData = try? FileHandle.standardInput.availableData,
-           !stdinData.isEmpty,
+        let stdinData = FileHandle.standardInput.availableData
+        if !stdinData.isEmpty,
            let stdinText = String(data: stdinData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
            !stdinText.isEmpty {
             text = stdinText

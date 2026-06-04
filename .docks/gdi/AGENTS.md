@@ -6,6 +6,11 @@ Use the current assigned transfer or instruction as the task. GDI performs
 bounded deterministic implementation work from plain work-card dispatches. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
+Do not create linked git worktrees or work from
+`/Users/Michael/Code/agent-os-worktrees` unless the user explicitly overrides
+the active workflow. Preserve local state with branches, scoped commits, or
+named stashes instead.
+
 GDI's inbound provider syntax is declared in `.docks/gdi/inbound-contract.json`.
 For Codex, copied transfer payloads remain plain durable pointers, while
 interactive work-goal entry uses `/goal `. If a stale or repeated goal-mode loop
@@ -14,7 +19,9 @@ instead of satisfying a one-shot proof prompt again.
 
 For deterministic work-card startup, `.docks/gdi/scripts/pickup` delegates to
 the shared `.docks/harness/session-pickup` primitive and emits machine-readable
-JSON for branch preparation, card metadata, readiness, and TCC stall routing.
+JSON for card metadata, checkout state, optional local branch preparation,
+readiness, and TCC stall routing. Under `local_relay`, use branch preparation
+only when Foreman or the work card explicitly names the local output branch.
 The manual Git boundary below remains authoritative when the helper reports
 `blocked`, `misrouted`, or `human_needed`.
 
@@ -28,7 +35,7 @@ GDI owns deterministic implementation for the assigned goal:
 - implement the narrowest correct change;
 - update local docs, schemas, fixtures, and tests required by that change;
 - run the requested verification and any adjacent tests needed for confidence;
-- leave the worktree reviewable and report any remaining dirty or unrelated
+- leave the checkout reviewable and report any remaining dirty or unrelated
   baseline state;
 - report exact files changed, behavior changed, tests run, and blockers.
 
@@ -63,6 +70,12 @@ The active workflow profile governs what git operations GDI may perform. Read
 `docs/dev/workflow-profiles.json` for the full profile definition. The
 profile name is in `docs/dev/active-profile.json`.
 
+The default active profile is `local_relay`: a single checkout at
+`/Users/Michael/Code/agent-os`, local branch or stash safety, no linked git
+worktrees, and no automatic push. Any stricter work-card instruction may narrow
+GDI's authority, but it does not grant linked-worktree authority unless it says
+so explicitly.
+
 For all profiles, the git boundary is:
 
 ### Preconditions — run before any implementation work
@@ -83,32 +96,42 @@ For all profiles, the git boundary is:
      local state;
    - a work card or report may exist only on a feature branch.
 
-2. **Sync** — fetch and hard-reset the selected base before branching:
+2. **Sync** — fetch the selected base before branching:
    ```
    git fetch origin
+   ```
+   For `agentic_relay` work, create or reuse a local branch from the named ref
+   only after local dirty state is understood:
+   ```
    git switch -C <local-base-branch> <required_start_ref>
    ```
-   For the default main base, use `main` and `origin/main`. For a non-main
-   base, create or reuse a local work surface that tracks the named ref. Do not
-   reset to `origin/main` when the work card explicitly names another
+   For `local_relay`, do not hard-reset a dirty checkout. If unrelated dirty
+   state would block the assigned branch switch, stop and report the state to
+   Foreman unless the work card explicitly names the stash or checkpoint to use.
+   Do not reset to `origin/main` when the work card explicitly names another
    `branch_from`.
 
 3. **Verify instructions exist** — after syncing the selected base, confirm the
    assigned work card or source artifact exists. If it does not, stop and report
    `misrouted` to Foreman instead of inferring a different base.
 
-4. **Branch** — create `gdi/<work-card-slug>` from the selected base unless the
-   work card says the selected branch is the work surface:
+4. **Branch** — for `agentic_relay`, create `gdi/<work-card-slug>` from the
+   selected base unless the work card says the selected branch is the work
+   surface:
    ```
    git checkout -b gdi/<work-card-slug>
    ```
    If the branch already exists on origin, follow the work card's reuse/reset
    instruction. If no instruction is present, stop and report the ambiguity to
    Foreman rather than rebasing onto the wrong base.
+   For `local_relay`, use the current assigned branch or one local
+   `gdi/<work-card-slug>` branch only when Foreman or the work card names it.
+   Never create a linked git worktree as the work surface.
 
 ### Implementation
 
-5. **Commit** — make scoped, atomic commits on the branch as work progresses.
+5. **Commit** — make scoped, atomic commits on the branch as work progresses
+   when the active profile and work card authorize a checkpoint.
    Follow the commit message convention in the work card if provided; otherwise
    use `<type>(<scope>): <short description>`. No AI attribution trailers.
 
@@ -123,8 +146,10 @@ For all profiles, the git boundary is:
    ```
    Include the full output in your completion report.
 
-7. **Push** — `git push origin gdi/<work-card-slug>` after verification.
-   Do not push until the work card verification block is green.
+7. **Push** — push only when the active profile and work card authorize it. For
+   `agentic_relay`, run `git push origin gdi/<work-card-slug>` after
+   verification. For `local_relay`, do not push unless Foreman or the user
+   explicitly assigns publication.
 
 8. **Completion report** — include all of the following, structured exactly
    as shown so Foreman can review it:
@@ -149,6 +174,10 @@ For all profiles, the git boundary is:
 
 - `agentic_relay` — GDI has push authority to `gdi/*` branches when a work card
   uses that profile. Push at completion. Do not merge to main.
+- `local_relay` — GDI works only in `/Users/Michael/Code/agent-os`, does not
+  create linked worktrees, may create local commits only when the work card asks
+  for a checkpoint, and does not push, open PRs, merge, clean branches, or
+  rewrite history unless Foreman or the user explicitly assigns it.
 - `hybrid_trunk` — GDI does not commit or push unless the work card explicitly
   includes a Git section with those instructions. Foreman is the default git
   steward.
@@ -157,6 +186,25 @@ For all profiles, the git boundary is:
 
 GDI does not open PRs, merge branches, close issues, or rewrite branch history
 unless the work card explicitly assigns that operation.
+
+## Binary / Native Boundary
+
+GDI must not rebuild, refresh, replace, or otherwise mutate the repo-mode
+`./aos` binary at `/Users/Michael/Code/agent-os/aos`. Do not run
+`./aos dev build`, `build.sh`, `scripts/aos-after-build`, or equivalent shell
+wrappers. Do not edit the checked in `aos` binary, and do not use branch-local
+or linked-worktree `aos` binaries as evidence.
+
+When a goal appears to require Swift/native changes that would need a fresh
+repo binary, stop and report the binary/native ownership issue to Foreman.
+Foreman owns binary corrections and any manual post-build TCC handoff.
+
+GDI must also enforce the TCC capability broker canon in
+`docs/adr/0015-aos-tcc-capability-broker-boundary.md`. If a goal appears to
+require Swift but could be solved by externalizing public behavior or by adding
+a smaller stable privileged fact, action, or stream, stop and report the
+native-boundary issue to Foreman instead of implementing policy or composition
+inside Swift.
 
 ## Human-Needed TCC Stall
 
@@ -169,14 +217,8 @@ goal. Run the bounded stall helper once:
 ```
 
 Then stop and report `human_needed` with the script output. After the human
-returns with "finished", run:
-
-```bash
-./aos ready --post-permission
-```
-
-Continue only when that reports ready. If it still reports a blocker, return to
-Foreman with the exact blocker instead of starting ad-hoc repair loops.
+returns with "finished", return to Foreman with the exact blocker instead of
+starting ad-hoc repair loops.
 
 For this deterministic TCC stall, the final GDI chat tail must include the
 helper's human-action block without relying on memory:
@@ -185,20 +227,15 @@ helper's human-action block without relying on memory:
 human_needed: TCC reset needed
 
 Human action:
-1. Open macOS System Settings -> Privacy & Security.
-2. Physically remove and re-add the repo-mode AOS runtime in Accessibility,
-   Input Monitoring, and Screen & System Audio Recording if the grant is stale
-   or missing.
-3. Return to the GDI session, or the next turn for that same session, and say:
-   finished.
-4. Do not start a new goal for the same work.
-
-After the human says finished, GDI runs:
-  ./aos ready --post-permission
+1. Return this blocker to Foreman.
+2. Foreman decides whether Michael needs to physically remove and re-add the
+   repo-mode AOS runtime in Accessibility, Input Monitoring, and Screen &
+   System Audio Recording if the grant is stale or missing.
+3. Do not run permission reset, Settings-open, rebuild, or readiness-repair loops.
 ```
 
-The helper and dock hooks own the stop-condition marker and spoken notice for
-this stall. Do not add a second direct `./aos say` call in the helper.
+The helper prints this stop-only report. Hooks do not own TCC markers, Settings
+focus, permission reset, or spoken reset notices.
 
 When retiring or reusing a GDI CLI session after a completed active goal, clear
 completed goal state with `/goal clear` before starting unrelated work.

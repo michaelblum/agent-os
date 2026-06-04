@@ -7,14 +7,79 @@
 import AppKit
 import Foundation
 
+private struct StatusItemMenuDescriptor {
+    let id: String
+    let title: String
+    let keyEquivalent: String
+    let enabled: Bool
+    let state: NSControl.StateValue
+    let isSeparator: Bool
+
+    init?(raw: [String: Any]) {
+        let kind = ((raw["type"] as? String) ?? (raw["kind"] as? String) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if kind == "separator" {
+            id = ""
+            title = ""
+            keyEquivalent = ""
+            enabled = false
+            state = .off
+            isSeparator = true
+            return
+        }
+
+        guard let rawId = raw["id"] as? String,
+              let rawTitle = raw["title"] as? String else {
+            return nil
+        }
+        let trimmedId = rawId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTitle = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedId.isEmpty, !trimmedTitle.isEmpty else { return nil }
+
+        id = trimmedId
+        title = trimmedTitle
+        keyEquivalent = (raw["key_equivalent"] as? String)
+            ?? (raw["keyEquivalent"] as? String)
+            ?? (raw["key"] as? String)
+            ?? ""
+        enabled = Self.boolValue(raw["enabled"], defaultValue: true)
+        if Self.boolValue(raw["checked"], defaultValue: false) {
+            state = .on
+        } else {
+            switch ((raw["state"] as? String) ?? "").lowercased() {
+            case "on", "checked", "true":
+                state = .on
+            case "mixed":
+                state = .mixed
+            default:
+                state = .off
+            }
+        }
+        isSeparator = false
+    }
+
+    private static func boolValue(_ value: Any?, defaultValue: Bool) -> Bool {
+        if let bool = value as? Bool { return bool }
+        if let number = value as? NSNumber { return number.boolValue }
+        if let string = value as? String {
+            switch string.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "1", "true", "yes", "on":
+                return true
+            case "0", "false", "no", "off":
+                return false
+            default:
+                break
+            }
+        }
+        return defaultValue
+    }
+}
+
 class StatusItemManager {
     private static let accessibilityLabel = "AOS status item"
     private let lifecycleTimeout: TimeInterval = 1.0
     private let visibilityTimeout: TimeInterval = 8.0
-    private let canvasInspectorId = "surface-inspector"
-    private let logConsoleId = "__log__"
-    private let canvasInspectorUrl = "aos://toolkit/components/surface-inspector/index.html"
-    private let logConsoleUrl = "aos://toolkit/components/log-console/index.html"
 
     let canvasManager: CanvasManager
     var statusItem: NSStatusItem?
@@ -31,12 +96,11 @@ class StatusItemManager {
     private var isAnimating = false
     private var persistentVisible = false
     private var hasPersistentStateSource = false
-    private var canvasInspectorAnnotationModeActive = false
+    private var persistentWarmupStarted = false
     private var filledIcon: NSImage?
     private var unfilledIcon: NSImage?
     private let positionFile: String
-    private let utilityStateFile: String
-    private var customMenuItems: [[String: String]] = []  // [{title, id}, ...]
+    private var statusMenuItems: [StatusItemMenuDescriptor] = []
 
     init(canvasManager: CanvasManager, config: AosConfig.StatusItemConfig) {
         self.canvasManager = canvasManager
@@ -48,9 +112,6 @@ class StatusItemManager {
         self.positionFile = (kAosConfigPath as NSString)
             .deletingLastPathComponent
             .appending("/status-item-position.json")
-        self.utilityStateFile = (kAosConfigPath as NSString)
-            .deletingLastPathComponent
-            .appending("/status-item-utility-panels.json")
     }
 
     func setup() {
@@ -61,7 +122,9 @@ class StatusItemManager {
         statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem?.button?.toolTip = Self.accessibilityLabel
         statusItem?.button?.setAccessibilityLabel(Self.accessibilityLabel)
-        restoreUtilityPanels()
+        DispatchQueue.main.async { [weak self] in
+            self?.primePersistentCanvas(reason: "setup")
+        }
     }
 
     func teardown() {
@@ -82,6 +145,8 @@ class StatusItemManager {
         iconStyle = config.icon
         if targetChanged {
             hasPersistentStateSource = false
+            persistentWarmupStarted = false
+            statusMenuItems = []
         }
         if !usesPersistentCanvas {
             hasPersistentStateSource = false
@@ -90,6 +155,7 @@ class StatusItemManager {
             persistentVisible = false
         }
         updateIcon()
+        primePersistentCanvas(reason: "config")
     }
 
     @objc func handleClick(_ sender: Any?) {
@@ -142,8 +208,8 @@ class StatusItemManager {
         }
     }
 
-    func setMenuItems(_ items: [[String: String]]) {
-        customMenuItems = items
+    func setMenuItems(_ items: [[String: Any]]) {
+        statusMenuItems = items.compactMap(StatusItemMenuDescriptor.init(raw:))
     }
 
     func setPersistentVisible(_ visible: Bool) {
@@ -213,265 +279,50 @@ class StatusItemManager {
     private func showContextMenu() {
         let menu = NSMenu()
 
-        // App-provided items first
-        for (index, item) in customMenuItems.enumerated() {
-            guard let title = item["title"] else { continue }
-            let mi = NSMenuItem(title: title, action: #selector(menuCustomItem(_:)), keyEquivalent: "")
-            mi.target = self
-            mi.tag = index
-            menu.addItem(mi)
+        if statusMenuItems.isEmpty {
+            let loading = NSMenuItem(title: "Loading...", action: nil, keyEquivalent: "")
+            loading.isEnabled = false
+            menu.addItem(loading)
+        } else {
+            for (index, item) in statusMenuItems.enumerated() {
+                if item.isSeparator {
+                    menu.addItem(NSMenuItem.separator())
+                    continue
+                }
+                let mi = NSMenuItem(title: item.title, action: #selector(menuExternalItem(_:)), keyEquivalent: item.keyEquivalent)
+                mi.target = self
+                mi.tag = index
+                mi.isEnabled = item.enabled && !isAnimating
+                mi.state = item.state
+                menu.addItem(mi)
+            }
         }
-
-        if !customMenuItems.isEmpty {
-            menu.addItem(NSMenuItem.separator())
-        }
-
-        // Daemon-owned items
-        let logItem = NSMenuItem(title: "Console Log", action: #selector(menuLogConsole), keyEquivalent: "")
-        logItem.target = self
-        logItem.state = isUtilityCanvasVisible(id: logConsoleId) ? .on : .off
-        menu.addItem(logItem)
-
-        let inspectorItem = NSMenuItem(title: "Surface Inspector", action: #selector(menuCanvasInspector), keyEquivalent: "")
-        inspectorItem.target = self
-        inspectorItem.state = isUtilityCanvasVisible(id: canvasInspectorId) ? .on : .off
-        menu.addItem(inspectorItem)
-
-        let annotateItem = NSMenuItem(title: "Annotation Mode", action: #selector(menuCanvasInspectorAnnotateMode), keyEquivalent: "")
-        annotateItem.target = self
-        annotateItem.state = isCanvasInspectorAnnotationModeVisibleAndActive ? .on : .off
-        menu.addItem(annotateItem)
-
-        if !toggleUrl.isEmpty {
-            menu.addItem(NSMenuItem.separator())
-            let reloadItem = NSMenuItem(title: "Reload", action: #selector(menuReload), keyEquivalent: "r")
-            reloadItem.target = self
-            reloadItem.isEnabled = !isAnimating
-            menu.addItem(reloadItem)
-        }
-
-        if canvasManager.hasCanvas(toggleId) {
-            let removeItem = NSMenuItem(title: "Remove", action: #selector(menuRemove), keyEquivalent: "")
-            removeItem.target = self
-            menu.addItem(removeItem)
-        }
-
-        menu.addItem(NSMenuItem.separator())
-
-        let quitItem = NSMenuItem(title: "Quit AOS", action: #selector(menuQuit), keyEquivalent: "")
-        quitItem.target = self
-        menu.addItem(quitItem)
 
         guard let button = statusItem?.button else { return }
         let pos = NSPoint(x: 0, y: button.bounds.minY)
         menu.popUp(positioning: nil, at: pos, in: button)
     }
 
-    @objc private func menuCustomItem(_ sender: NSMenuItem) {
+    @objc private func menuExternalItem(_ sender: NSMenuItem) {
         let index = sender.tag
-        guard index < customMenuItems.count,
-              let id = customMenuItems[index]["id"] else { return }
-        // Relay the selection back to the canvas
-        canvasManager.evalAsync(canvasID: toggleId, js: "window.__aosMenuAction?.(\"\(id)\")")
+        guard index < statusMenuItems.count else { return }
+        let item = statusMenuItems[index]
+        guard !item.isSeparator else { return }
+        sendMenuAction(itemID: item.id)
     }
 
-    @objc private func menuRemove() {
-        dismissCanvas()
-    }
-
-    @objc private func menuReload() {
-        reloadCanvas()
-    }
-
-    @objc private func menuCanvasInspector() {
-        toggleUtilityCanvas(
-            id: canvasInspectorId,
-            url: canvasInspectorUrl,
-            frame: canvasInspectorFrame()
-        )
-    }
-
-    @objc private func menuCanvasInspectorAnnotateMode() {
-        showUtilityCanvas(
-            id: canvasInspectorId,
-            url: canvasInspectorUrl,
-            frame: canvasInspectorFrame()
-        )
-        canvasManager.postMessageAsync(canvasID: canvasInspectorId, payload: [
-            "type": "canvas_inspector.annotation_toggle",
-            "reason": "status_item_menu",
+    private func sendMenuAction(itemID: String) {
+        let origin = statusItemCGPosition()
+        let modifiers = modifierNames(from: NSApp.currentEvent?.modifierFlags ?? [])
+        canvasManager.postMessageAsync(canvasID: toggleId, payload: [
+            "type": "status_item.menu_action",
+            "id": itemID,
+            "action_id": itemID,
+            "source": "status_item",
+            "origin_x": Int(origin.x),
+            "origin_y": Int(origin.y),
+            "modifiers": modifiers,
         ])
-    }
-
-    @objc private func menuLogConsole() {
-        toggleUtilityCanvas(
-            id: logConsoleId,
-            url: logConsoleUrl,
-            frame: logConsoleFrame()
-        )
-    }
-
-    @objc private func menuQuit() {
-        NSApp.terminate(nil)
-    }
-
-    private func toggleUtilityCanvas(id: String, url: String, frame: [CGFloat], restoring: Bool = false) {
-        if canvasManager.hasCanvas(id) {
-            if isUtilityCanvasSuspended(id: id) {
-                var resume = CanvasRequest(action: "resume")
-                resume.id = id
-                _ = canvasManager.handle(resume)
-                if !restoring {
-                    canvasManager.canvas(forID: id)?.grabFocus()
-                }
-                persistUtilityCanvasVisible(id: id, visible: true)
-            } else {
-                var suspend = CanvasRequest(action: "suspend")
-                suspend.id = id
-                _ = canvasManager.handle(suspend)
-                persistUtilityCanvasVisible(id: id, visible: false)
-                if id == canvasInspectorId {
-                    resetCanvasInspectorAnnotationMode()
-                }
-            }
-            return
-        }
-
-        var req = CanvasRequest(action: "create")
-        req.id = id
-        req.url = urlResolver?(url) ?? url
-        req.at = frame
-        req.interactive = true
-        req.focus = !restoring
-        req.suspended = false
-        _ = canvasManager.handle(req)
-        persistUtilityCanvasVisible(id: id, visible: true)
-    }
-
-    private func showUtilityCanvas(id: String, url: String, frame: [CGFloat]) {
-        if canvasManager.hasCanvas(id) {
-            if isUtilityCanvasSuspended(id: id) {
-                var resume = CanvasRequest(action: "resume")
-                resume.id = id
-                _ = canvasManager.handle(resume)
-            }
-            canvasManager.canvas(forID: id)?.grabFocus()
-            persistUtilityCanvasVisible(id: id, visible: true)
-            return
-        }
-
-        var req = CanvasRequest(action: "create")
-        req.id = id
-        req.url = urlResolver?(url) ?? url
-        req.at = frame
-        req.interactive = true
-        req.focus = true
-        req.suspended = false
-        _ = canvasManager.handle(req)
-        persistUtilityCanvasVisible(id: id, visible: true)
-    }
-
-    private func restoreUtilityPanels() {
-        let state = loadUtilityPanelState()
-        if state[logConsoleId] == true {
-            toggleUtilityCanvas(
-                id: logConsoleId,
-                url: logConsoleUrl,
-                frame: logConsoleFrame(),
-                restoring: true
-            )
-        }
-        if state[canvasInspectorId] == true {
-            toggleUtilityCanvas(
-                id: canvasInspectorId,
-                url: canvasInspectorUrl,
-                frame: canvasInspectorFrame(),
-                restoring: true
-            )
-        }
-    }
-
-    private func isUtilityCanvasVisible(id: String) -> Bool {
-        canvasManager.hasCanvas(id) && !isUtilityCanvasSuspended(id: id)
-    }
-
-    private var isCanvasInspectorAnnotationModeVisibleAndActive: Bool {
-        isUtilityCanvasVisible(id: canvasInspectorId) && canvasInspectorAnnotationModeActive
-    }
-
-    func setCanvasInspectorAnnotationModeActive(_ active: Bool) {
-        canvasInspectorAnnotationModeActive = active && isUtilityCanvasVisible(id: canvasInspectorId)
-    }
-
-    func resetCanvasInspectorAnnotationMode() {
-        canvasInspectorAnnotationModeActive = false
-    }
-
-    private func isUtilityCanvasSuspended(id: String) -> Bool {
-        canvasManager.canvas(forID: id)?.suspended == true
-    }
-
-    private func createUtilityCanvas(id: String, url: String, frame: [CGFloat], suspended: Bool, focus: Bool) {
-        var req = CanvasRequest(action: "create")
-        req.id = id
-        req.url = urlResolver?(url) ?? url
-        req.at = frame
-        req.interactive = true
-        req.focus = focus
-        req.suspended = suspended
-        _ = canvasManager.handle(req)
-    }
-
-    private func loadUtilityPanelState() -> [String: Bool] {
-        guard let data = FileManager.default.contents(atPath: utilityStateFile),
-              let dict = try? JSONDecoder().decode([String: Bool].self, from: data) else {
-            return [:]
-        }
-        return dict
-    }
-
-    private func persistUtilityCanvasVisible(id: String, visible: Bool) {
-        var dict = loadUtilityPanelState()
-        dict[id] = visible
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        if let data = try? encoder.encode(dict) {
-            try? data.write(to: URL(fileURLWithPath: utilityStateFile))
-        }
-    }
-
-    private func canvasInspectorFrame() -> [CGFloat] {
-        let visible = mainVisibleFrameInCG()
-        let width = min(CGFloat(360.0), max(CGFloat(320.0), visible.width * 0.26))
-        let height = min(CGFloat(520.0), max(CGFloat(420.0), visible.height * 0.55))
-        let x = visible.x + visible.width - width - 20.0
-        let y = visible.y + 20.0
-        return [x, y, width, height]
-    }
-
-    private func logConsoleFrame() -> [CGFloat] {
-        let visible = mainVisibleFrameInCG()
-        let width = min(CGFloat(520.0), max(CGFloat(420.0), visible.width * 0.32))
-        let height = min(CGFloat(320.0), max(CGFloat(260.0), visible.height * 0.32))
-        let x = visible.x + 20.0
-        let y = visible.y + visible.height - height - 20.0
-        return [x, y, width, height]
-    }
-
-    private func mainVisibleFrameInCG() -> (x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
-            return (0, 0, 1512, 875)
-        }
-        let visible = screen.visibleFrame
-        let screenHeight = screen.frame.height
-        let cgY = screenHeight - visible.origin.y - visible.height
-        return (
-            visible.origin.x,
-            cgY,
-            visible.width,
-            visible.height
-        )
     }
 
     private func isCanvasSuspended() -> Bool {
@@ -553,6 +404,26 @@ class StatusItemManager {
         pollOnce()
     }
 
+    private func primePersistentCanvas(reason: String) {
+        guard usesPersistentCanvas, !toggleUrl.isEmpty else { return }
+        guard !persistentWarmupStarted, !canvasManager.hasCanvas(toggleId) else { return }
+        persistentWarmupStarted = true
+        log("front-load persistent target=\(toggleId) reason=\(reason)")
+        summonCanvas()
+        guard canvasManager.hasCanvas(toggleId) else {
+            persistentWarmupStarted = false
+            return
+        }
+        waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
+            guard let self = self else { return }
+            if ready {
+                self.log("front-loaded persistent target=\(self.toggleId) ready")
+            } else {
+                self.log("front-loaded persistent target=\(self.toggleId) readiness timed out")
+            }
+        }
+    }
+
     // MARK: - Summon
 
     private func summonCanvas() {
@@ -620,7 +491,7 @@ class StatusItemManager {
         } else {
             // Tracked canvas (e.g. union): Sigil owns the entrance animation.
             // The origin is passed via query params so Sigil can animate from
-            // the icon position to the resolved avatar position.
+            // the icon position to the resolved toggled-surface position.
             _ = canvasManager.handle(req)
             updateIcon()
         }
@@ -723,122 +594,6 @@ class StatusItemManager {
         }
     }
 
-    // MARK: - Dismiss (hard remove — daemon restart / full teardown)
-
-    private func removeCanvasTree(_ rootId: String) {
-        for id in canvasManager.collectTree(rootId).reversed() {
-            guard canvasManager.hasCanvas(id) else { continue }
-            var rm = CanvasRequest(action: "remove")
-            rm.id = id
-            _ = canvasManager.handle(rm)
-        }
-    }
-
-    private func reloadCanvas() {
-        guard !toggleUrl.isEmpty else { return }
-        let origin = statusItemCGPosition()
-        let modifiers = modifierNames(from: NSApp.currentEvent?.modifierFlags ?? [])
-        let existed = canvasManager.hasCanvas(toggleId)
-        log("reload target=\(toggleId) existed=\(existed) persistent=\(usesPersistentCanvas)")
-
-        isAnimating = true
-        updateIcon()
-        if existed {
-            removeCanvasTree(toggleId)
-        }
-        hasPersistentStateSource = false
-        persistentVisible = false
-        summonCanvas()
-
-        if usesPersistentCanvas {
-            waitUntilPersistentCanvasReady(timeout: visibilityTimeout) { [weak self] ready in
-                guard let self = self else { return }
-                if !ready {
-                    self.log("reload target=\(self.toggleId) readiness timed out; posting visible intent fallback")
-                }
-                self.isAnimating = false
-                self.showPersistentCanvas(origin: origin, modifiers: modifiers)
-            }
-        }
-    }
-
-    private func dismissCanvas() {
-        let isTracked = toggleTrack != nil
-
-        if !isTracked { saveCurrentPosition() }
-
-        // Cascade remove handles children — no dismissed eval needed.
-
-        if !isTracked {
-            // Fixed-position canvas: animate frame to icon, then remove
-            let iconPos = statusItemCGPosition()
-            let endSize: CGFloat = 20
-            let toX = iconPos.x - endSize / 2
-            let toY = iconPos.y
-
-            var fromX: CGFloat = 200, fromY: CGFloat = 200
-            var fromW: CGFloat = 300, fromH: CGFloat = 300
-            let listResp = canvasManager.handle(CanvasRequest(action: "list"))
-            if let canvases = listResp.canvases {
-                for c in canvases where c.id == toggleId {
-                    fromX = c.at[0]; fromY = c.at[1]; fromW = c.at[2]; fromH = c.at[3]
-                }
-            }
-
-            isAnimating = true
-            updateIcon()
-
-            DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-                self?.animateFrame(
-                    from: [fromX, fromY, fromW, fromH],
-                    to: [toX, toY, endSize, endSize],
-                    duration: 0.4,
-                    easing: { t in
-                        let c1 = 1.70158, c3 = c1 + 1
-                        return c3 * t * t * t - c1 * t * t  // easeInBack
-                    }
-                )
-
-                DispatchQueue.main.async { [weak self] in
-                    guard let self = self else { return }
-                    var rm = CanvasRequest(action: "remove")
-                    rm.id = self.toggleId
-                    _ = self.canvasManager.handle(rm)
-                    self.isAnimating = false
-                    self.updateIcon()
-                }
-            }
-        } else {
-            // Tracked canvas: remove real canvas, animate dot back to icon.
-            let dotSize: CGFloat = 80
-            let landingCenter = mainDisplayNonantCenter(column: 2, row: 2)
-            let fromCG = CGRect(
-                x: landingCenter.x - dotSize / 2,
-                y: landingCenter.y - dotSize / 2,
-                width: dotSize, height: dotSize
-            )
-
-            var rm = CanvasRequest(action: "remove")
-            rm.id = toggleId
-            _ = canvasManager.handle(rm)
-
-            let iconPos = statusItemCGPosition()
-            let endSize: CGFloat = 20
-            let toCG = CGRect(
-                x: iconPos.x - endSize / 2, y: iconPos.y,
-                width: endSize, height: endSize
-            )
-
-            isAnimating = true
-            updateIcon()
-
-            animateDot(from: fromCG, to: toCG, duration: 0.35) { [weak self] in
-                self?.isAnimating = false
-                self?.updateIcon()
-            }
-        }
-    }
-
     // MARK: - Animation
 
     private func animateFrame(
@@ -873,72 +628,6 @@ class StatusItemManager {
             let got = Date().timeIntervalSince(t0)
             if want > got { Thread.sleep(forTimeInterval: want - got) }
         }
-    }
-
-    // MARK: - Dot Animation (lightweight, no WKWebView)
-
-    /// Animate a small colored dot between two CG-coordinate rects using
-    /// Core Animation (NSAnimationContext). Much faster and smoother than
-    /// creating a WKWebView canvas or manual frame-by-frame updates.
-    private func animateDot(
-        from fromCG: CGRect, to toCG: CGRect,
-        duration: TimeInterval, completion: @escaping () -> Void
-    ) {
-        let fromScreen = cgToScreen(fromCG)
-
-        let dot = NSWindow(
-            contentRect: fromScreen,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
-        )
-        dot.level = .floating
-        dot.isOpaque = false
-        dot.backgroundColor = .clear
-        dot.hasShadow = false
-        dot.ignoresMouseEvents = true
-
-        // Use a view that keeps itself circular as the window resizes
-        let circle = OvalView(
-            frame: NSRect(origin: .zero, size: fromScreen.size),
-            color: NSColor(red: 0.5, green: 0.35, blue: 1.0, alpha: 0.7)
-        )
-        circle.autoresizingMask = [.width, .height]
-        dot.contentView = circle
-        dot.orderFrontRegardless()
-
-        let toScreen = cgToScreen(toCG)
-
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = duration
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            dot.animator().setFrame(toScreen, display: true)
-            dot.animator().alphaValue = 0.0
-        }, completionHandler: {
-            dot.orderOut(nil)
-            completion()
-        })
-    }
-
-    // MARK: - Display Geometry
-
-    /// Return the CG-coordinate center of a nonant on the main display.
-    /// Column 0 = left, 1 = center, 2 = right.  Row 0 = top, 1 = middle, 2 = bottom.
-    private func mainDisplayNonantCenter(column: Int, row: Int) -> CGPoint {
-        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
-            return CGPoint(x: 400, y: 400)
-        }
-        let visible = screen.visibleFrame
-        let screenH = screen.frame.height
-        // Convert NSScreen visible frame to CG coordinates
-        let cgX = visible.origin.x
-        let cgY = screenH - visible.origin.y - visible.height
-        let cgW = visible.width
-        let cgH = visible.height
-
-        let cx = cgX + cgW * (CGFloat(column) * 2 + 1) / 6
-        let cy = cgY + cgH * (CGFloat(row) * 2 + 1) / 6
-        return CGPoint(x: cx, y: cy)
     }
 
     // MARK: - Position Persistence

@@ -27,9 +27,13 @@ struct CanvasRefClickTargetInfo: Encodable {
     let bounds: BoundsJSON
     let local_center: CursorJSON
     let click: CanvasRefClickPoint
+    let global_point: CanvasRefClickPoint
     let coordinate_space: String
     let capture_scale_factor: Double
     let source: String
+    let geometry: JSONValue?
+    let metadata: JSONValue?
+    let state: AOSSemanticTargetStateJSON?
 }
 
 struct CanvasRefClickResolution {
@@ -48,7 +52,7 @@ func parseCanvasRefTarget(_ raw: String) -> CanvasRefTarget? {
     return CanvasRefTarget(canvasID: canvasID, ref: ref)
 }
 
-func resolveCanvasRefClickTarget(_ rawTarget: String) -> CanvasRefClickResolution {
+func resolveCanvasRefTarget(_ rawTarget: String, primitive: String? = nil) -> CanvasRefClickResolution {
     guard let parsed = parseCanvasRefTarget(rawTarget) else {
         exitError("invalid canvas target. Expected canvas:<canvas-id>/<ref>", code: "INVALID_TARGET")
     }
@@ -104,6 +108,15 @@ func resolveCanvasRefClickTarget(_ rawTarget: String) -> CanvasRefClickResolutio
     guard target.enabled else {
         exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' is disabled", code: "TARGET_DISABLED")
     }
+    if let primitive {
+        let actions = target.actions ?? []
+        guard actions.contains(primitive) else {
+            exitError(
+                "Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' does not support \(primitive)",
+                code: "UNSUPPORTED_ACTION"
+            )
+        }
+    }
 
     guard let center = target.provenance.center else {
         exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' has no center", code: "TARGET_GEOMETRY_UNAVAILABLE")
@@ -131,12 +144,139 @@ func resolveCanvasRefClickTarget(_ rawTarget: String) -> CanvasRefClickResolutio
             bounds: bounds,
             local_center: center,
             click: CanvasRefClickPoint(x: Double(point.x), y: Double(point.y)),
+            global_point: CanvasRefClickPoint(x: Double(point.x), y: Double(point.y)),
             coordinate_space: "global_cg",
             capture_scale_factor: captureScale,
-            source: "aos_semantic_targets"
+            source: "aos_semantic_targets",
+            geometry: target.geometry,
+            metadata: target.metadata,
+            state: target.state
         ),
         point: point
     )
+}
+
+func resolveCanvasRefClickTarget(_ rawTarget: String) -> CanvasRefClickResolution {
+    resolveCanvasRefTarget(rawTarget, primitive: "click")
+}
+
+private func actJSONStringLiteral(_ value: String) -> String {
+    guard
+        let data = try? JSONSerialization.data(withJSONObject: [value], options: []),
+        let arrayLiteral = String(data: data, encoding: .utf8),
+        arrayLiteral.count >= 2
+    else {
+        return "\"\""
+    }
+    return String(arrayLiteral.dropFirst().dropLast())
+}
+
+private func evalCanvasActionJSON(canvasID: String, js: String) -> [String: Any]? {
+    guard
+        let response = sendEnvelopeRequest(
+            service: "show",
+            action: "eval",
+            data: ["id": canvasID, "js": js],
+            autoStartBinary: aosExecutablePath()
+        ),
+        let decoded = decodeCanvasResponse(response),
+        decoded.error == nil,
+        let result = decoded.result,
+        let data = result.data(using: .utf8),
+        let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
+        return nil
+    }
+    return object
+}
+
+func dispatchCanvasSemanticValueAction(canvasID: String, ref: String, value: String, primitive: String) -> [String: Any] {
+    let encodedRef = actJSONStringLiteral(ref)
+    let encodedValue = actJSONStringLiteral(value)
+    let encodedPrimitive = actJSONStringLiteral(primitive)
+    let js = """
+    (() => {
+      const ref = \(encodedRef);
+      const valueText = \(encodedValue);
+      const primitive = \(encodedPrimitive);
+      const clean = (value) => String(value ?? '').replace(/\\s+/g, ' ').trim();
+      const matches = Array.from(document.querySelectorAll('[data-aos-ref]')).filter((el) => clean(el.getAttribute('data-aos-ref')) === ref);
+      if (matches.length === 0) return JSON.stringify({ ok: false, code: 'REF_NOT_FOUND', error: `Ref '${ref}' not found` });
+      if (matches.length > 1) return JSON.stringify({ ok: false, code: 'TARGET_AMBIGUOUS', error: `Ref '${ref}' matched ${matches.length} targets` });
+      const el = matches[0];
+      if (el.matches?.(':disabled') || el.getAttribute('aria-disabled') === 'true') {
+        return JSON.stringify({ ok: false, code: 'TARGET_DISABLED', error: `Ref '${ref}' is disabled` });
+      }
+      const root = el.closest?.('[data-aos-slider-root]');
+      const thumbCount = Number(el.getAttribute('data-aos-thumb-count') || root?.querySelectorAll?.('[data-aos-slider-thumb]')?.length || 0);
+      if ((el.getAttribute('role') || '').toLowerCase() === 'slider' && thumbCount > 1) {
+        return JSON.stringify({ ok: false, code: 'UNSUPPORTED_ACTION', error: `Ref '${ref}' is a multi-thumb slider` });
+      }
+      const value = Number(valueText);
+      if (!Number.isFinite(value)) return JSON.stringify({ ok: false, code: 'INVALID_VALUE', error: 'set-value requires a numeric value for canvas sliders' });
+      const event = new CustomEvent('aos:semantic-action', {
+        bubbles: true,
+        cancelable: true,
+        detail: { action: primitive, primitive, value, toValue: value, to_value: value, ref },
+      });
+      const defaultAllowed = el.dispatchEvent(event);
+      const target = root?.querySelector?.('[data-aos-slider-control]') || el;
+      return JSON.stringify({
+        ok: !defaultAllowed,
+        code: defaultAllowed ? 'ACTION_NOT_HANDLED' : null,
+        error: defaultAllowed ? `Ref '${ref}' did not handle ${primitive}` : null,
+        value: target?.getAttribute?.('aria-valuenow') || null,
+        values: target?.getAttribute?.('data-aos-values') || null,
+      });
+    })()
+    """
+    guard let result = evalCanvasActionJSON(canvasID: canvasID, js: js) else {
+        exitError("Unable to execute canvas semantic action on canvas '\(canvasID)'", code: "CANVAS_ACTION_FAILED")
+    }
+    if (result["ok"] as? Bool) != true {
+        let message = result["error"] as? String ?? "Canvas semantic action failed"
+        let code = result["code"] as? String ?? "CANVAS_ACTION_FAILED"
+        exitError(message, code: code)
+    }
+    return result
+}
+
+func updateCanvasFrameForSemanticDrag(canvasID: String, dx: Double, dy: Double) {
+    guard let canvas = readCanvasInfo(id: canvasID) else {
+        exitError("Canvas '\(canvasID)' not found", code: "CANVAS_NOT_FOUND")
+    }
+    guard canvas.at.count == 4 else {
+        exitError("Canvas '\(canvasID)' has invalid bounds", code: "INVALID_CANVAS_BOUNDS")
+    }
+    let frame: [Double] = [
+        Double(canvas.at[0]) + dx,
+        Double(canvas.at[1]) + dy,
+        Double(canvas.at[2]),
+        Double(canvas.at[3]),
+    ]
+    let response = sendEnvelopeRequest(
+        service: "show",
+        action: "update",
+        data: [
+            "id": canvasID,
+            "at": frame,
+            "geometry_change": "origin",
+            "geometry_cause": "aos.semantic.drag",
+            "geometry_phase": "settled",
+        ],
+        autoStartBinary: aosExecutablePath()
+    )
+    guard
+        let decoded = response.flatMap(decodeCanvasResponse),
+        decoded.error == nil
+    else {
+        exitError("Canvas semantic drag update failed for '\(canvasID)'", code: "CANVAS_ACTION_FAILED")
+    }
+}
+
+func currentCanvasTargetSnapshot(canvasID: String, ref: String, scaleFactor: Double) -> AOSSemanticTargetJSON? {
+    collectCanvasSemanticTargets(canvasID: canvasID, scaleFactor: scaleFactor)?
+        .first(where: { $0.provenance.canvas_id == canvasID && $0.ref == ref })
 }
 
 func printCanvasRefClickResult(

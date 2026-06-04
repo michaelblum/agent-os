@@ -137,6 +137,18 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.issue_comment'));
   assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.issue_comment'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.issue_comment'));
+  assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.github.pr_comment'));
+  assert.ok(!profiles.get('gdi').allowed_capabilities.includes('dev.github.pr_comment'));
+  assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.github.pr_comment'));
+
+  for (const profileName of ['foreman', 'gdi', 'operator']) {
+    const allowed = profiles.get(profileName).allowed_capabilities;
+    assert.ok(allowed.includes('dev.github.issue_list'), `${profileName} should allow issue inventory`);
+    assert.ok(allowed.includes('dev.github.issue_view'), `${profileName} should allow issue reads`);
+    assert.ok(allowed.includes('dev.github.pr_list'), `${profileName} should allow PR inventory`);
+    assert.ok(allowed.includes('dev.github.pr_view'), `${profileName} should allow PR reads`);
+    assert.ok(allowed.includes('dev.github.pr_checks'), `${profileName} should allow PR check reads`);
+  }
 
   assert.equal(profiles.get('operator').default_entry_path, 'agent_harness');
   assert.ok(!profiles.get('operator').allowed_capability_classes.includes('external_write'));

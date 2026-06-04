@@ -78,9 +78,9 @@ import {
     createSigilContextRecordingRuntime,
 } from './context-recording-runtime.js';
 import {
-    contextMenuOpenCommandOpened,
-    resolveContextMenuRightClickRoute,
-} from './context-menu-input.js';
+    avatarControlsOpenCommandOpened,
+    resolveAvatarControlsRightClickRoute,
+} from './avatar-controls-input.js';
 import {
     currentSigilRoot,
     currentToolkitRoot,
@@ -109,7 +109,10 @@ import {
     configureTransparentSigilRenderer,
     transparentSigilRendererOptions,
 } from './webgl-renderer.js';
-import { createSigilContextMenu } from '../../context-menu/menu.js';
+import {
+    createSigilAvatarControls,
+    resolveAvatarPanelAvoidancePosition,
+} from '../../avatar-controls/surface.js';
 import { loadAgent } from '../agent-loader.js';
 import { createSessionVitalityController } from '../session-vitality.js';
 import { copyTextToClipboard } from './clipboard-utils.js';
@@ -158,6 +161,7 @@ const radialTargetSurface = createRadialMenuTargetSurface({
     url: sigilUrl('renderer/radial-menu-surface.html'),
     id: 'sigil-radial-menu-avatar-main',
 });
+const SIGIL_AVATAR_PANEL_CANVAS_ID = 'sigil-avatar-controls-avatar-main';
 
 const liveJs = {
     avatarPos: { x: 0, y: 0, valid: false },
@@ -186,7 +190,7 @@ const liveJs = {
     mousedownPos: null,
     mousedownAvatarPos: null,
     avatarVisible: false,
-    contextMenu: { open: false, bounds: null, stack: null },
+    avatarControls: { open: false, bounds: null, stack: null },
     utilityCanvases: new Map(),
     utilityCanvasOpenPromises: new Map(),
     defaultAvatarSave: { dirty: false, saving: false, lastSavedAt: null, lastError: null },
@@ -257,7 +261,7 @@ const selectionModeRuntime = createSigilSelectionModeRuntime({
     getCandidateList: () => annotationReticleCandidateList(),
     projectPoint: (point) => stagePoint(point),
     getOverlayBounds: () => ({ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }),
-    closeContextMenu: (reason) => contextMenu.close(reason),
+    closeAvatarControls: (reason) => avatarControls.close(reason),
     exitAnnotationReticle,
     clearGestureState,
     syncInputRegions: syncSigilInputRegions,
@@ -342,6 +346,105 @@ function nativeFrameForAvatar() {
     ];
 }
 
+function rectFromFrame(frame) {
+    if (!Array.isArray(frame) || frame.length < 4) return null;
+    const rect = {
+        x: Number(frame[0]),
+        y: Number(frame[1]),
+        w: Number(frame[2]),
+        h: Number(frame[3]),
+    };
+    if (![rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) return null;
+    if (rect.w <= 0 || rect.h <= 0) return null;
+    return rect;
+}
+
+function frameFromRectDictionary(rect) {
+    if (!rect || typeof rect !== 'object') return null;
+    return rectFromFrame([
+        rect.x,
+        rect.y,
+        rect.w ?? rect.width,
+        rect.h ?? rect.height,
+    ]);
+}
+
+function rectContainsRect(outer, inner) {
+    return !!(outer && inner
+        && inner.x >= outer.x
+        && inner.y >= outer.y
+        && inner.x + inner.w <= outer.x + outer.w
+        && inner.y + inner.h <= outer.y + outer.h);
+}
+
+function nativeVisibleViewportForRect(rect) {
+    const displays = liveJs.displays || [];
+    return displays.map((display) => (
+        frameFromRectDictionary(display.nativeVisibleBounds)
+        || frameFromRectDictionary(display.native_visible_bounds)
+        || frameFromRectDictionary(display.visibleBounds)
+        || frameFromRectDictionary(display.visible_bounds)
+        || frameFromRectDictionary(display.nativeBounds)
+        || frameFromRectDictionary(display.native_bounds)
+        || frameFromRectDictionary(display.bounds)
+    )).find((viewport) => rectContainsRect(viewport, rect))
+        || displays.map((display) => (
+            frameFromRectDictionary(display.nativeVisibleBounds)
+            || frameFromRectDictionary(display.native_visible_bounds)
+            || frameFromRectDictionary(display.visibleBounds)
+            || frameFromRectDictionary(display.visible_bounds)
+            || frameFromRectDictionary(display.nativeBounds)
+            || frameFromRectDictionary(display.native_bounds)
+            || frameFromRectDictionary(display.bounds)
+        )).find((viewport) => {
+            const center = { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+            return viewport
+                && center.x >= viewport.x
+                && center.y >= viewport.y
+                && center.x < viewport.x + viewport.w
+                && center.y < viewport.y + viewport.h;
+        })
+        || null;
+}
+
+function panelNativeFrameFromLifecycle(message = {}) {
+    const canvas = message.canvas || {};
+    return rectFromFrame(canvas.placement?.final_settled_frame)
+        || rectFromFrame(canvas.placement?.policy_adjusted_frame)
+        || rectFromFrame(canvas.at)
+        || rectFromFrame(message.at);
+}
+
+function panelFrameToAvatarControlsBounds(frame) {
+    const nativeRect = Array.isArray(frame) ? rectFromFrame(frame) : frameFromRectDictionary(frame);
+    if (!nativeRect) return null;
+    return nativeToDesktopWorldRect(nativeRect, liveJs.displays) || nativeRect;
+}
+
+function avoidAvatarPanelOverlapFromLifecycle(message = {}) {
+    if (!avatarControls.isOpen() || !liveJs.avatarVisible || !liveJs.avatarPos.valid) return false;
+    const panelRect = panelNativeFrameFromLifecycle(message);
+    const avatarRect = rectFromFrame(nativeFrameForAvatar());
+    const viewport = nativeVisibleViewportForRect(panelRect);
+    const next = resolveAvatarPanelAvoidancePosition({
+        avatarRect,
+        panelRect,
+        viewport,
+        margin: 12,
+    });
+    if (!next || next.overlap !== 0) return false;
+    const desktopPoint = nativeToDesktopWorldPoint({ x: next.x, y: next.y }, liveJs.displays) || { x: next.x, y: next.y };
+    setAvatarPosition(desktopPoint.x, desktopPoint.y);
+    interactionTrace.record('sigil-avatar-panel:avoid-overlap', {
+        panelRect,
+        avatarRect,
+        viewport,
+        next,
+        desktopPoint,
+    });
+    return true;
+}
+
 function nativeFrameForSelectionMode() {
     return selectionModeNativeFrameResolver.resolve();
 }
@@ -391,7 +494,7 @@ function recordInteraction(stage, data = {}) {
     interactionTrace.record(stage, {
         ...data,
         state: liveJs.currentState,
-        contextMenuOpen: contextMenu?.isOpen?.() ?? false,
+        avatarControlsOpen: avatarControls?.isOpen?.() ?? false,
         avatarVisible: liveJs.avatarVisible,
         avatarPos: liveJs.avatarPos,
     });
@@ -446,7 +549,7 @@ function currentRenderLoopContinuationReasons(vitalityFrame = state.sessionVital
         fastTravelActive: !!liveJs.travel || liveJs.currentState === 'FAST_TRAVEL',
         radialActivationTransitionActive: radialActivationTransition.active(),
         radialGestureActive: !!radialGesture && radialGesture.phase !== 'idle',
-        contextMenuOpen: contextMenu?.isOpen?.() ?? false,
+        avatarControlsOpen: avatarControls?.isOpen?.() ?? false,
         annotationReticleActive: !!annotationReticle.active,
         selectionModeActive: liveJs.selectionMode?.active === true,
         selectionModeEffectActive: selectionModeOverlayHasActiveEffects(liveJs.selectionModeOverlay, Date.now()),
@@ -552,8 +655,8 @@ function applySurfaceRenderSnapshot(snapshot) {
     if (Number.isFinite(snapshot.appScale)) state.appScale = snapshot.appScale;
     if (Number.isFinite(snapshot.globalTime)) state.globalTime = snapshot.globalTime;
     applyOmegaRenderStateSnapshot(state, snapshot.omega);
-    if (snapshot.contextMenu && typeof snapshot.contextMenu === 'object') {
-        contextMenu.applySnapshot(snapshot.contextMenu);
+    if (snapshot.avatarControls && typeof snapshot.avatarControls === 'object') {
+        avatarControls.applySnapshot(snapshot.avatarControls);
     }
     if (snapshot.annotationReticle && typeof snapshot.annotationReticle === 'object') {
         annotationReticle.applySnapshot(snapshot.annotationReticle);
@@ -585,7 +688,7 @@ function surfaceRenderSnapshot(renderAvatarPos) {
         globalTime: state.globalTime,
         appearanceVersion: liveJs.appearanceVersion,
         omega: omegaRenderStateSnapshot(state),
-        contextMenu: contextMenu?.snapshot?.(),
+        avatarControls: avatarControls?.snapshot?.(),
         fastTravel: fastTravel.exportSnapshot(),
         annotationReticle: liveJs.annotationReticle,
         selectionMode: liveJs.selectionMode,
@@ -697,7 +800,7 @@ function updateDefaultAvatarSaveState(next = {}) {
     };
 }
 
-async function saveDefaultAvatarDefinition(reason = 'menu-close') {
+async function saveDefaultAvatarDefinition(reason = 'controls-close') {
     if (defaultAvatarSaveInFlight) return false;
     defaultAvatarSaveInFlight = true;
     updateDefaultAvatarSaveState({ lastError: null });
@@ -729,7 +832,7 @@ async function saveDefaultAvatarDefinition(reason = 'menu-close') {
     }
 }
 
-async function handleContextMenuClose({ reason = 'close' } = {}) {
+async function handleAvatarControlsClose({ reason = 'close' } = {}) {
     if (!defaultAvatarDirty) return;
     const shouldSave = window.confirm('Save changes?');
     if (!shouldSave) {
@@ -809,7 +912,7 @@ function applyAvatarWindowLevel(level = state.avatarWindowLevel) {
     host.canvasUpdate({ id: 'avatar-main', window_level: normalized });
 }
 
-async function handleAvatarMenuAction(action) {
+async function handleAvatarControlsAction(action) {
     const json = avatarDefinitionJson();
     if (action === 'copy') {
         try {
@@ -833,7 +936,7 @@ async function handleAvatarMenuAction(action) {
     return false;
 }
 
-const contextMenu = createSigilContextMenu({
+const avatarControls = createSigilAvatarControls({
     state,
     liveJs,
     projectPoint: desktopWorldToSegmentLocalPoint,
@@ -850,10 +953,23 @@ const contextMenu = createSigilContextMenu({
     updateMagneticTentacleCount,
     onAppearanceChange: markAppearanceChanged,
     onUtilityAction: toggleUtilityCanvas,
-    onAvatarAction: handleAvatarMenuAction,
+    onAvatarAction: handleAvatarControlsAction,
     onAvatarWindowLevelChange: applyAvatarWindowLevel,
     onBoundsChange: syncSigilInputRegions,
-    onClose: handleContextMenuClose,
+    onClose: handleAvatarControlsClose,
+    actionDispatcher(action, payload = {}, options = {}) {
+        return host.request('aos.action', { ...payload, action }, options);
+    },
+    panelId: SIGIL_AVATAR_PANEL_CANVAS_ID,
+    panelUrl: sigilUrl('avatar-editor/panel.html', {
+        query: {
+            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+            owner: 'avatar-main',
+            'sigil-root': currentSigilRoot(),
+            'toolkit-root': currentToolkitRoot(),
+        },
+    }),
+    panelFrameToBounds: panelFrameToAvatarControlsBounds,
     trace: interactionTrace,
 });
 sigilInputRegions = createSigilInputRegionAdapter({
@@ -863,9 +979,9 @@ sigilInputRegions = createSigilInputRegionAdapter({
     windowObject: window,
     isPrimarySegment: isPrimarySurfaceSegment,
     avatarNativeFrame: nativeFrameForAvatar,
-    avatarRegionEnabled: () => !hitTarget.hit.interactive,
-    contextMenuIsOpen: () => contextMenu.isOpen(),
-    contextMenuNativeFrame: () => nativeFrameFromDesktopRect(contextMenu.interactiveBounds()),
+    avatarRegionEnabled: () => !hitTarget.hit.interactive && !liveJs.avatarParking,
+    avatarControlsIsOpen: () => avatarControls.isOpen(),
+    avatarControlsNativeFrame: () => nativeFrameFromDesktopRect(avatarControls.interactiveBounds()),
     selectionModeIsActive: () => liveJs.selectionMode?.active === true,
     selectionModeNativeFrame: nativeFrameForSelectionMode,
 });
@@ -878,6 +994,7 @@ const UTILITY_CANVAS_IDS = new Set([
     WIKI_WORKBENCH_CANVAS_ID,
     AGENT_TERMINAL_CANVAS_ID,
     LEGACY_CODEX_TERMINAL_CANVAS_ID,
+    SIGIL_AVATAR_PANEL_CANVAS_ID,
 ]);
 
 function markAppearanceChanged() {
@@ -1028,6 +1145,99 @@ function isAgentTerminalVisible() {
 function isUtilityCanvasVisible(id) {
     const current = liveJs.utilityCanvases.get(id);
     return !!current && current.suspended !== true;
+}
+
+function publishStatusMenuItems() {
+    if (!isPrimarySurfaceSegment()) return;
+    host.setStatusMenuItems([
+        {
+            id: 'sigil.status.console',
+            title: 'Console Log',
+            checked: isUtilityCanvasVisible('__log__'),
+        },
+        {
+            id: 'sigil.status.surface_inspector',
+            title: 'Surface Inspector',
+            checked: isUtilityCanvasVisible('surface-inspector'),
+        },
+        {
+            id: 'sigil.status.annotation_mode',
+            title: 'Annotation Mode',
+            checked: isUtilityCanvasVisible('surface-inspector') && !!annotationReticle.active,
+        },
+        { type: 'separator' },
+        {
+            id: 'sigil.status.reload',
+            title: 'Reload',
+            key_equivalent: 'r',
+        },
+        {
+            id: 'sigil.status.remove',
+            title: 'Remove',
+        },
+        { type: 'separator' },
+        {
+            id: 'aos.app.quit',
+            title: 'Quit AOS',
+        },
+    ]);
+}
+
+async function reloadFromStatusMenu() {
+    try {
+        await Promise.allSettled([
+            hitTarget.remove(),
+            radialTargetSurface.remove(),
+            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
+        ]);
+    } catch (error) {
+        console.warn('[sigil] status menu reload cleanup failed:', error);
+    } finally {
+        window.location.reload();
+    }
+}
+
+async function handleStatusMenuAction(msg = {}) {
+    const id = String(msg.id || msg.action_id || '').trim();
+    if (!id) return false;
+    if (id === 'sigil.status.console') {
+        await toggleUtilityCanvas('log-console');
+        return true;
+    }
+    if (id === 'sigil.status.surface_inspector') {
+        await toggleUtilityCanvas('surface-inspector');
+        return true;
+    }
+    if (id === 'sigil.status.annotation_mode') {
+        await ensureUtilityCanvasVisible('surface-inspector', { focus: true });
+        host.post('canvas.send', {
+            target: 'surface-inspector',
+            message: {
+                type: 'canvas_inspector.annotation_toggle',
+                reason: 'status_item_menu',
+            },
+        });
+        publishStatusMenuItems();
+        return true;
+    }
+    if (id === 'sigil.status.reload') {
+        void reloadFromStatusMenu();
+        return true;
+    }
+    if (id === 'sigil.status.remove') {
+        await Promise.allSettled([
+            hitTarget.remove(),
+            radialTargetSurface.remove(),
+            host.canvasRemove({ id: SIGIL_AVATAR_PANEL_CANVAS_ID }),
+        ]);
+        host.post('canvas.remove', { id: 'avatar-main' });
+        return true;
+    }
+    if (id === 'aos.app.quit') {
+        await host.aosAction({ action: 'app.quit', source: 'status_item_menu' });
+        return true;
+    }
+    return false;
 }
 
 function finiteOrNull(value) {
@@ -1284,6 +1494,8 @@ async function toggleUtilityCanvas(kind) {
             }
         }
         console.warn('[sigil] utility toggle failed:', kind, error);
+    } finally {
+        publishStatusMenuItems();
     }
 }
 
@@ -1338,6 +1550,7 @@ async function ensureUtilityCanvasVisible(kind, { focus = true } = {}) {
         if (liveJs.utilityCanvasOpenPromises.get(config.id) === promise) {
             liveJs.utilityCanvasOpenPromises.delete(config.id);
         }
+        publishStatusMenuItems();
     }
 }
 
@@ -1497,7 +1710,7 @@ function setAvatarHover(over, { immediate = false } = {}) {
 }
 
 function updateAvatarHoverFromPoint(x, y) {
-    if (!liveJs.avatarVisible || contextMenu.isOpen()) {
+    if (!liveJs.avatarVisible || avatarControls.isOpen()) {
         setAvatarHover(false);
         return;
     }
@@ -1562,7 +1775,7 @@ function sigilUxTreeSnapshot() {
         metadata: {
             current_state: liveJs.currentState,
             selection_mode_active: liveJs.selectionMode?.active === true,
-            context_menu_open: contextMenu?.isOpen?.() ?? false,
+            avatar_controls_open: avatarControls?.isOpen?.() ?? false,
         },
     });
 }
@@ -1599,7 +1812,7 @@ const radialItemActionDispatcher = createSigilRadialItemActionDispatcher({
     enterAnnotationReticle,
     enterSelectionMode,
     requestAnnotationSnapshot,
-    openContextMenuAt,
+    openAvatarControlsAt,
     toggleUtilityCanvas,
     openWikiWorkbench,
 });
@@ -1624,7 +1837,7 @@ sigilUxCommandRuntime = createSigilUxTreeCommandRuntime({
     commitSelectionMode,
     selectionModeSnapshot,
     selectionModeRecord,
-    contextMenu,
+    avatarControls,
     cancelInteraction,
     wikiPath: WIKI_WORKBENCH_DEFAULT_PATH,
 });
@@ -3308,7 +3521,7 @@ function setAvatarVisibility(visible) {
     liveJs.avatarVisible = next;
     if (!next) {
         const radialSnapshot = liveJs.radialGestureMenu;
-        contextMenu.close('avatar-hidden');
+        avatarControls.close('avatar-hidden');
         const result = radialGestureMenu.cancel('avatar-hidden');
         clearGestureState();
         beginRadialGestureDismissal(result, radialSnapshot);
@@ -3392,8 +3605,8 @@ function cancelInteraction(reason) {
     setInteractionState('IDLE', reason);
 }
 
-let lastContextMenuOpenAt = 0;
-let lastContextMenuOpenPoint = null;
+let lastAvatarControlsOpenAt = 0;
+let lastAvatarControlsOpenPoint = null;
 const recentDaemonPointerEvents = new Map();
 const HIT_ECHO_SUPPRESS_MS = 450;
 const HIT_ECHO_SUPPRESS_DISTANCE = 6;
@@ -3443,43 +3656,47 @@ function isRecentDaemonPointerEcho(kind, point) {
     return distance(point.x, point.y, prior.x, prior.y) <= HIT_ECHO_SUPPRESS_DISTANCE;
 }
 
-function isDuplicateContextMenuOpenClick(x, y) {
-    if (!lastContextMenuOpenPoint) {
-        recordInteraction('context-menu:duplicate-check', { x, y, duplicate: false, reason: 'no-prior-open' });
+function isDuplicateAvatarControlsOpenClick(x, y) {
+    if (!lastAvatarControlsOpenPoint) {
+        recordInteraction('avatar-controls:duplicate-check', { x, y, duplicate: false, reason: 'no-prior-open' });
         return false;
     }
-    const elapsed = performance.now() - lastContextMenuOpenAt;
+    const elapsed = performance.now() - lastAvatarControlsOpenAt;
     if (elapsed > 900) {
-        recordInteraction('context-menu:duplicate-check', { x, y, elapsed, duplicate: false, reason: 'elapsed' });
+        recordInteraction('avatar-controls:duplicate-check', { x, y, elapsed, duplicate: false, reason: 'elapsed' });
         return false;
     }
     const tolerance = Math.max(16, Math.min(80, Number(state.avatarHitRadius) || 0));
-    const delta = distance(x, y, lastContextMenuOpenPoint.x, lastContextMenuOpenPoint.y);
+    const delta = distance(x, y, lastAvatarControlsOpenPoint.x, lastAvatarControlsOpenPoint.y);
     const duplicate = delta <= tolerance;
-    recordInteraction('context-menu:duplicate-check', { x, y, elapsed, tolerance, delta, duplicate });
+    recordInteraction('avatar-controls:duplicate-check', { x, y, elapsed, tolerance, delta, duplicate });
     return duplicate;
 }
 
-function openContextMenuAt(x, y, options = {}) {
+function openAvatarControlsAt(x, y, options = {}) {
     if (!liveJs.avatarVisible) {
-        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'avatar-hidden' });
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-hidden' });
+        return false;
+    }
+    if (!options.force && liveJs.avatarParking?.mode === 'status') {
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'avatar-parked-at-status' });
         return false;
     }
     if (!options.force && liveJs.currentState !== 'IDLE') {
-        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'state-not-idle' });
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'state-not-idle' });
         return false;
     }
     if (!options.force && !isOnAvatar(x, y)) {
-        recordInteraction('context-menu:open-rejected', { x, y, options, reason: 'not-on-avatar' });
+        recordInteraction('avatar-controls:open-rejected', { x, y, options, reason: 'not-on-avatar' });
         return false;
     }
-    cancelInteraction('context-menu');
-    contextMenu.openAt({ x, y, valid: true });
-    lastContextMenuOpenAt = performance.now();
-    lastContextMenuOpenPoint = { x, y };
+    cancelInteraction('avatar-controls');
+    avatarControls.openAt({ x, y, valid: true });
+    lastAvatarControlsOpenAt = performance.now();
+    lastAvatarControlsOpenPoint = { x, y };
     syncSigilInputRegions();
     if (!rendererSuspended) scheduleRenderFrame();
-    recordInteraction('context-menu:open-request', { x, y, options });
+    recordInteraction('avatar-controls:open-request', { x, y, options });
     return true;
 }
 
@@ -3776,7 +3993,7 @@ function handleInputEvent(msg) {
         || msg?.type === 'left_mouse_down'
         || msg?.type === 'left_mouse_up'
         || msg?.type === 'scroll_wheel'
-        || (contextMenu.isOpen() && msg?.type !== 'mouse_moved')
+        || (avatarControls.isOpen() && msg?.type !== 'mouse_moved')
     ) {
         recordInteraction('input', {
             type: msg.type,
@@ -3822,14 +4039,14 @@ function handleInputEvent(msg) {
         }
 
         if (
-            contextMenu.isOpen()
+            avatarControls.isOpen()
             && ['left_mouse_down', 'left_mouse_dragged', 'left_mouse_up', 'mouse_moved', 'scroll_wheel'].includes(msg.type)
             && typeof msg.x === 'number'
         && typeof msg.y === 'number'
     ) {
         const point = { x: msg.x, y: msg.y, valid: true };
-        const inMenu = contextMenu.containsDesktopPoint(point);
-        if (msg.type !== 'mouse_moved') recordInteraction('context-menu:route-attempt', { type: msg.type, point, inMenu });
+        const inControls = avatarControls.containsDesktopPoint(point);
+        if (msg.type !== 'mouse_moved') recordInteraction('avatar-controls:route-attempt', { type: msg.type, point, inControls });
         const sourceOrigin = msg.sourceOrigin ?? msg.source_origin ?? null;
         const sourceCanvasId = msg.sourceCanvasId ?? msg.source_canvas_id ?? null;
         const ownerCanvasId = msg.ownerCanvasId ?? msg.owner_canvas_id ?? null;
@@ -3839,15 +4056,18 @@ function handleInputEvent(msg) {
         const routeOptions = {
             raw: msg,
             ...(sourceIdentity ? { sourceIdentity } : {}),
-            ...(sourceOrigin === 'canvas' && sourceCanvasId === hitTarget.hit.id ? { regionId: 'sigil-context-menu' } : {}),
+            ...(sourceOrigin === 'canvas' && sourceCanvasId === hitTarget.hit.id ? { regionId: 'sigil-avatar-controls' } : {}),
         };
-        if ((inMenu || msg.type !== 'left_mouse_down') && contextMenu.handlePointerEvent(msg.type, point, routeOptions)) {
-            if (msg.type !== 'mouse_moved') recordInteraction('context-menu:routed', { type: msg.type, point, inMenu });
+        if (
+            (inControls || msg.type !== 'left_mouse_down' || avatarControls.usesExternalPanel?.())
+            && avatarControls.handlePointerEvent(msg.type, point, routeOptions)
+        ) {
+            if (msg.type !== 'mouse_moved') recordInteraction('avatar-controls:routed', { type: msg.type, point, inControls });
             return;
         }
         if (msg.type === 'left_mouse_down') {
-            recordInteraction('context-menu:outside-left-down', { point });
-            contextMenu.close('outside-click');
+            recordInteraction('avatar-controls:outside-left-down', { point });
+            avatarControls.close('outside-click');
         }
     }
 
@@ -3863,35 +4083,36 @@ function handleInputEvent(msg) {
             handleMouseMove(msg.x, msg.y);
             return;
         case 'right_mouse_down':
-            recordInteraction('context-menu:right-down', { x: msg.x, y: msg.y, open: contextMenu.isOpen() });
+            recordInteraction('avatar-controls:right-down', { x: msg.x, y: msg.y, open: avatarControls.isOpen() });
             {
-                const route = resolveContextMenuRightClickRoute(msg, {
-                    isOpen: contextMenu.isOpen(),
-                    isDuplicateOpenClick: isDuplicateContextMenuOpenClick,
+                const route = resolveAvatarControlsRightClickRoute(msg, {
+                    isOpen: avatarControls.isOpen(),
+                    isDuplicateOpenClick: isDuplicateAvatarControlsOpenClick,
+                    isAvatarPointer: isOnAvatar,
                 });
                 if (route.direct === 'duplicate_open_echo') {
-                    recordInteraction('context-menu:right-down-duplicate-ignored', { x: msg.x, y: msg.y });
+                    recordInteraction('avatar-controls:right-down-duplicate-ignored', { x: msg.x, y: msg.y });
                     return;
                 }
                 if (route.command === 'toggle') {
-                    recordInteraction('context-menu:right-down-close-open-menu', { x: msg.x, y: msg.y });
-                    sigilUxCommandRuntime.executeContextMenuRightClick(route, msg);
+                    recordInteraction('avatar-controls:right-down-close-open-controls', { x: msg.x, y: msg.y });
+                    sigilUxCommandRuntime.executeAvatarControlsRightClick(route, msg);
                     return;
                 }
                 if (route.command === 'open') {
-                    const result = sigilUxCommandRuntime.executeContextMenuRightClick(route, msg);
-                    if (contextMenuOpenCommandOpened(result)) return;
-                    contextMenu.close('right-click-away');
+                    const result = sigilUxCommandRuntime.executeAvatarControlsRightClick(route, msg);
+                    if (avatarControlsOpenCommandOpened(result)) return;
+                    avatarControls.close('right-click-away');
                     cancelInteraction('right-click');
                     return;
                 }
-                contextMenu.close('right-click-away');
+                avatarControls.close('right-click-away');
                 cancelInteraction('right-click');
                 return;
             }
         case 'key_down':
             if (msg.key_code === 53) {
-                contextMenu.close('escape');
+                avatarControls.close('escape');
                 cancelInteraction('escape');
             }
             return;
@@ -3939,7 +4160,7 @@ function handleHitCanvasEvent(payload = {}) {
         offsetY: payload.offsetY,
         dx: payload.dx,
         dy: payload.dy,
-        contextMenuOpen: contextMenu.isOpen(),
+        avatarControlsOpen: avatarControls.isOpen(),
         hitFrame: hitTarget.hit.frame,
     });
     if (payload.kind === 'right_mouse_down' || payload.kind === 'right_mouse_up' || payload.kind === 'right_mouse_dragged') {
@@ -3950,8 +4171,8 @@ function handleHitCanvasEvent(payload = {}) {
         || payload.kind === 'left_mouse_dragged'
         || payload.kind === 'left_mouse_up';
     if (payload.kind === 'left_mouse_down' || payload.kind === 'left_mouse_dragged' || payload.kind === 'left_mouse_up') {
-        if (!contextMenu.isOpen()) {
-            interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'menu-closed' });
+        if (!avatarControls.isOpen()) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'controls-closed' });
             return;
         }
     }
@@ -3960,8 +4181,8 @@ function handleHitCanvasEvent(payload = {}) {
         interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'no-point' });
         return;
     }
-    if (isLeftHitEvent && !contextMenu.containsDesktopPoint(point)) {
-        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'outside-menu', point });
+    if (isLeftHitEvent && !avatarControls.containsDesktopPoint(point)) {
+        interactionTrace.record('hit-canvas:ignored', { kind: payload.kind, reason: 'outside-controls', point });
         return;
     }
     if (isLeftHitEvent && isRecentDaemonPointerEcho(payload.kind, point)) {
@@ -4196,9 +4417,30 @@ function handleHostMessage(rawMsg) {
         return;
     }
 
+    const panelMessage = (
+        msg.type === 'canvas_message'
+        && msg.payload
+        && typeof msg.payload.type === 'string'
+        && msg.payload.type.startsWith('sigil.avatar_panel.')
+    )
+        ? msg.payload
+        : msg;
+    if (typeof panelMessage.type === 'string' && panelMessage.type.startsWith('sigil.avatar_panel.')) {
+        if (avatarControls.handlePanelMessage(panelMessage)) return;
+    }
+
     if (msg.type === 'canvas_lifecycle') {
         annotationReticleHandleCanvasLifecycle(msg);
         const canvasId = msg.canvas_id || msg.canvas?.id;
+        if (
+            canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID
+            && (msg.action === 'removed' || msg.suspended === true || msg.canvas?.suspended === true)
+        ) {
+            avatarControls.close('panel-lifecycle');
+        } else if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID) {
+            avatarControls.updatePanelFrame?.(panelNativeFrameFromLifecycle(msg), 'lifecycle');
+            avoidAvatarPanelOverlapFromLifecycle(msg);
+        }
         if (UTILITY_CANVAS_IDS.has(canvasId)) {
             if (msg.action === 'removed') {
                 liveJs.utilityCanvases.delete(canvasId);
@@ -4245,6 +4487,7 @@ function handleHostMessage(rawMsg) {
                     }
                 }
             }
+            publishStatusMenuItems();
         }
         return;
     }
@@ -4262,6 +4505,13 @@ function handleHostMessage(rawMsg) {
 
     if (msg.type === 'canvas_object.effects.patch') {
         handleCanvasObjectEffectsPatch(msg);
+        return;
+    }
+
+    if (msg.type === 'status_item.menu_action') {
+        void handleStatusMenuAction(msg).catch((error) => {
+            console.warn('[sigil] status menu action failed:', error);
+        });
         return;
     }
 
@@ -4441,6 +4691,7 @@ let primarySurfaceServicesStarted = false;
 function startPrimarySurfaceServices() {
     if (primarySurfaceServicesStarted) return;
     primarySurfaceServicesStarted = true;
+    publishStatusMenuItems();
     host.subscribe([
         'display_geometry',
         'input_event',
@@ -4473,6 +4724,7 @@ function startPrimarySurfaceServices() {
 async function setupHostSurface() {
     host.install();
     host.onMessage(handleHostMessage);
+    publishStatusMenuItems();
     overlay.mount();
     visibilityTransition.mount();
     fastTravel.mount();
@@ -4713,10 +4965,10 @@ function animate() {
     lastSelectionModeEffectActive = selectionModeEffectActive;
 
     if (work.structural) {
-        contextMenu.updateSegmentPosition();
+        avatarControls.updateSegmentPosition();
 
-        if (primarySegment && contextMenu.isOpen()) {
-            hitTarget.syncWorldRect(contextMenu.interactiveBounds(), true, { displays: liveJs.displays });
+        if (primarySegment && avatarControls.isOpen() && avatarControls.interactiveBounds()) {
+            hitTarget.syncWorldRect(avatarControls.interactiveBounds(), true, { displays: liveJs.displays });
         } else if (primarySegment && liveJs.avatarParking) {
             hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
         } else if (primarySegment && liveJs.avatarPos.valid) {
@@ -4839,7 +5091,7 @@ window.__sigilDebug = {
             annotationReticleEvents: liveJs.annotationReticleEvents,
             avatarHover: liveJs.avatarHover,
             avatarHoverProgress: liveJs.avatarHoverProgress,
-            contextMenu: contextMenu?.snapshot?.(),
+            avatarControls: avatarControls?.snapshot?.(),
             fastTravelEffect: state.transitionFastTravelEffect,
             fastTravelEvents: liveJs.fastTravelEvents,
             interactionTrace: {
@@ -4987,6 +5239,7 @@ export async function boot() {
         y: Math.round(liveJs.avatarPos.y),
         boot_elapsed_ms: bootElapsedMs(),
     });
+    publishStatusMenuItems();
     window.headsup.statusItemReady = true;
     emitStatusItemState();
 }

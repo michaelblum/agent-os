@@ -1,7 +1,7 @@
 import {
-    contextMenuControlDescriptors,
-    getContextMenuControlDescriptor,
-} from '../context-menu/descriptors.js';
+    avatarControlsControlDescriptors,
+    getAvatarControlsControlDescriptor,
+} from '../avatar-controls/descriptors.js';
 import { toolkitSpecifier } from '../renderer/live-modules/content-roots.js';
 import {
     AVATAR_AURA_OBJECT_ID,
@@ -82,34 +82,34 @@ const GROUP_DEFINITIONS = [
     },
     {
         key: 'primary-polyhedron',
-        label: 'Alpha Primary Polyhedron',
+        label: 'Primary Polyhedron',
         facet: 'primary-shape',
         objectIds: [AVATAR_PRIMARY_OBJECT_ID, AVATAR_PRIMARY_TESSERON_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.transform.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-shape-select',
-            'sigil-menu-mother-scale',
-            'sigil-menu-tetartoid-a',
-            'sigil-menu-tetartoid-b',
-            'sigil-menu-tetartoid-c',
-            'sigil-menu-torus-radius',
-            'sigil-menu-torus-tube',
-            'sigil-menu-torus-arc',
-            'sigil-menu-prism-top-radius',
-            'sigil-menu-prism-bottom-radius',
-            'sigil-menu-prism-height',
-            'sigil-menu-prism-sides',
-            'sigil-menu-box-width',
-            'sigil-menu-box-height',
-            'sigil-menu-box-depth',
-            'sigil-menu-tesseron',
-            'sigil-menu-tesseron-proportion',
-            'sigil-menu-tesseron-match',
-            'sigil-menu-stellation',
-            'sigil-menu-opacity',
-            'sigil-menu-edge-opacity',
-            'sigil-menu-xray',
-            'sigil-menu-specular',
+            'sigil-avatar-controls-shape-select',
+            'sigil-avatar-controls-mother-scale',
+            'sigil-avatar-controls-tetartoid-a',
+            'sigil-avatar-controls-tetartoid-b',
+            'sigil-avatar-controls-tetartoid-c',
+            'sigil-avatar-controls-torus-radius',
+            'sigil-avatar-controls-torus-tube',
+            'sigil-avatar-controls-torus-arc',
+            'sigil-avatar-controls-prism-top-radius',
+            'sigil-avatar-controls-prism-bottom-radius',
+            'sigil-avatar-controls-prism-height',
+            'sigil-avatar-controls-prism-sides',
+            'sigil-avatar-controls-box-width',
+            'sigil-avatar-controls-box-height',
+            'sigil-avatar-controls-box-depth',
+            'sigil-avatar-controls-tesseron',
+            'sigil-avatar-controls-tesseron-proportion',
+            'sigil-avatar-controls-tesseron-match',
+            'sigil-avatar-controls-stellation',
+            'sigil-avatar-controls-opacity',
+            'sigil-avatar-controls-edge-opacity',
+            'sigil-avatar-controls-xray',
+            'sigil-avatar-controls-specular',
         ],
     },
     {
@@ -119,28 +119,28 @@ const GROUP_DEFINITIONS = [
         objectIds: [AVATAR_OMEGA_OBJECT_ID, AVATAR_OMEGA_TESSERON_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.transform.patch'],
         descriptorIds: [
-            'sigil-menu-omega-enabled',
-            'sigil-menu-omega-shape',
-            'sigil-menu-omega-tetartoid-a',
-            'sigil-menu-omega-tetartoid-b',
-            'sigil-menu-omega-tetartoid-c',
-            'sigil-menu-omega-torus-radius',
-            'sigil-menu-omega-torus-tube',
-            'sigil-menu-omega-torus-arc',
-            'sigil-menu-omega-prism-top-radius',
-            'sigil-menu-omega-prism-bottom-radius',
-            'sigil-menu-omega-prism-height',
-            'sigil-menu-omega-prism-sides',
-            'sigil-menu-omega-box-width',
-            'sigil-menu-omega-box-height',
-            'sigil-menu-omega-box-depth',
-            'sigil-menu-omega-tesseron',
-            'sigil-menu-omega-tesseron-proportion',
-            'sigil-menu-omega-tesseron-match',
-            'sigil-menu-omega-stellation',
-            'sigil-menu-omega-scale',
-            'sigil-menu-omega-counterspin',
-            'sigil-menu-omega-lock',
+            'sigil-avatar-controls-omega-enabled',
+            'sigil-avatar-controls-omega-shape',
+            'sigil-avatar-controls-omega-tetartoid-a',
+            'sigil-avatar-controls-omega-tetartoid-b',
+            'sigil-avatar-controls-omega-tetartoid-c',
+            'sigil-avatar-controls-omega-torus-radius',
+            'sigil-avatar-controls-omega-torus-tube',
+            'sigil-avatar-controls-omega-torus-arc',
+            'sigil-avatar-controls-omega-prism-top-radius',
+            'sigil-avatar-controls-omega-prism-bottom-radius',
+            'sigil-avatar-controls-omega-prism-height',
+            'sigil-avatar-controls-omega-prism-sides',
+            'sigil-avatar-controls-omega-box-width',
+            'sigil-avatar-controls-omega-box-height',
+            'sigil-avatar-controls-omega-box-depth',
+            'sigil-avatar-controls-omega-tesseron',
+            'sigil-avatar-controls-omega-tesseron-proportion',
+            'sigil-avatar-controls-omega-tesseron-match',
+            'sigil-avatar-controls-omega-stellation',
+            'sigil-avatar-controls-omega-scale',
+            'sigil-avatar-controls-omega-counterspin',
+            'sigil-avatar-controls-omega-lock',
         ],
     },
     {
@@ -157,18 +157,18 @@ const GROUP_DEFINITIONS = [
         ],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-primary-color',
-            'sigil-menu-edge-color',
-            'sigil-menu-face1',
-            'sigil-menu-face2',
-            'sigil-menu-edge1',
-            'sigil-menu-edge2',
-            'sigil-menu-aura1',
-            'sigil-menu-aura2',
-            'sigil-menu-lightning1',
-            'sigil-menu-lightning2',
-            'sigil-menu-magnetic1',
-            'sigil-menu-magnetic2',
+            'sigil-avatar-controls-primary-color',
+            'sigil-avatar-controls-edge-color',
+            'sigil-avatar-controls-face1',
+            'sigil-avatar-controls-face2',
+            'sigil-avatar-controls-edge1',
+            'sigil-avatar-controls-edge2',
+            'sigil-avatar-controls-aura1',
+            'sigil-avatar-controls-aura2',
+            'sigil-avatar-controls-lightning1',
+            'sigil-avatar-controls-lightning2',
+            'sigil-avatar-controls-magnetic1',
+            'sigil-avatar-controls-magnetic2',
         ],
     },
     {
@@ -178,8 +178,8 @@ const GROUP_DEFINITIONS = [
         objectIds: [AVATAR_AURA_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-aura-reach',
-            'sigil-menu-aura-intensity',
+            'sigil-avatar-controls-aura-reach',
+            'sigil-avatar-controls-aura-intensity',
         ],
     },
     {
@@ -189,11 +189,11 @@ const GROUP_DEFINITIONS = [
         objectIds: [AVATAR_PHENOMENA_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-spin',
-            'sigil-menu-pulsar',
-            'sigil-menu-accretion',
-            'sigil-menu-gamma',
-            'sigil-menu-neutrino',
+            'sigil-avatar-controls-spin',
+            'sigil-avatar-controls-pulsar',
+            'sigil-avatar-controls-accretion',
+            'sigil-avatar-controls-gamma',
+            'sigil-avatar-controls-neutrino',
         ],
     },
     {
@@ -203,14 +203,14 @@ const GROUP_DEFINITIONS = [
         objectIds: [AVATAR_LIGHTNING_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-lightning',
-            'sigil-menu-lightning-origin-center',
-            'sigil-menu-lightning-solid-block',
-            'sigil-menu-lightning-length',
-            'sigil-menu-lightning-frequency',
-            'sigil-menu-lightning-duration',
-            'sigil-menu-lightning-branching',
-            'sigil-menu-lightning-brightness',
+            'sigil-avatar-controls-lightning',
+            'sigil-avatar-controls-lightning-origin-center',
+            'sigil-avatar-controls-lightning-solid-block',
+            'sigil-avatar-controls-lightning-length',
+            'sigil-avatar-controls-lightning-frequency',
+            'sigil-avatar-controls-lightning-duration',
+            'sigil-avatar-controls-lightning-branching',
+            'sigil-avatar-controls-lightning-brightness',
         ],
     },
     {
@@ -220,10 +220,10 @@ const GROUP_DEFINITIONS = [
         objectIds: [AVATAR_MAGNETIC_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-magnetic',
-            'sigil-menu-magnetic-count',
-            'sigil-menu-magnetic-speed',
-            'sigil-menu-magnetic-wander',
+            'sigil-avatar-controls-magnetic',
+            'sigil-avatar-controls-magnetic-count',
+            'sigil-avatar-controls-magnetic-speed',
+            'sigil-avatar-controls-magnetic-wander',
         ],
     },
     {
@@ -233,11 +233,11 @@ const GROUP_DEFINITIONS = [
         objectIds: [AVATAR_TRAIL_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-trail-enabled',
-            'sigil-menu-trail-length',
-            'sigil-menu-trail-opacity',
-            'sigil-menu-trail-fade',
-            'sigil-menu-trail-style',
+            'sigil-avatar-controls-trail-enabled',
+            'sigil-avatar-controls-trail-length',
+            'sigil-avatar-controls-trail-opacity',
+            'sigil-avatar-controls-trail-fade',
+            'sigil-avatar-controls-trail-style',
         ],
     },
     {
@@ -247,46 +247,46 @@ const GROUP_DEFINITIONS = [
         objectIds: [AVATAR_TRAVEL_OBJECT_ID],
         contracts: ['sigil.avatar.control.patch', 'canvas_object.effects.patch'],
         descriptorIds: [
-            'sigil-menu-line-interdim',
-            'sigil-menu-fast-travel-effect',
-            'sigil-menu-line-duration',
-            'sigil-menu-line-delay',
-            'sigil-menu-line-repeat-count',
-            'sigil-menu-line-repeat-duration',
-            'sigil-menu-line-lag',
-            'sigil-menu-line-scale',
-            'sigil-menu-line-trail-mode',
-            'sigil-menu-wormhole-shading',
-            'sigil-menu-wormhole-object',
-            'sigil-menu-wormhole-particles',
-            'sigil-menu-wormhole-radius',
-            'sigil-menu-wormhole-implosion',
-            'sigil-menu-wormhole-transit',
-            'sigil-menu-wormhole-rebound',
-            'sigil-menu-wormhole-distortion',
-            'sigil-menu-wormhole-twist',
-            'sigil-menu-wormhole-zoom',
-            'sigil-menu-wormhole-object-height',
-            'sigil-menu-wormhole-object-spin',
-            'sigil-menu-wormhole-particle-density',
-            'sigil-menu-wormhole-shadow',
-            'sigil-menu-wormhole-specular',
-            'sigil-menu-wormhole-light-angle',
-            'sigil-menu-wormhole-flash',
-            'sigil-menu-wormhole-white',
-            'sigil-menu-wormhole-starburst',
-            'sigil-menu-wormhole-lens',
+            'sigil-avatar-controls-line-interdim',
+            'sigil-avatar-controls-fast-travel-effect',
+            'sigil-avatar-controls-line-duration',
+            'sigil-avatar-controls-line-delay',
+            'sigil-avatar-controls-line-repeat-count',
+            'sigil-avatar-controls-line-repeat-duration',
+            'sigil-avatar-controls-line-lag',
+            'sigil-avatar-controls-line-scale',
+            'sigil-avatar-controls-line-trail-mode',
+            'sigil-avatar-controls-wormhole-shading',
+            'sigil-avatar-controls-wormhole-object',
+            'sigil-avatar-controls-wormhole-particles',
+            'sigil-avatar-controls-wormhole-radius',
+            'sigil-avatar-controls-wormhole-implosion',
+            'sigil-avatar-controls-wormhole-transit',
+            'sigil-avatar-controls-wormhole-rebound',
+            'sigil-avatar-controls-wormhole-distortion',
+            'sigil-avatar-controls-wormhole-twist',
+            'sigil-avatar-controls-wormhole-zoom',
+            'sigil-avatar-controls-wormhole-object-height',
+            'sigil-avatar-controls-wormhole-object-spin',
+            'sigil-avatar-controls-wormhole-particle-density',
+            'sigil-avatar-controls-wormhole-shadow',
+            'sigil-avatar-controls-wormhole-specular',
+            'sigil-avatar-controls-wormhole-light-angle',
+            'sigil-avatar-controls-wormhole-flash',
+            'sigil-avatar-controls-wormhole-white',
+            'sigil-avatar-controls-wormhole-starburst',
+            'sigil-avatar-controls-wormhole-lens',
         ],
     },
 ];
 
 export const SIGIL_AVATAR_COMPACT_SURFACE_PROJECTION_ONLY_IDS = Object.freeze([
-    'sigil-menu-grid-mode',
-    'sigil-menu-ring',
-    'sigil-menu-avatar-above-menu',
-    'sigil-menu-cancel-radius',
-    'sigil-menu-grid1',
-    'sigil-menu-grid2',
+    'sigil-avatar-controls-grid-mode',
+    'sigil-avatar-controls-ring',
+    'sigil-avatar-controls-avatar-above-menu',
+    'sigil-avatar-controls-cancel-radius',
+    'sigil-avatar-controls-grid1',
+    'sigil-avatar-controls-grid2',
     'toggle-inspector',
     'toggle-trace',
     'toggle-render-performance',
@@ -349,7 +349,7 @@ function canonicalControlId(descriptor, group) {
 }
 
 function optionsForDescriptor(descriptor) {
-    if (descriptor.coerce === 'geometry' || descriptor.id === 'sigil-menu-shape-select' || descriptor.id === 'sigil-menu-omega-shape') {
+    if (descriptor.coerce === 'geometry' || descriptor.id === 'sigil-avatar-controls-shape-select' || descriptor.id === 'sigil-avatar-controls-omega-shape') {
         return SIGIL_AVATAR_GEOMETRY_OPTIONS.map((option) => ({ ...option }));
     }
     if (Array.isArray(descriptor.options)) {
@@ -360,7 +360,7 @@ function optionsForDescriptor(descriptor) {
 
 function visibleWhenForDescriptor(descriptor, group) {
     if (!descriptor.visibleWhen) return undefined;
-    const sourceDescriptor = getContextMenuControlDescriptor(descriptor.visibleWhen.field);
+    const sourceDescriptor = getAvatarControlsControlDescriptor(descriptor.visibleWhen.field);
     if (!sourceDescriptor) return { ...descriptor.visibleWhen };
     return {
         ...descriptor.visibleWhen,
@@ -404,7 +404,7 @@ function groupModel(group, state) {
         object_ids: [...group.objectIds],
         contracts: [...group.contracts],
         controls: group.descriptorIds
-            .map((id) => getContextMenuControlDescriptor(id))
+            .map((id) => getAvatarControlsControlDescriptor(id))
             .filter(Boolean)
             .map((descriptor) => controlForDescriptor(descriptor, group, state)),
     };
@@ -412,7 +412,7 @@ function groupModel(group, state) {
 
 function projectionOnlyControls(state) {
     return SIGIL_AVATAR_COMPACT_SURFACE_PROJECTION_ONLY_IDS
-        .map((id) => getContextMenuControlDescriptor(id))
+        .map((id) => getAvatarControlsControlDescriptor(id))
         .filter(Boolean)
         .map((descriptor) => {
             const control = {
@@ -513,7 +513,7 @@ export function classifySigilAvatarControlSurfaceDescriptors() {
     const canonical = [];
     const projectionOnly = [];
     const unmapped = [];
-    for (const descriptor of contextMenuControlDescriptors) {
+    for (const descriptor of avatarControlsControlDescriptors) {
         if (GROUP_BY_DESCRIPTOR_ID.has(descriptor.id)) canonical.push(descriptor.id);
         else if (PROJECTION_ONLY_SET.has(descriptor.id)) projectionOnly.push(descriptor.id);
         else unmapped.push(descriptor.id);
@@ -568,14 +568,14 @@ export function buildSigilAvatarEditorModel(state = {}, options = {}) {
                 role: 'compact-tabbed-control-surface-projection',
                 themed_surface: 'sigil.avatar-control-surface',
                 surface_layout: surfaceLayouts.compact_control_surface,
-                legacy_descriptor_source: 'apps/sigil/context-menu/descriptors.js',
+                legacy_descriptor_source: 'apps/sigil/avatar-controls/descriptors.js',
                 projection_only_controls: projectionControls,
             },
         },
         metadata: {
             source: 'apps/sigil/avatar-editor/model.js',
             canonical_model: 'sigil.avatar.object_graph',
-            descriptor_source: 'apps/sigil/context-menu/descriptors.js',
+            descriptor_source: 'apps/sigil/avatar-controls/descriptors.js',
             visual_object_contract: VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID,
             compatibility_descriptor_ids: controls.flatMap((control) => control.compatibility_ids),
         },

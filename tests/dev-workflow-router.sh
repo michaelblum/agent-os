@@ -480,7 +480,11 @@ data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
 assert data["status"] == "success", data
 assert data["manifest"] == "docs/dev/agent-capabilities.json", data
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
+assert "dev.github.pr_comment" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 assert all("adapter_kind" in item for item in data["capabilities"]), data
@@ -515,6 +519,24 @@ then
     pass "dev capabilities explain returns full capability metadata"
 else
     fail "dev capabilities explain did not return expected capability metadata"
+fi
+
+if OUT="$(./aos dev capabilities explain dev.github.pr_comment --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+capability = data["capability"]
+assert capability["id"] == "dev.github.pr_comment", data
+assert capability["adapter"]["kind"] == "aos_cli", data
+assert capability["mutability"]["class"] == "external_write", data
+assert capability["mutability"]["requires_body_file"] is True, data
+assert capability["execution"]["raw_process"] is False, data
+PY
+then
+    pass "dev capabilities explain returns PR comment metadata"
+else
+    fail "dev capabilities explain did not return expected PR comment metadata"
 fi
 
 if ERR="$(./aos dev capabilities explain no.such.capability --json 2>&1 >/dev/null)"; then
@@ -559,7 +581,11 @@ data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
 assert data["dock"] == "foreman", data
 assert data["active_entry_path"] == "aos_developer", data
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
 assert "dev.github.issue_comment" in ids, ids
+assert "dev.github.pr_comment" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.build.aos" in ids, ids
 PY
 then
@@ -592,7 +618,11 @@ import os
 
 data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
+assert "dev.github.pr_comment" not in ids, ids
 assert "dev.build.aos" in ids, ids
 assert "dev.test.schema_node" in ids, ids
 PY
@@ -624,8 +654,12 @@ import os
 data = json.loads(os.environ["OUT"])
 ids = {item["id"] for item in data["capabilities"]}
 assert "dev.github.context" in ids, ids
+assert "dev.github.issue_list" in ids, ids
+assert "dev.github.pr_list" in ids, ids
+assert "dev.github.pr_checks" in ids, ids
 assert "dev.github.ci_inspect" in ids, ids
 assert "dev.github.issue_comment" not in ids, ids
+assert "dev.github.pr_comment" not in ids, ids
 assert all(item["mutability_class"] == "read_only" for item in data["capabilities"]), data
 PY
 then
@@ -665,6 +699,18 @@ if [[ "$cmd" == "pr view --repo michaelblum/agent-os --json number,url,headRefNa
 fi
 if [[ "$cmd" == issue\ comment\ 298\ --repo\ michaelblum/agent-os\ --body-file\ * ]]; then
     echo "https://github.com/michaelblum/agent-os/issues/298#issuecomment-test"
+    exit 0
+fi
+if [[ "$cmd" == "issue list --repo michaelblum/agent-os --state all --limit 20 --label bug --label docs --search semantic target --milestone v0 --json number,title,state,url,createdAt,updatedAt,labels,assignees,author" ]]; then
+    echo '[{"number":399,"title":"Track semantic target cleanup","state":"CLOSED","url":"https://github.com/michaelblum/agent-os/issues/399"}]'
+    exit 0
+fi
+if [[ "$cmd" == "pr view 298 --repo michaelblum/agent-os --json number,title,state,url,headRefName,baseRefName,isDraft,reviewDecision,body,comments,reviews" ]]; then
+    echo '{"number":298,"title":"Review target","state":"OPEN","reviewDecision":"CHANGES_REQUESTED"}'
+    exit 0
+fi
+if [[ "$cmd" == "pr list --repo michaelblum/agent-os --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json number,title,state,url,createdAt,updatedAt,headRefName,baseRefName,isDraft,labels,author" ]]; then
+    echo '[{"number":404,"title":"Reuse semantic target primitives","state":"MERGED","headRefName":"gdi/example","baseRefName":"main","isDraft":true}]'
     exit 0
 fi
 if [[ "$cmd" == "pr checks 298 --repo michaelblum/agent-os --json name,state,bucket,link,startedAt,completedAt,workflow" ]]; then
@@ -720,6 +766,44 @@ else
     fail "dev gh issue view extra positional error mismatch: $ERR"
 fi
 
+if OUT="$(./aos dev gh issue list --state all --limit 20 --label bug --label docs --search "semantic target" --milestone v0 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data[0]["number"] == 399, data
+assert data[0]["state"] == "CLOSED", data
+PY
+then
+    pass "dev gh issue list forwards filtered inventory queries"
+else
+    fail "dev gh issue list did not forward expected filtered query"
+fi
+
+if ERR="$(./aos dev gh issue list --limit --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue list should reject missing --limit values before a flag"
+elif echo "$ERR" | grep -q -- '--limit requires a numeric result limit'; then
+    pass "dev gh issue list treats flag-after---limit as missing value"
+else
+    fail "dev gh issue list missing --limit error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue view 298 --state all --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue view should reject list-only flags with a targeted error"
+elif echo "$ERR" | grep -q -- '--state is only valid for list subcommands'; then
+    pass "dev gh issue view rejects list-only flags with a targeted error"
+else
+    fail "dev gh issue view list-only flag error mismatch: $ERR"
+fi
+
+if ERR="$(./aos dev gh issue list --base main --json 2>&1 >/dev/null)"; then
+    fail "dev gh issue list should reject PR-only flags"
+elif echo "$ERR" | grep -q -- 'Unknown dev gh flag: --base'; then
+    pass "dev gh issue list rejects PR-only flags"
+else
+    fail "dev gh issue list PR-only flag error mismatch: $ERR"
+fi
+
 BODY="$TMPDIR/comment.md"
 printf 'accepted state\n' > "$BODY"
 : > "$GH_ARGS_LOG"
@@ -753,6 +837,43 @@ elif echo "$ERR" | grep -q 'Unknown dev gh pr argument: extra'; then
     pass "dev gh pr comment rejects extra positional args"
 else
     fail "dev gh pr comment extra positional error mismatch: $ERR"
+fi
+
+if OUT="$(./aos dev gh pr list --state all --limit 30 --author michaelblum --base main --head gdi/example --draft --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data[0]["number"] == 404, data
+assert data[0]["headRefName"] == "gdi/example", data
+assert data[0]["isDraft"] is True, data
+PY
+then
+    pass "dev gh pr list forwards filtered PR inventory queries"
+else
+    fail "dev gh pr list did not forward expected filtered query"
+fi
+
+if ERR="$(./aos dev gh pr list --base --json 2>&1 >/dev/null)"; then
+    fail "dev gh pr list should reject missing --base values before a flag"
+elif echo "$ERR" | grep -q -- '--base requires a base branch name'; then
+    pass "dev gh pr list treats flag-after---base as missing value"
+else
+    fail "dev gh pr list missing --base error mismatch: $ERR"
+fi
+
+if OUT="$(./aos dev gh pr view 298 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["number"] == 298, data
+assert data["reviewDecision"] == "CHANGES_REQUESTED", data
+PY
+then
+    pass "dev gh pr view includes reviewDecision in JSON output"
+else
+    fail "dev gh pr view did not request reviewDecision JSON"
 fi
 
 if OUT="$(./aos dev gh ci inspect --json 2>/dev/null)"; then

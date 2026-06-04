@@ -7,7 +7,7 @@ test('interaction trace arms, records, and stops a manual capture', () => {
 
   const id = trace.arm('manual-repro')
   trace.record('input', { type: 'right_mouse_down', x: 10, y: 20 })
-  trace.record('context-menu:open', { x: 10, y: 20 })
+  trace.record('avatar-controls:open', { x: 10, y: 20 })
   const stopped = trace.stop('done')
   const snapshot = trace.snapshot()
 

@@ -93,7 +93,7 @@ test('compact avatar surface view model maps object graph tabs to toolkit form c
   assert.deepEqual(viewModel.tabs.map((tab) => tab.key), ['alpha', 'omega', 'effects', 'travel']);
 
   const alphaControls = controlsForTab(viewModel, 'alpha');
-  const alphaGeometry = alphaControls.find((control) => control.descriptor_id === 'sigil-menu-shape-select');
+  const alphaGeometry = alphaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-shape-select');
   assert.equal(alphaGeometry.kind, 'select');
   assert.equal(alphaGeometry.toolkit_control.namespace, 'packages/toolkit/controls');
   assert.equal(alphaGeometry.binding.route, 'canvas_object.transform.patch');
@@ -101,13 +101,13 @@ test('compact avatar surface view model maps object graph tabs to toolkit form c
   assert.ok(alphaGeometry.options.some((option) => option.value === 12 && option.label === 'Dodecahedron'));
   assert.ok(alphaGeometry.options.some((option) => option.value === 6 && option.label === 'Box'));
   assert.ok(alphaGeometry.options.some((option) => option.value === 93 && option.label === 'Prism'));
-  const alphaOpacity = alphaControls.find((control) => control.descriptor_id === 'sigil-menu-opacity');
+  const alphaOpacity = alphaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-opacity');
   assert.equal(alphaOpacity.kind, 'slider');
   assert.equal(alphaOpacity.toolkit_control.kind, 'slider');
   assert.equal(alphaOpacity.min, 0);
   assert.equal(alphaOpacity.max, 1);
   assert.equal(alphaOpacity.step, 0.01);
-  const prismHeight = alphaControls.find((control) => control.descriptor_id === 'sigil-menu-prism-height');
+  const prismHeight = alphaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-prism-height');
   assert.equal(prismHeight.kind, 'slider');
   assert.equal(prismHeight.binding.state_path, 'avatar.shape.params.cylinder.height');
   assert.equal(prismHeight.value, 2.4);
@@ -115,12 +115,12 @@ test('compact avatar surface view model maps object graph tabs to toolkit form c
   assert.equal(prismHeight.visible_when.equals, 93);
 
   const omegaControls = controlsForTab(viewModel, 'omega');
-  const omegaEnabled = omegaControls.find((control) => control.descriptor_id === 'sigil-menu-omega-enabled');
+  const omegaEnabled = omegaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-omega-enabled');
   assert.equal(omegaEnabled.kind, 'checkbox');
   assert.equal(omegaEnabled.binding.state_path, 'avatar.effects.omega.enabled');
   assert.ok(omegaEnabled.binding.object_ids.includes('avatar.omega.shape'));
-  const omegaGeometry = omegaControls.find((control) => control.descriptor_id === 'sigil-menu-omega-shape');
-  const omegaTetartoidB = omegaControls.find((control) => control.descriptor_id === 'sigil-menu-omega-tetartoid-b');
+  const omegaGeometry = omegaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-omega-shape');
+  const omegaTetartoidB = omegaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-omega-tetartoid-b');
   assert.equal(omegaTetartoidB.kind, 'slider');
   assert.equal(omegaTetartoidB.binding.state_path, 'avatar.effects.omega.shape.params.tetartoid.b');
   assert.equal(omegaTetartoidB.value, 1.4);
@@ -128,7 +128,7 @@ test('compact avatar surface view model maps object graph tabs to toolkit form c
   assert.equal(omegaTetartoidB.visible_when.equals, 90);
 
   const effectControls = controlsForTab(viewModel, 'effects');
-  const lightning = effectControls.find((control) => control.descriptor_id === 'sigil-menu-lightning');
+  const lightning = effectControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-lightning');
   assert.equal(lightning.kind, 'checkbox');
   assert.equal(lightning.binding.group_key, 'lightning-effects');
   assert.deepEqual(lightning.binding.object_ids, ['avatar.effects.lightning']);
@@ -137,7 +137,7 @@ test('compact avatar surface view model maps object graph tabs to toolkit form c
 test('compact avatar surface separates projection shortcuts from canonical avatar controls', () => {
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(avatarState());
   const inspector = viewModel.projection_tools.find((control) => control.descriptor_id === 'toggle-inspector');
-  const gridMode = viewModel.projection_tools.find((control) => control.descriptor_id === 'sigil-menu-grid-mode');
+  const gridMode = viewModel.projection_tools.find((control) => control.descriptor_id === 'sigil-avatar-controls-grid-mode');
 
   assert.equal(inspector.kind, 'button');
   assert.equal(inspector.canonical_avatar_edit, false);

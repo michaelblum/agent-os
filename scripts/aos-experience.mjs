@@ -248,8 +248,8 @@ function parseArgs(argv) {
 
 function vanillaFallback() {
   return {
-    status_item: true,
-    tools: ['avatar-terminal', 'graph-wiki', 'inspectors'],
+    status_item: false,
+    tools: [],
   };
 }
 
@@ -431,7 +431,7 @@ function deactivate(asJSON, dryRun) {
   if (manifest) runHooks(manifest, 'before_deactivate', roots, steps);
   const values = [
     ['status_item.enabled', 'false'],
-    ['status_item.toggle_id', 'avatar'],
+    ['status_item.toggle_id', 'status-item-canvas'],
     ['status_item.toggle_url', ''],
     ['status_item.toggle_track', 'none'],
     ['status_item.icon', 'aos'],

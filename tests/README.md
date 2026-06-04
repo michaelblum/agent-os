@@ -95,6 +95,9 @@ Rebuild with `./aos dev build` when both of these are true:
 - the work changed Swift sources in `src/` or `shared/swift/ipc/`
 - the command or test you are about to run executes `./aos`
 
+GDI is not allowed to perform this rebuild; return native/binary work to
+Foreman instead.
+
 Use raw `bash build.sh` only when `./aos` is missing or the build command itself
 is being repaired.
 

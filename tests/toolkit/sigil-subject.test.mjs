@@ -18,7 +18,7 @@ import { VISUAL_OBJECT_DESCRIPTOR_CONTRACT_ID } from '../../packages/toolkit/wor
 test('createSigilAgentSubject builds a Sigil agent domain subject from a wiki document', () => {
   const subject = createSigilAgentSubject({
     path: 'sigil/agents/default.md',
-    type: 'agent',
+    type: 'entity',
     id: 'default',
     name: 'Default',
     description: 'Default Sigil operator.',
@@ -82,7 +82,7 @@ test('createSigilAgentSubject derives identity from the source wiki path', () =>
   const subject = createSigilAgentSubject({
     path: 'sigil/agents/researcher.md',
     frontmatter: {
-      type: 'agent',
+      type: 'entity',
       name: 'Researcher',
     },
   });
@@ -93,7 +93,7 @@ test('createSigilAgentSubject derives identity from the source wiki path', () =>
 });
 
 test('createSigilAgentSubject rejects missing source identity', () => {
-  assert.throws(() => createSigilAgentSubject({ type: 'agent' }), /requires a source wiki path/);
+  assert.throws(() => createSigilAgentSubject({ type: 'entity' }), /requires a source wiki path/);
 });
 
 test('createSigilAvatarSubject builds a canonical avatar editor subject without agent or legacy routing', () => {

@@ -1518,18 +1518,19 @@ test('Surface Inspector semantic target refresh requests existing live canvases 
 
 test('Surface Inspector menu and shortcut hooks expose Annotation Mode entry points', () => {
   const statusItem = readFileSync(path.join(repoRoot, 'src/display/status-item.swift'), 'utf8');
+  const sigilMain = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8');
   const daemonBundle = readFileSync(path.join(repoRoot, 'src/daemon/surface-inspector-bundle.swift'), 'utf8');
   const unified = readFileSync(path.join(repoRoot, 'src/daemon/unified.swift'), 'utf8');
 
-  assert.match(statusItem, /NSMenuItem\(title: "Surface Inspector"/);
-  assert.match(statusItem, /NSMenuItem\(title: "Annotation Mode"/);
-  assert.match(statusItem, /menuCanvasInspectorAnnotateMode/);
-  assert.match(statusItem, /isCanvasInspectorAnnotationModeVisibleAndActive/);
-  assert.doesNotMatch(statusItem, /annotateItem\.state = isUtilityCanvasVisible\(id: canvasInspectorId\) \? \.on : \.off/);
-  assert.match(statusItem, /canvas_inspector\.annotation_toggle/);
-  assert.match(statusItem, /setCanvasInspectorAnnotationModeActive/);
-  assert.match(unified, /canvas_inspector\.annotation_state/);
-  assert.match(unified, /canvasInspectorAnnotationModeHandler/);
+  assert.match(statusItem, /StatusItemMenuDescriptor/);
+  assert.doesNotMatch(statusItem, /NSMenuItem\(title: "Surface Inspector"/);
+  assert.doesNotMatch(statusItem, /NSMenuItem\(title: "Annotation Mode"/);
+  assert.doesNotMatch(statusItem, /menuCanvasInspectorAnnotateMode/);
+  assert.match(sigilMain, /title: 'Surface Inspector'/);
+  assert.match(sigilMain, /title: 'Annotation Mode'/);
+  assert.match(sigilMain, /status_item\.menu_action/);
+  assert.match(sigilMain, /canvas_inspector\.annotation_toggle/);
+  assert.doesNotMatch(unified, /canvasInspectorAnnotationModeHandler/);
   assert.match(daemonBundle, /maybeHandleCanvasInspectorAnnotationHotkey/);
   assert.match(daemonBundle, /hotkeyDataMatches\(data, combo: "ctrl\+opt\+a"\)/);
   assert.match(daemonBundle, /openCanvasInspectorForAnnotationMode/);

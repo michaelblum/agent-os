@@ -47,6 +47,11 @@ function stateRoot() {
   return path.resolve(process.env.AOS_STATE_ROOT || path.join(os.homedir(), '.config/aos'));
 }
 
+function explicitStateRootOverride() {
+  return Boolean(process.env.AOS_STATE_ROOT)
+    && process.env.AOS_TEST_CLASSIFY_STATE_ROOT_AS_NORMAL !== '1';
+}
+
 function installAppPath() {
   return process.env.AOS_INSTALL_PATH || path.join(os.homedir(), 'Applications/AOS.app');
 }
@@ -133,6 +138,10 @@ function isServiceLoaded(label) {
 }
 
 function servicePID(label) {
+  if (process.env.AOS_TEST_SERVICE_PID) {
+    const pid = Number(process.env.AOS_TEST_SERVICE_PID);
+    if (Number.isInteger(pid) && pid > 0) return pid;
+  }
   const output = run('/bin/launchctl', ['print', `${launchDomain()}/${label}`]);
   if (output.status !== 0) return null;
   for (const rawLine of output.stdout.split(/\r?\n/)) {
@@ -153,6 +162,10 @@ function launchctlBootstrap(plistPath, { tolerateAlreadyBootstrapped = false } =
     'launchctl bootstrap failed',
     (result) => tolerateAlreadyBootstrapped && result.stderr.includes('already bootstrapped'),
   );
+}
+
+function launchctlEnable(label) {
+  runChecked('/bin/launchctl', ['enable', `${launchDomain()}/${label}`], 'LAUNCHCTL_ERROR', 'launchctl enable failed');
 }
 
 function launchctlKickstart(label) {
@@ -204,7 +217,7 @@ function plistXML(paths) {
   const values = {
     Label: paths.label,
     RunAtLoad: true,
-    KeepAlive: true,
+    KeepAlive: false,
     WorkingDirectory: path.dirname(paths.binaryPath),
     StandardOutPath: paths.stdoutLogPath,
     StandardErrorPath: paths.stderrLogPath,
@@ -366,6 +379,9 @@ function daemonHealthView(payload) {
       };
   if (!input.status || input.attempts === undefined) return null;
   return {
+    pid: Number.isInteger(payload.pid) ? payload.pid : undefined,
+    mode: typeof payload.mode === 'string' ? payload.mode : undefined,
+    socket_path: typeof payload.socket_path === 'string' ? payload.socket_path : undefined,
     input_tap: {
       status: input.status,
       attempts: Number(input.attempts),
@@ -411,8 +427,46 @@ async function readinessResponse(mode, budgetMs, restartContext = false) {
   const outcome = await verifyOutcome(mode, budgetMs);
   const response = { ...base };
   let exitCode = 0;
+  const requireLaunchdOwner = !explicitStateRootOverride();
+  const daemonView = outcome.view
+    ? {
+        pid: outcome.view.pid,
+        mode: outcome.view.mode,
+        socket_path: outcome.view.socket_path,
+        input_tap: outcome.view.input_tap,
+      }
+    : null;
+  if (daemonView) response.daemon_view = daemonView;
 
-  if (outcome.kind === 'ok') {
+  const servicePid = Number.isInteger(base.pid) ? base.pid : null;
+  const daemonPid = Number.isInteger(outcome.view?.pid) ? outcome.view.pid : null;
+  const ownershipMismatch = requireLaunchdOwner
+    && servicePid != null
+    && daemonPid != null
+    && daemonPid !== servicePid;
+  const serviceNotRunning = requireLaunchdOwner && servicePid == null;
+
+  if (outcome.view && serviceNotRunning) {
+    response.status = 'degraded';
+    response.reason = 'service_not_running';
+    response.input_tap = outcome.view.input_tap;
+    response.recovery = [`./aos service start --mode ${mode}`, './aos clean'];
+    response.notes = [
+      ...(response.notes || []),
+      `Daemon socket answered with pid=${daemonPid ?? 'unknown'}, but launchd service ${serviceLabel(mode)} is not running. Clean the unmanaged daemon before treating service start as successful.`,
+    ];
+    exitCode = 1;
+  } else if (outcome.view && ownershipMismatch) {
+    response.status = 'degraded';
+    response.reason = 'daemon_ownership_mismatch';
+    response.input_tap = outcome.view.input_tap;
+    response.recovery = ['./aos clean', `./aos service restart --mode ${mode}`];
+    response.notes = [
+      ...(response.notes || []),
+      `Daemon socket answered with pid=${daemonPid}, but launchd service ${serviceLabel(mode)} is pid=${servicePid}. Clean the unmanaged socket owner before treating service start as successful.`,
+    ];
+    exitCode = 1;
+  } else if (outcome.kind === 'ok') {
     response.input_tap = outcome.view.input_tap;
   } else if (outcome.kind === 'input_tap_not_active') {
     const tap = outcome.view.input_tap;
@@ -453,6 +507,7 @@ function installCommand(args) {
   const paths = servicePaths(options.mode);
   guardBinaryExists(paths.binaryPath);
   writeServicePlist(paths);
+  launchctlEnable(paths.label);
   launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
   launchctlKickstart(paths.label);
   verifyReadiness(options.mode, options.json);
@@ -462,6 +517,7 @@ function startCommand(args) {
   const options = parseOptions(args);
   const paths = servicePaths(options.mode);
   guardBinaryExists(paths.binaryPath);
+  launchctlEnable(paths.label);
   if (!fs.existsSync(paths.plistPath)) {
     writeServicePlist(paths);
     launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
@@ -490,6 +546,7 @@ async function restartCommand(args) {
   const paths = servicePaths(options.mode);
   stopService(options.mode);
   guardBinaryExists(paths.binaryPath);
+  launchctlEnable(paths.label);
   if (!fs.existsSync(paths.plistPath)) {
     writeServicePlist(paths);
     launchctlBootstrap(paths.plistPath, { tolerateAlreadyBootstrapped: true });
@@ -503,18 +560,21 @@ async function restartCommand(args) {
 function serviceStatus(mode) {
   const paths = servicePaths(mode);
   const installed = fs.existsSync(paths.plistPath);
+  const loaded = installed && isServiceLoaded(paths.label);
   const pid = servicePID(paths.label);
   const actualBinaryPath = installed ? plistValue(paths.plistPath, ':ProgramArguments:0') : null;
   const actualLogPath = installed ? plistValue(paths.plistPath, ':StandardErrorPath') : null;
+  const targetMatchesExpected = actualBinaryPath == null ? !installed : actualBinaryPath === paths.binaryPath;
+  const logPathMatchesExpected = actualLogPath == null ? !installed : actualLogPath === paths.stderrLogPath;
   const notes = [];
 
   if (!installed) notes.push('Launch agent plist is not installed.');
-  if (installed && !isServiceLoaded(paths.label)) notes.push('Launch agent is installed but not loaded in launchd.');
+  if (installed && !loaded) notes.push('Launch agent is installed but not loaded in launchd.');
   if (installed && pid === null) notes.push('Service is not running.');
-  if (actualBinaryPath && actualBinaryPath !== paths.binaryPath) {
+  if (!targetMatchesExpected) {
     notes.push(`Launch agent target differs from the expected ${mode} binary.`);
   }
-  if (actualLogPath && actualLogPath !== paths.stderrLogPath) {
+  if (!logPathMatchesExpected) {
     notes.push(`Launch agent log path differs from the expected ${mode} state directory.`);
   }
   if (!isExecutable(paths.binaryPath)) {
@@ -525,13 +585,17 @@ function serviceStatus(mode) {
     status: notes.length ? 'degraded' : 'ok',
     mode,
     installed,
+    loaded,
     running: pid !== null,
     pid: pid ?? undefined,
+    label: paths.label,
     launchd_label: paths.label,
     actual_binary_path: actualBinaryPath ?? undefined,
     expected_binary_path: paths.binaryPath,
     actual_log_path: actualLogPath ?? undefined,
     expected_log_path: paths.stderrLogPath,
+    target_matches_expected: targetMatchesExpected,
+    log_path_matches_expected: logPathMatchesExpected,
     plist_path: paths.plistPath,
     state_dir: paths.logDir,
     notes,

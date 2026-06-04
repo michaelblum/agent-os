@@ -56,6 +56,32 @@ assert payload.get("status") == "ok", payload
 assert payload.get("stale_resources", {}).get("canvases") == [], payload
 PY
 
+mkdir -p "$STATE_ROOT/installed"
+cat >"$STATE_ROOT/installed/daemon.lock" <<'JSON'
+{"pid":999999,"mode":"installed","socket_path":"/tmp/aos-missing.sock"}
+JSON
+
+LOCK_DRY_RUN="$(./aos clean --dry-run --json)"
+LOCK_DRY_RUN="$LOCK_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["LOCK_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+locks = payload.get("stale_locks", [])
+assert any(lock.get("mode") == "installed" and lock.get("pid") == 999999 for lock in locks), payload
+PY
+
+LOCK_CLEANED="$(./aos clean --json)"
+LOCK_CLEANED="$LOCK_CLEANED" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["LOCK_CLEANED"])
+assert payload["status"] == "cleaned", payload
+assert payload.get("stale_locks") == [], payload
+assert any("removed stale daemon lock mode=installed pid=999999" in action for action in payload.get("actions_taken", [])), payload
+PY
+test ! -e "$STATE_ROOT/installed/daemon.lock"
+
 mkdir -p "$STATE_ROOT/repo"
 cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
 {
@@ -76,7 +102,7 @@ import json, os
 payload = json.loads(os.environ["DRIFT_DRY_RUN"])
 assert payload["status"] == "dirty", payload
 notes = "\n".join(payload.get("notes", []))
-assert "Active Sigil status item target drift" in notes, payload
+assert "Active experience sigil status item target drift" in notes, payload
 assert "missing content root" in notes, payload
 assert "./aos experience activate sigil" in notes, payload
 PY
@@ -153,7 +179,7 @@ import json, os
 
 payload = json.loads(os.environ["OWNED_DRY_RUN"])
 assert payload["status"] == "dirty", payload
-assert not any("Active Sigil canvas avatar-main is loaded at" in note for note in payload.get("notes", [])), payload
+assert not any("Active experience sigil canvas avatar-main is loaded at" in note for note in payload.get("notes", [])), payload
 canvases = {canvas.get("id"): canvas for canvas in payload.get("canvases", [])}
 avatar = canvases.get("avatar-main")
 assert avatar is None, payload
@@ -180,9 +206,9 @@ import json, os
 payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
 assert payload["status"] == "dirty", payload
 notes = "\n".join(payload.get("notes", []))
-assert "Active Sigil status item target drift" in notes, payload
+assert "Active experience sigil status item target drift" in notes, payload
 assert "missing content root" in notes, payload
-assert "Active Sigil canvas avatar-main is loaded at" not in notes, payload
+assert "Active experience sigil canvas avatar-main is loaded at" not in notes, payload
 PY
 ./aos config set status_item.toggle_url "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" >/dev/null
 STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
@@ -192,9 +218,9 @@ import json, os
 payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
 assert payload["status"] == "dirty", payload
 notes = "\n".join(payload.get("notes", []))
-assert "Active Sigil status item target drift" not in notes, payload
+assert "Active experience sigil status item target drift" not in notes, payload
 assert "missing content root" not in notes, payload
-assert "Active Sigil canvas avatar-main is loaded at" in notes, payload
+assert "Active experience sigil canvas avatar-main is loaded at" in notes, payload
 assert any(canvas.get("id") == "avatar-main" for canvas in payload.get("canvases", [])), payload
 PY
 ./aos show remove --id avatar-main >/dev/null

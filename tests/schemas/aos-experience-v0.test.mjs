@@ -57,7 +57,7 @@ test('Sigil experience is exclusive and status-item-first', async () => {
   assert.equal(manifest.exclusive, true);
   assert.equal(manifest.default_activation.kind, 'status_item');
   assert.equal(manifest.default_activation.status_item_first, true);
-  assert.equal(manifest.default_activation.avatar_entry, 'avatar');
+  assert.equal(manifest.default_activation.primary_entry, 'avatar');
   assert.equal(manifest.status_item.toggle_surface.id, 'avatar-main');
   assert.deepEqual(manifest.hooks, [
     {
@@ -163,7 +163,7 @@ process.exit(0);
   assert(calls.some((args) => args.join('\0') === ['wiki', 'seed'].join('\0')), calls);
   assert(calls.some((args) => args[0] === 'wiki' && args[1] === 'seed' && args[2] === '--namespace' && args[3] === 'sigil'), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.enabled', 'false'].join('\0')), calls);
-  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'avatar'].join('\0')), calls);
+  assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_id', 'status-item-canvas'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_url', ''].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['config', 'set', 'status_item.toggle_track', 'none'].join('\0')), calls);
   assert(calls.some((args) => args.join('\0') === ['show', 'remove', '--id', 'avatar-main'].join('\0')), calls);

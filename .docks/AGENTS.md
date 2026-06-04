@@ -7,6 +7,18 @@ development workflow profiles.
 Work in `/Users/Michael/Code/agent-os` unless the task explicitly changes dock
 configuration, hooks, skills, or local instructions under `.docks/`.
 
+## Single-Checkout Default
+
+The active default repo workflow is local and single-checkout. Do not create
+linked git worktrees or route agents into `/Users/Michael/Code/agent-os-worktrees`
+unless the user explicitly requests that workflow or the active profile says so.
+Use local branches, scoped commits, and named stashes to preserve work instead.
+
+The repo-mode `./aos` binary is stable infrastructure and belongs at
+`/Users/Michael/Code/agent-os/aos`. Do not create, rebuild, or rely on
+branch-local or linked-worktree `aos` binaries unless the user explicitly assigns
+native binary work.
+
 ## Cold Start And Role Adoption
 
 Local sessions launched from `.docks/<dock>` inherit that dock's persona through
@@ -88,6 +100,9 @@ Keep GitHub operations thin and intentional:
 
 - use `./aos dev gh context --json` once when local branch, repo, auth, or PR
   context is unclear;
+- use `./aos dev gh issue list --state <state> --limit <n> --json` and
+  `./aos dev gh pr list --state <state> --limit <n> --json` for read-only
+  issue and PR inventory from the AOS developer entry path;
 - use body files for issue and PR comments instead of inline shell strings;
 - use `./aos dev gh ci inspect --pr <n> --json` when a PR check fails and you
   need failed GitHub Actions logs;
@@ -102,6 +117,27 @@ represent the needed operation.
 Foreman is the default git/GitHub steward. GDI and Operator should perform
 GitHub operations only when the assigned goal or transfer explicitly includes
 that work.
+
+## Issues, Work Cards, And Execution State
+
+Use GitHub issues as a coarse workstream ledger, not as the execution system.
+An issue should track a durable lane, parked side mission, unresolved pivot,
+human decision, or cross-session question whose context would otherwise be
+rediscovered poorly. Do not create an issue for every work card.
+
+Keep artifact roles distinct:
+
+- GitHub issues explain durable threads, side missions, parked ideas, and why a
+  lane exists.
+- Work cards define bounded GDI, Operator, correction, or validation rounds.
+- Branches and commits are implementation checkpoints.
+- Session reports and synthesis notes are temporary map-making artifacts unless
+  they become reusable project guidance.
+
+When a thread is larger than one session, has several plausible next slices, is
+parked, or depends on external/human judgment, prefer updating or creating an
+issue over leaving the state only in chat. When the next action is already a
+single machine-checkable round, use a work card instead of a new issue.
 
 ## Cross-Session Transfers
 

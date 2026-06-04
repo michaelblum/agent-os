@@ -63,6 +63,20 @@ function valueText(values = []) {
   return values.map((value) => Number.parseFloat(finiteNumber(value, 0).toFixed(4)).toString()).join(' - ');
 }
 
+function sameValues(a = [], b = []) {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function quantize(value, step, min) {
+  const normalizedStep = finiteNumber(step, 1);
+  const snap = normalizedStep > 0 ? normalizedStep : 1;
+  return Number.parseFloat((Math.round((value - min) / snap) * snap + min).toFixed(6));
+}
+
 export function createAosZagSlider(context = {}) {
   if (!context.id) throw new Error('createAosZagSlider requires an id');
 
@@ -89,6 +103,14 @@ export function createAosZagSlider(context = {}) {
   const min = () => finiteNumber(currentProps.min, 0);
   const max = () => finiteNumber(currentProps.max, 100);
   const disabled = () => !!currentProps.disabled;
+  const step = () => {
+    const configured = finiteNumber(currentProps.step, 1);
+    return configured > 0 ? configured : 1;
+  };
+  let controlElement = null;
+  let activePointer = null;
+  let activeThumbIndex = 0;
+  let captureElement = null;
 
   function getRootProps(extra = {}) {
     return mergeProps({
@@ -203,6 +225,8 @@ export function createAosZagSlider(context = {}) {
   function cleanupBindings() {
     for (const cleanup of cleanups) cleanup();
     cleanups.clear();
+    controlElement = null;
+    captureElement = null;
   }
 
   function bindPart(element, props) {
@@ -219,8 +243,109 @@ export function createAosZagSlider(context = {}) {
     return bindPart(element, getLabelProps(extra));
   }
 
+  function pointerClientX(event = {}) {
+    return finiteNumber(event.clientX ?? event.x ?? event.pageX ?? event.screenX, null);
+  }
+
+  function nearestThumbIndex(value) {
+    if (values.length <= 1) return 0;
+    let nearest = 0;
+    let distance = Infinity;
+    values.forEach((item, index) => {
+      const nextDistance = Math.abs(item - value);
+      if (nextDistance < distance) {
+        nearest = index;
+        distance = nextDistance;
+      }
+    });
+    return nearest;
+  }
+
+  function valueFromPointer(event = {}) {
+    const rect = controlElement?.getBoundingClientRect?.();
+    const x = pointerClientX(event);
+    if (!rect || x === null || rect.width <= 0) return null;
+    const nextMin = min();
+    const nextMax = max();
+    const ratio = clamp((x - rect.left) / rect.width, 0, 1);
+    const rawValue = nextMin + ((nextMax - nextMin) * ratio);
+    return clamp(quantize(rawValue, step(), nextMin), nextMin, nextMax);
+  }
+
+  function applyPointerValue(event = {}, { commit = false } = {}) {
+    const nextValue = valueFromPointer(event);
+    if (nextValue === null) return false;
+    const nextValues = [...values];
+    const index = activeThumbIndex ?? nearestThumbIndex(nextValue);
+    nextValues[index] = nextValue;
+    const changed = !sameValues(values, nextValues);
+    values = nextValues;
+    if (changed) currentProps.onValueChange?.({ value: [...values] });
+    if (commit) currentProps.onValueChangeEnd?.({ value: [...values] });
+    return true;
+  }
+
+  function endPointerDrag(event = {}) {
+    if (!activePointer) return;
+    applyPointerValue(event, { commit: true });
+    if (activePointer.pointerId !== null) {
+      captureElement?.releasePointerCapture?.(activePointer.pointerId);
+    }
+    activePointer = null;
+    captureElement = null;
+    const doc = controlElement?.ownerDocument;
+    const view = doc?.defaultView;
+    const target = doc || view;
+    target?.removeEventListener?.('pointermove', handlePointerMove);
+    target?.removeEventListener?.('pointerup', endPointerDrag);
+    target?.removeEventListener?.('pointercancel', endPointerDrag);
+    target?.removeEventListener?.('mousemove', handlePointerMove);
+    target?.removeEventListener?.('mouseup', endPointerDrag);
+  }
+
+  function handlePointerMove(event = {}) {
+    if (!activePointer) return;
+    if (event.pointerId !== undefined && activePointer.pointerId !== null && event.pointerId !== activePointer.pointerId) return;
+    event.preventDefault?.();
+    applyPointerValue(event);
+  }
+
+  function startPointerDrag(event = {}) {
+    if (activePointer) return;
+    if (disabled()) return;
+    const pointerId = event.pointerId ?? null;
+    const initialValue = valueFromPointer(event);
+    if (initialValue === null) return;
+    event.preventDefault?.();
+    activeThumbIndex = nearestThumbIndex(initialValue);
+    activePointer = { pointerId };
+    captureElement = event.currentTarget || event.target || controlElement;
+    if (pointerId !== null) {
+      captureElement?.setPointerCapture?.(pointerId);
+    }
+    applyPointerValue(event);
+    const doc = controlElement?.ownerDocument;
+    const view = doc?.defaultView;
+    const target = doc || view;
+    target?.addEventListener?.('pointermove', handlePointerMove);
+    target?.addEventListener?.('pointerup', endPointerDrag);
+    target?.addEventListener?.('pointercancel', endPointerDrag);
+    target?.addEventListener?.('mousemove', handlePointerMove);
+    target?.addEventListener?.('mouseup', endPointerDrag);
+  }
+
   function bindControl(element, extra = {}) {
-    return bindPart(element, getControlProps(extra));
+    controlElement = element || controlElement;
+    const cleanup = bindPart(element, getControlProps(extra));
+    if (element) {
+      element.addEventListener?.('pointerdown', startPointerDrag);
+      element.addEventListener?.('mousedown', startPointerDrag);
+      cleanups.add(() => {
+        element.removeEventListener?.('pointerdown', startPointerDrag);
+        element.removeEventListener?.('mousedown', startPointerDrag);
+      });
+    }
+    return cleanup;
   }
 
   function bindTrack(element, extra = {}) {
@@ -236,7 +361,16 @@ export function createAosZagSlider(context = {}) {
   }
 
   function bindThumb(element, extraProps = {}, index = 0) {
-    return bindPart(element, getThumbProps({ index }, extraProps.extra || {}));
+    const cleanup = bindPart(element, getThumbProps({ index }, extraProps.extra || {}));
+    if (element) {
+      element.addEventListener?.('pointerdown', startPointerDrag);
+      element.addEventListener?.('mousedown', startPointerDrag);
+      cleanups.add(() => {
+        element.removeEventListener?.('pointerdown', startPointerDrag);
+        element.removeEventListener?.('mousedown', startPointerDrag);
+      });
+    }
+    return cleanup;
   }
 
   function bindMany(root, selector, binder, getProps = null) {

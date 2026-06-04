@@ -305,12 +305,12 @@ test('wiki subject browser derives graph-index filter options from canonical fie
 test('wiki subject browser keeps canonical domain subject filters separate from wiki page kinds', () => {
   const wikiAgentSubject = createWikiPageSubject({
     path: 'sigil/agents/default.md',
-    type: 'agent',
+    type: 'entity',
     name: 'Default Agent',
   });
   const sigilAgentSubject = createSigilAgentSubject({
     path: 'sigil/agents/default.md',
-    type: 'agent',
+    type: 'entity',
     name: 'Default Agent',
   });
   const snapshot = createWikiSubjectBrowserState({

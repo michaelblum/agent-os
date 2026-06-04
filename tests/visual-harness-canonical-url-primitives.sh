@@ -26,6 +26,7 @@ assert_fails() {
 }
 
 unset AOS_SIGIL_CONTENT_ROOT AOS_TOOLKIT_CONTENT_ROOT AOS_VISUAL_CONTENT_ROOT_SCOPE
+export AOS_VISUAL_DISABLE_CACHE_BUST=1
 assert_eq "sigil" "$(aos_visual_content_root_key sigil)" "single-worktree Sigil root key"
 assert_eq "toolkit" "$(aos_visual_content_root_key toolkit)" "single-worktree toolkit root key"
 assert_eq "aos://sigil/renderer/index.html?toolkit-root=toolkit" "$(aos_visual_sigil_renderer_url)" "Sigil renderer URL"

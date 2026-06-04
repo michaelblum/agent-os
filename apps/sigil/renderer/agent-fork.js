@@ -38,7 +38,7 @@ function defaultDoc(id, name) {
     },
   };
   return `---
-type: agent
+type: entity
 id: ${id}
 name: ${name}
 tags: [sigil]

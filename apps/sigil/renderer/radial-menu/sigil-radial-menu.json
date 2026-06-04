@@ -6,7 +6,7 @@
   "label": "Sigil Radial Menu",
   "extends": "aos://toolkit/runtime/radial-menu/default-3d.json",
   "role": "menu",
-  "preferred_initial_item": "context-menu",
+  "preferred_initial_item": "avatar-controls",
   "close_on_select": true,
   "typeahead": true,
   "defaults": {
@@ -45,16 +45,16 @@
   },
   "items": [
     {
-      "id": "context-menu",
-      "label": "Context Menu",
-      "action": "contextMenu",
+      "id": "avatar-controls",
+      "label": "Avatar Controls",
+      "action": "avatarControls",
       "target_surface": {
-        "kind": "sigil.context_menu"
+        "kind": "sigil.avatar.controls"
       },
       "geometry": {
         "type": "gltf",
         "src": "../assets/models/cog/scene.gltf",
-        "module_ref": "sigil.radial.geometry.context-menu",
+        "module_ref": "sigil.radial.geometry.avatar-controls",
         "modelUid": "158a1e27214841589dce6d7361f1a422",
         "title": "Cog",
         "radiusScale": 1.02,

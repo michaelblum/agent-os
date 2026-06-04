@@ -619,7 +619,7 @@ export function createSigilSelectionModeRuntime({
     getCandidateList = () => [],
     projectPoint = (point) => point,
     getOverlayBounds = () => null,
-    closeContextMenu = () => {},
+    closeAvatarControls = () => {},
     exitAnnotationReticle = () => {},
     openLineageCommentEditor = () => {},
     closeLineageCommentEditor = () => {},
@@ -831,7 +831,7 @@ export function createSigilSelectionModeRuntime({
     }
 
     function enter(pointer = null, reason = 'selection-mode-enter') {
-        closeContextMenu('selection-mode');
+        closeAvatarControls('selection-mode');
         exitAnnotationReticle('selection-mode');
         closeLineageContextMenu('selection-mode-enter');
         closeLineageCommentEditor('selection-mode-enter');

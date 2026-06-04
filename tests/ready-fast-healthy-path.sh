@@ -69,6 +69,29 @@ runtime = d.get("runtime", {})
 assert runtime.get("socket_reachable") is True, runtime
 assert runtime.get("input_tap_status") == "active", runtime
 assert runtime.get("ownership_state") in ("consistent", "unknown"), runtime
+assert runtime.get("ownership_kind") in ("foreground_dev", "unknown"), runtime
+tap = runtime.get("input_tap", {})
+assert tap.get("owner_kind") in ("foreground_dev", "unknown"), tap
+assert tap.get("duplicate_tcc_rows_observable") is False, tap
+assert "unavailable" in tap.get("duplicate_tcc_rows_observability", ""), tap
+'
+
+STATUS_OUT="$(./aos status --json)"
+echo "$STATUS_OUT" | python3 -c '
+import json, sys
+d = json.loads(sys.stdin.read())
+runtime = d.get("runtime", {})
+tap = runtime.get("input_tap", {})
+notes = d.get("notes", [])
+joined = "\n".join(notes)
+
+assert d.get("status") == "ok", d
+assert runtime.get("socket_reachable") is True, runtime
+assert runtime.get("input_tap_status") == "active", runtime
+assert tap.get("status") == "active", tap
+assert tap.get("duplicate_tcc_rows_observable") is False, tap
+assert "unavailable" in tap.get("duplicate_tcc_rows_observability", ""), tap
+assert "Duplicate macOS TCC Privacy rows are not observable" not in joined, notes
 '
 
 echo "PASS"

@@ -71,16 +71,6 @@ function parseArgs(argv) {
   return { app, entry, json, dryRun };
 }
 
-function delegateSigilDefaultToExperience({ json, dryRun }) {
-  const delegateArgs = ['experience', 'activate', 'sigil'];
-  if (dryRun) delegateArgs.push('--dry-run');
-  if (json) delegateArgs.push('--json');
-  const result = runAos(delegateArgs);
-  process.stdout.write(result.stdout);
-  process.stderr.write(result.stderr);
-  process.exit(result.status);
-}
-
 function readJSON(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -166,8 +156,8 @@ function template(value, context) {
     })
     .replace(/\$\{repo_root\}/g, repoRoot)
     .replace(/\$\{mode\}/g, mode)
-    .replace(/\$\{avatar_home_x\}/g, String(avatarHome().x))
-    .replace(/\$\{avatar_home_y\}/g, String(avatarHome().y))
+    .replace(/\$\{surface_home_x\}/g, String(surfaceHome().x))
+    .replace(/\$\{surface_home_y\}/g, String(surfaceHome().y))
     .replace(/\$\{env:([A-Za-z0-9_]+):([^}]+)\}/g, (_, name, fallback) => process.env[name] || template(fallback, context))
     .replace(/\$\{urlenv:([A-Za-z0-9_]+):([^}]+)\}/g, (_, name, fallback) => urlencode(process.env[name] || template(fallback, context)));
 }
@@ -275,7 +265,7 @@ function frameFor(kind) {
   return `${x},${y},${w},${h}`;
 }
 
-function avatarHome() {
+function surfaceHome() {
   const bounds = mainBounds();
   if (!bounds) return { x: 240, y: 180 };
   return { x: Number(bounds.x) + Number(bounds.w) / 6, y: Number(bounds.y) + Number(bounds.h) / 6 };
@@ -434,7 +424,6 @@ function launch(manifest, entryName, roots, asJSON, dryRun) {
 
 try {
   const args = parseArgs(process.argv.slice(2));
-  if (args.app === 'sigil' && !args.entry) delegateSigilDefaultToExperience(args);
   const { manifestPath, manifest } = discoverManifest(args.app);
   validateManifest(manifest, manifestPath);
   if (manifest.id !== args.app) throw new LaunchFailure(`Manifest id ${manifest.id} does not match app ${args.app}`, 'INVALID_APP_MANIFEST');

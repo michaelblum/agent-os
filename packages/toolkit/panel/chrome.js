@@ -14,9 +14,11 @@ import {
   chipFrameForPanelFrame,
   clampFrameToWorkArea as placementClampFrameToWorkArea,
   cloneFrame as placementCloneFrame,
+  createPlacementPlan,
   finiteNumber,
   frameFromWindow as placementFrameFromWindow,
   normalizePanelDisplays,
+  normalizeViewportOverflowPolicy,
   positiveNumber,
   workAreaForFrameTopLeft as placementWorkAreaForFrameTopLeft,
   workAreaForPoint as placementWorkAreaForPoint,
@@ -36,6 +38,7 @@ export function mountChrome(container, {
   title = 'AOS',
   draggable = true,
   drag = {},
+  placement = {},
   close = true,
   minimize = true,
   maximize = false,
@@ -54,6 +57,7 @@ export function mountChrome(container, {
   const header = document.createElement('div')
   header.className = 'aos-header'
   header.dataset.draggable = String(draggable)
+  stampPanelDragTarget(header, title)
 
   const gripEl = document.createElement('span')
   gripEl.className = 'aos-panel-grip'
@@ -76,6 +80,7 @@ export function mountChrome(container, {
   const { onStateChange: onDragStateChange, ...dragOptions } = drag
   let maximizeButton = null
   const panelWindowController = createPanelWindowController({
+    initialPlacement: placement,
     drag: draggable ? { clampOnEnd: true, transfer: true, ...dragOptions } : false,
     resize: resizable ? resize : false,
     maximize: Boolean(maximize),
@@ -94,6 +99,7 @@ export function mountChrome(container, {
   if (typeof window !== 'undefined') {
     window.__aosPanelWindowController = panelWindowController
   }
+  panelWindowController.settleInitialPlacement()
   const maximizeController = panelWindowController.maximizeController
 
   if (maximizeController) {
@@ -205,7 +211,10 @@ export function mountChrome(container, {
     maximizeController,
     dragController,
     resizeController,
-    setTitle(text) { titleEl.textContent = text },
+    setTitle(text) {
+      titleEl.textContent = text
+      stampPanelDragTarget(header, text)
+    },
     setControls(html) { customControlsEl.innerHTML = html },
   }
 }
@@ -213,6 +222,14 @@ export function mountChrome(container, {
 const cloneFrame = placementCloneFrame
 
 export function frameFromWindow(view = window) {
+  if (
+    typeof window !== 'undefined'
+    && view === window
+    && !currentPanelFrame
+    && Array.isArray(window.__aosInitialFrame)
+  ) {
+    return cloneFrame(window.__aosInitialFrame)
+  }
   return placementFrameFromWindow(view, {
     currentFrame: typeof window !== 'undefined' && view === window ? currentPanelFrame : null,
   })
@@ -268,6 +285,7 @@ function nextGeometryTransactionId(prefix = 'geometry') {
 }
 
 export const clampFrameToWorkArea = placementClampFrameToWorkArea
+export { createPlacementPlan, normalizeViewportOverflowPolicy }
 
 function framesEqual(lhs, rhs) {
   const a = cloneFrame(lhs)
@@ -308,6 +326,7 @@ export function createPanelWindowController({
   resize = false,
   maximize = false,
   minimize = true,
+  initialPlacement = true,
   close = true,
   closeAction = defaultClose,
   onDragStateChange = null,
@@ -319,10 +338,13 @@ export function createPanelWindowController({
   const resizeOptions = optionObject(resize)
   const maximizeOptions = optionObject(maximize)
   const minimizeOptions = optionObject(minimize)
+  const initialPlacementOptions = optionObject(initialPlacement)
   const dragEnabled = Boolean(drag)
   const resizeEnabled = Boolean(resize)
   const maximizeEnabled = Boolean(maximize)
   const minimizeEnabled = Boolean(minimize)
+  const initialPlacementEnabled = initialPlacement !== false
+  let initialPlacementSettled = false
 
   const maximizeController = maximizeEnabled
     ? createMaximizeController({
@@ -393,6 +415,30 @@ export function createPanelWindowController({
     resizeController,
     maximizeController,
     minimizeController,
+    settleInitialPlacement(options = {}) {
+      if (!initialPlacementEnabled || initialPlacementSettled) return null
+      initialPlacementSettled = true
+      const merged = { ...initialPlacementOptions, ...options }
+      const requestedFrame = cloneFrame(merged.requestedFrame || getFrame())
+      const plan = createPlacementPlan({
+        requestedFrame,
+        workArea: merged.workArea || getWorkArea(requestedFrame),
+        viewportOverflowPolicy: merged.viewportOverflowPolicy || merged.viewport_overflow_policy || 'clamp',
+        anchorFrame: merged.anchorFrame || merged.anchor_frame || null,
+        gap: merged.gap || 0,
+        ...(merged.minVisibleWidth == null ? {} : { minVisibleWidth: merged.minVisibleWidth }),
+        ...(merged.minVisibleHeight == null ? {} : { minVisibleHeight: merged.minVisibleHeight }),
+        cause: merged.cause || 'placement.initial',
+      })
+      updateFrame(cloneFrame(plan.final_settled_frame), {
+        change: 'frame',
+        cause: plan.cause,
+        phase: 'settled',
+        transaction_id: merged.transactionId || merged.transaction_id || nextGeometryTransactionId('placement-initial'),
+        placement: plan,
+      })
+      return plan
+    },
     close() {
       if (!close) return null
       return closeAction?.()
@@ -439,6 +485,7 @@ export function createDragController({
   clampOnEnd = false,
   transfer = false,
   transferController = null,
+  viewportOverflowPolicy = 'clamp',
   minVisibleWidth = 160,
   minVisibleHeight = 44,
   onStateChange = null,
@@ -521,8 +568,22 @@ export function createDragController({
       active = null
       const transferResult = panelTransfer?.end()
       if (transferResult?.nativeFrame) {
-        frame = cloneFrame(transferResult.nativeFrame)
-        updateFrame(frame)
+        const plan = createPlacementPlan({
+          requestedFrame: transferResult.nativeFrame,
+          workArea: getDragWorkArea(transferResult.nativeFrame, releasePointer),
+          viewportOverflowPolicy: 'allow',
+          minVisibleWidth,
+          minVisibleHeight,
+          cause: 'placement.drag.transfer',
+        })
+        frame = cloneFrame(plan.final_settled_frame)
+        updateFrame(frame, {
+          change: 'frame',
+          cause: 'placement.drag.transfer',
+          phase: 'settled',
+          transaction_id: transactionId,
+          placement: plan,
+        })
       } else if (clampOnEnd) {
         const actualFrame = cloneFrame(getFrame())
         // WKWebView exposes display-local pointer screenY values on some
@@ -531,18 +592,29 @@ export function createDragController({
         // release so the final visibility clamp does not snap a correctly moved
         // panel back to the display's menu-bar edge.
         frame = framesEqual(actualFrame, startFrame) ? cloneFrame(frame) : actualFrame
-        const clamped = clampFrameToWorkArea(frame, {
+        const plan = createPlacementPlan({
+          requestedFrame: frame,
           workArea: getDragWorkArea(frame, releasePointer),
+          viewportOverflowPolicy,
           minVisibleWidth,
           minVisibleHeight,
         })
-        if (!framesEqual(frame, clamped)) {
-          frame = clamped
-          updateFrame(clamped, {
+        if (!framesEqual(frame, plan.final_settled_frame)) {
+          frame = cloneFrame(plan.final_settled_frame)
+          updateFrame(frame, {
             change: 'origin',
             cause: 'placement.drag',
             phase: 'settled',
             transaction_id: transactionId,
+            placement: plan,
+          })
+        } else {
+          updateFrame(frame, {
+            change: 'origin',
+            cause: 'placement.drag',
+            phase: 'settled',
+            transaction_id: transactionId,
+            placement: plan,
           })
         }
       } else {
@@ -726,12 +798,20 @@ export function createMaximizeController({
   function maximizePanel() {
     if (maximized) return state()
     restoreFrame = cloneFrame(getFrame())
+    const requestedFrame = cloneFrame(getWorkArea(restoreFrame))
+    const plan = createPlacementPlan({
+      requestedFrame,
+      workArea: requestedFrame,
+      viewportOverflowPolicy: 'allow',
+      cause: 'layout.maximize',
+    })
     maximized = true
-    updateFrame(cloneFrame(getWorkArea(restoreFrame)), {
+    updateFrame(cloneFrame(plan.final_settled_frame), {
       change: 'frame',
       cause: 'layout.maximize',
       phase: 'settled',
       transaction_id: nextGeometryTransactionId('layout-maximize'),
+      placement: plan,
     })
     notify()
     return state()
@@ -739,7 +819,13 @@ export function createMaximizeController({
 
   function restorePanel() {
     if (!maximized || !restoreFrame) return state()
-    const frame = cloneFrame(restoreFrame)
+    const plan = createPlacementPlan({
+      requestedFrame: restoreFrame,
+      workArea: getWorkArea(restoreFrame),
+      viewportOverflowPolicy: 'clamp',
+      cause: 'layout.restore',
+    })
+    const frame = cloneFrame(plan.final_settled_frame)
     maximized = false
     restoreFrame = null
     updateFrame(frame, {
@@ -747,6 +833,7 @@ export function createMaximizeController({
       cause: 'layout.restore',
       phase: 'settled',
       transaction_id: nextGeometryTransactionId('layout-restore'),
+      placement: plan,
     })
     notify()
     return state()
@@ -781,7 +868,24 @@ export function syncMaximizeButton(button, state = {}) {
 }
 
 function currentCanvasId() {
+  if (typeof window === 'undefined') return null
   return window.__aosCanvasId || window.__aosSurfaceCanvasId || null
+}
+
+function panelDragTargetRef(title = 'AOS') {
+  const surface = currentCanvasId() || 'aos-panel'
+  return `${surface}:drag-handle`
+}
+
+function stampPanelDragTarget(header, title = 'AOS') {
+  if (!header) return
+  header.setAttribute('role', 'button')
+  header.setAttribute('aria-label', `Drag ${title || 'AOS'} panel`)
+  header.dataset.aosRef = panelDragTargetRef(title)
+  header.dataset.aosSurface = currentCanvasId() || 'aos-panel'
+  header.dataset.semanticTargetId = 'drag-handle'
+  header.dataset.aosAction = 'panel_drag'
+  header.dataset.aosActions = 'drag'
 }
 
 function defaultClose() {

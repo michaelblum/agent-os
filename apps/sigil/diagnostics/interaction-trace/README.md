@@ -5,7 +5,7 @@ input.
 
 ## Operator Flow
 
-1. Open the Sigil context menu and choose `Interaction Trace`, or launch it:
+1. Open the Sigil avatar controls and choose `Interaction Trace`, or launch it:
 
    ```bash
    apps/sigil/diagnostics/interaction-trace/launch.sh

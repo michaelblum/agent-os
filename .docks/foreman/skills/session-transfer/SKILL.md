@@ -73,7 +73,7 @@ Bad assumption checks:
 - A clean `git status` means no local dirty files; it does not mean the branch
   is the right base.
 - Router "changed files" counts often mean branch diff against a base, not a
-  dirty worktree.
+  dirty checkout.
 - A work card or report that exists only on a feature branch requires
   `branch_from` or `required_start_ref`; do not let GDI reset to `origin/main`
   and lose the instructions.

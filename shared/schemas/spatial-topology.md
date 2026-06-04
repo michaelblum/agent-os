@@ -23,7 +23,7 @@ cross-surface world model.
 |-------|--------|-------|---------|
 | **Native desktop compatibility** | Top-left of the macOS main display = `(0,0)` | Points (logical pixels) | Current daemon/AppKit/CoreGraphics boundary data only |
 | **DesktopWorld** | Top-left of the arranged full-display union = `(0,0)` | Points | Canonical shared world for toolkit, Sigil, surface-inspector, tests |
-| **VisibleDesktopWorld** | Top-left of the arranged visible-bounds union = `(0,0)` in the same DesktopWorld frame | Points | Usable-area logic such as cursor/avatar clamping |
+| **VisibleDesktopWorld** | Top-left of the arranged visible-bounds union = `(0,0)` in the same DesktopWorld frame | Points | Usable-area logic such as cursor/surface clamping |
 | **LCS** (`aos see` captures) | Top-left of captured region = `(0,0)` | Points | `--xray` element bounds, annotations, crops |
 
 ### Canonical World Contract

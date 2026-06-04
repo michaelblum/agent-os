@@ -14,26 +14,26 @@ if [[ -z "$PORT" ]]; then
 fi
 
 TEST_ID="taxonomy-alignment-test-$$"
-AGENT_PATH="sigil/agents/$TEST_ID.md"
+ENTITY_PATH="aos/entities/$TEST_ID.md"
 REFERENCE_PATH="aos/plugins/$TEST_ID/references/ref.md"
 
 cleanup() {
-  curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$AGENT_PATH" > /dev/null || true
+  curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$ENTITY_PATH" > /dev/null || true
   curl -sf -X DELETE "http://127.0.0.1:$PORT/wiki/$REFERENCE_PATH" > /dev/null || true
 }
 trap cleanup EXIT
 
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
   --data-binary "---
-type: agent
+type: entity
 id: $TEST_ID
-name: Taxonomy Alignment Test Agent
-tags: [sigil, taxonomy]
+name: Taxonomy Alignment Test Entity
+tags: [taxonomy]
 ---
 
-# Taxonomy Alignment Test Agent
+# Taxonomy Alignment Test Entity
 " \
-  "http://127.0.0.1:$PORT/wiki/$AGENT_PATH" > /dev/null
+  "http://127.0.0.1:$PORT/wiki/$ENTITY_PATH" > /dev/null
 
 curl -sf -X PUT -H 'Content-Type: text/markdown' \
   --data-binary "---
@@ -48,23 +48,19 @@ tags: [taxonomy]
 
 assert_graph() {
   local label="$1"
-  AGENT_PATH="$AGENT_PATH" REFERENCE_PATH="$REFERENCE_PATH" python3 -c '
+  ENTITY_PATH="$ENTITY_PATH" REFERENCE_PATH="$REFERENCE_PATH" python3 -c '
 import json, os, sys
 graph = json.load(sys.stdin)
 nodes = graph.get("nodes", [])
-agent_path = os.environ["AGENT_PATH"]
+entity_path = os.environ["ENTITY_PATH"]
 reference_path = os.environ["REFERENCE_PATH"]
-agent = next((n for n in nodes if n.get("path") == agent_path), None)
+entity = next((n for n in nodes if n.get("path") == entity_path), None)
 reference = next((n for n in nodes if n.get("path") == reference_path), None)
-sigil_agent_leaks = [n for n in nodes if str(n.get("path", "")).startswith("sigil/agents/") and n.get("type") == "agent"]
-if not agent or agent.get("type") != "entity":
-    print(f"FAIL: {agent_path} expected entity, got {agent}", file=sys.stderr)
+if not entity or entity.get("type") != "entity":
+    print(f"FAIL: {entity_path} expected entity, got {entity}", file=sys.stderr)
     sys.exit(1)
 if not reference or reference.get("type") != "reference":
     print(f"FAIL: {reference_path} expected reference, got {reference}", file=sys.stderr)
-    sys.exit(1)
-if sigil_agent_leaks:
-    print(f"FAIL: sigil agent page-kind leak: {sigil_agent_leaks}", file=sys.stderr)
     sys.exit(1)
 ' && echo "OK: $label"
 }

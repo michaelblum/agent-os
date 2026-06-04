@@ -82,7 +82,7 @@ test('form binding resolves Sigil avatar surface metadata to descriptors and con
   const model = buildSigilAvatarEditorModel(state);
   const viewModel = buildSigilAvatarCompactSurfaceViewModel(model);
   const alphaControls = viewModel.tabs.find((tab) => tab.key === 'alpha').sections.flatMap((section) => section.controls);
-  const opacityControl = alphaControls.find((control) => control.descriptor_id === 'sigil-menu-opacity');
+  const opacityControl = alphaControls.find((control) => control.descriptor_id === 'sigil-avatar-controls-opacity');
   const calls = [];
 
   const result = applyVisualObjectFormFieldChange({

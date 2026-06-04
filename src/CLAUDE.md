@@ -42,7 +42,7 @@ changed:
 bash tests/wiki-seed.sh
 bash tests/content/wiki-list.test.sh
 ./aos runtime status --json
-./aos show create --id demo --url aos://sigil/renderer/index.html
+./aos show create --id demo --url aos://demo/surface/index.html
 ```
 
 Requires macOS 14+ and Accessibility permission.
@@ -241,7 +241,7 @@ auditions the new voice (does not pin).
 | content.port | int | 0 | Content server port (0 = OS-assigned) |
 | content.roots.{name} | string | — | Content root: URL prefix → directory path |
 | status_item.enabled | bool | false | Show menu bar icon |
-| status_item.toggle_id | string | "avatar" | Canvas ID to toggle on click |
+| status_item.toggle_id | string | "status-item-canvas" | Canvas ID to toggle on click |
 | status_item.toggle_url | string | — | URL loaded in toggled canvas |
 | status_item.toggle_track | string | — | Optional track target (e.g. "union") |
 | status_item.icon | string | "hexagon" | Icon style |
@@ -253,21 +253,21 @@ auditions the new voice (does not pin).
 The daemon runs a local HTTP file server for serving HTML surfaces to WKWebView canvases. This eliminates the need to bundle multi-file web apps (ES modules, CSS imports) into single HTML files.
 
 ```bash
-aos set content.roots.sigil apps/sigil    # Register a content root
+aos set content.roots.demo path/to/demo   # Register a content root
 aos content status [--json]               # Show server address and roots
-aos content wait --root sigil             # Wait until the daemon is serving that root
+aos content wait --root demo              # Wait until the daemon is serving that root
 aos show wait --id demo --manifest foo    # Wait until a canvas bridge + manifest are live
 ```
 
-Use canonical root names only on `main`. Topic worktrees should use
-branch-scoped sibling roots via `scripts/aos-content-scope.sh` so parallel
-sessions do not make the daemon serve another checkout's content.
+Use canonical root names in the single-checkout local workflow. Branch-scoped
+sibling roots via `scripts/aos-content-scope.sh` are for explicit parallel
+session overrides, not the default local relay loop.
 
-Canvases load via URL: `aos://sigil/renderer/index.html` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
+Canvases load via URL: `aos://<root>/<path>` (rewritten to `http://127.0.0.1:PORT/...` by the daemon). The `aos://` prefix works in `--url` arguments and `toggle_url` config.
 
 ### Wiki (aos wiki)
 
-A per-mode content store at `~/.config/aos/{mode}/wiki/`. Used by Sigil (agent docs under `sigil/agents/`) and as a general-purpose namespace for plugin assets. Also exposed via the daemon's content server at `/wiki/...`.
+A per-mode content store at `~/.config/aos/{mode}/wiki/`. Used by product namespaces and as a general-purpose namespace for plugin assets. Also exposed via the daemon's content server at `/wiki/...`.
 
 ```bash
 aos wiki list [--namespace <ns>]      # List entries (defaults to all namespaces)

@@ -653,6 +653,29 @@ async function postCommand(args) {
   await oneShot('post', id ? { id, data: event } : { channel, data }, { autoStart: true });
 }
 
+async function auditCommand(args) {
+  const request = {};
+  for (let i = 0; i < args.length; i += 1) {
+    if (args[i] === '--json') {
+      continue;
+    }
+    if (args[i] === '--point') {
+      let value;
+      [value, i] = nextValue(args, i, '--point');
+      const parts = String(value).split(',').map((part) => Number(part));
+      if (parts.length !== 2 || parts.some((part) => !Number.isFinite(part))) {
+        error('--point must be x,y (comma-separated)', 'INVALID_ARG');
+      }
+      request.point = parts;
+      request.x = parts[0];
+      request.y = parts[1];
+      continue;
+    }
+    unknownArg(args[i]);
+  }
+  await oneShot('audit', request, { emptyListOnNoDaemon: false, retryNoResponse: 2 });
+}
+
 async function listenCommand(args) {
   if (args.length > 0) unknownArg(args[0]);
   const connection = await connectWithAutoStart({ managed: true });
@@ -716,6 +739,9 @@ switch (command) {
   case 'list':
     if (args.some((arg) => arg !== '--json')) unknownArg(args.find((arg) => arg !== '--json'));
     await oneShot('list', {}, { emptyListOnNoDaemon: true, retryNoResponse: 2 });
+    break;
+  case 'audit':
+    await auditCommand(args);
     break;
   case 'ping':
     if (args.length > 0) unknownArg(args[0]);

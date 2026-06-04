@@ -96,6 +96,22 @@ behavior belongs in consumers that compose them.
 for existing semantic `<input type="number">` markup. It owns wheel and arrow-key
 stepping and returns `{ dispose() }`.
 
+## AOS Semantic Control Targets
+
+Toolkit sliders stamp the actionable `[data-aos-slider-control]` part with a
+stable semantic target. The target includes `role="slider"`, `data-aos-ref`,
+`data-semantic-target-id`, `data-aos-actions`, `aria-valuemin`,
+`aria-valuemax`, `aria-valuenow`, `aria-orientation`, `data-aos-values`,
+`data-aos-min`, `data-aos-max`, `data-aos-step`, and
+`data-aos-thumb-count`.
+
+Single-thumb sliders advertise `data-aos-actions="drag set-value"` and handle
+the internal `aos:semantic-action` event used by target-addressed
+`aos do set-value canvas:<canvas-id>/<ref>` and
+`aos do drag canvas:<canvas-id>/<ref> --to-value <value>`. Multi-thumb sliders
+advertise `drag` only until thumb-specific semantic refs exist; they must not be
+treated as safe single-value targets.
+
 ## Styling
 
 `renderTextareaHtml(config)` is the string-rendering companion for surfaces that

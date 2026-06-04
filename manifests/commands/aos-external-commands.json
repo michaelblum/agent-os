@@ -24,32 +24,107 @@
     },
     {
       "path": ["status"],
-      "summary": "Inspect runtime status through the native status primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__status"],
-      "cwd": "repo"
+      "summary": "Inspect runtime status through external status composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-status.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["ready"],
-      "summary": "Run readiness checks through the native ready primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__ready"],
-      "cwd": "repo"
+      "summary": "Run readiness checks through external readiness composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-ready.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["doctor"],
-      "summary": "Run diagnostics through the native doctor primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__doctor"],
-      "cwd": "repo"
+      "summary": "Run diagnostics through external doctor composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-doctor.mjs"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["permissions", "check"],
+      "summary": "Inspect permissions through external read-only permissions composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "check"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["permissions", "preflight"],
+      "summary": "Run permissions preflight through external read-only permissions composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "preflight"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["permissions", "setup"],
+      "summary": "Run permissions setup through external permission workflow composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "setup"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["permissions", "reset-runtime"],
+      "summary": "Run permissions runtime reset through external permission workflow composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs", "reset-runtime"],
+      "cwd": "repo",
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["permissions"],
-      "summary": "Run permission workflows through the native permissions primitive.",
-      "executable": "$AOS_PATH",
-      "argv_prefix": ["__permissions"],
+      "summary": "Run permission workflows through external permission composition.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-permissions.mjs"],
       "cwd": "repo",
-      "stdio": "inherit"
+      "env": {
+        "AOS_PATH": "$AOS_PATH",
+        "AOS_INVOCATION_DISPLAY_NAME": "$AOS_INVOCATION_DISPLAY_NAME",
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
     },
     {
       "path": ["do"],
@@ -463,16 +538,6 @@
       "summary": "Run the AOS build wrapper from the external dev build command.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-dev-build.mjs", "build"],
-      "cwd": "repo",
-      "env": {
-        "REPO_ROOT": "$REPO_ROOT"
-      }
-    },
-    {
-      "path": ["dev", "build-checkpoint"],
-      "summary": "Print the external dev build checkpoint contract.",
-      "executable": "/usr/bin/env",
-      "argv_prefix": ["node", "scripts/aos-dev-build.mjs", "build-checkpoint"],
       "cwd": "repo",
       "env": {
         "REPO_ROOT": "$REPO_ROOT"
@@ -1256,6 +1321,17 @@
       "summary": "List canvases through the external show client.",
       "executable": "/usr/bin/env",
       "argv_prefix": ["node", "scripts/aos-show-client.mjs", "list"],
+      "cwd": "repo",
+      "env": {
+        "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
+        "AOS_STATE_ROOT": "$AOS_STATE_ROOT"
+      }
+    },
+    {
+      "path": ["show", "audit"],
+      "summary": "Audit visible AOS surfaces by joining canvas registry state with native window-server truth.",
+      "executable": "/usr/bin/env",
+      "argv_prefix": ["node", "scripts/aos-show-client.mjs", "audit"],
       "cwd": "repo",
       "env": {
         "AOS_RUNTIME_MODE": "$AOS_RUNTIME_MODE",
