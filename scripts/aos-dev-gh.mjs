@@ -13,7 +13,150 @@ function die(message, code = 'ERROR', exitCode = 1) {
   process.exit(exitCode);
 }
 
-function parseOptions(args, config = {}) {
+const COMMON_FLAGS = new Set(['--json', '--repo', '--cwd', '--body-file', '--pr']);
+const LIST_FLAGS = new Set(['--state', '--limit', '--label', '--author', '--assignee', '--search']);
+const PR_LIST_FLAGS = new Set(['--base', '--head', '--draft']);
+const PR_MERGE_STRATEGY_FLAGS = new Set(['--squash', '--merge', '--rebase']);
+
+const FLAG_SPECS = {
+  '--json': { assign: (options) => { options.json = true; } },
+  '--repo': {
+    summary: 'a GitHub repository in owner/name form',
+    assign: (options, value) => { options.repo = value; },
+  },
+  '--cwd': {
+    summary: 'a local checkout path',
+    assign: (options, value) => { options.cwd = value; },
+  },
+  '--body-file': {
+    summary: 'a path',
+    assign: (options, value) => { options.bodyFile = value; },
+  },
+  '--title': {
+    summary: 'an issue title',
+    assign: (options, value) => { options.title = value; },
+    invalid: '--title is only valid for issue create subcommands',
+  },
+  '--pr': {
+    summary: 'a PR number',
+    assign: (options, value) => { options.prNumber = value; },
+  },
+  '--reason': {
+    summary: 'completed or not planned',
+    assign: (options, value) => { options.closeReason = value; },
+    invalid: '--reason is only valid for issue close subcommands',
+  },
+  '--sort': {
+    summary: 'created or name',
+    assign: (options, value) => { options.sort = value; },
+    invalid: '--sort is only valid for label list subcommands',
+  },
+  '--order': {
+    summary: 'asc or desc',
+    assign: (options, value) => { options.order = value; },
+    invalid: '--order is only valid for label list subcommands',
+  },
+  '--state': {
+    summary: (command) => command === 'pr:list' ? 'open, closed, merged, or all' : 'open, closed, or all',
+    assign: (options, value) => { options.state = value; },
+    invalid: '--state is only valid for list subcommands',
+  },
+  '--limit': {
+    summary: 'a numeric result limit',
+    assign: (options, value) => {
+      if (!/^[0-9]+$/.test(value)) die(`--limit must be numeric: ${value}`, 'INVALID_ARG');
+      options.limit = Number.parseInt(value, 10);
+    },
+    invalid: '--limit is only valid for list subcommands',
+  },
+  '--label': {
+    summary: 'a label name',
+    assign: (options, value) => { options.labels.push(value); },
+    invalid: '--label is only valid for issue create and issue/PR list subcommands',
+  },
+  '--author': {
+    summary: 'a GitHub login',
+    assign: (options, value) => { options.author = value; },
+    invalid: '--author is only valid for list subcommands',
+  },
+  '--assignee': {
+    summary: (command) => command === 'issue:create' ? 'a GitHub login or @me' : 'a GitHub login or @me',
+    assign: (options, value, command) => {
+      if (command === 'issue:create') options.assignees.push(value);
+      else options.assignee = value;
+    },
+    invalid: '--assignee is only valid for issue create and list subcommands',
+  },
+  '--search': {
+    summary: 'a search query',
+    assign: (options, value) => { options.search = value; },
+    invalid: '--search is only valid for list subcommands',
+  },
+  '--milestone': {
+    summary: 'an issue milestone name',
+    assign: (options, value) => { options.milestone = value; },
+  },
+  '--base': {
+    summary: 'a base branch name',
+    assign: (options, value) => { options.base = value; },
+  },
+  '--head': {
+    summary: 'a head branch name',
+    assign: (options, value) => { options.head = value; },
+  },
+  '--draft': { assign: (options) => { options.draft = true; } },
+  '--squash': {
+    assign: (options, _value, _command, flag) => {
+      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
+      options.mergeStrategy = flag;
+    },
+    invalid: '--squash is only valid for PR merge subcommands',
+  },
+  '--merge': {
+    assign: (options, _value, _command, flag) => {
+      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
+      options.mergeStrategy = flag;
+    },
+    invalid: '--merge is only valid for PR merge subcommands',
+  },
+  '--rebase': {
+    assign: (options, _value, _command, flag) => {
+      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
+      options.mergeStrategy = flag;
+    },
+    invalid: '--rebase is only valid for PR merge subcommands',
+  },
+  '--match-head-commit': {
+    summary: 'a commit SHA',
+    assign: (options, value) => { options.matchHeadCommit = value; },
+    invalid: '--match-head-commit is only valid for PR merge subcommands',
+  },
+};
+
+const COMMAND_FLAGS = new Map([
+  ['common', COMMON_FLAGS],
+  ['issue:list', new Set([...COMMON_FLAGS, ...LIST_FLAGS, '--milestone'])],
+  ['issue:create', new Set([...COMMON_FLAGS, '--title', '--label', '--assignee', '--milestone'])],
+  ['issue:close', new Set([...COMMON_FLAGS, '--reason'])],
+  ['label:list', new Set([...COMMON_FLAGS, '--limit', '--search', '--sort', '--order'])],
+  ['pr:list', new Set([...COMMON_FLAGS, ...LIST_FLAGS, ...PR_LIST_FLAGS])],
+  ['pr:merge', new Set([...COMMON_FLAGS, ...PR_MERGE_STRATEGY_FLAGS, '--match-head-commit'])],
+]);
+
+function flagErrorMessage(flag, command, allowedFlags) {
+  const spec = FLAG_SPECS[flag];
+  if (!spec) return null;
+  if (allowedFlags.has(flag)) return null;
+  if (spec.invalid && !allowedFlags.has(flag)) return spec.invalid;
+  if (LIST_FLAGS.has(flag) && !command.endsWith(':list')) return `${flag} is only valid for list subcommands`;
+  if (PR_LIST_FLAGS.has(flag) && !command.endsWith(':list')) return `${flag} is only valid for PR list subcommands`;
+  if ((PR_MERGE_STRATEGY_FLAGS.has(flag) || flag === '--match-head-commit') && command !== 'pr:merge') {
+    return `${flag} is only valid for PR merge subcommands`;
+  }
+  return null;
+}
+
+function parseOptions(args, command = 'common') {
   const options = {
     json: false,
     repo: null,
@@ -39,14 +182,7 @@ function parseOptions(args, config = {}) {
     order: null,
     positionals: [],
   };
-  const listKind = config.listKind ?? null;
-  const issueCreate = config.issueCreate ?? false;
-  const issueClose = config.issueClose ?? false;
-  const prMerge = config.prMerge ?? false;
-  const labelList = listKind === 'label';
-  const commonListOnlyFlags = new Set(['--state', '--limit', '--author', '--search']);
-  const prListFlags = new Set(['--base', '--head', '--draft']);
-  const prMergeStrategyFlags = new Set(['--squash', '--merge', '--rebase']);
+  const allowedFlags = COMMAND_FLAGS.get(command) ?? COMMAND_FLAGS.get('common');
   const requireValueAt = (index, flag, summary) => {
     if (index < 0 || index + 1 >= args.length || args[index + 1].startsWith('--')) {
       die(`${flag} requires ${summary}`, 'MISSING_ARG');
@@ -55,98 +191,20 @@ function parseOptions(args, config = {}) {
   };
   for (let i = 0; i < args.length;) {
     const arg = args[i];
-    if (arg === '--json') {
-      options.json = true;
-      i += 1;
-    } else if (arg === '--repo') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--repo requires a GitHub repository in owner/name form', 'MISSING_ARG');
-      options.repo = args[i + 1];
-      i += 2;
-    } else if (arg === '--cwd') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--cwd requires a local checkout path', 'MISSING_ARG');
-      options.cwd = args[i + 1];
-      i += 2;
-    } else if (arg === '--body-file') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--body-file requires a path', 'MISSING_ARG');
-      options.bodyFile = args[i + 1];
-      i += 2;
-    } else if (arg === '--title' && issueCreate) {
-      options.title = requireValueAt(i, arg, 'an issue title');
-      i += 2;
-    } else if (arg === '--title') {
-      die('--title is only valid for issue create subcommands', 'UNKNOWN_FLAG');
-    } else if (arg === '--pr') {
-      if (i + 1 >= args.length || args[i + 1].startsWith('--')) die('--pr requires a PR number', 'MISSING_ARG');
-      options.prNumber = args[i + 1];
-      i += 2;
-    } else if (arg === '--reason' && issueClose) {
-      options.closeReason = requireValueAt(i, arg, 'completed or not planned');
-      i += 2;
-    } else if (arg === '--reason') {
-      die('--reason is only valid for issue close subcommands', 'UNKNOWN_FLAG');
-    } else if (arg === '--sort' && labelList) {
-      options.sort = requireValueAt(i, arg, 'created or name');
-      i += 2;
-    } else if (arg === '--sort') {
-      die('--sort is only valid for label list subcommands', 'UNKNOWN_FLAG');
-    } else if (arg === '--order' && labelList) {
-      options.order = requireValueAt(i, arg, 'asc or desc');
-      i += 2;
-    } else if (arg === '--order') {
-      die('--order is only valid for label list subcommands', 'UNKNOWN_FLAG');
-    } else if (commonListOnlyFlags.has(arg) && !listKind) {
-      die(`${arg} is only valid for list subcommands`, 'UNKNOWN_FLAG');
-    } else if (prListFlags.has(arg) && !listKind) {
-      die(`${arg} is only valid for PR list subcommands`, 'UNKNOWN_FLAG');
-    } else if ((prMergeStrategyFlags.has(arg) || arg === '--match-head-commit') && !prMerge) {
-      die(`${arg} is only valid for PR merge subcommands`, 'UNKNOWN_FLAG');
-    } else if (arg === '--state' && listKind && !labelList) {
-      const stateSummary = listKind === 'pr' ? 'open, closed, merged, or all' : 'open, closed, or all';
-      options.state = requireValueAt(i, arg, stateSummary);
-      i += 2;
-    } else if (arg === '--limit' && listKind) {
-      const limit = requireValueAt(i, arg, 'a numeric result limit');
-      if (!/^[0-9]+$/.test(limit)) die(`--limit must be numeric: ${limit}`, 'INVALID_ARG');
-      options.limit = Number.parseInt(limit, 10);
-      i += 2;
-    } else if (arg === '--label' && ((listKind && !labelList) || issueCreate)) {
-      options.labels.push(requireValueAt(i, arg, 'a label name'));
-      i += 2;
-    } else if (arg === '--label') {
-      die('--label is only valid for issue create and issue/PR list subcommands', 'UNKNOWN_FLAG');
-    } else if (arg === '--author' && listKind && !labelList) {
-      options.author = requireValueAt(i, arg, 'a GitHub login');
-      i += 2;
-    } else if (arg === '--assignee' && issueCreate) {
-      options.assignees.push(requireValueAt(i, arg, 'a GitHub login or @me'));
-      i += 2;
-    } else if (arg === '--assignee' && listKind && !labelList) {
-      options.assignee = requireValueAt(i, arg, 'a GitHub login or @me');
-      i += 2;
-    } else if (arg === '--assignee') {
-      die('--assignee is only valid for issue create and list subcommands', 'UNKNOWN_FLAG');
-    } else if (arg === '--search' && listKind) {
-      options.search = requireValueAt(i, arg, 'a search query');
-      i += 2;
-    } else if (arg === '--milestone' && (listKind === 'issue' || issueCreate)) {
-      options.milestone = requireValueAt(i, arg, 'an issue milestone name');
-      i += 2;
-    } else if (arg === '--base' && listKind === 'pr') {
-      options.base = requireValueAt(i, arg, 'a base branch name');
-      i += 2;
-    } else if (arg === '--head' && listKind === 'pr') {
-      options.head = requireValueAt(i, arg, 'a head branch name');
-      i += 2;
-    } else if (arg === '--draft' && listKind === 'pr') {
-      options.draft = true;
-      i += 1;
-    } else if (prMergeStrategyFlags.has(arg) && prMerge) {
-      if (options.mergeStrategy) die('dev gh pr merge accepts exactly one merge strategy', 'INVALID_ARG');
-      options.mergeStrategy = arg;
-      i += 1;
-    } else if (arg === '--match-head-commit' && prMerge) {
-      options.matchHeadCommit = requireValueAt(i, arg, 'a commit SHA');
-      i += 2;
+    const spec = FLAG_SPECS[arg];
+    if (spec) {
+      const error = flagErrorMessage(arg, command, allowedFlags);
+      if (error) die(error, 'UNKNOWN_FLAG');
+      if (!allowedFlags.has(arg)) die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
+      if (spec.summary) {
+        const summary = typeof spec.summary === 'function' ? spec.summary(command) : spec.summary;
+        const value = requireValueAt(i, arg, summary);
+        spec.assign(options, value, command, arg);
+        i += 2;
+      } else {
+        spec.assign(options, null, command, arg);
+        i += 1;
+      }
     } else if (arg.startsWith('--')) {
       die(`Unknown dev gh flag: ${arg}`, 'UNKNOWN_FLAG');
     } else {
@@ -435,7 +493,7 @@ function issueCommand(args) {
   const action = args[0];
   if (!action) die('dev gh issue requires a subcommand: list, view, create, comment, or close', 'MISSING_SUBCOMMAND');
   if (action === 'list') {
-    const options = parseOptions(args.slice(1), { listKind: 'issue' });
+    const options = parseOptions(args.slice(1), 'issue:list');
     if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
     const repoRoot = repoRootFrom(options);
     const repoFullName = repositoryFullName(options, repoRoot);
@@ -468,7 +526,7 @@ function issueCommand(args) {
     ghArgs.push('--body-file', bodyFile);
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'create') {
-    const options = parseOptions(args.slice(1), { issueCreate: true });
+    const options = parseOptions(args.slice(1), 'issue:create');
     if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
     if (!options.title) die('dev gh issue create requires --title <title>', 'MISSING_ARG');
     if (!options.bodyFile) die('dev gh issue create requires --body-file <path>', 'MISSING_ARG');
@@ -482,7 +540,7 @@ function issueCommand(args) {
     appendIssueCreateMetadata(ghArgs, options);
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'close') {
-    const options = parseOptions(args.slice(1), { issueClose: true });
+    const options = parseOptions(args.slice(1), 'issue:close');
     if (options.positionals.length === 0) die('dev gh issue close requires exactly one issue number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     if (options.bodyFile) die('dev gh issue close does not accept --body-file; post a separate issue comment first', 'UNKNOWN_FLAG');
@@ -503,7 +561,7 @@ function labelCommand(args) {
   const action = args[0];
   if (!action) die('dev gh label requires a subcommand: list', 'MISSING_SUBCOMMAND');
   if (action === 'list') {
-    const options = parseOptions(args.slice(1), { listKind: 'label' });
+    const options = parseOptions(args.slice(1), 'label:list');
     if (options.positionals.length > 0) die(`Unknown dev gh label argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
     const repoRoot = repoRootFrom(options);
     const repoFullName = repositoryFullName(options, repoRoot);
@@ -521,7 +579,7 @@ function prCommand(args) {
   const action = args[0];
   if (!action) die('dev gh pr requires a subcommand: list, view, checks, comment, or merge', 'MISSING_SUBCOMMAND');
   if (action === 'list') {
-    const options = parseOptions(args.slice(1), { listKind: 'pr' });
+    const options = parseOptions(args.slice(1), 'pr:list');
     if (options.positionals.length > 0) die(`Unknown dev gh pr argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
     const repoRoot = repoRootFrom(options);
     const repoFullName = repositoryFullName(options, repoRoot);
@@ -564,7 +622,7 @@ function prCommand(args) {
     ghArgs.push('--body-file', bodyFile);
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'merge') {
-    const options = parseOptions(args.slice(1), { prMerge: true });
+    const options = parseOptions(args.slice(1), 'pr:merge');
     if (options.positionals.length === 0) die('dev gh pr merge requires exactly one PR number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh pr argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
     const prNumber = options.positionals[0];
