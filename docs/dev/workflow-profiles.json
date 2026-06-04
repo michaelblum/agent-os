@@ -59,7 +59,7 @@
       "main_role": "stable integration target; Foreman decides when local branch work is merged or published",
       "direct_main_default": false,
       "pull_request_required": false,
-      "review_default": "local Foreman or human reviews local commits and verification before merge or push",
+      "review_default": "local Foreman or human reviews local commits and verification before merge or push; Foreman may offer an explicitly approved short-lived PR when outsider review would be useful",
       "commit_strategy": "small scoped local commits on the current branch or one local gdi/<slug> branch; no automatic push",
       "branch_strategy": "use the single repo checkout; create or switch local branches only when Foreman or the work card names them; never create linked git worktrees",
       "branch_required_for": [
@@ -72,7 +72,8 @@
         "docs-only change",
         "tiny mechanical correction",
         "validation-only round",
-        "Foreman-human direct loop on the current branch"
+        "Foreman-human direct loop on the current branch",
+        "outsider review checkpoint after local acceptance"
       ],
       "release_branching": false,
       "environment_branches": [],
@@ -84,6 +85,7 @@
         "Use branches, scoped commits, and named stashes to preserve unrelated work before switching context.",
         "GDI may commit locally only when the work card says to produce a checkpoint; GDI does not push, open PRs, merge, or clean branches unless explicitly assigned.",
         "Foreman reviews local branch state, verification, and stashes before deciding merge, push, PR, or cleanup.",
+        "At practical review points, Foreman may suggest publishing a small focused PR for a non-local reviewer, but only as an explicit human-approved review option; it is not automatic publication and should keep scope narrow.",
         "The repo-mode ./aos binary is stable infrastructure at /Users/Michael/Code/agent-os/aos and should not be rebuilt except for explicitly accepted native changes."
       ]
     },

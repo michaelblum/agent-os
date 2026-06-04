@@ -59,6 +59,10 @@ branch or stash is the local safety boundary.
   is explicitly assigned.
 - Foreman or the human reviews local branch state and verification before
   deciding whether to merge, publish to GitHub, or ask for a correction.
+- At practical review points, Foreman may suggest publishing a small focused PR
+  for a non-local reviewer when outsider review would reduce risk. This remains
+  an explicit human-approved option, not automatic publication, and the PR
+  should keep the review scope narrow.
 - The repo-mode `./aos` binary is stable infrastructure at
   `/Users/Michael/Code/agent-os/aos`; do not create or rely on branch-local or
   linked-worktree binaries.
@@ -109,6 +113,8 @@ Prefer `local_relay` when:
 - Foreman, the human, and GDI need a nimble local loop in one checkout;
 - branches and stashes are enough isolation and GitHub publication should be an
   explicit later decision;
+- outsider review may occasionally be useful, but should be offered as a
+  focused PR checkpoint instead of making PRs mandatory for every slice;
 - linked git worktrees or extra `aos` binaries would create more confusion than
   safety.
 

@@ -175,16 +175,17 @@ files, branches, or stashes.
 
 | Artifact | Classification | What future agents should do |
 | --- | --- | --- |
-| `docs/design/work-cards/` as a directory | Execution artifact archive with many historical cards | Do not infer active work from file presence. Active work must be backed by current branch state, issue ledger state, or a fresh Foreman dispatch. |
+| `docs/design/work-cards/` as a directory | Durable transfer-contract archive with many historical cards | Do not infer active work from file presence. Active work must be backed by current branch state, issue ledger state, or a fresh Foreman dispatch. |
 | `docs/dev/reports/` | Durable reports and audits | Read only the report relevant to the current lane. Do not bulk-load these as active instructions. |
+| `docs/design/agent-ui-affordance-synthesis-v0*.md` | Durable synthesis and review notes restored from the cleanup stash | Treat as design memory for agent-visible target architecture, not an automatic implementation dispatch. |
 | #407 | Governance/control-surface ledger | Still useful, but after #412 its body and `lane:active` label may be stale. Update deliberately when issue hygiene is authorized. |
 | #411 | Parked spec lane | Do not start during cleanup. Use only when the human asks for readiness diagnosis/remediation design. |
 | `gdi/aos-dock-run-provenance-ledger-v0` | Real unmerged implementation lane | Preserve. Decide promote/rebase/park/retire explicitly. |
 | 114 merged local branches | Cleanup candidates | Safe to delete locally after an explicit branch cleanup pass. Exclude the provenance branch. |
-| `stash@{0}` from 2026-06-04 11:20 | Mixed coordination artifact stash | Keep until split or dropped deliberately. Contains many untracked work cards/reports, generated `__pycache__`, and a small workflow-profile tweak. |
-| `stash@{1}` from 2026-06-03 12:54 | Likely superseded dev-gh inventory/control-surface draft | Likely drop after explicit approval, because current `main` already includes the issue/PR list capability and #412 adds later mutations. Inspect before dropping. |
-| `stash@{2}` from 2026-06-03 11:43 | Small code-bearing panel live-drag patch | Keep parked unless live-drag work resumes. |
-| `stash@{3}` from 2026-06-03 11:42 | Larger code-bearing Sigil/toolkit/native live-drag diagnostics | Keep parked unless live Sigil/input evidence is the next proof. |
+| Former `stash@{0}` from 2026-06-04 11:20 | Restored and dropped during cleanup | Durable markdown/config material was restored into repo-local docs; generated `tests/lib/__pycache__/` bytecode and a blank-line-only skill edit were discarded. |
+| Former `stash@{1}` from 2026-06-03 12:54 | Dropped after explicit approval | Superseded dev-gh inventory/control-surface draft after #412. |
+| Current `stash@{0}` from 2026-06-03 11:43 | Small code-bearing panel live-drag patch | Keep parked unless live-drag work resumes. |
+| Current `stash@{1}` from 2026-06-03 11:42 | Larger code-bearing Sigil/toolkit/native live-drag diagnostics | Keep parked unless live Sigil/input evidence is the next proof. |
 | Older stashes | Historical or side-lane state | Inspect newest-to-oldest before any drop. Do not drop blindly. |
 
 ## How To Read The Markdown Wake
@@ -213,17 +214,16 @@ starting new implementation. The safe sequence is:
 
 1. Keep `main` clean and avoid live Sigil repair unless live evidence is the
    next proof.
-2. Split or drop `stash@{0}` only after deciding whether its workflow-profile
-   tweak belongs in a fresh docs slice and whether the work-card/report
-   artifacts are useful archive material or session exhaust.
-3. Treat `stash@{1}` as the first drop candidate after one last inspection
-   against current #412 behavior.
-4. Keep `stash@{2}` and `stash@{3}` parked for live-drag context.
-5. Prepare and run a local merged-branch deletion pass, explicitly excluding
+2. Keep the restored cleanup-stash docs checkpoint unless later review finds a
+   specific artifact that should be retired. The chosen storage locations are
+   `docs/design/` for synthesis notes, `docs/design/work-cards/` for transfer
+   contracts, and `docs/dev/reports/` for audits and investigation reports.
+3. Keep current `stash@{0}` and `stash@{1}` parked for live-drag context.
+4. Prepare and run a local merged-branch deletion pass, explicitly excluding
    `gdi/aos-dock-run-provenance-ledger-v0`.
-6. Update #407 only when issue hygiene is authorized, likely moving it from
+5. Update #407 only when issue hygiene is authorized, likely moving it from
    active implementation to settled or parked governance state.
-7. Decide whether the provenance branch is the next agent-relay-enabling lane.
+6. Decide whether the provenance branch is the next agent-relay-enabling lane.
 
 ## Non-Goals For Future Cleanup Agents
 
