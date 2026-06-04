@@ -17,6 +17,7 @@ const COMMON_FLAGS = new Set(['--json', '--repo', '--cwd', '--body-file', '--pr'
 const LIST_FLAGS = new Set(['--state', '--limit', '--label', '--author', '--assignee', '--search']);
 const PR_LIST_FLAGS = new Set(['--base', '--head', '--draft']);
 const PR_MERGE_STRATEGY_FLAGS = new Set(['--squash', '--merge', '--rebase']);
+const ISSUE_VIEW_JSON_FIELDS = 'number,title,state,url,body,labels,comments';
 
 const FLAG_SPECS = {
   '--json': { assign: (options) => { options.json = true; } },
@@ -510,7 +511,7 @@ function issueCommand(args) {
     const repoFullName = repositoryFullName(options, repoRoot);
     const ghArgs = ['issue', 'view', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
-    if (options.json) ghArgs.push('--json', 'number,title,state,url,body,labels,comments');
+    if (options.json) ghArgs.push('--json', ISSUE_VIEW_JSON_FIELDS);
     runGhAndExit(ghArgs, repoRoot);
   } else if (action === 'comment') {
     const options = parseOptions(args.slice(1));

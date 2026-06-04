@@ -797,6 +797,14 @@ if [[ "$cmd" == "issue close 411 --repo michaelblum/agent-os --reason completed"
     echo "✓ Closed issue michaelblum/agent-os#411"
     exit 0
 fi
+if [[ "$cmd" == "issue view 298 --repo michaelblum/agent-os --json number,title,state,url,body,labels,comments" ]]; then
+    echo '{"number":298,"title":"Governance ledger","state":"OPEN","url":"https://github.com/michaelblum/agent-os/issues/298","labels":[],"comments":[]}'
+    exit 0
+fi
+if [[ "$cmd" == issue\ view\ 298\ --repo\ michaelblum/agent-os\ --json\ *projectCards* ]]; then
+    echo "GraphQL: Projects (classic) is being deprecated. (repository.issue.projectCards)" >&2
+    exit 1
+fi
 if [[ "$cmd" == "issue list --repo michaelblum/agent-os --state all --limit 20 --label bug --label docs --search semantic target --milestone v0 --json number,title,state,url,createdAt,updatedAt,labels,assignees,author" ]]; then
     echo '[{"number":399,"title":"Track semantic target cleanup","state":"CLOSED","url":"https://github.com/michaelblum/agent-os/issues/399"}]'
     exit 0
@@ -868,6 +876,24 @@ elif echo "$ERR" | grep -q 'Unknown dev gh issue argument: extra'; then
     pass "dev gh issue view rejects extra positional args"
 else
     fail "dev gh issue view extra positional error mismatch: $ERR"
+fi
+
+if OUT="$(./aos dev gh issue view 298 --json 2>/dev/null)" python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["OUT"])
+assert data["number"] == 298, data
+assert data["title"] == "Governance ledger", data
+PY
+then
+    if grep -q "projectCards" "$GH_ARGS_LOG"; then
+        fail "dev gh issue view requested deprecated projectCards JSON field"
+    else
+        pass "dev gh issue view avoids deprecated projectCards JSON field"
+    fi
+else
+    fail "dev gh issue view did not return expected JSON"
 fi
 
 if OUT="$(./aos dev gh issue list --state all --limit 20 --label bug --label docs --search "semantic target" --milestone v0 --json 2>/dev/null)" python3 - <<'PY'
