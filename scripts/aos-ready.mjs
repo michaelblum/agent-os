@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import fs from 'node:fs';
+
 import {
   compactProcessDetail,
   currentMode,
@@ -12,9 +14,10 @@ import {
 import { brokerFacts } from './lib/aos-facts.mjs';
 import {
   evaluateReadyForTesting,
-  isRepairableRuntimeBlockerID,
+  hasRestartableReadyRuntimeBlocker,
   permissionFixLines,
   permissionResetSafeSequenceLines,
+  readyAutoRepairReason,
   readyBlockers,
   readyDiagnosis,
   readyNextActions,
@@ -71,6 +74,23 @@ function serviceCommandString(mode, prefix, action) {
   return `${prefix} service ${action} --mode ${mode} --json`;
 }
 
+function runReadyServiceAction(action, mode) {
+  if (process.env.AOS_TEST_READY_MOCK_SERVICE_ACTIONS === '1') {
+    if (process.env.AOS_TEST_READY_SERVICE_ACTION_LOG) {
+      fs.appendFileSync(
+        process.env.AOS_TEST_READY_SERVICE_ACTION_LOG,
+        `${JSON.stringify({ action, mode })}\n`,
+      );
+    }
+    return {
+      exitCode: 0,
+      stdout: JSON.stringify({ status: 'ok', action, mode }),
+      stderr: '',
+    };
+  }
+  return runNodeScript('scripts/aos-service.mjs', [action, '--mode', mode, '--json']);
+}
+
 function decideReadyStartup({ repair, mode, prefix }) {
   const skipServiceStart = process.env.AOS_TEST_SKIP_READY_SERVICE_START === '1';
   const skippedStartup = {
@@ -94,18 +114,20 @@ function decideReadyStartup({ repair, mode, prefix }) {
   if (!repair) {
     const preflight = buildReadyResponse(skippedStartup, [], mode, prefix);
     if (preflight.ready) {
+      const actionTrace = [{
+        step: 'ready_preflight',
+        result: 'ready',
+        detail: 'managed daemon is already reachable, owned by the expected runtime, and input tap is active',
+      }];
       return {
         startup: skippedStartup,
-        actionTrace: [{
-          step: 'ready_preflight',
-          result: 'ready',
-          detail: 'managed daemon is already reachable, owned by the expected runtime, and input tap is active',
-        }],
+        actionTrace,
+        readyResponse: { ...preflight, action_trace: actionTrace },
       };
     }
   }
 
-  const result = runNodeScript('scripts/aos-service.mjs', ['start', '--mode', mode, '--json']);
+  const result = runReadyServiceAction('start', mode);
   return {
     startup: {
       attempted: true,
@@ -121,7 +143,7 @@ function decideReadyStartup({ repair, mode, prefix }) {
   };
 }
 
-function waitForReadyResponse(startup, actionTrace, mode, prefix, budgetMs) {
+function waitForReadyResponse(startup, actionTrace, mode, prefix, budgetMs, pollMs = 500) {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
     const response = buildReadyResponse(startup, actionTrace, mode, prefix);
@@ -133,7 +155,7 @@ function waitForReadyResponse(startup, actionTrace, mode, prefix, budgetMs) {
       }];
       return buildReadyResponse(startup, trace, mode, prefix);
     }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pollMs);
   }
   const trace = [...actionTrace, {
     step: 'wait_for_recovery',
@@ -143,27 +165,24 @@ function waitForReadyResponse(startup, actionTrace, mode, prefix, budgetMs) {
   return buildReadyResponse(startup, trace, mode, prefix);
 }
 
-function readyAutoRepairReason(response, postPermission) {
-  if (response.ready) return null;
-  const blockerIDs = new Set(response.blockers.map((blocker) => blocker.id));
-  const hasRepairableRuntimeBlocker = response.blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id));
-  if (blockerIDs.has('stale_daemons')) return null;
-  if (blockerIDs.has('daemon_unmanaged')) return null;
-  if (postPermission && hasRepairableRuntimeBlocker) return 'post-permission bounded daemon restart/recheck';
-  if (blockerIDs.has('daemon_ownership_mismatch')) return 'automatic after daemon ownership mismatch';
-  if (blockerIDs.has('input_tap_not_active')) return 'automatic after input tap inactive';
-  return null;
-}
-
 function runReadyRuntimeRepair(startup, actionTrace, mode, prefix, budgetMs, reason) {
-  const result = runNodeScript('scripts/aos-service.mjs', ['restart', '--mode', mode, '--json']);
+  const result = runReadyServiceAction('restart', mode);
   const detail = [reason, compactProcessDetail(result)].filter(Boolean).join('\n');
   const trace = [...actionTrace, {
     step: 'service_restart',
     result: result.exitCode === 0 ? 'ok' : 'degraded',
     detail: detail || undefined,
   }];
-  return waitForReadyResponse(startup, trace, mode, prefix, budgetMs);
+  const testBudget = Number.parseInt(process.env.AOS_TEST_READY_WAIT_BUDGET_MS ?? '', 10);
+  const testPoll = Number.parseInt(process.env.AOS_TEST_READY_WAIT_POLL_MS ?? '', 10);
+  return waitForReadyResponse(
+    startup,
+    trace,
+    mode,
+    prefix,
+    Number.isFinite(testBudget) ? testBudget : budgetMs,
+    Number.isFinite(testPoll) ? testPoll : 500,
+  );
 }
 
 function runReadyCleanRepair(startup, actionTrace, mode, prefix) {
@@ -230,10 +249,10 @@ const options = parseArgs(process.argv.slice(2));
 const mode = currentMode();
 const prefix = invocationName();
 const decision = decideReadyStartup({ repair: options.repair, mode, prefix });
-let response = buildReadyResponse(decision.startup, decision.actionTrace, mode, prefix);
+let response = decision.readyResponse ?? buildReadyResponse(decision.startup, decision.actionTrace, mode, prefix);
 
 if (!options.repair && process.env.AOS_TEST_SKIP_READY_SERVICE_START !== '1') {
-  const reason = readyAutoRepairReason(response, options.postPermission);
+  const reason = readyAutoRepairReason(response, { postPermission: options.postPermission });
   if (reason) {
     response = runReadyRuntimeRepair(
       decision.startup,
@@ -250,7 +269,7 @@ if (options.repair && !response.ready) {
   if (response.blockers.some((blocker) => blocker.id === 'stale_daemons')) {
     response = runReadyCleanRepair(decision.startup, response.action_trace, mode, prefix);
   }
-  if (response.blockers.some((blocker) => isRepairableRuntimeBlockerID(blocker.id))) {
+  if (hasRestartableReadyRuntimeBlocker(response)) {
     response = runReadyRuntimeRepair(decision.startup, response.action_trace, mode, prefix, 20_000, null);
   }
   if (!response.ready && response.blockers.some((blocker) => blocker.kind === 'permission')) {
@@ -261,8 +280,6 @@ if (options.repair && !response.ready) {
     }];
     response = buildReadyResponse(decision.startup, trace, mode, prefix);
   }
-} else if (!options.repair) {
-  response = buildReadyResponse(decision.startup, response.action_trace, mode, prefix);
 }
 
 if (options.json) printJSON(response);

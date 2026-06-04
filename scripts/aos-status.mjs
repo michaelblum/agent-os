@@ -8,11 +8,9 @@ import {
   exitError,
   expectedBinaryPath,
   invocationName,
-  parseJSONOutput,
   printJSON,
   repoRoot,
   run,
-  runAOS,
 } from './lib/aos-cli.mjs';
 import {
   brokerFacts,
@@ -32,13 +30,6 @@ function parseArgs(args) {
     else exitError(`Unknown flag: ${arg}. Usage: ${invocationName()} status [--json]`, 'UNKNOWN_FLAG');
   }
   return options;
-}
-
-function parsePrimitive(result, label) {
-  return parseJSONOutput(result, label, {
-    failureCode: 'STATUS_PRIMITIVE_FAILED',
-    jsonCode: 'STATUS_PRIMITIVE_JSON_INVALID',
-  });
 }
 
 function gitStatus() {
@@ -163,7 +154,7 @@ async function buildStatusResponse() {
     jsonCode: 'STATUS_PRIMITIVE_JSON_INVALID',
     includeRuntime: true,
   });
-  const runtime = facts.runtime ?? parsePrimitive(runAOS(['__runtime', 'status-facts', '--json']), '__runtime status-facts');
+  const runtime = facts.runtime;
   const clean = cleanReport();
   const snapshot = await daemonSnapshot(runtime.socket_path);
   const notes = statusNotes({
