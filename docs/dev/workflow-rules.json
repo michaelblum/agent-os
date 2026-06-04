@@ -224,6 +224,8 @@
         "docs/dev/workflow-profiles.json",
         "docs/dev/workflow-profiles/**",
         "scripts/aos-dev-workflow.mjs",
+        "scripts/aos-dev-situation.mjs",
+        "scripts/aos-dev-drift-lint.mjs",
         "manifests/commands/aos-commands.json",
         "shared/schemas/dev-workflow-rules.schema.json",
         "shared/schemas/fixtures/dev-workflow-rules/**",
@@ -233,6 +235,8 @@
         "shared/schemas/fixtures/dev-workflow-profiles/**",
         "tests/dev-workflow-router.sh",
         "tests/dev-audit.sh",
+        "tests/dev-situation.sh",
+        "tests/dev-drift-lint.sh",
         "tests/schemas/dev-workflow-rules.test.mjs",
         "tests/schemas/dev-active-profile.test.mjs",
         "tests/schemas/dev-workflow-profiles.test.mjs"
@@ -271,6 +275,16 @@
           "id": "dev-audit-test",
           "command": "bash tests/dev-audit.sh",
           "reason": "Verify the dev grammar verifier reports evidence-backed pass and fail claims."
+        },
+        {
+          "id": "dev-situation-test",
+          "command": "bash tests/dev-situation.sh",
+          "reason": "Verify live orientation packets preserve per-source status, source traces, and no-synthesis partial failures."
+        },
+        {
+          "id": "dev-drift-lint-test",
+          "command": "bash tests/dev-drift-lint.sh",
+          "reason": "Verify the heuristic durable-status tripwire distinguishes historical blocks from unmarked standing claims."
         }
       ],
       "verification": []

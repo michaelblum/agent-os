@@ -5856,6 +5856,145 @@
         {
           "args" : [
             {
+              "id" : "repo",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repository root path",
+              "token" : "--repo",
+              "value_type" : "string"
+            },
+            {
+              "id" : "issue-limit",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Maximum open issues to include",
+              "token" : "--issue-limit",
+              "value_type" : "integer"
+            },
+            {
+              "id" : "recent-issue-limit",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Maximum recent issues to include",
+              "token" : "--recent-issue-limit",
+              "value_type" : "integer"
+            },
+            {
+              "id" : "pr-limit",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Maximum open pull requests to include",
+              "token" : "--pr-limit",
+              "value_type" : "integer"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable sourced orientation packet",
+              "token" : "--json",
+              "value_type" : "bool"
+            }
+          ],
+          "examples" : [
+            "aos dev situation --json",
+            "aos dev situation --issue-limit 20 --pr-limit 20 --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "dev-situation",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos dev situation [--repo <path>] [--issue-limit <n>] [--recent-issue-limit <n>] [--pr-limit <n>] [--json]"
+        },
+        {
+          "args" : [
+            {
+              "id" : "paths",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Comma-separated markdown paths to lint",
+              "token" : "--paths",
+              "value_type" : "string"
+            },
+            {
+              "id" : "files",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Space-separated markdown paths to lint",
+              "token" : "--files",
+              "value_type" : "string",
+              "variadic" : true
+            },
+            {
+              "id" : "all-markdown",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Include archived work-card markdown in the heuristic scan",
+              "token" : "--all-markdown",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "repo",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Repository root path",
+              "token" : "--repo",
+              "value_type" : "string"
+            },
+            {
+              "id" : "json",
+              "kind" : "flag",
+              "required" : false,
+              "summary" : "Emit machine-readable heuristic lint findings",
+              "token" : "--json",
+              "value_type" : "bool"
+            },
+            {
+              "id" : "path",
+              "kind" : "positional",
+              "required" : false,
+              "summary" : "Markdown path",
+              "value_type" : "string",
+              "variadic" : true
+            }
+          ],
+          "examples" : [
+            "aos dev drift-lint --json",
+            "aos dev drift-lint --files docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md --json"
+          ],
+          "execution" : {
+            "auto_starts_daemon" : false,
+            "interactive" : false,
+            "mutates_state" : false,
+            "read_only" : true,
+            "requires_permissions" : false,
+            "streaming" : false,
+            "supports_dry_run" : false
+          },
+          "id" : "dev-drift-lint",
+          "output" : {
+            "default_mode" : "text",
+            "error_mode" : "json_stderr",
+            "streaming" : false,
+            "supports_json_flag" : true
+          },
+          "usage" : "aos dev drift-lint [--paths <path,...> | --files <path...>] [--all-markdown] [--repo <path>] [--json] [path...]"
+        },
+        {
+          "args" : [
+            {
               "id" : "release",
               "kind" : "flag",
               "required" : false,
