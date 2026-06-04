@@ -14,6 +14,10 @@ tight Foreman-human-GDI loops with no linked git worktrees or automatic pushes.
 implementation reviewed by a designated Foreman-compatible relay authority; it
 does not create a separate product role.
 `active-profile.json` is the single repo-local selector for the active profile.
+For the current cleanup narrative that led from real-input/live-drag testing to
+the agent-relay readiness state, read
+`docs/design/agent-relay-readiness-narrative-ledger-2026-06-04.md` before
+inferring active work from old work cards, stashes, or branch names.
 
 `agent-capabilities.json` is the source of truth for typed developer
 capabilities exposed through `./aos dev capabilities`. `.docks/*/dock.json`
