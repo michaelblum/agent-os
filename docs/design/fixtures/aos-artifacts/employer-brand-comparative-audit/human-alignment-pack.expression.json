@@ -15,342 +15,665 @@
   },
   "semantic_targets": [
     {
-      "target_id": "document",
-      "data_aos_ref": "html-workbench-expression:document",
-      "aos_ref": "html-workbench-expression:document",
+      "ref": "html-workbench-expression:document",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Employer Brand Audit Human Alignment Pack V0",
       "kind": "document",
-      "accessible_label": "Employer Brand Audit Human Alignment Pack V0",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 1,
-      "source_line_end": 124,
-      "selector": "[data-aos-ref=\"html-workbench-expression:document\"]",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 1,
+          "line_end": 124
+        }
+      },
+      "provenance": {
+        "dom_id": "document",
+        "selector": "[data-aos-ref=\"html-workbench-expression:document\"]",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "employer-brand-audit-human-alignment-pack-v0",
-      "data_aos_ref": "html-workbench-expression:employer-brand-audit-human-alignment-pack-v0",
-      "aos_ref": "html-workbench-expression:employer-brand-audit-human-alignment-pack-v0",
+      "ref": "html-workbench-expression:employer-brand-audit-human-alignment-pack-v0",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Employer Brand Audit Human Alignment Pack V0",
       "kind": "section",
-      "accessible_label": "Employer Brand Audit Human Alignment Pack V0",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 1,
-      "source_line_end": 4,
-      "selector": "#employer-brand-audit-human-alignment-pack-v0",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 1,
+          "line_end": 4
+        }
+      },
+      "provenance": {
+        "dom_id": "employer-brand-audit-human-alignment-pack-v0",
+        "selector": "#employer-brand-audit-human-alignment-pack-v0",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "current-assumptions",
-      "data_aos_ref": "html-workbench-expression:current-assumptions",
-      "aos_ref": "html-workbench-expression:current-assumptions",
+      "ref": "html-workbench-expression:current-assumptions",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Current Assumptions",
       "kind": "section",
-      "accessible_label": "Current Assumptions",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 5,
-      "source_line_end": 15,
-      "selector": "#current-assumptions",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 5,
+          "line_end": 15
+        }
+      },
+      "provenance": {
+        "dom_id": "current-assumptions",
+        "selector": "#current-assumptions",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "evidence-flow",
-      "data_aos_ref": "html-workbench-expression:evidence-flow",
-      "aos_ref": "html-workbench-expression:evidence-flow",
+      "ref": "html-workbench-expression:evidence-flow",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Evidence Flow",
       "kind": "section",
-      "accessible_label": "Evidence Flow",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 16,
-      "source_line_end": 34,
-      "selector": "#evidence-flow",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 16,
+          "line_end": 34
+        }
+      },
+      "provenance": {
+        "dom_id": "evidence-flow",
+        "selector": "#evidence-flow",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "evidence-requirements-brief",
-      "data_aos_ref": "html-workbench-expression:evidence-requirements-brief",
-      "aos_ref": "html-workbench-expression:evidence-requirements-brief",
+      "ref": "html-workbench-expression:evidence-requirements-brief",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Evidence Requirements Brief",
       "kind": "section",
-      "accessible_label": "Evidence Requirements Brief",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 35,
-      "source_line_end": 40,
-      "selector": "#evidence-requirements-brief",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 35,
+          "line_end": 40
+        }
+      },
+      "provenance": {
+        "dom_id": "evidence-requirements-brief",
+        "selector": "#evidence-requirements-brief",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "companies-and-competitor-set",
-      "data_aos_ref": "html-workbench-expression:companies-and-competitor-set",
-      "aos_ref": "html-workbench-expression:companies-and-competitor-set",
+      "ref": "html-workbench-expression:companies-and-competitor-set",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Companies And Competitor Set",
       "kind": "section",
-      "accessible_label": "Companies And Competitor Set",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 41,
-      "source_line_end": 50,
-      "selector": "#companies-and-competitor-set",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 41,
+          "line_end": 50
+        }
+      },
+      "provenance": {
+        "dom_id": "companies-and-competitor-set",
+        "selector": "#companies-and-competitor-set",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "source-categories-and-page-types",
-      "data_aos_ref": "html-workbench-expression:source-categories-and-page-types",
-      "aos_ref": "html-workbench-expression:source-categories-and-page-types",
+      "ref": "html-workbench-expression:source-categories-and-page-types",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Source Categories And Page Types",
       "kind": "section",
-      "accessible_label": "Source Categories And Page Types",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 51,
-      "source_line_end": 56,
-      "selector": "#source-categories-and-page-types",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 51,
+          "line_end": 56
+        }
+      },
+      "provenance": {
+        "dom_id": "source-categories-and-page-types",
+        "selector": "#source-categories-and-page-types",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "desired-evidence-elements-and-expected-clip-counts",
-      "data_aos_ref": "html-workbench-expression:desired-evidence-elements-and-expected-clip-counts",
-      "aos_ref": "html-workbench-expression:desired-evidence-elements-and-expected-clip-counts",
+      "ref": "html-workbench-expression:desired-evidence-elements-and-expected-clip-counts",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Desired Evidence Elements And Expected Clip Counts",
       "kind": "section",
-      "accessible_label": "Desired Evidence Elements And Expected Clip Counts",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 57,
-      "source_line_end": 74,
-      "selector": "#desired-evidence-elements-and-expected-clip-counts",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 57,
+          "line_end": 74
+        }
+      },
+      "provenance": {
+        "dom_id": "desired-evidence-elements-and-expected-clip-counts",
+        "selector": "#desired-evidence-elements-and-expected-clip-counts",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "what-not-to-collect",
-      "data_aos_ref": "html-workbench-expression:what-not-to-collect",
-      "aos_ref": "html-workbench-expression:what-not-to-collect",
+      "ref": "html-workbench-expression:what-not-to-collect",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "What Not To Collect",
       "kind": "section",
-      "accessible_label": "What Not To Collect",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 75,
-      "source_line_end": 78,
-      "selector": "#what-not-to-collect",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 75,
+          "line_end": 78
+        }
+      },
+      "provenance": {
+        "dom_id": "what-not-to-collect",
+        "selector": "#what-not-to-collect",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "kilos-interpretation",
-      "data_aos_ref": "html-workbench-expression:kilos-interpretation",
-      "aos_ref": "html-workbench-expression:kilos-interpretation",
+      "ref": "html-workbench-expression:kilos-interpretation",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "KILOS Interpretation",
       "kind": "section",
-      "accessible_label": "KILOS Interpretation",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 79,
-      "source_line_end": 88,
-      "selector": "#kilos-interpretation",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 79,
+          "line_end": 88
+        }
+      },
+      "provenance": {
+        "dom_id": "kilos-interpretation",
+        "selector": "#kilos-interpretation",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "source-trust-and-inaccessible-source-policy",
-      "data_aos_ref": "html-workbench-expression:source-trust-and-inaccessible-source-policy",
-      "aos_ref": "html-workbench-expression:source-trust-and-inaccessible-source-policy",
+      "ref": "html-workbench-expression:source-trust-and-inaccessible-source-policy",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Source Trust And Inaccessible-Source Policy",
       "kind": "section",
-      "accessible_label": "Source Trust And Inaccessible-Source Policy",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 89,
-      "source_line_end": 94,
-      "selector": "#source-trust-and-inaccessible-source-policy",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 89,
+          "line_end": 94
+        }
+      },
+      "provenance": {
+        "dom_id": "source-trust-and-inaccessible-source-policy",
+        "selector": "#source-trust-and-inaccessible-source-policy",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "visual-evidence-quality-criteria",
-      "data_aos_ref": "html-workbench-expression:visual-evidence-quality-criteria",
-      "aos_ref": "html-workbench-expression:visual-evidence-quality-criteria",
+      "ref": "html-workbench-expression:visual-evidence-quality-criteria",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Visual Evidence Quality Criteria",
       "kind": "section",
-      "accessible_label": "Visual Evidence Quality Criteria",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 95,
-      "source_line_end": 98,
-      "selector": "#visual-evidence-quality-criteria",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 95,
+          "line_end": 98
+        }
+      },
+      "provenance": {
+        "dom_id": "visual-evidence-quality-criteria",
+        "selector": "#visual-evidence-quality-criteria",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "report-tone-and-direction",
-      "data_aos_ref": "html-workbench-expression:report-tone-and-direction",
-      "aos_ref": "html-workbench-expression:report-tone-and-direction",
+      "ref": "html-workbench-expression:report-tone-and-direction",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Report Tone And Direction",
       "kind": "section",
-      "accessible_label": "Report Tone And Direction",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 99,
-      "source_line_end": 104,
-      "selector": "#report-tone-and-direction",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 99,
+          "line_end": 104
+        }
+      },
+      "provenance": {
+        "dom_id": "report-tone-and-direction",
+        "selector": "#report-tone-and-direction",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "explicit-human-decision-points",
-      "data_aos_ref": "html-workbench-expression:explicit-human-decision-points",
-      "aos_ref": "html-workbench-expression:explicit-human-decision-points",
+      "ref": "html-workbench-expression:explicit-human-decision-points",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Explicit Human Decision Points",
       "kind": "decision",
-      "accessible_label": "Explicit Human Decision Points",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 105,
-      "source_line_end": 116,
-      "selector": "#explicit-human-decision-points",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 105,
+          "line_end": 116
+        }
+      },
+      "provenance": {
+        "dom_id": "explicit-human-decision-points",
+        "selector": "#explicit-human-decision-points",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "boundary-for-foreman-gdi-and-operator",
-      "data_aos_ref": "html-workbench-expression:boundary-for-foreman-gdi-and-operator",
-      "aos_ref": "html-workbench-expression:boundary-for-foreman-gdi-and-operator",
+      "ref": "html-workbench-expression:boundary-for-foreman-gdi-and-operator",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Boundary For Foreman, GDI, And Operator",
       "kind": "section",
-      "accessible_label": "Boundary For Foreman, GDI, And Operator",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 117,
-      "source_line_end": 120,
-      "selector": "#boundary-for-foreman-gdi-and-operator",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 117,
+          "line_end": 120
+        }
+      },
+      "provenance": {
+        "dom_id": "boundary-for-foreman-gdi-and-operator",
+        "selector": "#boundary-for-foreman-gdi-and-operator",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "future-direction",
-      "data_aos_ref": "html-workbench-expression:future-direction",
-      "aos_ref": "html-workbench-expression:future-direction",
+      "ref": "html-workbench-expression:future-direction",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Future Direction",
       "kind": "section",
-      "accessible_label": "Future Direction",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 121,
-      "source_line_end": 124,
-      "selector": "#future-direction",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 121,
+          "line_end": 124
+        }
+      },
+      "provenance": {
+        "dom_id": "future-direction",
+        "selector": "#future-direction",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     },
     {
-      "target_id": "mermaid-block-1",
-      "data_aos_ref": "html-workbench-expression:mermaid-block-1",
-      "aos_ref": "html-workbench-expression:mermaid-block-1",
+      "ref": "html-workbench-expression:mermaid-block-1",
+      "surface": "html-workbench-expression",
+      "role": "document_region",
+      "name": "Mermaid block 1",
       "kind": "mermaid_block",
-      "accessible_label": "Mermaid block 1",
-      "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
-      "source_line_start": 18,
-      "source_line_end": 27,
-      "selector": "[data-semantic-target-id=\"mermaid-block-1\"]",
-      "annotation_eligible": true,
-      "reveal_eligible": true
+      "enabled": true,
+      "state": {
+        "value": null,
+        "current": null,
+        "pressed": null,
+        "selected": null,
+        "checked": null,
+        "expanded": null
+      },
+      "actions": [],
+      "extension": {
+        "annotation_eligible": true,
+        "reveal_eligible": true,
+        "source": {
+          "path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
+          "line_start": 18,
+          "line_end": 27
+        }
+      },
+      "provenance": {
+        "dom_id": "mermaid-block-1",
+        "selector": "[data-semantic-target-id=\"mermaid-block-1\"]",
+        "metadata": {},
+        "parent_canvas_id": ""
+      }
     }
   ],
   "source_map": [
     {
-      "target_id": "document",
+      "ref": "html-workbench-expression:document",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 1,
       "source_line_end": 124,
       "selector": "[data-aos-ref=\"html-workbench-expression:document\"]"
     },
     {
-      "target_id": "employer-brand-audit-human-alignment-pack-v0",
+      "ref": "html-workbench-expression:employer-brand-audit-human-alignment-pack-v0",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 1,
       "source_line_end": 4,
       "selector": "#employer-brand-audit-human-alignment-pack-v0"
     },
     {
-      "target_id": "current-assumptions",
+      "ref": "html-workbench-expression:current-assumptions",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 5,
       "source_line_end": 15,
       "selector": "#current-assumptions"
     },
     {
-      "target_id": "evidence-flow",
+      "ref": "html-workbench-expression:evidence-flow",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 16,
       "source_line_end": 34,
       "selector": "#evidence-flow"
     },
     {
-      "target_id": "evidence-requirements-brief",
+      "ref": "html-workbench-expression:evidence-requirements-brief",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 35,
       "source_line_end": 40,
       "selector": "#evidence-requirements-brief"
     },
     {
-      "target_id": "companies-and-competitor-set",
+      "ref": "html-workbench-expression:companies-and-competitor-set",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 41,
       "source_line_end": 50,
       "selector": "#companies-and-competitor-set"
     },
     {
-      "target_id": "source-categories-and-page-types",
+      "ref": "html-workbench-expression:source-categories-and-page-types",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 51,
       "source_line_end": 56,
       "selector": "#source-categories-and-page-types"
     },
     {
-      "target_id": "desired-evidence-elements-and-expected-clip-counts",
+      "ref": "html-workbench-expression:desired-evidence-elements-and-expected-clip-counts",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 57,
       "source_line_end": 74,
       "selector": "#desired-evidence-elements-and-expected-clip-counts"
     },
     {
-      "target_id": "what-not-to-collect",
+      "ref": "html-workbench-expression:what-not-to-collect",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 75,
       "source_line_end": 78,
       "selector": "#what-not-to-collect"
     },
     {
-      "target_id": "kilos-interpretation",
+      "ref": "html-workbench-expression:kilos-interpretation",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 79,
       "source_line_end": 88,
       "selector": "#kilos-interpretation"
     },
     {
-      "target_id": "source-trust-and-inaccessible-source-policy",
+      "ref": "html-workbench-expression:source-trust-and-inaccessible-source-policy",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 89,
       "source_line_end": 94,
       "selector": "#source-trust-and-inaccessible-source-policy"
     },
     {
-      "target_id": "visual-evidence-quality-criteria",
+      "ref": "html-workbench-expression:visual-evidence-quality-criteria",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 95,
       "source_line_end": 98,
       "selector": "#visual-evidence-quality-criteria"
     },
     {
-      "target_id": "report-tone-and-direction",
+      "ref": "html-workbench-expression:report-tone-and-direction",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 99,
       "source_line_end": 104,
       "selector": "#report-tone-and-direction"
     },
     {
-      "target_id": "explicit-human-decision-points",
+      "ref": "html-workbench-expression:explicit-human-decision-points",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 105,
       "source_line_end": 116,
       "selector": "#explicit-human-decision-points"
     },
     {
-      "target_id": "boundary-for-foreman-gdi-and-operator",
+      "ref": "html-workbench-expression:boundary-for-foreman-gdi-and-operator",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 117,
       "source_line_end": 120,
       "selector": "#boundary-for-foreman-gdi-and-operator"
     },
     {
-      "target_id": "future-direction",
+      "ref": "html-workbench-expression:future-direction",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 121,
       "source_line_end": 124,
       "selector": "#future-direction"
     },
     {
-      "target_id": "mermaid-block-1",
+      "ref": "html-workbench-expression:mermaid-block-1",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 18,
       "source_line_end": 27,
@@ -359,7 +682,7 @@
   ],
   "mermaid_blocks": [
     {
-      "target_id": "mermaid-block-1",
+      "ref": "html-workbench-expression:mermaid-block-1",
       "source_path": "docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md",
       "source_line_start": 18,
       "source_line_end": 27,
@@ -393,91 +716,91 @@
   },
   "outline": [
     {
-      "target_id": "employer-brand-audit-human-alignment-pack-v0",
+      "ref": "html-workbench-expression:employer-brand-audit-human-alignment-pack-v0",
       "label": "Employer Brand Audit Human Alignment Pack V0",
       "level": 1,
       "selector": "#employer-brand-audit-human-alignment-pack-v0"
     },
     {
-      "target_id": "current-assumptions",
+      "ref": "html-workbench-expression:current-assumptions",
       "label": "Current Assumptions",
       "level": 2,
       "selector": "#current-assumptions"
     },
     {
-      "target_id": "evidence-flow",
+      "ref": "html-workbench-expression:evidence-flow",
       "label": "Evidence Flow",
       "level": 2,
       "selector": "#evidence-flow"
     },
     {
-      "target_id": "evidence-requirements-brief",
+      "ref": "html-workbench-expression:evidence-requirements-brief",
       "label": "Evidence Requirements Brief",
       "level": 2,
       "selector": "#evidence-requirements-brief"
     },
     {
-      "target_id": "companies-and-competitor-set",
+      "ref": "html-workbench-expression:companies-and-competitor-set",
       "label": "Companies And Competitor Set",
       "level": 2,
       "selector": "#companies-and-competitor-set"
     },
     {
-      "target_id": "source-categories-and-page-types",
+      "ref": "html-workbench-expression:source-categories-and-page-types",
       "label": "Source Categories And Page Types",
       "level": 2,
       "selector": "#source-categories-and-page-types"
     },
     {
-      "target_id": "desired-evidence-elements-and-expected-clip-counts",
+      "ref": "html-workbench-expression:desired-evidence-elements-and-expected-clip-counts",
       "label": "Desired Evidence Elements And Expected Clip Counts",
       "level": 2,
       "selector": "#desired-evidence-elements-and-expected-clip-counts"
     },
     {
-      "target_id": "what-not-to-collect",
+      "ref": "html-workbench-expression:what-not-to-collect",
       "label": "What Not To Collect",
       "level": 2,
       "selector": "#what-not-to-collect"
     },
     {
-      "target_id": "kilos-interpretation",
+      "ref": "html-workbench-expression:kilos-interpretation",
       "label": "KILOS Interpretation",
       "level": 2,
       "selector": "#kilos-interpretation"
     },
     {
-      "target_id": "source-trust-and-inaccessible-source-policy",
+      "ref": "html-workbench-expression:source-trust-and-inaccessible-source-policy",
       "label": "Source Trust And Inaccessible-Source Policy",
       "level": 2,
       "selector": "#source-trust-and-inaccessible-source-policy"
     },
     {
-      "target_id": "visual-evidence-quality-criteria",
+      "ref": "html-workbench-expression:visual-evidence-quality-criteria",
       "label": "Visual Evidence Quality Criteria",
       "level": 2,
       "selector": "#visual-evidence-quality-criteria"
     },
     {
-      "target_id": "report-tone-and-direction",
+      "ref": "html-workbench-expression:report-tone-and-direction",
       "label": "Report Tone And Direction",
       "level": 2,
       "selector": "#report-tone-and-direction"
     },
     {
-      "target_id": "explicit-human-decision-points",
+      "ref": "html-workbench-expression:explicit-human-decision-points",
       "label": "Explicit Human Decision Points",
       "level": 2,
       "selector": "#explicit-human-decision-points"
     },
     {
-      "target_id": "boundary-for-foreman-gdi-and-operator",
+      "ref": "html-workbench-expression:boundary-for-foreman-gdi-and-operator",
       "label": "Boundary For Foreman, GDI, And Operator",
       "level": 2,
       "selector": "#boundary-for-foreman-gdi-and-operator"
     },
     {
-      "target_id": "future-direction",
+      "ref": "html-workbench-expression:future-direction",
       "label": "Future Direction",
       "level": 2,
       "selector": "#future-direction"

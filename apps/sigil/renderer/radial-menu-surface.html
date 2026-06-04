@@ -198,14 +198,14 @@ function updateButton(button, item) {
         role: item.role || 'AXButton',
         name: item.name || item.ariaLabel || item.label || item.id || 'Radial item',
         action: item.action,
-        aosRef: item.aosRef || `sigil-radial-item-${safeId(item.id)}`,
+        ref: item.ref || `sigil-radial-item-${safeId(item.id)}`,
         surface: item.surface || SURFACE_ID,
-        parentCanvasId: PARENT_ID,
+        parent_canvas_id: PARENT_ID,
         current: item.active ? true : null,
     }, {
         idPrefix: 'sigil-radial-item',
         surface: SURFACE_ID,
-        parentCanvasId: PARENT_ID,
+        parent_canvas_id: PARENT_ID,
     });
     button.dataset.radialItemId = item.id;
     if (item.action) {

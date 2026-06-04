@@ -6,7 +6,7 @@ import {
   loadEmployerBrandRepairedCaptureRuntimeDiagnostics,
   validateEmployerBrandRepairedCaptureRuntimeDiagnostics,
   writeEmployerBrandRepairedCaptureRuntimeDiagnostics,
-} from '../packages/toolkit/workbench/employer-brand-repaired-capture-runtime-diagnostics.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-repaired-capture-runtime-diagnostics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

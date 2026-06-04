@@ -9,7 +9,7 @@ import {
   buildEmployerBrandElementClipAcceptanceReport,
   loadEmployerBrandElementClipAcceptanceReport,
   validateEmployerBrandElementClipAcceptanceReport,
-} from '../../packages/toolkit/workbench/employer-brand-element-clip-acceptance-verifier.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-element-clip-acceptance-verifier.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -221,7 +221,7 @@ test('Employer Brand Element Clip Acceptance detects missing required text extra
 
 test('Employer Brand Element Clip Acceptance verifier path is read-only and does not include capture/render execution hooks', async () => {
   const source = await fs.readFile(
-    path.join(repoRoot, 'packages/toolkit/workbench/employer-brand-element-clip-acceptance-verifier.js'),
+    path.join(repoRoot, 'packages/toolkit/workbench/_reference/employer-brand/employer-brand-element-clip-acceptance-verifier.js'),
     'utf8',
   );
   assert.equal(source.includes('playwright'), false);

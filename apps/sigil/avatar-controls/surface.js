@@ -13,16 +13,10 @@ import { isTesseronSupportedShape, normalizeTesseronConfig } from '../renderer/t
 import {
     applyAvatarControlsDescriptorUpdate,
 } from './descriptors.js';
+import { createAvatarControlsCompactSurfaceSession } from './compact-surface-session.js';
 import { buildAvatarControlsSnapshot } from './snapshot-projection.js';
 import { createVisualObjectBindingAdapter } from './visual-object-binding.js';
 import { buildSigilAvatarCompactSurfaceViewModel } from '../avatar-editor/surface-view-model.js';
-
-let compactSurfaceModulePromise = null;
-
-function loadCompactSurfaceModule() {
-    compactSurfaceModulePromise ||= import('../avatar-editor/compact-surface.js');
-    return compactSurfaceModulePromise;
-}
 
 const MENU_WIDTH = 292;
 const MENU_HEIGHT = 448;
@@ -377,11 +371,9 @@ export function createSigilAvatarControls({
         activeSlider: null,
         snapshot: null,
     };
-    let compactSurface = null;
     let panelReady = false;
     let panelControls = [];
     let panelActiveTab = null;
-    const compactValueCache = new Map();
     const usesPanel = typeof actionDispatcher === 'function' && !!panelUrl;
     const interactionRouter = createDesktopWorldInteractionRouter({
         onOutsidePointer(event) {
@@ -406,11 +398,11 @@ export function createSigilAvatarControls({
     }
 
     function compactControlRecords() {
-        return compactSurface?.getControlRecords?.() || panelControls || [];
+        return usesPanel ? panelControls || [] : compactSurfaceSession.controlRecords();
     }
 
     function snapshot() {
-        return buildAvatarControlsSnapshot(surfaceState, compactSurface, {
+        return buildAvatarControlsSnapshot(surfaceState, compactSurfaceSession.surface(), {
             panelControls,
             panelActiveTab,
             panelId: usesPanel ? panelId : null,
@@ -418,9 +410,10 @@ export function createSigilAvatarControls({
     }
 
     function syncSnapshot() {
+        const controls = compactControlRecords();
         surfaceState.snapshot = {
-            activeTab: compactSurface?.getActiveTab?.() || panelActiveTab || null,
-            controlCount: compactControlRecords().length,
+            activeTab: compactSurfaceSession.activeTab() || panelActiveTab || null,
+            controlCount: controls.length,
             surface: usesPanel ? 'toolkit-panel' : 'embedded',
             panelId: usesPanel ? panelId : null,
         };
@@ -500,133 +493,21 @@ export function createSigilAvatarControls({
         recordTrace,
     });
 
-    function cacheKey(value) {
-        if (value === undefined) return 'undefined';
-        try {
-            return JSON.stringify(value);
-        } catch {
-            return String(value);
-        }
-    }
-
-    function seedCompactValueCache(surface = compactSurface) {
-        compactValueCache.clear();
-        if (!surface) return;
-        for (const tab of surface.viewModel.tabs || []) {
-            for (const section of tab.sections || []) {
-                for (const control of section.controls || []) {
-                    compactValueCache.set(control.id, cacheKey(control.value));
-                }
-            }
-        }
-        for (const control of surface.viewModel.projection_tools || []) {
-            compactValueCache.set(control.id, cacheKey(control.value));
-        }
-    }
-
-    function seedCompactValueCacheFromViewModel(viewModel = null) {
-        if (!viewModel) return;
-        compactValueCache.clear();
-        for (const tab of viewModel.tabs || []) {
-            for (const section of tab.sections || []) {
-                for (const control of section.controls || []) {
-                    compactValueCache.set(control.id, cacheKey(control.value));
-                }
-            }
-        }
-        for (const control of viewModel.projection_tools || []) {
-            compactValueCache.set(control.id, cacheKey(control.value));
-        }
-    }
-
-    function routeChangedControls(controls = [], values = {}) {
-        let changed = false;
-        for (const control of controls) {
-            if (!control?.id || !Object.prototype.hasOwnProperty.call(values, control.id)) continue;
-            const value = values[control.id];
-            const nextKey = cacheKey(value);
-            if (compactValueCache.get(control.id) === nextKey) continue;
-            compactValueCache.set(control.id, nextKey);
-            const result = routeDescriptorUpdate(control.descriptor_id || control.id, value);
-            changed ||= !!result;
-        }
-        if (changed) {
-            syncFromState();
-            syncSnapshot();
-            sendPanelUpdate('control-change');
-        }
-        return changed;
-    }
-
-    function handleCompactProjectionAction(payload = {}) {
-        const control = payload.control || {};
-        const id = control.descriptor_id || control.id;
-        routeDescriptorUpdate(id, id);
-        if (id?.startsWith?.('toggle-')) {
-            onUtilityAction?.(control.action_id || id);
-            syncSnapshot();
-            sendPanelUpdate('projection-action');
-            return;
-        }
-        Promise.resolve(onAvatarAction?.(id)).then((changed) => {
-            if (changed) {
-                if (usesPanel) {
-                    syncFromState();
-                    syncSnapshot();
-                    sendPanelUpdate('avatar-action');
-                } else {
-                    void mountCompactSurface().then(() => {
-                        syncFromState();
-                        seedCompactValueCache();
-                        syncSnapshot();
-                    });
-                }
-            }
-        }).catch((error) => {
-            console.warn('[sigil] avatar control surface action failed:', error);
-        });
-    }
-
-    async function mountCompactSurface(activeTab = null) {
-        const { createSigilAvatarCompactControlSurface } = await loadCompactSurfaceModule();
-        const previousSurface = compactSurface;
-        const previousTab = previousSurface?.getActiveTab?.();
-        const previousScrollTop = previousSurface?.el?.scrollTop ?? 0;
-        const previousScrollLeft = previousSurface?.el?.scrollLeft ?? 0;
-        compactSurface?.destroy?.();
-        compactSurface = createSigilAvatarCompactControlSurface(anchor, state || {}, {
-            document,
-            defaultTab: activeTab || previousTab || undefined,
-            visualObjectBinding: {
-                state,
-                routeHandlers: visualObjectBinding.routeHandlers,
-                rendererSyncHandlers: visualObjectBinding.rendererSyncHandlers,
-            },
-            onControlChange() {
-                queueMicrotask(() => {
-                    syncFromState();
-                    syncSnapshot();
-                });
-            },
-            onProjectionChange(payload = {}) {
-                routeChangedControls(payload.controls || [], payload.values || {});
-            },
-            onProjectionAction: handleCompactProjectionAction,
-            onTabChange(payload = {}) {
-                recordTrace('surface-tab', { value: payload.value });
-                syncSnapshot();
-            },
-        });
-        if (previousScrollTop > 0 || previousScrollLeft > 0) {
-            compactSurface.el.scrollTop = previousScrollTop;
-            compactSurface.el.scrollLeft = previousScrollLeft;
-        }
-        seedCompactValueCache(compactSurface);
-        syncSnapshot();
-        return compactSurface;
-    }
+    const compactSurfaceSession = createAvatarControlsCompactSurfaceSession({
+        anchor,
+        state,
+        document,
+        visualObjectBinding,
+        routeDescriptorUpdate,
+        onUtilityAction,
+        onAvatarAction,
+        syncFromState,
+        syncSnapshot,
+        recordTrace,
+    });
 
     function compactFieldRecordByDescriptorId(id) {
+        const compactSurface = compactSurfaceSession.surface();
         if (!compactSurface || !id) return null;
         for (const entry of compactSurface.forms.values()) {
             const fields = Array.from(entry.el.querySelectorAll?.('.aos-form-field') || []);
@@ -650,6 +531,7 @@ export function createSigilAvatarControls({
     function compactFieldRecordForElement(element) {
         const fieldEl = closestAny(element, ['.aos-form-field']);
         const fieldId = fieldEl?.dataset?.aosFieldId;
+        const compactSurface = compactSurfaceSession.surface();
         if (!fieldId || !compactSurface) return null;
         for (const entry of compactSurface.forms.values()) {
             if (!elementContains(entry.el, fieldEl)) continue;
@@ -813,7 +695,7 @@ export function createSigilAvatarControls({
         setColorValue('sigil-avatar-controls-magnetic2', colors.magnetic?.[1]);
         setColorValue('sigil-avatar-controls-grid1', colors.grid?.[0]);
         setColorValue('sigil-avatar-controls-grid2', colors.grid?.[1]);
-        compactSurface?.refreshVisibility?.();
+        compactSurfaceSession.refreshVisibility();
     }
 
     function clampToVisible(point) {
@@ -875,8 +757,7 @@ export function createSigilAvatarControls({
         recordTrace('open', { point, origin, bounds: surfaceState.bounds });
         syncPosition();
         if (usesPanel) {
-            compactSurface?.destroy?.();
-            compactSurface = null;
+            compactSurfaceSession.destroy();
             anchor.replaceChildren();
             anchor.classList.remove('visible');
             anchor.style.display = 'none';
@@ -915,10 +796,10 @@ export function createSigilAvatarControls({
             });
             return snapshot();
         }
-        void mountCompactSurface().then(() => {
+        void compactSurfaceSession.mount().then(() => {
             if (!surfaceState.open) return;
             syncFromState();
-            seedCompactValueCache();
+            compactSurfaceSession.seedValueCache();
             syncPosition();
             syncSnapshot();
             onBoundsChange?.(snapshot());
@@ -938,9 +819,7 @@ export function createSigilAvatarControls({
         panelControls = [];
         panelActiveTab = null;
         interactionRouter.reset();
-        compactSurface?.destroy?.();
-        compactSurface = null;
-        compactValueCache.clear();
+        compactSurfaceSession.destroy();
         if (state) state.isMenuOpen = false;
         anchor.classList.remove('visible');
         syncSnapshot();
@@ -963,19 +842,16 @@ export function createSigilAvatarControls({
         interactionRouter.reset();
         if (state) state.isMenuOpen = open;
         if (!open) {
-            compactSurface?.destroy?.();
-            compactSurface = null;
-            compactValueCache.clear();
             panelReady = false;
             panelControls = [];
             panelActiveTab = null;
+            compactSurfaceSession.destroy();
             anchor.classList.remove('visible');
             syncSnapshot();
             return;
         }
         if (usesPanel) {
-            compactSurface?.destroy?.();
-            compactSurface = null;
+            compactSurfaceSession.destroy();
             anchor.replaceChildren();
             anchor.classList.remove('visible');
             anchor.style.display = 'none';
@@ -985,20 +861,21 @@ export function createSigilAvatarControls({
         syncPosition();
         anchor.classList.add('visible');
         syncSnapshot();
+        const compactSurface = compactSurfaceSession.surface();
         if (compactSurface) {
             if (next.activeTab && compactSurface.getActiveTab?.() !== next.activeTab) {
                 compactSurface.setActiveTab?.(next.activeTab);
             }
             syncFromState();
-            seedCompactValueCache();
+            compactSurfaceSession.seedValueCache();
             syncPosition();
             syncSnapshot();
             return;
         }
-        void mountCompactSurface(next.activeTab || null).then(() => {
+        void compactSurfaceSession.mount(next.activeTab || null).then(() => {
             if (!surfaceState.open) return;
             syncFromState();
-            seedCompactValueCache();
+            compactSurfaceSession.seedValueCache();
             syncPosition();
             syncSnapshot();
         }).catch((error) => {
@@ -1244,7 +1121,6 @@ export function createSigilAvatarControls({
 
     function buildPanelUpdatePayload(reason = 'sync') {
         const viewModel = buildSigilAvatarCompactSurfaceViewModel(state || {});
-        seedCompactValueCacheFromViewModel(viewModel);
         return {
             reason,
             panel_id: panelId,

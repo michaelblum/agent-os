@@ -9,15 +9,15 @@ import { fileURLToPath } from 'node:url';
 import {
   loadEmployerBrandLiveEvidenceTargetPlan,
   validateEmployerBrandLiveEvidenceTargetPlan,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-target-plan.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-target-plan.js';
 import {
   loadEmployerBrandLiveEvidenceTargetReviewPack,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-target-review-pack.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-target-review-pack.js';
 import {
   applyEmployerBrandLiveEvidenceTargetApprovalPatch,
   loadEmployerBrandLiveEvidenceTargetApprovalPatch,
   validateEmployerBrandLiveEvidenceTargetApprovalPatch,
-} from '../../packages/toolkit/workbench/employer-brand-live-evidence-target-approval-patch.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-live-evidence-target-approval-patch.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

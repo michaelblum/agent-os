@@ -30,15 +30,30 @@ declare const aos: {
       role: string; label?: string; value?: string;
       frame: { x: number; y: number; width: number; height: number };
     }>; semantic_targets?: Array<{
-      canvas_id?: string; id?: string; ref?: string;
-      role: string; name?: string; action?: string;
-      surface?: string; parent_canvas?: string; enabled: boolean;
-      bounds: { x: number; y: number; width: number; height: number };
-      center: { x: number; y: number };
+      ref: string;
+      surface?: string;
+      role: string;
+      name?: string;
+      kind: string;
+      enabled: boolean;
       state?: {
         current?: string; pressed?: boolean; selected?: boolean;
-        checked?: boolean; expanded?: boolean; disabled?: boolean;
+        checked?: boolean; expanded?: boolean;
         value?: string;
+      };
+      actions: string[];
+      extension: {
+        dom_id?: string;
+        source?: { path?: string | null; line_start?: number | null; line_end?: number | null };
+      };
+      provenance: {
+        canvas_id?: string;
+        do_target?: string;
+        parent_canvas_id?: string;
+        source_payload_id?: string;
+        bounds?: { x: number; y: number; width: number; height: number };
+        frame?: { x: number; y: number; width: number; height: number };
+        center?: { x: number; y: number };
       };
     }>; path?: string;
   }>;

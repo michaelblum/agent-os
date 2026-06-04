@@ -46,7 +46,7 @@ test('radial menu targets enforce AOS-sized hit surfaces', () => {
   assert.equal(targets[0].name, 'Avatar Controls')
   assert.equal(targets[0].ariaLabel, 'Avatar Controls')
   assert.equal(targets[0].role, 'AXButton')
-  assert.equal(targets[0].aosRef, 'sigil-radial-item-avatar-controls')
+  assert.equal(targets[0].ref, 'sigil-radial-item-avatar-controls')
   assert.equal(targets[0].size, 56)
   assert.equal(targets[1].active, true)
   assert.deepEqual(targets[1].logical, {
@@ -141,7 +141,7 @@ test('radial menu target surface creates an offscreen child and posts live item 
       name: item.name,
       action: item.action,
       ariaLabel: item.ariaLabel,
-      aosRef: item.aosRef,
+      ref: item.ref,
       active: item.active,
       x: item.x,
       y: item.y,
@@ -154,7 +154,7 @@ test('radial menu target surface creates an offscreen child and posts live item 
         name: 'Avatar Controls',
         action: 'avatarControls',
         ariaLabel: 'Avatar Controls',
-        aosRef: 'sigil-radial-item-avatar-controls',
+        ref: 'sigil-radial-item-avatar-controls',
         active: false,
         x: 38,
         y: 38,
@@ -166,7 +166,7 @@ test('radial menu target surface creates an offscreen child and posts live item 
         name: 'Wiki Graph',
         action: 'wikiGraph',
         ariaLabel: 'Wiki Graph',
-        aosRef: 'sigil-radial-item-wiki-graph',
+        ref: 'sigil-radial-item-wiki-graph',
         active: true,
         x: 118,
         y: 38,

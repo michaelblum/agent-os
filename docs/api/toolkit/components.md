@@ -339,7 +339,8 @@ including `test-console-v0:response-confirm`, `test-console-v0:response-fail`,
 `test-console-v0:evidence:open:<ref>` refs. These refs are stamped through
 `data-aos-ref`, `data-aos-action`, `data-aos-surface`, and
 `data-semantic-target-id` so `aos see capture --canvas <id> --xray` can expose
-`semantic_targets[].do_target` for `aos do click`.
+canonical `semantic_targets[]` records whose `provenance.do_target` values are
+used for `aos do click`.
 
 The v-next direction keeps wiki document Subjects wiki-oriented and represents
 domain concepts through separate domain Subjects plus Subject References. For

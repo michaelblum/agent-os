@@ -475,14 +475,13 @@ resolve the element explicitly under the cursor.
 not role-whitelist them into an "interactive" vocabulary. For AOS-owned canvas
 captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
-project standard DOM/AX/ARIA facts plus thin AOS ownership metadata such as
-`canvas_id`, `data-aos-ref`, `data-aos-action`, `data-aos-actions`,
-`data-aos-surface`, and `data-semantic-target-id`. Entries with both `canvas_id`
-and `ref` also include
-`do_target`, the exact `canvas:<canvas-id>/<ref>` string accepted by
-target-addressed `aos do` forms. The probe does not use caller-supplied
-JavaScript; `show eval` remains a developer diagnostic bridge, not the agent
-perception contract.
+use the canonical `agent_ui_target` envelope: top-level `ref`, `surface`,
+`role`, `name`, `kind`, `enabled`, `state`, `actions`, `extension`, and
+`provenance`. The sole top-level identity is `ref` from `data-aos-ref`.
+Local DOM ids, canvas id, parent canvas id, local geometry, metadata, and the
+`canvas:<canvas-id>/<ref>` action-routing string live under `provenance` or
+`extension`. The probe does not use caller-supplied JavaScript; `show eval`
+remains a developer diagnostic bridge, not the agent perception contract.
 
 See [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md)
 for the response shape.
@@ -620,14 +619,14 @@ aos do click canvas:<canvas-id>/<ref> --state-id <id>
 
 Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass
-`semantic_targets[].do_target` directly when present; `canvas_id` and `ref`
-remain available for structured filtering. The CLI resolves the current
-AOS-owned canvas semantic target through the fixed probe path, rejects missing,
-disabled, ambiguous, suspended, noninteractive, or unsupported segmented
-canvases with machine-readable errors, and then clicks the resolved target
-center in global CG coordinates. V0 does not dereference a historical
-`state_id`; the id is preserved only as correlation metadata for the perception
-the action was chosen from.
+`semantic_targets[].provenance.do_target` directly when present;
+`provenance.canvas_id` and `ref` remain available for structured filtering. The
+CLI resolves the current AOS-owned canvas semantic target through the fixed
+probe path, rejects missing, disabled, ambiguous, suspended, noninteractive, or
+unsupported segmented canvases with machine-readable errors, and then clicks
+the resolved `provenance.center` in global CG coordinates. V0 does not
+dereference a historical `state_id`; the id is preserved only as correlation
+metadata for the perception the action was chosen from.
 
 Coordinate, browser-target, and canvas-ref actions accept `--state-id <id>` when
 the action was chosen from a prior `aos see capture` response. Direct one-shot

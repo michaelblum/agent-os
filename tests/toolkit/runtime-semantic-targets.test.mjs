@@ -1,11 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  aosRefForTarget,
   applySemanticTargetAttributes,
   createSemanticTargetElement,
+  normalizeAgentUiTarget,
   normalizeSemanticTarget,
   normalizeSemanticTargets,
+  refForTarget,
   semanticTargetAttributeEntries,
   semanticTargetAttrString,
 } from '../../packages/toolkit/runtime/semantic-targets.js'
@@ -67,7 +68,7 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     active: true,
   }, {
     surface: 'sigil-radial-menu',
-    parentCanvasId: 'avatar-main',
+    parent_canvas_id: 'avatar-main',
   })
 
   assert.deepEqual(target, {
@@ -84,8 +85,8 @@ test('normalizeSemanticTarget maps AX roles to web roles and keeps names concise
     expanded: null,
     value: null,
     surface: 'sigil-radial-menu',
-    parentCanvasId: 'avatar-main',
-    aosRef: 'sigil-radial-menu:wiki-graph',
+    parent_canvas_id: 'avatar-main',
+    ref: 'sigil-radial-menu:wiki-graph',
     metadata: {},
     frame: { x: 10, y: 21, width: 55, height: 45 },
   })
@@ -104,16 +105,70 @@ test('normalizeSemanticTargets rejects targets without stable ids', () => {
   )
 })
 
-test('aosRefForTarget uses explicit refs before generated surface refs', () => {
-  assert.equal(aosRefForTarget({ id: 'save', surface: 'toolbar' }), 'toolbar:save')
-  assert.equal(aosRefForTarget({ id: 'save', aosRef: 'custom-save' }, { surface: 'toolbar' }), 'custom-save')
+test('refForTarget uses explicit refs before generated surface refs', () => {
+  assert.equal(refForTarget({ id: 'save', surface: 'toolbar' }), 'toolbar:save')
+  assert.equal(refForTarget({ id: 'save', ref: 'custom-save' }, { surface: 'toolbar' }), 'custom-save')
 })
 
 test('normalizeSemanticTarget does not default action to identity', () => {
   const target = normalizeSemanticTarget({ id: 'plain-target', name: 'Plain Target' })
 
   assert.equal(target.action, '')
-  assert.equal(target.aosRef, 'plain-target')
+  assert.equal(target.ref, 'plain-target')
+})
+
+test('normalizeAgentUiTarget composes canonical producer records without alternate identity fields', () => {
+  const target = normalizeAgentUiTarget({
+    id: 'opacity',
+    role: 'AXSlider',
+    name: 'Opacity',
+    value: 0.55,
+    surface: 'toolkit.panel.form',
+    frame: { x: 10, y: 72, width: 160, height: 28 },
+    metadata: { aosFieldId: 'opacity' },
+  }, {
+    kind: 'slider',
+    actions: ['drag', 'set-value'],
+    extension: {
+      descriptor_id: 'avatar-opacity',
+      field_id: 'opacity',
+      options: [],
+      hidden: false,
+    },
+  })
+
+  assert.deepEqual(target, {
+    ref: 'toolkit.panel.form:opacity',
+    surface: 'toolkit.panel.form',
+    role: 'slider',
+    name: 'Opacity',
+    kind: 'slider',
+    enabled: true,
+    state: {
+      value: 0.55,
+      current: null,
+      pressed: null,
+      selected: null,
+      checked: null,
+      expanded: null,
+    },
+    actions: ['drag', 'set-value'],
+    extension: {
+      descriptor_id: 'avatar-opacity',
+      field_id: 'opacity',
+      options: [],
+      hidden: false,
+      source: { path: null, line_start: null, line_end: null },
+    },
+    provenance: {
+      source_payload_id: 'opacity',
+      metadata: { aosFieldId: 'opacity' },
+      frame: { x: 10, y: 72, width: 160, height: 28 },
+      parent_canvas_id: '',
+    },
+  })
+  assert.equal(Object.hasOwn(target, 'id'), false)
+  assert.equal(Object.hasOwn(target, 'aosRef'), false)
 })
 
 test('semanticTargetAttributeEntries serializes standard semantic target refs', () => {
@@ -124,7 +179,7 @@ test('semanticTargetAttributeEntries serializes standard semantic target refs', 
     action: 'save_markdown',
     actions: ['click'],
     surface: 'markdown-workbench',
-    parentCanvasId: 'avatar-main',
+    parent_canvas_id: 'avatar-main',
     pressed: false,
   }, {
     nativeRole: 'button',
@@ -169,7 +224,7 @@ test('semanticTargetAttrString escapes attrs and supports custom order', () => {
     role: 'AXCheckBox',
     name: 'Hide "Tree" & children',
     action: 'toggle_visibility',
-    aosRef: 'object-transform-panel:visibility:avatar-main:<tree>',
+    ref: 'object-transform-panel:visibility:avatar-main:<tree>',
     surface: 'object-transform-panel',
     checked: 'mixed',
   }, {

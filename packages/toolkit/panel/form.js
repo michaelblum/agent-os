@@ -8,7 +8,7 @@ import { createTextarea } from '../controls/textarea.js';
 import { createToggle } from '../controls/toggle.js';
 import { dispatchDomEvent } from '../controls/_events.js';
 import { wireNumberFieldControls } from '../controls/number-field.js';
-import { normalizeSemanticTarget } from '../runtime/semantic-targets.js';
+import { normalizeAgentUiTarget } from '../runtime/semantic-targets.js';
 
 function createHub() {
   const listeners = new Map();
@@ -312,7 +312,7 @@ function controlRecordFor(record = {}, options = {}) {
   const descriptorId = field.descriptor_id ?? field.binding?.descriptor_id ?? field.id;
   const target = interactionTargetForRecord(record);
   const value = record.control?.getValue?.();
-  const normalized = normalizeSemanticTarget({
+  return normalizeAgentUiTarget({
     id: descriptorId,
     role: field.role || semanticRoleForField(field),
     name: field.label ?? field.control_label ?? field.id,
@@ -321,17 +321,16 @@ function controlRecordFor(record = {}, options = {}) {
     frame: rectForElement(target),
     surface: field.surface || options.surface || 'toolkit.panel.form',
     metadata: { ...record.el.dataset },
-  });
-  return {
-    ...normalized,
-    descriptor_id: descriptorId,
-    field_id: field.id,
-    ref: normalized.aosRef,
+  }, {
     kind: field.kind || 'text',
-    options: controlOptions(field, record.control),
-    hidden: !!record.hidden,
     actions: controlActionsForRecord(record),
-  };
+    extension: {
+      descriptor_id: descriptorId,
+      field_id: field.id,
+      options: controlOptions(field, record.control),
+      hidden: !!record.hidden,
+    },
+  });
 }
 
 function applyFieldMetadata(fieldEl, field) {

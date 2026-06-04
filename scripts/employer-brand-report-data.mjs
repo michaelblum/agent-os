@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   loadEmployerBrandComparativeAuditDataBundle,
-} from '../packages/toolkit/workbench/employer-brand-comparative-audit-data-bundle.js';
+} from '../packages/toolkit/workbench/_reference/employer-brand/employer-brand-comparative-audit-data-bundle.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');

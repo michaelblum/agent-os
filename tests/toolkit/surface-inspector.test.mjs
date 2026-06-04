@@ -1416,14 +1416,27 @@ test('Surface Inspector unwraps pinned browser DOM targets before reveal dispatc
 
 test('Surface Inspector carries AOS semantic target identity and prior projection into reveal dispatch', () => {
   const target = {
-    target_id: 'suggested-verification',
-    data_aos_ref: 'html-workbench-expression:suggested-verification',
-    aos_ref: 'html-workbench-expression:suggested-verification',
-    selector: '[data-semantic-target-id="suggested-verification"]',
-    selector_candidates: ['[data-semantic-target-id="suggested-verification"]'],
-    source_path: 'docs/design/work-cards/sample.md',
-    source_line_start: 42,
-    reveal_eligible: true,
+    ref: 'html-workbench-expression:suggested-verification',
+    surface: 'html-workbench-expression',
+    role: 'document_region',
+    name: 'Suggested Verification',
+    kind: 'verification',
+    enabled: true,
+    state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
+    actions: [],
+    extension: {
+      dom_id: 'suggested-verification',
+      reveal_eligible: true,
+      source: {
+        path: 'docs/design/work-cards/sample.md',
+        line_start: 42,
+        line_end: 45,
+      },
+    },
+    provenance: {
+      selector: '[data-semantic-target-id="suggested-verification"]',
+      source_payload_id: 'suggested-verification',
+    },
     current_render_status: 'offscreen_scrollable',
     can_reveal: true,
     local_space_rect: { x: 24, y: 980, width: 360, height: 70 },
@@ -1444,13 +1457,19 @@ test('Surface Inspector carries AOS semantic target identity and prior projectio
   const revealPayload = buildRevealPayloadForSurfaceInspectorPin(pin);
 
   assert.equal(revealPayload.adapter_id, 'aos-toolkit-semantic-target');
-  assert.equal(revealPayload.subject_id, 'suggested-verification');
+  assert.equal(revealPayload.subject_id, 'html-workbench-expression:suggested-verification');
+  assert.equal(revealPayload.ref, 'html-workbench-expression:suggested-verification');
   assert.equal(revealPayload.owner_canvas_id, 'html-workbench-expression');
   assert.equal(revealPayload.canvas_id, 'html-workbench-expression');
-  assert.equal(revealPayload.target_id, 'suggested-verification');
-  assert.equal(revealPayload.data_aos_ref, 'html-workbench-expression:suggested-verification');
-  assert.deepEqual(revealPayload.selector_candidates, ['[data-semantic-target-id="suggested-verification"]']);
-  assert.equal(revealPayload.source_tree_node_metadata.source_path, 'docs/design/work-cards/sample.md');
+  assert.equal(revealPayload.target_id, undefined);
+  assert.equal(revealPayload.data_aos_ref, undefined);
+  assert.equal(revealPayload.aos_ref, undefined);
+  assert.equal(revealPayload.selector, '[data-semantic-target-id="suggested-verification"]');
+  assert.deepEqual(revealPayload.selector_candidates, []);
+  assert.equal(revealPayload.source_path, 'docs/design/work-cards/sample.md');
+  assert.equal(revealPayload.source_tree_node_metadata.source_path, undefined);
+  assert.equal(revealPayload.source_tree_node_metadata.extension.source.path, 'docs/design/work-cards/sample.md');
+  assert.equal(revealPayload.source_tree_node_metadata.provenance.selector, '[data-semantic-target-id="suggested-verification"]');
   assert.equal(revealPayload.prior_projection.current_render_status, 'offscreen_scrollable');
   assert.equal(revealPayload.prior_projection.can_project_display_overlay, false);
 });

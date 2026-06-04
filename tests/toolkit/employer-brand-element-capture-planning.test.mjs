@@ -11,7 +11,7 @@ import {
   normalizeEmployerBrandElementCapturePlanningBundle,
   normalizeEmployerBrandElementClipManifest,
   validateEmployerBrandElementCapturePlanningBundle,
-} from '../../packages/toolkit/workbench/employer-brand-element-capture-planning.js';
+} from '../../packages/toolkit/workbench/_reference/employer-brand/employer-brand-element-capture-planning.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');

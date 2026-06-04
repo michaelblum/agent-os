@@ -17,13 +17,12 @@ struct CanvasRefClickTargetInfo: Encodable {
     let target_dialect: String
     let canvas_id: String
     let ref: String
-    let target_id: String?
     let role: String
     let name: String?
-    let action: String?
-    let actions: [String]?
+    let actions: [String]
     let surface: String?
-    let parent_canvas: String?
+    let parent_canvas_id: String?
+    let do_target: String?
     let enabled: Bool
     let bounds: BoundsJSON
     let local_center: CursorJSON
@@ -95,7 +94,7 @@ func resolveCanvasRefTarget(_ rawTarget: String, primitive: String? = nil) -> Ca
     }
 
     let matches = targets.filter { target in
-        target.canvas_id == parsed.canvasID && target.ref == parsed.ref
+        target.provenance.canvas_id == parsed.canvasID && target.ref == parsed.ref
     }
     guard !matches.isEmpty else {
         exitError("Ref '\(parsed.ref)' not found on canvas '\(parsed.canvasID)'", code: "REF_NOT_FOUND")
@@ -106,7 +105,7 @@ func resolveCanvasRefTarget(_ rawTarget: String, primitive: String? = nil) -> Ca
             code: "TARGET_AMBIGUOUS"
         )
     }
-    guard target.enabled, target.state?.disabled != true else {
+    guard target.enabled else {
         exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' is disabled", code: "TARGET_DISABLED")
     }
     if let primitive {
@@ -119,8 +118,15 @@ func resolveCanvasRefTarget(_ rawTarget: String, primitive: String? = nil) -> Ca
         }
     }
 
-    let globalX = canvasBounds.origin.x + CGFloat(Double(target.center.x) / captureScale)
-    let globalY = canvasBounds.origin.y + CGFloat(Double(target.center.y) / captureScale)
+    guard let center = target.provenance.center else {
+        exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' has no center", code: "TARGET_GEOMETRY_UNAVAILABLE")
+    }
+    guard let bounds = target.provenance.bounds ?? target.provenance.frame else {
+        exitError("Ref '\(parsed.ref)' on canvas '\(parsed.canvasID)' has no bounds", code: "TARGET_GEOMETRY_UNAVAILABLE")
+    }
+
+    let globalX = canvasBounds.origin.x + CGFloat(Double(center.x) / captureScale)
+    let globalY = canvasBounds.origin.y + CGFloat(Double(center.y) / captureScale)
     let point = CGPoint(x: globalX, y: globalY)
 
     return CanvasRefClickResolution(
@@ -128,16 +134,15 @@ func resolveCanvasRefTarget(_ rawTarget: String, primitive: String? = nil) -> Ca
             target_dialect: "canvas",
             canvas_id: parsed.canvasID,
             ref: parsed.ref,
-            target_id: target.id,
             role: target.role,
             name: target.name,
-            action: target.action,
             actions: target.actions,
             surface: target.surface,
-            parent_canvas: target.parent_canvas,
+            parent_canvas_id: target.provenance.parent_canvas_id,
+            do_target: target.provenance.do_target,
             enabled: target.enabled,
-            bounds: target.bounds,
-            local_center: target.center,
+            bounds: bounds,
+            local_center: center,
             click: CanvasRefClickPoint(x: Double(point.x), y: Double(point.y)),
             global_point: CanvasRefClickPoint(x: Double(point.x), y: Double(point.y)),
             coordinate_space: "global_cg",
@@ -271,7 +276,7 @@ func updateCanvasFrameForSemanticDrag(canvasID: String, dx: Double, dy: Double) 
 
 func currentCanvasTargetSnapshot(canvasID: String, ref: String, scaleFactor: Double) -> AOSSemanticTargetJSON? {
     collectCanvasSemanticTargets(canvasID: canvasID, scaleFactor: scaleFactor)?
-        .first(where: { $0.canvas_id == canvasID && $0.ref == ref })
+        .first(where: { $0.provenance.canvas_id == canvasID && $0.ref == ref })
 }
 
 func printCanvasRefClickResult(

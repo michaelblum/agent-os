@@ -238,24 +238,23 @@ test('compact avatar control surface exposes descriptor-addressed AOS control re
   const record = surface.getControlRecordByDescriptorId('sigil-avatar-controls-opacity');
   const records = surface.getControlRecords();
 
-  assert.equal(record.id, 'sigil-avatar-controls-opacity');
-  assert.equal(record.field_id, alphaOpacity.id);
-  assert.equal(record.descriptor_id, 'sigil-avatar-controls-opacity');
+  assert.equal(record.extension.descriptor_id, 'sigil-avatar-controls-opacity');
+  assert.equal(record.extension.field_id, alphaOpacity.id);
   assert.equal(record.ref, 'sigil.avatar.compact_control_surface:sigil-avatar-controls-opacity');
-  assert.equal(record.aosRef, 'sigil.avatar.compact_control_surface:sigil-avatar-controls-opacity');
-  assert.equal(record.ref, `${record.surface}:${record.id}`);
   assert.equal(record.role, 'slider');
   assert.equal(record.name, 'Face Opacity');
-  assert.equal(record.value, 0.8);
+  assert.equal(record.state.value, 0.8);
   assert.equal(record.surface, 'sigil.avatar.compact_control_surface');
-  assert.deepEqual(record.frame, { x: 24, y: 84, width: 180, height: 28 });
+  assert.deepEqual(record.provenance.frame, { x: 24, y: 84, width: 180, height: 28 });
+  assert.equal(Object.hasOwn(record, 'aosRef'), false);
+  assert.equal(Object.hasOwn(record, 'id'), false);
   assert.ok(records
-    .filter((item) => item.surface === 'sigil.avatar.compact_control_surface' && item.descriptor_id)
-    .every((item) => item.ref === `${item.surface}:${item.id}`));
+    .filter((item) => item.surface === 'sigil.avatar.compact_control_surface' && item.extension?.descriptor_id)
+    .every((item) => item.ref === `${item.surface}:${item.extension.descriptor_id}`));
   assert.ok(records.some((item) => (
-    item.descriptor_id === 'sigil-avatar-controls-fast-travel-effect'
+    item.extension?.descriptor_id === 'sigil-avatar-controls-fast-travel-effect'
     && item.role === 'radiogroup'
-    && item.options.some((option) => option.value === 'wormhole')
+    && item.extension.options.some((option) => option.value === 'wormhole')
   )));
 });
 
@@ -272,29 +271,29 @@ test('compact avatar control surface exposes AOS-native tab control records', ()
   let alphaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:alpha');
   let omegaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:omega');
 
-  assert.equal(alphaRecord.id, 'alpha');
-  assert.equal(alphaRecord.value, 'alpha');
+  assert.equal(alphaRecord.provenance.source_payload_id, 'alpha');
+  assert.equal(alphaRecord.state.value, 'alpha');
   assert.equal(alphaRecord.role, 'tab');
   assert.equal(alphaRecord.name, 'Alpha');
-  assert.equal(alphaRecord.label, 'Alpha');
-  assert.equal(alphaRecord.selected, true);
-  assert.equal(alphaRecord.current, true);
+  assert.equal(alphaRecord.extension.label, 'Alpha');
+  assert.equal(alphaRecord.state.selected, true);
+  assert.equal(alphaRecord.state.current, true);
   assert.equal(alphaRecord.enabled, true);
-  assert.deepEqual(alphaRecord.frame, { x: 12, y: 20, width: 56, height: 24 });
+  assert.deepEqual(alphaRecord.provenance.frame, { x: 12, y: 20, width: 56, height: 24 });
   assert.deepEqual(alphaRecord.actions, ['select']);
   assert.equal(alphaRecord.surface, 'sigil.avatar.compact_control_surface');
 
-  assert.equal(omegaRecord.selected, false);
-  assert.equal(omegaRecord.current, false);
+  assert.equal(omegaRecord.state.selected, false);
+  assert.equal(omegaRecord.state.current, false);
 
   surface.setActiveTab('omega');
   alphaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:alpha');
   omegaRecord = surface.getControlRecords().find((record) => record.ref === 'sigil.avatar.compact_control_surface:omega');
 
-  assert.equal(alphaRecord.selected, false);
-  assert.equal(alphaRecord.current, false);
-  assert.equal(omegaRecord.selected, true);
-  assert.equal(omegaRecord.current, true);
+  assert.equal(alphaRecord.state.selected, false);
+  assert.equal(alphaRecord.state.current, false);
+  assert.equal(omegaRecord.state.selected, true);
+  assert.equal(omegaRecord.state.current, true);
 });
 
 test('compact avatar control surface can bind a real canonical control through visual object descriptors', () => {

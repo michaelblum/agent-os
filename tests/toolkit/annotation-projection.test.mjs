@@ -271,13 +271,30 @@ test('semantic target adapter projects visible structured bounds and revealable 
   assert.equal(offscreen.display_space_rect, null);
 
   const htmlTarget = buildSemanticTargetProjectionAdapterResult({
-    target_id: 'goal',
-    data_aos_ref: 'html-workbench-expression:goal',
-    selector: '[data-semantic-target-id="goal"]',
-    reveal_eligible: true,
+    ref: 'html-workbench-expression:goal',
+    surface: 'html-workbench-expression',
+    role: 'document_region',
+    name: 'Goal',
+    kind: 'section',
+    enabled: true,
+    state: { value: null, current: null, pressed: null, selected: null, checked: null, expanded: null },
+    actions: [],
+    extension: {
+      dom_id: 'goal',
+      reveal_eligible: true,
+      source: {
+        path: 'docs/design/work-cards/sample.md',
+        line_start: 12,
+        line_end: 18,
+      },
+    },
+    provenance: {
+      selector: '[data-semantic-target-id="goal"]',
+      source_payload_id: 'goal',
+    },
   }, { canvas_id: 'html-workbench-expression' });
-  assert.equal(htmlTarget.subject_id, 'goal');
-  assert.deepEqual(htmlTarget.subject_path, ['canvas', 'html-workbench-expression', 'semantic', 'goal']);
+  assert.equal(htmlTarget.subject_id, 'html-workbench-expression:goal');
+  assert.deepEqual(htmlTarget.subject_path, ['canvas', 'html-workbench-expression', 'semantic', 'html-workbench-expression:goal']);
   assert.equal(htmlTarget.current_render_status, 'offscreen_scrollable');
   assert.equal(htmlTarget.can_reveal, true);
 });

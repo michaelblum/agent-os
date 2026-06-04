@@ -606,11 +606,11 @@ test('live avatar controls snapshot includes compact surface tab control records
     ))
 
     assert.equal(omegaRecord.role, 'tab')
-    assert.equal(omegaRecord.id, 'omega')
-    assert.equal(omegaRecord.value, 'omega')
+    assert.equal(omegaRecord.provenance.source_payload_id, 'omega')
+    assert.equal(omegaRecord.state.value, 'omega')
     assert.equal(omegaRecord.name, 'Omega')
-    assert.equal(omegaRecord.selected, false)
-    assert.deepEqual(omegaRecord.frame, { x: 132, y: 20, width: 72, height: 24 })
+    assert.equal(omegaRecord.state.selected, false)
+    assert.deepEqual(omegaRecord.provenance.frame, { x: 132, y: 20, width: 72, height: 24 })
     assert.ok(liveJs.avatarControls.controls.some((record) => (
       record.ref === 'sigil.avatar.compact_control_surface:alpha'
     )))
