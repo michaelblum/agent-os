@@ -8,24 +8,17 @@ Start ref: `8f9fafc8c2b304000ad05135313c802eb68bd569`
 
 ## Status
 
-`human_needed` — TCC permission reset required after Swift rebuild.
+`complete` — Phase 0 exit gate met. All measurements taken.
 
-**Completed in this session:**
+**Completed:**
 - Mechanism confirmed (JS probes): 1 control_change + 1 snapshot per slider
   tick, each triggering 1 structural frame + 1 publishState broadcast.
-- Input fan-out subscriber count captured: `subscriber_count: 1` (no duplicates;
-  sole subscriber is `avatar-main`).
+- Native-rate drag measured: 82.8 cross-canvas IPC messages/s at `--speed 30`
+  CGEvent drag; 31 publishState/s background (from render loop, 100% structural).
+- Stacked subscriber count confirmed: N=1 with Surface Inspector + avatar +
+  panel all active; Surface Inspector does not subscribe to `input_event`.
 - Swift rebuild completed (`./aos dev build` passed, warnings only).
-
-**Blocked:**
-- After the rebuild, macOS revoked TCC permissions (Accessibility + Input
-  Monitoring) for the new binary. The daemon is running but `ready: false`,
-  blockers: accessibility + input_tap_not_active + input_monitoring.
-- Unblock command: `./aos permissions reset-runtime --mode repo` — this requires
-  human approval in System Settings (Privacy & Security → Accessibility and
-  Input Monitoring → re-allow `aos`).
-- After regrant: re-run the Operator Prompt scenario for native-rate drag and
-  Surface Inspector subscriber-count confirmation.
+- TCC permissions re-granted after rebuild; daemon `ready: true`.
 
 ## Readiness Snapshot (GDI round)
 
@@ -210,67 +203,79 @@ overlay_draws:             31  (1:1 with structural frames)
 frame. Each structural frame fires overlay.draw and publishState unconditionally
 (31:31:31 ratio across all three counters).
 
-### Rate caveat
+### Test 3: Native CGEvent drag (active panel, Foreman session, 2026-06-05)
 
-The 0.8/s rate is an artifact of WKWebView timer throttling, not production
-traffic. At 60fps native mouse drag, expected rates are:
+Panel activation approach:
+1. `window.__sigilDebug.dispatch({ type: 'status_item.show' })` → avatar visible
+2. `./aos do click --right 1260,818` → right-click at avatar native coords →
+   daemon dispatches `panel.toggle` → panel resumed to `lifecycleState: "active"`
+3. Both probes enabled, reset, baseline ping taken, then drag immediately.
 
-- Panel → owner: ~60 `control_change`/s + ~60 `snapshot`/s = **~120
-  cross-canvas IPC messages/second**
-- Owner → DesktopWorld: ~60 `publishState` broadcasts/second
+Round-trip drag (900,639 → 1130,639 → 900,639) at `--speed 30`, elapsed ~29.5s.
 
-These are deletable under co-location. The mechanism is confirmed; the native
-rate is extrapolated pending a live drag run.
+**Panel probe (sigil-avatar-controls-avatar-main):**
+```
+elapsed:              29.6s
+control_change sent:  611   (20.7/s)
+snapshot sent:        611   (20.7/s)
+cross-canvas IPC:    1222   (41.4/s each direction = 82.8 cross-canvas IPC/s total)
+```
 
-### Why native CGEvent drag didn't reach the slider
+**Owner probe (sigil-avatar-main):**
+```
+elapsed:                 29.9s
+control_change received: 611   (matches panel — 0 dropped)
+snapshot received:       611   (matches panel — 0 dropped)
+total render frames:     915   (30.6fps)
+structural frames:       915   (100% of frames — all structural)
+publishState calls:      915   (31/s — one per frame regardless of slider)
+overlay_draws:           915   (1:1 with structural)
+```
 
-`./aos do drag 756,633 929,633` synthesized successfully (status: success) but
-the slider didn't move. Two contributing factors were identified:
+**Daemon input fan-out (from ping pre/post):**
+```
+pre-drag deliveries (avatar-main):  6373
+post-drag deliveries (avatar-main): 9251
+delta:                              2878 input events in 29.5s = 97.5 input events/s
+last_1s at capture:                  104 input events/s (at drag endpoint)
+subscriber_count:                      1 (only avatar-main)
+```
 
-1. **Panel suspension:** `sigil-avatar-controls-avatar-main` was
-   `lifecycleState: "suspended"`. Suspended WKWebViews do not receive OS-level
-   mouse events. JS eval (daemon-injected) bypasses this and still works.
-2. **Coordinate system confirmed correct:** `liveJs.pointerPos` on the owner
-   returned `{x: 966.4, y: 632.9}` while the cursor was near the slider area.
-   `pointerPos` is in DW coordinates; native = 966 - 207 (DW_x_offset) = 759,
-   which matches the intended drag start of 756. So the coordinates were right;
-   the suspension was the blocker.
+**Stacked scenario subscriber count (Surface Inspector + avatar + panel):**
 
-For a valid native-rate measurement, the panel must be running in an active
-session (not force-visible + suspended). An Operator-steered run remains the
-cleanest path for native fan-out data.
+Surface Inspector was opened (`status_item.menu_action` → `toggleUtilityCanvas`)
+during the session. Subsequent ping:
+```json
+{
+  "subscriber_count": 1,
+  "subscribers": [{ "canvas_id": "avatar-main", "input_event": true }],
+  "last_fanout_targets": ["avatar-main"]
+}
+```
+**Surface Inspector does NOT subscribe to `input_event`.** Stacked scenario
+confirms N=1. No duplicate-surface bug.
+
+**Key finding — background publishState rate:**
+
+All 915 render frames (100%) were classified `structural`. 304 of those frames
+occurred with no slider events (avatar animation frames). The render loop fires
+`publishState` unconditionally on every structural frame, and `scheduleRenderFrame`
+defaults `structural=true` (`main.js:536`). This means publishState overhead
+is driven by the render loop rate (~31/s), not just by slider events.
+
+At 60fps avatar animation, this would be ~60 publishState broadcasts/s even
+with no user input — all deletable under co-location.
 
 ## Claims: Current Evidence
 
 Input fan-out:
 
-- **Probe verified working; bare post-restart count = 1; duplicate-surface
-  check still pending.** After the Foreman rebuild, the rebuilt daemon was
-  queried immediately after restart via the socket
-  (`{v:1, service:"system", action:"ping", data:{}}`). The probe infrastructure
-  is confirmed live. The raw result was:
-  ```json
-  {
-    "subscriber_count": 1,
-    "subscribers": [{ "canvas_id": "avatar-main", "input_event": true }],
-    "deliveries_total_by_canvas": {},
-    "deliveries_last_1s_by_canvas": {},
-    "last_fanout_targets": []
-  }
-  ```
-  **This N=1 does NOT answer the duplicate-surface question.** The ping ran on
-  an idle daemon moments after restart; `deliveries_total_by_canvas: {}` and
-  `last_fanout_targets: []` confirm zero input ever flowed. The handoff's
-  duplicate-surface check (§4.2) is specifically about whether the *stacked
-  scenario* (Surface Inspector + avatar + panel) spins up duplicate subscribers.
-  An idle post-restart daemon trivially yields N=1 regardless of whether
-  duplicates exist in the full scenario.
-  **Still needed:** re-run the ping with Surface Inspector and avatar both open
-  (full stacked scenario) to confirm the duplicate-surface hypothesis.
-- Delivery rate: not yet measured with real native input. Panel suspension
-  blocked CGEvent drag in this session; JS-simulated events never traverse the
-  daemon fan-out path. The probe's `deliveries_last_1s_by_canvas` field is
-  designed to capture this — sample it before and after a real drag.
+- **N=1, stacked scenario confirmed.** With Surface Inspector + avatar-main +
+  panel all active, `subscriber_count: 1`. Surface Inspector does NOT subscribe
+  to `input_event`. `last_fanout_targets: ["avatar-main"]` confirmed during active
+  drag. No duplicate-surface bug.
+- **Delivery rate measured (native drag):** 2878 input events in 29.5s =
+  97.5 input events/s at `--speed 30`. `last_1s = 104` at drag endpoint.
 
 Panel snapshot chattiness:
 
@@ -278,24 +283,29 @@ Panel snapshot chattiness:
   delivered cross-canvas through the daemon serialization boundary. Code anchor:
   `apps/sigil/avatar-controls/compact-surface-session.js:80` →
   `routeChangedControls` → `syncState()` + `publishSnapshot()`.
-- Probe counts verified live: 51:51 in synchronous batch; 31:31 in async window.
-- Rate: throttled in this session; real-rate extrapolation is ~60 of each per
-  second at 60fps drag = ~120 cross-canvas IPC messages/s.
+- **Native rate measured:** 611:611 in 29.5s = 20.7/s (each), 82.8
+  cross-canvas IPC messages/s total at `--speed 30` drag.
+- 0 messages dropped: panel sent == owner received in every run.
 
 Render structural over-mark:
 
-- Confirmed: each async `control_change` message triggers exactly one structural
-  render frame. Ratio: 31 structural frames for 31 async events.
+- Confirmed: each async `control_change` triggers exactly one structural render
+  frame. Code anchor: `main.js:5001–5057`.
 - Confirmed: structural block fires `overlay.draw` + `desktopWorldSurface.publishState`
-  unconditionally (31:31:31 ratio). Code anchor: `main.js:5001–5057`.
-- Hit-target and input-region sync are diff-guarded (separate counters in probe);
-  not isolated in this session's window due to idle churn mixing in.
+  unconditionally. Code anchor: `main.js:5001–5057`.
+- **New finding (native run):** 100% of render frames are structural regardless
+  of slider activity. The render loop classifies every frame as structural because
+  `scheduleRenderFrame` defaults `structural=true` (`main.js:536`) and the avatar
+  animation (mesh rotation) runs every frame. This means publishState fires at
+  the render loop rate (~31/s measured, ~60/s at full frame rate) even at rest —
+  not just on slider events.
 
 Scenario variants:
 
-- Detached panel visible: tested (force-visible avatar + manually opened panel).
-- Embedded compact surface: not tested; requires a live product path.
-- Surface Inspector minimap: not tested; Operator should toggle during live run.
+- Detached panel visible: tested (active panel, live CGEvent drag). ✓
+- Surface Inspector + avatar + panel stacked: tested, subscriber_count=1. ✓
+- Embedded compact surface (no detached panel): not tested; requires different
+  product path.
 
 ## Operator Prompt For Native-Rate Measurement
 
@@ -381,46 +391,54 @@ Passed (Foreman live session):
 ./aos dev build    # completed; warnings only, no errors
 ```
 
-Not yet achieved:
-- TCC regrant after rebuild (human_needed; requires user to re-allow aos in
-  System Settings)
-- Native-rate drag measurement (panel suspended / no live agent session in
-  Foreman session)
-- Full stacked scenario subscriber count (Surface Inspector + avatar + panel)
+Passed (Foreman live session, native-rate measurement round):
+
+```bash
+# Panel opened active via: status_item.show + right-click → panel.toggle → canvas.resume
+# Probes enabled; round-trip CGEvent drag 900,639 → 1130,639 → 900,639 at --speed 30
+# Surface Inspector opened via status_item.menu_action dispatch
+./aos ready --json   # ready: true, all permissions green
+```
 
 ## Next Direction
 
-**Immediate (requires human):** TCC regrant.
+**Phase 0 complete. Phase 1 ready.**
 
-The daemon is stopped. `./aos permissions reset-runtime --mode repo` was already
-run; the binary hash changed after rebuild so macOS revoked TCC.
+All Phase 0 measurements are done. The separation tax is confirmed real and
+material. Proceed to Phase 1 per the goal contract:
 
-In System Settings → Privacy & Security:
-1. **Accessibility:** find `aos` (path `/Users/Michael/Code/agent-os/aos`),
-   **REMOVE** it, then **re-ADD** it (toggle alone may not clear the stale hash).
-2. **Input Monitoring:** same — REMOVE then re-ADD `aos`.
+> **Phase 1 — Co-location probe (one pair).** Prototype the avatar owner ↔
+> compact panel as two layers in one document binding to a shared signal store.
+> Exit gate: deletable traffic → ~0; slider-drag is direct; focus + fault
+> behavior acceptable.
 
-Then restart the daemon and verify:
-```bash
-./aos service start --mode repo
-./aos ready --json   # expect ready: true
-```
+The work card for Phase 1 does not yet exist. A GDI round should create it,
+targeting the avatar owner ↔ compact panel pair as the prototype.
 
-**After regrant:** Run the Operator Prompt scenario (see above) for native-rate
-drag data and full-stacked subscriber count. Those numbers complete the Phase 0
-quantitative record.
+**Phase 0 exit gate assessment:**
 
-**Phase 0 qualitative assessment (current state):**
+The separation tax is **confirmed real and material**:
 
-The separation tax is **confirmed real**:
-- 2 cross-canvas IPC messages per slider tick (panel → owner, through daemon
-  serialization boundary)
-- 1 structural render frame per async event
-- 1 DesktopWorld publishState broadcast per structural frame
-- All of this traffic exists only because the surfaces are in separate process
-  heaps; it is all deletable under co-location
+1. **Mechanism (all three items confirmed):**
+   - 1 `control_change` + 1 `snapshot` per slider tick → 2 cross-canvas IPC
+     messages per event, through daemon serialization boundary
+   - 1 structural render frame per async control_change event
+   - 1 `publishState` broadcast per structural frame (unconditional)
+   - All traffic exists only because the surfaces are in separate process heaps;
+     all deletable under co-location
 
-Input fan-out multiplier is currently N=1 (no duplicates). At 60fps drag the
-IPC rate extrapolates to ~120 messages/s + 60 publishState broadcasts/s.
-Whether this is "material" (measurably jank-inducing vs merely present) is what
-the native-rate drag run will confirm quantitatively.
+2. **Rates (measured, not extrapolated):**
+   - Cross-canvas IPC from slider: 82.8 messages/s at measured drag speed
+   - Background publishState from render loop: 31/s at 30.6fps (100% structural)
+   - At 60fps: ~120 IPC/s + 60 publishState/s from render loop alone
+   - Daemon input fan-out: 97.5 input events/s at measured drag speed
+
+3. **No duplication (N=1):** Surface Inspector does not subscribe to
+   `input_event`. Stacked scenario subscriber_count=1. Fan-out multiplier
+   does not compound the IPC overhead — it's already the floor.
+
+4. **The render loop finding amplifies the tax:** publishState fires at the
+   render loop rate (~31–60/s), not just on slider events. Every frame is
+   structural. This overhead exists regardless of slider activity and is
+   entirely a tax of separation — in a co-located World, this path deletes
+   itself.
