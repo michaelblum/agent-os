@@ -27,7 +27,7 @@ function actionForItem(item = {}) {
 export function createSigilRadialItemActionDispatcher({
     agentTerminalCanvasId = 'sigil-agent-terminal',
     wikiWorkbenchCanvasId = 'sigil-wiki-workbench',
-    wikiPath = 'aos/concepts/employer-brand-workflow-map.md',
+    wikiPath = 'aos/concepts/runtime-modes.md',
     annotationReticleItemId = 'annotation-mode',
     annotationCameraItemId = 'annotation-camera',
     getPointer = () => null,

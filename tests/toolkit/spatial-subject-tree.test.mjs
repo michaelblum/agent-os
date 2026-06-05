@@ -22,7 +22,7 @@ const topology = {
       windows: [
         {
           window_id: 1001,
-          title: 'Employer Brand Audit',
+          title: 'Runtime Audit',
           app_pid: 4242,
           app_name: 'AOS',
           bundle_id: 'dev.agent-os',
@@ -105,10 +105,10 @@ test('buildSpatialSubjectTree maps topology, canvas, targets, and projections in
       {
         id: 'comparative-audit',
         canvas_id: 'brand-audit',
-        adapter_id: 'employer-brand-surface',
-        adapter_type: 'employer_brand',
-        source_path: 'Employer_Brand_Audit/report.md',
-        subject_id: 'employer-brand-comparative-audit',
+        adapter_id: 'runtime-audit-surface',
+        adapter_type: 'generic',
+        source_path: 'docs/design/fixtures/aos-artifacts/example-design-pass/report.md',
+        subject_id: 'runtime-audit',
         bounds: { x: 24, y: 44, width: 852, height: 540 },
       },
     ],

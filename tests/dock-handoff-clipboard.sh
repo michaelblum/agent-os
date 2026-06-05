@@ -16,7 +16,7 @@ cat >"$AOS_FAKE_CLIPBOARD_FILE"
 SH
 chmod +x "$fake_pbcopy"
 
-message='Employer Brand Comparative Audit Data Bundle V0.
+message='Runtime Readiness Data Bundle V0.
 
 No report renderer.'
 

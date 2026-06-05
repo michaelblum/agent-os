@@ -61,24 +61,24 @@ const workflows: IntegrationWorkflowDescriptor[] = [
     },
   },
   {
-    id: 'employer-brand-profile-kilos',
-    title: 'Employer Brand Profile (KILOS)',
-    description: 'Queue a structured employer-brand workflow.',
+    id: 'feature-request',
+    title: 'Feature Request',
+    description: 'Queue a structured feature request.',
     surface: 'workflows',
     availability: 'ready',
     group: 'launch',
     requiresInput: true,
     inputFields: [
       {
-        id: 'clientCompanyName',
-        label: 'Client company name',
+        id: 'requestTitle',
+        label: 'Request title',
         required: true,
       },
     ],
     command: {
-      label: 'run employer-brand-profile-kilos',
-      usage: 'run employer-brand-profile-kilos',
-      examples: ['run employer-brand-profile-kilos'],
+      label: 'request feature',
+      usage: 'request feature',
+      examples: ['request feature'],
     },
   },
   {
@@ -157,7 +157,7 @@ describe('slack-ui helpers', () => {
   });
 
   it('builds a result modal with the workflow output and re-run button', () => {
-    const view = buildWorkflowResultModal(workflows[0], '2 wiki matches for "kilos".\n- Entry A\n- Entry B', {
+    const view = buildWorkflowResultModal(workflows[0], '2 wiki matches for "runtime".\n- Entry A\n- Entry B', {
       workflowId: 'wiki-search',
       source: 'home',
       userId: 'U123',
@@ -167,7 +167,7 @@ describe('slack-ui helpers', () => {
     assert.equal(view.submit, undefined);
     const body = view.blocks.find((block: Record<string, any>) => block.type === 'section');
     assert.ok(body);
-    assert.match(body.text.text, /kilos/);
+    assert.match(body.text.text, /runtime/);
     const actions = view.blocks.find((block: Record<string, any>) => block.type === 'actions');
     assert.ok(actions);
     assert.equal(actions.elements[0]?.action_id, SLACK_ACTION_IDS.workflow);
@@ -179,10 +179,10 @@ describe('slack-ui helpers', () => {
       workflowId: 'wiki-search',
       source: 'home',
     }, {
-      summary: '2 wiki matches for "kilos".',
+      summary: '2 wiki matches for "runtime".',
       wikiEntries: [
-        { name: 'KILOS Framework', path: 'aos/plugins/kilos/framework.md', type: 'concept', description: 'Five pillars.' },
-        { name: 'KILOS Schema', path: 'aos/plugins/kilos/schema.md', type: 'concept' },
+        { name: 'Runtime Modes', path: 'aos/concepts/runtime-modes.md', type: 'concept', description: 'Repo and installed modes.' },
+        { name: 'Daemon', path: 'aos/entities/daemon.md', type: 'entity' },
       ],
     }) as Record<string, any>;
 
@@ -190,16 +190,16 @@ describe('slack-ui helpers', () => {
     const summary = sections[0];
     assert.match(summary.text.text, /2 wiki matches/);
     const first = sections[1];
-    assert.match(first.text.text, /KILOS Framework/);
-    assert.match(first.text.text, /`aos\/plugins\/kilos\/framework\.md`/);
+    assert.match(first.text.text, /Runtime Modes/);
+    assert.match(first.text.text, /`aos\/concepts\/runtime-modes\.md`/);
     assert.equal(first.accessory.action_id, SLACK_ACTION_IDS.wikiOpenPage);
-    assert.equal(first.accessory.value, 'aos/plugins/kilos/framework.md');
+    assert.equal(first.accessory.value, 'aos/concepts/runtime-modes.md');
   });
 
   it('builds a wiki page modal with body chunks and path context', () => {
     const view = buildWikiPageModal({
-      name: 'KILOS Framework',
-      path: 'aos/plugins/kilos/framework.md',
+      name: 'Runtime Modes',
+      path: 'aos/concepts/runtime-modes.md',
       body: '# Heading\n\nBody text.',
     }) as Record<string, any>;
 
@@ -208,7 +208,7 @@ describe('slack-ui helpers', () => {
     assert.equal(view.submit, undefined);
     const context = view.blocks[0];
     assert.equal(context.type, 'context');
-    assert.match(context.elements[0].text, /`aos\/plugins\/kilos\/framework\.md`/);
+    assert.match(context.elements[0].text, /`aos\/concepts\/runtime-modes\.md`/);
     const section = view.blocks.find((block: Record<string, any>) => block.type === 'section');
     assert.match(section.text.text, /Body text/);
   });
@@ -254,11 +254,11 @@ describe('slack-ui helpers', () => {
         {
           id: 'job_launch',
           provider: 'slack',
-          workflowId: 'employer-brand-profile-kilos',
-          workflowTitle: 'Employer Brand Profile (KILOS)',
-          commandText: 'run employer-brand-profile-kilos',
+          workflowId: 'feature-request',
+          workflowTitle: 'Feature Request',
+          commandText: 'request feature',
           status: 'queued',
-          summary: 'Employer Brand Profile (KILOS) request queued for Acme.',
+          summary: 'Feature request queued: Improve runtime status.',
           createdAt: '2026-04-21T00:00:00Z',
           updatedAt: '2026-04-21T00:00:00Z',
           metadata: {
@@ -282,7 +282,7 @@ describe('slack-ui helpers', () => {
     const view = buildSlackHomeView(snapshot, {
       recentResult: {
         kind: 'reply',
-        text: '6 wiki matches for "kilos".',
+        text: '6 wiki matches for "runtime".',
       },
       wikiBrowser: {
         state: { root: 'types', page: 0 },
@@ -316,7 +316,7 @@ describe('slack-ui helpers', () => {
     assert.ok(latestResult);
     const activeLaunches = view.blocks.find((block: any) => block.type === 'section' && block.text?.text?.includes('*Active launches*'));
     assert.ok(activeLaunches);
-    assert.match(activeLaunches?.text?.text ?? '', /Employer Brand Profile \(KILOS\)/);
+    assert.match(activeLaunches?.text?.text ?? '', /Feature Request/);
   });
 
   it('reconstructs workflow commands from descriptor labels', () => {

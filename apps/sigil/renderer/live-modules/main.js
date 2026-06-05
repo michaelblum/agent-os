@@ -230,7 +230,7 @@ const AGENT_TERMINAL_URL = sigilUrl('agent-terminal/index.html', {
 });
 const AGENT_TERMINAL_PARK_SCALE = 0.24;
 const WIKI_WORKBENCH_CANVAS_ID = 'sigil-wiki-workbench';
-const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/employer-brand-workflow-map.md';
+const WIKI_WORKBENCH_DEFAULT_PATH = 'aos/concepts/runtime-modes.md';
 const SIGIL_CONTENT_ROOT = currentSigilRoot();
 const TOOLKIT_CONTENT_ROOT = currentToolkitRoot();
 const WIKI_WORKBENCH_URL = toolkitUrl('components/wiki-subject-browser/index.html');

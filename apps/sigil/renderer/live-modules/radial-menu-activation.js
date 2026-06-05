@@ -17,7 +17,7 @@ function clonePoint(point = null) {
 export function sigilRadialTargetSurfaceForItem(item = {}, {
     agentTerminalCanvasId = 'sigil-agent-terminal',
     wikiWorkbenchCanvasId = 'sigil-wiki-workbench',
-    wikiPath = 'aos/concepts/employer-brand-workflow-map.md',
+    wikiPath = 'aos/concepts/runtime-modes.md',
 } = {}) {
     const action = actionForItem(item);
     if (action === 'agentTerminal' || action === 'codexTerminal') {

@@ -9,7 +9,6 @@ const repoRoot = path.resolve(__dirname, '../..');
 const schemaPath = path.join(repoRoot, 'shared/schemas/aos-html-workbench-expression-v0.schema.json');
 const fixturePaths = [
   'docs/design/fixtures/aos-html-workbench-expression-v0/expression.json',
-  'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.expression.json',
 ];
 
 for (const fixturePath of fixturePaths) {

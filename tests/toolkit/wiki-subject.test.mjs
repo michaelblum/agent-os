@@ -23,27 +23,27 @@ test('wikiSubjectType maps canonical wiki page types', () => {
 
 test('createWikiPageSubject builds a concept subject from wiki list shape', () => {
   const subject = createWikiPageSubject({
-    path: 'aos/concepts/employer-brand-workflow-map.md',
+    path: 'aos/concepts/runtime-modes.md',
     type: 'concept',
-    name: 'Employer Brand Workflow Map',
-    description: 'End-to-end map for a workflow set.',
-    tags: ['employer-brand', 'workflow', 'process'],
+    name: 'Runtime Modes',
+    description: 'Repo and installed runtime isolation.',
+    tags: ['runtime', 'modes', 'platform'],
     modified_at: 1776393337,
   });
 
   assert.equal(subject.type, 'aos.workbench.subject');
-  assert.equal(subject.id, 'wiki:aos/concepts/employer-brand-workflow-map.md');
+  assert.equal(subject.id, 'wiki:aos/concepts/runtime-modes.md');
   assert.equal(subject.subject_type, 'wiki.concept');
-  assert.equal(subject.label, 'Employer Brand Workflow Map');
+  assert.equal(subject.label, 'Runtime Modes');
   assert.equal(subject.owner, 'aos');
   assert.deepEqual(subject.source, {
     kind: 'wiki',
-    path: 'aos/concepts/employer-brand-workflow-map.md',
+    path: 'aos/concepts/runtime-modes.md',
     namespace: 'aos',
     plugin: null,
   });
   assert.equal(subject.state.modified_at, 1776393337);
-  assert.deepEqual(subject.metadata.tags, ['employer-brand', 'workflow', 'process']);
+  assert.deepEqual(subject.metadata.tags, ['runtime', 'modes', 'platform']);
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'editable']);
   assert.deepEqual(subject.capabilities, ['inspectable', 'editable']);
   assert.ok(subjectContracts(subject).includes('wiki.read'));

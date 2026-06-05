@@ -14,14 +14,14 @@
       "selector": "main .hero",
       "xpath": null,
       "evidence_goal": "capture careers hero employer value proposition",
-      "kilos_relevance": [
-        "impact",
-        "opportunity",
-        "lifestyle"
+      "evidence_dimensions": [
+        "messaging",
+        "proof",
+        "usability"
       ],
-      "kilos_factors": [
-        "innovation and invention",
-        "career progression",
+      "evidence_factors": [
+        "product evidence",
+        "next-step clarity",
         "flexibility in location"
       ],
       "notes": "Hero section frames the talent promise for careers visitors."
@@ -34,11 +34,11 @@
       "selector": null,
       "xpath": "//*[@data-evidence-id='values']",
       "evidence_goal": "capture values block with manager support and employee voice cues",
-      "kilos_relevance": [
-        "kinship",
-        "opportunity"
+      "evidence_dimensions": [
+        "audience-fit",
+        "proof"
       ],
-      "kilos_factors": [
+      "evidence_factors": [
         "safe to voice opinions",
         "skills attainment"
       ],

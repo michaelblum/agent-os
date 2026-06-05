@@ -55,7 +55,7 @@ test('createWorkRecordSubject projects recipe retirement as evidence and health'
   assert.equal(subject.id, 'work-record:indeed-benefits-section-retired');
   assert.equal(subject.subject_type, 'aos.recipe_health_event');
   assert.equal(subject.source.kind, 'recipe_health_event');
-  assert.equal(subject.source.recipe_id, 'employer-brand/collect-indeed-benefits-section');
+  assert.equal(subject.source.recipe_id, 'runtime/collect-daemon-status');
   assert.equal(subject.state.health.state, 'impossible');
   assert.equal(subject.state.automatic_replay_allowed, false);
   assert.equal(subject.artifacts[0].kind, 'trace');

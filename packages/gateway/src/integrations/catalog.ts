@@ -15,19 +15,6 @@ const MAX_WORKFLOW_RESULTS = 10;
 const MAX_FEATURE_RESULTS = 8;
 const MAX_COMING_SOON_RESULTS = 12;
 
-const EMPLOYER_BRAND_PROFILE_FIELDS = {
-  clientCompanyName: 'clientCompanyName',
-  areaOfFocus: 'areaOfFocus',
-  workflowNotes: 'workflowNotes',
-} as const;
-
-const EMPLOYER_BRAND_AUDIT_FIELDS = {
-  clientCompanyName: 'clientCompanyName',
-  competitorCompanyNames: 'competitorCompanyNames',
-  areaOfFocus: 'areaOfFocus',
-  workflowNotes: 'workflowNotes',
-} as const;
-
 const FEATURE_REQUEST_FIELDS = {
   requestTitle: 'requestTitle',
   useCase: 'useCase',
@@ -63,8 +50,6 @@ const READY_WORKFLOW_IDS = new Set([
   'coming-soon',
   'feature-request',
   'bug-report',
-  'employer-brand-profile-kilos',
-  'employer-brand-competitor-audit-kilos',
 ]);
 
 export const DEFAULT_SURFACES: IntegrationSurfaceDescriptor[] = [
@@ -226,13 +211,6 @@ async function runAosJson(args: string[], context: WorkflowRunContext) {
 
 function readInputField(input: WorkflowInvocationInput, fieldId: string) {
   return input.fields?.[fieldId]?.trim() ?? input.text?.trim() ?? '';
-}
-
-function parseCompanyList(value: string) {
-  return value
-    .split(/\r?\n|,/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
 }
 
 function queuedWorkflowResult(config: {
@@ -608,191 +586,6 @@ function buildReadyWorkflowCatalog(wikiIndex: WikiIndexEntry[]): IntegrationWork
           json: request,
           metadata: {
             queueType: 'bug-report',
-            request,
-            notificationMode: 'reply-when-complete',
-          },
-        });
-      },
-    },
-    {
-      id: 'employer-brand-profile-kilos',
-      title: 'Employer Brand Profile (KILOS)',
-      description: 'Queue the KILOS-backed employer-brand profile intake flow for one client company and notify the requester in Slack when the work is done.',
-      surface: 'workflows',
-      availability: 'ready',
-      group: 'launch',
-      registrySource: 'built-in',
-      requiresInput: true,
-      submitLabel: 'Queue',
-      inputFields: [
-        {
-          id: EMPLOYER_BRAND_PROFILE_FIELDS.clientCompanyName,
-          label: 'Client company name',
-          placeholder: 'Acme Corp',
-          helpText: 'The company that needs the employer-brand profile.',
-          required: true,
-        },
-        {
-          id: EMPLOYER_BRAND_PROFILE_FIELDS.areaOfFocus,
-          label: 'Area of focus',
-          placeholder: 'Engineering talent, US market, EVP refresh',
-          helpText: 'Optional lens to bias the profile request.',
-        },
-        {
-          id: EMPLOYER_BRAND_PROFILE_FIELDS.workflowNotes,
-          label: 'Workflow notes',
-          type: 'textarea',
-          placeholder: 'Constraints, timing, delivery intent, or any placeholders to preserve.',
-          helpText: 'Optional notes carried into the queued request for downstream work.',
-        },
-      ],
-      aliases: ['employer brand profile', 'profile kilos'],
-      command: {
-        label: 'run employer-brand-profile-kilos',
-        usage: 'run employer-brand-profile-kilos',
-        examples: ['run employer-brand-profile-kilos', 'profile kilos'],
-      },
-      formatCommandText(input: WorkflowInvocationInput) {
-        const client = readInputField(input, EMPLOYER_BRAND_PROFILE_FIELDS.clientCompanyName) || 'unknown-client';
-        return `run employer-brand-profile-kilos client="${client}"`;
-      },
-      async run(input: WorkflowInvocationInput) {
-        const clientCompanyName = readInputField(input, EMPLOYER_BRAND_PROFILE_FIELDS.clientCompanyName);
-        if (!clientCompanyName) {
-          return {
-            summary: 'Employer Brand Profile (KILOS) needs a client company name.',
-            lines: ['Open the workflow modal and provide the client company name.'],
-          };
-        }
-
-        const areaOfFocus = readInputField(input, EMPLOYER_BRAND_PROFILE_FIELDS.areaOfFocus);
-        const workflowNotes = readInputField(input, EMPLOYER_BRAND_PROFILE_FIELDS.workflowNotes);
-        const request = {
-          framework: 'KILOS',
-          clientCompanyName,
-          areaOfFocus: areaOfFocus || null,
-          workflowNotes: workflowNotes || null,
-          downstreamWorkflow: 'employer-brand-profile-intake',
-          downstreamHandoff: 'employer-brand-artifact-collection-planner',
-        };
-
-        const lines = [
-          `Client: ${clientCompanyName}`,
-          areaOfFocus ? `Area of focus: ${areaOfFocus}` : 'Area of focus: none provided',
-          'Workflow queued. The requester should receive a Slack update in the original thread or DM when work is completed.',
-          'Downstream canonical flow: employer-brand-profile-intake -> employer-brand-artifact-collection-planner',
-        ];
-        if (workflowNotes) lines.push(`Notes captured: ${workflowNotes}`);
-
-        return queuedWorkflowResult({
-          summary: `Employer Brand Profile (KILOS) request queued for ${clientCompanyName}.`,
-          lines,
-          json: request,
-          metadata: {
-            queueType: 'workflow-launch',
-            framework: 'KILOS',
-            request,
-            notificationMode: 'reply-when-complete',
-          },
-        });
-      },
-    },
-    {
-      id: 'employer-brand-competitor-audit-kilos',
-      title: 'Employer Brand Competitor Comparative Audit (KILOS)',
-      description: 'Queue a KILOS comparative audit for one client and a competitor set, then notify the requester in Slack with the completed output link.',
-      surface: 'workflows',
-      availability: 'ready',
-      group: 'launch',
-      registrySource: 'built-in',
-      requiresInput: true,
-      submitLabel: 'Queue',
-      inputFields: [
-        {
-          id: EMPLOYER_BRAND_AUDIT_FIELDS.clientCompanyName,
-          label: 'Client company name',
-          placeholder: 'Acme Corp',
-          helpText: 'The client brand to compare against competitors.',
-          required: true,
-        },
-        {
-          id: EMPLOYER_BRAND_AUDIT_FIELDS.competitorCompanyNames,
-          label: 'Competitors',
-          type: 'textarea',
-          placeholder: 'Globex\nInitech\nUmbrella',
-          helpText: 'Required. Enter one competitor per line.',
-          required: true,
-        },
-        {
-          id: EMPLOYER_BRAND_AUDIT_FIELDS.areaOfFocus,
-          label: 'Area of focus',
-          placeholder: 'Careers site messaging, early talent, EMEA engineering',
-          helpText: 'Optional lens to bias the comparison.',
-        },
-        {
-          id: EMPLOYER_BRAND_AUDIT_FIELDS.workflowNotes,
-          label: 'Workflow notes',
-          type: 'textarea',
-          placeholder: 'Known constraints, request owner notes, evidence caveats, or extra fields to preserve.',
-          helpText: 'Optional notes carried forward for the eventual audit worker.',
-        },
-      ],
-      aliases: ['employer brand competitor audit', 'comparative audit kilos', 'competitor audit kilos'],
-      command: {
-        label: 'run employer-brand-competitor-audit-kilos',
-        usage: 'run employer-brand-competitor-audit-kilos',
-        examples: ['run employer-brand-competitor-audit-kilos', 'competitor audit kilos'],
-      },
-      formatCommandText(input: WorkflowInvocationInput) {
-        const client = readInputField(input, EMPLOYER_BRAND_AUDIT_FIELDS.clientCompanyName) || 'unknown-client';
-        const competitors = parseCompanyList(readInputField(input, EMPLOYER_BRAND_AUDIT_FIELDS.competitorCompanyNames));
-        return `run employer-brand-competitor-audit-kilos client="${client}" competitors="${competitors.join(', ')}"`;
-      },
-      async run(input: WorkflowInvocationInput) {
-        const clientCompanyName = readInputField(input, EMPLOYER_BRAND_AUDIT_FIELDS.clientCompanyName);
-        const competitors = parseCompanyList(readInputField(input, EMPLOYER_BRAND_AUDIT_FIELDS.competitorCompanyNames));
-
-        if (!clientCompanyName) {
-          return {
-            summary: 'Employer Brand Competitor Comparative Audit (KILOS) needs a client company name.',
-            lines: ['Open the workflow modal and provide the client company name.'],
-          };
-        }
-        if (competitors.length === 0) {
-          return {
-            summary: 'Employer Brand Competitor Comparative Audit (KILOS) needs at least one competitor.',
-            lines: ['Open the workflow modal and enter one competitor per line.'],
-          };
-        }
-
-        const areaOfFocus = readInputField(input, EMPLOYER_BRAND_AUDIT_FIELDS.areaOfFocus);
-        const workflowNotes = readInputField(input, EMPLOYER_BRAND_AUDIT_FIELDS.workflowNotes);
-        const request = {
-          framework: 'KILOS',
-          clientCompanyName,
-          competitors,
-          areaOfFocus: areaOfFocus || null,
-          workflowNotes: workflowNotes || null,
-          downstreamWorkflow: 'employer-brand-competitor-comparison',
-          prerequisiteFlows: ['employer-brand-profile-intake', 'employer-brand-profile-synthesis'],
-        };
-
-        const lines = [
-          `Client: ${clientCompanyName}`,
-          `Competitors: ${competitors.join(', ')}`,
-          areaOfFocus ? `Area of focus: ${areaOfFocus}` : 'Area of focus: none provided',
-          'Workflow queued. The requester should receive a Slack update with the finished audit link when work is completed.',
-          'Downstream canonical flow: employer-brand-profile-intake -> employer-brand-profile-synthesis -> employer-brand-competitor-comparison',
-        ];
-        if (workflowNotes) lines.push(`Notes captured: ${workflowNotes}`);
-
-        return queuedWorkflowResult({
-          summary: `Employer Brand Competitor Comparative Audit (KILOS) queued for ${clientCompanyName} vs ${competitors.length} competitor${competitors.length === 1 ? '' : 's'}.`,
-          lines,
-          json: request,
-          metadata: {
-            queueType: 'workflow-launch',
-            framework: 'KILOS',
             request,
             notificationMode: 'reply-when-complete',
           },

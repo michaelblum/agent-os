@@ -33,16 +33,10 @@
       },
       "default": []
     },
-    "kilos_relevance": {
+    "evidence_dimensions": {
       "type": "array",
       "items": {
-        "enum": [
-          "kinship",
-          "impact",
-          "lifestyle",
-          "opportunity",
-          "status"
-        ]
+        "$ref": "#/$defs/non_empty_string"
       },
       "uniqueItems": true,
       "default": []
@@ -96,8 +90,8 @@
         "source_category",
         "url",
         "evidence_goal",
-        "kilos_relevance",
-        "kilos_factors"
+        "evidence_dimensions",
+        "evidence_factors"
       ],
       "anyOf": [
         {
@@ -143,10 +137,10 @@
         "evidence_goal": {
           "$ref": "#/$defs/non_empty_string"
         },
-        "kilos_relevance": {
-          "$ref": "#/$defs/kilos_relevance"
+        "evidence_dimensions": {
+          "$ref": "#/$defs/evidence_dimensions"
         },
-        "kilos_factors": {
+        "evidence_factors": {
           "$ref": "#/$defs/string_array"
         },
         "notes": {
@@ -402,8 +396,8 @@
         "source_url",
         "url",
         "evidence_goal",
-        "kilos_relevance",
-        "kilos_factors",
+        "evidence_dimensions",
+        "evidence_factors",
         "notes",
         "captured_at",
         "selector",
@@ -435,10 +429,10 @@
         "evidence_goal": {
           "$ref": "#/$defs/non_empty_string"
         },
-        "kilos_relevance": {
-          "$ref": "#/$defs/kilos_relevance"
+        "evidence_dimensions": {
+          "$ref": "#/$defs/evidence_dimensions"
         },
-        "kilos_factors": {
+        "evidence_factors": {
           "$ref": "#/$defs/string_array"
         },
         "notes": {

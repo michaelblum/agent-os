@@ -54,12 +54,12 @@ const REQUIRED_DECISION_TARGETS = [
     match: /^## What Not To Collect$/,
   },
   {
-    id: 'kilos-interpretation-table',
-    label: 'KILOS interpretation table',
+    id: 'interpretation-table',
+    label: 'Interpretation table',
     role: 'decision_target',
     start_line: 79,
     end_line: 87,
-    match: /^## KILOS Interpretation$/,
+    match: /^## Interpretation$/,
   },
   {
     id: 'linkedin-source-unavailable-policy',
@@ -263,7 +263,7 @@ export function buildMarkdownSpatialSubjectTree({
   const displayId = String(ids.displayId ?? '1')
   const windowId = String(ids.windowId ?? 'markdown-alignment-pack')
   const canvasId = String(ids.canvasId ?? 'markdown-alignment-pack')
-  const surfaceId = String(ids.surfaceId ?? 'employer-brand-human-alignment-pack')
+  const surfaceId = String(ids.surfaceId ?? 'markdown-alignment-pack')
   const docId = `document:${slugify(path.basename(sourcePath), 'markdown-document')}`
   const surfaceNodeId = `surface:${surfaceId}`
   const canvasNodeId = `canvas:${canvasId}`
@@ -319,8 +319,8 @@ export function buildMarkdownSpatialSubjectTree({
       id: surfaceNodeId,
       parent_id: canvasNodeId,
       kind: 'surface',
-      label: 'Employer Brand Human Alignment Pack Markdown',
-      source: { ...sharedSource, subject_id: 'employer-brand-human-alignment-pack' },
+      label: 'Markdown Alignment Pack',
+      source: { ...sharedSource, subject_id: 'markdown-alignment-pack' },
       bounds: { parent_local: { x: 24, y: 24, width: mergedGeometry.document_width, height: documentHeight } },
       sibling_order: 0,
       adapter: markdownAdapter({ confidence: 0.9 }),
@@ -407,7 +407,7 @@ export function buildMarkdownSpatialSubjectTree({
 
   for (const table of findTables(lines)) {
     const label = table.start_line === 29 ? 'Fallback evidence-flow table'
-      : table.start_line === 81 ? 'KILOS interpretation table'
+      : table.start_line === 81 ? 'Interpretation table'
         : table.start_line === 107 ? 'Explicit human decision table'
           : `Markdown table lines ${table.start_line}-${table.end_line}`
     const id = `region:line-${lineId(table.start_line)}-${slugify(label)}`

@@ -17,34 +17,34 @@ trap cleanup EXIT
 
 mkdir -p "$ROOT/repo/wiki/aos/entities" "$ROOT/repo/wiki/aos/concepts"
 
-cat >"$ROOT/repo/wiki/aos/entities/employer-brand-profile.md" <<'EOF'
+cat >"$ROOT/repo/wiki/aos/entities/daemon.md" <<'EOF'
 ---
 type: entity
-name: Employer Brand Profile
-description: Canonical summary of a company's employer brand.
-tags: [employer-brand, profile]
+name: Daemon
+description: Runtime service process for AOS.
+tags: [runtime, daemon]
 ---
 
-# Employer Brand Profile
+# Daemon
 
 ## Purpose
 
-Summarize the current employer brand using normalized evidence and reusable dimensions.
+Track runtime ownership and service health for the active AOS mode.
 EOF
 
-cat >"$ROOT/repo/wiki/aos/concepts/employer-brand-workflow-map.md" <<'EOF'
+cat >"$ROOT/repo/wiki/aos/concepts/runtime-modes.md" <<'EOF'
 ---
 type: concept
-name: Employer Brand Workflow Map
-description: Links the workflow sequence to the canonical profile artifact.
-tags: [employer-brand, workflow]
+name: Runtime Modes
+description: Links runtime state to the canonical daemon artifact.
+tags: [runtime, modes]
 ---
 
-# Employer Brand Workflow Map
+# Runtime Modes
 
 ## Related
 
-- [Employer Brand Profile](../entities/employer-brand-profile.md)
+- [Daemon](../entities/daemon.md)
 EOF
 
 ./aos wiki reindex >/dev/null
@@ -65,11 +65,11 @@ bash apps/sigil/workbench/launch.sh >"$LAUNCH_OUT"
   --timeout 10s >/dev/null
 
 ./aos show post --id sigil-workbench --event '{"type":"tabs/activate","payload":{"name":"wiki-kb"}}' >/dev/null
-./aos show post --id sigil-workbench --event '{"type":"wiki-kb/reveal","payload":{"id":"aos/entities/employer-brand-profile.md","view":"graph"}}' >/dev/null
+./aos show post --id sigil-workbench --event '{"type":"wiki-kb/reveal","payload":{"id":"aos/entities/daemon.md","view":"graph"}}' >/dev/null
 
 ./aos show wait \
   --id sigil-workbench \
-  --js 'document.querySelector(".aos-tab[data-active=\"true\"]")?.textContent === "Knowledge Base" && document.querySelector(".wiki-kb-sidebar-name")?.textContent === "Employer Brand Profile" && window.__sigilWorkbenchState?.lastWikiSelection?.path === "aos/entities/employer-brand-profile.md"' \
+  --js 'document.querySelector(".aos-tab[data-active=\"true\"]")?.textContent === "Knowledge Base" && document.querySelector(".wiki-kb-sidebar-name")?.textContent === "Daemon" && window.__sigilWorkbenchState?.lastWikiSelection?.path === "aos/entities/daemon.md"' \
   --timeout 10s >/dev/null
 
 python3 - "$LAUNCH_OUT" <<'PY'
@@ -96,14 +96,14 @@ state = json.loads(payload["result"])
 
 if state["tab"] != "Knowledge Base":
     raise SystemExit(f"FAIL: wrong active tab: {state}")
-if state["sidebar"] != "Employer Brand Profile":
+if state["sidebar"] != "Daemon":
     raise SystemExit(f"FAIL: KB sidebar did not reveal target node: {state}")
 if "2 nodes" not in state["status"] or "1 links" not in state["status"]:
     raise SystemExit(f"FAIL: unexpected KB graph status: {state}")
-if "Employer Brand Workflow Map" not in state["related"]:
+if "Runtime Modes" not in state["related"]:
     raise SystemExit(f"FAIL: expected related node missing: {state}")
 selection = state.get("selection") or {}
-if selection.get("path") != "aos/entities/employer-brand-profile.md":
+if selection.get("path") != "aos/entities/daemon.md":
     raise SystemExit(f"FAIL: workbench state did not mirror wiki selection: {state}")
 
 print("PASS")

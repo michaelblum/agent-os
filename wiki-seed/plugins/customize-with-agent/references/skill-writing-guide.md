@@ -55,7 +55,7 @@ rungs.
 The description field determines whether an agent invokes the plugin. Write it to over-match rather than under-match:
 
 **Weak:** "Audit competitor employer brands"
-**Strong:** "Run employer brand competitor audits using the KILOS framework. Use when the user asks to research competitors, audit employer brands, analyze careers sites, do a KILOS audit, or build a competitor analysis. Trigger whenever a user provides a client name and a list of companies to research."
+**Strong:** "Summarize runtime readiness evidence for AOS. Use when the user asks to inspect daemon health, compare repo and installed modes, or prepare a concise runtime status brief. Trigger whenever a user provides a mode name or asks whether the runtime is ready."
 
 ## Cross-Linking
 
@@ -85,5 +85,5 @@ This connects the plugin to the broader knowledge graph and helps agents find re
 
 **Reference loading:** Tell the agent when to read references:
 ```markdown
-For the full KILOS framework details, read `references/kilos-framework.md` before beginning analysis.
+For the full domain framework details, read the relevant `references/` file before beginning analysis.
 ```

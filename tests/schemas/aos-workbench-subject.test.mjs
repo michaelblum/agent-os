@@ -26,15 +26,17 @@ const v0WorkRecordFixturePath = path.join(
   repoRoot,
   'shared/schemas/fixtures/aos-work-record-v0/valid/workflow-origin.json',
 );
-const workflowMapMarkdownPath = path.join(repoRoot, 'wiki-seed/concepts/employer-brand-workflow-map.md');
 const artifactBundleFixturePath = path.join(
   repoRoot,
   'docs/design/fixtures/aos-artifacts/example-design-pass/subject.json',
 );
-const employerBrandArtifactBundleFixturePath = path.join(
-  repoRoot,
-  'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json',
-);
+const workflowMapMarkdown = `# Runtime Readiness Workflow
+
+| Stage | Canonical Page | Output |
+| --- | --- | --- |
+| Orient | [Runtime Modes](runtime-modes.md) | Runtime mode selected |
+| Inspect | [Self Check](../plugins/self-check/SKILL.md) | Runtime diagnostics reviewed |
+`;
 
 setRadialMenuWorkbenchSubjectFactory(createRadialMenuWorkbenchSubject);
 
@@ -194,44 +196,24 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
   await validate(createWorkRecordSubject(JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8'))));
   await validate(createWikiWorkflowSubject({
     root: {
-      path: 'aos/concepts/employer-brand-workflow-map.md',
+      path: 'aos/concepts/runtime-readiness-workflow.md',
       type: 'concept',
-      name: 'Employer Brand Workflow Map',
-      tags: ['employer-brand', 'workflow', 'process'],
+      name: 'Runtime Readiness Workflow',
+      tags: ['runtime', 'workflow', 'process'],
     },
     pages: [
       {
-        path: 'aos/plugins/employer-brand-profile-intake/SKILL.md',
-        type: 'workflow',
-        name: 'employer-brand-profile-intake',
-      },
-      {
-        path: 'aos/plugins/employer-brand-artifact-collection-planner/SKILL.md',
-        type: 'workflow',
-        name: 'employer-brand-artifact-collection-planner',
-      },
-      {
-        path: 'aos/concepts/normalize-employer-brand-evidence.md',
+        path: 'aos/concepts/runtime-modes.md',
         type: 'concept',
-        name: 'Normalize Employer Brand Evidence',
+        name: 'Runtime Modes',
       },
       {
-        path: 'aos/plugins/employer-brand-profile-synthesis/SKILL.md',
+        path: 'aos/plugins/self-check/SKILL.md',
         type: 'workflow',
-        name: 'employer-brand-profile-synthesis',
-      },
-      {
-        path: 'aos/plugins/employer-brand-competitor-comparison/SKILL.md',
-        type: 'workflow',
-        name: 'employer-brand-competitor-comparison',
-      },
-      {
-        path: 'aos/plugins/employer-brand-report-generation/SKILL.md',
-        type: 'workflow',
-        name: 'employer-brand-report-generation',
+        name: 'self-check',
       },
     ],
-    markdown: await fs.readFile(workflowMapMarkdownPath, 'utf8'),
+    markdown: workflowMapMarkdown,
   }));
   await validate(buildWorkRecordWorkbenchSubject(createWorkRecordWorkbenchState({
     record: JSON.parse(await fs.readFile(workRecordFixturePath, 'utf8')),
@@ -240,5 +222,4 @@ test('current workbench adopters emit schema-valid subject descriptors', async (
     record: JSON.parse(await fs.readFile(v0WorkRecordFixturePath, 'utf8')),
   })));
   await validate(createArtifactBundleSubject(JSON.parse(await fs.readFile(artifactBundleFixturePath, 'utf8'))));
-  await validate(createArtifactBundleSubject(JSON.parse(await fs.readFile(employerBrandArtifactBundleFixturePath, 'utf8'))));
 });

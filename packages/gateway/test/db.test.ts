@@ -58,7 +58,7 @@ describe('GatewayStore integration jobs', () => {
     const job = await db.createIntegrationJob({
       provider: 'slack',
       workflowId: 'profile',
-      workflowTitle: 'Employer Brand Profile',
+      workflowTitle: 'Runtime Profile',
       surface: 'workflows',
       requester: 'U123',
       channel: 'C123',

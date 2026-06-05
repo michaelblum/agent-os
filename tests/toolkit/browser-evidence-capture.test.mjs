@@ -96,7 +96,7 @@ test('browser evidence capture script writes CSS and XPath element evidence from
     assert.equal(hero.selector_resolution.used.kind, 'css');
     assert.equal(hero.selector_resolution.used.match_count, 1);
     assert.match(hero.extracted_text, /Build meaningful healthcare tools/);
-    assert.deepEqual(hero.kilos_relevance, ['impact', 'opportunity', 'lifestyle']);
+    assert.deepEqual(hero.evidence_dimensions, ['messaging', 'proof', 'usability']);
     assert.ok(fs.existsSync(path.join(outputDir, hero.screenshot_path)), 'expected hero screenshot crop');
     assert.ok(hero.capture_metadata.screenshot_bytes > 0);
     assert.equal(hero.capture_metadata.autonomous_browsing, false);
@@ -156,7 +156,7 @@ test('browser evidence capture records missing selector failure without dropping
         error: null,
       },
     ]);
-    assert.equal(evidence.kilos_factors.includes('career progression'), true);
+    assert.equal(evidence.evidence_factors.includes('next-step clarity'), true);
     assert.equal(evidence.capture_metadata.autonomous_browsing, false);
   } finally {
     await rm(outputDir, { recursive: true, force: true });

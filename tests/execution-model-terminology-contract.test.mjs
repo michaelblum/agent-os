@@ -94,15 +94,13 @@ test('current code and docs use Step Descriptor instead of Playbook Step substra
   );
 });
 
-test('browser capture and Employer Brand are projections, not taxonomy sources', async () => {
+test('browser capture remains a projection, not a taxonomy source', async () => {
   const browser = await text('docs/design/browser-capture-ladder-projection.md');
-  const employerBrand = await text('wiki-seed/concepts/employer-brand-workflow-map.md');
   const adr = await text('docs/adr/0013-aos-execution-model-v0.md');
 
   assert.match(browser, /not a taxonomy root/);
   assert.match(browser, /target\/app surface\n-> control primitive\n-> observation\/capture\/evidence block\n-> reusable capture recipe\n-> workflow orchestration with gates\/retries\n-> run\n-> work record with evidence\/trace/);
-  assert.match(employerBrand, /downstream domain projection over the AOS Execution\nModel, not the source of truth/);
-  assert.match(adr, /Browser capture and Employer Brand artifacts are reference material and\ndownstream projections/);
+  assert.match(adr, /downstream projections, not the source of truth/);
 });
 
 test('Skills and Plugins are packaging activation concepts outside the execution ladder', async () => {

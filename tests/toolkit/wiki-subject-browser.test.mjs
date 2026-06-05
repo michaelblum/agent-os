@@ -4,12 +4,6 @@ import test from 'node:test';
 import MarkdownWorkbench from '../../packages/toolkit/components/markdown-workbench/index.js';
 import WikiSubjectBrowser from '../../packages/toolkit/components/wiki-subject-browser/index.js';
 import {
-  artifactBundleWorkbenchSnapshot,
-  createArtifactBundleWorkbenchState,
-  openArtifactBundle,
-  openArtifactBundleLinkedWorkRecord,
-} from '../../packages/toolkit/components/artifact-bundle-workbench/model.js';
-import {
   applySubjectIndexFilter,
   applySubjectIndexFocus,
   applySubjectNavigationQuery,
@@ -648,70 +642,6 @@ test('wiki subject browser indexes artifact bundle catalog entries through canon
   assert.equal(WIKI_SUBJECT_BROWSER_ARTIFACT_BUNDLE_CANVAS_ID, 'wiki-subject-browser-v0-artifact-bundle');
 });
 
-test('wiki subject browser catalog opens Employer Brand artifact bundle with report preview and evidence handoff', async () => {
-  const fixture = await repoJson(
-    'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/subject.json',
-  );
-  const record = await repoJson(
-    'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/work-record.json',
-  );
-  const contentRoot = {
-    name: 'repo-test',
-    path: '/repo',
-    url: 'aos://repo-test/',
-  };
-  const entry = createArtifactBundleSubjectCatalogEntry(fixture, { contentRoot });
-  const state = createWikiSubjectBrowserState();
-
-  applySubjectCatalogLoad(state, {
-    type: SUBJECT_CATALOG_LOAD_TYPE,
-    entries: [entry],
-  });
-  const request = createWikiSubjectBrowserOpenRequestFromCatalogEntry(state.catalog_entries[0]);
-  applySubjectOpenRequested(state, request);
-
-  const browserSnapshot = wikiSubjectBrowserSnapshot(state);
-  assert.equal(browserSnapshot.catalog_entries[0].subject.id, 'artifact-bundle:employer-brand-comparative-audit');
-  assert.equal(browserSnapshot.catalog_entries[0].affordances.openable, true);
-  assert.deepEqual(browserSnapshot.subject_graph_summary.subject_types, ['aos.artifact_bundle']);
-  assert.equal(browserSnapshot.navigation_trail[0].entry_handle, 'artifact-bundle:employer-brand-comparative-audit');
-  assert.equal(request.opener.id, 'artifact-bundle-workbench');
-  assert.equal(request.open_message.type, 'artifact_bundle.open');
-  assert.equal(request.open_message.subject.id, 'artifact-bundle:employer-brand-comparative-audit');
-
-  const workbenchState = createArtifactBundleWorkbenchState({ contentRoot });
-  const openResult = openArtifactBundle(workbenchState, request.open_message);
-  const previewSnapshot = artifactBundleWorkbenchSnapshot(workbenchState);
-
-  assert.equal(openResult.status, 'opened');
-  assert.equal(previewSnapshot.read_only, true);
-  assert.equal(previewSnapshot.selected_artifact_id, 'employer-brand-report');
-  assert.equal(previewSnapshot.preview.render_mode, 'markdown');
-  assert.equal(
-    previewSnapshot.preview.url,
-    'aos://repo-test/docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/report.md',
-  );
-  assert.equal(previewSnapshot.selected_work_record_link.can_open, true);
-  assert.equal(previewSnapshot.selected_work_record_summary.evidence_ref_count, 14);
-  assert.deepEqual(previewSnapshot.selected_source_evidence_metadata.browser_evidence_planning_manifest_paths, [
-    'browser-evidence/planning-manifest-skeleton.json',
-  ]);
-  assert.deepEqual(previewSnapshot.selected_source_evidence_metadata.browser_evidence_registry_paths, [
-    'browser-evidence/registry.json',
-  ]);
-
-  const evidenceResult = openArtifactBundleLinkedWorkRecord(workbenchState, { record });
-  const evidenceSnapshot = artifactBundleWorkbenchSnapshot(workbenchState);
-
-  assert.equal(evidenceResult.status, 'opened');
-  assert.equal(evidenceResult.read_only, true);
-  assert.equal(evidenceSnapshot.linked_work_record_open.open_message.type, 'work_record.open');
-  assert.equal(evidenceSnapshot.linked_work_record_open.workbench_snapshot.diagnostics.evidence_count, 14);
-  assert.equal(evidenceSnapshot.linked_work_record_open.workbench_snapshot.diagnostics.verifier_status, 'passed');
-  assert.equal(evidenceSnapshot.selected_work_record_summary.snapshot_available, true);
-  assert.equal(evidenceSnapshot.selected_work_record_summary.verified_claim_count, 9);
-});
-
 test('wiki subject browser exposes named shell manifest and semantic launch refs', async () => {
   const shell = WikiSubjectBrowser();
   const indexHtml = await repoText('packages/toolkit/components/wiki-subject-browser/index.html');
@@ -769,10 +699,10 @@ test('wiki subject browser exposes named shell manifest and semantic launch refs
   assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06/);
   assert.match(launch, /ARTIFACT_BUNDLE_FIXTURE/);
   assert.match(launch, /createArtifactBundleSubjectCatalogEntry/);
-  assert.match(launch, /employer-brand-comparative-audit\/subject\.json/);
-  assert.match(launch, /wiki-subject-browser-v0:subject-list:inspect:artifact-bundle-employer-brand-comparative-audit/);
-  assert.match(launch, /wiki-subject-browser-v0:subject-list:open:artifact-bundle-employer-brand-comparative-audit/);
-  assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:artifact-bundle-employer-brand-comparative-audit/);
+  assert.match(launch, /example-design-pass\/subject\.json/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-list:inspect:artifact-bundle-example-design-pass/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-list:open:artifact-bundle-example-design-pass/);
+  assert.match(launch, /wiki-subject-browser-v0:subject-catalog:open:artifact-bundle-example-design-pass/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:wiki-graph"/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:content-pane"/);
   assert.match(markdownJs, /data-aos-ref="markdown-workbench:content-close"/);
