@@ -12,6 +12,13 @@ Playwright-backed collector in `packages/toolkit/workbench/browser-evidence-capt
 The manifest is the analyst-authored intent list. Each request has a stable
 `request_id` that survives capture, analysis, and reruns.
 
+### Migration (v0)
+
+Migrate the retired domain-prefixed relevance field to `evidence_dimensions`;
+dimensions are no longer limited to a fixed five-value set, and each value may
+be any non-empty string. Migrate the retired domain-prefixed factors field to
+`evidence_factors`.
+
 ```json
 {
   "type": "aos.browser_evidence_capture_manifest",
@@ -42,13 +49,6 @@ Manifest skeletons may be produced by domain-specific planning tools outside
 this schema. Such tools remain deterministic planning bridges only: they emit
 local placeholder page paths and selectors, and they do not collect websites,
 infer target sets, generate reports, execute exports, or run a workflow.
-
-### Migration (v0)
-
-Migrate the retired domain-prefixed relevance field to `evidence_dimensions`;
-dimensions are no longer limited to a fixed five-value set, and each value may
-be any non-empty string. Migrate the retired domain-prefixed factors field to
-`evidence_factors`.
 
 ## Registry
 
