@@ -162,6 +162,15 @@ const radialTargetSurface = createRadialMenuTargetSurface({
     id: 'sigil-radial-menu-avatar-main',
 });
 const SIGIL_AVATAR_PANEL_CANVAS_ID = 'sigil-avatar-controls-avatar-main';
+const SIGIL_AVATAR_PANEL_FRAME = [1, 1, 332, 540];
+const SIGIL_AVATAR_PANEL_URL = sigilUrl('avatar-editor/panel.html', {
+    query: {
+        id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+        owner: 'avatar-main',
+        'sigil-root': currentSigilRoot(),
+        'toolkit-root': currentToolkitRoot(),
+    },
+});
 
 const liveJs = {
     avatarPos: { x: 0, y: 0, valid: false },
@@ -435,6 +444,7 @@ function avoidAvatarPanelOverlapFromLifecycle(message = {}) {
     if (!next || next.overlap !== 0) return false;
     const desktopPoint = nativeToDesktopWorldPoint({ x: next.x, y: next.y }, liveJs.displays) || { x: next.x, y: next.y };
     setAvatarPosition(desktopPoint.x, desktopPoint.y);
+    hideTrailSprites();
     interactionTrace.record('sigil-avatar-panel:avoid-overlap', {
         panelRect,
         avatarRect,
@@ -958,17 +968,12 @@ const avatarControls = createSigilAvatarControls({
     onBoundsChange: syncSigilInputRegions,
     onClose: handleAvatarControlsClose,
     actionDispatcher(action, payload = {}, options = {}) {
+        if (action === 'canvas.suspend') return host.canvasSuspend(payload.id);
+        if (action === 'canvas.resume') return host.canvasResume(payload.id);
         return host.request('aos.action', { ...payload, action }, options);
     },
     panelId: SIGIL_AVATAR_PANEL_CANVAS_ID,
-    panelUrl: sigilUrl('avatar-editor/panel.html', {
-        query: {
-            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
-            owner: 'avatar-main',
-            'sigil-root': currentSigilRoot(),
-            'toolkit-root': currentToolkitRoot(),
-        },
-    }),
+    panelUrl: SIGIL_AVATAR_PANEL_URL,
     panelFrameToBounds: panelFrameToAvatarControlsBounds,
     trace: interactionTrace,
 });
@@ -1439,6 +1444,31 @@ async function prewarmAgentTerminalCanvas() {
         }
     } finally {
         liveJs.prewarmingAgentTerminal = false;
+    }
+}
+
+async function prewarmAvatarPanelCanvas() {
+    if (liveJs._avatarPanelPrewarmStarted) return;
+    liveJs._avatarPanelPrewarmStarted = true;
+    try {
+        await host.canvasCreate({
+            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+            url: SIGIL_AVATAR_PANEL_URL,
+            frame: SIGIL_AVATAR_PANEL_FRAME,
+            interactive: true,
+            focus: false,
+            suspended: true,
+            window_level: 'floating',
+        });
+        liveJs.utilityCanvases.set(SIGIL_AVATAR_PANEL_CANVAS_ID, {
+            id: SIGIL_AVATAR_PANEL_CANVAS_ID,
+            suspended: true,
+            at: SIGIL_AVATAR_PANEL_FRAME,
+        });
+    } catch (error) {
+        if (!/ID_COLLISION|DUPLICATE|already exists/i.test(String(error?.message || error))) {
+            console.warn('[sigil] avatar panel prewarm failed:', error);
+        }
     }
 }
 
@@ -3532,6 +3562,7 @@ function setAvatarVisibility(visible) {
     emitAvatarMark();
     syncSigilInputRegions();
     syncHitTargetToAvatar();
+    if (next && isPrimarySurfaceSegment()) void prewarmAvatarPanelCanvas();
     if (!rendererSuspended) scheduleRenderFrame();
 }
 
@@ -4432,11 +4463,14 @@ function handleHostMessage(rawMsg) {
     if (msg.type === 'canvas_lifecycle') {
         annotationReticleHandleCanvasLifecycle(msg);
         const canvasId = msg.canvas_id || msg.canvas?.id;
-        if (
+        if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID && msg.action === 'removed') {
+            avatarControls.close('panel-removed');
+        } else if (
             canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID
-            && (msg.action === 'removed' || msg.suspended === true || msg.canvas?.suspended === true)
+            && (msg.action === 'suspended' || msg.suspended === true || msg.canvas?.suspended === true)
         ) {
-            avatarControls.close('panel-lifecycle');
+            // Owner-side close requests update avatarControls before the panel suspends.
+            // Ignore stale warm lifecycle events that can arrive while an open is resuming.
         } else if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID) {
             avatarControls.updatePanelFrame?.(panelNativeFrameFromLifecycle(msg), 'lifecycle');
             avoidAvatarPanelOverlapFromLifecycle(msg);
@@ -5217,7 +5251,9 @@ export async function boot() {
     emitRadialMenuObjectRegistry();
 
     recordBoot('boot:displayReady', { displays: displays.length });
-    if (isPrimarySurfaceSegment()) void prewarmAgentTerminalCanvas();
+    if (isPrimarySurfaceSegment()) {
+        void prewarmAgentTerminalCanvas();
+    }
 
     let position = await getLastPositionFromDaemon(liveJs.currentAgentId);
     if (position) {

@@ -349,6 +349,12 @@ test('panel avatar controls treats child panel canvas input as inside the surfac
     assert.equal(controls.isOpen(), true)
     assert.equal(actions[0]?.action, 'panel.toggle')
     assert.equal(actions[0]?.payload?.focus, true)
+    assert.deepEqual(actions[0]?.payload?.anchor, {
+      coordinate_space: 'desktop_world',
+      x: controls.bounds().x,
+      y: controls.bounds().y,
+      offset: { x: 0, y: 0 },
+    })
     assert.deepEqual(actions[0]?.payload?.geometry, {
       logical_surface_key: 'sigil.avatar.controls',
     })
@@ -369,15 +375,94 @@ test('panel avatar controls treats child panel canvas input as inside the surfac
     assert.deepEqual(closes, [])
 
     assert.equal(controls.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
+      raw: { payload: { source_canvas_id: 'panel-test' } },
+    }), true)
+    assert.equal(controls.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
+      sourceIdentity: { ownerCanvasId: 'panel-test' },
+      raw: {},
+    }), true)
+    assert.equal(controls.isOpen(), true)
+    assert.deepEqual(closes, [])
+
+    assert.equal(controls.handlePointerEvent('left_mouse_down', { x: 10, y: 10 }, {
       raw: { source_canvas_id: 'other-panel' },
     }), false)
     assert.equal(controls.isOpen(), true)
     assert.deepEqual(closes, [])
+
+    controls.close('outside-click')
+    assert.equal(controls.isOpen(), false)
+    assert.equal(actions[actions.length - 1]?.action, 'canvas.suspend')
+    assert.equal(actions.some((entry) => entry.action === 'panel.close'), false)
+    assert.deepEqual(closes, ['outside-click'])
   } finally {
     globalThis.document = previousDocument
     globalThis.window = previousWindow
     globalThis.Event = previousEvent
     globalThis.setTimeout = previousSetTimeout
+  }
+})
+
+test('panel avatar controls route detached panel changes through the compact session', () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  globalThis.document = document
+  globalThis.window = { innerHeight: 900 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const state = {
+      avatar: createDefaultAvatarState(),
+      currentGeometryType: 12,
+      currentType: 12,
+      avatarBase: 153,
+    }
+    const calls = []
+    const controls = createSigilAvatarControls({
+      state,
+      liveJs: {
+        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        avatarPos: { x: 300, y: 300 },
+      },
+      projectPoint: (point) => point,
+      updatePrimaryAppearance() { calls.push(['appearance']) },
+      onAppearanceChange(event) { calls.push(['persist', event.controlId, event.value]) },
+      trace: {
+        record(stage, data) {
+          if (stage === 'avatar-controls:descriptor-update') calls.push(['descriptor-route', data.id, data.value])
+        },
+      },
+      actionDispatcher() {
+        return Promise.resolve({ status: 'ok' })
+      },
+      panelId: 'panel-test',
+      panelUrl: 'aos://sigil/avatar-editor/panel.html',
+      allowTestAnchorFallback: true,
+    })
+
+    controls.openAt({ x: 300, y: 300 })
+    assert.equal(controls.handlePanelMessage({
+      type: 'sigil.avatar_panel.control_change',
+      payload: {
+        values: { 'sigil-avatar-controls-opacity': 0.36 },
+        controls: [{ id: 'sigil-avatar-controls-opacity', descriptor_id: 'sigil-avatar-controls-opacity' }],
+      },
+    }), true)
+
+    assert.equal(state.avatar.appearance.opacity, 0.36)
+    assert.deepEqual(calls.filter(([kind]) => kind === 'descriptor-route'), [[
+      'descriptor-route',
+      'sigil-avatar-controls-opacity',
+      0.36,
+    ]])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'appearance'), [['appearance']])
+    assert.deepEqual(calls.filter(([kind]) => kind === 'persist'), [['persist', 'sigil-avatar-controls-opacity', 0.36]])
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
   }
 })
 

@@ -314,6 +314,43 @@ export function avatarControlsSurfaceScrollDelta(event = {}) {
     };
 }
 
+function canvasIdCandidate(value) {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed || null;
+}
+
+function collectCanvasIdentityIds(target, identity) {
+    if (!identity || typeof identity !== 'object') return;
+    for (const key of [
+        'sourceCanvasId',
+        'source_canvas_id',
+        'ownerCanvasId',
+        'owner_canvas_id',
+        'canvasId',
+        'canvas_id',
+        'id',
+    ]) {
+        const candidate = canvasIdCandidate(identity[key]);
+        if (candidate) target.add(candidate);
+    }
+    for (const key of ['source', 'owner', 'canvas', 'payload']) {
+        collectCanvasIdentityIds(target, identity[key]);
+    }
+}
+
+function panelSourceIdentityMatches(panelId, { raw = {}, sourceIdentity = null } = {}) {
+    const expected = canvasIdCandidate(panelId);
+    if (!expected) return false;
+    const ids = new Set();
+    collectCanvasIdentityIds(ids, sourceIdentity);
+    collectCanvasIdentityIds(ids, raw?.sourceIdentity);
+    collectCanvasIdentityIds(ids, raw?.source_identity);
+    collectCanvasIdentityIds(ids, raw);
+    collectCanvasIdentityIds(ids, raw?.message);
+    return ids.has(expected);
+}
+
 export function createSigilAvatarControls({
     state,
     liveJs,
@@ -341,6 +378,7 @@ export function createSigilAvatarControls({
     panelFrameToBounds = null,
     panelWidth = PANEL_WIDTH,
     panelHeight = PANEL_HEIGHT,
+    panelCloseMode = 'suspend',
     trace,
     allowTestAnchorFallback = false,
 } = {}) {
@@ -375,6 +413,7 @@ export function createSigilAvatarControls({
     let panelControls = [];
     let panelActiveTab = null;
     const usesPanel = typeof actionDispatcher === 'function' && !!panelUrl;
+    const shouldSuspendPanelOnClose = panelCloseMode !== 'remove';
     const interactionRouter = createDesktopWorldInteractionRouter({
         onOutsidePointer(event) {
             if (event.phase === 'up') close('outside-click');
@@ -778,9 +817,9 @@ export function createSigilAvatarControls({
                 toggle_behavior: 'reposition',
                 anchor: {
                     coordinate_space: 'desktop_world',
-                    x: point.x,
-                    y: point.y,
-                    offset: { x: MENU_OFFSET, y: MENU_OFFSET },
+                    x: origin.x,
+                    y: origin.y,
+                    offset: { x: 0, y: 0 },
                 },
                 geometry_change: 'frame',
                 geometry_cause: 'sigil.avatar.right_click',
@@ -812,10 +851,12 @@ export function createSigilAvatarControls({
 
     function close(reason = 'close') {
         if (!surfaceState.open) return;
+        const panelWasRemoved = reason === 'panel-removed' || reason === 'panel-lifecycle';
+        const preservePanelSession = usesPanel && shouldSuspendPanelOnClose && !panelWasRemoved;
         surfaceState.open = false;
         surfaceState.bounds = null;
         surfaceState.activeSlider = null;
-        panelReady = false;
+        if (!preservePanelSession) panelReady = false;
         panelControls = [];
         panelActiveTab = null;
         interactionRouter.reset();
@@ -827,8 +868,15 @@ export function createSigilAvatarControls({
         recordTrace('close', { reason, snapshot: nextSnapshot });
         onBoundsChange?.(nextSnapshot);
         onClose?.({ reason, snapshot: nextSnapshot });
-        if (usesPanel && reason !== 'panel-lifecycle' && reason !== 'panel-close-request') {
-            void dispatchPanelAction('panel.close', { id: panelId }).catch((error) => {
+        if (
+            usesPanel
+            && reason !== 'panel-lifecycle'
+            && reason !== 'panel-removed'
+            && reason !== 'panel-suspended'
+            && reason !== 'panel-close-request'
+        ) {
+            const action = shouldSuspendPanelOnClose ? 'canvas.suspend' : 'panel.close';
+            void dispatchPanelAction(action, { id: panelId }).catch((error) => {
                 console.warn('[sigil] avatar control panel close failed:', error);
             });
         }
@@ -1081,17 +1129,7 @@ export function createSigilAvatarControls({
         if (usesPanel) {
             const raw = options.raw || {};
             const sourceIdentity = options.sourceIdentity || raw.sourceIdentity || {};
-            const sourceCanvasId = sourceIdentity.sourceCanvasId
-                || sourceIdentity.source_canvas_id
-                || raw.sourceCanvasId
-                || raw.source_canvas_id
-                || null;
-            const ownerCanvasId = sourceIdentity.ownerCanvasId
-                || sourceIdentity.owner_canvas_id
-                || raw.ownerCanvasId
-                || raw.owner_canvas_id
-                || null;
-            if (sourceCanvasId === panelId || ownerCanvasId === panelId) return true;
+            if (panelSourceIdentityMatches(panelId, { raw, sourceIdentity })) return true;
             const inside = containsDesktopPoint(point);
             if (!inside && kind === 'left_mouse_down') return false;
             return inside || kind !== 'left_mouse_down';
@@ -1178,7 +1216,7 @@ export function createSigilAvatarControls({
             return true;
         }
         if (type === 'sigil.avatar_panel.control_change' || type === 'sigil.avatar_panel.projection_change') {
-            routeChangedControls(payload.controls || [], payload.values || {});
+            compactSurfaceSession.routeChangedControls(payload.controls || [], payload.values || {});
             return true;
         }
         if (type === 'sigil.avatar_panel.projection_action') {

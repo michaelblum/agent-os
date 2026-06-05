@@ -29,6 +29,23 @@ function text(value, fallback = '') {
   return normalized || fallback;
 }
 
+function compactRecordForAosNativeControls(record = {}) {
+  const descriptorId = record.extension?.descriptor_id || record.descriptor_id || null;
+  const recordId = record.id || descriptorId;
+  return {
+    ...record,
+    ...(recordId ? { id: recordId } : {}),
+    ...(descriptorId ? { descriptor_id: descriptorId } : {}),
+    value: record.value ?? record.state?.value,
+    selected: record.selected ?? record.state?.selected,
+    current: record.current ?? record.state?.current,
+    checked: record.checked ?? record.state?.checked,
+    hidden: record.hidden ?? record.extension?.hidden,
+    frame: record.frame ?? record.provenance?.frame ?? null,
+    options: record.options ?? record.extension?.options,
+  };
+}
+
 function arrayValue(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -430,7 +447,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         const triggerEl = triggerEls.get(tabKey);
         const selected = triggerEl?.getAttribute?.('aria-selected') === 'true'
           || activeTabFromTabsAdapter(tabsAdapter) === tabKey;
-        records.push(normalizeAgentUiTarget({
+        const record = normalizeAgentUiTarget({
           id: tabKey,
           role: 'AXTab',
           name: text(tab.label, tabKey),
@@ -451,10 +468,19 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
             label: text(tab.label, tabKey),
             hidden: !!triggerEl?.hidden,
           },
+        });
+        records.push(compactRecordForAosNativeControls({
+          ...record,
+          id: tabKey,
+          value: tabKey,
+          selected,
+          current: selected,
+          hidden: !!triggerEl?.hidden,
+          frame: record.provenance?.frame ?? null,
         }));
       }
       for (const { tab, section, form } of forms.values()) {
-        records.push(...form.getControlRecords().map((record) => ({
+        records.push(...form.getControlRecords().map((record) => compactRecordForAosNativeControls({
           ...record,
           surface: COMPACT_SURFACE_ID,
           extension: {
@@ -465,7 +491,7 @@ export function createSigilAvatarCompactControlSurface(container, input = {}, op
         })));
       }
       for (const [key, form] of projectionForms) {
-        records.push(...form.getControlRecords().map((record) => ({
+        records.push(...form.getControlRecords().map((record) => compactRecordForAosNativeControls({
           ...record,
           surface: COMPACT_SURFACE_ID,
           extension: {

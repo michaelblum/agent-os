@@ -167,6 +167,7 @@ export function createAvatarControlsCompactSurfaceSession({
         destroy,
         mount,
         refreshVisibility,
+        routeChangedControls,
         seedValueCache,
         surface,
     };

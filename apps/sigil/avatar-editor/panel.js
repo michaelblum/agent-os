@@ -157,7 +157,7 @@ mountPanel({
       type: 'sigil.avatar_panel.close',
       payload: { panel_id: PANEL_ID },
     })
-    post('canvas.remove', {})
+    post('canvas.suspend', {})
   },
 })
 
