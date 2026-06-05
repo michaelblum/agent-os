@@ -126,6 +126,12 @@ class UnifiedDaemon {
     var canvasObjectRegistries: [String: [String: Any]] = [:]
     var canvasReadyManifests: [String: [String: Any]] = [:]
     let canvasSubscriptionLock = NSLock()
+    private let surfaceTransportProbeLock = NSLock()
+    private var inputFanoutDeliveriesByCanvas: [String: Int] = [:]
+    private var inputFanoutRecentDeliveriesByCanvas: [String: [Date]] = [:]
+    private var lastInputFanoutTargets: [String] = []
+    private var canvasSendMessagesByType: [String: Int] = [:]
+    private var canvasSendMessagesByTargetAndType: [String: [String: Int]] = [:]
 
     // Canvas ownership: child canvas ID → parent canvas ID.
     // Populated when a canvas creates another canvas via postMessage(canvas.create).
@@ -769,6 +775,83 @@ class UnifiedDaemon {
         return snapshot
     }
 
+    private func canvasEventSubscriptionSnapshot() -> [[String: Any]] {
+        canvasSubscriptionLock.lock()
+        let snapshot = canvasEventSubscriptions
+            .map { canvasID, events in
+                [
+                    "canvas_id": canvasID,
+                    "events": Array(events).sorted(),
+                    "input_event": events.contains("input_event"),
+                ] as [String: Any]
+            }
+            .sorted { ($0["canvas_id"] as? String ?? "") < ($1["canvas_id"] as? String ?? "") }
+        canvasSubscriptionLock.unlock()
+        return snapshot
+    }
+
+    private func canvasMessageType(_ message: Any) -> String {
+        if let dict = message as? [String: Any],
+           let type = dict["type"] as? String,
+           !type.isEmpty {
+            return type
+        }
+        return "unknown"
+    }
+
+    private func recordInputFanoutDelivery(targets: [String]) {
+        let now = Date()
+        let cutoff = now.addingTimeInterval(-1.0)
+        surfaceTransportProbeLock.lock()
+        lastInputFanoutTargets = targets.sorted()
+        for canvasID in targets {
+            inputFanoutDeliveriesByCanvas[canvasID, default: 0] += 1
+            var recent = inputFanoutRecentDeliveriesByCanvas[canvasID] ?? []
+            recent.append(now)
+            inputFanoutRecentDeliveriesByCanvas[canvasID] = recent.filter { $0 >= cutoff }
+        }
+        for canvasID in Array(inputFanoutRecentDeliveriesByCanvas.keys) where !targets.contains(canvasID) {
+            inputFanoutRecentDeliveriesByCanvas[canvasID] = (inputFanoutRecentDeliveriesByCanvas[canvasID] ?? []).filter { $0 >= cutoff }
+        }
+        surfaceTransportProbeLock.unlock()
+    }
+
+    private func recordCanvasSendMessage(targetID: String, message: Any) {
+        let type = canvasMessageType(message)
+        surfaceTransportProbeLock.lock()
+        canvasSendMessagesByType[type, default: 0] += 1
+        var targetCounts = canvasSendMessagesByTargetAndType[targetID] ?? [:]
+        targetCounts[type, default: 0] += 1
+        canvasSendMessagesByTargetAndType[targetID] = targetCounts
+        surfaceTransportProbeLock.unlock()
+    }
+
+    private func surfaceTransportProbeSnapshot(inputEventSubscriberCount: Int) -> [String: Any] {
+        let cutoff = Date().addingTimeInterval(-1.0)
+        surfaceTransportProbeLock.lock()
+        var recentPerSecond: [String: Int] = [:]
+        for (canvasID, deliveries) in inputFanoutRecentDeliveriesByCanvas {
+            recentPerSecond[canvasID] = deliveries.filter { $0 >= cutoff }.count
+        }
+        let snapshot: [String: Any] = [
+            "input_event": [
+                "subscriber_count": inputEventSubscriberCount,
+                "subscribers": canvasEventSubscriptionSnapshot().filter {
+                    ($0["input_event"] as? Bool) == true
+                },
+                "last_fanout_targets": lastInputFanoutTargets,
+                "deliveries_total_by_canvas": inputFanoutDeliveriesByCanvas,
+                "deliveries_last_1s_by_canvas": recentPerSecond,
+            ],
+            "canvas_send": [
+                "messages_by_type": canvasSendMessagesByType,
+                "messages_by_target_and_type": canvasSendMessagesByTargetAndType,
+            ],
+        ]
+        surfaceTransportProbeLock.unlock()
+        return snapshot
+    }
+
     private func dispatchCanvasSubscriptionSnapshots(to canvasID: String, events: [String]) {
         // Dispatch async to avoid reentering the canvas message handler from inside
         // the subscribe path.
@@ -805,6 +888,7 @@ class UnifiedDaemon {
 
         guard !targets.isEmpty else { return }
 
+        recordInputFanoutDelivery(targets: targets)
         for canvasID in targets {
             canvasManager.postMessageAsync(canvasID: canvasID, payload: data)
         }
@@ -1900,6 +1984,7 @@ class UnifiedDaemon {
         }
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+            self.recordCanvasSendMessage(targetID: targetID, message: message)
             self.canvasManager.postMessageAsync(canvasID: targetID, payload: message)
             self.dispatchCanvasResponse(to: callerID, requestID: requestID, status: "ok", extra: [
                 "target": targetID,
@@ -2807,6 +2892,8 @@ class UnifiedDaemon {
             let canvasReadyManifestCount = canvasReadyManifests.count
             let canvasObjectRegistryCount = canvasObjectRegistries.count
             canvasSubscriptionLock.unlock()
+            let canvasSubscriptionDetails = canvasEventSubscriptionSnapshot()
+            let inputEventSubscriberCount = subscriptionEventCounts["input_event"] ?? 0
             inputRegionLock.lock()
             let inputRegionSnapshot = inputRegions.snapshot()
             let activeInputCapture: Any = inputRegions.activeCaptureSnapshot() ?? NSNull()
@@ -2858,6 +2945,7 @@ class UnifiedDaemon {
                     "canvas_event_subscriptions": [
                         "canvas_count": canvasSubscriptionCanvasCount,
                         "by_event": subscriptionEventCounts,
+                        "canvases": canvasSubscriptionDetails,
                     ],
                     "canvas_perception_channel_count": canvasPerceptionChannelDetails.count,
                     "canvas_ready_manifest_count": canvasReadyManifestCount,
@@ -2866,6 +2954,9 @@ class UnifiedDaemon {
                         "count": inputRegionSnapshot.count,
                         "active_capture": activeInputCapture,
                     ],
+                    "surface_transport_probe": surfaceTransportProbeSnapshot(
+                        inputEventSubscriberCount: inputEventSubscriberCount
+                    ),
                 ] as [String: Any],
                 // Legacy flat fields preserved
                 "input_tap_status": perception.inputTapStatus,

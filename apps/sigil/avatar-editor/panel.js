@@ -4,6 +4,7 @@ import {
   toolkitSpecifier,
   toolkitUrl,
 } from '../renderer/live-modules/content-roots.js'
+import { createSurfaceTransportProbe } from '../renderer/live-modules/surface-transport-probe.js'
 import { createSigilAvatarCompactControlSurface } from './compact-surface.js'
 
 const { frameFromWindow, mountPanel, Single } = await import(toolkitSpecifier('panel/index.js', {
@@ -23,6 +24,9 @@ installStylesheet(toolkitUrl('panel/defaults.css'))
 const params = new URLSearchParams(location.search || '')
 const OWNER_CANVAS_ID = params.get('owner') || params.get('owner_canvas_id') || 'avatar-main'
 const PANEL_ID = window.__aosCanvasId || params.get('id') || 'sigil-avatar-controls-avatar-main'
+const surfaceTransportProbe = createSurfaceTransportProbe({
+  label: PANEL_ID,
+})
 
 let surface = null
 let hostElement = null
@@ -34,6 +38,7 @@ function post(type, payload) {
 }
 
 function sendToOwner(message) {
+  surfaceTransportProbe.recordPanelMessage('sent', message?.type)
   post('canvas.send', {
     target: OWNER_CANVAS_ID,
     message,
@@ -170,3 +175,25 @@ queueMicrotask(() => {
     },
   })
 })
+
+window.__sigilAvatarPanelDebug = {
+  surfaceTransportProbe: {
+    enable() {
+      return surfaceTransportProbe.setEnabled(true)
+    },
+    disable() {
+      return surfaceTransportProbe.setEnabled(false)
+    },
+    reset() {
+      surfaceTransportProbe.reset()
+      return surfaceTransportProbe.snapshot()
+    },
+    snapshot(options) {
+      return surfaceTransportProbe.snapshot(options)
+    },
+    mark(name, payload) {
+      surfaceTransportProbe.mark(name, payload)
+      return surfaceTransportProbe.snapshot()
+    },
+  },
+}

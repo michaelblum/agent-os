@@ -18,6 +18,7 @@ import { animateSkins } from '../skins.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
 import { classifyRenderLoopWork, createRenderLoopScheduler, renderLoopContinuationReasons } from './render-loop.js';
+import { createSurfaceTransportProbe } from './surface-transport-probe.js';
 import { createHostRuntime } from './host-runtime.js';
 import { createInteractionOverlay } from './interaction-overlay.js';
 import { createHitTargetController } from './hit-target.js';
@@ -298,6 +299,9 @@ window.__sigilBootFirstFrameAt = null;
 
 let rendererSuspended = false;
 const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
+const surfaceTransportProbe = createSurfaceTransportProbe({
+    label: 'sigil-avatar-main',
+});
 const IDLE_AVATAR_MOTION_FRAME_DELAY_MS = 33;
 let structuralFrameDirty = true;
 let radialGestureVisuals = null;
@@ -464,7 +468,9 @@ function removeSigilInputRegions() {
 }
 
 function syncSigilInputRegions() {
-    sigilInputRegions?.sync();
+    const changed = sigilInputRegions?.sync();
+    surfaceTransportProbe.recordRenderEmit('input_region.sync', changed);
+    return changed;
 }
 
 function boundsWithMinMax(rect) {
@@ -3617,11 +3623,13 @@ function updateSelectionModeAvatarRide(point = null) {
 function syncHitTargetToAvatar() {
     if (!isPrimarySurfaceSegment() || !liveJs.avatarPos.valid) return;
     hitTarget.setSize(state.avatarHitRadius * 2);
-    hitTarget.syncWorldCenter(
+    const changed = hitTarget.syncWorldCenter(
         liveJs.avatarPos,
         liveJs.avatarVisible && ['IDLE', 'PRESS', 'RADIAL', 'FAST_TRAVEL'].includes(liveJs.currentState),
         { displays: liveJs.displays }
     );
+    surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
+    return changed;
 }
 
 function cancelInteraction(reason) {
@@ -4440,6 +4448,12 @@ function handleHostMessage(rawMsg) {
             source: msg?.source ?? rawMsg?.source ?? rawMsg?.payload?.source ?? null,
             primarySegment: isPrimarySurfaceSegment(),
         });
+        if (msg?.type === 'input_event' || msg?.envelope_type === 'input_event') {
+            surfaceTransportProbe.recordInputEvent({
+                ...msg,
+                canvas_id: window.__aosCanvasId || window.__aosSurfaceCanvasId || 'avatar-main',
+            });
+        }
     }
     if (!shouldProcessGlobalDaemonEvent(msg)) return;
 
@@ -4457,6 +4471,7 @@ function handleHostMessage(rawMsg) {
         ? msg.payload
         : msg;
     if (typeof panelMessage.type === 'string' && panelMessage.type.startsWith('sigil.avatar_panel.')) {
+        surfaceTransportProbe.recordPanelMessage('received', panelMessage.type);
         if (avatarControls.handlePanelMessage(panelMessage)) return;
     }
 
@@ -4996,15 +5011,18 @@ function animate() {
         publishState: work.publishState,
         idleMotionDelayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,
     };
+    surfaceTransportProbe.recordRenderFrame(liveJs.renderLoop.work);
     lastSelectionModeEffectActive = selectionModeEffectActive;
 
     if (work.structural) {
         avatarControls.updateSegmentPosition();
 
         if (primarySegment && avatarControls.isOpen() && avatarControls.interactiveBounds()) {
-            hitTarget.syncWorldRect(avatarControls.interactiveBounds(), true, { displays: liveJs.displays });
+            const changed = hitTarget.syncWorldRect(avatarControls.interactiveBounds(), true, { displays: liveJs.displays });
+            surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
         } else if (primarySegment && liveJs.avatarParking) {
-            hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
+            const changed = hitTarget.sync({ x: -10000, y: -10000, valid: true }, false);
+            surfaceTransportProbe.recordRenderEmit('hitTarget.sync', changed);
         } else if (primarySegment && liveJs.avatarPos.valid) {
             syncHitTargetToAvatar();
         }
@@ -5014,6 +5032,7 @@ function animate() {
         }
     }
     if (work.overlay) {
+        surfaceTransportProbe.recordRenderEmit('overlay.draw');
         overlay.draw({
             state: liveJs.currentState,
             avatarPos: avatarStagePos,
@@ -5055,6 +5074,7 @@ function animate() {
     const vitalityScale = Number.isFinite(vitalityFrame.scaleMultiplier) ? vitalityFrame.scaleMultiplier : 1;
     state.polyGroup.scale.setScalar(state.baseScale * state.z_depth * state.appScale * vitalityScale * liveJs.avatarSize * (1 + liveJs.avatarHoverProgress * 0.055));
     if (desktopWorldSurface?.isPrimary && work.publishState) {
+        surfaceTransportProbe.recordRenderEmit('desktopWorldSurface.publishState');
         desktopWorldSurface.publishState(surfaceRenderSnapshot(renderAvatarPos));
     }
     const renderStartedAt = performance.now();
@@ -5149,7 +5169,27 @@ window.__sigilDebug = {
                 isPrimary: desktopWorldSurface.isPrimary,
                 latency: desktopWorldSurface.stateLatencySnapshot(),
             } : null,
+            surfaceTransportProbe: surfaceTransportProbe.snapshot(),
         };
+    },
+    surfaceTransportProbe: {
+        enable() {
+            return surfaceTransportProbe.setEnabled(true);
+        },
+        disable() {
+            return surfaceTransportProbe.setEnabled(false);
+        },
+        reset() {
+            surfaceTransportProbe.reset();
+            return surfaceTransportProbe.snapshot();
+        },
+        snapshot(options) {
+            return surfaceTransportProbe.snapshot(options);
+        },
+        mark(name, payload) {
+            surfaceTransportProbe.mark(name, payload);
+            return surfaceTransportProbe.snapshot();
+        },
     },
     avatarDefinition,
     importAvatarDefinitionText,
