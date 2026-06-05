@@ -43,6 +43,13 @@ this schema. Such tools remain deterministic planning bridges only: they emit
 local placeholder page paths and selectors, and they do not collect websites,
 infer target sets, generate reports, execute exports, or run a workflow.
 
+### Migration (v0)
+
+Migrate the retired domain-prefixed relevance field to `evidence_dimensions`;
+dimensions are no longer limited to a fixed five-value set, and each value may
+be any non-empty string. Migrate the retired domain-prefixed factors field to
+`evidence_factors`.
+
 ## Registry
 
 The registry is the normalized execution output. Each evidence object keeps the
