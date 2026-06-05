@@ -15,96 +15,60 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
-const workflowMapPath = path.join(repoRoot, 'wiki-seed/concepts/employer-brand-workflow-map.md');
-const workflowMapMarkdown = fs.readFileSync(workflowMapPath, 'utf8');
+const workflowMapMarkdown = `# Runtime Readiness Workflow
+
+| Stage | Canonical Page | Output |
+| --- | --- | --- |
+| Orient | [Runtime Modes](runtime-modes.md) | Runtime mode selected |
+| Inspect | [Self Check](../plugins/self-check/SKILL.md) | Runtime diagnostics reviewed |
+| Record | [Daemon](../entities/daemon.md) | Runtime evidence recorded |
+`;
 
 const pages = [
   {
-    path: 'aos/concepts/employer-brand-workflow-map.md',
+    path: 'aos/concepts/runtime-readiness-workflow.md',
     type: 'concept',
-    name: 'Employer Brand Workflow Map',
-    description: 'End-to-end map for the canonical employer-brand workflow set.',
-    tags: ['employer-brand', 'workflow', 'process'],
+    name: 'Runtime Readiness Workflow',
+    description: 'End-to-end map for runtime readiness checks.',
+    tags: ['runtime', 'workflow', 'process'],
     modified_at: 1776393337,
   },
   {
-    path: 'aos/plugins/employer-brand-profile-intake/SKILL.md',
-    type: 'workflow',
-    name: 'employer-brand-profile-intake',
-    plugin: 'employer-brand-profile-intake',
-  },
-  {
-    path: 'aos/plugins/employer-brand-artifact-collection-planner/SKILL.md',
-    type: 'workflow',
-    name: 'employer-brand-artifact-collection-planner',
-    plugin: 'employer-brand-artifact-collection-planner',
-  },
-  {
-    path: 'aos/concepts/normalize-employer-brand-evidence.md',
+    path: 'aos/concepts/runtime-modes.md',
     type: 'concept',
-    name: 'Normalize Employer Brand Evidence',
+    name: 'Runtime Modes',
   },
   {
-    path: 'aos/plugins/employer-brand-profile-synthesis/SKILL.md',
+    path: 'aos/plugins/self-check/SKILL.md',
     type: 'workflow',
-    name: 'employer-brand-profile-synthesis',
-    plugin: 'employer-brand-profile-synthesis',
+    name: 'self-check',
+    plugin: 'self-check',
   },
   {
-    path: 'aos/plugins/employer-brand-competitor-comparison/SKILL.md',
-    type: 'workflow',
-    name: 'employer-brand-competitor-comparison',
-    plugin: 'employer-brand-competitor-comparison',
-  },
-  {
-    path: 'aos/plugins/employer-brand-report-generation/SKILL.md',
-    type: 'workflow',
-    name: 'employer-brand-report-generation',
-    plugin: 'employer-brand-report-generation',
-  },
-  {
-    path: 'aos/entities/employer-brand-profile.md',
+    path: 'aos/entities/daemon.md',
     type: 'entity',
-    name: 'Employer Brand Profile',
-  },
-  {
-    path: 'aos/entities/employer-brand-comparison.md',
-    type: 'entity',
-    name: 'Employer Brand Comparison',
-  },
-  {
-    path: 'aos/plugins/kilos-brand-audit-report/references/report-data-schema.md',
-    type: 'concept',
-    name: 'Brand Audit Report Data Schema',
-    plugin: 'kilos-brand-audit-report',
-  },
-  {
-    path: 'aos/plugins/kilos-brand-audit-report/references/folder-structure.md',
-    type: 'concept',
-    name: 'Brand Audit Report Folder Structure',
-    plugin: 'kilos-brand-audit-report',
+    name: 'Daemon',
   },
 ];
 
-test('createWikiWorkflowDescriptor projects the employer-brand workflow map chain', () => {
+test('createWikiWorkflowDescriptor projects a neutral workflow map chain', () => {
   const descriptor = createWikiWorkflowDescriptor({
     root: pages[0],
     pages,
     markdown: workflowMapMarkdown,
   });
 
-  assert.equal(descriptor.root.path, 'aos/concepts/employer-brand-workflow-map.md');
+  assert.equal(descriptor.root.path, 'aos/concepts/runtime-readiness-workflow.md');
   assert.equal(descriptor.validation.state, 'valid');
   assert.equal(descriptor.validation.source, 'stage_contract_table');
-  assert.equal(descriptor.steps.length, 6);
-  assert.equal(descriptor.steps[0].label, 'Intake');
-  assert.equal(descriptor.steps[0].target.path, 'aos/plugins/employer-brand-profile-intake/SKILL.md');
-  assert.equal(descriptor.steps[1].target.path, 'aos/plugins/employer-brand-artifact-collection-planner/SKILL.md');
-  assert.equal(descriptor.steps[2].target.kind, 'reference');
-  assert.equal(descriptor.steps[3].target.kind, 'workflow');
-  assert.ok(descriptor.child_workflows.some((child) => child.path === 'aos/plugins/employer-brand-report-generation/SKILL.md'));
-  assert.ok(descriptor.artifacts.some((artifact) => artifact.path === 'aos/entities/employer-brand-profile.md'));
-  assert.ok(descriptor.outputs.includes('One [Employer Brand Comparison](../entities/employer-brand-comparison.md)'));
+  assert.equal(descriptor.steps.length, 3);
+  assert.equal(descriptor.steps[0].label, 'Orient');
+  assert.equal(descriptor.steps[0].target.path, 'aos/concepts/runtime-modes.md');
+  assert.equal(descriptor.steps[1].target.path, 'aos/plugins/self-check/SKILL.md');
+  assert.equal(descriptor.steps[2].target.kind, 'artifact');
+  assert.ok(descriptor.child_workflows.some((child) => child.path === 'aos/plugins/self-check/SKILL.md'));
+  assert.ok(descriptor.artifacts.some((artifact) => artifact.path === 'aos/entities/daemon.md'));
+  assert.ok(descriptor.outputs.includes('Runtime evidence recorded'));
 });
 
 test('createWikiWorkflowSubject emits a workflow-chain workbench subject', () => {
@@ -115,19 +79,19 @@ test('createWikiWorkflowSubject emits a workflow-chain workbench subject', () =>
   });
 
   assert.equal(subject.type, 'aos.workbench.subject');
-  assert.equal(subject.id, 'workflow:aos/concepts/employer-brand-workflow-map.md');
+  assert.equal(subject.id, 'workflow:aos/concepts/runtime-readiness-workflow.md');
   assert.equal(subject.subject_type, 'wiki.workflow_chain');
   assert.equal(subject.owner, 'aos');
   assert.equal(subject.source.kind, 'wiki_workflow');
-  assert.equal(subject.metadata.step_count, 6);
-  assert.equal(subject.metadata.child_workflow_count, 5);
+  assert.equal(subject.metadata.step_count, 3);
+  assert.equal(subject.metadata.child_workflow_count, 1);
   assert.equal(subject.metadata.validation_state, 'valid');
   assert.deepEqual(subjectCapabilities(subject), ['inspectable', 'replayable']);
   assert.ok(subjectContracts(subject).includes('workflow.chain.inspect'));
   assert.ok(subjectFacets(subject).some((facet) => facet.key === 'workflow-chain'));
   assert.equal('views' in subject, false);
   assert.equal('controls' in subject, false);
-  assert.equal(subject.state.workflow.steps[0].target.subject_id, 'wiki:aos/plugins/employer-brand-profile-intake/SKILL.md');
+  assert.equal(subject.state.workflow.steps[0].target.subject_id, 'wiki:aos/concepts/runtime-modes.md');
 });
 
 test('workflow descriptor marks unresolved linked workflow targets repairable', () => {

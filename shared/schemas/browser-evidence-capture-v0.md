@@ -1,6 +1,6 @@
 # Browser Evidence Capture v0
 
-Status: pilot schema for the Employer Brand comparative audit workflow.
+Status: pilot schema for local browser evidence capture.
 
 This contract describes a narrow, local-fixture browser evidence collector. It
 does not define a public `aos` command, autonomous browsing loop, report
@@ -12,11 +12,18 @@ Playwright-backed collector in `packages/toolkit/workbench/browser-evidence-capt
 The manifest is the analyst-authored intent list. Each request has a stable
 `request_id` that survives capture, analysis, and reruns.
 
+### Migration (v0)
+
+Migrate the retired domain-prefixed relevance field to `evidence_dimensions`;
+dimensions are no longer limited to a fixed five-value set, and each value may
+be any non-empty string. Migrate the retired domain-prefixed factors field to
+`evidence_factors`.
+
 ```json
 {
   "type": "aos.browser_evidence_capture_manifest",
   "schema_version": "2026-05-browser-evidence-capture-v0",
-  "manifest_id": "manifest:example-health-eba",
+  "manifest_id": "manifest:example-health-browser-evidence",
   "requests": [
     {
       "request_id": "example_health_careers_hero",
@@ -25,9 +32,9 @@ The manifest is the analyst-authored intent list. Each request has a stable
       "url": "html/example-careers.html",
       "selector": "main .hero",
       "xpath": null,
-      "evidence_goal": "capture careers hero employer value proposition",
-      "kilos_relevance": ["impact", "opportunity"],
-      "kilos_factors": ["innovation and invention", "career progression"],
+      "evidence_goal": "capture landing page value proposition",
+      "evidence_dimensions": ["messaging", "proof"],
+      "evidence_factors": ["product evidence", "next-step clarity"],
       "notes": "Hero section frames the talent promise."
     }
   ]
@@ -38,17 +45,10 @@ The manifest is the analyst-authored intent list. Each request has a stable
 `data:` URLs, or localhost HTTP(S). Remote public sites are blocked so the pilot
 can exercise the artifact shape without autonomous browsing.
 
-Employer Brand Audit Project V0 fixtures can also be compiled into manifest
-skeletons by
-`compileBrowserEvidenceManifestFromEmployerBrandAuditProject()` in
-`packages/toolkit/workbench/_reference/employer-brand/employer-brand-project-browser-evidence.js`, or by
-the script wrapper
-`node scripts/employer-brand-project-browser-evidence-manifest.mjs --project <project.json> --out <manifest.json>`.
-That compiler is a deterministic planning bridge only. It derives request
-stubs from the fixture's explicit client company, competitor companies, and
-source categories; it emits local placeholder page paths and selectors; and it
-does not collect websites, infer competitors, generate reports, execute
-exports, or run a workflow.
+Manifest skeletons may be produced by domain-specific planning tools outside
+this schema. Such tools remain deterministic planning bridges only: they emit
+local placeholder page paths and selectors, and they do not collect websites,
+infer target sets, generate reports, execute exports, or run a workflow.
 
 ## Registry
 
@@ -56,7 +56,7 @@ The registry is the normalized execution output. Each evidence object keeps the
 request intent fields beside repairable execution fields:
 
 - intent: `request_id`, `company`, `source_category`, `evidence_goal`,
-  `kilos_relevance`, `kilos_factors`, and `notes`
+  `evidence_dimensions`, `evidence_factors`, and `notes`
 - execution: `url`, `selector`, `xpath`, `screenshot_path`, `extracted_text`,
   `status`, `error`, `caveat`, and `selector_resolution`
 - capture metadata: timestamp, backend, local URL policy, resolved page URL,
@@ -68,25 +68,8 @@ selector/XPath candidates and no screenshot path.
 
 ## Pilot Feed
 
-The Employer Brand audit pilot consumes this registry as the raw evidence pool
-for Company Brand Audit V0 fixture drafting. Analysts can cite `request_id` and
-`screenshot_path`, inspect the extracted text, and decide which KILOS dimensions
-or factors the evidence supports. Later Workflow or Work Record producers can
-wrap this registry, but V0 deliberately stops at local element evidence. The
-local audit fixture shape is documented in
-`shared/schemas/company-brand-audit-v0.md`.
-
-The Employer Brand Artifact Bundle fixture carries a concrete local handoff at:
-
-```text
-docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/planning-manifest-skeleton.json
-docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/manifest.json
-docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/browser-evidence/registry.json
-```
-
-The planning manifest skeleton is derived from `intake/project.json` and is
-linked as read-only planned-request provenance, separate from the captured
-manifest and registry. The registry is linked from `subject.json` and
-`work-record.json` as read-only, provenance-only evidence. It uses local fixture
-HTML pages and local crop assets only; neither file is evidence of live web
-collection or report generation.
+Downstream pilots consume this registry as a raw evidence pool. Analysts can
+cite `request_id` and `screenshot_path`, inspect the extracted text, and decide
+which domain dimensions or factors the evidence supports. Later Workflow or
+Work Record producers can wrap this registry, but V0 deliberately stops at
+local element evidence.

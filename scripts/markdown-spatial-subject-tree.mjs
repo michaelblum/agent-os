@@ -10,8 +10,8 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..')
-const DEFAULT_INPUT = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md'
-const DEFAULT_OUTPUT = 'docs/design/fixtures/spatial-subject-tree-v0/employer-brand-human-alignment-pack.json'
+const DEFAULT_INPUT = 'docs/design/work-cards/aos-html-workbench-expression-v0.md'
+const DEFAULT_OUTPUT = 'docs/design/fixtures/spatial-subject-tree-v0/aos-html-workbench-expression-v0.json'
 const DEFAULT_CREATED_AT = '2026-05-09T12:00:00.000Z'
 
 function argValue(name, fallback = null) {

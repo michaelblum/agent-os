@@ -397,53 +397,6 @@ test('generated fixture is deterministic for the checked-in work-card', async ()
   assert.deepEqual(fixture, expression.metadata);
 });
 
-test('generated Employer Brand human alignment expression fixture is deterministic and complete', async () => {
-  const sourcePath = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.md';
-  const htmlPath = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.expression.html';
-  const metadataPath = 'docs/design/fixtures/aos-artifacts/employer-brand-comparative-audit/human-alignment-pack.expression.json';
-  const markdown = await fs.readFile(path.join(repoRoot, sourcePath), 'utf8');
-  const expression = buildMarkdownWorkCardHtmlExpression({
-    markdown,
-    sourcePath,
-    artifactKind: 'human_alignment_pack',
-    generatedAt: '2026-05-10T00:00:00.000Z',
-    htmlPath,
-  });
-  const fixture = JSON.parse(await fs.readFile(path.join(repoRoot, metadataPath), 'utf8'));
-
-  assert.deepEqual(fixture, expression.metadata);
-  assert.equal(fixture.artifact_kind, 'human_alignment_pack');
-  assert.equal(fixture.source.kind, 'markdown');
-  assert.equal(fixture.source.path, sourcePath);
-  assert.equal(fixture.html.path, htmlPath);
-
-  const requiredTargets = [
-    'current-assumptions',
-    'companies-and-competitor-set',
-    'source-categories-and-page-types',
-    'desired-evidence-elements-and-expected-clip-counts',
-    'what-not-to-collect',
-    'kilos-interpretation',
-    'source-trust-and-inaccessible-source-policy',
-    'report-tone-and-direction',
-    'explicit-human-decision-points',
-  ];
-  const targetRefs = new Set(fixture.semantic_targets.map((target) => target.ref));
-  for (const targetId of requiredTargets) {
-    const ref = `html-workbench-expression:${targetId}`;
-    assert.equal(targetRefs.has(ref), true, `missing semantic target ${ref}`);
-    assert.equal(
-      fixture.source_map.some((entry) => entry.ref === ref),
-      true,
-      `missing source map entry ${ref}`,
-    );
-  }
-
-  assert.equal(fixture.mermaid_blocks.length, 1);
-  assert.match(fixture.mermaid_blocks[0].source_hash, /^sha256:[a-f0-9]{64}$/);
-  assert.equal(targetRefs.has(fixture.mermaid_blocks[0].ref), true);
-});
-
 test('generated workbench semantic targets single-source identity and source data', () => {
   const expression = buildMarkdownWorkCardHtmlExpression({
     markdown: sampleWorkCard,

@@ -15,8 +15,8 @@ The tree starts at `desktop_world`, then descends through displays, windows,
 canvases, surfaces, panes, documents, elements, regions, points, and projection
 records. It is a projection of current visibility and addressability. Durable
 meaning still belongs in source contracts such as annotation intent records,
-work records, website capture plans, locator review packs, report/export
-artifacts, and Employer Brand audit artifacts.
+work records, website capture plans, locator review packs, and report/export
+artifacts.
 
 ## Ownership Boundary
 
@@ -35,9 +35,9 @@ image-local regions. Generic Mac apps can fall back to AX elements and
 window-local bounds.
 
 The same tree shape also covers live website capture, capture locator repair,
-report/export surfaces, workflow execution panels, global AX harvesting, and
-Employer Brand capture changes. These producers should use adapter metadata and
-neutral node kinds rather than adding domain-specific top-level fields.
+report/export surfaces, workflow execution panels, and global AX harvesting.
+These producers should use adapter metadata and neutral node kinds rather than
+adding domain-specific top-level fields.
 
 ## Paths
 

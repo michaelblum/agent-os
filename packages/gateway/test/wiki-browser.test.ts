@@ -23,19 +23,19 @@ const index: WikiIndexEntry[] = [
     tags: ['sigil', 'app-model'],
   },
   {
-    name: 'Employer Brand Profile',
-    description: 'Canonical profile artifact.',
-    path: 'aos/entities/employer-brand-profile.md',
+    name: 'Daemon',
+    description: 'Runtime service process.',
+    path: 'aos/entities/daemon.md',
     type: 'entity',
-    tags: ['employer-brand', 'profile'],
+    tags: ['runtime', 'daemon'],
   },
   {
-    name: 'Employer Brand Intake',
-    description: 'Plugin intake workflow.',
-    path: 'aos/plugins/employer-brand-profile-intake/references/intake.md',
-    plugin: 'employer-brand-profile-intake',
+    name: 'Self Check',
+    description: 'Runtime diagnostic workflow.',
+    path: 'aos/plugins/self-check/SKILL.md',
+    plugin: 'self-check',
     type: 'workflow',
-    tags: ['employer-brand', 'workflow'],
+    tags: ['runtime', 'workflow'],
   },
 ];
 
@@ -81,6 +81,6 @@ describe('wiki-browser model', () => {
     });
     const model = buildWikiBrowserModel(index, state);
     assert.equal(model.state.root, 'tags');
-    assert.equal(model.branches[0]?.id, 'employer-brand');
+    assert.equal(model.branches[0]?.id, 'runtime');
   });
 });

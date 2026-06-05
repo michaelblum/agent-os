@@ -2,7 +2,7 @@
   "type": "aos.recipe_health_event",
   "schema_version": "draft-2026-05-04",
   "id": "indeed-benefits-section-retired",
-  "recipe_id": "employer-brand/collect-indeed-benefits-section",
+    "recipe_id": "runtime/collect-daemon-status",
   "previous_health": {
     "state": "repairable",
     "reason": "target_not_found"

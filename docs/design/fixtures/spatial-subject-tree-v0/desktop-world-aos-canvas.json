@@ -68,7 +68,7 @@
       "parent_id": "display:1",
       "path": "desktop-world/display:1/window:1001",
       "kind": "window",
-      "label": "Employer Brand Audit",
+      "label": "Runtime Audit",
       "source": {
         "window_id": 1001,
         "app_pid": 4242,
@@ -138,8 +138,8 @@
       "source": {
         "canvas_id": "brand-audit",
         "surface_id": "comparative-audit",
-        "file_path": "Employer_Brand_Audit/report.md",
-        "subject_id": "employer-brand-comparative-audit"
+        "file_path": "docs/design/fixtures/aos-artifacts/example-design-pass/report.md",
+        "subject_id": "runtime-audit"
       },
       "bounds": {
         "parent_local": { "x": 24, "y": 44, "width": 852, "height": 540 },
@@ -149,8 +149,8 @@
       "sibling_order": 0,
       "state": "visible",
       "adapter": {
-        "id": "employer-brand-surface",
-        "type": "employer_brand",
+        "id": "runtime-audit-surface",
+        "type": "generic",
         "confidence": 0.8,
         "freshness": "snapshot",
         "child_discovery": "partial"

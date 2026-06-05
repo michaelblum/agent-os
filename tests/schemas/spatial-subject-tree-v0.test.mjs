@@ -9,7 +9,6 @@ const repoRoot = path.resolve(__dirname, '../..')
 const schemaPath = path.join(repoRoot, 'shared/schemas/spatial-subject-tree-v0.schema.json')
 const fixturePaths = [
   'docs/design/fixtures/spatial-subject-tree-v0/desktop-world-aos-canvas.json',
-  'docs/design/fixtures/spatial-subject-tree-v0/employer-brand-human-alignment-pack.json',
 ]
 
 for (const fixturePath of fixturePaths) {

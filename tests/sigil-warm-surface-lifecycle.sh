@@ -30,7 +30,7 @@ sleep 0.2
 create_wiki_workbench() {
   "$AOS" show create \
     --id "$WIKI_ID" \
-    --url "aos://toolkit/components/wiki-subject-browser/index.html?wiki=aos/concepts/employer-brand-workflow-map.md" \
+    --url "aos://toolkit/components/wiki-subject-browser/index.html?wiki=aos/concepts/runtime-modes.md" \
     --at 80,80,900,620 \
     --interactive \
     --focus >/dev/null

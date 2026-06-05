@@ -62,17 +62,17 @@ test('Sigil radial wiki action targets the current graph-first browser surface',
   const wikiItem = DEFAULT_SIGIL_RADIAL_ITEMS.find((item) => item.id === 'wiki-graph')
   const surface = sigilRadialTargetSurfaceForItem(wikiItem, {
     wikiWorkbenchCanvasId: 'sigil-wiki-workbench',
-    wikiPath: 'aos/concepts/employer-brand-workflow-map.md',
+    wikiPath: 'aos/concepts/runtime-modes.md',
   })
 
   assert.deepEqual(surface, {
     kind: 'wiki-subject-browser',
     canvas_id: 'sigil-wiki-workbench',
     subject: {
-      id: 'wiki:aos/concepts/employer-brand-workflow-map.md',
+      id: 'wiki:aos/concepts/runtime-modes.md',
       source: {
         kind: 'wiki',
-        path: 'aos/concepts/employer-brand-workflow-map.md',
+        path: 'aos/concepts/runtime-modes.md',
       },
     },
   })
