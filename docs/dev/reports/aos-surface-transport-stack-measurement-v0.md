@@ -257,14 +257,14 @@ confirms N=1. No duplicate-surface bug.
 
 **Key finding — background publishState rate:**
 
-All 915 render frames (100%) were classified `structural`. 304 of those frames
-occurred with no slider events (avatar animation frames). The render loop fires
-`publishState` unconditionally on every structural frame, and `scheduleRenderFrame`
-defaults `structural=true` (`main.js:536`). This means publishState overhead
-is driven by the render loop rate (~31/s), not just by slider events.
-
-At 60fps avatar animation, this would be ~60 publishState broadcasts/s even
-with no user input — all deletable under co-location.
+All 915 render frames (100%) were classified `structural`; only 611 of those
+are even potentially slider-driven (= the number of control_change events
+received). The remaining 304 are pure avatar animation frames, yet all 915 are
+marked structural. The render loop fires `publishState` unconditionally on every
+structural frame, and `scheduleRenderFrame` defaults `structural=true`
+(`main.js:536`). This means publishState overhead is driven by the render loop
+rate (~31/s at measured 30.6fps), not just by slider events — all of it
+deletable under co-location.
 
 ## Claims: Current Evidence
 
@@ -297,8 +297,10 @@ Render structural over-mark:
   of slider activity. The render loop classifies every frame as structural because
   `scheduleRenderFrame` defaults `structural=true` (`main.js:536`) and the avatar
   animation (mesh rotation) runs every frame. This means publishState fires at
-  the render loop rate (~31/s measured, ~60/s at full frame rate) even at rest —
-  not just on slider events.
+  the render loop rate (~31/s at the measured 30.6fps) even at rest — not just
+  on slider events. Whether 30.6fps is a ceiling under this load or an artifact
+  of the `--speed 30` event pace is unresolved; the mechanism is the same at
+  any frame rate.
 
 Scenario variants:
 
@@ -417,7 +419,10 @@ targeting the avatar owner ↔ compact panel pair as the prototype.
 
 **Phase 0 exit gate assessment:**
 
-The separation tax is **confirmed real and material**:
+The separation tax is **confirmed real**. Its volume is directly measured.
+Materiality rests on the architectural argument in (4): the traffic is
+continuous, fires regardless of slider activity, and exists solely because the
+surfaces are in separate heaps — it has no residual value after co-location.
 
 1. **Mechanism (all three items confirmed):**
    - 1 `control_change` + 1 `snapshot` per slider tick → 2 cross-canvas IPC
@@ -427,18 +432,22 @@ The separation tax is **confirmed real and material**:
    - All traffic exists only because the surfaces are in separate process heaps;
      all deletable under co-location
 
-2. **Rates (measured, not extrapolated):**
-   - Cross-canvas IPC from slider: 82.8 messages/s at measured drag speed
+2. **Rates (measured at `--speed 30`; uncalibrated against real human drag):**
+   - Cross-canvas IPC from slider: 82.8 messages/s
    - Background publishState from render loop: 31/s at 30.6fps (100% structural)
-   - At 60fps: ~120 IPC/s + 60 publishState/s from render loop alone
-   - Daemon input fan-out: 97.5 input events/s at measured drag speed
+   - Daemon input fan-out: 97.5 input events/s
+   - Note: `--speed 30` drag speed is synthetic; real human drag rates may differ
+     in absolute numbers but the mechanism is identical.
 
 3. **No duplication (N=1):** Surface Inspector does not subscribe to
    `input_event`. Stacked scenario subscriber_count=1. Fan-out multiplier
    does not compound the IPC overhead — it's already the floor.
 
-4. **The render loop finding amplifies the tax:** publishState fires at the
-   render loop rate (~31–60/s), not just on slider events. Every frame is
-   structural. This overhead exists regardless of slider activity and is
-   entirely a tax of separation — in a co-located World, this path deletes
-   itself.
+4. **The architectural materiality argument:** publishState fires at the render
+   loop rate (~31/s measured), not just on slider events. Every frame is
+   structural. This overhead exists regardless of slider activity. In a
+   co-located World, `publishState` / `snapshot` / `control_change` between the
+   owner and compact panel delete themselves entirely — the path does not exist
+   in-heap. The deletability of ~82.8 IPC/s + ~31 publishState/s under a design
+   that is already proposed and has a clear Phase 1 prototype path is the
+   materiality case.
