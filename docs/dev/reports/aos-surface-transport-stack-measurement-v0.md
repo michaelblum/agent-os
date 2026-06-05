@@ -244,37 +244,33 @@ cleanest path for native fan-out data.
 
 Input fan-out:
 
-- **Subscriber count: 1.** After the Foreman rebuild, the rebuilt daemon was
-  queried via the socket (`{v:1, service:"system", action:"ping", data:{}}`).
-  Result: `input_event.subscriber_count: 1`, sole subscriber `avatar-main`.
-  Full subscriber record:
+- **Probe verified working; bare post-restart count = 1; duplicate-surface
+  check still pending.** After the Foreman rebuild, the rebuilt daemon was
+  queried immediately after restart via the socket
+  (`{v:1, service:"system", action:"ping", data:{}}`). The probe infrastructure
+  is confirmed live. The raw result was:
   ```json
   {
     "subscriber_count": 1,
-    "subscribers": [
-      {
-        "canvas_id": "avatar-main",
-        "events": ["canvas_inspector.semantic_targets", "canvas_lifecycle",
-                   "canvas_message", "display_geometry", "element_focused",
-                   "input_event", "window_entered"],
-        "input_event": true
-      }
-    ],
+    "subscribers": [{ "canvas_id": "avatar-main", "input_event": true }],
     "deliveries_total_by_canvas": {},
     "deliveries_last_1s_by_canvas": {},
     "last_fanout_targets": []
   }
   ```
-  **No duplicate surfaces.** The "duplicate Avatar/Sigil surfaces" concern from
-  the handoff doc is not present in this scenario. Fan-out N=1, not N=2+.
-  Note: this snapshot was taken immediately after daemon restart, before Surface
-  Inspector was opened. In the full stacked scenario (Surface Inspector +
-  avatar), the count may be 2 if Surface Inspector also subscribes to
-  `input_event`. That scenario was not reached because the rebuild triggered a
-  TCC permission reset (see Status above).
+  **This N=1 does NOT answer the duplicate-surface question.** The ping ran on
+  an idle daemon moments after restart; `deliveries_total_by_canvas: {}` and
+  `last_fanout_targets: []` confirm zero input ever flowed. The handoff's
+  duplicate-surface check (§4.2) is specifically about whether the *stacked
+  scenario* (Surface Inspector + avatar + panel) spins up duplicate subscribers.
+  An idle post-restart daemon trivially yields N=1 regardless of whether
+  duplicates exist in the full scenario.
+  **Still needed:** re-run the ping with Surface Inspector and avatar both open
+  (full stacked scenario) to confirm the duplicate-surface hypothesis.
 - Delivery rate: not yet measured with real native input. Panel suspension
-  blocked CGEvent drag; JS-simulated events never traverse the daemon fan-out
-  path.
+  blocked CGEvent drag in this session; JS-simulated events never traverse the
+  daemon fan-out path. The probe's `deliveries_last_1s_by_canvas` field is
+  designed to capture this — sample it before and after a real drag.
 
 Panel snapshot chattiness:
 
@@ -307,35 +303,58 @@ To complete the rate measurement with real mouse input and native fan-out data,
 run the following in an active AOS session with a real agent session providing
 avatar vitality:
 
+**PRECONDITION (critical):** The compact panel canvas
+`sigil-avatar-controls-avatar-main` is `lifecycleState: "suspended"` unless
+there is a live agent session running (agent vitality > 0 → `avatarVisible`
+true). Without a live session, `liveJs.avatarVisible = true` makes the avatar
+render but the panel is still force-suspended — OS mouse events will not reach
+the slider. You need an actual running agent session, not a force-visible workaround.
+
 ```
 You are an Operator running Phase 0 of the AOS One-World measurement.
 Branch: surface-world-architecture.
 
+PRECONDITION: a live agent session must be running (avatar visible via real
+vitality, not force-visible hack). Verify: ./aos show get --id avatar-main
+should show lifecycleState "active", not "suspended".
+
 1. Activate sigil experience roots:
    ./aos experience activate sigil
 
-2. Confirm avatar-main is running and avatar is visible.
+2. Confirm avatar-main is active (not suspended):
+   ./aos show get --id avatar-main
 
 3. Right-click the avatar to open the compact panel.
    The panel should show the mother-scale slider.
 
-4. Enable both probes:
+4. Confirm the panel is NOT suspended:
+   ./aos show get --id sigil-avatar-controls-avatar-main
+   (lifecycleState should be "active")
+
+5. Enable and reset both probes:
    ./aos show eval --id avatar-main --js 'window.__sigilDebug.surfaceTransportProbe.enable(); window.__sigilDebug.surfaceTransportProbe.reset()'
    ./aos show eval --id sigil-avatar-controls-avatar-main --js 'window.__sigilAvatarPanelDebug.surfaceTransportProbe.enable(); window.__sigilAvatarPanelDebug.surfaceTransportProbe.reset()'
 
-5. Drag the mother-scale slider with the real mouse for exactly 5 seconds.
-   The slider is in the compact panel. The panel canvas id is
-   sigil-avatar-controls-avatar-main.
-   Check its on-screen position with:
-   ./aos show get --id sigil-avatar-controls-avatar-main
+6. Also open Surface Inspector if available (stacked scenario):
+   The subscriber_count should be >= 2 in that case.
 
-6. Capture results:
+7. Capture a baseline ping BEFORE dragging:
+   echo '{"v":1,"service":"system","action":"ping","data":{}}' | nc -U ~/.config/aos/repo/sock
+   Record: input_event.subscriber_count, deliveries_total_by_canvas (should all be 0).
+
+8. Drag the mother-scale slider with the real mouse for exactly 5 seconds.
+
+9. Immediately capture results:
    ./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug.surfaceTransportProbe.snapshot({windowMs: 5000}))'
    ./aos show eval --id sigil-avatar-controls-avatar-main --js 'JSON.stringify(window.__sigilAvatarPanelDebug.surfaceTransportProbe.snapshot({windowMs: 5000}))'
-   ./aos show ping
+   echo '{"v":1,"service":"system","action":"ping","data":{}}' | nc -U ~/.config/aos/repo/sock
 
-7. Record: control_change/s, snapshot/s, structural_frames/s, publishState/s,
-   and (from ./aos show ping) input_event.subscriber_count.
+10. Record:
+    - From panel probe: control_change/s, snapshot/s
+    - From owner probe: structural_frames/s, publishState/s, total frames/s
+    - From ping (post-drag): input_event.subscriber_count, deliveries_total_by_canvas
+      (this is the native fan-out count; deliveries_last_1s_by_canvas shows the
+      rate at the moment of capture)
 
 Update docs/dev/reports/aos-surface-transport-stack-measurement-v0.md with the
 numbers. That completes Phase 0.
@@ -373,12 +392,19 @@ Not yet achieved:
 
 **Immediate (requires human):** TCC regrant.
 
-```bash
-./aos permissions reset-runtime --mode repo
-```
+The daemon is stopped. `./aos permissions reset-runtime --mode repo` was already
+run; the binary hash changed after rebuild so macOS revoked TCC.
 
-This opens System Settings → Privacy & Security. Re-allow `aos` under both
-Accessibility and Input Monitoring, then re-run `./aos ready --json` to confirm.
+In System Settings → Privacy & Security:
+1. **Accessibility:** find `aos` (path `/Users/Michael/Code/agent-os/aos`),
+   **REMOVE** it, then **re-ADD** it (toggle alone may not clear the stale hash).
+2. **Input Monitoring:** same — REMOVE then re-ADD `aos`.
+
+Then restart the daemon and verify:
+```bash
+./aos service start --mode repo
+./aos ready --json   # expect ready: true
+```
 
 **After regrant:** Run the Operator Prompt scenario (see above) for native-rate
 drag data and full-stacked subscriber count. Those numbers complete the Phase 0
