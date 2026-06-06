@@ -3,7 +3,7 @@
 ## Routing Status
 
 Ready for GDI dispatch from local `main` at
-`873a58061987c92e36e285cd85da33274dca7e83`.
+`6d2c4fef264437948db93f8eda38bca7d5ee08a2`.
 
 This is AOS One-World/toolkit substrate work validated through the current Sigil
 surface. Treat `apps/sigil/...` paths as the proving experience for platform
@@ -25,7 +25,10 @@ adoption, not as standalone Sigil product feature work.
 ## Branch / Base
 
 - `branch_from`: local `main`
-- `required_start_ref`: `873a58061987c92e36e285cd85da33274dca7e83`
+- `required_start_ref`: `6d2c4fef264437948db93f8eda38bca7d5ee08a2`
+- prerequisite checkpoint:
+  `873a58061987c92e36e285cd85da33274dca7e83` records the Phase 3
+  framing/live-acceptance docs update.
 - `origin/main`: may still be behind this local documentation checkpoint. Do not
   start from `origin/main` unless Foreman has pushed or restated the base.
 - `expected_output_branch`: `gdi/aos-one-world-scheduler-adoption-v0`
