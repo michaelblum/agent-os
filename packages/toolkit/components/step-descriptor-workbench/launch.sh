@@ -70,7 +70,8 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest step-descriptor-workbench \
   --js 'typeof window.__stepDescriptorWorkbenchState === "object" && document.querySelector("[data-aos-ref=\"step-descriptor-workbench-v0:root\"]")' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 CONTENT_JSON="$(STEP_DESCRIPTOR_FIXTURE="$STEP_DESCRIPTOR_FIXTURE" EVIDENCE_FIXTURE="$EVIDENCE_FIXTURE" TOOLKIT_CONTENT_ROOT="$TOOLKIT_CONTENT_ROOT" WORK_RECORD_CANVAS_ID="$WORK_RECORD_CANVAS_ID" python3 -c '
 import json
@@ -95,7 +96,8 @@ print(json.dumps({
   --id "$CANVAS_ID" \
   --manifest step-descriptor-workbench \
   --js 'window.__stepDescriptorWorkbenchState?.fixture_loaded === true && window.__stepDescriptorWorkbenchState?.step_summary?.id === "step-descriptor:browser-click-status"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Step Descriptor Workbench V0 launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"

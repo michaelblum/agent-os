@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+blocker="${1:-}"
+
+if [[ -z "$blocker" && ! -t 0 ]]; then
+  input="$(cat)"
+  blocker="$(printf '%s' "$input" | python3 -c '
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+for key in ("blocker", "diagnosis", "code"):
+    value = payload.get(key)
+    if isinstance(value, str) and value:
+        print(value)
+        raise SystemExit(0)
+verdict = payload.get("runtime_verdict") if isinstance(payload, dict) else None
+if isinstance(verdict, dict):
+    blockers = verdict.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        value = blockers[0].get("id") if isinstance(blockers[0], dict) else None
+        if isinstance(value, str) and value:
+            print(value)
+            raise SystemExit(0)
+    value = verdict.get("diagnosis")
+    if isinstance(value, str) and value:
+        print(value)
+')"
+fi
+
+case "$blocker" in
+  daemon_unmanaged|stale_daemons|daemon_unreachable|socket_unreachable|input_tap_not_active|accessibility|screen_recording|listen_access|post_access)
+    ;;
+  daemon_socket_unreachable)
+    blocker="socket_unreachable"
+    ;;
+  input_monitoring_listen)
+    blocker="listen_access"
+    ;;
+  input_monitoring_post)
+    blocker="post_access"
+    ;;
+  ""|TCC|tcc|permission|permissions)
+    blocker="accessibility"
+    ;;
+  *)
+    blocker="daemon_unreachable"
+    ;;
+esac
+
+echo "human_needed: $blocker"
+echo
+echo "GDI must stop the current goal loop here. Do not keep retrying live checks."
+echo
+
+case "$blocker" in
+  accessibility|screen_recording|listen_access|post_access)
+    cat <<'EOF'
+Human action:
+1. Return this blocker to Foreman.
+2. Foreman decides whether Michael needs to physically remove and re-add the
+   repo-mode AOS runtime in Accessibility, Input Monitoring, and Screen &
+   System Audio Recording if the grant is stale or missing.
+3. Do not run permission reset, Settings-open, rebuild, or readiness-repair loops.
+EOF
+    ;;
+  daemon_unmanaged)
+    cat <<'EOF'
+Human action:
+1. Return the unmanaged daemon owner PID and command line to Foreman.
+2. Foreman decides whether to clean or terminate the owner.
+3. Do not run TCC reset, Settings-open, service restart, or readiness-repair loops.
+EOF
+    ;;
+  stale_daemons)
+    cat <<'EOF'
+Human action:
+1. Return the stale daemon list to Foreman.
+2. Foreman decides whether cleanup owns the stale resources.
+3. Do not run TCC reset or service restart loops.
+EOF
+    ;;
+  *)
+    cat <<'EOF'
+Human action:
+1. Return this runtime blocker to Foreman.
+2. Foreman decides whether live-start permission, cleanup, or a separate runtime repair is appropriate.
+3. Do not run TCC reset, Settings-open, service restart, or readiness-repair loops.
+EOF
+    ;;
+esac

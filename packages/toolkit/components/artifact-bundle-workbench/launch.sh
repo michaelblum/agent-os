@@ -64,7 +64,8 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest artifact-bundle-workbench \
   --js 'typeof window.__artifactBundleWorkbenchState === "object" && document.querySelector("[data-aos-ref=\"artifact-bundle-workbench:root\"]")' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 CONTENT_JSON="$(SUBJECT_FIXTURE="$SUBJECT_FIXTURE" REPO_CONTENT_ROOT="$REPO_CONTENT_ROOT" ROOT="$ROOT" python3 -c '
 import json
@@ -96,7 +97,8 @@ print(json.dumps({
   --id "$CANVAS_ID" \
   --manifest artifact-bundle-workbench \
   --js 'window.__artifactBundleWorkbenchState?.subject?.subject_type === "aos.artifact_bundle" && window.__artifactBundleWorkbenchState?.last_result?.status === "opened"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Artifact Bundle Workbench launched at ${X},${Y} (${W}x${H})"
 echo "Canvas: $CANVAS_ID"

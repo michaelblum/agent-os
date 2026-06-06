@@ -25,11 +25,12 @@ fi
 sleep 0.2
 "$AOS" ready --json >/dev/null
 "$AOS" config set content.roots.toolkit "$ROOT/packages/toolkit" >/dev/null
-"$AOS" content wait --root toolkit --auto-start --timeout 15s >/dev/null
+"$AOS" content wait --root toolkit --auto-start --allow-start --timeout 15s >/dev/null
 
 create_wiki_workbench() {
   "$AOS" show create \
     --id "$WIKI_ID" \
+    --allow-start \
     --url "aos://toolkit/components/wiki-subject-browser/index.html?wiki=aos/concepts/runtime-modes.md" \
     --at 80,80,900,620 \
     --interactive \

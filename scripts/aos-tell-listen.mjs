@@ -44,6 +44,10 @@ function autoStartDisabled() {
   return ['1', 'true', 'yes', 'on'].includes(value);
 }
 
+function autoStartAllowed() {
+  return process.env.AOS_ALLOW_DAEMON_AUTOSTART === '1';
+}
+
 function connectOnce(timeoutMs = 1000) {
   return new Promise((resolve) => {
     const socket = net.createConnection(socketPath());
@@ -91,6 +95,10 @@ async function connectWithAutoStart(options = {}) {
   if (socket) return { socket, daemon: null };
   if (autoStartDisabled()) {
     process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
+    return null;
+  }
+  if (!autoStartAllowed()) {
+    process.stderr.write('ipc: daemon auto-start requires AOS_ALLOW_DAEMON_AUTOSTART=1\n');
     return null;
   }
   const daemon = startDaemon(options);

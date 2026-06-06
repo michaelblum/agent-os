@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
 
 class ExperienceFailure extends Error {
   constructor(message, code) {
@@ -229,11 +230,13 @@ function parseArgs(argv) {
   const [subcommand, ...tail] = argv;
   let json = false;
   let dryRun = false;
+  let allowStart = false;
   const extra = [];
   let id = null;
   for (const arg of tail) {
     if (arg === '--json') json = true;
     else if (arg === '--dry-run') dryRun = true;
+    else if (arg === '--allow-start') allowStart = true;
     else if (arg.startsWith('--')) throw new ExperienceFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
     else if (subcommand === 'activate' && id === null) id = arg;
     else extra.push(arg);
@@ -243,7 +246,7 @@ function parseArgs(argv) {
   }
   if (subcommand === 'activate' && !id) throw new ExperienceFailure('Usage: aos experience activate <id> [--json] [--dry-run]', 'MISSING_ARG');
   if (extra.length) throw new ExperienceFailure(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
-  return { subcommand, id, json, dryRun };
+  return { subcommand, id, json, dryRun, allowStart };
 }
 
 function vanillaFallback() {
@@ -295,7 +298,16 @@ function plan(manifest, roots, dryRun) {
   };
 }
 
-function ensureContentRoots(roots, steps) {
+function requireLivePermission(operationId, allowStart) {
+  const guarded = guardedLiveOperation({ operationId, allowStart, mode, prefix: aos });
+  if (!guarded.ok) {
+    emitJSON(guarded.failure, true);
+    process.exit(1);
+  }
+  return guarded.preflight;
+}
+
+function ensureContentRoots(roots, steps, allowStart) {
   const removedRoots = reconcileExperienceContentRoots(roots);
   if (removedRoots.length > 0) {
     steps.push({ id: 'content-root:reconcile', status: 'success', removed: removedRoots });
@@ -305,12 +317,13 @@ function ensureContentRoots(roots, steps) {
     steps.push({ id: `content-root:${root.key}`, status: 'success', path: root.path });
   }
   if (!rootsLive(roots)) {
+    requireLivePermission('experience.content-roots', allowStart);
     runAos(['service', 'restart', '--mode', mode]);
     steps.push({ id: 'service:restart', status: 'success', reason: 'content-roots-not-live' });
   }
   const args = ['content', 'wait'];
   for (const root of roots) args.push('--root', root.key);
-  args.push('--auto-start', '--timeout', '15s');
+  args.push('--auto-start', '--allow-start', '--timeout', '15s');
   requireSuccess(runAos(args), 'wait for content roots');
   steps.push({ id: 'content:wait', status: 'success', roots: roots.map((root) => root.key) });
 }
@@ -384,7 +397,7 @@ function runHooks(manifest, phase, roots, steps) {
   }
 }
 
-function activate(id, asJSON, dryRun) {
+function activate(id, asJSON, dryRun, allowStart) {
   const manifest = discoverExperience(id);
   const roots = resolveContentRoots(manifest);
   const planned = plan(manifest, roots, dryRun);
@@ -394,7 +407,8 @@ function activate(id, asJSON, dryRun) {
     return;
   }
   const steps = [];
-  ensureContentRoots(roots, steps);
+  requireLivePermission('experience.activate', allowStart);
+  ensureContentRoots(roots, steps, allowStart);
   runHooks(manifest, 'before_activate', roots, steps);
   configureStatusItem(manifest, roots, steps);
   writeActiveExperience(manifest.id);
@@ -447,7 +461,7 @@ function deactivate(asJSON, dryRun) {
 try {
   const args = parseArgs(process.argv.slice(2));
   if (args.subcommand === 'status') status(args.json);
-  else if (args.subcommand === 'activate') activate(args.id, args.json, args.dryRun);
+  else if (args.subcommand === 'activate') activate(args.id, args.json, args.dryRun, args.allowStart);
   else deactivate(args.json, args.dryRun);
 } catch (err) {
   if (err instanceof ExperienceFailure) fail(err.message, err.code);

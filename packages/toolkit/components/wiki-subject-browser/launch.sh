@@ -74,13 +74,15 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest wiki-subject-browser-v0 \
   --js 'window.__wikiSubjectBrowserState?.graph_first === true && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:root\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-search\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-filters\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-filter:health\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-details\"]")' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 "$AOS" show wait \
   --id "$CANVAS_ID" \
   --manifest wiki-subject-browser-v0 \
   --js 'document.querySelector(".wiki-kb-status")?.textContent?.includes("nodes")' \
-  --timeout 10s >/dev/null || true
+  --timeout 10s \
+  --json >/dev/null || true
 
 if [[ -f "$WORK_RECORD_FIXTURE" || -f "$ARTIFACT_BUNDLE_FIXTURE" ]]; then
   CATALOG_JSON="$(ROOT="$ROOT" WORK_RECORD_FIXTURE="$WORK_RECORD_FIXTURE" ARTIFACT_BUNDLE_FIXTURE="$ARTIFACT_BUNDLE_FIXTURE" REPO_CONTENT_ROOT="$REPO_CONTENT_ROOT" node --input-type=module <<'NODE'
@@ -133,12 +135,14 @@ NODE
     --id "$CANVAS_ID" \
     --manifest wiki-subject-browser-v0 \
     --js 'window.__wikiSubjectBrowserState?.catalog_entries?.length > 0 && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-catalog:open:work-record-aos-browser-click-status-2026-05-06\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:inspect:work-record-aos-browser-click-status-2026-05-06\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:open:work-record-aos-browser-click-status-2026-05-06\"]")' \
-    --timeout 5s >/dev/null || true
+    --timeout 5s \
+    --json >/dev/null || true
   "$AOS" show wait \
     --id "$CANVAS_ID" \
     --manifest wiki-subject-browser-v0 \
     --js 'window.__wikiSubjectBrowserState?.catalog_entries?.some((entry) => entry.subject?.id === "artifact-bundle:example-design-pass") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-catalog:open:artifact-bundle-example-design-pass\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:inspect:artifact-bundle-example-design-pass\"]") && document.querySelector("[data-aos-ref=\"wiki-subject-browser-v0:subject-list:open:artifact-bundle-example-design-pass\"]")' \
-    --timeout 5s >/dev/null || true
+    --timeout 5s \
+    --json >/dev/null || true
 fi
 
 if [[ -n "$WIKI_PATH" ]]; then

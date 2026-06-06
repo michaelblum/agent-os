@@ -54,33 +54,53 @@ for index in range(0, len(pairs), 2):
 aos_ensure_content_roots_live() {
   local aos_bin="$1"
   shift
+  local allow_start="false"
+  local root_path_pairs=()
+  local wait_args=()
+
+  if [[ "${1:-}" == "--allow-start" ]]; then
+    allow_start="true"
+    shift
+  fi
 
   if [ $(( $# % 2 )) -ne 0 ]; then
     echo "aos_ensure_content_roots_live requires root/path pairs" >&2
     return 2
   fi
 
-  if ! aos_content_roots_live "$aos_bin" "$@"; then
+  root_path_pairs=("$@")
+  while [ "$#" -gt 0 ]; do
+    wait_args+=(--root "$1")
+    shift 2
+  done
+  set -- "${wait_args[@]}"
+
+  if ! aos_content_roots_live "$aos_bin" "${root_path_pairs[@]}"; then
     (
+      set -- "${root_path_pairs[@]}"
       while [ "$#" -gt 0 ]; do
-        "$aos_bin" set "content.roots.$1" "$2" >/dev/null || exit $?
+        "$aos_bin" set "content.roots.$1" "$2" >/dev/null 2>/dev/null || exit $?
         shift 2
       done
     ) || return $?
   fi
 
-  if ! aos_content_roots_live "$aos_bin" "$@"; then
-    if [[ -n "${AOS_STATE_ROOT:-}" ]]; then
-      echo "Waiting for isolated daemon scoped content roots to become live." >&2
-    else
-      echo "Refreshing repo daemon so scoped content roots are live." >&2
-      "$aos_bin" service restart --mode repo >/dev/null
+  if ! aos_content_roots_live "$aos_bin" "${root_path_pairs[@]}"; then
+    if [[ "$allow_start" != "true" ]]; then
+      "$aos_bin" content wait "$@" --timeout 3s --json >/dev/null
+      return $?
     fi
+    echo "Refreshing repo daemon so scoped content roots are live." >&2
+    "$aos_bin" service restart --mode repo >/dev/null
   fi
 
   (
     while [ "$#" -gt 0 ]; do
-      "$aos_bin" content wait --root "$1" --auto-start --timeout 15s >/dev/null || exit $?
+      if [[ "$allow_start" == "true" ]]; then
+        "$aos_bin" content wait "$1" "$2" --auto-start --allow-start --timeout 15s --json >/dev/null || exit $?
+      else
+        "$aos_bin" content wait "$1" "$2" --timeout 15s --json >/dev/null || exit $?
+      fi
       shift 2
     done
   )

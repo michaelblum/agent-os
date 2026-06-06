@@ -84,7 +84,8 @@ read -r X Y W H <<<"$GEOMETRY"
   --id "$CANVAS_ID" \
   --manifest html-file-workbench \
   --js 'typeof window.__htmlFileWorkbenchState === "object"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 CONTENT_JSON="$(TARGET_FILE="$TARGET_FILE" python3 -c '
 import json, os, pathlib

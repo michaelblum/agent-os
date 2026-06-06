@@ -4,15 +4,6 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
 cd "$repo_root"
 
-echo "human_needed: TCC reset needed"
-echo
-echo "GDI must stop the current goal loop here. Do not keep retrying live checks."
-echo
-cat <<'EOF'
-This helper intentionally does not reset TCC, open System Settings, write hook
-markers, or start AOS.
-
-Return this blocker to Foreman. Foreman owns repo-mode binary rebuilds and will
-tell Michael exactly when the repo-mode AOS runtime needs to be removed and
-re-added in macOS TCC.
-EOF
+# Compatibility entrypoint. Migrate in-repo work cards/helpers to
+# human-needed-runtime-blocker once they can pass the actual runtime verdict.
+exec .docks/gdi/scripts/human-needed-runtime-blocker "${1:-accessibility}"

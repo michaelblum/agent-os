@@ -10,7 +10,7 @@ if [ "$#" -lt 1 ]; then
 fi
 
 for canvas_id in "$@"; do
-  "$AOS" show wait --id "$canvas_id" --timeout 10s >/dev/null
+  "$AOS" show wait --id "$canvas_id" --timeout 10s --json >/dev/null
 done
 
 python3 - "$AOS" "$@" <<'PY'

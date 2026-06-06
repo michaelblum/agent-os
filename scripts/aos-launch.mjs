@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { guardedLiveOperation } from './lib/aos-live-operation.mjs';
 
 class LaunchFailure extends Error {
   constructor(message, code) {
@@ -58,17 +59,19 @@ function requireSuccess(result, summary) {
 function parseArgs(argv) {
   let json = false;
   let dryRun = false;
+  let allowStart = false;
   const positional = [];
   for (const arg of argv) {
     if (arg === '--json') json = true;
     else if (arg === '--dry-run') dryRun = true;
+    else if (arg === '--allow-start') allowStart = true;
     else if (arg.startsWith('--')) throw new LaunchFailure(`Unknown flag: ${arg}`, 'UNKNOWN_FLAG');
     else positional.push(arg);
   }
   const [app, entry, ...extra] = positional;
   if (!app) throw new LaunchFailure('Usage: aos launch <app> [entry] [--json] [--dry-run]', 'MISSING_ARG');
   if (extra.length) throw new LaunchFailure(`Unexpected argument: ${extra[0]}`, 'UNKNOWN_ARG');
-  return { app, entry, json, dryRun };
+  return { app, entry, json, dryRun, allowStart };
 }
 
 function readJSON(file) {
@@ -181,18 +184,28 @@ function rootsLive(roots) {
   return roots.every((root) => live[root.key] && norm(live[root.key]) === norm(root.path));
 }
 
-function ensureContentRoots(roots, steps) {
+function requireLivePermission(operationId, allowStart) {
+  const guarded = guardedLiveOperation({ operationId, allowStart, mode, prefix: aos });
+  if (!guarded.ok) {
+    emitJSON(guarded.failure, true);
+    process.exit(1);
+  }
+  return guarded.preflight;
+}
+
+function ensureContentRoots(roots, steps, allowStart) {
   for (const root of roots) {
     requireSuccess(runAos(['set', `content.roots.${root.key}`, root.path]), `set content root ${root.key}`);
     steps.push({ id: `content-root:${root.key}`, status: 'success', path: root.path });
   }
   if (!rootsLive(roots)) {
+    requireLivePermission('launch.content-roots', allowStart);
     runAos(['service', 'restart', '--mode', mode]);
     steps.push({ id: 'service:restart', status: 'success', reason: 'content-roots-not-live' });
   }
   const args = ['content', 'wait'];
   for (const root of roots) args.push('--root', root.key);
-  args.push('--auto-start', '--timeout', '15s');
+  args.push('--auto-start', '--allow-start', '--timeout', '15s');
   requireSuccess(runAos(args), 'wait for content roots');
   steps.push({ id: 'content:wait', status: 'success', roots: roots.map((root) => root.key) });
 }
@@ -385,7 +398,7 @@ function plan(manifest, entryName, roots) {
   };
 }
 
-function launch(manifest, entryName, roots, asJSON, dryRun) {
+function launch(manifest, entryName, roots, asJSON, dryRun, allowStart) {
   const rootsByID = rootMap(roots);
   const entriesToRun = entryClosure(manifest.entries, entryName);
   const planned = plan(manifest, entryName, roots);
@@ -397,7 +410,8 @@ function launch(manifest, entryName, roots, asJSON, dryRun) {
 
   const steps = [];
   const context = { rootsByID };
-  ensureContentRoots(roots, steps);
+  requireLivePermission('launch.activate', allowStart);
+  ensureContentRoots(roots, steps, allowStart);
   configureStatusItem(manifest, manifest.entries, rootsByID, steps);
   requireSuccess(runAos(['service', 'start', '--mode', mode]), 'start service');
   steps.push({ id: 'service:start', status: 'success' });
@@ -430,7 +444,7 @@ try {
   const entry = args.entry || manifest.default_entry;
   if (!manifest.entries[entry]) throw new LaunchFailure(`Unknown launch entry: ${entry}`, 'UNKNOWN_ENTRY');
   const roots = resolveContentRoots(manifest);
-  launch(manifest, entry, roots, args.json, args.dryRun);
+  launch(manifest, entry, roots, args.json, args.dryRun, args.allowStart);
 } catch (err) {
   if (err instanceof LaunchFailure) fail(err.message, err.code);
   fail(err?.message || String(err), 'INTERNAL');

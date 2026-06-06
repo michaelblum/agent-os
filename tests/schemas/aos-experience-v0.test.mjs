@@ -86,6 +86,7 @@ process.exit(0);
     AOS_PATH: fakeAos,
     AOS_STATE_ROOT: tmp,
     AOS_RUNTIME_MODE: 'repo',
+    AOS_BYPASS_PREFLIGHT: '1',
     FAKE_AOS_LOG: logPath,
   };
   await fs.writeFile(path.join(tmp, 'experience-state.json'), JSON.stringify({ active_experience: 'legacy-sigil', exclusive: true }));
@@ -157,6 +158,7 @@ process.exit(0);
     '--root',
     sigilRoot,
     '--auto-start',
+    '--allow-start',
     '--timeout',
     '15s',
   ].join('\0')), calls);

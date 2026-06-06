@@ -52,6 +52,10 @@ function autoStartDisabled() {
   return ['1', 'true', 'yes', 'on'].includes(process.env.AOS_DISABLE_DAEMON_AUTOSTART?.toLowerCase());
 }
 
+function autoStartAllowed() {
+  return process.env.AOS_ALLOW_DAEMON_AUTOSTART === '1';
+}
+
 function parsePair(value, message) {
   const parts = String(value).split(',').map(Number);
   if (parts.length < 2 || parts.some((part) => !Number.isFinite(part))) error(message, 'INVALID_ARG');
@@ -179,6 +183,10 @@ async function connectWithAutoStart() {
   if (socket) return socket;
   if (autoStartDisabled()) {
     process.stderr.write('ipc: daemon auto-start disabled by AOS_DISABLE_DAEMON_AUTOSTART\n');
+    return null;
+  }
+  if (!autoStartAllowed()) {
+    process.stderr.write('ipc: daemon auto-start requires AOS_ALLOW_DAEMON_AUTOSTART=1\n');
     return null;
   }
   startDaemon();

@@ -82,8 +82,8 @@
         },
         {
           "id": "show-wait",
-          "command": "./aos show wait --id <canvas-id> --timeout 5s",
-          "reason": "When manually verifying a canvas-backed component, wait for the affected canvas instead of rebuilding the binary."
+          "command": "./aos show wait --id <canvas-id> --json --timeout 15s",
+          "reason": "When manually verifying a canvas-backed component, use diagnostic JSON waits so timeout failures include runtime verdict detail."
         }
       ]
     },

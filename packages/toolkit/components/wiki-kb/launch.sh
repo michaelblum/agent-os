@@ -65,7 +65,8 @@ Y=$((DISPLAY_Y + (DISPLAY_H - PANEL_H) / 2))
   --id "$CANVAS_ID" \
   --manifest wiki-kb \
   --js '!!document.querySelector(".wiki-kb-status") && document.querySelector(".wiki-kb-layout-mode-button.active")?.dataset.layoutMode === "graph"' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 EVENT_CONTENT="$(cat "$EVENT_FILE")"
 "$AOS" show post --id "$CANVAS_ID" --event "$EVENT_CONTENT" >/dev/null
@@ -74,7 +75,8 @@ EVENT_CONTENT="$(cat "$EVENT_FILE")"
   --id "$CANVAS_ID" \
   --manifest wiki-kb \
   --js 'document.querySelector(".wiki-kb-status")?.textContent.includes("5 nodes") && document.querySelector(".wiki-kb-status")?.textContent.includes("6 links")' \
-  --timeout 5s >/dev/null
+  --timeout 5s \
+  --json >/dev/null
 
 echo "Wiki KB demo launched at ${X},${Y} (${PANEL_W}x${PANEL_H})"
 echo "Canvas: $CANVAS_ID"

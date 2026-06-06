@@ -268,7 +268,7 @@ fi
 rm -rf "$SETUP_ROOT"
 
 LISTEN_ROOT="$(mktemp -d)"
-if AOS_STATE_ROOT="$LISTEN_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos show listen >/tmp/aos-show-listen-cleanup.out 2>/tmp/aos-show-listen-cleanup.err < /dev/null; then
+if AOS_STATE_ROOT="$LISTEN_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos show listen >/tmp/aos-show-listen-cleanup.out 2>/tmp/aos-show-listen-cleanup.err < /dev/null; then
     sleep 1
     if SOCK="$LISTEN_ROOT/repo/sock" node - <<'NODE'
 const net = require('node:net');
@@ -336,6 +336,7 @@ async function main() {
       AOS_STATE_ROOT: root,
       AOS_RUNTIME_MODE: 'repo',
       AOS_PATH: process.env.AOS_BIN,
+      AOS_ALLOW_DAEMON_AUTOSTART: '1',
     },
     stdio: ['pipe', fs.openSync(out, 'a'), fs.openSync(err, 'a')],
   });
@@ -388,6 +389,7 @@ const child = spawn(process.env.AOS_BIN, ['show', 'listen'], {
     AOS_STATE_ROOT: process.env.ROOT,
     AOS_RUNTIME_MODE: 'repo',
     AOS_PATH: process.env.AOS_BIN,
+    AOS_ALLOW_DAEMON_AUTOSTART: '1',
   },
   stdio: 'ignore',
 });
@@ -616,10 +618,10 @@ cleanup_isolated_daemon() {
     fi
 }
 trap 'cleanup_isolated_daemon "$COMM_ROOT"; rm -rf "$COMM_ROOT" "$COMM_REGISTER" "$COMM_WHO" "$COMM_SEND" "$COMM_READ"' EXIT
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --register --session-id external-dispatch-session --name external-dispatch --role worker --harness test >"$COMM_REGISTER" 2>/dev/null
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell --who >"$COMM_WHO" 2>/dev/null
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos tell external-dispatch "hello from external dispatch" >"$COMM_SEND" 2>/dev/null
-AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" ./aos listen external-dispatch --limit 5 >"$COMM_READ" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell --register --session-id external-dispatch-session --name external-dispatch --role worker --harness test >"$COMM_REGISTER" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell --who >"$COMM_WHO" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos tell external-dispatch "hello from external dispatch" >"$COMM_SEND" 2>/dev/null
+AOS_STATE_ROOT="$COMM_ROOT" AOS_RUNTIME_MODE=repo AOS_PATH="$PWD/aos" AOS_ALLOW_DAEMON_AUTOSTART=1 ./aos listen external-dispatch --limit 5 >"$COMM_READ" 2>/dev/null
 if COMM_REGISTER="$COMM_REGISTER" COMM_WHO="$COMM_WHO" COMM_SEND="$COMM_SEND" COMM_READ="$COMM_READ" python3 - <<'PY'
 import json
 import os

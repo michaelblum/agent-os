@@ -5,9 +5,15 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { guardedLiveOperation, runtimeFailurePayload } from './lib/aos-live-operation.mjs';
 
 function prettyError(message, code) {
   process.stderr.write(`{\n  "code" : "${code}",\n  "error" : "${message}"\n}\n`);
+  process.exit(1);
+}
+
+function prettyFailure(payload) {
+  process.stderr.write(`${JSON.stringify(payload, null, 2)}\n`);
   process.exit(1);
 }
 
@@ -179,7 +185,7 @@ async function statusCommand(args) {
 }
 
 function parseWaitArgs(args) {
-  const options = { roots: [], timeoutMs: 10000, autoStart: false, json: false };
+  const options = { roots: [], timeoutMs: 10000, autoStart: false, allowStart: false, json: false };
   for (let i = 0; i < args.length;) {
     const arg = args[i];
     if (arg === '--root') {
@@ -194,6 +200,8 @@ function parseWaitArgs(args) {
       options.timeoutMs = Math.floor(seconds * 1000);
     } else if (arg === '--auto-start') {
       options.autoStart = true;
+    } else if (arg === '--allow-start') {
+      options.allowStart = true;
     } else if (arg === '--json') {
       options.json = true;
     } else {
@@ -206,8 +214,35 @@ function parseWaitArgs(args) {
 
 async function waitCommand(args) {
   const options = parseWaitArgs(args);
-  const socket = await connectWithAutoStart(options.autoStart);
-  if (!socket) prettyError("Cannot connect to daemon — is 'aos serve' running?", options.autoStart ? 'CONNECT_ERROR' : 'NO_DAEMON');
+  const permitStart = Boolean(options.autoStart && (options.allowStart || process.env.AOS_ALLOW_DAEMON_AUTOSTART === '1'));
+  if (options.autoStart && !permitStart) {
+    const guarded = guardedLiveOperation({ operationId: 'content.wait', allowStart: false, mode: runtimeMode(), prefix: aosPath() });
+    prettyFailure(runtimeFailurePayload({
+      operationId: 'content.wait',
+      condition: { roots: options.roots, auto_start_requested: true, allow_start: false },
+      timeoutMs: options.timeoutMs,
+      verdict: guarded.preflight,
+      prefix: aosPath(),
+      code: 'LIVE_START_NOT_ALLOWED',
+      error: '--auto-start requires explicit --allow-start for content wait.',
+    }));
+  }
+  const socket = await connectWithAutoStart(permitStart);
+  if (!socket) {
+    if (options.json) {
+      const guarded = guardedLiveOperation({ operationId: 'content.wait', allowStart: false, mode: runtimeMode(), prefix: aosPath() });
+      prettyFailure(runtimeFailurePayload({
+        operationId: 'content.wait',
+        condition: { roots: options.roots, auto_start_allowed: permitStart },
+        timeoutMs: options.timeoutMs,
+        verdict: guarded.preflight,
+        prefix: aosPath(),
+        code: permitStart ? 'CONNECT_ERROR' : 'NO_DAEMON',
+        error: permitStart ? 'Cannot connect to daemon after allowed auto-start.' : 'Cannot connect to daemon; auto-start is not allowed.',
+      }));
+    }
+    prettyError("Cannot connect to daemon — is 'aos serve' running?", permitStart ? 'CONNECT_ERROR' : 'NO_DAEMON');
+  }
   const deadline = Date.now() + options.timeoutMs;
   while (Date.now() < deadline) {
     const response = unwrapResponse(await sendEnvelope(socket, 'content', 'status', {}));
@@ -228,6 +263,18 @@ async function waitCommand(args) {
   }
   socket.end();
   const rootsText = options.roots.length === 0 ? 'content server' : `content roots ${options.roots.join(', ')}`;
+  if (options.json) {
+    const guarded = guardedLiveOperation({ operationId: 'content.wait', allowStart: false, mode: runtimeMode(), prefix: aosPath() });
+    prettyFailure(runtimeFailurePayload({
+      operationId: 'content.wait',
+      condition: { roots: options.roots, missing_roots: options.roots },
+      timeoutMs: options.timeoutMs,
+      verdict: guarded.preflight,
+      prefix: aosPath(),
+      code: 'CONTENT_WAIT_TIMEOUT',
+      error: `${rootsText} did not become ready before timeout`,
+    }));
+  }
   prettyError(`${rootsText} did not become ready before timeout`, 'CONTENT_WAIT_TIMEOUT');
 }
 
