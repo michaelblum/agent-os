@@ -45,21 +45,28 @@ export function classifyRenderLoopWork(frame = {}) {
     // avatar render step registers this reason instead of avatar-controls.
     // This allows publishState to be skipped on panel-only frames.
     const panelUiIdleReasons = new Set(['panel-ui-idle']);
-    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons, ...panelUiIdleReasons]);
-    // trackingOnlyReasons: reasons that require the structural ops block
-    // (updateSegmentPosition, syncWorldRect, syncSigilInputRegions) but do NOT
-    // require publishState — avatar geometry did not change, only UI tracking
-    // state. A frame driven solely by tracking reasons is structural (so hit-
-    // region and segment tracking keep running) but skips publishState.
-    const trackingOnlyReasons = new Set(['avatar-controls']);
+    // avatar-controls: Phase 3 cheap-reason promotion.
+    // The canvas_lifecycle handler sets structuralFrameDirty=true when
+    // updatePanelFrame updates panel bounds (b8f2dc65). With that signal in
+    // place, avatar-controls can be a cheap reason — idle controls-open frames
+    // (no bounds change, no geometry event) produce structural=false, skipping
+    // both publishState and the structural ops block. Frames with an actual
+    // bounds change are structural via structuralFrameDirty=true.
+    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons, ...panelUiIdleReasons, 'avatar-controls']);
+    // trackingOnlyReasons retained as an empty set for forward-compatibility;
+    // the trackingFrame path is inactive now that avatar-controls moved to
+    // cheapFrameReasons. Remove both when the Phase 3 frame-tier documentation
+    // is updated.
+    const trackingOnlyReasons = new Set();
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => visualOnlyReasons.has(reason));
     const cheapFrame = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => cheapFrameReasons.has(reason));
-    // trackingFrame: all reasons are cheap or tracking-only, and at least one
-    // is a tracking reason. structural=true so ops run; publishState=false.
+    // trackingFrame: currently inactive — no reasons in trackingOnlyReasons.
+    // Retained for forward-compatibility; remove with trackingOnlyReasons
+    // when the Phase 3 frame-tier documentation pass is done.
     const trackingFrame = !structuralDirty
         && !cheapFrame
         && continuationReasons.length > 0

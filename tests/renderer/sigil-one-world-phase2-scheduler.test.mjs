@@ -323,18 +323,19 @@ test('render-loop: panel-ui-idle with avatar-motion stays non-structural', () =>
     assert.equal(result.publishState, false);
 });
 
-test('render-loop: panel-ui-idle + avatar-controls → structural but NOT publishState (tracking frame)', () => {
-    // When both panel-ui-idle (cheap) and avatar-controls (tracking-only) are
-    // reasons, the frame is a tracking frame: structural=true so hit-region and
-    // segment tracking keep running, but publishState=false because no avatar
-    // geometry changed.
+test('render-loop: panel-ui-idle + avatar-controls → cheap frame (Phase 3 promotion)', () => {
+    // Phase 3: avatar-controls promoted to cheapFrameReasons. Combined with
+    // panel-ui-idle (also cheap), the frame is now a cheap frame: structural=false
+    // and publishState=false. The canvas_lifecycle handler (b8f2dc65) fires
+    // structuralFrameDirty=true when bounds actually change, covering the
+    // structural-ops path when needed.
     const result = classifyRenderLoopWork({
         continuationReasons: ['panel-ui-idle', 'avatar-controls'],
         structuralDirty: false,
     });
 
-    assert.equal(result.structural, true, 'tracking frame: structural ops run');
-    assert.equal(result.publishState, false, 'tracking frame: publishState skipped (no geometry change)');
+    assert.equal(result.structural, false, 'cheap frame: no structural work (no bounds change)');
+    assert.equal(result.publishState, false, 'cheap frame: publishState skipped');
 });
 
 // ---------------------------------------------------------------------------
@@ -351,23 +352,23 @@ test('render-loop regression: avatar-motion still visual-only (unchanged)', () =
     assert.equal(result.visualOnly, true);
 });
 
-test('render-loop: avatar-controls is tracking-only — structural=true, publishState=false', () => {
-    // Phase 2 demand-driven publishState: avatar-controls is a "tracking-only"
-    // reason. The structural ops block (updateSegmentPosition, syncWorldRect,
-    // syncSigilInputRegions) must still run every controls-open frame so that
-    // hit-region and segment tracking stay current. But publishState is skipped
-    // because avatar geometry did not change — the daemon does not need a new
-    // snapshot just because the controls are open and idle.
+test('render-loop: avatar-controls is cheap — structural=false, publishState=false (Phase 3)', () => {
+    // Phase 3 cheap-reason promotion: avatar-controls moved from trackingOnlyReasons
+    // to cheapFrameReasons. Idle controls-open frames (no panel bounds change, no
+    // geometry event) are now cheap: structural=false and publishState=false.
     //
-    // This is the key change from Phase 0/1 (where avatar-controls forced
-    // publishState=true): the live avatar render loop now skips publishState on
-    // controls-open-idle frames, dropping below the 31/s baseline.
+    // Safety: the canvas_lifecycle handler (b8f2dc65) sets structuralFrameDirty=true
+    // when updatePanelFrame updates panel bounds. That signal ensures structural
+    // ops run whenever bounds actually changed — not on every controls-open frame.
+    //
+    // Effect: structural-frame-% drops below 100% for true idle controls-open
+    // periods (Phase 3 exit gate condition 2 — structural-%-below-100%).
     const result = classifyRenderLoopWork({
         continuationReasons: ['avatar-controls'],
         structuralDirty: false,
     });
-    assert.equal(result.structural, true, 'avatar-controls: structural ops still run (tracking)');
-    assert.equal(result.publishState, false, 'avatar-controls idle: publishState skipped (demand-driven)');
+    assert.equal(result.structural, false, 'avatar-controls idle: cheap frame, no structural work');
+    assert.equal(result.publishState, false, 'avatar-controls idle: publishState skipped');
 });
 
 test('render-loop regression: structuralDirty=true always structural (no regression)', () => {
