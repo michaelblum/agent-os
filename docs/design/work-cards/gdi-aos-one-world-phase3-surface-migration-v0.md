@@ -2,9 +2,14 @@
 
 ## Routing Status
 
-Planned — Phase 3 of the AOS One-World workstream. Unblocked by Phase 2.
-First surface only: avatar compact controls (`sigil-avatar-controls-avatar-main`).
-Not yet dispatched.
+Accepted on `main` at `e2cde31d6fcc01ae911d00687ac38dc625037d59`.
+Historical Phase 3 work card for the AOS One-World/toolkit substrate migration.
+Do not redispatch this card as written; use it as context/evidence for follow-on
+cards.
+
+Framing: Sigil is the current validation experience and provides the concrete
+first proving surface (`apps/sigil/...`). Ownership remains AOS One-World/toolkit
+platform work, not standalone Sigil product feature work.
 
 ## Tracker
 

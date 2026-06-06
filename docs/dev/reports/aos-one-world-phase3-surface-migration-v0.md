@@ -8,9 +8,22 @@ Start ref: `678b92e57851c68decc1e3d5a0ad215ae8090ec8`
 
 Head ref (as of Task 2 commit): see §Commits on Branch
 
+## Framing Note
+
+This is AOS One-World/toolkit substrate work. Sigil is the current validation
+experience and provides the concrete first surface (`apps/sigil/...`) used to
+prove the platform migration. Treat later follow-up work as AOS/toolkit
+platform adoption unless the work explicitly changes Sigil product behavior.
+
 ## Status
 
-`code-complete — live drag pending` — All tasks committed. Task 2 executed per Foreman's Option A decision: `panelUrl: null` flip + prewarm guard + dispatcher-spy test. The embedded path is active in production config. Unit-level IPC→0 gate is verified by the dispatcher-spy test. Live-canvas input routing verification (slider drag in the embedded viewport) is deferred to a follow-on session with live canvas access.
+`accepted — live embedded drag verified; frame-timing still deferred` — All tasks
+committed and accepted on `main` at `e2cde31d6fcc01ae911d00687ac38dc625037d59`.
+Task 2 executed per Foreman's Option A decision: `panelUrl: null` flip + prewarm
+guard + dispatcher-spy test. The embedded path is active in production config.
+Unit-level IPC->0 is verified by the dispatcher-spy test, and Foreman's live
+acceptance probe verified a real embedded slider drag with no detached panel
+canvas and no panel IPC messages.
 
 ---
 
@@ -20,10 +33,10 @@ Head ref (as of Task 2 commit): see §Commits on Branch
 |---|---|
 | Window-semantics need shown unnecessary | PASSED |
 | Structural-% drops below 100% for idle controls-open | PASSED — live probe: 0% structural, 0 publishState (controls-open idle) |
-| Cross-canvas IPC approaches 0 during slider drag | CODE-COMPLETE — by construction (dispatcher-spy test); live drag measurement pending |
+| Cross-canvas IPC approaches 0 during slider drag | PASSED — live right-click opened controls as `surface:"embedded"`, `panelId:null`; real Mother Scale drag changed `appearance.size.base` from 153 to 379 while `panel_messages.sent/received` stayed `{}` |
 | publishState demand-driven | PASSED — preserved from Phase 2 sub-task 1 |
-| Behavior parity | CODE-COMPLETE — embedded path exercised in tests; live canvas verification pending |
-| Frame-time distribution (render-performance / canvas-stats) | DEFERRED — requires live canvas after embedded path activation |
+| Behavior parity | PASSED for the acceptance path — controls opened, drag applied geometry, size was restored to 153, controls closed, avatar hidden |
+| Frame-time distribution (render-performance / canvas-stats) | DEFERRED — acceptance captured render/probe behavior but not a before/after per-frame distribution |
 
 ---
 
@@ -238,16 +251,25 @@ and the new dispatcher-spy test:
 - `close` does not dispatch `canvas.suspend` or `panel.close` when `usesPanel=false`
 - `syncSnapshot` reports `surface: 'embedded'` (was `'toolkit-panel'`)
 
-### What Is Not Yet Verified (Live Canvas)
+### Foreman Acceptance Update (Live Canvas)
 
-The screen→DW→viewport coordinate transform used by `handleMenuPointer → elementAt(point)`
-in production has not been exercised with a live canvas since the flip. Tests stub
-`getBoundingClientRect` with fixed rects; the real transform depends on how `avatar-main`'s
-viewport maps the embedded `compact-surface.js` DOM when controls are positioned at
-non-origin DW coordinates.
+Foreman's post-implementation acceptance probe exercised the live embedded path
+that was originally listed as pending:
 
-Foreman step 3 (live drag verification) is the open gate before claiming IPC→0 on the
-live surface.
+- `./aos experience activate sigil --json` repaired the stale content root/status
+  item to the canonical `aos://sigil/renderer/index.html?toolkit-root=toolkit`
+  surface.
+- Live `avatar-main` loaded the canonical URL.
+- A real right-click opened avatar controls as `surface:"embedded"` with
+  `panelId:null`.
+- No detached `sigil-avatar-controls-avatar-main` canvas was created.
+- A real Mother Scale drag changed `appearance.size.base` from 153 to 379 while
+  controls stayed embedded and `panel_messages.sent/received` stayed `{}`.
+- After probe reset and 2 seconds idle with controls open, render frames advanced
+  while structural and `publishState` counts stayed 0 and panel messages stayed
+  `{}`.
+- Size base was restored to 153, controls were closed, and the avatar was hidden
+  after the probe.
 
 ### Discovery Context
 
@@ -421,24 +443,27 @@ activation + test coverage for the untested path + live-canvas input-routing ver
 - Controls-closed idle: 251 frames, 0% structural, 100% visualOnly — avatar motion
   correctly classified.
 - Panel canvas idle: 0 cross-canvas messages observed.
+- Embedded live interaction after acceptance: right-click opened controls in
+  `avatar-main` as `surface:"embedded"` with `panelId:null`; real Mother Scale
+  drag changed `appearance.size.base` from 153 to 379; `panel_messages` remained
+  `{}`; no detached panel canvas was present.
 
-**NOT verified by live measurement:**
+**Not verified by live measurement:**
 
-- **Slider-drag IPC baseline**: The synthetic `./aos do drag` attempt routed the
+- **Earlier slider-drag baseline recapture**: The synthetic `./aos do drag` attempt routed the
   `left_mouse_down` to `avatar-main` (via SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID),
   which interpreted it as "outside controls" and closed the panel. The screen↔DW
   coordinate transform was not resolved in this session. The 82.8/s baseline is
   documented in prior Phase 0/1 reports, not re-measured here.
 
-- **Embedded path input routing**: Whether `handleMenuPointer → elementAt(point)`
-  correctly dispatches to the in-viewport DOM when `compact-surface.js` renders inside
-  `avatar-main` has not been exercised. This is the unverified crux for Task 2, and
-  it must be confirmed with live interaction after any panelUrl:null flip, before the
-  gate measurement is recorded.
+- **Full behavior parity matrix**: The acceptance probe covered open, slider drag,
+  restore, close, and hide. Tab changes, projection actions, and keyboard/focus
+  edge cases remain covered by code reading/tests rather than a dedicated live
+  matrix.
 
-- **Behavior parity (full)**: The embedded-path behavior claims (slider drag → geometry
-  change → render; tab changes; projection actions; close) rest on code reading only.
-  Live verification is deferred to the Task 2 follow-on session.
+- **Frame-timing distribution**: No before/after `render-performance`,
+  `spatial-telemetry`, or `canvas-stats` distribution was captured during the
+  post-implementation acceptance probe.
 
 ---
 
@@ -504,6 +529,7 @@ Full suite: `# tests 1858 / # pass 1776 / # fail 82` (82 failures pre-existing, 
 
 | Ref | Message |
 |---|---|
+| `e2cde31d` (main) | `feat(sigil): Phase 3 Task 2 — embedded avatar compact controls (panelUrl:null, prewarm guard)` |
 | `b2bc21ec` | `docs(reports): Phase 3 surface migration V0 evidence — partial result` |
 | `678b92e5` (Task 1a) | `feat(sigil): Phase 3 cheap-reason promotion — avatar-controls → cheapFrameReasons` |
 | `119bc304` (Task 1b) | `feat(world): Task 1b — add delayMs/throttle support to world-raf-scheduler` |
@@ -515,10 +541,10 @@ Full suite: `# tests 1858 / # pass 1776 / # fail 82` (82 failures pre-existing, 
 
 ## Recommended Next Steps
 
-1. **Live canvas verification (Foreman step 3):** With the embedded path active, open
-   avatar controls and perform a live slider drag. Confirm geometry updates and controls
-   stay open (do not close on drag). Capture `surfaceTransportProbe` during drag — target:
-   `control_change` + `snapshot` ≈ 0 (was 82.8/s baseline from Phase 0).
-2. **Frame-timing**: Capture `render-performance` / `canvas-stats` before/after the
+1. **Frame-timing**: Capture `render-performance` / `canvas-stats` before/after the
    embedded path activation — compare structural-% and publishState/s.
-3. **main.js scheduler wiring (follow-on card):** Wire `scheduleFrame({ delayMs: IDLE_AVATAR_MOTION_FRAME_DELAY_MS })` now that `world-raf-scheduler.js` has delayMs support (Task 1b).
+2. **main.js scheduler wiring (follow-on card):** Wire
+   `scheduleFrame({ delayMs: IDLE_AVATAR_MOTION_FRAME_DELAY_MS })` now that
+   `world-raf-scheduler.js` has delayMs support (Task 1b). Frame this as AOS
+   One-World/toolkit scheduler adoption proof through the current validation
+   experience, not standalone Sigil product feature work.
