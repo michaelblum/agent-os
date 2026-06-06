@@ -104,8 +104,8 @@ test('pointer drag emits shared gesture frames while preserving preview and comm
   });
   const control = patchSpreadSupport(document.createElement('div'));
   control.dataset.aosSliderControl = '';
-  control.dataset.semanticTargetId = 'settings.opacity';
-  control.dataset.aosRef = 'panel:settings.opacity';
+  control.dataset.semanticTargetId = 'control-opacity';
+  control.dataset.aosRef = 'panel:control-opacity';
   control.dataset.aosActions = 'drag set-value';
   control.getBoundingClientRect = () => ({ left: 10, top: 0, width: 200, height: 24 });
   document.body.appendChild(control);
@@ -120,7 +120,8 @@ test('pointer drag emits shared gesture frames while preserving preview and comm
     'gesture.drag.move',
     'gesture.drag.end',
   ]);
-  assert.equal(frames[0].semantic_target.id, 'settings.opacity');
+  assert.equal(frames[0].semantic_target.target_id, 'control-opacity');
+  assert.equal(frames[0].semantic_target.ref, 'panel:control-opacity');
   assert.equal(frames[0].semantic_action, 'set-value');
   assert.deepEqual(changes, [
     { value: [50], type: 'gesture.drag.move' },

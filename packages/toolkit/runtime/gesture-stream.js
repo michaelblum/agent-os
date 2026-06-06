@@ -105,9 +105,16 @@ function sourceIdentity(raw = {}, options = {}) {
 function semanticIdentity(raw = {}, options = {}) {
   const semantic = typeof options.semantic === 'function' ? options.semantic(raw) : options.semantic
   const target = raw?.currentTarget || raw?.target || options.element || null
+  const descriptor = semantic?.target_descriptor || semantic?.targetDescriptor || semantic?.target
+  if (descriptor && typeof descriptor === 'object') {
+    return {
+      target: compactObject(descriptor),
+      action: semantic?.action || semantic?.semanticAction || target?.dataset?.aosActions?.split?.(/\s+/)?.find((item) => item === 'set-value' || item === 'drag') || null,
+    }
+  }
   return {
     target: compactObject({
-      id: semantic?.targetId || semantic?.target_id || target?.dataset?.semanticTargetId || target?.dataset?.aosRef || null,
+      target_id: semantic?.targetId || semantic?.target_id || target?.dataset?.semanticTargetId || null,
       ref: semantic?.ref || target?.dataset?.aosRef || null,
       kind: semantic?.kind || target?.dataset?.aosTargetKind || null,
     }),

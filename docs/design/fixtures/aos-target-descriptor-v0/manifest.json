@@ -1,0 +1,10 @@
+{
+  "schema": "aos.target-descriptor.fixture-pack.v0",
+  "description": "Deterministic fixture pack for the AOS target descriptor V0 contract.",
+  "fixtures": [
+    "same-label-namespaces.json",
+    "stale-ref.json",
+    "reacquisition-success.json",
+    "ambiguous-reacquisition.json"
+  ]
+}

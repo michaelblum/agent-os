@@ -1,5 +1,15 @@
 # GDI Work Card: AOS Target-Addressed Action Ergonomics V0
 
+## Historical Status
+
+This card is historical for target identity guidance. It predates the accepted
+#429 target descriptor contract and #432 drift cleanup. Current target-addressed
+action docs should use `shared/schemas/aos-semantic-targets.md`: state-scoped
+refs for immediate actions, durable `target.target_id` scoped by
+`target.owner_namespace`, primitive `actions`, current `state`, `provenance`,
+and machine-first `reacquisition` hints. Labels and accessible names are not
+identity.
+
 ## Routing Status
 
 Ready to dispatch after Foreman checkpoints this card.

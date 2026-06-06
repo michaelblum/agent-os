@@ -38,8 +38,12 @@ Each frame carries:
   `native`, and `desktop_world`.
 - `origin`, `previous`, `current`, `delta`, and `total_delta` points.
 - `constraints`, `bounds`, and `axis` metadata when the adapter knows them.
-- `semantic_target` and `semantic_action` for target/action identity such as a
-  slider `set-value` drag.
+- `semantic_target` and `semantic_action` for the AOS target descriptor and
+  primitive action, such as a slider `set-value` drag. The descriptor carries
+  state-scoped `ref`/`state_id`, durable `target.target_id` scoped by
+  `target.owner_namespace`, current `state`, provenance/current address, and
+  reacquisition hints. Human-facing labels and coordinates may be recorded as
+  hints or observations, but not as target identity.
 - `timing`: timestamp `t` and `frame_index`.
 - `raw_event_type`: the source event type used to create the frame.
 

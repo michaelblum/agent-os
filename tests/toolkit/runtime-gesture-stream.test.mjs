@@ -54,7 +54,8 @@ test('createPointerGestureStream normalizes canvas input into drag gesture frame
   assert.equal(frames[0].source.source_canvas_id, 'avatar-hit')
   assert.deepEqual(frames[1].delta, { x: 20, y: 5 })
   assert.deepEqual(frames[2].total_delta, { x: 40, y: 0 })
-  assert.equal(frames[2].semantic_target.id, 'slider:scale')
+  assert.equal(frames[2].semantic_target.target_id, 'slider:scale')
+  assert.equal(Object.hasOwn(frames[2].semantic_target, 'ref'), false)
   assert.equal(frames[2].semantic_action, 'set-value')
   assert.equal(stream.snapshot().active, null)
 })
@@ -180,7 +181,7 @@ test('bindDomPointerGesture owns DOM capture, document listeners, and cleanup', 
   assert.deepEqual(released, [7])
   assert.deepEqual(frames.map((frame) => frame.phase), ['start', 'move', 'end'])
   assert.deepEqual(frames[1].coordinates.dom_client, { x: 30, y: 20 })
-  assert.equal(frames[0].semantic_target.id, 'opacity')
+  assert.equal(frames[0].semantic_target.target_id, 'opacity')
   assert.equal(frames[0].source.origin, 'dom')
 })
 

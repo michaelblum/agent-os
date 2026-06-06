@@ -111,7 +111,12 @@ carry those fields as correlation metadata between the natural-language spine,
 the structured execution map, and immutable evidence.
 
 Coordinates can be recorded, but they are fallback material. When semantic
-targets exist, prefer them.
+targets exist, prefer the AOS target descriptor vocabulary: state-scoped `ref`
+and `state_id` for the immediate action, durable `target.target_id` scoped by
+`target.owner_namespace`, primitive `actions`, current `state`, `provenance`
+for the current address, and `reacquisition` fingerprints for repair. Labels
+and accessibility text can help repair as hints, but they are not durable
+target identity.
 
 The first AOS action capture slice is intentionally saved-evidence only. A
 single source records before perception, the AOS `do` result, and after
@@ -133,13 +138,14 @@ Examples:
 ```text
 browser:<session>/<ref>
 ax:<pid>/<ref>
-canvas:<canvas-id>/<object-ref>
+canvas:<canvas-id>/<state-scoped-ref>
 screen:<state-id>/<x,y>
 ```
 
 The exact grammar can harden later. The important point is that target strings
-are compact handles while the execution map can carry richer candidates,
-metadata, and stale-ref repair hints.
+are compact current-address handles while the execution map can carry richer
+target descriptors: owner namespace, durable target id, primitive actions,
+state, provenance, and machine-first stale-ref repair hints.
 
 ## Playwright And Codegen
 

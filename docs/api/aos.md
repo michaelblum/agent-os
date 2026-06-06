@@ -489,13 +489,18 @@ resolve the element explicitly under the cursor.
 not role-whitelist them into an "interactive" vocabulary. For AOS-owned canvas
 captures, `aos see capture --canvas <id> --xray` also runs a fixed semantic
 target probe inside that canvas and returns `semantic_targets`. Those entries
-use the canonical `agent_ui_target` envelope: top-level `ref`, `surface`,
-`role`, `name`, `kind`, `enabled`, `state`, `actions`, `extension`, and
-`provenance`. The sole top-level identity is `ref` from `data-aos-ref`.
-Local DOM ids, canvas id, parent canvas id, local geometry, metadata, and the
-`canvas:<canvas-id>/<ref>` action-routing string live under `provenance` or
-`extension`. The probe does not use caller-supplied JavaScript; `show eval`
-remains a developer diagnostic bridge, not the agent perception contract.
+use the canonical `agent_ui_target` envelope: top-level `ref`, `state_id`,
+`surface`, `role`, `name`, `kind`, `enabled`, `target`, `state`, `actions`,
+`extension`, `provenance`, and `reacquisition`. `ref` is the state-scoped
+action handle. Durable machine identity lives in `target.target_id` scoped by
+`target.owner_namespace`; human labels, accessible text, local DOM ids, canvas
+id, parent canvas id, local geometry, metadata, and the
+`canvas:<canvas-id>/<ref>` action-routing string are presentation,
+provenance/current-address, or hint fields. They are not durable identity. The
+current V0 producer emits or consumes descriptor fields when it can derive them;
+older or partial AOS-owned surfaces may omit some fields until their producers
+migrate. The probe does not use caller-supplied JavaScript; `show eval` remains
+a developer diagnostic bridge, not the agent perception contract.
 
 See [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md)
 for the response shape.
@@ -634,13 +639,16 @@ aos do click canvas:<canvas-id>/<ref> --state-id <id>
 Use `canvas:<canvas-id>/<ref>` when a target was discovered in
 `aos see capture --canvas <canvas-id> --xray`. Agents should pass
 `semantic_targets[].provenance.do_target` directly when present;
-`provenance.canvas_id` and `ref` remain available for structured filtering. The
-CLI resolves the current AOS-owned canvas semantic target through the fixed
-probe path, rejects missing, disabled, ambiguous, suspended, noninteractive, or
-unsupported segmented canvases with machine-readable errors, and then clicks
-the resolved `provenance.center` in global CG coordinates. V0 does not
-dereference a historical `state_id`; the id is preserved only as correlation
-metadata for the perception the action was chosen from.
+`provenance.canvas_id` and `ref` remain available for structured filtering.
+When the originating descriptor also has `state_id`, pass `--state-id <id>` so
+the actuator can detect stale state when that check is available. The CLI
+resolves the current AOS-owned canvas semantic target through the fixed probe
+path, rejects missing, disabled, stale, ambiguous, suspended, noninteractive,
+or unsupported segmented canvases with machine-readable errors, and then
+clicks the resolved `provenance.center` in global CG coordinates. V0 preserves
+historical `state_id` as correlation metadata; the descriptor contract already
+defines stale-ref status so future producers can reject a stale state/ref pair
+without changing target vocabulary.
 
 Coordinate, browser-target, and canvas-ref actions accept `--state-id <id>` when
 the action was chosen from a prior `aos see capture` response. Direct one-shot
@@ -695,7 +703,18 @@ target center and uses CGEvent as a visible playback implementation detail.
 Target-addressed responses include the action, backend, playback mode,
 `execution.strategy`, `execution.backend`, `execution.fallback_used`, the
 correlation `state_id` when supplied, resolved target details, and post-action
-semantic state when the target can be collected after execution.
+semantic state when the target can be collected after execution. Stale
+state/ref pairs report a machine-readable `stale_ref` status. Descriptor-based
+reacquisition may report `reacquired` only after one current target is found
+through machine facts first; same-label matches without a unique machine
+fingerprint report `ambiguous` with candidates instead of selecting one.
+
+Gesture frames and Work Recording references should carry the same descriptor
+vocabulary: the state-scoped `ref`/`state_id`, durable
+`target.target_id` scoped by `target.owner_namespace`, primitive `actions`,
+current `state`, `provenance` for the current address, and `reacquisition`
+fingerprints for repair. They should not promote labels or coordinates into
+durable target identity.
 
 ## `aos graph`
 

@@ -450,9 +450,12 @@ The metadata contract records `schema`, `version`, `expression_id`, source kind
 and path, source content hash, generated timestamp, artifact kind, generated
 HTML path, semantic targets, source map entries, Mermaid block records,
 annotation/checkpoint/export capability flags, security policy, and resume
-behavior. Each semantic target has an id, `data-aos-ref`, kind, accessible
-label, source line range, selector, annotation eligibility, and reveal
-eligibility.
+behavior. Each semantic target records the descriptor-facing split: a
+state-scoped `data-aos-ref`, local `target.target_id` from
+`data-semantic-target-id`, owner/source metadata for namespace and provenance,
+kind, accessible label, source line range, selector, annotation eligibility,
+and reveal eligibility. Accessible labels and selectors help humans and
+reacquisition; they are not durable target identity.
 
 The AOS-hosted surface lives at
 `packages/toolkit/components/html-workbench-expression/`. It receives

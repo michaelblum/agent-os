@@ -1,5 +1,13 @@
 # Agent UI Target Conformance Fixtures V0
 
+## Historical Status
+
+This card is historical for target identity guidance. It predates the accepted
+#429 target descriptor contract and #432 drift cleanup. Current work should use
+`shared/schemas/aos-semantic-targets.md` for target identity: state-scoped refs
+plus `target.target_id` scoped by `target.owner_namespace`, with labels and
+accessible names only as presentation or reacquisition hints.
+
 ## Recipient
 
 GDI audit and fixture round.
