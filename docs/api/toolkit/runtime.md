@@ -88,16 +88,17 @@ Input regions are daemon-owned hit areas that toolkit surfaces can register when
 - `inputRegionContainsRect(rect)` is a deterministic local predicate for rectangle hit checks in tests and routing helpers.
 
 Daemon input region events arrive as `input_region.event` bridge messages. V0
-deliveries keep legacy top-level fields for existing consumers and include a
-canonical `routed_input` payload matching `shared/schemas/input-event-v2`:
+deliveries keep current top-level fields for existing owned consumers and
+include a canonical `routed_input` payload matching
+`shared/schemas/input-event-v2`:
 `routed_schema_version`, `delivery_role`, `region_id`, `owner_canvas_id`,
 stable `capture_id` for captured drags, `source_origin`,
 `source_event`/`source_sequence`, `desktop_world`, and
 `coordinate_authority`. Consumers should call `normalizeCanvasInputMessage(msg)`
 from `packages/toolkit/runtime/input-events.js` instead of parsing
-`input_region.event` directly; it normalizes raw legacy daemon events, v2 raw
+`input_region.event` directly; it normalizes current daemon events, v2 raw
 events, `input_event` envelopes, routed envelopes, and input-region delivery
-wrappers into one object with camelCase aliases such as `gestureId`,
+wrappers into one object with camelCase fields such as `gestureId`,
 `captureId`, `deliveryRole`, `regionId`, `ownerCanvasId`,
 `sourceCanvasId`, `sourceOrigin`, `sourceSequence`, and `sourceEvent`.
 
@@ -124,6 +125,27 @@ to `input_region` with `{ snapshot: true }`. The daemon replays
 `input_region.snapshot` and then sends live `input_region` actions
 `registered`, `updated`, and `removed`, with region metadata preserved for
 toolkit ownership correlation.
+
+## Gesture Stream
+
+`packages/toolkit/runtime/gesture-stream.js` provides the V0 shared
+pointer/gesture lifecycle spine for drag-like behavior. It normalizes DOM
+pointer events and existing normalized canvas input messages into
+`aos.gesture-frame` frames such as `gesture.drag.start`,
+`gesture.drag.move`, `gesture.drag.end`, and `gesture.drag.cancel`.
+
+Use `createPointerGestureStream(options)` when a surface already owns the
+active input source but wants shared gesture frames, passive subscribers, and
+consistent cleanup. Use `bindDomPointerGesture(element, options)` for DOM
+controls that need pointer capture plus document-level move/end/cancel
+listeners. The stream owns mechanics only; semantic adapters still own value
+mapping, movement, resize, range, or product behavior.
+
+Gesture frames include source identity, pointer identity and capture id,
+available coordinate spaces, origin/current/previous/delta points, semantic
+target/action metadata, and timing/frame metadata. Passive observers subscribe
+with `stream.subscribe(listener)` and receive the same frames as the active
+adapter without adding duplicate raw pointer listeners.
 
 `packages/toolkit/runtime/desktop-world-hit-region.js` provides
 `createDesktopWorldHitRegionController` for the transitional case where a
@@ -284,9 +306,11 @@ Canonical phases are:
 ```
 
 Use `createMenuActivationRequest({ menuId, item, input, source, targetSurface,
-transition })` when a menu item commits. The request keeps legacy
+transition })` when a menu item commits. The request keeps the existing
 `input` / `source` string fields, but also includes `input_source` for richer
-click, gesture, keyboard, or accessibility metadata. `surface` and
+click, gesture, keyboard, or accessibility metadata. These retained fields are
+owned by the menu activation contract and are not gesture-ingress aliases.
+`surface` and
 `target_surface` are aliases for the requested destination surface descriptor.
 
 Use `advanceMenuActivation(request, phase, extra?)` to move through the

@@ -1,4 +1,5 @@
 import { mergeProps } from './shared.js';
+import { bindDomPointerGesture, createPointerGestureStream } from '../../runtime/gesture-stream.js';
 
 const ROOT_SELECTOR = '[data-aos-slider-root]';
 const LABEL_SELECTOR = '[data-aos-slider-label]';
@@ -108,9 +109,29 @@ export function createAosZagSlider(context = {}) {
     return configured > 0 ? configured : 1;
   };
   let controlElement = null;
-  let activePointer = null;
   let activeThumbIndex = 0;
-  let captureElement = null;
+  const gestureStream = createPointerGestureStream({
+    kind: 'drag',
+    axis: 'x',
+    semantic(raw = {}) {
+      const target = raw.currentTarget || raw.target || controlElement;
+      return {
+        targetId: target?.dataset?.semanticTargetId || target?.dataset?.aosRef || currentProps.id,
+        ref: target?.dataset?.aosRef || currentProps.id,
+        action: 'set-value',
+        kind: 'slider',
+      };
+    },
+    source(raw = {}) {
+      const target = raw.currentTarget || raw.target || controlElement;
+      return {
+        origin: 'dom',
+        rawEventSource: raw.type,
+        elementRef: target?.dataset?.aosRef || target?.dataset?.semanticTargetId || target?.id || currentProps.id,
+      };
+    },
+  });
+  const gestureUnsubscribe = context.onGestureFrame ? gestureStream.subscribe(context.onGestureFrame) : null;
 
   function getRootProps(extra = {}) {
     return mergeProps({
@@ -226,7 +247,6 @@ export function createAosZagSlider(context = {}) {
     for (const cleanup of cleanups) cleanup();
     cleanups.clear();
     controlElement = null;
-    captureElement = null;
   }
 
   function bindPart(element, props) {
@@ -272,7 +292,7 @@ export function createAosZagSlider(context = {}) {
     return clamp(quantize(rawValue, step(), nextMin), nextMin, nextMax);
   }
 
-  function applyPointerValue(event = {}, { commit = false } = {}) {
+  function applyPointerValue(event = {}, { commit = false, frame = null } = {}) {
     const nextValue = valueFromPointer(event);
     if (nextValue === null) return false;
     const nextValues = [...values];
@@ -280,70 +300,44 @@ export function createAosZagSlider(context = {}) {
     nextValues[index] = nextValue;
     const changed = !sameValues(values, nextValues);
     values = nextValues;
-    if (changed) currentProps.onValueChange?.({ value: [...values] });
-    if (commit) currentProps.onValueChangeEnd?.({ value: [...values] });
+    const details = { value: [...values], gestureFrame: frame };
+    if (changed) currentProps.onValueChange?.(details);
+    if (commit) currentProps.onValueChangeEnd?.(details);
     return true;
   }
 
-  function endPointerDrag(event = {}) {
-    if (!activePointer) return;
-    applyPointerValue(event, { commit: true });
-    if (activePointer.pointerId !== null) {
-      captureElement?.releasePointerCapture?.(activePointer.pointerId);
-    }
-    activePointer = null;
-    captureElement = null;
-    const doc = controlElement?.ownerDocument;
-    const view = doc?.defaultView;
-    const target = doc || view;
-    target?.removeEventListener?.('pointermove', handlePointerMove);
-    target?.removeEventListener?.('pointerup', endPointerDrag);
-    target?.removeEventListener?.('pointercancel', endPointerDrag);
-    target?.removeEventListener?.('mousemove', handlePointerMove);
-    target?.removeEventListener?.('mouseup', endPointerDrag);
-  }
-
-  function handlePointerMove(event = {}) {
-    if (!activePointer) return;
-    if (event.pointerId !== undefined && activePointer.pointerId !== null && event.pointerId !== activePointer.pointerId) return;
-    event.preventDefault?.();
-    applyPointerValue(event);
-  }
-
-  function startPointerDrag(event = {}) {
-    if (activePointer) return;
-    if (disabled()) return;
-    const pointerId = event.pointerId ?? null;
+  function shouldStartPointerDrag(event = {}) {
+    if (disabled()) return false;
     const initialValue = valueFromPointer(event);
-    if (initialValue === null) return;
-    event.preventDefault?.();
+    if (initialValue === null) return false;
     activeThumbIndex = nearestThumbIndex(initialValue);
-    activePointer = { pointerId };
-    captureElement = event.currentTarget || event.target || controlElement;
-    if (pointerId !== null) {
-      captureElement?.setPointerCapture?.(pointerId);
+    return true;
+  }
+
+  function handleGestureFrame(frame, event = {}) {
+    if (!frame) return;
+    if (frame.phase === 'start' || frame.phase === 'move') {
+      applyPointerValue(event, { frame });
+    } else if (frame.phase === 'end') {
+      applyPointerValue(event, { commit: true, frame });
+    } else if (frame.phase === 'cancel') {
+      currentProps.onValueChangeEnd?.({ value: [...values], gestureFrame: frame, cancelled: true });
     }
-    applyPointerValue(event);
-    const doc = controlElement?.ownerDocument;
-    const view = doc?.defaultView;
-    const target = doc || view;
-    target?.addEventListener?.('pointermove', handlePointerMove);
-    target?.addEventListener?.('pointerup', endPointerDrag);
-    target?.addEventListener?.('pointercancel', endPointerDrag);
-    target?.addEventListener?.('mousemove', handlePointerMove);
-    target?.addEventListener?.('mouseup', endPointerDrag);
+  }
+
+  function bindPointerGesture(element) {
+    return bindDomPointerGesture(element, {
+      stream: gestureStream,
+      shouldStart: shouldStartPointerDrag,
+      onFrame: handleGestureFrame,
+    });
   }
 
   function bindControl(element, extra = {}) {
     controlElement = element || controlElement;
     const cleanup = bindPart(element, getControlProps(extra));
     if (element) {
-      element.addEventListener?.('pointerdown', startPointerDrag);
-      element.addEventListener?.('mousedown', startPointerDrag);
-      cleanups.add(() => {
-        element.removeEventListener?.('pointerdown', startPointerDrag);
-        element.removeEventListener?.('mousedown', startPointerDrag);
-      });
+      cleanups.add(bindPointerGesture(element));
     }
     return cleanup;
   }
@@ -363,12 +357,7 @@ export function createAosZagSlider(context = {}) {
   function bindThumb(element, extraProps = {}, index = 0) {
     const cleanup = bindPart(element, getThumbProps({ index }, extraProps.extra || {}));
     if (element) {
-      element.addEventListener?.('pointerdown', startPointerDrag);
-      element.addEventListener?.('mousedown', startPointerDrag);
-      cleanups.add(() => {
-        element.removeEventListener?.('pointerdown', startPointerDrag);
-        element.removeEventListener?.('mousedown', startPointerDrag);
-      });
+      cleanups.add(bindPointerGesture(element));
     }
     return cleanup;
   }
@@ -417,6 +406,8 @@ export function createAosZagSlider(context = {}) {
     connect: snapshot,
     destroy() {
       cleanupBindings();
+      gestureUnsubscribe?.();
+      gestureStream.destroy();
     },
     send: () => {},
     service: null,

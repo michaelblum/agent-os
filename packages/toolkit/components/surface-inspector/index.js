@@ -12,6 +12,7 @@ import { emit, esc } from '../../runtime/bridge.js'
 import { evalCanvas, mutateSelf, spawnChild, writeClipboardText } from '../../runtime/canvas.js'
 import { canvasLifecycleCanvasID, mergeCanvasGeometryCanvas, normalizeCanvasGeometry, mergeCanvasLifecycleCanvas } from '../../runtime/canvas-lifecycle.js'
 import { normalizeCanvasInputMessage } from '../../runtime/input-events.js'
+import { createPointerGestureStream } from '../../runtime/gesture-stream.js'
 import { createFixedSidebarPane } from '../../panel/layouts/split-pane.js'
 import { cloneFrame, resizeFrameFromTopLeft } from '../../panel/placement.js'
 import { renderButtonHtml } from '../../controls/button.js'
@@ -70,6 +71,7 @@ import {
 } from '../../workbench/context-session.js'
 import {
   applyMouseEffectsInput,
+  applyMouseEffectsGestureFrame,
   clearMouseEffectsState,
   createMouseEffectsState,
   mouseEffectsNeedAnimationFrame,
@@ -1045,6 +1047,23 @@ export default function CanvasInspector() {
     onChange: () => rerender(),
   })
   const mouseEffectsState = createMouseEffectsState()
+  const mouseGestureStream = createPointerGestureStream({
+    kind: 'drag',
+    source: {
+      origin: 'daemon',
+      rawEventSource: 'input_event',
+    },
+  })
+  let mouseGestureFrameChanged = false
+  let mouseGestureFrameNow = 0
+  mouseGestureStream.subscribe((frame) => {
+    mouseGestureFrameChanged = applyMouseEffectsGestureFrame(
+      mouseEffectsState,
+      frame,
+      frame.coordinates?.desktop_world || frame.current,
+      mouseGestureFrameNow || Date.now(),
+    ) || mouseGestureFrameChanged
+  })
   const annotationOverlayCanvasIds = new Set()
   const annotationOverlaySignatures = new Map()
   const annotationActionControlCanvasIds = new Set()
@@ -3336,8 +3355,16 @@ export default function CanvasInspector() {
           scheduleAnnotationHoverRefresh('mouse_moved')
           changed = true
         }
-        if (mouseEventsEnabled && applyMouseEffectsInput(mouseEffectsState, input, worldPoint, now)) {
-          changed = true
+        if (mouseEventsEnabled) {
+          mouseGestureFrameChanged = false
+          mouseGestureFrameNow = now
+          mouseGestureStream.handleCanvasInput(input, { desktopWorld: worldPoint, now })
+          mouseGestureFrameNow = 0
+          if (mouseGestureFrameChanged) {
+            changed = true
+          } else if (applyMouseEffectsInput(mouseEffectsState, input, worldPoint, now)) {
+            changed = true
+          }
         }
         if (changed) {
           syncMinimapDynamicLayer(now)

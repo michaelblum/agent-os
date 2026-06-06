@@ -199,6 +199,48 @@ export function applyMouseEffectsInput(state, input, point, now = Date.now()) {
   }
 }
 
+export function applyMouseEffectsGestureFrame(state, frame, point = null, now = Date.now()) {
+  if (!state || !frame || frame.gesture_type !== 'drag') return false
+  const nextPoint = copyPoint(point || frame.coordinates?.desktop_world || frame.current)
+  switch (frame.phase) {
+    case 'start':
+      if (!nextPoint) return false
+      state.active = {
+        shape: 'circle',
+        origin: nextPoint,
+        current: nextPoint,
+        startedAt: now,
+      }
+      return true
+    case 'move':
+      if (!state.active || !nextPoint) return false
+      state.active.current = nextPoint
+      return true
+    case 'end':
+      if (!state.active) return false
+      {
+        const release = createTransient(state.active, nextPoint, now, 'release')
+        if (release) state.transients.push(release)
+        if (distance(state.active.origin, nextPoint || state.active.current || state.active.origin) <= CLICK_DELTA_THRESHOLD_PX) {
+          const pulse = createPulse('circle', nextPoint || state.active.current || state.active.origin, now)
+          if (pulse) state.transients.push(pulse)
+        }
+      }
+      state.active = null
+      return true
+    case 'cancel':
+      if (!state.active) return false
+      {
+        const cancel = createTransient(state.active, state.active.current, now, 'cancel')
+        if (cancel) state.transients.push(cancel)
+      }
+      state.active = null
+      return true
+    default:
+      return false
+  }
+}
+
 export function sweepMouseEffectsState(state, now = Date.now()) {
   if (!state?.transients?.length) return false
   const before = state.transients.length

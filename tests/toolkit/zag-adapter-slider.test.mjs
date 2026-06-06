@@ -83,6 +83,55 @@ test('programmatic helpers update slider state through Zag API', () => {
   adapter.destroy();
 });
 
+test('pointer drag emits shared gesture frames while preserving preview and commit', () => {
+  const frames = [];
+  const changes = [];
+  const commits = [];
+  const { adapter, document } = createAdapter({
+    defaultValue: [0],
+    min: 0,
+    max: 100,
+    step: 10,
+    onGestureFrame(frame) {
+      frames.push(frame);
+    },
+    onValueChange(details) {
+      changes.push({ value: details.value, type: details.gestureFrame?.type });
+    },
+    onValueChangeEnd(details) {
+      commits.push({ value: details.value, type: details.gestureFrame?.type });
+    },
+  });
+  const control = patchSpreadSupport(document.createElement('div'));
+  control.dataset.aosSliderControl = '';
+  control.dataset.semanticTargetId = 'settings.opacity';
+  control.dataset.aosRef = 'panel:settings.opacity';
+  control.dataset.aosActions = 'drag set-value';
+  control.getBoundingClientRect = () => ({ left: 10, top: 0, width: 200, height: 24 });
+  document.body.appendChild(control);
+  adapter.bindControl(control);
+
+  control.dispatchEvent({ type: 'pointerdown', pointerId: 4, clientX: 10, clientY: 12, currentTarget: control, preventDefault() {} });
+  document.dispatchEvent({ type: 'pointermove', pointerId: 4, clientX: 110, clientY: 12, preventDefault() {} });
+  document.dispatchEvent({ type: 'pointerup', pointerId: 4, clientX: 150, clientY: 12, preventDefault() {} });
+
+  assert.deepEqual(frames.map((frame) => frame.type), [
+    'gesture.drag.start',
+    'gesture.drag.move',
+    'gesture.drag.end',
+  ]);
+  assert.equal(frames[0].semantic_target.id, 'settings.opacity');
+  assert.equal(frames[0].semantic_action, 'set-value');
+  assert.deepEqual(changes, [
+    { value: [50], type: 'gesture.drag.move' },
+    { value: [70], type: 'gesture.drag.end' },
+  ]);
+  assert.deepEqual(commits, [
+    { value: [70], type: 'gesture.drag.end' },
+  ]);
+  adapter.destroy();
+});
+
 test('constructor validates required id', () => {
   assert.throws(() => createAosZagSlider({}), /requires an id/);
 });
