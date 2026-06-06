@@ -14,12 +14,77 @@
     document. They share a signal store in-heap with no daemon serialization
     between them.
 
+    Bootstrap sequence (runs after module loads):
+      1. ownerLayer.start()  — subscribes to store 'control_change' channel
+      2. panelAnchor div created — panel layer will mount here when viewModel arrives
+      3. window.__sigilCoLocatedProbeDebug.ownerLayer set — live eval can call .lastApplied()
+      4. document dispatches 'coloc:ready' — signals both layers are wired
+
+    To mount the panel with a real viewModel (from a live avatar owner), post:
+      window.dispatchEvent(new CustomEvent('coloc:render', { detail: { view_model: vm } }))
+
+    Probe live eval workflow:
+      1. Enable probe:  window.__sigilCoLocatedProbeDebug.surfaceTransportProbe.enable()
+      2. Reset:         window.__sigilCoLocatedProbeDebug.surfaceTransportProbe.reset()
+      3. Write to store: window.__sigilCoLocatedProbeDebug.store.write('control_change', {...})
+      4. Snapshot:      window.__sigilCoLocatedProbeDebug.surfaceTransportProbe.snapshot()
+         → in_heap.writes and in_heap.applied both increment: in-heap propagation confirmed
+      5. Last applied:  window.__sigilCoLocatedProbeDebug.ownerLayer.lastApplied()
+
     This is a parallel branch exploration. It does not replace the existing
     separated canvases (panel.html + avatar-main renderer).
 
     See: apps/sigil/avatar-editor/co-located-panel.js
          docs/dev/reports/aos-one-world-phase1-co-location-probe-v0.md
   -->
+  <div id="coloc-panel-anchor" class="sigil-avatar-panel-host"></div>
   <script type="module" src="./co-located-panel.js"></script>
+  <script type="module">
+    // Bootstrap: wire both layers after the co-located-panel module loads.
+    // Import is deferred to module evaluation order so defaultCoLocatedPanel exists.
+    import { defaultCoLocatedPanel } from './co-located-panel.js';
+
+    const { makePanelLayer, makeOwnerLayer, probe, store } = defaultCoLocatedPanel;
+
+    // 1. Start the owner layer — it subscribes to 'control_change' in-heap.
+    const ownerLayer = makeOwnerLayer({
+      onApply(payload) {
+        // In a real co-located World document, this would call the avatar
+        // rendering layer (e.g. routeChangedControls / applyAvatarDescriptorUpdate).
+        // In this probe, we record receipt for evidence and store for debug access.
+        if (typeof console !== 'undefined') {
+          console.debug('[coloc-probe] owner applied:', payload?.values);
+        }
+      },
+    });
+    ownerLayer.start();
+
+    // 2. Expose the owner layer on the debug surface for live eval tests.
+    window.__sigilCoLocatedProbeDebug.ownerLayer = ownerLayer;
+
+    // 3. Listen for viewModel updates (matches the pattern from panel.html).
+    //    When the owner layer has rendered avatar content and wants to mount
+    //    the panel UI, it dispatches 'coloc:render' with the viewModel.
+    const panelAnchor = document.getElementById('coloc-panel-anchor');
+    let panelLayer = null;
+
+    window.addEventListener('coloc:render', (event) => {
+      const { view_model: viewModel, active_tab: activeTab } = event.detail || {};
+      if (!viewModel || !panelAnchor) return;
+      panelLayer?.destroy();
+      panelLayer = makePanelLayer({
+        anchor: panelAnchor,
+        viewModel,
+        document,
+        activeTab: activeTab || null,
+      });
+      panelLayer.mount();
+    });
+
+    // 4. Signal that both layers are wired and the document is ready.
+    document.dispatchEvent(new CustomEvent('coloc:ready', {
+      detail: { owner_started: true, panel_anchor_ready: !!panelAnchor },
+    }));
+  </script>
 </body>
 </html>

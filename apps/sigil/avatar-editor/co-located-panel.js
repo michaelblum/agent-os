@@ -238,7 +238,7 @@ export const defaultCoLocatedPanel = createCoLocatedPanel({ canvasId: _canvasId 
 // ---------------------------------------------------------------------------
 
 if (typeof window !== 'undefined') {
-    const { probe: p, store: s } = defaultCoLocatedPanel;
+    const { probe: p, store: s, makePanelLayer, makeOwnerLayer } = defaultCoLocatedPanel;
     window.__sigilCoLocatedProbeDebug = {
         surfaceTransportProbe: {
             enable() { return p.setEnabled(true); },
@@ -249,6 +249,14 @@ if (typeof window !== 'undefined') {
         },
         store: {
             stats() { return s.stats(); },
+            // Direct write for live in-heap propagation tests.
+            write(key, value) { return s.write(key, value); },
         },
+        // Live owner layer lifecycle: start/stop, last applied value.
+        // Used by the HTML bootstrap and by live eval tests.
+        ownerLayer: null,
+        // Factory accessors for live eval instrumentation.
+        makePanelLayer,
+        makeOwnerLayer,
     };
 }
