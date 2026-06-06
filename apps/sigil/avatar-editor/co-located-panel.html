@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sigil Avatar Controls — Co-located Probe</title>
+  <link rel="stylesheet" href="./panel.css">
+</head>
+<body>
+  <!--
+    Phase 1 One-World co-location probe.
+
+    This document hosts both the panel layer (compact control surface) and the
+    owner layer (stub that applies changes in-heap) in a single WKWebView
+    document. They share a signal store in-heap with no daemon serialization
+    between them.
+
+    This is a parallel branch exploration. It does not replace the existing
+    separated canvases (panel.html + avatar-main renderer).
+
+    See: apps/sigil/avatar-editor/co-located-panel.js
+         docs/dev/reports/aos-one-world-phase1-co-location-probe-v0.md
+  -->
+  <script type="module" src="./co-located-panel.js"></script>
+</body>
+</html>

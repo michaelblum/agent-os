@@ -78,6 +78,10 @@ export function createSurfaceTransportProbe({
             sent: {},
             received: {},
         },
+        in_heap: {
+            writes: 0,
+            applied: 0,
+        },
         render: {
             frames: 0,
             work: {
@@ -140,6 +144,16 @@ export function createSurfaceTransportProbe({
         }
     }
 
+    /**
+     * Record an in-heap store propagation event for the co-located probe.
+     * @param {'write'|'applied'} direction
+     */
+    function recordInHeapPropagation(direction) {
+        if (!active()) return;
+        if (direction === 'write') state.in_heap.writes += 1;
+        else if (direction === 'applied') state.in_heap.applied += 1;
+    }
+
     function recordInputEvent(event = {}) {
         if (!active()) return;
         state.input_events.push({
@@ -156,6 +170,7 @@ export function createSurfaceTransportProbe({
         state.started_at_ms = nowMs();
         state.marks = {};
         state.panel_messages = { sent: {}, received: {} };
+        state.in_heap = { writes: 0, applied: 0 };
         state.render = {
             frames: 0,
             work: {
@@ -201,6 +216,7 @@ export function createSurfaceTransportProbe({
         recordPanelMessage,
         recordRenderFrame,
         recordRenderEmit,
+        recordInHeapPropagation,
         recordInputEvent,
         snapshot,
     };
