@@ -476,3 +476,151 @@ test('render-loop: avatar-controls + structuralDirty=true → publishState runs 
     assert.equal(result.structural, true, 'structural=true (bounds changed)');
     assert.equal(result.publishState, true, 'publishState=true when structuralDirty (panel bounds updated)');
 });
+
+// ---------------------------------------------------------------------------
+// Task 1b: scheduleFrame({ delayMs }) — idle-motion throttle support
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a test scheduler with injected setTimeout/clearTimeout stubs.
+ * Returned `fireTimers()` drains all pending timers synchronously.
+ */
+function makeTestSchedulerWithTimers() {
+    const pendingTimers = [];
+    let nextId = 1;
+
+    const stubSetTimeout = (fn, ms) => {
+        const id = nextId++;
+        pendingTimers.push({ id, fn, ms });
+        return id;
+    };
+    const stubClearTimeout = (id) => {
+        const idx = pendingTimers.findIndex((t) => t.id === id);
+        if (idx !== -1) pendingTimers.splice(idx, 1);
+    };
+
+    const scheduler = createWorldRafScheduler({
+        requestAnimationFrame: null,
+        cancelAnimationFrame: null,
+        setTimeout: stubSetTimeout,
+        clearTimeout: stubClearTimeout,
+    });
+
+    /** Fire all pending timers (sorted by ms ascending). */
+    function fireTimers() {
+        const toFire = [...pendingTimers].sort((a, b) => a.ms - b.ms);
+        pendingTimers.length = 0;
+        for (const t of toFire) t.fn();
+    }
+
+    /** Return live count of pending timers (not destructurable as a value). */
+    function timerCount() { return pendingTimers.length; }
+
+    return { scheduler, fireTimers, timerCount };
+}
+
+test('world-raf-scheduler: scheduleFrame({ delayMs }) defers frame until timer fires', () => {
+    const { scheduler, fireTimers, timerCount } = makeTestSchedulerWithTimers();
+    const results = [];
+
+    let wantsFrame = false;
+    const handle = scheduler.register('avatar-motion', {
+        needsFrame() { return wantsFrame; },
+        onFrame(ctx) { results.push({ ...ctx }); wantsFrame = false; },
+    });
+
+    // Schedule with a delay — no frame yet
+    handle.scheduleFrame({ delayMs: 100 });
+    assert.equal(results.length, 0, 'no frame before timer fires');
+    assert.equal(timerCount(), 1, 'one pending timer');
+
+    // Simulate needsFrame returning true after delay
+    wantsFrame = true;
+    fireTimers(); // timer fires → scheduleIfNeeded() called
+    scheduler.tick(); // now tick runs the frame
+
+    assert.equal(results.length, 1, 'frame fires after timer fires');
+
+    handle.unregister();
+});
+
+test('world-raf-scheduler: scheduleFrame({ delayMs: 0 }) preempts a pending delay', () => {
+    const { scheduler, timerCount } = makeTestSchedulerWithTimers();
+    const results = [];
+
+    let wantsFrame = false;
+    const handle = scheduler.register('avatar-motion', {
+        needsFrame() { return wantsFrame; },
+        onFrame(ctx) { results.push({ ...ctx }); wantsFrame = false; },
+    });
+
+    // Schedule with delay
+    handle.scheduleFrame({ delayMs: 100 });
+    assert.equal(timerCount(), 1, 'delayed frame pending');
+
+    // Immediate scheduleFrame cancels the delay
+    wantsFrame = true;
+    handle.scheduleFrame({ delayMs: 0 });
+    assert.equal(timerCount(), 0, 'delayed timer cancelled by immediate scheduleFrame');
+
+    // Tick drives the immediate frame
+    scheduler.tick();
+    assert.equal(results.length, 1, 'immediate frame delivered after preemption');
+
+    handle.unregister();
+});
+
+test('world-raf-scheduler: repeated scheduleFrame({ delayMs }) does not stack timers', () => {
+    const { scheduler, timerCount } = makeTestSchedulerWithTimers();
+
+    const handle = scheduler.register('avatar-motion', {
+        needsFrame() { return false; },
+        onFrame() {},
+    });
+
+    handle.scheduleFrame({ delayMs: 100 });
+    handle.scheduleFrame({ delayMs: 100 }); // duplicate — no new timer
+    handle.scheduleFrame({ delayMs: 100 }); // duplicate — no new timer
+
+    assert.equal(timerCount(), 1, 'only one timer regardless of repeated calls');
+
+    handle.unregister();
+});
+
+test('world-raf-scheduler: suspend cancels pending delay timers', () => {
+    const { scheduler, timerCount } = makeTestSchedulerWithTimers();
+    const results = [];
+
+    let wantsFrame = true;
+    const handle = scheduler.register('avatar-motion', {
+        needsFrame() { return wantsFrame; },
+        onFrame(ctx) { results.push(ctx); },
+    });
+
+    handle.scheduleFrame({ delayMs: 100 });
+    assert.equal(timerCount(), 1, 'timer pending before suspend');
+
+    scheduler.suspend();
+    assert.equal(timerCount(), 0, 'timer cancelled on suspend');
+
+    // Even if somehow the timer fires (it was cleared, but verify scheduler is suspended)
+    scheduler.tick();
+    assert.equal(results.length, 0, 'no frames after suspend');
+
+    handle.unregister();
+});
+
+test('world-raf-scheduler: unregister cancels pending delay timer', () => {
+    const { scheduler, timerCount } = makeTestSchedulerWithTimers();
+
+    const handle = scheduler.register('avatar-motion', {
+        needsFrame() { return false; },
+        onFrame() {},
+    });
+
+    handle.scheduleFrame({ delayMs: 200 });
+    assert.equal(timerCount(), 1, 'timer pending');
+
+    handle.unregister();
+    assert.equal(timerCount(), 0, 'timer cancelled on unregister');
+});

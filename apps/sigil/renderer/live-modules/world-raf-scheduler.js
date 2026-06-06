@@ -60,6 +60,8 @@
  * @param {{
  *   requestAnimationFrame?: (cb: FrameRequestCallback) => number,
  *   cancelAnimationFrame?: (id: number) => void,
+ *   setTimeout?: (fn: () => void, ms: number) => unknown,
+ *   clearTimeout?: (id: unknown) => void,
  * }} options
  * @returns {WorldRafScheduler}
  */
@@ -69,6 +71,12 @@ export function createWorldRafScheduler({
         : null),
     cancelAnimationFrame: caf = (typeof globalThis.cancelAnimationFrame === 'function'
         ? globalThis.cancelAnimationFrame.bind(globalThis)
+        : null),
+    setTimeout: _setTimeout = (typeof globalThis.setTimeout === 'function'
+        ? globalThis.setTimeout.bind(globalThis)
+        : null),
+    clearTimeout: _clearTimeout = (typeof globalThis.clearTimeout === 'function'
+        ? globalThis.clearTimeout.bind(globalThis)
         : null),
 } = {}) {
     /** @type {Map<string, ContributorState>} */
@@ -82,6 +90,8 @@ export function createWorldRafScheduler({
      * @property {() => boolean} needsFrame
      * @property {boolean} structuralPending
      * @property {(ctx: FrameContext) => void} onFrame
+     * @property {unknown | null} delayTimer - pending setTimeout id, or null
+     * @property {boolean} delayPending - true while a delayMs timer is active
      */
 
     /**
@@ -145,7 +155,7 @@ export function createWorldRafScheduler({
      *   needsFrame: () => boolean,
      *   onFrame: (ctx: FrameContext) => void,
      * }} opts
-     * @returns {{ requestStructural: () => void, unregister: () => void, scheduleFrame: () => void }}
+     * @returns {{ requestStructural: () => void, unregister: () => void, scheduleFrame: (opts?: { delayMs?: number }) => void }}
      */
     function register(name, { needsFrame, onFrame }) {
         if (typeof name !== 'string' || !name) throw new TypeError('contributor name must be a non-empty string');
@@ -158,8 +168,21 @@ export function createWorldRafScheduler({
             needsFrame,
             structuralPending: false,
             onFrame,
+            delayTimer: null,
+            delayPending: false,
         };
         contributors.set(name, state);
+
+        /**
+         * Cancel any pending delay timer for this contributor.
+         */
+        function clearDelay() {
+            if (state.delayTimer !== null && typeof _clearTimeout === 'function') {
+                _clearTimeout(state.delayTimer);
+                state.delayTimer = null;
+            }
+            state.delayPending = false;
+        }
 
         return {
             /**
@@ -175,6 +198,7 @@ export function createWorldRafScheduler({
              * Unregister this contributor from the shared loop.
              */
             unregister() {
+                clearDelay();
                 contributors.delete(name);
                 if (contributors.size === 0 && frameId !== null && typeof caf === 'function') {
                     caf(frameId);
@@ -183,10 +207,37 @@ export function createWorldRafScheduler({
             },
             /**
              * Schedule a frame for this contributor (non-structural by default).
-             * Call this when the contributor needs to update but has not changed
-             * avatar geometry.
+             *
+             * @param {{ delayMs?: number }} [opts]
+             *   delayMs — if > 0, defers the RAF by that many milliseconds (idle
+             *   throttle). A subsequent call with delayMs=0 cancels the pending
+             *   delay and schedules immediately, mirroring createRenderLoopScheduler
+             *   semantics. Use for idle-motion throttle (IDLE_AVATAR_MOTION_FRAME_DELAY_MS).
              */
-            scheduleFrame() {
+            scheduleFrame(opts = {}) {
+                const delayMs = Math.max(0, Number(opts.delayMs) || 0);
+
+                if (delayMs > 0) {
+                    // Already have a delay timer — let it fire (don't reset the clock).
+                    if (state.delayPending) return;
+
+                    if (typeof _setTimeout === 'function') {
+                        state.delayPending = true;
+                        state.delayTimer = _setTimeout(() => {
+                            state.delayTimer = null;
+                            state.delayPending = false;
+                            if (!suspended) scheduleIfNeeded();
+                        }, delayMs);
+                        return;
+                    }
+                    // No setTimeout available (test mode without injected stub) — fall through.
+                }
+
+                // delayMs === 0: preempt any pending delay and schedule immediately.
+                if (state.delayPending) {
+                    clearDelay();
+                }
+
                 scheduleIfNeeded();
             },
         };
@@ -194,12 +245,21 @@ export function createWorldRafScheduler({
 
     /**
      * Suspend the shared loop. In-flight RAF callback will exit early.
+     * Cancels any pending delay timers on all contributors.
      */
     function suspend() {
         suspended = true;
         if (frameId !== null && typeof caf === 'function') {
             caf(frameId);
             frameId = null;
+        }
+        // Cancel pending delay timers so they don't fire after suspend.
+        for (const c of contributors.values()) {
+            if (c.delayTimer !== null && typeof _clearTimeout === 'function') {
+                _clearTimeout(c.delayTimer);
+                c.delayTimer = null;
+                c.delayPending = false;
+            }
         }
     }
 
