@@ -17,7 +17,8 @@ import { createOmega, animateOmega, resetOmegaInterdimensionalTrail } from '../o
 import { animateSkins } from '../skins.js';
 import { applyAppearance, snapshotAppearance, DEFAULT_APPEARANCE } from '../appearance.js';
 import { resolveBirthplace } from '../birthplace-resolver.js';
-import { classifyRenderLoopWork, createRenderLoopScheduler, renderLoopContinuationReasons } from './render-loop.js';
+import { classifyRenderLoopWork, renderLoopContinuationReasons } from './render-loop.js';
+import { createWorldRafScheduler } from './world-raf-scheduler.js';
 import { createSurfaceTransportProbe } from './surface-transport-probe.js';
 import { createHostRuntime } from './host-runtime.js';
 import { createInteractionOverlay } from './interaction-overlay.js';
@@ -298,7 +299,18 @@ window.__sigilBootError = null;
 window.__sigilBootFirstFrameAt = null;
 
 let rendererSuspended = false;
-const renderLoop = createRenderLoopScheduler(requestAnimationFrame);
+let avatarSceneFrameRequested = false;
+let renderLoopDelayed = false;
+let renderLoopLastMode = 'idle';
+const renderLoop = createWorldRafScheduler({ requestAnimationFrame, cancelAnimationFrame });
+const avatarSceneScheduler = renderLoop.register('avatar-scene', {
+    needsFrame: () => avatarSceneFrameRequested,
+    onFrame: (ctx) => {
+        avatarSceneFrameRequested = false;
+        renderLoopDelayed = false;
+        animate(ctx);
+    },
+});
 const surfaceTransportProbe = createSurfaceTransportProbe({
     label: 'sigil-avatar-main',
 });
@@ -540,14 +552,22 @@ function runBootStep(stage, fn) {
 }
 
 function scheduleRenderFrame(options = {}) {
-    if (options.structural !== false) structuralFrameDirty = true;
-    renderLoop.schedule(animate, options);
+    if (rendererSuspended) return;
+    const delayMs = Math.max(0, Number(options.delayMs) || 0);
+    renderLoopLastMode = options.mode || 'dirty';
+    avatarSceneFrameRequested = true;
+    if (options.structural !== false) {
+        structuralFrameDirty = true;
+        avatarSceneScheduler.requestStructural();
+    }
+    renderLoopDelayed = delayMs > 0;
+    avatarSceneScheduler.scheduleFrame({ delayMs });
 }
 
-function updateRenderLoopDebug(mode = renderLoop.lastMode, continuationReasons = []) {
+function updateRenderLoopDebug(mode = renderLoopLastMode, continuationReasons = []) {
     liveJs.renderLoop = {
-        queued: renderLoop.queued,
-        delayed: renderLoop.delayed,
+        queued: avatarSceneFrameRequested || renderLoop.pendingFrame,
+        delayed: renderLoopDelayed,
         suspended: renderLoop.suspended || rendererSuspended,
         mode,
         continuationReasons,
@@ -4630,6 +4650,8 @@ function handleHostMessage(rawMsg) {
         } else if (msg.action === 'suspend') {
             if (liveJs.selectionMode?.active) exitSelectionMode('cleanup');
             rendererSuspended = true;
+            avatarSceneFrameRequested = false;
+            renderLoopDelayed = false;
             removeSigilInputRegions();
             renderLoop.suspend();
         } else if (msg.action === 'resume') {
@@ -5095,7 +5117,7 @@ function animate() {
 
     updateRenderLoopDebug(continuationReasons.length ? 'continuous' : 'idle', continuationReasons);
     if (continuationReasons.length > 0) {
-        renderLoop.schedule(animate, {
+        scheduleRenderFrame({
             mode: 'continuous',
             structural: false,
             delayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0,

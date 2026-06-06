@@ -111,6 +111,25 @@ test('Selection Mode render-only input schedules visual-only frames', () => {
   assert.doesNotMatch(renderOnlyBlock, /scheduleRenderFrame\(\);/)
 })
 
+test('Sigil main render loop is driven by the shared World RAF scheduler', () => {
+  const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
+  const scheduleStart = source.indexOf('function scheduleRenderFrame(options = {})')
+  const scheduleEnd = source.indexOf('function updateRenderLoopDebug', scheduleStart)
+  const scheduleBlock = source.slice(scheduleStart, scheduleEnd)
+  const continuationStart = source.indexOf('if (continuationReasons.length > 0)')
+  const continuationBlock = source.slice(continuationStart, source.indexOf('}', continuationStart) + 1)
+
+  assert.match(source, /import \{ createWorldRafScheduler \} from '\.\/world-raf-scheduler\.js'/)
+  assert.doesNotMatch(source, /createRenderLoopScheduler/)
+  assert.match(source, /const renderLoop = createWorldRafScheduler\(\{ requestAnimationFrame, cancelAnimationFrame \}\)/)
+  assert.match(source, /renderLoop\.register\('avatar-scene'/)
+  assert.match(scheduleBlock, /avatarSceneFrameRequested = true/)
+  assert.match(scheduleBlock, /avatarSceneScheduler\.requestStructural\(\)/)
+  assert.match(scheduleBlock, /avatarSceneScheduler\.scheduleFrame\(\{ delayMs \}\)/)
+  assert.match(continuationBlock, /scheduleRenderFrame\(\{[\s\S]*structural:\s*false[\s\S]*delayMs:\s*work\.visualOnly \? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0/)
+  assert.doesNotMatch(continuationBlock, /renderLoop\.schedule\(/)
+})
+
 test('Selection Mode surface snapshots are reprojected on secondary display segments', () => {
   const source = readFileSync(path.join(repoRoot, 'apps/sigil/renderer/live-modules/main.js'), 'utf8')
   const surfaceApplyStart = source.indexOf('function applySurfaceRenderSnapshot')
