@@ -1138,3 +1138,102 @@ test('descriptor routing identifies product actions as Sigil actions', () => {
   assert.equal(result.persisted, false)
   assert.equal(result.actionId, 'render-performance')
 })
+
+// Option A — embedded path (panelUrl: null) gate test.
+//
+// Verifies that when panelUrl is null (production config after One-World Phase 3
+// Task 2 flip), the controls surface uses the embedded path and the actionDispatcher
+// is never called for any panel canvas or canvas lifecycle action. This is the
+// unit-level "IPC→0 by construction" proof: the dispatch path is simply absent.
+test('embedded controls (panelUrl:null) activate embedded path and never dispatch panel actions', async () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  globalThis.document = document
+  globalThis.window = { innerHeight: 900 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const state = {
+      avatar: createDefaultAvatarState(),
+      currentGeometryType: 12,
+      currentType: 12,
+      avatarBase: 153,
+    }
+    const dispatchedActions = []
+    const controls = createSigilAvatarControls({
+      state,
+      liveJs: {
+        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        avatarPos: { x: 300, y: 300 },
+      },
+      projectPoint: (point) => point,
+      updatePrimaryAppearance() {},
+      onAppearanceChange() {},
+      actionDispatcher(action, payload = {}) {
+        dispatchedActions.push({ action, payload })
+        return Promise.resolve({ status: 'ok' })
+      },
+      panelId: 'sigil-avatar-controls-avatar-main',
+      panelUrl: null,
+      allowTestAnchorFallback: true,
+    })
+
+    // usesExternalPanel must be false — embedded path active
+    assert.equal(controls.usesExternalPanel(), false)
+
+    // openAt must mount the embedded surface without any panel.toggle dispatch
+    controls.openAt({ x: 300, y: 300 })
+    assert.equal(controls.isOpen(), true)
+    assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.toggle'), false)
+
+    // Wait for the async compactSurfaceSession.mount()
+    await waitForMicrotasks()
+    await waitForMicrotasks()
+
+    // Slider drag must route through onControlChange in-heap without any dispatch
+    const field = Array.from(document.body.querySelectorAll('.aos-form-field'))
+      .find((element) => element.dataset?.descriptorId === 'sigil-avatar-controls-opacity')
+    assert.ok(field, 'opacity field must be mounted in avatar-main document')
+    const track = field.querySelector('[data-aos-slider-track]')
+    const slider = field.querySelector('[data-aos-slider-root]')
+    assert.ok(track)
+    assert.ok(slider)
+    const sliderRect = () => ({
+      left: 20, top: 20, right: 120, bottom: 28, width: 100, height: 8,
+    })
+    field.getBoundingClientRect = sliderRect
+    slider.getBoundingClientRect = sliderRect
+    track.getBoundingClientRect = sliderRect
+
+    controls.handlePointerEvent('left_mouse_down', { x: 62, y: 24 })
+    controls.handlePointerEvent('left_mouse_up', { x: 62, y: 24 })
+    await waitForMicrotasks()
+
+    // Slider commit must apply geometry in-heap
+    assert.equal(state.avatar.appearance.opacity, 0.42)
+
+    // No cross-canvas dispatch for the entire open+drag+close cycle
+    assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.toggle'), false)
+
+    // close must not dispatch canvas.suspend or panel.close
+    controls.close('outside-click')
+    assert.equal(controls.isOpen(), false)
+    assert.equal(dispatchedActions.some((entry) => entry.action === 'canvas.suspend'), false)
+    assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.close'), false)
+
+    // Dispatcher may only have been called for non-panel actions (e.g. state sync)
+    const panelOrCanvasActions = dispatchedActions.filter((entry) =>
+      entry.action === 'panel.toggle' ||
+      entry.action === 'panel.close' ||
+      entry.action === 'canvas.suspend' ||
+      entry.action === 'canvas.resume'
+    )
+    assert.deepEqual(panelOrCanvasActions, [])
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
+  }
+})

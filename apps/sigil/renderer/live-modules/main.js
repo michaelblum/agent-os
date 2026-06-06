@@ -979,7 +979,7 @@ const avatarControls = createSigilAvatarControls({
         return host.request('aos.action', { ...payload, action }, options);
     },
     panelId: SIGIL_AVATAR_PANEL_CANVAS_ID,
-    panelUrl: SIGIL_AVATAR_PANEL_URL,
+    panelUrl: null, // One-World Phase 3: embedded path (usesPanel=false); panel canvas never created
     panelFrameToBounds: panelFrameToAvatarControlsBounds,
     trace: interactionTrace,
 });
@@ -1454,6 +1454,8 @@ async function prewarmAgentTerminalCanvas() {
 }
 
 async function prewarmAvatarPanelCanvas() {
+    // One-World Phase 3: embedded path active; no panel canvas to prewarm.
+    if (!avatarControls.usesExternalPanel()) return;
     if (liveJs._avatarPanelPrewarmStarted) return;
     liveJs._avatarPanelPrewarmStarted = true;
     try {

@@ -6,11 +6,24 @@ Branch: `gdi/aos-one-world-phase3-surface-migration-v0`
 
 Start ref: `678b92e57851c68decc1e3d5a0ad215ae8090ec8`
 
-Head ref (as of Task 1b commit): `119bc304` (`feat(world): Task 1b — add delayMs/throttle support to world-raf-scheduler`)
+Head ref (as of Task 2 commit): see §Commits on Branch
 
 ## Status
 
-`partial — decision required` — Window-semantics check passed. Task 1a (cheap-reason promotion) committed and live-measured. Task 1b (scheduler delayMs/throttle) committed and tested. Task 2 (avatar compact panel migration) returned to Foreman with a discovery that reframes the implementation approach — see §Task 2 Discovery and §Decision Point.
+`code-complete — live drag pending` — All tasks committed. Task 2 executed per Foreman's Option A decision: `panelUrl: null` flip + prewarm guard + dispatcher-spy test. The embedded path is active in production config. Unit-level IPC→0 gate is verified by the dispatcher-spy test. Live-canvas input routing verification (slider drag in the embedded viewport) is deferred to a follow-on session with live canvas access.
+
+---
+
+## Gate Assessment (updated)
+
+| Gate condition | Status |
+|---|---|
+| Window-semantics need shown unnecessary | PASSED |
+| Structural-% drops below 100% for idle controls-open | PASSED — live probe: 0% structural, 0 publishState (controls-open idle) |
+| Cross-canvas IPC approaches 0 during slider drag | CODE-COMPLETE — by construction (dispatcher-spy test); live drag measurement pending |
+| publishState demand-driven | PASSED — preserved from Phase 2 sub-task 1 |
+| Behavior parity | CODE-COMPLETE — embedded path exercised in tests; live canvas verification pending |
+| Frame-time distribution (render-performance / canvas-stats) | DEFERRED — requires live canvas after embedded path activation |
 
 ---
 
@@ -164,9 +177,81 @@ The `world-raf-scheduler` now matches the `delayMs` contract of
 
 ## Task 2: Move Avatar Compact Controls Panel to a World Node
 
-**Not completed. Returned to Foreman with a decision point.**
+**Completed (Option A — code-complete; live drag pending).**
 
-See §Task 2 Discovery and §Decision Point.
+### Changes Made
+
+**`main.js:982`** — `panelUrl` flipped from `SIGIL_AVATAR_PANEL_URL` to `null`:
+
+```js
+// Before:
+panelUrl: SIGIL_AVATAR_PANEL_URL,
+
+// After:
+panelUrl: null, // One-World Phase 3: embedded path (usesPanel=false); panel canvas never created
+```
+
+This activates the existing embedded path in `surface.js:415`:
+`usesPanel = typeof actionDispatcher === 'function' && !!panelUrl` → `false`
+
+**`prewarmAvatarPanelCanvas()` in `main.js`** — early-return guard added:
+
+```js
+async function prewarmAvatarPanelCanvas() {
+    // One-World Phase 3: embedded path active; no panel canvas to prewarm.
+    if (!avatarControls.usesExternalPanel()) return;
+    ...
+```
+
+Without this guard, the prewarm at `main.js:3571` would still create the panel canvas
+even though `surface.js` never uses it (dangling orphan canvas).
+
+**`tests/renderer/avatar-controls-hit-test.test.mjs`** — new test added:
+`'embedded controls (panelUrl:null) activate embedded path and never dispatch panel actions'`
+
+Constructs with a spy `actionDispatcher` + `panelUrl: null`, opens controls, drags a
+slider, closes — then asserts:
+- `usesExternalPanel() === false`
+- No `panel.toggle` dispatch on open
+- Slider commit applies geometry in-heap (`state.avatar.appearance.opacity === 0.42`)
+- No `canvas.suspend`, `panel.close`, `canvas.resume` on close or during drag
+- `panelOrCanvasActions` array is empty throughout the full cycle
+
+### Why Prewarm Guard Is Necessary
+
+`prewarmAvatarPanelCanvas` is called at `main.js:3571` every time the avatar becomes
+visible on the primary segment. With `panelUrl: null`, `surface.js` would never use the
+panel canvas — but the prewarm would still create it via `host.canvasCreate`. The created
+canvas would be an unreachable orphan: no IPC routes to it, `avatarControls` never
+toggles it, and `canvas_lifecycle` events for it would call `updatePanelFrame` on a
+surface that's in embedded mode. The guard `if (!avatarControls.usesExternalPanel()) return`
+makes the intent explicit and is reviewable as a migration boundary.
+
+### What Is Verified (Code Path)
+
+The embedded path (`usesPanel=false`) in `surface.js` is well-exercised by existing tests
+and the new dispatcher-spy test:
+- `openAt` calls `compactSurfaceSession.mount()` in-process (no `panel.toggle`)
+- `handlePointerEvent → handleMenuPointer → elementAt(point)` routes slider drags via
+  DOM coordinate dispatch — confirmed working in tests with stub `getBoundingClientRect`
+- `onControlChange → routeDescriptor → updatePrimaryAppearance` — geometry change in-heap
+- `close` does not dispatch `canvas.suspend` or `panel.close` when `usesPanel=false`
+- `syncSnapshot` reports `surface: 'embedded'` (was `'toolkit-panel'`)
+
+### What Is Not Yet Verified (Live Canvas)
+
+The screen→DW→viewport coordinate transform used by `handleMenuPointer → elementAt(point)`
+in production has not been exercised with a live canvas since the flip. Tests stub
+`getBoundingClientRect` with fixed rects; the real transform depends on how `avatar-main`'s
+viewport maps the embedded `compact-surface.js` DOM when controls are positioned at
+non-origin DW coordinates.
+
+Foreman step 3 (live drag verification) is the open gate before claiming IPC→0 on the
+live surface.
+
+### Discovery Context
+
+See §Task 2 Discovery below for the full investigation that motivated Option A.
 
 ---
 
@@ -357,19 +442,6 @@ activation + test coverage for the untested path + live-canvas input-routing ver
 
 ---
 
-## Gate Assessment
-
-| Gate condition | Status |
-|---|---|
-| Window-semantics need shown unnecessary | ✓ PASSED |
-| Structural-% drops below 100% for idle controls-open | ✓ PASSED — live probe: 0% structural, 0 publishState (controls-open idle) |
-| Cross-canvas IPC approaches 0 during slider drag | DECISION REQUIRED — see §Decision Point |
-| publishState demand-driven | ✓ Preserved from Phase 2 sub-task 1 |
-| Behavior parity | N/A — migration not performed |
-| Frame-time distribution (render-performance / canvas-stats) | N/A — requires migration |
-
----
-
 ## Tests Run
 
 ### After Task 1a commit
@@ -397,6 +469,22 @@ Result: `# tests 26 / # pass 26 / # fail 0` (5 new delayMs tests + 21 pre-existi
 Full suite: `# tests 1857 / # pass 1775 / # fail 82` (82 failures are pre-existing,
 verified by stash-pop baseline comparison before Task 1b changes).
 
+### After Task 2 commit
+
+```
+node --test \
+  tests/renderer/sigil-render-loop.test.mjs \
+  tests/renderer/avatar-controls-hit-test.test.mjs \
+  tests/renderer/sigil-surface-transport-probe.test.mjs \
+  tests/renderer/sigil-one-world-co-location-probe.test.mjs \
+  tests/renderer/sigil-one-world-phase2-scheduler.test.mjs \
+  tests/renderer/sigil-one-world-extension-api.test.mjs
+```
+
+Result: `# tests 125 / # pass 125 / # fail 0` (+1 embedded-path dispatcher-spy test)
+
+Full suite: `# tests 1858 / # pass 1776 / # fail 82` (82 failures pre-existing, unchanged)
+
 ---
 
 ## Files Changed
@@ -406,6 +494,8 @@ verified by stash-pop baseline comparison before Task 1b changes).
 | `apps/sigil/renderer/live-modules/render-loop.js` | Promoted `avatar-controls` to cheap reason; `trackingOnlyReasons` empty; dead `trackingFrame` branch retained with comment |
 | `tests/renderer/sigil-one-world-phase2-scheduler.test.mjs` | Updated 2 tests for Phase 3 cheap-reason classification; 5 new delayMs tests; load-bearing safety tests unchanged |
 | `apps/sigil/renderer/live-modules/world-raf-scheduler.js` | Added injectable setTimeout/clearTimeout; per-contributor delayMs/throttle support in scheduleFrame(); suspend() and unregister() cancel pending timers |
+| `apps/sigil/renderer/live-modules/main.js` | `panelUrl: null` flip (line 982); prewarm early-return guard via `usesExternalPanel()` |
+| `tests/renderer/avatar-controls-hit-test.test.mjs` | New dispatcher-spy test for embedded path (`panelUrl:null`) — proves no panel/canvas actions dispatched through full open+drag+close cycle |
 | `docs/dev/reports/aos-one-world-phase3-surface-migration-v0.md` | This report |
 
 ---
@@ -417,14 +507,18 @@ verified by stash-pop baseline comparison before Task 1b changes).
 | `b2bc21ec` | `docs(reports): Phase 3 surface migration V0 evidence — partial result` |
 | `678b92e5` (Task 1a) | `feat(sigil): Phase 3 cheap-reason promotion — avatar-controls → cheapFrameReasons` |
 | `119bc304` (Task 1b) | `feat(world): Task 1b — add delayMs/throttle support to world-raf-scheduler` |
+| `6a1ed64f` | `docs(reports): Phase 3 evidence update — Task 1b committed, live probe, Task 2 decision point` |
+| `94efef92` | `docs(reports): Phase 3 — sharpen decision point with co-located-panel disclaimer and empirical coverage gaps` |
+| (Task 2) | `feat(sigil): Phase 3 Task 2 — embedded avatar compact controls (panelUrl:null, prewarm guard)` |
 
 ---
 
 ## Recommended Next Steps
 
-1. **Foreman resolves Option A vs B** (see §Decision Point).
-2. **GDI follow-on:** implement Task 2 per Foreman's choice + write test coverage for
-   the embedded path (`usesPanel=false` in `surface.js`) + capture slider-drag IPC
-   measurement.
-3. **Frame-timing**: once Task 2 is complete and the canvas is operational with controls
-   embedded, capture `render-performance` / `canvas-stats` before/after.
+1. **Live canvas verification (Foreman step 3):** With the embedded path active, open
+   avatar controls and perform a live slider drag. Confirm geometry updates and controls
+   stay open (do not close on drag). Capture `surfaceTransportProbe` during drag — target:
+   `control_change` + `snapshot` ≈ 0 (was 82.8/s baseline from Phase 0).
+2. **Frame-timing**: Capture `render-performance` / `canvas-stats` before/after the
+   embedded path activation — compare structural-% and publishState/s.
+3. **main.js scheduler wiring (follow-on card):** Wire `scheduleFrame({ delayMs: IDLE_AVATAR_MOTION_FRAME_DELAY_MS })` now that `world-raf-scheduler.js` has delayMs support (Task 1b).
