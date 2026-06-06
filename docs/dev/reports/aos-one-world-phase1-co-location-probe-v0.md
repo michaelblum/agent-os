@@ -200,7 +200,14 @@ they are unchanged by pair co-location and are recorded for Phase 2 context.
 pid 32175, active input tap. Live eval tests were run against a canvas loaded
 from `co-located-panel.html`.
 
-**Canvas created:**
+**Scope note:** The live eval uses a mock control surface (no real avatar
+slider DOM) and a stub owner (`onApply` logs receipt; no real `routeChangedControls`
+call). What the live test confirms is that the binding code executes in a real
+WKWebView: the in-heap call chain (panelLayer → store → owner) runs, payload
+is delivered, and probe counters increment. Real-surface + real-avatar-owner
+integration is a Phase 2 concern.
+
+**Canvas created (auto-starts owner layer at module load):**
 
 ```bash
 ./aos show create --id coloc-probe-test \
@@ -208,31 +215,24 @@ from `co-located-panel.html`.
   --at 800,400,400,500 --interactive --ttl 120s --window-level floating
 ```
 
-**Owner layer wired and probe enabled via eval:**
+The `co-located-panel.js` module auto-starts the owner layer in its browser-init
+block. On load, `window.__sigilCoLocatedProbeDebug.ownerLayer.lastApplied` is
+`typeof === "function"` with no manual initialization.
+
+**Discriminating test (enable probe, mount panel mock, fire 20 events — no manual owner creation):**
 
 ```bash
 ./aos show eval --id coloc-probe-test --js "
   var dbg = window.__sigilCoLocatedProbeDebug;
-  var ol = dbg.makeOwnerLayer({ onApply: function(p) { dbg._lastApplied = p; } });
-  ol.start();
-  dbg.ownerLayer = ol;
   dbg.surfaceTransportProbe.enable();
   dbg.surfaceTransportProbe.reset();
-  'ready'
-"
-```
-
-**20 panel events through makePanelLayer → store → owner:**
-
-```bash
-./aos show eval --id coloc-probe-test --js "
-  var dbg = window.__sigilCoLocatedProbeDebug;
   var panelLayer = dbg.makePanelLayer({
     anchor: document.getElementById('coloc-panel-anchor'),
     viewModel: { type: 'test', tabs: [] }, document: document,
     createControlSurface: function(a, vm, opts) {
       window.__testPanelTrigger = function(ch) { opts.onControlChange(ch); };
-      return { getActiveTab: function(){ return null; }, getControlRecords: function(){ return []; }, destroy: function(){} };
+      return { getActiveTab: function(){ return null; },
+               getControlRecords: function(){ return []; }, destroy: function(){} };
     }
   });
   panelLayer.mount();
@@ -245,7 +245,7 @@ from `co-located-panel.html`.
 "
 ```
 
-**Result (live WKWebView):**
+**Result (live WKWebView, bootstrap owner only — confirmed auto-start):**
 
 ```json
 {
@@ -255,16 +255,17 @@ from `co-located-panel.html`.
 }
 ```
 
-In-heap propagation confirmed in a real WKWebView: 20 writes → 20 applied,
-0 cross-canvas IPC, last value correct.
+`applied: 20` with no manual owner creation proves the owner auto-started at
+module load. In-heap propagation confirmed in a real WKWebView: 20 writes →
+20 applied, 0 cross-canvas IPC, last value correct.
 
 **Native drag precondition note:** A native CGEvent drag against the
 co-located slider was not performed because the panel canvas is suspended
 without a live agent session (the same precondition documented in Phase 0).
-The live eval evidence above exercises the complete call chain
+The live eval evidence exercises the complete call chain
 (panelLayer → `recordInHeapPropagation('write')` → store → owner subscription
 → `applyControlChange` → `recordInHeapPropagation('applied')`) and is
-sufficient to confirm in-heap delivery.
+sufficient to confirm in-heap delivery in a real WKWebView.
 
 ## Live AOS Result
 

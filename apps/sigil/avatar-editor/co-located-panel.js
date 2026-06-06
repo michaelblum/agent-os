@@ -239,6 +239,21 @@ export const defaultCoLocatedPanel = createCoLocatedPanel({ canvasId: _canvasId 
 
 if (typeof window !== 'undefined') {
     const { probe: p, store: s, makePanelLayer, makeOwnerLayer } = defaultCoLocatedPanel;
+
+    // Auto-start the owner layer at module load time (browser only).
+    // This wires the store subscription so the document is live as soon as the
+    // module evaluates — no separate bootstrap script needed. The onApply
+    // callback logs receipt; in a real co-located World document this is where
+    // routeChangedControls / applyAvatarDescriptorUpdate would be called.
+    const _ownerLayer = makeOwnerLayer({
+        onApply(payload) {
+            if (typeof console !== 'undefined') {
+                console.debug('[coloc-probe] owner applied:', payload?.values);
+            }
+        },
+    });
+    _ownerLayer.start();
+
     window.__sigilCoLocatedProbeDebug = {
         surfaceTransportProbe: {
             enable() { return p.setEnabled(true); },
@@ -252,9 +267,8 @@ if (typeof window !== 'undefined') {
             // Direct write for live in-heap propagation tests.
             write(key, value) { return s.write(key, value); },
         },
-        // Live owner layer lifecycle: start/stop, last applied value.
-        // Used by the HTML bootstrap and by live eval tests.
-        ownerLayer: null,
+        // Owner layer started at module init — subscription is live at load.
+        ownerLayer: _ownerLayer,
         // Factory accessors for live eval instrumentation.
         makePanelLayer,
         makeOwnerLayer,
