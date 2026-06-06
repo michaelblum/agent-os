@@ -246,10 +246,13 @@ cross-canvas IPC → 0 by construction.
    calls are ever made. No probe measurement needed to verify; the signal path is
    simply absent.
 
-3. **Behavior parity:** slider drag calls `routeDescriptor` → geometry change → render.
-   Tab changes, projection actions, and close behavior all have in-process equivalents
-   in `compact-surface-session.js`. The `onControlChange` path at `compact-surface-session.js:134`
-   calls `syncState()` + `publishSnapshot()` — both in-process.
+3. **Behavior parity (code-reading only — not live-verified this session):** slider drag
+   calls `routeDescriptor` → geometry change → render. Tab changes, projection actions,
+   and close behavior all have in-process equivalents in `compact-surface-session.js`.
+   The `onControlChange` path at `compact-surface-session.js:134` calls `syncState()` +
+   `publishSnapshot()` — both in-process. The unverified crux is whether
+   `handleMenuPointer → elementAt(point)` delivers slider events at correct coordinates
+   in the embedded viewport; this requires live canvas verification.
 
 4. **The embedded path is untested.** No existing test exercises `usesPanel=false` in
    `surface.js`. The path exists and is structurally sound (it was the original path
@@ -276,10 +279,15 @@ Change: `main.js:982` from `panelUrl: SIGIL_AVATAR_PANEL_URL` to `panelUrl: null
 - IPC → 0 immediately, by construction.
 - No new infrastructure. Re-uses the existing `compactSurfaceSession.mount()` path.
 - The panel canvas (`sigil-avatar-controls-avatar-main`) is never created.
-- Behavior parity: structurally covered (same `compact-surface.js` renders).
-- Risk: embedded path is untested; requires exercise to confirm bit-rot.
-- Does NOT use Phase 1/2 signal-store substrate. "Co-location" is achieved via
-  pre-existing in-process rendering, not the `createCoLocatedPanel` pattern.
+- Behavior parity: same `compact-surface.js` renders, in-heap.
+- Risk: embedded path is untested; bit-rot risk (see §Inputs to Foreman, point 4).
+- Does NOT use Phase 1/2 signal-store substrate.
+- **The `panelUrl: null` flip is the minimal change, but it is not trivially safe.**
+  The unverified crux (see §Empirical Coverage below) is whether
+  `handleMenuPointer → elementAt(point)` delivers slider drag events at correct
+  coordinates when `compact-surface.js` is mounted into `avatar-main`'s viewport
+  rather than a separate WKWebView. This requires a follow-on session to verify
+  with live interaction before the gate measurement is valid.
 
 **Option B: Activate embedded path + insert signal store**
 
@@ -288,20 +296,64 @@ between `onControlChange` and `routeDescriptor` in `compact-surface-session.js` 
 wrap the session in a `co-located-panel.js`-style owner layer).
 
 - IPC → 0, same as Option A.
-- Proves the Phase 1/2 signal-store substrate on a real first-party surface.
-- More code, more scope, but consistent with Foreman's cited instruction.
-- The signal-store insertion adds indirection with no observable behavior difference.
+- Claims to prove the Phase 1/2 signal-store substrate on a real first-party surface.
+- More code, more scope, consistent with Foreman's cited instruction.
+- **Important caveat:** `co-located-panel.js:17-18` explicitly disclaims the signal
+  store as throwaway scaffolding: *"The store is intentionally minimal and throwaway.
+  It exists to prove the pair co-locates correctly. Do not commit to this as the Phase
+  2 World substrate."* Building production code on `createAvatarSignalStore` contradicts
+  its own documentation. If Foreman wants a real substrate layer (not the throwaway
+  store), Option B is more scope than "insert `createAvatarSignalStore`" — it implies
+  designing a production-grade signal substrate first.
 
-**GDI's read:** Option A satisfies the IPC gate and behavior parity. Option B satisfies
-the Phase 1/2 substrate contract. Foreman's instruction described Option B's pattern
-(`co-located-panel.js` / `createCoLocatedPanel`), but the Phase 3 goal contract (§2.2)
-states "cross-canvas IPC → 0" — not "use the signal-store substrate." If the workstream
-intent is to prove the substrate on a real surface, Option B. If the goal is the IPC
-number, Option A.
+**GDI's read:**
 
-**Recommended:** Foreman resolve Option A vs B, then GDI can close Task 2 in a targeted
-follow-on session. The embedded-path activation is a 1-line change + test coverage for
-the untested path.
+Option A satisfies the IPC gate. Option B as described (inserting the throwaway store)
+contradicts the Phase 1 disclaimer and produces a production surface backed by a
+scaffolding artifact. The three-way choice is:
+
+1. **Option A**: IPC→0 via embedded path; no substrate layer; throwaway store not used.
+2. **Option B-lite**: Same as A + throwaway store inserted; satisfies the pattern by the
+   letter but contradicts the `co-located-panel.js` comment.
+3. **Option B-full**: Design a production signal substrate, then use it here; out of scope
+   for this card.
+
+The Phase 3 goal contract (§2.2) states "cross-canvas IPC → 0" — not "use signal-store
+substrate." Option A maps directly to that gate.
+
+**Recommended:** Foreman resolve the option, then GDI follows up with: embed path
+activation + test coverage for the untested path + live-canvas input-routing verification
+(the unverified crux).
+
+---
+
+## Empirical Coverage (what was and was not verified live)
+
+**Verified by live probe (session 2):**
+
+- Controls-open idle: 484 frames, 0% structural, 0 publishState/s — cheap-reason
+  promotion confirmed working in production.
+- Controls-closed idle: 251 frames, 0% structural, 100% visualOnly — avatar motion
+  correctly classified.
+- Panel canvas idle: 0 cross-canvas messages observed.
+
+**NOT verified by live measurement:**
+
+- **Slider-drag IPC baseline**: The synthetic `./aos do drag` attempt routed the
+  `left_mouse_down` to `avatar-main` (via SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID),
+  which interpreted it as "outside controls" and closed the panel. The screen↔DW
+  coordinate transform was not resolved in this session. The 82.8/s baseline is
+  documented in prior Phase 0/1 reports, not re-measured here.
+
+- **Embedded path input routing**: Whether `handleMenuPointer → elementAt(point)`
+  correctly dispatches to the in-viewport DOM when `compact-surface.js` renders inside
+  `avatar-main` has not been exercised. This is the unverified crux for Task 2, and
+  it must be confirmed with live interaction after any panelUrl:null flip, before the
+  gate measurement is recorded.
+
+- **Behavior parity (full)**: The embedded-path behavior claims (slider drag → geometry
+  change → render; tab changes; projection actions; close) rest on code reading only.
+  Live verification is deferred to the Task 2 follow-on session.
 
 ---
 
