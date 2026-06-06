@@ -46,12 +46,25 @@ export function classifyRenderLoopWork(frame = {}) {
     // This allows publishState to be skipped on panel-only frames.
     const panelUiIdleReasons = new Set(['panel-ui-idle']);
     const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons, ...panelUiIdleReasons]);
+    // trackingOnlyReasons: reasons that require the structural ops block
+    // (updateSegmentPosition, syncWorldRect, syncSigilInputRegions) but do NOT
+    // require publishState — avatar geometry did not change, only UI tracking
+    // state. A frame driven solely by tracking reasons is structural (so hit-
+    // region and segment tracking keep running) but skips publishState.
+    const trackingOnlyReasons = new Set(['avatar-controls']);
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => visualOnlyReasons.has(reason));
     const cheapFrame = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => cheapFrameReasons.has(reason));
+    // trackingFrame: all reasons are cheap or tracking-only, and at least one
+    // is a tracking reason. structural=true so ops run; publishState=false.
+    const trackingFrame = !structuralDirty
+        && !cheapFrame
+        && continuationReasons.length > 0
+        && continuationReasons.every((reason) => cheapFrameReasons.has(reason) || trackingOnlyReasons.has(reason))
+        && continuationReasons.some((reason) => trackingOnlyReasons.has(reason));
     const overlayOnly = cheapFrame
         && continuationReasons.some((reason) => overlayOnlyReasons.has(reason));
     const publishSelectionEffectState = continuationReasons.includes('selection-mode-effect');
@@ -66,7 +79,7 @@ export function classifyRenderLoopWork(frame = {}) {
         publishState: structuralDirty
             || selectionModeEffectStateChanged
             || publishSelectionEffectState
-            || (!cheapFrame && continuationReasons.length > 0),
+            || (!cheapFrame && !trackingFrame && continuationReasons.length > 0),
         visualOnly,
     };
 }

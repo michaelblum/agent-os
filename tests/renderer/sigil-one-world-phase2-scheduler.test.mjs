@@ -323,17 +323,18 @@ test('render-loop: panel-ui-idle with avatar-motion stays non-structural', () =>
     assert.equal(result.publishState, false);
 });
 
-test('render-loop: panel-ui-idle + avatar-controls → structural (controls open forces structural)', () => {
-    // avatar-controls is NOT a cheap reason; pairing panel-ui-idle with it still
-    // results in a structural frame (avatar has non-geometry continuation pending).
+test('render-loop: panel-ui-idle + avatar-controls → structural but NOT publishState (tracking frame)', () => {
+    // When both panel-ui-idle (cheap) and avatar-controls (tracking-only) are
+    // reasons, the frame is a tracking frame: structural=true so hit-region and
+    // segment tracking keep running, but publishState=false because no avatar
+    // geometry changed.
     const result = classifyRenderLoopWork({
         continuationReasons: ['panel-ui-idle', 'avatar-controls'],
         structuralDirty: false,
     });
 
-    // avatar-controls is not in cheapFrameReasons, so the mixed frame is structural
-    assert.equal(result.structural, true);
-    assert.equal(result.publishState, true);
+    assert.equal(result.structural, true, 'tracking frame: structural ops run');
+    assert.equal(result.publishState, false, 'tracking frame: publishState skipped (no geometry change)');
 });
 
 // ---------------------------------------------------------------------------
@@ -350,15 +351,23 @@ test('render-loop regression: avatar-motion still visual-only (unchanged)', () =
     assert.equal(result.visualOnly, true);
 });
 
-test('render-loop regression: avatar-controls still structural (no regression)', () => {
-    // avatar-controls is NOT in cheapFrameReasons; this behavior must not change.
-    // Phase 0/1 baseline: 31/s publishState while controls are open.
+test('render-loop: avatar-controls is tracking-only — structural=true, publishState=false', () => {
+    // Phase 2 demand-driven publishState: avatar-controls is a "tracking-only"
+    // reason. The structural ops block (updateSegmentPosition, syncWorldRect,
+    // syncSigilInputRegions) must still run every controls-open frame so that
+    // hit-region and segment tracking stay current. But publishState is skipped
+    // because avatar geometry did not change — the daemon does not need a new
+    // snapshot just because the controls are open and idle.
+    //
+    // This is the key change from Phase 0/1 (where avatar-controls forced
+    // publishState=true): the live avatar render loop now skips publishState on
+    // controls-open-idle frames, dropping below the 31/s baseline.
     const result = classifyRenderLoopWork({
         continuationReasons: ['avatar-controls'],
         structuralDirty: false,
     });
-    assert.equal(result.structural, true, 'avatar-controls still structural (regression guard)');
-    assert.equal(result.publishState, true);
+    assert.equal(result.structural, true, 'avatar-controls: structural ops still run (tracking)');
+    assert.equal(result.publishState, false, 'avatar-controls idle: publishState skipped (demand-driven)');
 });
 
 test('render-loop regression: structuralDirty=true always structural (no regression)', () => {
