@@ -23,6 +23,7 @@ node_modules/
 # Local scratch outputs
 clipboard.txt
 .aos-test-tmp/
+.playwright-cli/
 
 # Local gateway secrets
 packages/gateway/.env
