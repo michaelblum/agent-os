@@ -39,7 +39,13 @@ export function classifyRenderLoopWork(frame = {}) {
     const selectionModeEffectStateChanged = !!frame.selectionModeEffectStateChanged;
     const visualOnlyReasons = new Set(['avatar-motion', 'selection-mode']);
     const overlayOnlyReasons = new Set(['selection-mode-effect', 'selection-mode-perimeter-fill']);
-    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons]);
+    // panel-ui-idle: panel UI is animating but no avatar geometry changed.
+    // Added in Phase 2: when the shared RAF scheduler drives a co-located
+    // document frame for panel-only updates (no avatar geometry dirty), the
+    // avatar render step registers this reason instead of avatar-controls.
+    // This allows publishState to be skipped on panel-only frames.
+    const panelUiIdleReasons = new Set(['panel-ui-idle']);
+    const cheapFrameReasons = new Set([...visualOnlyReasons, ...overlayOnlyReasons, ...panelUiIdleReasons]);
     const visualOnly = !structuralDirty
         && continuationReasons.length > 0
         && continuationReasons.every((reason) => visualOnlyReasons.has(reason));
