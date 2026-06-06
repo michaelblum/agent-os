@@ -49,6 +49,12 @@ particular, do not run unscoped `./aos ready`, `./aos status`, `./aos clean`,
 explicitly says AOS may be restarted. Mock-daemon/state-root tests that set
 their own `AOS_STATE_ROOT` and `AOS_TEST_*` variables are allowed.
 
+Foreman correction after a GDI stall: do not classify a process as unmanaged
+from `pgrep` or PPID 1 alone. A launchd-managed repo service also appears as
+`/Users/Michael/Code/agent-os/aos serve --idle-timeout none` with PPID 1. Use
+`./aos service status --mode repo --json` and, if needed, `launchctl print` to
+distinguish a managed repo LaunchAgent from a truly unmanaged foreground owner.
+
 ## Goal
 
 Make `daemon_unmanaged` diagnostics name the foreground owner PID and command
@@ -82,12 +88,22 @@ git rev-parse HEAD
 ./aos dev gh issue view 113 --json
 ./aos dev gh issue view 223 --json
 ./aos dev recommend --json --paths scripts/aos-ready.mjs,scripts/aos-status.mjs,scripts/aos-clean.mjs,scripts/lib/aos-facts.mjs,scripts/lib/aos-readiness.mjs,tests/aos-readiness-composition.test.mjs,tests/ready-ownership-mismatch.sh,tests/ready-auto-repair-flow.sh,tests/ready-stale-daemon-hygiene.sh
+./aos service status --mode repo --json
 pgrep -af '(/Users/Michael/Code/agent-os/aos|AOS\.app|aos serve|Agent-OS)' || true
+ps -axo pid,ppid,stat,etime,command | rg '(/Users/Michael/Code/agent-os/aos|AOS\.app|aos serve|Agent-OS)' || true
 rg -n "daemon_unmanaged|ownership_state|owner_pid|runtimeHealthNotes|readyNextActions|readyAutoRepairReason|ready --repair|service restart" scripts tests src docs/api/aos.md
 ```
 
-If `pgrep` finds a real repo AOS owner, do not kill it and do not run AOS repair
-loops. Stop and report `human_needed` with the PID/command.
+If `pgrep` finds a repo AOS process, classify it before blocking:
+
+- If `./aos service status --mode repo --json` reports `running:true`,
+  `target_matches_expected:true`, and the PID matches the repo `aos serve`
+  wrapper, record it as a managed LaunchAgent and continue the deterministic
+  card. Do not run live readiness, cleanup, service start, or service restart.
+- If the repo socket owner is not launchd-managed, or the service status does
+  not explain the owner, do not kill it and do not run AOS repair loops. Stop
+  and report `human_needed` with the PID, PPID, command line, socket owner, and
+  any service-status evidence.
 
 ## Required Behavior
 
