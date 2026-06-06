@@ -6,6 +6,11 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+  serviceInputTapRecovery,
+  serviceRuntimeRecovery,
+} from './lib/aos-readiness.mjs';
+
 function printJSON(value) {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
@@ -409,19 +414,6 @@ async function verifyOutcome(mode, budgetMs) {
   return { kind: 'socket_unreachable', view: null };
 }
 
-function readinessRecovery(status, attempts, restartContext = false) {
-  if (restartContext) {
-    return {
-      note: `Input tap is still not active after service restart (status=${status}, attempts=${attempts}).\nTry:\n  ./aos permissions setup --once     # refresh macOS permission onboarding\n  ./aos serve --idle-timeout none    # temporary foreground fallback for this session`,
-      recovery: ['./aos permissions setup --once', './aos serve --idle-timeout none'],
-    };
-  }
-  return {
-    note: `Input tap is not active (status=${status}, attempts=${attempts}).\nTry:\n  ./aos service restart              # restart the managed daemon and re-check readiness\n  ./aos permissions setup --once     # refresh macOS permission onboarding\n  ./aos serve --idle-timeout none    # temporary foreground fallback for this session`,
-    recovery: ['./aos service restart', './aos permissions setup --once', './aos serve --idle-timeout none'],
-  };
-}
-
 async function readinessResponse(mode, budgetMs, restartContext = false) {
   const base = serviceStatus(mode);
   const outcome = await verifyOutcome(mode, budgetMs);
@@ -447,30 +439,34 @@ async function readinessResponse(mode, budgetMs, restartContext = false) {
   const serviceNotRunning = requireLaunchdOwner && servicePid == null;
 
   if (outcome.view && serviceNotRunning) {
+    const recovery = serviceRuntimeRecovery('service_not_running', mode);
     response.status = 'degraded';
     response.reason = 'service_not_running';
     response.input_tap = outcome.view.input_tap;
-    response.recovery = [`./aos service start --mode ${mode}`, './aos clean'];
+    response.recovery = recovery.recovery;
     response.notes = [
       ...(response.notes || []),
+      recovery.note,
       `Daemon socket answered with pid=${daemonPid ?? 'unknown'}, but launchd service ${serviceLabel(mode)} is not running. Clean the unmanaged daemon before treating service start as successful.`,
-    ];
+    ].filter(Boolean);
     exitCode = 1;
   } else if (outcome.view && ownershipMismatch) {
+    const recovery = serviceRuntimeRecovery('daemon_ownership_mismatch', mode);
     response.status = 'degraded';
     response.reason = 'daemon_ownership_mismatch';
     response.input_tap = outcome.view.input_tap;
-    response.recovery = ['./aos clean', `./aos service restart --mode ${mode}`];
+    response.recovery = recovery.recovery;
     response.notes = [
       ...(response.notes || []),
+      recovery.note,
       `Daemon socket answered with pid=${daemonPid}, but launchd service ${serviceLabel(mode)} is pid=${servicePid}. Clean the unmanaged socket owner before treating service start as successful.`,
-    ];
+    ].filter(Boolean);
     exitCode = 1;
   } else if (outcome.kind === 'ok') {
     response.input_tap = outcome.view.input_tap;
   } else if (outcome.kind === 'input_tap_not_active') {
     const tap = outcome.view.input_tap;
-    const recovery = readinessRecovery(tap.status, tap.attempts, restartContext);
+    const recovery = serviceInputTapRecovery(tap.status, tap.attempts, restartContext);
     response.status = 'degraded';
     response.reason = 'input_tap_not_active';
     response.input_tap = tap;
@@ -478,9 +474,11 @@ async function readinessResponse(mode, budgetMs, restartContext = false) {
     response.notes = [...(response.notes || []), recovery.note];
     exitCode = 1;
   } else {
+    const recovery = serviceRuntimeRecovery('socket_unreachable', mode);
     response.status = 'degraded';
     response.reason = 'socket_unreachable';
-    response.notes = [...(response.notes || []), 'Daemon socket was not reachable within the readiness budget.'];
+    response.recovery = recovery.recovery;
+    response.notes = [...(response.notes || []), recovery.note].filter(Boolean);
     exitCode = 1;
   }
 

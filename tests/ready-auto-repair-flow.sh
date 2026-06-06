@@ -89,9 +89,10 @@ import pathlib
 import sys
 
 response = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+action_path = pathlib.Path(sys.argv[2])
 actions = [
     json.loads(line)
-    for line in pathlib.Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
+    for line in (action_path.read_text(encoding="utf-8") if action_path.exists() else "").splitlines()
     if line.strip()
 ]
 expect_ready = sys.argv[3] == "ready"
@@ -99,17 +100,21 @@ rc = int(sys.argv[4])
 trace = response.get("action_trace", [])
 steps = [(item.get("step"), item.get("result")) for item in trace]
 
-assert any(action == {"action": "restart", "mode": "repo"} for action in actions), actions
 assert all(action["action"] in {"start", "restart"} for action in actions), actions
-assert ("service_restart", "ok") in steps, trace
+assert any(action == {"action": "start", "mode": "repo"} for action in actions), actions
+restarted = any(action == {"action": "restart", "mode": "repo"} for action in actions)
+if restarted:
+    assert ("service_restart", "ok") in steps, trace
 
 if expect_ready:
     assert rc == 0, response
     assert response.get("ready") is True, response
-    assert ("wait_for_recovery", "ready") in steps, trace
+    if restarted:
+        assert ("wait_for_recovery", "ready") in steps, trace
 else:
     assert rc != 0, response
     assert response.get("ready") is False, response
+    assert restarted, actions
     assert ("wait_for_recovery", "timed_out") in steps, trace
 PY
 
@@ -121,10 +126,18 @@ run_case recovery 4 ready
 run_case timeout never timed_out
 run_case repair-recovery 2 ready --repair
 
-run_stale_repair_case() {
+run_stale_preflight_case() {
+  local name="$1"
+  local expect_clean="$2"
+  shift 2
+  local ready_command=(./aos ready)
+  if [[ "$#" -gt 0 ]]; then
+    ready_command+=("$@")
+  fi
+
   local state_root stale_root
-  state_root="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}-stale.XXXXXX")"
-  stale_root="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}-stale-daemon.XXXXXX")"
+  state_root="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}-${name}.XXXXXX")"
+  stale_root="$(mktemp -d "${TMPDIR:-/tmp}/${PREFIX}-${name}-stale-daemon.XXXXXX")"
   local sock="$state_root/repo/sock"
   local marker="$state_root/repo/permissions-onboarding.json"
   local action_log="$state_root/actions.jsonl"
@@ -204,23 +217,25 @@ raise SystemExit(0 if any(item.get("pid") == pid for item in payload.get("stale_
     AOS_TEST_ASSUME_PERMISSIONS_GRANTED=1 \
     AOS_TEST_READY_MOCK_SERVICE_ACTIONS=1 \
     AOS_TEST_READY_SERVICE_ACTION_LOG="$action_log" \
-    ./aos ready --repair --json >"$out"
+    "${ready_command[@]}" --json >"$out"
   local rc=$?
   set -e
 
-  python3 - "$out" "$action_log" "$stale_pid" "$rc" <<'PY'
+  python3 - "$out" "$action_log" "$stale_pid" "$rc" "$expect_clean" <<'PY'
 import json
 import pathlib
 import sys
 
 response = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+action_path = pathlib.Path(sys.argv[2])
 actions = [
     json.loads(line)
-    for line in pathlib.Path(sys.argv[2]).read_text(encoding="utf-8").splitlines()
+    for line in (action_path.read_text(encoding="utf-8") if action_path.exists() else "").splitlines()
     if line.strip()
 ]
 stale_pid = int(sys.argv[3])
 rc = int(sys.argv[4])
+expect_clean = sys.argv[5] == "clean"
 trace = response.get("action_trace", [])
 steps = [(item.get("step"), item.get("result")) for item in trace]
 blockers = response.get("blockers", [])
@@ -229,8 +244,13 @@ assert rc != 0, response
 assert response.get("ready") is False, response
 assert response.get("diagnosis") == "stale_daemons", response
 assert any(item.get("id") == "stale_daemons" and str(stale_pid) in item.get("message", "") for item in blockers), response
-assert ("clean", "ok") in steps, trace
+if expect_clean:
+    assert ("clean", "ok") in steps, trace
+else:
+    assert ("clean", "ok") not in steps, trace
+assert not any(step == "service_start" for step, _ in steps), trace
 assert not any(step == "service_restart" for step, _ in steps), trace
+assert not any(action.get("action") == "start" for action in actions), actions
 assert not any(action.get("action") == "restart" for action in actions), actions
 PY
 
@@ -238,6 +258,7 @@ PY
   cleanup_stale_case
 }
 
-run_stale_repair_case
+run_stale_preflight_case stale-plain no-clean
+run_stale_preflight_case stale-repair clean --repair
 
 echo "PASS"

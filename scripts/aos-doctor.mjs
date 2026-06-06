@@ -14,14 +14,15 @@ import {
 } from './lib/aos-cli.mjs';
 import {
   brokerFacts,
+  cleanReport,
   identity,
-  runtimeHealthNotes,
 } from './lib/aos-facts.mjs';
 import {
   evaluateReadyForTesting,
   inputMonitoringSubGuidance,
   inputTapRecoveryGuidance,
   permissionRequirements,
+  runtimeVerdict,
 } from './lib/aos-readiness.mjs';
 
 function parseArgs(args) {
@@ -67,18 +68,16 @@ function platformState() {
   };
 }
 
-function doctorNotes({ runtime, permissions, setup, service }) {
-  const notes = [];
-  if (!runtime.daemon_running) notes.push('Daemon is not running.');
-  else if (!runtime.socket_reachable) notes.push('Daemon process appears to be running, but the socket is not reachable.');
-  notes.push(...runtimeHealthNotes(runtime, invocationName()));
+function doctorNotes({ runtime, permissions, setup, service, verdict }) {
+  const notes = [...verdict.notes];
   if (runtime.other_mode_socket_reachable) {
     notes.push(`BROKEN STATE: ${runtime.mode} runtime is active while the ${runtime.mode === 'repo' ? 'installed' : 'repo'} socket is also reachable.`);
   }
-  if (!permissions.accessibility) notes.push('Accessibility permission is not granted.');
-  if (!permissions.screen_recording) notes.push('Screen Recording permission is not granted.');
+  if (!permissions.accessibility && !notes.includes('Accessibility permission is not granted (CLI view).')) notes.push('Accessibility permission is not granted.');
+  if (!permissions.screen_recording && !notes.includes('Screen Recording permission is not granted.')) notes.push('Screen Recording permission is not granted.');
   if (!setup.setup_completed && setup.recommended_command) {
-    notes.push(`Run '${setup.recommended_command}' before interactive testing.`);
+    const setupNote = `Run '${setup.recommended_command}' before interactive testing.`;
+    if (!notes.includes(setupNote)) notes.push(setupNote);
   }
   if (!service.target_matches_expected) {
     notes.push(`AOS launch agent target does not match the expected ${runtime.mode} runtime binary.`);
@@ -93,9 +92,11 @@ function doctorNotes({ runtime, permissions, setup, service }) {
     notes.push(`Repo build artifacts are still present: ${runtime.repo_artifacts.join(', ')}.`);
   }
   if (runtime.socket_reachable && runtime.input_tap && runtime.input_tap.status !== 'active') {
-    notes.push(inputTapRecoveryGuidance(runtime.input_tap.status, runtime.input_tap.attempts));
+    const recovery = inputTapRecoveryGuidance(runtime.input_tap.status, runtime.input_tap.attempts);
+    if (!notes.includes(recovery)) notes.push(recovery);
     if (runtime.input_tap.listen_access === false || runtime.input_tap.post_access === false) {
-      notes.push(inputMonitoringSubGuidance(runtime.input_tap, expectedBinaryPath(runtime.mode)));
+      const inputMonitoring = inputMonitoringSubGuidance(runtime.input_tap, expectedBinaryPath(runtime.mode));
+      if (!notes.includes(inputMonitoring)) notes.push(inputMonitoring);
     }
   }
   return notes;
@@ -110,7 +111,9 @@ async function buildDoctorResponse() {
   });
   const service = serviceState(mode);
   const evaluation = evaluateReadyForTesting(facts.daemon, facts.permissions, facts.setup);
-  const notes = doctorNotes({ runtime: facts.runtime, permissions: facts.permissions, setup: facts.setup, service });
+  const clean = cleanReport();
+  const verdict = runtimeVerdict({ ...facts, cleanReport: clean }, mode, invocationName());
+  const notes = doctorNotes({ runtime: facts.runtime, permissions: facts.permissions, setup: facts.setup, service, verdict });
 
   return {
     status: notes.length ? 'degraded' : 'ok',
@@ -120,6 +123,7 @@ async function buildDoctorResponse() {
     permissions_requirements: permissionRequirements(facts.permissions),
     permissions_setup: facts.setup,
     runtime: facts.runtime,
+    runtime_verdict: verdict,
     aos_service: service,
     ready_for_testing: evaluation.readyForTesting,
     ready_source: evaluation.readySource,

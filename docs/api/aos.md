@@ -1057,9 +1057,12 @@ Consumers:
   agent handoff check after the human has re-granted Accessibility or
   Input Monitoring access; it is bounded and reports the remaining blocker
   instead of encouraging repeated ad-hoc repair loops. `--repair` runs the
-  longer safe recovery path: restart, wait/recheck, then report plain-English
-  human instructions when macOS privacy settings still require manual action. It
-  does not open Settings or show permission dialogs by itself.
+  longer safe recovery path, but stale daemon owners are cleaned before service
+  start/restart and unmanaged socket owners are reported as PID/command facts
+  instead of restart loops. For restartable daemon states, repair may restart,
+  wait/recheck, then report plain-English human instructions when macOS privacy
+  settings still require manual action. It does not open Settings or show
+  permission dialogs by itself.
 - `aos permissions reset-runtime [--mode repo|installed] [--allow-service-reset --emergency-ack-other-apps] [--dry-run] [--json]`
   is the preferred repo-development TCC reset transaction. It does not grant
   permissions. It stops the managed daemon first, then either resets the runtime
@@ -1094,6 +1097,15 @@ Consumers:
   `bundle_path` is diagnostic only: in repo mode, readiness does not fail solely
   because another worktree last wrote the marker when the current CLI grants and
   daemon input tap are verified green.
+- `aos ready --json`, `aos status --json`, and `aos doctor --json` expose
+  `runtime_verdict` as the shared readiness/action-plan contract:
+  `ready`, `phase`, `diagnosis`, `blockers`, `blocked_capabilities`, `notes`,
+  `next_actions`, `ownership`, and `cleanup`.
+- When `runtime.ownership_state` is `"unmanaged"`, JSON exposes
+  `runtime.owner_process` and `runtime_verdict.ownership.owner_process`.
+  The process command line is either present as `command_line` or explicitly
+  unavailable via `command_line_status` and
+  `command_line_unavailable_reason`.
 - `aos status --json` exposes `runtime.input_tap` (full block) plus the
   legacy flat `runtime.input_tap_status` / `runtime.input_tap_attempts`.
 - `aos status` text mode includes `tap=<status>` in the one-line summary.

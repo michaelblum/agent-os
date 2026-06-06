@@ -89,6 +89,46 @@ export function inputTapRecoveryGuidance(status, attempts) {
   ].join('\n');
 }
 
+export function serviceInputTapRecovery(status, attempts, restartContext = false) {
+  if (restartContext) {
+    return {
+      note: [
+        `Input tap is still not active after service restart (status=${status}, attempts=${attempts}).`,
+        'Try:',
+        '  ./aos permissions setup --once     # refresh macOS permission onboarding',
+        '  ./aos serve --idle-timeout none    # temporary foreground fallback for this session',
+      ].join('\n'),
+      recovery: ['./aos permissions setup --once', './aos serve --idle-timeout none'],
+    };
+  }
+  return {
+    note: inputTapRecoveryGuidance(status, attempts),
+    recovery: ['./aos service restart', './aos permissions setup --once', './aos serve --idle-timeout none'],
+  };
+}
+
+export function serviceRuntimeRecovery(reason, mode, prefix = invocationName()) {
+  if (reason === 'service_not_running') {
+    return {
+      recovery: [`${prefix} clean`],
+      note: 'Daemon socket is owned outside the managed service. Clean/classify the unmanaged owner before treating service start as successful.',
+    };
+  }
+  if (reason === 'daemon_ownership_mismatch') {
+    return {
+      recovery: [`${prefix} clean`, `${prefix} ready --repair`],
+      note: 'Daemon socket ownership does not match the launchd service. Clean stale owners first; ready --repair may restart/recheck only after cleanup.',
+    };
+  }
+  if (reason === 'socket_unreachable') {
+    return {
+      recovery: [`${prefix} service start --mode ${mode}`, `${prefix} clean`],
+      note: 'Daemon socket was not reachable within the readiness budget.',
+    };
+  }
+  return { recovery: [], note: undefined };
+}
+
 export function inputMonitoringSubGuidance(tap, daemonBinaryPath) {
   const listen = tap?.listenAccess ?? tap?.listen_access;
   const post = tap?.postAccess ?? tap?.post_access;
@@ -193,12 +233,19 @@ export function readyBlockers({ runtime, daemon, permissions, setup, cleanReport
   }
 
   if (runtime.ownership_state === 'unmanaged') {
+    const ownerProcess = runtime.owner_process;
+    const ownerCommand = ownerProcess?.command_line
+      ? ` command=${ownerProcess.command_line}`
+      : ownerProcess?.command_line_unavailable_reason
+        ? ` command=unavailable (${ownerProcess.command_line_unavailable_reason})`
+        : '';
     blockers.push({
       kind: 'runtime',
       id: 'daemon_unmanaged',
       scope: 'daemon',
-      message: `Repo daemon is reachable with owner pid=${runtime.owner_pid ?? 'unknown'}, but it is not launchd-managed or an accepted foreground/dev runtime.`,
+      message: `Repo daemon is reachable with owner pid=${runtime.owner_pid ?? 'unknown'}, but it is not launchd-managed or an accepted foreground/dev runtime.${ownerCommand}`,
       target_path: daemonPath,
+      owner_process: ownerProcess,
       blocks: ['see', 'do', 'show', 'tell', 'listen'],
     });
   }
@@ -366,6 +413,7 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
   const hasPermissionBlocker = blockers.some((b) => b.kind === 'permission');
   const hasRepairableRuntimeBlocker = blockers.some((b) => isRepairableRuntimeBlockerID(b.id));
   const hasUnmanagedDaemon = blockers.some((b) => b.id === 'daemon_unmanaged');
+  const hasStaleDaemons = blockers.some((b) => b.id === 'stale_daemons');
 
   if (hasPermissionBlocker) {
     appendAction(actions, seen, {
@@ -386,7 +434,7 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
   }
 
   if ((hasRepairableRuntimeBlocker || hasUnmanagedDaemon) && !hasPermissionBlocker) {
-    if (blockers.some((b) => b.id === 'stale_daemons') || hasUnmanagedDaemon) {
+    if (hasStaleDaemons || hasUnmanagedDaemon) {
       appendAction(actions, seen, {
         type: 'command',
         label: hasUnmanagedDaemon
@@ -395,14 +443,16 @@ export function readyNextActions(blockers, setup, mode, prefix = invocationName(
         command: `${prefix} clean`,
       });
     }
-    if (hasRepairableRuntimeBlocker) {
+    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
       appendAction(actions, seen, {
         type: 'command',
-        label: 'run automated repair: restart/recheck, then print human instructions if needed',
+        label: blockers.some((b) => b.id === 'stale_daemons')
+          ? 'run automated repair only after cleanup has removed stale daemon owners'
+          : 'run automated repair: restart/recheck, then print human instructions if needed',
         command: `${prefix} ready --repair`,
       });
     }
-    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon) {
+    if (hasRepairableRuntimeBlocker && !hasUnmanagedDaemon && !hasStaleDaemons) {
       appendAction(actions, seen, {
         type: 'command',
         label: 'restart the managed daemon and re-check readiness',
@@ -431,6 +481,24 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
   const notes = [];
   if (!runtime.daemon_running) notes.push('Daemon is not running.');
   else if (!runtime.socket_reachable) notes.push('Daemon process appears to be running, but the socket is not reachable.');
+  if (runtime.ownership_state === 'mismatch') {
+    const serving = runtime.serving_pid ?? 'none';
+    const lock = runtime.lock_owner_pid ?? 'none';
+    const service = runtime.service_pid ?? 'none';
+    notes.push(`Daemon ownership mismatch: serving pid=${serving}, lock pid=${lock}, service pid=${service}.`);
+  } else if (runtime.ownership_state === 'unmanaged') {
+    const owner = runtime.owner_pid ?? 'unknown';
+    const command = runtime.owner_process?.command_line
+      ? ` command=${runtime.owner_process.command_line}`
+      : runtime.owner_process?.command_line_unavailable_reason
+        ? ` command unavailable: ${runtime.owner_process.command_line_unavailable_reason}`
+        : ' command unavailable';
+    notes.push(`Reachable repo daemon is unmanaged: owner pid=${owner};${command}. Do not loop service start/restart or ready repair while this owner controls the repo socket.`);
+    notes.push(`Run '${prefix} clean' once for cleanup-owned stale resources; if the owner remains, return the owner PID and command line to Foreman/human.`);
+  }
+  if (runtime.event_tap_expected && runtime.input_tap_status && runtime.input_tap_status !== 'active' && !runtime.input_tap) {
+    notes.push(`Perception input tap is not active (status=${runtime.input_tap_status}).`);
+  }
 
   if (daemon?.inputTap && daemon.inputTap.status !== 'active') {
     notes.push(inputTapRecoveryGuidance(daemon.inputTap.status, daemon.inputTap.attempts));
@@ -446,6 +514,42 @@ export function readyNotes({ runtime, daemon, permissions, setup, cleanReport },
     notes.push(`Stale daemon cleanup required before readiness: ${cleanReport.stale_daemons.map((item) => item.pid).join(', ')}. Run '${prefix} clean'.`);
   }
   return notes;
+}
+
+export function runtimeVerdict(facts, mode, prefix = invocationName()) {
+  const evaluation = evaluateReadyForTesting(facts.daemon, facts.permissions, facts.setup);
+  const blockers = readyBlockers(facts, mode);
+  const ready = Boolean(facts.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
+  const blockedCapabilities = [...new Set(blockers.flatMap((blocker) => blocker.blocks || []))].sort();
+  return {
+    ready,
+    status: ready ? 'ok' : 'degraded',
+    phase: readyPhase(ready, blockers),
+    diagnosis: readyDiagnosis(ready, blockers, facts.daemon, facts.permissions),
+    ready_source: evaluation.readySource,
+    ready_for_testing: evaluation.readyForTesting,
+    blockers,
+    blocked_capabilities: blockedCapabilities,
+    notes: readyNotes(facts, mode, prefix),
+    next_actions: readyNextActions(blockers, facts.setup, mode, prefix),
+    ownership: {
+      state: facts.runtime.ownership_state,
+      kind: facts.runtime.ownership_kind,
+      owner_pid: facts.runtime.owner_pid,
+      serving_pid: facts.runtime.serving_pid,
+      lock_owner_pid: facts.runtime.lock_owner_pid,
+      service_pid: facts.runtime.service_pid,
+      owner_launchd_managed: facts.runtime.owner_launchd_managed,
+      owner_process: facts.runtime.owner_process,
+    },
+    cleanup: {
+      status: facts.cleanReport?.status,
+      stale_daemons: facts.cleanReport?.stale_daemons ?? [],
+      stale_locks: facts.cleanReport?.stale_locks ?? [],
+      canvases: facts.cleanReport?.canvases ?? [],
+      notes: facts.cleanReport?.notes ?? [],
+    },
+  };
 }
 
 export function permissionCheckNotes(cli, setup, daemon, mode) {

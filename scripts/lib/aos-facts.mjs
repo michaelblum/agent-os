@@ -6,6 +6,7 @@ import {
   parseJSONOutput,
   repoCommitShort,
   repoRoot,
+  run,
   runAOS,
   runNodeScript,
 } from './aos-cli.mjs';
@@ -84,21 +85,41 @@ export function identity(runtime, permissionsFacts) {
   return value;
 }
 
-export function runtimeHealthNotes(runtime, prefix = './aos') {
-  const notes = [];
-  if (runtime.ownership_state === 'mismatch') {
-    const serving = runtime.serving_pid ?? 'none';
-    const lock = runtime.lock_owner_pid ?? 'none';
-    const service = runtime.service_pid ?? 'none';
-    notes.push(`Daemon ownership mismatch: serving pid=${serving}, lock pid=${lock}, service pid=${service}.`);
-  } else if (runtime.ownership_state === 'unmanaged') {
-    const owner = runtime.owner_pid ?? 'unknown';
-    notes.push(`Reachable repo daemon is unmanaged: owner pid=${owner}, service pid=none. Use '${prefix} service start --mode ${runtime.mode}' or '${prefix} ready --repair'.`);
+function processCommandLine(pid) {
+  if (!Number.isInteger(pid)) {
+    return { status: 'unavailable', unavailable_reason: 'owner pid unavailable' };
   }
-  if (runtime.event_tap_expected && runtime.input_tap_status && runtime.input_tap_status !== 'active' && !runtime.input_tap) {
-    notes.push(`Perception input tap is not active (status=${runtime.input_tap_status}).`);
+  const result = run('/bin/ps', ['-p', String(pid), '-o', 'command=']);
+  if (result.exitCode !== 0) {
+    return {
+      status: 'unavailable',
+      unavailable_reason: compactProcessDetail(result) || `ps did not return command line for PID ${pid}`,
+    };
   }
-  return notes;
+  const commandLine = result.stdout.trim();
+  if (!commandLine) {
+    return { status: 'unavailable', unavailable_reason: `ps returned an empty command line for PID ${pid}` };
+  }
+  return { status: 'available', command_line: commandLine };
+}
+
+export function enrichRuntimeOwnership(runtime) {
+  if (!runtime || runtime.ownership_state !== 'unmanaged') return runtime;
+  const pid = Number.isInteger(runtime.owner_pid) ? runtime.owner_pid : runtime.serving_pid;
+  const command = processCommandLine(pid);
+  const ownerProcess = {
+    pid,
+    command_line_status: command.status,
+    command_line: command.command_line,
+    command_line_unavailable_reason: command.unavailable_reason,
+  };
+  return {
+    ...runtime,
+    owner_process: ownerProcess,
+    owner_command_line: command.command_line,
+    owner_command_line_status: command.status,
+    owner_command_line_unavailable_reason: command.unavailable_reason,
+  };
 }
 
 export function cleanReport() {
@@ -139,7 +160,7 @@ export function brokerFacts({
       daemonHealth = null;
     }
   }
-  const runtime = includeRuntime ? parse(runAOS(['__runtime', 'status-facts', '--json']), '__runtime status-facts') : undefined;
+  const runtime = includeRuntime ? enrichRuntimeOwnership(parse(runAOS(['__runtime', 'status-facts', '--json']), '__runtime status-facts')) : undefined;
   return {
     permissionsFacts,
     permissions: permissionsFacts.permissions ?? {},

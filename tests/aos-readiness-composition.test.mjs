@@ -14,6 +14,7 @@ import {
   readyBlockers,
   readyEvaluationSnake,
   readyNextActions,
+  runtimeVerdict,
   runSetupPromptPlan,
 } from '../scripts/lib/aos-readiness.mjs';
 
@@ -145,16 +146,55 @@ test('stale and unmanaged runtime blockers produce cleanup or repair next action
   assert.equal(staleBlockers.some((blocker) => blocker.id === 'stale_daemons'), true);
   assert.deepEqual(
     readyNextActions(staleBlockers, stale.setup, 'repo', './aos').map((action) => action.command),
-    ['./aos clean', './aos ready --repair', './aos service restart --mode repo', './aos ready'],
+    ['./aos clean', './aos ready --repair', './aos ready'],
   );
 
-  const unmanaged = facts({ runtime: { ownership_state: 'unmanaged', owner_pid: 2222 } });
+  const unmanaged = facts({
+    runtime: {
+      ownership_state: 'unmanaged',
+      owner_pid: 2222,
+      owner_process: {
+        pid: 2222,
+        command_line_status: 'available',
+        command_line: './aos serve --idle-timeout 5m',
+      },
+    },
+  });
   const unmanagedBlockers = readyBlockers(unmanaged, 'repo');
-  assert.equal(unmanagedBlockers.some((blocker) => blocker.id === 'daemon_unmanaged'), true);
+  const unmanagedBlocker = unmanagedBlockers.find((blocker) => blocker.id === 'daemon_unmanaged');
+  assert.ok(unmanagedBlocker);
+  assert.match(unmanagedBlocker.message, /owner pid=2222/);
+  assert.match(unmanagedBlocker.message, /command=\.\/aos serve --idle-timeout 5m/);
   assert.deepEqual(
     readyNextActions(unmanagedBlockers, unmanaged.setup, 'repo', './aos').map((action) => action.command),
     ['./aos clean', './aos ready'],
   );
+});
+
+test('shared runtime verdict carries readiness fields, ownership evidence, cleanup facts, and action plan', () => {
+  const current = facts({
+    runtime: {
+      ownership_state: 'unmanaged',
+      ownership_kind: 'unmanaged',
+      owner_pid: 2222,
+      serving_pid: 2222,
+      owner_launchd_managed: false,
+      owner_process: {
+        pid: 2222,
+        command_line_status: 'unavailable',
+        command_line_unavailable_reason: 'ps did not return command line for PID 2222',
+      },
+    },
+  });
+  const verdict = runtimeVerdict(current, 'repo', './aos');
+
+  assert.equal(verdict.ready, false);
+  assert.equal(verdict.phase, 'runtime_blocked');
+  assert.equal(verdict.diagnosis, 'daemon_unmanaged');
+  assert.equal(verdict.ownership.owner_process.command_line_status, 'unavailable');
+  assert.deepEqual(verdict.cleanup.stale_daemons, []);
+  assert.deepEqual(verdict.next_actions.map((action) => action.command), ['./aos clean', './aos ready']);
+  assert.equal(verdict.notes.some((note) => note.includes('Do not loop service start/restart or ready repair')), true);
 });
 
 test('permissionRequirements keeps public output shape stable', () => {

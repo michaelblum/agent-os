@@ -52,6 +52,7 @@ echo "$UNMANAGED_OUT" | python3 -c '
 import json, sys
 d = json.loads(sys.stdin.read())
 runtime = d.get("runtime", {})
+verdict = d.get("runtime_verdict", {})
 tap = runtime.get("input_tap", {})
 blockers = d.get("blockers", [])
 ids = {b.get("id") for b in blockers}
@@ -65,6 +66,15 @@ assert runtime.get("ownership_state") == "unmanaged", runtime
 assert runtime.get("ownership_kind") == "unmanaged", runtime
 assert runtime.get("owner_launchd_managed") is False, runtime
 assert runtime.get("owner_pid") == runtime.get("serving_pid"), runtime
+owner = runtime.get("owner_process", {})
+assert owner.get("pid") == runtime.get("serving_pid"), owner
+assert owner.get("command_line_status") in {"available", "unavailable"}, owner
+if owner.get("command_line_status") == "available":
+    assert isinstance(owner.get("command_line"), str) and owner.get("command_line"), owner
+else:
+    assert isinstance(owner.get("command_line_unavailable_reason"), str) and owner.get("command_line_unavailable_reason"), owner
+assert verdict.get("diagnosis") == "daemon_unmanaged", verdict
+assert verdict.get("ownership", {}).get("owner_process", {}).get("pid") == runtime.get("serving_pid"), verdict
 assert tap.get("owner_pid") == runtime.get("serving_pid"), tap
 assert tap.get("owner_kind") == "unmanaged", tap
 assert tap.get("launchd_managed") is False, tap
@@ -79,6 +89,10 @@ assert any(
 ), d.get("next_actions", [])
 assert not any(
     a.get("command", "").endswith("service restart --mode repo")
+    for a in d.get("next_actions", [])
+), d.get("next_actions", [])
+assert not any(
+    a.get("command", "").endswith("ready --repair")
     for a in d.get("next_actions", [])
 ), d.get("next_actions", [])
 '

@@ -16,11 +16,11 @@ import {
   brokerFacts,
   cleanReport,
   identity,
-  runtimeHealthNotes,
 } from './lib/aos-facts.mjs';
 import {
   inputMonitoringSubGuidance,
   inputTapRecoveryGuidance,
+  runtimeVerdict,
 } from './lib/aos-readiness.mjs';
 
 function parseArgs(args) {
@@ -120,21 +120,21 @@ async function daemonSnapshot(socketPath) {
   };
 }
 
-function statusNotes({ runtime, permissions, setup, clean, snapshot }) {
-  const notes = [];
-  if (!runtime.daemon_running) notes.push('Daemon is not running.');
-  else if (!runtime.socket_reachable) notes.push('Daemon process appears to be running, but the socket is not reachable.');
-  notes.push(...runtimeHealthNotes(runtime, invocationName()));
+function statusNotes({ runtime, permissions, setup, clean, snapshot, verdict }) {
+  const notes = [...verdict.notes];
   if (runtime.socket_reachable && runtime.input_tap && runtime.input_tap.status !== 'active') {
-    notes.push(inputTapRecoveryGuidance(runtime.input_tap.status, runtime.input_tap.attempts));
+    const recovery = inputTapRecoveryGuidance(runtime.input_tap.status, runtime.input_tap.attempts);
+    if (!notes.includes(recovery)) notes.push(recovery);
     if (runtime.input_tap.listen_access === false || runtime.input_tap.post_access === false) {
-      notes.push(inputMonitoringSubGuidance(runtime.input_tap, expectedBinaryPath(runtime.mode)));
+      const inputMonitoring = inputMonitoringSubGuidance(runtime.input_tap, expectedBinaryPath(runtime.mode));
+      if (!notes.includes(inputMonitoring)) notes.push(inputMonitoring);
     }
   }
-  if (!permissions.accessibility) notes.push('Accessibility permission is not granted.');
-  if (!permissions.screen_recording) notes.push('Screen Recording permission is not granted.');
+  if (!permissions.accessibility && !notes.includes('Accessibility permission is not granted (CLI view).')) notes.push('Accessibility permission is not granted.');
+  if (!permissions.screen_recording && !notes.includes('Screen Recording permission is not granted.')) notes.push('Screen Recording permission is not granted.');
   if (!setup.setup_completed && setup.recommended_command) {
-    notes.push(`Run '${setup.recommended_command}' before interactive testing.`);
+    const setupNote = `Run '${setup.recommended_command}' before interactive testing.`;
+    if (!notes.includes(setupNote)) notes.push(setupNote);
   }
   if (clean.status === 'dirty') {
     const canvasIDs = (clean.canvases ?? []).map((canvas) => canvas.id).filter(Boolean);
@@ -156,6 +156,7 @@ async function buildStatusResponse() {
   });
   const runtime = facts.runtime;
   const clean = cleanReport();
+  const verdict = runtimeVerdict({ ...facts, cleanReport: clean }, runtime.mode, invocationName());
   const snapshot = await daemonSnapshot(runtime.socket_path);
   const notes = statusNotes({
     runtime,
@@ -163,11 +164,13 @@ async function buildStatusResponse() {
     setup: facts.setup,
     clean,
     snapshot,
+    verdict,
   });
   return {
     status: notes.length ? 'degraded' : 'ok',
     identity: identity(runtime, facts.permissionsFacts),
     runtime,
+    runtime_verdict: verdict,
     permissions: facts.permissions,
     permissions_setup: facts.setup,
     daemon_snapshot: snapshot.snapshot,

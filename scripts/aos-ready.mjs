@@ -13,16 +13,11 @@ import {
 } from './lib/aos-cli.mjs';
 import { brokerFacts } from './lib/aos-facts.mjs';
 import {
-  evaluateReadyForTesting,
   hasRestartableReadyRuntimeBlocker,
   permissionFixLines,
   permissionResetSafeSequenceLines,
   readyAutoRepairReason,
-  readyBlockers,
-  readyDiagnosis,
-  readyNextActions,
-  readyNotes,
-  readyPhase,
+  runtimeVerdict,
 } from './lib/aos-readiness.mjs';
 
 function parseArgs(args) {
@@ -47,26 +42,24 @@ function currentFacts() {
 
 function buildReadyResponse(startup, actionTrace, mode, prefix) {
   const facts = currentFacts();
-  const evaluation = evaluateReadyForTesting(facts.daemon, facts.permissions, facts.setup);
-  const blockers = readyBlockers(facts, mode);
-  const ready = Boolean(facts.runtime.socket_reachable && evaluation.readyForTesting && blockers.length === 0);
-  const blockedCapabilities = [...new Set(blockers.flatMap((blocker) => blocker.blocks || []))].sort();
+  const verdict = runtimeVerdict(facts, mode, prefix);
   return {
-    status: ready ? 'ok' : 'degraded',
-    ready,
-    phase: readyPhase(ready, blockers),
-    diagnosis: readyDiagnosis(ready, blockers, facts.daemon, facts.permissions),
+    status: verdict.status,
+    ready: verdict.ready,
+    phase: verdict.phase,
+    diagnosis: verdict.diagnosis,
     mode,
-    ready_source: evaluation.readySource,
+    ready_source: verdict.ready_source,
     startup,
     runtime: facts.runtime,
+    runtime_verdict: verdict,
     permissions: facts.permissions,
     permissions_setup: facts.setup,
-    blocked_capabilities: blockedCapabilities,
-    blockers,
-    next_actions: readyNextActions(blockers, facts.setup, mode, prefix),
+    blocked_capabilities: verdict.blocked_capabilities,
+    blockers: verdict.blockers,
+    next_actions: verdict.next_actions,
     action_trace: actionTrace,
-    notes: readyNotes(facts, mode, prefix),
+    notes: verdict.notes,
   };
 }
 
@@ -111,20 +104,31 @@ function decideReadyStartup({ repair, mode, prefix }) {
     };
   }
 
-  if (!repair) {
-    const preflight = buildReadyResponse(skippedStartup, [], mode, prefix);
-    if (preflight.ready) {
-      const actionTrace = [{
-        step: 'ready_preflight',
-        result: 'ready',
-        detail: 'managed daemon is already reachable, owned by the expected runtime, and input tap is active',
-      }];
-      return {
-        startup: skippedStartup,
-        actionTrace,
-        readyResponse: { ...preflight, action_trace: actionTrace },
-      };
-    }
+  const preflight = buildReadyResponse(skippedStartup, [], mode, prefix);
+  if (preflight.blockers.some((blocker) => blocker.id === 'stale_daemons')) {
+    const actionTrace = [{
+      step: 'ready_preflight',
+      result: 'stale_daemons',
+      detail: 'cleanup must run before service start',
+    }];
+    return {
+      startup: skippedStartup,
+      actionTrace,
+      readyResponse: { ...preflight, action_trace: actionTrace },
+    };
+  }
+
+  if (!repair && preflight.ready) {
+    const actionTrace = [{
+      step: 'ready_preflight',
+      result: 'ready',
+      detail: 'managed daemon is already reachable, owned by the expected runtime, and input tap is active',
+    }];
+    return {
+      startup: skippedStartup,
+      actionTrace,
+      readyResponse: { ...preflight, action_trace: actionTrace },
+    };
   }
 
   const result = runReadyServiceAction('start', mode);
