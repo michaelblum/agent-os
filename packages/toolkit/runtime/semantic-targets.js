@@ -149,13 +149,14 @@ function roleTag(role) {
 export function refForTarget(target = {}, options = {}) {
   if (target.ref) return text(target.ref)
   const surface = text(target.surface ?? target.surfaceId ?? options.surface ?? options.surfaceId, '')
-  const id = safeId(target.id ?? target.name)
+  const id = safeId(target.id, '')
+  if (!id) throw new Error('semantic target ref requires id or explicit ref')
   return surface ? `${surface}:${id}` : id
 }
 
 export function normalizeSemanticTarget(target = {}, options = {}) {
   if (!target || typeof target !== 'object') throw new Error('semantic target must be an object')
-  const id = text(target.id ?? target.ref ?? target.name, '')
+  const id = text(target.id ?? target.ref, '')
   if (!id) throw new Error('semantic target requires id')
   const role = normalizeRole(target.role ?? options.role ?? 'button')
   const name = pickName(target)

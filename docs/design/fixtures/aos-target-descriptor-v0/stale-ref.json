@@ -1,0 +1,38 @@
+{
+  "schema": "aos.target-descriptor.fixture.v0",
+  "case": "stale_state_scoped_ref",
+  "action": {
+    "verb": "set-value",
+    "target": "canvas:avatar-panel-canvas/td1",
+    "ref": "td1",
+    "state_id": "see_targetdescriptor001",
+    "value": 0.8
+  },
+  "current_state_id": "see_targetdescriptor002",
+  "resolution": {
+    "status": "stale_ref",
+    "reason": "state_id_mismatch",
+    "supplied_state_id": "see_targetdescriptor001",
+    "current_state_id": "see_targetdescriptor002",
+    "supplied_ref": "td1",
+    "action_blocked": true,
+    "reacquisition": {
+      "available": true,
+      "requires_explicit_retry": true,
+      "fingerprint": {
+        "target_id": "control:opacity",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "avatar-panel-canvas",
+          "surface_id": "avatar-appearance-panel",
+          "component_family": "toolkit.panel.form",
+          "structural_owner": ["avatar-editor", "appearance"]
+        },
+        "role": "slider",
+        "structural_path": ["avatar-editor", "appearance", "field:opacity"],
+        "capabilities": ["drag", "set-value", "focus"],
+        "label_hints": ["Opacity"]
+      }
+    }
+  }
+}

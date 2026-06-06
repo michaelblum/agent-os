@@ -1,0 +1,62 @@
+{
+  "schema": "aos.target-descriptor.fixture.v0",
+  "case": "ambiguous_same_label_reacquisition",
+  "previous": {
+    "ref": "td3",
+    "state_id": "see_targetdescriptor010",
+    "role": "button",
+    "name": "Open",
+    "reacquisition": {
+      "machine_fingerprint": {
+        "role": "button",
+        "capabilities": ["click", "open"]
+      },
+      "hint_fingerprint": {
+        "label_hints": ["Open"]
+      }
+    }
+  },
+  "current_state_id": "see_targetdescriptor011",
+  "candidates": [
+    {
+      "ref": "td11",
+      "role": "button",
+      "name": "Open",
+      "target": {
+        "target_id": "command:open",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "file-menu-canvas",
+          "surface_id": "file-menu",
+          "component_family": "menu",
+          "structural_owner": ["menu-bar", "file"]
+        }
+      },
+      "actions": ["click", "open"]
+    },
+    {
+      "ref": "td12",
+      "role": "button",
+      "name": "Open",
+      "target": {
+        "target_id": "command:open",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "project-card-canvas",
+          "surface_id": "project-card",
+          "component_family": "card",
+          "structural_owner": ["recent-projects", "project-42"]
+        }
+      },
+      "actions": ["click", "open"]
+    }
+  ],
+  "resolution": {
+    "status": "ambiguous",
+    "reason": "machine_fingerprint_not_unique",
+    "action_blocked": true,
+    "selected_ref": null,
+    "candidate_refs": ["td11", "td12"],
+    "labels_used_as_hints_only": true
+  }
+}

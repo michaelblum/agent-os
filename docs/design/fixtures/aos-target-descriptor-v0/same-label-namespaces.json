@@ -1,0 +1,119 @@
+{
+  "schema": "aos.target-descriptor.fixture.v0",
+  "case": "same_label_namespaced_targets",
+  "state_id": "see_targetdescriptor001",
+  "semantic_targets": [
+    {
+      "ref": "td1",
+      "state_id": "see_targetdescriptor001",
+      "surface": "avatar-appearance-panel",
+      "role": "slider",
+      "name": "Opacity",
+      "kind": "slider",
+      "enabled": true,
+      "target": {
+        "target_id": "control:opacity",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "avatar-panel-canvas",
+          "surface_id": "avatar-appearance-panel",
+          "component_family": "toolkit.panel.form",
+          "structural_owner": ["avatar-editor", "appearance"]
+        }
+      },
+      "state": {
+        "value": 0.55,
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "enabled": true
+      },
+      "actions": ["drag", "set-value", "focus"],
+      "extension": {
+        "field_id": "opacity"
+      },
+      "provenance": {
+        "canvas_id": "avatar-panel-canvas",
+        "parent_canvas_id": "avatar-main",
+        "do_target": "canvas:avatar-panel-canvas/td1",
+        "source_payload_id": "appearance.opacity",
+        "bounds": { "x": 24, "y": 80, "width": 180, "height": 32 },
+        "frame": { "x": 24, "y": 80, "width": 180, "height": 32 },
+        "center": { "x": 114, "y": 96 }
+      },
+      "reacquisition": {
+        "strategy": "owner-structural-fingerprint",
+        "machine_fingerprint": {
+          "role": "slider",
+          "structural_path": ["avatar-editor", "appearance", "field:opacity"],
+          "capabilities": ["drag", "set-value", "focus"],
+          "nearby_group": "Appearance",
+          "range_shape": { "min": 0, "max": 1, "step": 0.01 }
+        },
+        "hint_fingerprint": {
+          "label_hints": ["Opacity"],
+          "source_hints": { "field_id": "opacity" }
+        }
+      }
+    },
+    {
+      "ref": "td2",
+      "state_id": "see_targetdescriptor001",
+      "surface": "layer-appearance-panel",
+      "role": "slider",
+      "name": "Opacity",
+      "kind": "slider",
+      "enabled": true,
+      "target": {
+        "target_id": "control:opacity",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "layer-panel-canvas",
+          "surface_id": "layer-appearance-panel",
+          "component_family": "toolkit.panel.form",
+          "structural_owner": ["layer-editor", "appearance"]
+        }
+      },
+      "state": {
+        "value": 0.72,
+        "min": 0,
+        "max": 1,
+        "step": 0.01,
+        "enabled": true
+      },
+      "actions": ["drag", "set-value", "focus"],
+      "extension": {
+        "field_id": "opacity"
+      },
+      "provenance": {
+        "canvas_id": "layer-panel-canvas",
+        "parent_canvas_id": "layer-main",
+        "do_target": "canvas:layer-panel-canvas/td2",
+        "source_payload_id": "appearance.opacity",
+        "bounds": { "x": 24, "y": 80, "width": 180, "height": 32 },
+        "frame": { "x": 24, "y": 80, "width": 180, "height": 32 },
+        "center": { "x": 114, "y": 96 }
+      },
+      "reacquisition": {
+        "strategy": "owner-structural-fingerprint",
+        "machine_fingerprint": {
+          "role": "slider",
+          "structural_path": ["layer-editor", "appearance", "field:opacity"],
+          "capabilities": ["drag", "set-value", "focus"],
+          "nearby_group": "Appearance",
+          "range_shape": { "min": 0, "max": 1, "step": 0.01 }
+        },
+        "hint_fingerprint": {
+          "label_hints": ["Opacity"],
+          "source_hints": { "field_id": "opacity" }
+        }
+      }
+    }
+  ],
+  "expectation": {
+    "same_label": "Opacity",
+    "same_local_target_id": "control:opacity",
+    "identity_basis": "owner_namespace + target_id",
+    "status": "distinct_targets"
+  }
+}
