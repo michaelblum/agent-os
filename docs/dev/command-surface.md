@@ -28,6 +28,46 @@ streams through private stable primitives. External layers interpret and compose
 those primitives into public command behavior. See
 `docs/adr/0015-aos-tcc-capability-broker-boundary.md`.
 
+## Agent Ergonomics Over Instruction Accretion
+
+When agents spend many tool calls on routine or procedural work and the work is
+not converging, treat that friction as product evidence about the developer
+surface. Do not first add more role-specific dock instructions, copied
+checklists, or persona-local exceptions. Persistent agent thrash usually means
+something deserves examination: a command shape, help text, error message,
+workflow route, state model, recovery path, test fixture, documentation
+boundary, or missing edge-case contract.
+
+The response is not always to mutate command logic. The right fix might be
+stronger error handling, clearer help, a narrower command, a more complete AOS
+wrapper, a workflow-rule adjustment, a test that captures a common edge case, a
+docs relocation, or deletion of stale guidance. The key rule is to improve the
+surface or capture the friction for analysis instead of spreading more
+interpretive burden across dock personas.
+
+This applies especially when an agent reaches for raw shell glue, provider
+connectors, direct APIs, repeated retries, duplicated dock instructions, or
+manual state spelunking during work that should be ordinary and repeatable.
+
+If the appropriate fix is clear, local, and low risk, make that fix at the
+surface that owns the behavior and add regression coverage. If the fix is not
+clear, capture a short agent-UX friction note instead of expanding the
+instruction stack:
+
+```text
+Agent UX friction:
+AOS surface or workflow: <command/API/tool/workflow/doc boundary>
+Task: <what the agent was trying to do>
+Friction: <error, ambiguity, repeated retries, missing edge case, or awkward step>
+Tempting workaround: <bypass, duplicated instruction, or manual procedure considered>
+Candidate follow-up: <surface, workflow, docs, tests, or analysis improvement to evaluate>
+```
+
+Friction notes can live in the current work report, a follow-up issue, or a
+small dev report under `docs/dev/reports/` when the pattern needs durable
+analysis. They should not be copied into each dock persona unless the issue is
+actually role authority or a stop condition.
+
 ## Dispatcher Contract
 
 External routes match the longest public path first. Duplicate public paths are

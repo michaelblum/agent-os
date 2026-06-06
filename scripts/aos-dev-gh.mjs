@@ -45,6 +45,7 @@ const PR_LIST_FLAGS = new Set(['--base', '--head', '--draft']);
 const PR_MERGE_STRATEGY_FLAGS = new Set(['--squash', '--merge', '--rebase']);
 const ISSUE_VIEW_JSON_FIELDS = 'number,title,state,url,body,labels,comments';
 const ISSUE_VIEW_TEMPLATE = '{{printf "#%v %s\\n%s\\n\\n%s\\n" .number .title .url .body}}';
+const tempBodyFiles = [];
 
 function appendOperation(options, value, _command, flag) {
   options.issueEditOperations.push({ flag, value });
@@ -61,7 +62,7 @@ const FLAG_SPECS = {
     assign: (options, value) => { options.cwd = value; },
   },
   '--body-file': {
-    summary: 'a path',
+    summary: 'a path or -',
     assign: (options, value, command, flag) => {
       options.bodyFile = value;
       if (command === 'issue:edit') appendOperation(options, value, command, flag);
@@ -323,6 +324,7 @@ function writeProcessOutput(result) {
 
 function runGhAndExit(args, cwd) {
   const result = runGh(args, cwd);
+  cleanupTempBodyFiles();
   writeProcessOutput(result);
   process.exit(result.status);
 }
@@ -462,6 +464,44 @@ function resolveUserPath(value) {
   return path.resolve(expanded);
 }
 
+function cleanupTempBodyFiles() {
+  while (tempBodyFiles.length > 0) {
+    const { file, dir } = tempBodyFiles.pop();
+    try {
+      fs.unlinkSync(file);
+    } catch {
+      // Best-effort cleanup only; the gh result should remain authoritative.
+    }
+    try {
+      fs.rmdirSync(dir);
+    } catch {
+      // Best-effort cleanup only; the gh result should remain authoritative.
+    }
+  }
+}
+
+function materializeBodyFile(value, description) {
+  if (value === '-' || value === '/dev/stdin') {
+    let body = '';
+    if (process.stdin.isTTY) {
+      die(`${description} body requested from stdin, but no stdin was provided`, 'MISSING_BODY_STDIN');
+    }
+    try {
+      body = fs.readFileSync(0, 'utf8');
+    } catch (error) {
+      die(`Could not read ${description} from stdin: ${error.message}`, 'BODY_STDIN_READ_FAILED');
+    }
+    const tempDir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'aos-dev-gh-body-'));
+    const tempFile = path.join(tempDir, 'body.md');
+    fs.writeFileSync(tempFile, body, 'utf8');
+    tempBodyFiles.push({ file: tempFile, dir: tempDir });
+    return tempFile;
+  }
+  const bodyFile = resolveUserPath(value);
+  if (!fs.existsSync(bodyFile)) die(`Missing ${description} body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+  return bodyFile;
+}
+
 function sanitizeAuthStatus(value) {
   return value
     .split(/\r?\n/)
@@ -564,8 +604,7 @@ function appendIssueCreateMetadata(args, options) {
 function appendIssueEditMetadata(args, options) {
   for (const operation of options.issueEditOperations) {
     if (operation.flag === '--body-file') {
-      const bodyFile = resolveUserPath(operation.value);
-      if (!fs.existsSync(bodyFile)) die(`Missing issue body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+      const bodyFile = materializeBodyFile(operation.value, 'issue');
       args.push(operation.flag, bodyFile);
     } else {
       args.push(operation.flag, operation.value);
@@ -603,11 +642,10 @@ function issueCommand(args) {
     const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh issue comment requires exactly one issue number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh issue argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
-    if (!options.bodyFile) die('dev gh issue comment requires --body-file <path>', 'MISSING_ARG');
+    if (!options.bodyFile) die('dev gh issue comment requires --body-file <path|->', 'MISSING_ARG');
     const repoRoot = repoRootFrom(options);
     const repoFullName = repositoryFullName(options, repoRoot);
-    const bodyFile = resolveUserPath(options.bodyFile);
-    if (!fs.existsSync(bodyFile)) die(`Missing issue comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+    const bodyFile = materializeBodyFile(options.bodyFile, 'issue comment');
     const ghArgs = ['issue', 'comment', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     ghArgs.push('--body-file', bodyFile);
@@ -616,11 +654,10 @@ function issueCommand(args) {
     const options = parseOptions(args.slice(1), 'issue:create');
     if (options.positionals.length > 0) die(`Unknown dev gh issue argument: ${options.positionals[0]}`, 'UNKNOWN_ARG');
     if (!options.title) die('dev gh issue create requires --title <title>', 'MISSING_ARG');
-    if (!options.bodyFile) die('dev gh issue create requires --body-file <path>', 'MISSING_ARG');
+    if (!options.bodyFile) die('dev gh issue create requires --body-file <path|->', 'MISSING_ARG');
     const repoRoot = repoRootFrom(options);
     const repoFullName = repositoryFullName(options, repoRoot);
-    const bodyFile = resolveUserPath(options.bodyFile);
-    if (!fs.existsSync(bodyFile)) die(`Missing issue body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+    const bodyFile = materializeBodyFile(options.bodyFile, 'issue');
     const ghArgs = ['issue', 'create'];
     appendRepo(ghArgs, repoFullName);
     ghArgs.push('--title', options.title, '--body-file', bodyFile);
@@ -716,11 +753,10 @@ function prCommand(args) {
     const options = parseOptions(args.slice(1));
     if (options.positionals.length === 0) die('dev gh pr comment requires exactly one PR number', 'MISSING_ARG');
     if (options.positionals.length > 1) die(`Unknown dev gh pr argument: ${options.positionals[1]}`, 'UNKNOWN_ARG');
-    if (!options.bodyFile) die('dev gh pr comment requires --body-file <path>', 'MISSING_ARG');
+    if (!options.bodyFile) die('dev gh pr comment requires --body-file <path|->', 'MISSING_ARG');
     const repoRoot = repoRootFrom(options);
     const repoFullName = repositoryFullName(options, repoRoot);
-    const bodyFile = resolveUserPath(options.bodyFile);
-    if (!fs.existsSync(bodyFile)) die(`Missing PR comment body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+    const bodyFile = materializeBodyFile(options.bodyFile, 'PR comment');
     const ghArgs = ['pr', 'comment', options.positionals[0]];
     appendRepo(ghArgs, repoFullName);
     ghArgs.push('--body-file', bodyFile);
@@ -739,8 +775,7 @@ function prCommand(args) {
     ghArgs.push(options.mergeStrategy);
     if (options.matchHeadCommit) ghArgs.push('--match-head-commit', options.matchHeadCommit);
     if (options.bodyFile) {
-      const bodyFile = resolveUserPath(options.bodyFile);
-      if (!fs.existsSync(bodyFile)) die(`Missing PR merge body file: ${bodyFile}`, 'MISSING_BODY_FILE');
+      const bodyFile = materializeBodyFile(options.bodyFile, 'PR merge');
       ghArgs.push('--body-file', bodyFile);
     }
     runGhAndExit(ghArgs, repoRoot);

@@ -61,7 +61,7 @@ export function formatDevGhHelp(_pathParts = [], options = {}) {
     '',
     '  Delta from gh:',
     '    Non-interactive only: commands fail instead of prompting.',
-    '    Body-writing commands use --body-file; issue create/comment and pr comment require it.',
+    '    Body-writing commands use --body-file <path|->; stdin is accepted via - or /dev/stdin.',
     '    pr merge requires exactly one explicit strategy: --squash, --merge, or --rebase.',
     '    List commands take bounded --limit values for inventory scans.',
     '',

@@ -792,6 +792,7 @@ fi
 TMPDIR="$(mktemp -d)"
 OLD_PATH="$PATH"
 export GH_ARGS_LOG="$TMPDIR/gh-args.log"
+export GH_BODY_LOG="$TMPDIR/gh-body.log"
 trap 'PATH="$OLD_PATH"; rm -rf "$TMPDIR"' EXIT
 cat > "$TMPDIR/gh" <<'SH'
 #!/usr/bin/env bash
@@ -811,6 +812,9 @@ if [[ "$cmd" == "pr view --repo michaelblum/agent-os --json number,url,headRefNa
     exit 0
 fi
 if [[ "$cmd" == issue\ comment\ 298\ --repo\ michaelblum/agent-os\ --body-file\ * ]]; then
+    body_file="${cmd##* --body-file }"
+    cat "$body_file" >> "$GH_BODY_LOG"
+    printf '\n---\n' >> "$GH_BODY_LOG"
     echo "https://github.com/michaelblum/agent-os/issues/298#issuecomment-test"
     exit 0
 fi
@@ -967,12 +971,38 @@ fi
 BODY="$TMPDIR/comment.md"
 printf 'accepted state\n' > "$BODY"
 : > "$GH_ARGS_LOG"
+: > "$GH_BODY_LOG"
 if OUT="$(./aos dev gh issue comment 298 --body-file "$BODY" 2>/dev/null)" &&
    grep -q "issue comment 298 --repo michaelblum/agent-os --body-file $BODY" "$GH_ARGS_LOG" &&
+   grep -q "accepted state" "$GH_BODY_LOG" &&
    echo "$OUT" | grep -q "issuecomment-test"; then
     pass "dev gh issue comment shells out to gh with body-file"
 else
     fail "dev gh issue comment did not shell out through expected gh invocation"
+fi
+
+: > "$GH_ARGS_LOG"
+: > "$GH_BODY_LOG"
+if OUT="$(printf 'stdin accepted\n' | ./aos dev gh issue comment 298 --body-file - 2>/dev/null)" &&
+   grep -q "issue comment 298 --repo michaelblum/agent-os --body-file " "$GH_ARGS_LOG" &&
+   ! grep -q -- "--body-file -" "$GH_ARGS_LOG" &&
+   grep -q "stdin accepted" "$GH_BODY_LOG" &&
+   echo "$OUT" | grep -q "issuecomment-test"; then
+    pass "dev gh issue comment materializes stdin body-file"
+else
+    fail "dev gh issue comment did not materialize stdin body-file"
+fi
+
+: > "$GH_ARGS_LOG"
+: > "$GH_BODY_LOG"
+if OUT="$(printf 'dev stdin accepted\n' | ./aos dev gh issue comment 298 --body-file /dev/stdin 2>/dev/null)" &&
+   grep -q "issue comment 298 --repo michaelblum/agent-os --body-file " "$GH_ARGS_LOG" &&
+   ! grep -q -- "--body-file /dev/stdin" "$GH_ARGS_LOG" &&
+   grep -q "dev stdin accepted" "$GH_BODY_LOG" &&
+   echo "$OUT" | grep -q "issuecomment-test"; then
+    pass "dev gh issue comment materializes /dev/stdin body-file"
+else
+    fail "dev gh issue comment did not materialize /dev/stdin body-file"
 fi
 
 if ERR="$(./aos dev gh issue comment 298 extra --body-file "$BODY" 2>&1 >/dev/null)"; then
@@ -985,7 +1015,7 @@ fi
 
 if ERR="$(./aos dev gh issue comment 298 --body-file --json 2>&1 >/dev/null)"; then
     fail "dev gh issue comment should reject missing --body-file values before a flag"
-elif echo "$ERR" | grep -q -- '--body-file requires a path'; then
+elif echo "$ERR" | grep -q -- '--body-file requires a path or -'; then
     pass "dev gh issue comment treats flag-after---body-file as missing value"
 else
     fail "dev gh issue comment missing --body-file error mismatch: $ERR"
@@ -1010,7 +1040,7 @@ fi
 
 if ERR="$(./aos dev gh issue create --title "Strategic follow-up" --body-file --json 2>&1 >/dev/null)"; then
     fail "dev gh issue create should reject missing --body-file values before a flag"
-elif echo "$ERR" | grep -q -- '--body-file requires a path'; then
+elif echo "$ERR" | grep -q -- '--body-file requires a path or -'; then
     pass "dev gh issue create treats flag-after---body-file as missing value"
 else
     fail "dev gh issue create missing --body-file error mismatch: $ERR"
