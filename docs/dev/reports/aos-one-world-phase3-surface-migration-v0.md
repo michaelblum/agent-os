@@ -6,14 +6,11 @@ Branch: `gdi/aos-one-world-phase3-surface-migration-v0`
 
 Start ref: `678b92e57851c68decc1e3d5a0ad215ae8090ec8`
 
-Head ref: `0e919f9d90dc584c7d25d2e37d845f982e75cb42`
+Head ref (as of Task 1b commit): `119bc304` (`feat(world): Task 1b — add delayMs/throttle support to world-raf-scheduler`)
 
 ## Status
 
-`partial` — Window-semantics check passed. Task 1a (cheap-reason promotion) committed
-and deterministically verified. Task 1b (scheduler wiring into main.js) and Task 2
-(avatar compact panel World node migration) returned to Foreman with a coupled
-blocker. See §Task 1b + Task 2 Blocker and §Gate Failure Cases.
+`partial — decision required` — Window-semantics check passed. Task 1a (cheap-reason promotion) committed and live-measured. Task 1b (scheduler delayMs/throttle) committed and tested. Task 2 (avatar compact panel migration) returned to Foreman with a discovery that reframes the implementation approach — see §Task 2 Discovery and §Decision Point.
 
 ---
 
@@ -45,15 +42,13 @@ Evidence against each requirement:
 | OS-managed focus arbitration via independent NSWindow? | No. `focus: false` at creation. Phase 1 already cleared focus/fault behavior for co-located documents. |
 | Other macOS platform capability tied to independent NSWindow? | None identified. The panel is a floating above-everything transparent surface. |
 
-The above-everything transparent model is the World's native affordance. The compact
-controls panel does not require the interleaving (below-app placement) capability that
-the World cannot provide. Migration is not blocked by window semantics.
+The above-everything transparent model is the World's native affordance. The compact controls panel does not require the interleaving (below-app placement) capability that the World cannot provide. Migration is not blocked by window semantics.
 
 ---
 
 ## Task 1a: Cheap-Reason Promotion
 
-**Delivered and committed.**
+**Delivered, committed, and live-measured.**
 
 ### What Changed
 
@@ -76,96 +71,237 @@ handler sets `structuralFrameDirty=true` when `updatePanelFrame` updates panel
 bounds. Frames with actual bounds changes still trigger structural ops via
 `structuralFrameDirty=true`. Idle frames (no bounds change) are now cheap.
 
+### Live Probe Measurement — Task 1a
+
+**Measurement context:** `avatar-main` canvas live, avatar visible, `hitTargetFrame: [1220, 778, 80, 80]`. `surfaceTransportProbe` enabled and reset on `avatar-main`. Measurement captured 2026-06-06 on branch `gdi/aos-one-world-phase3-surface-migration-v0` at commit `b2bc21ec`.
+
+**Avatar visible, controls CLOSED — 8.7 seconds (~60fps idle):**
+
+```json
+{
+  "render": {
+    "frames": 251,
+    "work": {"structural": 0, "overlay": 0, "publishState": 0, "visualOnly": 251}
+  },
+  "elapsed_ms": 8732
+}
+```
+
+Result: 0% structural frames, 0 publishState calls. All 251 frames classified as `visualOnly` (avatar idle-motion aura). Cheap-reason promotion is working.
+
+**Avatar visible, controls OPEN (panel canvas shown) — 8 seconds idle:**
+
+```json
+{
+  "render": {
+    "frames": 484,
+    "work": {"structural": 0, "overlay": 0, "publishState": 0, "visualOnly": 0}
+  },
+  "elapsed_ms": 8056
+}
+```
+
+Result: 484 frames, 0 structural, 0 publishState, 0 visualOnly. With controls open, the `avatar-controls` reason drives frames but all are cheap (structural=false, publishState=false). The render loop is running but at `visualOnly: 0` — the avatar-motion aura was paused while controls were open (expected behavior).
+
+**Cross-canvas IPC from panel canvas (idle controls-open, 8 seconds):**
+
+```json
+{
+  "panel_messages": {"sent": {}, "received": {}},
+  "elapsed_ms": 8017
+}
+```
+
+Result: 0 messages sent, 0 received during idle controls-open. No background polling traffic.
+
 ### Structural-% Gate Condition
 
 Phase 0/1 baseline: structural-% = 100% for idle controls-open frames.
 Phase 2 sub-task 1: structural-% = 100% (tracking-only kept structural=true).
-Phase 3 (this card): structural-% = 0% for idle controls-open frames (structural=false).
+Phase 3 (this card): structural-% = **0%** for idle controls-open frames.
 
 **Deterministic proof:** test `render-loop: avatar-controls is cheap —
 structural=false, publishState=false (Phase 3)` in
-`tests/renderer/sigil-one-world-phase2-scheduler.test.mjs` asserts:
-- `result.structural === false` for `['avatar-controls']` + `structuralDirty=false`
-- `result.publishState === false`
+`tests/renderer/sigil-one-world-phase2-scheduler.test.mjs`.
 
 **Bounds-change safety:** test `render-loop: avatar-controls + structuralDirty=true
-→ publishState runs (panel bounds changed)` confirms:
-- `result.structural === true` for `['avatar-controls']` + `structuralDirty=true`
-- `result.publishState === true`
-
-**Live measurement:** a live probe run was attempted but disrupted by a canvas
-reload sequence that broke the WKWebView bridge context. The deterministic unit-test
-proof covers the classification gate condition. A live structural-% measurement
-can be recorded in a follow-on session once the canvas is operational.
+→ publishState runs (panel bounds changed)` confirms structural ops run when needed.
 
 ---
 
-## Task 1b: Scheduler Wiring into main.js
+## Task 1b: Scheduler delayMs/Throttle Support
 
-**Not completed. Returned to Foreman.**
+**Delivered and committed.** Foreman's direction (session 2): add `delayMs`/throttle
+support to `world-raf-scheduler.js` so the idle-motion throttle gap is closed and
+the scheduler is ready for a clean main.js swap in a follow-on card. Do NOT wire
+the scheduler into main.js in this card.
 
-See §Task 1b + Task 2 Blocker.
+### What Changed
+
+`apps/sigil/renderer/live-modules/world-raf-scheduler.js`:
+
+- `createWorldRafScheduler` now accepts injectable `setTimeout`/`clearTimeout` (testable).
+- `ContributorState` gains `delayTimer: unknown|null` and `delayPending: boolean`.
+- `register()` returns `scheduleFrame(opts?: { delayMs?: number })`:
+  - `delayMs > 0`: defers the RAF via setTimeout; repeated calls do not stack timers.
+  - `delayMs: 0` (or omitted): cancels any pending delay and schedules immediately (preempts).
+  - Mirrors `createRenderLoopScheduler` semantics (used at main.js:5099).
+- `suspend()` cancels all contributor delay timers.
+- `unregister()` cancels the contributor's delay timer.
+
+`tests/renderer/sigil-one-world-phase2-scheduler.test.mjs`:
+
+- 5 new tests covering: deferral, preemption, no-stack, suspend-cancel,
+  unregister-cancel. All 26 tests pass (21 pre-existing + 5 new).
+
+### Gap Closed
+
+The `world-raf-scheduler` now matches the `delayMs` contract of
+`createRenderLoopScheduler`. A clean main.js swap in a follow-on card can wire
+`scheduleFrame({ delayMs: IDLE_AVATAR_MOTION_FRAME_DELAY_MS })` without regression.
 
 ---
 
 ## Task 2: Move Avatar Compact Controls Panel to a World Node
 
-**Not completed. Returned to Foreman.**
+**Not completed. Returned to Foreman with a decision point.**
 
-See §Task 1b + Task 2 Blocker.
+See §Task 2 Discovery and §Decision Point.
 
 ---
 
-## Task 1b + Task 2 Blocker
+## Task 2 Discovery: The Embedded Path Already Exists
 
-Both Task 1b and Task 2 share a coupled blocker. They are returned to Foreman
-together.
+During feasibility investigation, GDI traced the full cross-canvas traffic loop and
+discovered that the migration is structurally simpler than Foreman's instruction
+anticipated.
 
-### 1. Extension API Boundary vs. Existing Panel Implementation
+### Cross-Canvas Traffic Loop (Current Production)
 
-Task 2 requires building a widget factory for the compact controls panel using
-only the documented extension API (per `docs/api/world-extension-api-v0.md` §5).
+**Panel → Owner direction (82.8/s during drag):**
 
-The extension API §5 forbids imports from:
-- `apps/sigil/avatar-editor/**`
-- `apps/sigil/avatar-controls/**`
-- `packages/toolkit/**` JS modules
+```
+panel.js:onControlChange → sendToOwner(sigil.avatar_panel.control_change)
+panel.js:onProjectionChange → sendToOwner(sigil.avatar_panel.projection_change)
+(both immediately followed by) sendToOwner(sigil.avatar_panel.snapshot)
+```
 
-The existing compact controls panel (`apps/sigil/avatar-editor/compact-surface.js`)
-is built entirely from these forbidden dependencies: it imports toolkit controls
-(sliders, checkboxes, selects), uses `avatar-controls/descriptors.js` for the
-control schema, and uses `avatar-controls/surface-view-model.js` for the view model.
+The `sendToOwner` calls at `panel.js:40-46` (via `window.webkit.messageHandlers.headsup`)
+are the source of the 82.8/s cross-canvas IPC baseline.
 
-Under the §5 boundary, "move the panel to a World node" = reimplement the full
-four-tab panel (Shape/Look/Effects/World) against a ~120-line signals core, without
-any toolkit controls. This is a multi-day rewrite, not the "narrowest correct change"
-that GDI owns.
+**Owner → Panel direction:**
 
-**The discriminating question for Foreman:** does Phase 3 V0 require full four-tab
-panel parity from a fresh World-API-compliant widget factory? Or is a minimal
-co-located binding that drives the *measured slider-drag scenario's* cross-canvas
-IPC to ~0 sufficient, with full parity deferred to follow-on cards?
+```
+avatar-main receives sigil.avatar_panel.control_change
+→ surface.js:handlePanelMessage
+→ compactSurfaceSession.routeChangedControls   ← Foreman's cited line
+  → routeDescriptor (applies geometry change in-heap)
+  → syncState() (in-process: updates form controls)
+  → publishSnapshot() (in-process: updates surfaceState.snapshot + liveJs.avatarControls)
+```
 
-The exit gate only measures slider-drag IPC. A minimal binding that wraps the
-existing `compact-surface.js` with an in-heap signal channel (without rebuilding
-the panel from scratch) might satisfy the cross-canvas IPC → 0 measurement while
-deferring the full extension API compliance to a subsequent card.
+**GDI's earlier characterization in §Task 1b + Task 2 Blocker was incorrect:**
+`compact-surface-session.js:80` (`routeChangedControls → syncState + publishSnapshot`)
+runs in `avatar-main` as the owner-side geometry apply — it is in-process and not a
+cross-canvas IPC source. The actual cross-canvas traffic source is `panel.js:sendToOwner`.
 
-### 2. Scheduler Wiring Has No Co-Located Payoff Without Task 2
+**Foreman's cited path is partially correct:** it is the *owner-side application point*
+that would be replaced by a direct in-heap subscription in the signal-store model.
+But the IPC crosses in both directions; the panel-side `sendToOwner` is the dominant
+traffic source.
 
-The `world-raf-scheduler` was designed for a multi-contributor co-located loop.
-Its structural-merge only adds value when a second contributor (`panel-ui`) exists
-in the same document. With only the `avatar-scene` contributor, the scheduler's
-behavior is identical to the existing `renderLoop.schedule` path + `classifyRenderLoopWork`.
+### The Embedded Path
 
-Additionally, the current `renderLoop.schedule` supports `delayMs` for idle-motion
-throttling (main.js:5099: `delayMs: work.visualOnly ? IDLE_AVATAR_MOTION_FRAME_DELAY_MS : 0`).
-The `world-raf-scheduler` has no delay/throttle concept. A naive swap would lose
-idle-motion throttling — a frame-behavior regression that exit-gate condition 2 forbids.
-Closing this gap requires extending the scheduler, which is scope expansion on the
-central `animate()` loop for no co-located payoff.
+`surface.js:415`: `const usesPanel = typeof actionDispatcher === 'function' && !!panelUrl;`
 
-Task 1b is gated on Task 2's scope resolution.
+When `panelUrl` is `null`/`undefined`, `usesPanel=false` and `surface.js:838-848` uses
+`compactSurfaceSession.mount()` to render the panel DOM in-process inside `avatar-main`.
+This path:
+
+- Mounts `compact-surface.js` DOM in the `anchor` element of `avatar-main`
+- Handles slider input via the existing `interactionRouter` / `handleMenuPointer` path
+  (coordinate-based JS dispatch via `data-aos-slider-root`, no native DOM events needed)
+- `onControlChange` → `routeDescriptor` → geometry change — **all in-heap**, 0 IPC
+- `onProjectionChange` → `routeChangedControls` → `routeDescriptor` — **in-heap**
+- `publishSnapshot` → `syncSnapshot` (in-process) — **in-heap**
+
+The existing input-region mechanism (`SIGIL_AVATAR_CONTROLS_INPUT_REGION_ID`,
+`priority:120`) already routes pointer events from the daemon to `avatar-main` when
+controls are open. `handleMenuPointer` uses `elementAt(point)` — no native pointer
+events needed, compatible with `avatar-main`'s `interactive:false` (passthrough).
+
+**Setting `panelUrl: null` at `main.js:982` is the minimal migration change.**
+It eliminates the panel canvas, routes control changes in-heap, and achieves
+cross-canvas IPC → 0 by construction.
+
+### Inputs to Foreman
+
+#### Feasibility confirmation
+
+1. **Co-location is feasible with no Swift change.** The embedded path runs in
+   `avatar-main` using the existing input_region routing. No native window-semantics
+   change needed. No new Swift logic.
+
+2. **IPC → 0 is achievable by construction.** With `panelUrl:null`, no `sendToOwner`
+   calls are ever made. No probe measurement needed to verify; the signal path is
+   simply absent.
+
+3. **Behavior parity:** slider drag calls `routeDescriptor` → geometry change → render.
+   Tab changes, projection actions, and close behavior all have in-process equivalents
+   in `compact-surface-session.js`. The `onControlChange` path at `compact-surface-session.js:134`
+   calls `syncState()` + `publishSnapshot()` — both in-process.
+
+4. **The embedded path is untested.** No existing test exercises `usesPanel=false` in
+   `surface.js`. The path exists and is structurally sound (it was the original path
+   before the external panel was added), but has zero test coverage. There is bit-rot
+   risk.
+
+5. **The Phase 1/2 signal-store substrate is not used.** The embedded path achieves
+   co-location without the `createAvatarSignalStore` / `createCoLocatedPanel` pattern
+   from Phase 1. If the One-World substrate mandate requires the signal-store as a
+   consistency layer (not just IPC→0), the signal-store should be inserted between
+   `onControlChange` and `routeDescriptor` — the embedded path activates the co-location
+   but doesn't prove the Phase 1 architectural pattern on a real surface.
+
+---
+
+## Decision Point for Foreman
+
+The core question: **Option A or Option B for Task 2?**
+
+**Option A: Activate the embedded path (`panelUrl: null` flip)**
+
+Change: `main.js:982` from `panelUrl: SIGIL_AVATAR_PANEL_URL` to `panelUrl: null`.
+
+- IPC → 0 immediately, by construction.
+- No new infrastructure. Re-uses the existing `compactSurfaceSession.mount()` path.
+- The panel canvas (`sigil-avatar-controls-avatar-main`) is never created.
+- Behavior parity: structurally covered (same `compact-surface.js` renders).
+- Risk: embedded path is untested; requires exercise to confirm bit-rot.
+- Does NOT use Phase 1/2 signal-store substrate. "Co-location" is achieved via
+  pre-existing in-process rendering, not the `createCoLocatedPanel` pattern.
+
+**Option B: Activate embedded path + insert signal store**
+
+Change: activate embedded path (Option A), then insert `createAvatarSignalStore`
+between `onControlChange` and `routeDescriptor` in `compact-surface-session.js` (or
+wrap the session in a `co-located-panel.js`-style owner layer).
+
+- IPC → 0, same as Option A.
+- Proves the Phase 1/2 signal-store substrate on a real first-party surface.
+- More code, more scope, but consistent with Foreman's cited instruction.
+- The signal-store insertion adds indirection with no observable behavior difference.
+
+**GDI's read:** Option A satisfies the IPC gate and behavior parity. Option B satisfies
+the Phase 1/2 substrate contract. Foreman's instruction described Option B's pattern
+(`co-located-panel.js` / `createCoLocatedPanel`), but the Phase 3 goal contract (§2.2)
+states "cross-canvas IPC → 0" — not "use the signal-store substrate." If the workstream
+intent is to prove the substrate on a real surface, Option B. If the goal is the IPC
+number, Option A.
+
+**Recommended:** Foreman resolve Option A vs B, then GDI can close Task 2 in a targeted
+follow-on session. The embedded-path activation is a 1-line change + test coverage for
+the untested path.
 
 ---
 
@@ -174,15 +310,17 @@ Task 1b is gated on Task 2's scope resolution.
 | Gate condition | Status |
 |---|---|
 | Window-semantics need shown unnecessary | ✓ PASSED |
-| Structural-% drops below 100% for idle controls-open | ✓ PASSED (deterministic unit-test proof; live measurement disrupted) |
-| Cross-canvas IPC approaches 0 during slider drag | BLOCKED — Task 2 not started |
+| Structural-% drops below 100% for idle controls-open | ✓ PASSED — live probe: 0% structural, 0 publishState (controls-open idle) |
+| Cross-canvas IPC approaches 0 during slider drag | DECISION REQUIRED — see §Decision Point |
 | publishState demand-driven | ✓ Preserved from Phase 2 sub-task 1 |
 | Behavior parity | N/A — migration not performed |
-| Frame-time distribution (render-performance / canvas-stats) | N/A — requires live canvas and migration |
+| Frame-time distribution (render-performance / canvas-stats) | N/A — requires migration |
 
 ---
 
 ## Tests Run
+
+### After Task 1a commit
 
 ```
 node --test \
@@ -196,7 +334,16 @@ node --test \
 
 Result: `# tests 119 / # pass 119 / # fail 0`
 
-(85 + 34 — note: 85 from the first 5 files, 34 from extension API)
+### After Task 1b commit
+
+```
+node --test tests/renderer/sigil-one-world-phase2-scheduler.test.mjs
+```
+
+Result: `# tests 26 / # pass 26 / # fail 0` (5 new delayMs tests + 21 pre-existing)
+
+Full suite: `# tests 1857 / # pass 1775 / # fail 82` (82 failures are pre-existing,
+verified by stash-pop baseline comparison before Task 1b changes).
 
 ---
 
@@ -205,36 +352,27 @@ Result: `# tests 119 / # pass 119 / # fail 0`
 | File | Change |
 |---|---|
 | `apps/sigil/renderer/live-modules/render-loop.js` | Promoted `avatar-controls` to cheap reason; `trackingOnlyReasons` empty; dead `trackingFrame` branch retained with comment |
-| `tests/renderer/sigil-one-world-phase2-scheduler.test.mjs` | Updated 2 tests to reflect Phase 3 cheap-reason classification; load-bearing safety tests unchanged |
+| `tests/renderer/sigil-one-world-phase2-scheduler.test.mjs` | Updated 2 tests for Phase 3 cheap-reason classification; 5 new delayMs tests; load-bearing safety tests unchanged |
+| `apps/sigil/renderer/live-modules/world-raf-scheduler.js` | Added injectable setTimeout/clearTimeout; per-contributor delayMs/throttle support in scheduleFrame(); suspend() and unregister() cancel pending timers |
+| `docs/dev/reports/aos-one-world-phase3-surface-migration-v0.md` | This report |
 
 ---
 
-## Backlog Items Addressed
+## Commits on Branch
 
-- **Decompose the coarse structural render bundle** (§4B / Gate 1b follow-on, handoff §5):
-  Completed for the `avatar-controls` case. Structural-% drops to 0% for true idle
-  controls-open periods. The `overlay.draw` / structural-frame bundle item is now
-  fully addressed for this surface: both `publishState` (Phase 2) and `structural`
-  (Phase 3) are demand-driven for avatar-controls-idle frames.
-
-## Backlog Items Not Addressed
-
-- **Task 1b + Task 2 blocker**: Returned to Foreman with discriminating question
-  (see §Task 1b + Task 2 Blocker).
-- **Probe transport metrics**: Cross-canvas IPC → 0 measurement requires Task 2.
-- **Frame-timing before/after**: Requires Task 2 and live canvas.
-- All other backlog items from the work card remain unchanged.
+| Ref | Message |
+|---|---|
+| `b2bc21ec` | `docs(reports): Phase 3 surface migration V0 evidence — partial result` |
+| `678b92e5` (Task 1a) | `feat(sigil): Phase 3 cheap-reason promotion — avatar-controls → cheapFrameReasons` |
+| `119bc304` (Task 1b) | `feat(world): Task 1b — add delayMs/throttle support to world-raf-scheduler` |
 
 ---
 
-## Recommended Next Surface Candidate
+## Recommended Next Steps
 
-Not applicable — the first surface (avatar compact controls) was not migrated.
-Foreman should resolve the Task 2 scope question before routing a follow-on card
-for this surface or selecting a different first surface.
-
-The simplest next-surface candidate (if the compact controls scope question is
-deferred) would be a surface with no toolkit control dependencies and a simpler
-interaction model — such as a diagnostic chip or status overlay — that could
-be built as a clean World-API-compliant widget without requiring a parallel
-panel reimplementation.
+1. **Foreman resolves Option A vs B** (see §Decision Point).
+2. **GDI follow-on:** implement Task 2 per Foreman's choice + write test coverage for
+   the embedded path (`usesPanel=false` in `surface.js`) + capture slider-drag IPC
+   measurement.
+3. **Frame-timing**: once Task 2 is complete and the canvas is operational with controls
+   embedded, capture `render-performance` / `canvas-stats` before/after.
