@@ -19,9 +19,8 @@
     owner is live as soon as the module evaluates — no separate bootstrap
     script.
 
-    The panel anchor div hosts the panel layer UI. The panel layer is mounted
-    when a viewModel is available, via window.dispatchEvent(new CustomEvent(
-    'coloc:render', { detail: { view_model: vm } })).
+    The panel anchor div hosts the panel layer UI. Mount the panel layer via
+    window.__sigilCoLocatedProbeDebug.makePanelLayer({...}) in a live eval.
 
     Probe live eval workflow (via ./aos show eval):
       1. Enable:        window.__sigilCoLocatedProbeDebug.surfaceTransportProbe.enable()
