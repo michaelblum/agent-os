@@ -543,6 +543,9 @@ export function createSigilAvatarControls({
         syncFromState,
         syncSnapshot,
         recordTrace,
+        onClose() {
+            close('panel-close-request');
+        },
     });
 
     function compactFieldRecordByDescriptorId(id) {
@@ -770,7 +773,8 @@ export function createSigilAvatarControls({
     function surfaceBounds() {
         if (usesPanel) return surfaceState.bounds ? { ...surfaceState.bounds } : null;
         if (!surfaceState.bounds) return null;
-        const surfaceRect = anchor.querySelector('.sigil-avatar-control-surface')?.getBoundingClientRect?.();
+        const surfaceRect = anchor.querySelector('.aos-panel')?.getBoundingClientRect?.()
+            || anchor.querySelector('.sigil-avatar-control-surface')?.getBoundingClientRect?.();
         if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) return { ...surfaceState.bounds };
         const anchorRect = anchor.getBoundingClientRect();
         return {
@@ -851,6 +855,10 @@ export function createSigilAvatarControls({
 
     function close(reason = 'close') {
         if (!surfaceState.open) return;
+        if (!usesPanel && reason === 'outside-click') {
+            recordTrace('outside-click-preserved', { reason });
+            return;
+        }
         const panelWasRemoved = reason === 'panel-removed' || reason === 'panel-lifecycle';
         const preservePanelSession = usesPanel && shouldSuspendPanelOnClose && !panelWasRemoved;
         surfaceState.open = false;

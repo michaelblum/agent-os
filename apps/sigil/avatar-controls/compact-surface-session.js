@@ -1,8 +1,17 @@
 let compactSurfaceModulePromise = null;
+let toolkitPanelModulePromise = null;
 
 function loadCompactSurfaceModule() {
     compactSurfaceModulePromise ||= import('../avatar-editor/compact-surface.js');
     return compactSurfaceModulePromise;
+}
+
+function loadToolkitPanelModule() {
+    toolkitPanelModulePromise ||= import('../renderer/live-modules/content-roots.js')
+        .then(({ toolkitSpecifier }) => import(toolkitSpecifier('panel/chrome.js', {
+            local: '../../../packages/toolkit/panel/chrome.js',
+        })));
+    return toolkitPanelModulePromise;
 }
 
 function cacheKey(value) {
@@ -32,6 +41,7 @@ export function createAvatarControlsCompactSurfaceSession({
     syncFromState,
     syncSnapshot,
     recordTrace,
+    onClose,
 } = {}) {
     const routeDescriptor = requiredFunction('routeDescriptorUpdate', routeDescriptorUpdate);
     const syncState = requiredFunction('syncFromState', syncFromState);
@@ -44,6 +54,7 @@ export function createAvatarControlsCompactSurfaceSession({
     }
 
     let compactSurface = null;
+    let chrome = null;
     const compactValueCache = new Map();
 
     function surface() {
@@ -119,11 +130,24 @@ export function createAvatarControlsCompactSurfaceSession({
 
     async function mount(activeTab = null) {
         const { createSigilAvatarCompactControlSurface } = await loadCompactSurfaceModule();
+        const { mountChrome } = await loadToolkitPanelModule();
         const previousActiveTab = compactSurface?.getActiveTab?.() || undefined;
         const previousScrollTop = compactSurface?.el?.scrollTop ?? 0;
         const previousScrollLeft = compactSurface?.el?.scrollLeft ?? 0;
         compactSurface?.destroy?.();
-        compactSurface = createSigilAvatarCompactControlSurface(anchor, state || {}, {
+        anchor.replaceChildren();
+        chrome = mountChrome(anchor, {
+            title: 'AVATAR',
+            draggable: false,
+            close: true,
+            minimize: false,
+            maximize: false,
+            resizable: false,
+            onClose,
+        });
+        chrome.panelEl.classList.add('sigil-avatar-embedded-panel');
+        chrome.contentEl.classList.add('sigil-avatar-panel-host');
+        compactSurface = createSigilAvatarCompactControlSurface(chrome.contentEl, state || {}, {
             document,
             defaultTab: activeTab || previousActiveTab,
             visualObjectBinding: {
@@ -158,6 +182,8 @@ export function createAvatarControlsCompactSurfaceSession({
     function destroy() {
         compactSurface?.destroy?.();
         compactSurface = null;
+        chrome = null;
+        anchor.replaceChildren();
         compactValueCache.clear();
     }
 

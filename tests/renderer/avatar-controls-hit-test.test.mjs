@@ -32,6 +32,14 @@ function waitForMicrotasks() {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
+async function waitUntil(predicate, message, attempts = 50) {
+  for (let i = 0; i < attempts; i += 1) {
+    if (predicate()) return
+    await waitForMicrotasks()
+  }
+  assert.ok(predicate(), message)
+}
+
 function setRect(element, rect) {
   element.getBoundingClientRect = () => ({
     left: rect.left,
@@ -62,6 +70,17 @@ function setSliderRect(doc, descriptorId, rect) {
     if (element) setRect(element, rect)
   }
   return field
+}
+
+function avatarControlsAnchor(doc) {
+  return Array.from(doc.body.children || [])
+    .flatMap((child) => Array.from(child.children || []))
+    .find((element) => element.id === 'sigil-avatar-controls') || null
+}
+
+function childWithClass(element, className) {
+  return Array.from(element?.children || [])
+    .find((child) => String(child.className || '').split(/\s+/).includes(className)) || null
 }
 
 function setToggleRect(doc, descriptorId, rect) {
@@ -1188,9 +1207,17 @@ test('embedded controls (panelUrl:null) activate embedded path and never dispatc
     assert.equal(controls.isOpen(), true)
     assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.toggle'), false)
 
-    // Wait for the async compactSurfaceSession.mount()
-    await waitForMicrotasks()
-    await waitForMicrotasks()
+    await waitUntil(
+      () => childWithClass(avatarControlsAnchor(document), 'aos-panel'),
+      'embedded controls must use toolkit panel chrome'
+    )
+    const anchor = avatarControlsAnchor(document)
+    const panel = childWithClass(anchor, 'aos-panel')
+    const header = childWithClass(panel, 'aos-header')
+    assert.ok(header, 'embedded controls must expose toolkit panel header chrome')
+    const controlsEl = childWithClass(header, 'aos-controls')
+    const windowControlsEl = childWithClass(controlsEl, 'aos-window-controls')
+    assert.ok(childWithClass(windowControlsEl, 'aos-window-close'), 'embedded controls must expose a standard close control')
 
     // Slider drag must route through onControlChange in-heap without any dispatch
     const field = Array.from(document.body.querySelectorAll('.aos-form-field'))
@@ -1217,8 +1244,12 @@ test('embedded controls (panelUrl:null) activate embedded path and never dispatc
     // No cross-canvas dispatch for the entire open+drag+close cycle
     assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.toggle'), false)
 
-    // close must not dispatch canvas.suspend or panel.close
+    // Outside focus/clicks should not destroy the embedded standard panel.
     controls.close('outside-click')
+    assert.equal(controls.isOpen(), true)
+
+    // Explicit panel close must not dispatch canvas.suspend or panel.close.
+    controls.close('panel-close-request')
     assert.equal(controls.isOpen(), false)
     assert.equal(dispatchedActions.some((entry) => entry.action === 'canvas.suspend'), false)
     assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.close'), false)
