@@ -21,14 +21,7 @@
 
 export { mountPanel } from './mount.js'
 export { createForm } from './form.js'
-export {
-  computePanelTransfer,
-  createPanelTransferController,
-  defaultDesktopWorldStageUrl,
-  ensureDesktopWorldStage,
-  sendDesktopWorldStageLayer,
-  wirePanelTransferDisplayGeometry,
-} from './drag-transfer.js'
+export { createDragDropController } from './drag-drop.js'
 export {
   clampFrameToWorkArea,
   chipFrameFromWindow,

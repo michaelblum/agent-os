@@ -51,7 +51,8 @@ test('Agent Terminal opts into toolkit panel chrome', () => {
   assert.match(html, /minimize:\s*true/)
   assert.match(html, /maximize:\s*true/)
   assert.match(html, /resizable:\s*true/)
-  assert.match(html, /drag:\s*\{\s*clampOnEnd:\s*true,\s*transfer:\s*true\s*\}/)
+  assert.match(html, /drag:\s*\{\s*clampOnEnd:\s*true\s*\}/)
+  assert.doesNotMatch(html, /transfer:\s*true/)
 })
 
 test('Agent Terminal no longer owns private drag or close controls', () => {

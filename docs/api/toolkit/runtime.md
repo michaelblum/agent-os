@@ -56,7 +56,7 @@ as `--surface desktop-world` and stays non-interactive. Consumers update it with
 {
   "type": "desktop_world_stage.layer.upsert",
   "payload": {
-    "id": "panel-transfer-outline",
+    "id": "surface-diagnostic-outline",
     "kind": "outline",
     "frame": [1920, 64, 720, 520],
     "label": "Move here"

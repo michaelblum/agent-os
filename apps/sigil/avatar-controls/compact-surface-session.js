@@ -138,7 +138,7 @@ export function createAvatarControlsCompactSurfaceSession({
         anchor.replaceChildren();
         chrome = mountChrome(anchor, {
             title: 'AVATAR',
-            draggable: false,
+            draggable: true,
             close: true,
             minimize: false,
             maximize: false,

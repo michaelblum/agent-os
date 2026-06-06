@@ -53,8 +53,9 @@ markdown/               Layer 1c — shared Markdown renderer and preview presen
   preview.css             document preview typography and spacing
 
 panel/                  Layer 1b — panel primitives
-  chrome.js               mountChrome — pure DOM scaffold + drag/resize lifecycle + absolute drag updates, final drag clamp, resize frame updates, and optional maximize/restore state
-  drag-transfer.js        cross-display panel transfer outline + release-frame controller
+  chrome.js               mountChrome — pure DOM scaffold + shared drag/drop, resize lifecycle, final drag clamp, resize frame updates, and optional maximize/restore state
+  drag-drop.js            first-class toolkit drag/drop movement controller for draggable panels/nodes
+  drag-transfer.js        legacy cross-display panel transfer outline controller; marked obsolete under One-World/#425
   defaults.css            optional stock panel visuals (opt-in)
   router.js               createRouter — manifest-prefix dispatch
   layouts/

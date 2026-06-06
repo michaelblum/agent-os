@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   clampFrameToWorkArea,
   chipFrameFromWindow,
+  createDragDropController,
   createPlacementPlan,
   createDragController,
   createMaximizeController,
@@ -539,6 +540,39 @@ test('drag settle update exposes toolkit placement contract metadata', () => {
     viewport_overflow_policy: 'clamp',
     cause: 'placement.policy',
   });
+});
+
+test('createDragDropController is the shared panel movement contract without transfer outlines', () => {
+  let frame = [1400, 80, 420, 260];
+  const moves = [];
+  const updates = [];
+  const states = [];
+  const controller = createDragDropController({
+    getFrame: () => frame,
+    getDragWorkArea: () => [0, 33, 1512, 949],
+    move(screenX, screenY, offsetX, offsetY, geometry) {
+      frame = [screenX - offsetX, screenY - offsetY, frame[2], frame[3]];
+      moves.push({ screenX, screenY, offsetX, offsetY, geometry });
+    },
+    updateFrame(nextFrame, geometry) {
+      frame = nextFrame;
+      updates.push({ frame: nextFrame, geometry });
+    },
+    clampOnEnd: true,
+    onStateChange(state) {
+      states.push(state);
+    },
+  });
+
+  controller.start({ pointerId: 1, clientX: 10, clientY: 10, screenX: 1410, screenY: 90 });
+  controller.move({ pointerId: 1, screenX: 1600, screenY: 90 });
+  controller.end({ pointerId: 1, screenX: 1600, screenY: 90 });
+
+  assert.deepEqual(moves.map((entry) => entry.geometry.phase), ['update']);
+  assert.deepEqual(updates.at(-1).frame, [1092, 80, 420, 260]);
+  assert.deepEqual(states.map((state) => state.phase), ['start', 'move', 'end']);
+  assert.deepEqual(states.map((state) => state.transferActive), [false, false, false]);
+  assert.equal(updates.at(-1).geometry.cause, 'placement.drag');
 });
 
 test('initial panel settle emits placement metadata through the controller', () => {

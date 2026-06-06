@@ -3,8 +3,12 @@ import { toolkitSpecifier } from '../renderer/live-modules/content-roots.js';
 const TOOLKIT_RUNTIME_BASE = toolkitSpecifier('runtime', {
     local: '../../../packages/toolkit/runtime',
 });
+const TOOLKIT_PANEL_DRAG_DROP = toolkitSpecifier('panel/drag-drop.js', {
+    local: '../../../packages/toolkit/panel/drag-drop.js',
+});
 
 const { createDesktopWorldInteractionRouter } = await import(`${TOOLKIT_RUNTIME_BASE}/interaction-region.js`);
+const { createDragDropController } = await import(TOOLKIT_PANEL_DRAG_DROP);
 import {
     DEFAULT_FAST_TRAVEL_EFFECT,
     normalizeFastTravelEffect,
@@ -59,13 +63,34 @@ function elementContains(parent, child) {
     return false;
 }
 
+function selectorMatches(element, selector) {
+    if (!element || !selector) return false;
+    if (element.matches?.(selector)) return true;
+    if (selector.startsWith('.')) {
+        const className = selector.slice(1);
+        return element.classList?.contains?.(className)
+            || String(element.className || '').split(/\s+/).includes(className);
+    }
+    if (/^[a-z][a-z0-9-]*$/i.test(selector)) {
+        return String(element.tagName || '').toLowerCase() === selector.toLowerCase();
+    }
+    const attrMatch = selector.match(/^\[([^=\]]+)(?:=["']?([^"'\]]+)["']?)?\]$/);
+    if (attrMatch) {
+        const attr = attrMatch[1];
+        const expected = attrMatch[2];
+        const actual = element.getAttribute?.(attr) ?? element.dataset?.[attr.replace(/^data-/, '').replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())];
+        return expected == null ? actual != null : String(actual) === expected;
+    }
+    return false;
+}
+
 function closestAny(element, selectors = []) {
     if (!element) return null;
     const combinedSelector = selectors.join(', ');
     const combined = element.closest?.(combinedSelector);
     if (combined) return combined;
     for (let cursor = element; cursor; cursor = cursor.parentElement) {
-        if (selectors.some((selector) => cursor.matches?.(selector))) return cursor;
+        if (selectors.some((selector) => selectorMatches(cursor, selector))) return cursor;
     }
     return null;
 }
@@ -254,6 +279,7 @@ export function findAvatarControlsElementAt(anchor, point, doc = document) {
         'select',
         'textarea',
         'label',
+        '.aos-header',
         '.sigil-avatar-control-surface',
         '.aos-form-field',
         '[data-aos-select-content]',
@@ -407,6 +433,7 @@ export function createSigilAvatarControls({
         open: false,
         bounds: null,
         activeSlider: null,
+        activePanelDrag: null,
         snapshot: null,
     };
     let panelReady = false;
@@ -776,7 +803,8 @@ export function createSigilAvatarControls({
         const surfaceRect = anchor.querySelector('.aos-panel')?.getBoundingClientRect?.()
             || anchor.querySelector('.sigil-avatar-control-surface')?.getBoundingClientRect?.();
         if (!surfaceRect || surfaceRect.width <= 0 || surfaceRect.height <= 0) return { ...surfaceState.bounds };
-        const anchorRect = anchor.getBoundingClientRect();
+        const anchorRect = anchor.getBoundingClientRect?.();
+        if (!anchorRect) return { ...surfaceState.bounds };
         return {
             x: surfaceState.bounds.x + (surfaceRect.left - anchorRect.left),
             y: surfaceState.bounds.y + (surfaceRect.top - anchorRect.top),
@@ -864,6 +892,7 @@ export function createSigilAvatarControls({
         surfaceState.open = false;
         surfaceState.bounds = null;
         surfaceState.activeSlider = null;
+        surfaceState.activePanelDrag = null;
         if (!preservePanelSession) panelReady = false;
         panelControls = [];
         panelActiveTab = null;
@@ -895,6 +924,7 @@ export function createSigilAvatarControls({
         surfaceState.open = open;
         surfaceState.bounds = open && next.bounds ? { ...next.bounds } : null;
         surfaceState.activeSlider = null;
+        surfaceState.activePanelDrag = null;
         interactionRouter.reset();
         if (state) state.isMenuOpen = open;
         if (!open) {
@@ -974,6 +1004,130 @@ export function createSigilAvatarControls({
     function activeScrollableSurface(target) {
         return closestAny(target, ['.sigil-avatar-control-surface'])
             || anchor.querySelector('.sigil-avatar-control-surface');
+    }
+
+    function displayBoundsRect(display = {}) {
+        const bounds = display.dw_bounds
+            || display.desktopWorldBounds
+            || display.desktop_world_bounds
+            || display.visibleBounds
+            || display.visible_bounds
+            || display.bounds
+            || null;
+        if (!bounds) return null;
+        const x = Number(bounds.x);
+        const y = Number(bounds.y);
+        const w = Number(bounds.w ?? bounds.width);
+        const h = Number(bounds.h ?? bounds.height);
+        if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return null;
+        return { x, y, w, h };
+    }
+
+    function unionDragWorkArea() {
+        const displayRects = Array.isArray(liveJs?.displays)
+            ? liveJs.displays.map(displayBoundsRect).filter(Boolean)
+            : [];
+        const rects = displayRects.length
+            ? displayRects
+            : [displayBoundsRect(liveJs?.visibleBounds)].filter(Boolean);
+        if (!rects.length) {
+            return [0, 0, Math.max(1, window.innerWidth || PANEL_WIDTH), Math.max(1, window.innerHeight || PANEL_HEIGHT)];
+        }
+        const minX = Math.min(...rects.map((rect) => rect.x));
+        const minY = Math.min(...rects.map((rect) => rect.y));
+        const maxX = Math.max(...rects.map((rect) => rect.x + rect.w));
+        const maxY = Math.max(...rects.map((rect) => rect.y + rect.h));
+        return [minX, minY, Math.max(1, maxX - minX), Math.max(1, maxY - minY)];
+    }
+
+    function applyEmbeddedPanelFrame(frame, phase = 'move') {
+        if (!Array.isArray(frame) || frame.length < 4 || !surfaceState.open || usesPanel) return false;
+        surfaceState.bounds = {
+            x: Number(frame[0]),
+            y: Number(frame[1]),
+            w: Math.max(1, Number(frame[2])),
+            h: Math.max(1, Number(frame[3])),
+        };
+        syncPosition();
+        syncSnapshot();
+        onBoundsChange?.(snapshot());
+        recordTrace('embedded-panel-drag', { phase, bounds: surfaceState.bounds });
+        return true;
+    }
+
+    function embeddedPanelDragHandleAt(point) {
+        if (usesPanel) return null;
+        const bounds = surfaceBounds() || surfaceState.bounds;
+        const target = elementAt(point);
+        if (target && elementContains(anchor, target)) {
+            const controls = closestAny(target, ['.aos-controls', '.aos-window-controls', 'button']);
+            if (controls) return null;
+            const header = closestAny(target, ['.aos-header']);
+            if (header) return header;
+            return null;
+        }
+        if (
+            bounds
+            && Number.isFinite(point?.x)
+            && Number.isFinite(point?.y)
+            && point.x >= bounds.x
+            && point.x < bounds.x + bounds.w
+            && point.y >= bounds.y
+            && point.y < bounds.y + 40
+        ) {
+            return anchor.querySelector('.aos-header') || anchor;
+        }
+        return null;
+    }
+
+    function startEmbeddedPanelDrag(point) {
+        const bounds = surfaceBounds() || surfaceState.bounds;
+        if (!bounds) return false;
+        const controller = createDragDropController({
+            getFrame: () => {
+                const current = surfaceBounds() || surfaceState.bounds || bounds;
+                return [current.x, current.y, current.w, current.h];
+            },
+            getDragWorkArea: unionDragWorkArea,
+            move(screenX, screenY, offsetX, offsetY) {
+                applyEmbeddedPanelFrame([
+                    screenX - offsetX,
+                    screenY - offsetY,
+                    bounds.w,
+                    bounds.h,
+                ], 'move');
+            },
+            updateFrame(frame) {
+                applyEmbeddedPanelFrame(frame, 'settled');
+            },
+            clampOnEnd: true,
+        });
+        controller.start({
+            pointerId: 1,
+            clientX: point.x - bounds.x,
+            clientY: point.y - bounds.y,
+            screenX: point.x,
+            screenY: point.y,
+        });
+        surfaceState.activePanelDrag = { controller };
+        recordTrace('embedded-panel-drag-start', { point, bounds });
+        return true;
+    }
+
+    function routeEmbeddedPanelDrag(kind, point) {
+        const active = surfaceState.activePanelDrag;
+        if (!active) return false;
+        if (kind === 'left_mouse_dragged' || kind === 'mouse_moved') {
+            active.controller.move({ pointerId: 1, screenX: point.x, screenY: point.y });
+            return true;
+        }
+        if (kind === 'left_mouse_up') {
+            active.controller.end({ pointerId: 1, screenX: point.x, screenY: point.y });
+            surfaceState.activePanelDrag = null;
+            recordTrace('embedded-panel-drag-end', { point, bounds: surfaceState.bounds });
+            return true;
+        }
+        return true;
     }
 
     function scrollSurfaceAt(point, event = {}) {
@@ -1057,6 +1211,12 @@ export function createSigilAvatarControls({
         const kind = event.type;
         const point = event.point;
         if (kind === 'scroll_wheel') return scrollSurfaceAt(point, event);
+        if (surfaceState.activePanelDrag && (kind === 'left_mouse_dragged' || kind === 'mouse_moved' || kind === 'left_mouse_up')) {
+            return routeEmbeddedPanelDrag(kind, point);
+        }
+        if (kind === 'left_mouse_down' && embeddedPanelDragHandleAt(point)) {
+            return startEmbeddedPanelDrag(point);
+        }
         if (surfaceState.activeSlider && (kind === 'left_mouse_dragged' || kind === 'mouse_moved' || kind === 'left_mouse_up')) {
             const active = surfaceState.activeSlider;
             const handled = updateCompactSliderAt(active.sliderRoot, point, { commit: kind === 'left_mouse_up' });
@@ -1152,6 +1312,12 @@ export function createSigilAvatarControls({
                 }
                 : null
         );
+        if (surfaceState.activePanelDrag && (kind === 'left_mouse_dragged' || kind === 'mouse_moved' || kind === 'left_mouse_up')) {
+            return routeEmbeddedPanelDrag(kind, point);
+        }
+        if (kind === 'left_mouse_down' && embeddedPanelDragHandleAt(point)) {
+            return startEmbeddedPanelDrag(point);
+        }
         return interactionRouter.route(
             { type: kind, x: point.x, y: point.y, ...raw },
             {

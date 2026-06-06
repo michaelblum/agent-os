@@ -1215,9 +1215,35 @@ test('embedded controls (panelUrl:null) activate embedded path and never dispatc
     const panel = childWithClass(anchor, 'aos-panel')
     const header = childWithClass(panel, 'aos-header')
     assert.ok(header, 'embedded controls must expose toolkit panel header chrome')
+    assert.equal(header.dataset?.draggable, 'true', 'embedded controls must use toolkit draggable panel chrome')
+    assert.equal(header.dataset?.aosAction, 'panel_drag', 'embedded controls expose stock panel drag semantics')
     const controlsEl = childWithClass(header, 'aos-controls')
     const windowControlsEl = childWithClass(controlsEl, 'aos-window-controls')
     assert.ok(childWithClass(windowControlsEl, 'aos-window-close'), 'embedded controls must expose a standard close control')
+
+    const beforeDragBounds = controls.interactiveBounds()
+    setRect(anchor, { left: beforeDragBounds.x, top: beforeDragBounds.y, width: beforeDragBounds.w, height: beforeDragBounds.h })
+    setRect(panel, { left: beforeDragBounds.x, top: beforeDragBounds.y, width: beforeDragBounds.w, height: beforeDragBounds.h })
+    setRect(header, { left: beforeDragBounds.x, top: beforeDragBounds.y, width: beforeDragBounds.w, height: 38 })
+    const previousElementFromPoint = document.elementFromPoint
+    document.elementFromPoint = (x, y) => (
+      x >= beforeDragBounds.x && x < beforeDragBounds.x + beforeDragBounds.w && y >= beforeDragBounds.y && y < beforeDragBounds.y + 38
+        ? header
+        : previousElementFromPoint?.call(document, x, y) || null
+    )
+    assert.equal(findAvatarControlsElementAt(anchor, { x: beforeDragBounds.x + 20, y: beforeDragBounds.y + 18 }, document), header)
+
+    const hitRoute = { regionId: 'sigil-avatar-controls', source: 'canvas' }
+    controls.handlePointerEvent('left_mouse_down', { x: beforeDragBounds.x + 20, y: beforeDragBounds.y + 18 }, hitRoute)
+    controls.handlePointerEvent('left_mouse_dragged', { x: beforeDragBounds.x + 60, y: beforeDragBounds.y + 58 }, hitRoute)
+    controls.handlePointerEvent('left_mouse_up', { x: beforeDragBounds.x + 60, y: beforeDragBounds.y + 58 }, hitRoute)
+    assert.deepEqual(controls.bounds(), {
+      x: beforeDragBounds.x + 40,
+      y: beforeDragBounds.y + 40,
+      w: beforeDragBounds.w,
+      h: beforeDragBounds.h,
+    })
+    document.elementFromPoint = previousElementFromPoint
 
     // Slider drag must route through onControlChange in-heap without any dispatch
     const field = Array.from(document.body.querySelectorAll('.aos-form-field'))

@@ -393,7 +393,7 @@ Current reusable toolkit components include:
 - `aos://toolkit/components/step-descriptor-workbench/index.html` - Step Descriptor Workbench V0 shell that gates one saved-evidence browser Step Descriptor simulation and hands off the emitted Work Record read-only
 - `aos://toolkit/components/object-transform-panel/index.html` - addressable canvas object transform editor for position/scale/rotation triplets
 - `aos://toolkit/components/markdown-workbench/index.html` - Markdown source editor, rendered preview, outline, diagnostics, and explicit save handoff
-- `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as transfer outlines
+- `aos://toolkit/components/desktop-world-stage/index.html` - shared click-through DesktopWorld visual stage for non-interactive layers such as telemetry overlays and diagnostic markers
 
 ### Inline Canvas Stats
 

@@ -37,9 +37,9 @@ Public entrypoint:
 ```js
 import {
   createForm,
+  createDragDropController,
   createDragController,
   createPanelWindowController,
-  createPanelTransferController,
   createResizeController,
   createSplitPane,
   createMaximizeController,
@@ -51,7 +51,6 @@ import {
   SplitPane,
   Tabs,
   wireDrag,
-  wirePanelTransferDisplayGeometry,
   wireResize,
 } from 'aos://toolkit/panel/index.js'
 ```
@@ -124,8 +123,8 @@ Options:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `title` | `string` | header title |
-| `draggable` | `boolean` | whether header drag emits absolute move updates plus `drag_start` / `drag_end` lifecycle messages |
-| `drag` | `object` | optional drag controller settings; stock chrome clamps final placement and enables cross-display transfer by default |
+| `draggable` | `boolean` | whether header drag uses the shared toolkit drag/drop movement path |
+| `drag` | `object` | optional drag/drop controller settings; stock chrome clamps final placement by default |
 | `close` | `boolean` | whether to show the stock close control, default `true` |
 | `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
 | `maximize` | `boolean` | whether to show the stock maximize/restore control, default `false` |
@@ -157,13 +156,11 @@ Notes:
 
 - `mountChrome()` adds the `aos-panel-root` class to the mount container
 - the returned slot refs are the behavioral contract; consumers should not rely on querying `.aos-*` classes for runtime behavior
-- when draggable, the stock header emits `drag_start` once on primary-button
-  pointerdown, drives window movement through absolute drag updates, then emits
-  `drag_end` on pointerup / cancel / lost capture
+- when draggable, the stock header delegates to the shared toolkit drag/drop
+  controller, which drives window movement through native-coordinate absolute
+  updates and settles final placement through the panel placement contract
 - stock chrome clamps final drag placement to the current display work area so
-  titlebars and window controls remain reachable; custom surfaces can call
-  `wireDrag(..., { clampOnEnd: true, transfer: true })` to opt into the same
-  cross-display behavior
+  titlebars and window controls remain reachable
 - when maximize is enabled, the stock controller stores the current canvas frame,
   updates the canvas to the current display work area, and restores the stored
   frame on the next toggle
@@ -187,9 +184,8 @@ Notes:
 
 Creates the canonical public toolkit policy path for ordinary AOS
 panel/window behavior. `mountChrome()` uses this controller internally, and
-custom panel-shaped surfaces should use it instead of hand-emitting
-`drag_start`, `move_abs`, `drag_end`, minimize, maximize, resize, or close
-messages.
+custom panel-shaped surfaces should use it instead of implementing private
+panel movement, minimize, maximize, resize, or close messages.
 
 The controller composes the lower-level toolkit primitives with one shared
 placement policy:
@@ -200,13 +196,12 @@ placement policy:
   release/cursor display win over seam-adjacent top-left inference;
 - drag, resize, maximize/restore, chip placement, and minimized restore use
   the same placement helpers;
-- cross-display transfer remains toolkit-owned and DesktopWorld-backed;
 - minimize defaults to a passive stage chip plus daemon input regions, with the
   explicit WebView chip retained as fallback.
 
 ```js
 const windowPolicy = createPanelWindowController({
-  drag: { clampOnEnd: true, transfer: true },
+  drag: { clampOnEnd: true },
   resize: { minWidth: 760, minHeight: 520 },
   maximize: true,
   minimize: true,
@@ -241,7 +236,7 @@ Options:
 | --- | --- | --- |
 | `title` | `string` | header title |
 | `layout` | layout object | required |
-| `draggable` | `boolean` | whether the mounted stock header emits absolute drag updates plus `drag_start` / `drag_end` lifecycle messages |
+| `draggable` | `boolean` | whether the mounted stock header uses the shared toolkit drag/drop movement path |
 | `drag` | `object` | optional drag controller settings |
 | `close` | `boolean` | whether to show the stock close control, default `true` |
 | `minimize` | `boolean` | whether to show the stock minimize control, default `true` |
@@ -294,13 +289,13 @@ layer upsert send time, input region registration start/end/count, source
 suspend start/end, fallback create/resume timings when used, and total elapsed
 time.
 
-### `createDragController(options?)`
+### `createDragDropController(options?)`
 
-Creates the toolkit-owned panel drag state used by stock panel chrome and custom
-workbench titlebars.
+Creates the first-class toolkit drag/drop movement state used by stock panel
+chrome and custom workbench titlebars.
 
 ```js
-const controller = createDragController({ clampOnEnd: true })
+const controller = createDragDropController({ clampOnEnd: true })
 ```
 
 By default the controller sends absolute drag updates through `move_abs` with
@@ -324,20 +319,18 @@ Options:
 | `minVisibleWidth` / `minVisibleHeight` | `number` | visible affordance retained when clamping oversized frames |
 | `onStateChange` | `function` | receives drag state snapshots |
 
+`createDragController(options?)` remains an alias for panel-shaped movement
+callers that already import that name; new panel and node movement code should
+prefer `createDragDropController()`.
+
 `dragFrameFromPointer(pointer, offsetX, offsetY, frame?)` is the pure geometry
 helper for tests and custom hosts.
 
 `wireDrag(headerEl, controlsEl, options?)` wires primary-button titlebar dragging
-to a DOM element. It ignores events originating inside `controlsEl`, emits
-`drag_start` / `drag_end`, returns the drag controller, and accepts `onStart` /
-`onEnd` hooks for custom surfaces such as workbenches that need to restore from
-maximized state before moving. When `transfer: true`, the controller subscribes
-to `display_geometry`, sends destination-outline layers to the shared
-DesktopWorld stage, reports `state.transferActive` while that outline is active,
-and on release moves the panel to the destination outline frame. Stock panel and
-workbench styles dim the origin surface to `0.75` opacity during transfer. The
-stage is best-effort: if it is not running, release placement still uses the
-computed destination display frame.
+to a DOM element. It ignores events originating inside `controlsEl`, delegates
+movement to the drag/drop controller, returns that controller, and accepts
+`onStart` / `onEnd` hooks for custom surfaces such as workbenches that need to
+restore from maximized state before moving.
 
 Stock `mountChrome()` headers are also semantic drag targets. The header carries
 `data-aos-ref="<canvas-or-panel-surface>:drag-handle"`,
@@ -346,11 +339,6 @@ Stock `mountChrome()` headers are also semantic drag targets. The header carries
 reported `semantic_targets[].do_target` with
 `aos do drag canvas:<canvas-id>/<drag-handle-ref> --by <dx>,<dy>` instead of
 choosing header pixels.
-
-`createPanelTransferController(options?)` is the lower-level transfer state
-machine used by `createDragController`. It computes destination display outlines
-from daemon display geometry and sends `desktop_world_stage.layer.upsert/remove`
-messages to the shared stage.
 
 ### `createMaximizeController(options?)`
 

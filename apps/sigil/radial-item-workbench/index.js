@@ -93,12 +93,6 @@ const panelWindowController = createPanelWindowController({
     getCanvasId: () => window.__aosCanvasId || window.__aosSurfaceCanvasId || canvasId,
     drag: {
         clampOnEnd: true,
-        transfer: true,
-        onStateChange(state) {
-            const transferActive = Boolean(state.transferActive);
-            workbenchShell?.classList.toggle('aos-workbench-transfer-active', transferActive);
-            if (workbenchShell) workbenchShell.dataset.transferActive = String(transferActive);
-        },
     },
     resize: {
         minWidth: 760,
