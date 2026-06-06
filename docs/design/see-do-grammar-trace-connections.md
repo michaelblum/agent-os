@@ -3,6 +3,14 @@
 **Date:** 2026-05-04
 **Status:** research note / brainstorming
 
+**Status update 2026-06-06:** This is a pre-#429 research note. Current AOS
+target-addressed interaction contracts defer to #429 target descriptors and
+[`aos-interaction-grammar-v0.md`](aos-interaction-grammar-v0.md). Where this
+note says replay should prefer accessible names over coordinates, read that as
+historical shorthand for "prefer semantic descriptors over raw coordinates."
+Accessible names and labels are now hints only; durable identity is
+`target.target_id` scoped by `target.owner_namespace`.
+
 This note connects two threads from an external discussion:
 
 - BNF and grammar-constrained sampling as a way to keep model output inside a

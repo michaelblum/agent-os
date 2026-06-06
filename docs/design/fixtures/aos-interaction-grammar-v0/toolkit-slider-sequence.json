@@ -1,0 +1,384 @@
+{
+  "schema": "aos.interaction-grammar.fixture.v0",
+  "case": "toolkit_single_thumb_slider_sequence",
+  "see": {
+    "command": "./aos see capture --canvas display-settings-panel --xray",
+    "state_id": "see_interaction_slider001",
+    "semantic_targets": [
+      {
+        "ref": "display-brightness-slider",
+        "state_id": "see_interaction_slider001",
+        "surface": "display-settings-panel",
+        "role": "slider",
+        "name": "Brightness",
+        "kind": "semantic_target",
+        "enabled": true,
+        "target": {
+          "target_id": "control:display-brightness",
+          "owner_namespace": {
+            "app_id": "aos-toolkit-demo",
+            "canvas_id": "display-settings-panel",
+            "surface_id": "display-settings-panel",
+            "component_family": "toolkit.zag.slider",
+            "structural_owner": [
+              "settings-workbench",
+              "display-section"
+            ]
+          }
+        },
+        "state": {
+          "value": 0.4,
+          "min": 0,
+          "max": 1,
+          "step": 0.05,
+          "orientation": "horizontal",
+          "thumb_count": 1
+        },
+        "actions": [
+          "drag",
+          "set-value",
+          "focus"
+        ],
+        "provenance": {
+          "canvas_id": "display-settings-panel",
+          "do_target": "canvas:display-settings-panel/display-brightness-slider",
+          "bounds": {
+            "x": 24,
+            "y": 72,
+            "width": 240,
+            "height": 32
+          },
+          "center": {
+            "x": 120,
+            "y": 88
+          },
+          "control_bounds": {
+            "x": 24,
+            "y": 72,
+            "width": 240,
+            "height": 32
+          },
+          "track_bounds": {
+            "x": 36,
+            "y": 84,
+            "width": 216,
+            "height": 4
+          },
+          "thumb_bounds": {
+            "x": 116,
+            "y": 76,
+            "width": 16,
+            "height": 16
+          }
+        },
+        "reacquisition": {
+          "strategy": "owner-structural-fingerprint",
+          "machine_fingerprint": {
+            "role": "slider",
+            "structural_path": [
+              "settings-workbench",
+              "display-section",
+              "field:brightness"
+            ],
+            "capabilities": [
+              "drag",
+              "set-value",
+              "focus"
+            ],
+            "range_shape": {
+              "min": 0,
+              "max": 1,
+              "step": 0.05,
+              "orientation": "horizontal",
+              "thumb_count": 1
+            }
+          },
+          "hint_fingerprint": {
+            "label_hints": [
+              "Brightness"
+            ],
+            "source_hints": {
+              "dom_id": "brightness"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "action_intent": {
+    "id": "intent:set-brightness-070",
+    "transaction_id": "txn:set-brightness-070",
+    "action_type": "set-value",
+    "source_state_id": "see_interaction_slider001",
+    "target_ref": {
+      "ref": "display-brightness-slider",
+      "state_id": "see_interaction_slider001",
+      "target_descriptor": {
+        "$ref": "#/see/semantic_targets/0"
+      }
+    },
+    "input": {
+      "kind": "scalar",
+      "value": 0.7
+    },
+    "constraints": {
+      "expected_role": "slider",
+      "allowed_actions": [
+        "set-value"
+      ],
+      "playback": "human"
+    },
+    "caller": {
+      "kind": "agent",
+      "id": "gdi-fixture",
+      "provenance": "docs/design/fixtures/aos-interaction-grammar-v0/toolkit-slider-sequence.json"
+    }
+  },
+  "execution_result": {
+    "id": "result:set-brightness-070",
+    "transaction_id": "txn:set-brightness-070",
+    "action_intent_id": "intent:set-brightness-070",
+    "action_type": "set-value",
+    "status": "success",
+    "reason": null,
+    "duration_ms": 42,
+    "executed": true,
+    "execution": {
+      "backend": "canvas",
+      "strategy": "canvas_semantic_set_value",
+      "fallback_used": false,
+      "state_id": "see_interaction_slider001"
+    },
+    "target": {
+      "target_dialect": "canvas",
+      "canvas_id": "display-settings-panel",
+      "ref": "display-brightness-slider",
+      "target_descriptor": {
+        "$ref": "#/see/semantic_targets/0"
+      },
+      "local_center": {
+        "x": 120,
+        "y": 88
+      },
+      "global_point": {
+        "x": 1480,
+        "y": 620
+      },
+      "coordinate_space": "canvas_local",
+      "capture_scale": 2
+    },
+    "resolved_target": {
+      "status": "resolved",
+      "ref": "display-brightness-slider",
+      "state_id": "see_interaction_slider001",
+      "target_descriptor": {
+        "$ref": "#/see/semantic_targets/0"
+      }
+    },
+    "post_action_state": {
+      "state_id": "see_interaction_slider002",
+      "state": {
+        "value": 0.7,
+        "min": 0,
+        "max": 1,
+        "step": 0.05,
+        "orientation": "horizontal",
+        "thumb_count": 1
+      }
+    }
+  },
+  "gesture_frames": [
+    {
+      "schema": "aos.gesture-frame",
+      "schema_version": 0,
+      "type": "gesture.drag.start",
+      "phase": "start",
+      "gesture_id": "gesture:brightness-human-playback",
+      "transaction_id": "txn:set-brightness-070",
+      "semantic_target": {
+        "$ref": "#/see/semantic_targets/0"
+      },
+      "semantic_action": "set-value",
+      "coordinates": {
+        "dom_client": {
+          "x": 120,
+          "y": 88
+        }
+      },
+      "timing": {
+        "t": 1000,
+        "frame_index": 0
+      }
+    },
+    {
+      "schema": "aos.gesture-frame",
+      "schema_version": 0,
+      "type": "gesture.drag.move",
+      "phase": "move",
+      "gesture_id": "gesture:brightness-human-playback",
+      "transaction_id": "txn:set-brightness-070",
+      "semantic_target": {
+        "$ref": "#/see/semantic_targets/0"
+      },
+      "semantic_action": "set-value",
+      "coordinates": {
+        "dom_client": {
+          "x": 185,
+          "y": 88
+        }
+      },
+      "timing": {
+        "t": 1016,
+        "frame_index": 1
+      }
+    },
+    {
+      "schema": "aos.gesture-frame",
+      "schema_version": 0,
+      "type": "gesture.drag.end",
+      "phase": "end",
+      "gesture_id": "gesture:brightness-human-playback",
+      "transaction_id": "txn:set-brightness-070",
+      "semantic_target": {
+        "$ref": "#/see/semantic_targets/0"
+      },
+      "semantic_action": "set-value",
+      "coordinates": {
+        "dom_client": {
+          "x": 187,
+          "y": 88
+        }
+      },
+      "timing": {
+        "t": 1032,
+        "frame_index": 2
+      }
+    }
+  ],
+  "state_patch": {
+    "id": "patch:set-brightness-070",
+    "transaction_id": "txn:set-brightness-070",
+    "target_ref": {
+      "ref": "display-brightness-slider",
+      "state_id": "see_interaction_slider001",
+      "target_descriptor": {
+        "$ref": "#/see/semantic_targets/0"
+      }
+    },
+    "before_state": {
+      "value": 0.4
+    },
+    "after_state": {
+      "value": 0.7
+    },
+    "changes": [
+      {
+        "path": [
+          "state",
+          "value"
+        ],
+        "before": 0.4,
+        "after": 0.7
+      }
+    ],
+    "verified_by": {
+      "kind": "after_perception",
+      "state_id": "see_interaction_slider002",
+      "assertion": "target state.value equals 0.7"
+    },
+    "evidence_refs": [
+      "evidence:set-brightness-before-see",
+      "evidence:set-brightness-do",
+      "evidence:set-brightness-after-see"
+    ]
+  },
+  "work_record": {
+    "type": "aos.work_record.interaction-draft",
+    "id": "work-record:set-brightness-070",
+    "intent_ref": "intent:set-brightness-070",
+    "execution_map": {
+      "targets": [
+        {
+          "$ref": "#/see/semantic_targets/0"
+        }
+      ],
+      "action_intents": [
+        {
+          "$ref": "#/action_intent"
+        }
+      ],
+      "execution_results": [
+        {
+          "$ref": "#/execution_result"
+        }
+      ],
+      "state_patches": [
+        {
+          "$ref": "#/state_patch"
+        }
+      ],
+      "replay_policy": {
+        "mode": "semantic_reacquire_then_do",
+        "raw_input_replay": "fallback_evidence_only"
+      }
+    },
+    "evidence": [
+      {
+        "id": "evidence:set-brightness-before-see",
+        "kind": "aos_see_capture",
+        "state_id": "see_interaction_slider001"
+      },
+      {
+        "id": "evidence:set-brightness-do",
+        "kind": "aos_do_action",
+        "execution_result_ref": "result:set-brightness-070"
+      },
+      {
+        "id": "evidence:set-brightness-after-see",
+        "kind": "aos_see_capture",
+        "state_id": "see_interaction_slider002"
+      }
+    ]
+  },
+  "recording_replay_plan": {
+    "id": "replay-plan:set-brightness-070",
+    "mode": "semantic_reacquire_then_do",
+    "steps": [
+      {
+        "kind": "re_perceive",
+        "surface": "display-settings-panel"
+      },
+      {
+        "kind": "resolve_descriptor",
+        "machine_facts_first": [
+          "target.owner_namespace",
+          "target.target_id",
+          "role",
+          "reacquisition.machine_fingerprint.structural_path",
+          "reacquisition.machine_fingerprint.capabilities",
+          "reacquisition.machine_fingerprint.range_shape"
+        ],
+        "hint_facts_only": [
+          "name",
+          "reacquisition.hint_fingerprint.label_hints"
+        ],
+        "ambiguous_result": "block"
+      },
+      {
+        "kind": "issue_action_intent",
+        "action_type": "set-value",
+        "input": {
+          "kind": "scalar",
+          "value": 0.7
+        }
+      },
+      {
+        "kind": "verify_state_patch",
+        "expected_state": {
+          "value": 0.7
+        }
+      }
+    ],
+    "raw_input_policy": "do_not_blindly_replay_for_aos_owned_slider"
+  }
+}

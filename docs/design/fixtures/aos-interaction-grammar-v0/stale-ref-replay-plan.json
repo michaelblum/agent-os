@@ -1,0 +1,172 @@
+{
+  "schema": "aos.interaction-grammar.fixture.v0",
+  "case": "stale_ref_rejects_before_execution",
+  "previous_target_descriptor": {
+    "ref": "display-brightness-slider",
+    "state_id": "see_interaction_slider001",
+    "surface": "display-settings-panel",
+    "role": "slider",
+    "name": "Brightness",
+    "kind": "semantic_target",
+    "enabled": true,
+    "target": {
+      "target_id": "control:display-brightness",
+      "owner_namespace": {
+        "app_id": "aos-toolkit-demo",
+        "canvas_id": "display-settings-panel",
+        "surface_id": "display-settings-panel",
+        "component_family": "toolkit.zag.slider",
+        "structural_owner": [
+          "settings-workbench",
+          "display-section"
+        ]
+      }
+    },
+    "state": {
+      "value": 0.4,
+      "min": 0,
+      "max": 1,
+      "step": 0.05,
+      "orientation": "horizontal",
+      "thumb_count": 1
+    },
+    "actions": [
+      "drag",
+      "set-value",
+      "focus"
+    ],
+    "provenance": {
+      "canvas_id": "display-settings-panel",
+      "do_target": "canvas:display-settings-panel/display-brightness-slider",
+      "center": {
+        "x": 120,
+        "y": 88
+      }
+    },
+    "reacquisition": {
+      "strategy": "owner-structural-fingerprint",
+      "machine_fingerprint": {
+        "role": "slider",
+        "structural_path": [
+          "settings-workbench",
+          "display-section",
+          "field:brightness"
+        ],
+        "capabilities": [
+          "drag",
+          "set-value",
+          "focus"
+        ],
+        "range_shape": {
+          "min": 0,
+          "max": 1,
+          "step": 0.05,
+          "orientation": "horizontal",
+          "thumb_count": 1
+        }
+      },
+      "hint_fingerprint": {
+        "label_hints": [
+          "Brightness"
+        ]
+      }
+    }
+  },
+  "action_intent": {
+    "id": "intent:stale-brightness-070",
+    "transaction_id": "txn:stale-brightness-070",
+    "action_type": "set-value",
+    "source_state_id": "see_interaction_slider001",
+    "target_ref": {
+      "ref": "display-brightness-slider",
+      "state_id": "see_interaction_slider001",
+      "target_descriptor": {
+        "$ref": "#/previous_target_descriptor"
+      }
+    },
+    "input": {
+      "kind": "scalar",
+      "value": 0.7
+    },
+    "constraints": {
+      "expected_role": "slider",
+      "allowed_actions": [
+        "set-value"
+      ]
+    },
+    "caller": {
+      "kind": "recording_replay",
+      "id": "work-record:set-brightness-070"
+    }
+  },
+  "current_state_id": "see_interaction_slider009",
+  "execution_result": {
+    "id": "result:stale-brightness-070",
+    "transaction_id": "txn:stale-brightness-070",
+    "action_intent_id": "intent:stale-brightness-070",
+    "action_type": "set-value",
+    "status": "blocked",
+    "reason": "stale_ref",
+    "duration_ms": 6,
+    "executed": false,
+    "execution": {
+      "backend": null,
+      "strategy": "preflight_state_ref_validation",
+      "fallback_used": false,
+      "state_id": "see_interaction_slider001"
+    },
+    "target": {
+      "target_dialect": "canvas",
+      "canvas_id": "display-settings-panel",
+      "ref": "display-brightness-slider",
+      "target_descriptor": {
+        "$ref": "#/previous_target_descriptor"
+      }
+    },
+    "resolved_target": {
+      "status": "stale_ref",
+      "supplied_state_id": "see_interaction_slider001",
+      "current_state_id": "see_interaction_slider009",
+      "ref": "display-brightness-slider",
+      "action_blocked": true
+    },
+    "post_action_state": null
+  },
+  "recording_replay_plan": {
+    "id": "replay-plan:stale-brightness-070",
+    "mode": "semantic_reacquire_then_do",
+    "stale_ref_policy": "reject_before_execution",
+    "steps": [
+      {
+        "kind": "re_perceive",
+        "surface": "display-settings-panel"
+      },
+      {
+        "kind": "resolve_descriptor",
+        "machine_facts_first": [
+          "target.owner_namespace",
+          "target.target_id",
+          "role",
+          "reacquisition.machine_fingerprint.structural_path",
+          "reacquisition.machine_fingerprint.capabilities",
+          "reacquisition.machine_fingerprint.range_shape"
+        ],
+        "hint_facts_only": [
+          "name",
+          "reacquisition.hint_fingerprint.label_hints"
+        ],
+        "ambiguous_result": "block",
+        "missing_result": "block"
+      },
+      {
+        "kind": "issue_action_intent_after_unique_reacquisition",
+        "action_type": "set-value",
+        "input": {
+          "kind": "scalar",
+          "value": 0.7
+        }
+      }
+    ],
+    "raw_input_policy": "do_not_blindly_replay_for_aos_owned_slider"
+  }
+}

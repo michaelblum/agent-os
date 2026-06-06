@@ -47,6 +47,13 @@ Each frame carries:
 - `timing`: timestamp `t` and `frame_index`.
 - `raw_event_type`: the source event type used to create the frame.
 
+Gesture frames are optional interaction evidence and human-visible playback
+frames in the broader
+[`aos-interaction-grammar-v0.md`](aos-interaction-grammar-v0.md) family. They
+link to an action intent/execution transaction through `transaction_id`, but
+they are not the whole action intent, execution result, state patch, or Work
+Recording replay model.
+
 DOM controls should use toolkit gesture lifecycle helpers for pointer capture,
 document-level move/end listeners, end/cancel cleanup, and frame publication.
 Canvas or daemon input consumers should normalize existing `input_event` /

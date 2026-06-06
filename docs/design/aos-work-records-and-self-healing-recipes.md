@@ -110,6 +110,13 @@ fallback flag, and originating `state_id` when supplied. Work records should
 carry those fields as correlation metadata between the natural-language spine,
 the structured execution map, and immutable evidence.
 
+For AOS-owned target interactions, the current split between durable intent,
+execution result metadata, optional gesture evidence, state patches, and replay
+plans is defined in
+[`aos-interaction-grammar-v0.md`](aos-interaction-grammar-v0.md). Work Records
+store that family in their intent, execution-map, evidence, health, and replay
+policy layers; they do not collapse it into raw input replay.
+
 Coordinates can be recorded, but they are fallback material. When semantic
 targets exist, prefer the AOS target descriptor vocabulary: state-scoped `ref`
 and `state_id` for the immediate action, durable `target.target_id` scoped by
