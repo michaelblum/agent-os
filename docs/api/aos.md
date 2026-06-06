@@ -497,8 +497,10 @@ action handle. Durable machine identity lives in `target.target_id` scoped by
 id, parent canvas id, local geometry, metadata, and the
 `canvas:<canvas-id>/<ref>` action-routing string are presentation,
 provenance/current-address, or hint fields. They are not durable identity. The
-probe does not use caller-supplied JavaScript; `show eval` remains a developer
-diagnostic bridge, not the agent perception contract.
+current V0 producer emits or consumes descriptor fields when it can derive them;
+older or partial AOS-owned surfaces may omit some fields until their producers
+migrate. The probe does not use caller-supplied JavaScript; `show eval` remains
+a developer diagnostic bridge, not the agent perception contract.
 
 See [`shared/schemas/aos-semantic-targets.md`](../../shared/schemas/aos-semantic-targets.md)
 for the response shape.

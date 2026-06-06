@@ -103,6 +103,10 @@ test('normalizeSemanticTargets rejects targets without stable ids', () => {
     () => normalizeSemanticTargets([{ label: '' }]),
     /semantic target requires id/
   )
+  assert.throws(
+    () => normalizeSemanticTarget({ ref: 'state-scoped-ref', name: 'State Scoped Ref' }),
+    /semantic target requires id/
+  )
 })
 
 test('refForTarget uses explicit refs before generated surface refs', () => {

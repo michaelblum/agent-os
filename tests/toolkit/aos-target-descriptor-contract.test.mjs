@@ -141,6 +141,10 @@ test('runtime helpers reject label/name-only machine identity', () => {
     /semantic target requires id/,
   )
   assert.throws(
+    () => normalizeSemanticTarget({ ref: 'settings:opacity', name: 'Opacity' }),
+    /semantic target requires id/,
+  )
+  assert.throws(
     () => refForTarget({ name: 'Opacity', surface: 'settings' }),
     /semantic target ref requires id or explicit ref/,
   )

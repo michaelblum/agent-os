@@ -1,8 +1,9 @@
-// semantic-targets.js — accessibility metadata and companion DOM helpers.
+// semantic-targets.js — target descriptor metadata and companion DOM helpers.
 //
-// This module keeps semantic names, AOS routing identity, and visual rendering
-// separate. It is intentionally small: apps own layout/behavior, while toolkit
-// normalizes the target contract and stamps standard metadata consistently.
+// This module keeps accessible labels, state-scoped refs, descriptor identity,
+// and visual rendering separate. It is intentionally small: apps own
+// layout/behavior, while toolkit normalizes the target contract and stamps
+// standard metadata consistently.
 
 const AX_ROLE_ALIASES = {
   AXButton: 'button',
@@ -59,8 +60,8 @@ function safeId(value, fallback = 'target') {
   return text(value, fallback).replace(/[^a-zA-Z0-9_-]/g, '-')
 }
 
-function pickName(target = {}) {
-  return text(target.name ?? target.ariaLabel ?? target.label ?? target.title ?? target.id, 'Target')
+function pickAccessibleName(target = {}) {
+  return text(target.name ?? target.ariaLabel ?? target.label ?? target.title, 'Target')
 }
 
 function pickAction(target = {}) {
@@ -156,15 +157,15 @@ export function refForTarget(target = {}, options = {}) {
 
 export function normalizeSemanticTarget(target = {}, options = {}) {
   if (!target || typeof target !== 'object') throw new Error('semantic target must be an object')
-  const id = text(target.id ?? target.ref, '')
-  if (!id) throw new Error('semantic target requires id')
+  const sourceId = text(target.id, '')
+  if (!sourceId) throw new Error('semantic target requires id')
   const role = normalizeRole(target.role ?? options.role ?? 'button')
-  const name = pickName(target)
+  const name = pickAccessibleName(target)
   const action = pickAction(target)
   const surface = text(target.surface ?? target.surfaceId ?? options.surface ?? options.surfaceId, '')
   const frame = normalizeFrame(target.frame ?? target.rect ?? target.bounds, options.frame)
   const normalized = {
-    id,
+    id: sourceId,
     role,
     name,
     action,
@@ -178,7 +179,7 @@ export function normalizeSemanticTarget(target = {}, options = {}) {
     value: target.value ?? null,
     surface,
     parent_canvas_id: text(target.parent_canvas_id ?? options.parent_canvas_id, ''),
-    ref: refForTarget({ ...target, id, surface }, options),
+    ref: refForTarget({ ...target, id: sourceId, surface }, options),
     metadata: {
       ...(target.metadata && typeof target.metadata === 'object' ? target.metadata : {}),
     },
