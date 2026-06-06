@@ -61,9 +61,35 @@ Include commands when runtime or branch state matters:
 git status --short --branch
 git rev-parse --show-toplevel
 git branch --show-current
-./aos ready
 ./aos dev recommend --json
 ```
+
+Add `./aos ready` only when live AOS readiness is actually required and the
+round is allowed to start/restart live AOS. If the task is deterministic-only,
+docs-only, pure Node tests, or explicitly says AOS is intentionally stopped,
+state that live readiness is skipped.
+
+For AOS-stopped or live-paused rounds, use passive classification instead of a
+live readiness gate:
+
+```bash
+./aos service status --mode repo --json
+ps -axo pid,ppid,stat,etime,command | rg '(/Users/Michael/Code/agent-os/aos|AOS\.app|aos serve|Agent-OS)' || true
+lsof -nP -U | rg '/Users/Michael/.config/aos/repo/sock|/Users/Michael/Code/agent-os/aos' || true
+```
+
+Do not tell GDI to stop merely because `pgrep` or `ps` finds
+`/Users/Michael/Code/agent-os/aos serve --idle-timeout none` or because PPID is
+1. A normal launchd-managed repo service has that shape. Require classification
+before blocking:
+
+- managed repo service: `./aos service status --mode repo --json` reports
+  `running:true`, `target_matches_expected:true`, and the service PID explains
+  the wrapper/child process; continue deterministic work without live readiness.
+- unmanaged owner: service/launchd facts do not explain the socket owner, or the
+  owner is a foreground/dev process outside the accepted mode; stop with
+  `human_needed` and report PID, PPID, command line, socket owner, and service
+  status evidence.
 
 Under `local_relay`, GDI must work from the single checkout at
 `/Users/Michael/Code/agent-os`. Do not tell GDI to create linked git worktrees;

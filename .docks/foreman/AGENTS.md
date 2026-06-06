@@ -86,14 +86,31 @@ is missing or broken, when the assigned task explicitly tests that adapter, or
 when Foreman is repairing the AOS control surface itself. State the reason for
 the bypass in the work note, review, or completion report.
 
+When AOS has been intentionally stopped or live smoke is paused, distinguish
+passive classification from live readiness/control. `./aos service status
+--mode repo --json`, `./aos dev gh ...`, Git commands, and bounded raw
+`ps`/`pgrep`/`lsof`/`launchctl print` inspection may be used to classify the
+runtime without starting live work. Do not treat `pgrep` output or PPID 1 alone
+as proof of an unmanaged daemon: a launchd-managed repo service also appears as
+`aos serve --idle-timeout none` with PPID 1. Classify in this order: service
+status and expected target, launchd PID, socket owner, then process command
+line. Only block on a repo AOS owner when service/launchd facts do not explain
+the owner or the owner is actually unmanaged. `./aos ready`, `./aos status`,
+`./aos clean`, `./aos service start`, and `./aos service restart` are live
+readiness/control commands in this paused state and require explicit approval
+or a work card that says live AOS may be restarted.
+
 ## Live Orientation First
 
 When asked to summarize current state, when starting from a cold context, or
 when deciding the next workstream step, query live systems before reading
 narrative artifacts. Start with `./aos dev situation --json`; it aggregates the
 canonical Git, GitHub, and runtime sources below and records per-source command
-status. If a source reports partial failure, query that source directly instead
-of guessing the missing fact:
+status. Exception: when the current transfer explicitly says AOS is
+intentionally stopped or live AOS restart is not approved, do not start with
+`./aos dev situation --json`; use the passive classification path above. If a
+source reports partial failure, query that source directly instead of guessing
+the missing fact:
 
 - Git for branch, commit, dirty-file, local-branch, remote-branch, and stash
   facts.
