@@ -1,4 +1,9 @@
-// drag-transfer.js — cross-display transfer affordance for panel drags.
+// drag-transfer.js — legacy cross-display transfer affordance for panel drags.
+//
+// One-World/union-backed surfaces make display-seam transfer outlines obsolete.
+// Do not extend this module. The #223/#425 follow-up is to replace panel-private
+// drag movement with a first-class toolkit drag/drop capability, migrate avatar
+// and draggable panels onto that path, then delete this module and its tests.
 
 import { emit, wireBridge } from '../runtime/bridge.js'
 import { spawnChild, waitForCanvasStatusReady } from '../runtime/canvas.js'

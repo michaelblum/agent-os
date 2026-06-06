@@ -140,6 +140,20 @@ cross-display / Browser-Host sync.
 - **Focus model implementation** (proposal §4): focus-group manager, two Tab loops
   (intra-panel trap + panel-switch gesture), per-panel focus memory,
   passthrough-drives-key-window seam, agent-non-stealing-by-default.
+- **Toolkit drag/drop capability and transfer-outline retirement (#425).** AOS Surface
+  System epic follow-up: make drag/drop a first-class toolkit capability for
+  World/union-backed draggable panels and nodes; hook the embedded avatar compact
+  panel and generic draggable panels into that path; remove the legacy
+  cross-display transfer-outline mechanism (`packages/toolkit/panel/drag-transfer.js`,
+  its exports, tests, docs, and work-card language). The issue must also survey
+  other inelegantly privatized capabilities and propose beneficial remodeling
+  where shared toolkit capability would reduce drift.
+- **Source/docs/wiki sanitization sweeps.** Schedule repeated cleanup passes
+  through code, tests, docs, work cards, and wiki/seed content after each major
+  One-World migration step. Each sweep should remove or explicitly mark stale
+  vocabulary and paths such as transfer outlines, per-display panel handoff,
+  private panel drag, and raw `drag_start` / `move_abs` / `drag_end` guidance so
+  future agents do not regress to pre-World assumptions.
 - **OS-interleaving workarounds** (future, only if needed): drive real app windows
   via AX `do`; per-node clip/alpha tricks in the display graph.
 - **CONTEXT.md term collisions**: "Layer" (subject-expression vs visual),
@@ -195,6 +209,10 @@ Governing docs
   prefer a tiny signals core / standalone lib.
 - **Keep durable artifacts in the repo**, not in chat or model-local memory, so
   any agent stack can continue.
+- **Clean while migrating.** When a slice discovers obsolete One-World-era
+  mechanisms, leave an anti-drift marker immediately: delete it if safe, or add a
+  source comment, docs note, issue link, or follow-on contract that states the
+  removal gate. Do not leave old panel/window language looking canonical.
 
 ---
 

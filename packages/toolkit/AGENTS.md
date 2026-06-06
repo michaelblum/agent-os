@@ -9,8 +9,9 @@ Layer intent:
 
 - `runtime/`: universal in-canvas bridge over daemon primitives.
 - `controls/`: reusable semantic app-control behavior for WKWebView surfaces.
-- `panel/`: reusable panel/window policy: chrome, drag, resize, close,
-  minimize, maximize, restore, placement, and surface-manager affordances.
+- `panel/`: reusable panel/window policy: chrome, drag/drop-capable movement,
+  resize, close, minimize, maximize, restore, placement, and surface-manager
+  affordances.
 - `workbench/`: subject descriptors and reusable workbench contracts.
 - `components/`: reusable content units and stock surfaces built from the lower
   layers.
@@ -22,9 +23,14 @@ inventing private app canvases or pushing toolkit policy into Swift.
 
 The shared DesktopWorld stage is toolkit policy running on a daemon
 DesktopWorld canvas primitive. Prefer it for ordinary desktop-wide visuals such
-as chips, transfer outlines, drag ghosts, telemetry, avatar/radial visuals, and
-temporary affordances. Pair visual layers with explicit interaction surfaces or
-input regions; do not make the full visual stage interactive by default.
+as chips, drag ghosts, telemetry, avatar/radial visuals, and temporary
+affordances. Pair visual layers with explicit interaction surfaces or input
+regions; do not make the full visual stage interactive by default.
+
+Legacy cross-display transfer outlines are superseded by One-World/union-backed
+surfaces. Do not grow that path. The AOS Surface System epic should replace
+panel-private movement with first-class toolkit drag/drop, migrate draggable
+panel-shaped surfaces onto it, and remove the transfer-outline code/tests/docs.
 
 Before adding WebViews, stage layers, hit regions, or daemon work for a surface,
 use `docs/guides/aos-surface-interaction-decision-tree.md`. Keep local guidance
