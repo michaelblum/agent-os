@@ -4488,6 +4488,7 @@ function handleHostMessage(rawMsg) {
             // Ignore stale warm lifecycle events that can arrive while an open is resuming.
         } else if (canvasId === SIGIL_AVATAR_PANEL_CANVAS_ID) {
             avatarControls.updatePanelFrame?.(panelNativeFrameFromLifecycle(msg), 'lifecycle');
+            structuralFrameDirty = true;
             avoidAvatarPanelOverlapFromLifecycle(msg);
         }
         if (UTILITY_CANVAS_IDS.has(canvasId)) {

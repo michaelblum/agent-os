@@ -462,3 +462,16 @@ test('end-to-end: avatar scale drag keeps publishState (scheduler + classifyRend
 
     assert.equal(publishStateFrames.length, 3, 'publishState runs on every avatar-geometry frame (gate 2)');
 });
+
+test('render-loop: avatar-controls + structuralDirty=true → publishState runs (panel bounds changed)', () => {
+    // Gate 1b fix: canvas_lifecycle handler sets structuralFrameDirty=true when
+    // updatePanelFrame updates panel bounds. On the next frame, avatar-controls
+    // (normally tracking-only) must still trigger publishState so hit-region
+    // tracking picks up the new bounds.
+    const result = classifyRenderLoopWork({
+        continuationReasons: ['avatar-controls'],
+        structuralDirty: true,
+    });
+    assert.equal(result.structural, true, 'structural=true (bounds changed)');
+    assert.equal(result.publishState, true, 'publishState=true when structuralDirty (panel bounds updated)');
+});
