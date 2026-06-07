@@ -1,0 +1,28 @@
+{
+  "routed_schema_version": 1,
+  "event_kind": "cancel",
+  "type": "pointer_cancel",
+  "phase": "cancel",
+  "delivery_role": "captured",
+  "sequence": {
+    "source": "toolkit",
+    "value": "cancel-47",
+    "synthetic": true
+  },
+  "gesture_id": "g-47",
+  "desktop_world": {
+    "x": 714,
+    "y": 373
+  },
+  "coordinate_authority": "toolkit",
+  "region_id": "sigil-avatar",
+  "capture_id": "daemon:47:sigil-avatar",
+  "cancel_reason": "surface_removed",
+  "source_event": "daemon:47",
+  "source_origin": "toolkit",
+  "owner_canvas_id": "avatar-main",
+  "source_sequence": {
+    "source": "daemon",
+    "value": 47
+  }
+}

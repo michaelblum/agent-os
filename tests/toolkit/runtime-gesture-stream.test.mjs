@@ -8,6 +8,36 @@ import {
 } from '../../packages/toolkit/runtime/gesture-stream.js'
 import { createDocument, patchSpreadSupport } from './zag-adapter-test-utils.mjs'
 
+function routedPointer(overrides = {}) {
+  const type = overrides.type || 'left_mouse_down'
+  const { sequenceValue = 'gesture-test', ...eventOverrides } = overrides
+  const phaseByType = {
+    left_mouse_down: 'down',
+    left_mouse_dragged: 'drag',
+    left_mouse_up: 'up',
+    pointer_cancel: 'hover_cancel',
+  }
+  return {
+    routed_schema_version: 1,
+    event_kind: 'pointer',
+    type,
+    phase: phaseByType[type] || 'down',
+    delivery_role: 'captured',
+    sequence: { source: 'daemon', value: sequenceValue },
+    gesture_id: 'g1',
+    desktop_world: { x: 10, y: 20 },
+    coordinate_authority: 'toolkit',
+    source_origin: 'daemon',
+    source_event: type,
+    region_id: 'avatar-hit',
+    owner_canvas_id: 'avatar-main',
+    capture_id: 'c1',
+    button: 'left',
+    buttons: { left: true, right: false, middle: false, other_pressed: [] },
+    ...eventOverrides,
+  }
+}
+
 test('createPointerGestureStream normalizes canvas input into drag gesture frames', () => {
   const stream = createPointerGestureStream({
     kind: 'drag',
@@ -18,27 +48,24 @@ test('createPointerGestureStream normalizes canvas input into drag gesture frame
   const frames = []
   stream.subscribe((frame) => frames.push(frame))
 
-  stream.handleCanvasInput({
-    routed_schema_version: 1,
+  stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_down',
-    gesture_id: 'g1',
-    capture_id: 'c1',
     desktop_world: { x: 10, y: 20 },
-  }, { now: 1000 })
-  stream.handleCanvasInput({
-    routed_schema_version: 1,
+    sequenceValue: 1,
+  }), { now: 1000 })
+  stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_dragged',
-    gesture_id: 'g1',
-    capture_id: 'c1',
+    phase: 'drag',
     desktop_world: { x: 30, y: 25 },
-  }, { now: 1016 })
-  stream.handleCanvasInput({
-    routed_schema_version: 1,
+    sequenceValue: 2,
+  }), { now: 1016 })
+  stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_up',
-    gesture_id: 'g1',
-    capture_id: 'c1',
+    phase: 'up',
     desktop_world: { x: 50, y: 20 },
-  }, { now: 1032 })
+    buttons: { left: false, right: false, middle: false, other_pressed: [] },
+    sequenceValue: 3,
+  }), { now: 1032 })
 
   assert.deepEqual(frames.map((frame) => frame.type), [
     'gesture.drag.start',
@@ -65,16 +92,16 @@ test('createPointerGestureStream ignores orphan canvas move before a start', () 
   const frames = []
   stream.subscribe((frame) => frames.push(frame))
 
-  const orphan = stream.handleCanvasInput({
-    routed_schema_version: 1,
+  const orphan = stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_dragged',
+    phase: 'drag',
     desktop_world: { x: 10, y: 20 },
-  }, { now: 1000 })
-  const start = stream.handleCanvasInput({
-    routed_schema_version: 1,
+  }), { now: 1000 })
+  const start = stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_down',
+    phase: 'down',
     desktop_world: { x: 15, y: 25 },
-  }, { now: 1016 })
+  }), { now: 1016 })
 
   assert.equal(orphan, null)
   assert.equal(start?.type, 'gesture.drag.start')
@@ -88,16 +115,18 @@ test('createPointerGestureStream ignores orphan canvas terminal frames', () => {
   const frames = []
   stream.subscribe((frame) => frames.push(frame))
 
-  const end = stream.handleCanvasInput({
-    routed_schema_version: 1,
+  const end = stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_up',
+    phase: 'up',
     desktop_world: { x: 10, y: 20 },
-  }, { now: 1000 })
-  const cancel = stream.handleCanvasInput({
-    routed_schema_version: 1,
+    buttons: { left: false, right: false, middle: false, other_pressed: [] },
+  }), { now: 1000 })
+  const cancel = stream.handleCanvasInput(routedPointer({
     type: 'pointer_cancel',
+    phase: 'hover_cancel',
     desktop_world: { x: 10, y: 20 },
-  }, { now: 1016 })
+    buttons: { left: false, right: false, middle: false, other_pressed: [] },
+  }), { now: 1016 })
 
   assert.equal(end, null)
   assert.equal(cancel, null)
@@ -110,11 +139,11 @@ test('createPointerGestureStream publishes cancel before destroying an active st
   const frames = []
   stream.subscribe((frame) => frames.push(frame))
 
-  stream.handleCanvasInput({
-    routed_schema_version: 1,
+  stream.handleCanvasInput(routedPointer({
     type: 'left_mouse_down',
+    phase: 'down',
     desktop_world: { x: 1, y: 2 },
-  }, { now: 1000 })
+  }), { now: 1000 })
   stream.destroy()
 
   assert.deepEqual(frames.map((frame) => frame.type), [
