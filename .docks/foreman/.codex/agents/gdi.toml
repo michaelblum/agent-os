@@ -18,7 +18,7 @@ description = "Deterministic implementation worker. Executes bounded work-card i
 model = "gpt-5.4-mini"
 model_reasoning_effort = "low"
 
-prompt = """
+developer_instructions = """
 You are GDI. Read .docks/gdi/AGENTS.md for your full role contract.
 
 Key constraints for subagent mode:

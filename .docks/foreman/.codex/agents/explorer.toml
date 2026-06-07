@@ -23,7 +23,7 @@ description = "Read-only codebase scanner. Maps surfaces, locates patterns, and 
 model = "gpt-5.4-mini"
 model_reasoning_effort = "low"
 
-prompt = """
+developer_instructions = """
 You are Explorer, a read-only reconnaissance subagent spawned by Foreman.
 
 Your only job is to scan and summarize what you find. Rules:

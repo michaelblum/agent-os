@@ -202,6 +202,31 @@ for script_name in ("subagent-start.sh", "subagent-stop.sh"):
     if "exec " not in script:
         raise SystemExit(f"FAIL: foreman {script_name} should exec the shared harness")
 
+foreman_config = (root / ".docks" / "foreman" / ".codex" / "config.toml").read_text()
+for role in ("gdi", "operator", "explorer"):
+    role_header = f"[agents.{role}]"
+    config_line = f'config_file = "agents/{role}.toml"'
+    if role_header not in foreman_config:
+        raise SystemExit(f"FAIL: Foreman subagent config missing {role_header}")
+    if config_line not in foreman_config:
+        raise SystemExit(f"FAIL: Foreman subagent config missing {config_line}")
+    if f'{role} = "agents/{role}.toml"' in foreman_config or f'{role}      = "agents/{role}.toml"' in foreman_config:
+        raise SystemExit(f"FAIL: Foreman subagent config reintroduced string-map entry for {role}")
+
+    agent_path = root / ".docks" / "foreman" / ".codex" / "agents" / f"{role}.toml"
+    agent_text = agent_path.read_text()
+    for required in (
+        f'name = "{role}"',
+        "description = ",
+        "model = ",
+        "model_reasoning_effort = ",
+        "developer_instructions = ",
+    ):
+        if required not in agent_text:
+            raise SystemExit(f"FAIL: {role} subagent TOML missing {required!r}")
+    if "prompt = " in agent_text:
+        raise SystemExit(f"FAIL: {role} subagent TOML reintroduced deprecated prompt field")
+
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 foreman_transfer_skill_path = root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md"
 foreman_transfer_skill = foreman_transfer_skill_path.read_text()
@@ -278,6 +303,41 @@ for expected in \
 done
 if grep -q 'needs TCC reset\|voice bind\|voice final-response\|Do not speak this tail' "$log_file"; then
   echo "FAIL: Stop hooks should not speak TCC notices, bind voices, or speak assistant tails" >&2
+  cat "$log_file" >&2
+  exit 1
+fi
+
+: >"$log_file"
+subagent_start_payload='{"turn_id":"turn-1","agent_id":"agent-1","agent_type":"explorer","permission_mode":"danger-full-access"}'
+subagent_stop_payload='{"turn_id":"turn-1","agent_id":"agent-1","agent_type":"explorer","last_assistant_message":"Explorer completed."}'
+for hook_script in ".docks/foreman/hooks/subagent-start.sh" ".docks/foreman/hooks/subagent-stop.sh"; do
+  if [[ "$hook_script" == *start* ]]; then
+    sub_payload="$subagent_start_payload"
+  else
+    sub_payload="$subagent_stop_payload"
+  fi
+  out="$(printf '%s' "$sub_payload" | PATH="$fake_bin:$PATH" AOS_DOCK_AOS_BIN="$fake_aos" AOS_FAKE_LOG="$log_file" bash "$hook_script")"
+  python3 - "$out" <<'PY'
+import json
+import sys
+payload = json.loads(sys.argv[1])
+if payload != {"continue": True}:
+    raise SystemExit(f"FAIL: expected subagent hook success JSON, got {payload}")
+PY
+done
+for expected in \
+  'ARGV:say --voice-slot 1 --language en --quality-tier premium --quality-tier enhanced --gender male Explorer, begin!' \
+  'ARGV:say --voice-slot 4 --language en --quality-tier premium --quality-tier enhanced --gender female Explorer ready!' \
+  'ARGV:say --voice-slot 4 --language en --quality-tier premium --quality-tier enhanced --gender female Explorer stopped, returning to Foreman.' \
+  'ARGV:say --voice-slot 1 --language en --quality-tier premium --quality-tier enhanced --gender male Acknowledged, Explorer!'; do
+  grep -q "$expected" "$log_file" || {
+    echo "FAIL: missing Subagent hook say voice-slot call: $expected" >&2
+    cat "$log_file" >&2
+    exit 1
+  }
+done
+if grep -q 'Subagent begin\|Subagent ready\|Subagent stopped' "$log_file"; then
+  echo "FAIL: Subagent hooks should use agent_type from hook JSON instead of fallback labels" >&2
   cat "$log_file" >&2
   exit 1
 fi

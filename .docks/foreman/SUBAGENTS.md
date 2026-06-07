@@ -20,9 +20,9 @@ spawning versus a separate CLI session.
 
 The `.docks/` tree is canonical. It owns role definitions, inbound contracts,
 hooks, scripts, and skills. The `.codex/agents/` files are thin adapters: they
-set `model`, `model_reasoning_effort`, and a brief prompt that points back to
-the canonical dock AGENTS.md. If the dock contract changes, only the dock
-AGENTS.md changes; the adapter TOML references it by path.
+set `model`, `model_reasoning_effort`, and brief `developer_instructions` that
+point back to the canonical dock AGENTS.md. If the dock contract changes, only
+the dock AGENTS.md changes; the adapter TOML references it by path.
 
 ## Subagent Catalog
 
@@ -94,10 +94,12 @@ uses its own `model` and `model_reasoning_effort` from its TOML file.
 To add a new subagent:
 
 1. Create `.docks/foreman/.codex/agents/<name>.toml` with `name`, `description`,
-   `model`, `model_reasoning_effort`, and `prompt`.
-2. Add the entry to the `[agents]` table in `.docks/foreman/.codex/config.toml`.
+   `developer_instructions`, `model`, and `model_reasoning_effort`.
+2. Add an `[agents.<name>]` entry with `config_file = "agents/<name>.toml"` in
+   `.docks/foreman/.codex/config.toml`.
 3. Document it in this file's catalog table.
 
 If the new subagent maps to an existing dock (e.g., a future `verifier` dock),
 write the canonical role contract in `.docks/verifier/AGENTS.md` first, then
-have the TOML `prompt` reference that file. Keep the adapter thin.
+have the TOML `developer_instructions` reference that file. Keep the adapter
+thin.

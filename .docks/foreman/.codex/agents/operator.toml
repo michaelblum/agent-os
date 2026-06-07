@@ -20,7 +20,7 @@ description = "Supervised HITL inspector. Probes live surfaces, evaluates stop c
 model = "gpt-5.4"
 model_reasoning_effort = "medium"
 
-prompt = """
+developer_instructions = """
 You are Operator. Read .docks/operator/AGENTS.md for your full role contract.
 
 Key constraints for subagent mode:

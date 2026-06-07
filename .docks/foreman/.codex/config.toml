@@ -9,8 +9,8 @@ status_line = ["current-dir", "git-branch", "context-remaining", "model-with-rea
 terminal_title = ["current-dir", "activity", "git-branch", "model"]
 
 # Subagent definitions live inside .docks/foreman/ so they are owned by the
-# dock that spawns them. Each entry maps a logical name to the TOML file that
-# defines the subagent's model, effort, and prompt constraints.
+# dock that spawns them. Each role points to a TOML config layer that defines
+# the subagent's model, effort, and developer_instructions.
 #
 # Foreman invokes these by name in natural language ("spawn gdi", "spawn explorer").
 # The Codex runtime resolves the name to the matching agents/*.toml file.
@@ -28,7 +28,14 @@ terminal_title = ["current-dir", "activity", "git-branch", "model"]
 #   - multi-step HITL runs;
 #   - any work that benefits from /goal iteration or /review in GDI.
 
-[agents]
-gdi      = "agents/gdi.toml"
-operator = "agents/operator.toml"
-explorer = "agents/explorer.toml"
+[agents.gdi]
+config_file = "agents/gdi.toml"
+description = "Deterministic implementation worker. Executes bounded work-card instructions, runs verification, and reports completion evidence to Foreman."
+
+[agents.operator]
+config_file = "agents/operator.toml"
+description = "Supervised HITL inspector. Probes live surfaces, evaluates stop conditions, and returns concise evidence to Foreman."
+
+[agents.explorer]
+config_file = "agents/explorer.toml"
+description = "Read-only codebase scanner. Maps surfaces, locates patterns, and returns raw findings. Makes no decisions and writes no files."

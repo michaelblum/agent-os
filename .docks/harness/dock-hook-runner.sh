@@ -107,6 +107,25 @@ elif isinstance(value, str):
 PY
 }
 
+hook_json_value() {
+  local field="$1" fallback="${2:-}"
+  python3 - "$HOOK_INPUT" "$field" "$fallback" <<'PY'
+import json
+import sys
+
+raw, field, fallback = sys.argv[1:]
+try:
+    payload = json.loads(raw) if raw.strip() else {}
+except json.JSONDecodeError:
+    print(fallback)
+    raise SystemExit(0)
+value = payload.get(field, fallback)
+if value is None:
+    value = fallback
+print(str(value))
+PY
+}
+
 # Read voice config for an arbitrary role from subagent-voices.json.
 # Usage: subagent_voice_field <role> <field> <fallback>
 subagent_voice_field() {
@@ -238,13 +257,9 @@ if [[ "$phase" == "stop" ]]; then
 
 # ─── SUBAGENT-START ────────────────────────────────────────────────────────────
 elif [[ "$phase" == "subagent-start" ]]; then
-  # Resolve subagent name from env. If fallback fires, stderr dump helps
-  # identify the correct var name on first run.
-  # VERIFY: if you hear "Subagent begin!" run: env | grep -iE '(codex|agent|subagent)' in the hook
-  subagent_name="${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}"
+  subagent_name="$(hook_json_value agent_type "${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}")"
   if [[ -z "$subagent_name" ]]; then
     subagent_name="subagent"
-    env | grep -i -E '(codex|agent|subagent)' >&2 || true
   fi
   subagent_label="$(echo "${subagent_name:0:1}" | tr '[:lower:]' '[:upper:]')${subagent_name:1}"
 
@@ -281,10 +296,9 @@ elif [[ "$phase" == "subagent-start" ]]; then
 
 # ─── SUBAGENT-STOP ─────────────────────────────────────────────────────────────
 elif [[ "$phase" == "subagent-stop" ]]; then
-  subagent_name="${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}"
+  subagent_name="$(hook_json_value agent_type "${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}")"
   if [[ -z "$subagent_name" ]]; then
     subagent_name="subagent"
-    env | grep -i -E '(codex|agent|subagent)' >&2 || true
   fi
   subagent_label="$(echo "${subagent_name:0:1}" | tr '[:lower:]' '[:upper:]')${subagent_name:1}"
 
