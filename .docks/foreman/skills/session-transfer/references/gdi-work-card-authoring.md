@@ -224,24 +224,16 @@ The completion report must also say whether any local-only state exists and
 whether it is related. Remote relay can request a bounded `LOCAL_PROBE_REQUEST`
 when GitHub-visible evidence is insufficient.
 
-For reused GDI CLI sessions, remind the human to clear completed goal state with
-`/goal clear` before retiring the session or starting unrelated work.
-
 ### Post-GDI Review Option
 
-For non-trivial implementation cards, Foreman should plan for an optional
-human-triggered GDI review after completion:
+For non-trivial implementation cards, Foreman may plan a separate bounded review
+after completion:
 
-- keep `/review` out of the clipboard goal unless the user explicitly asks to
-  make review part of GDI's assigned task;
-- after copying the GDI handoff, tell the human to paste/send the goal to GDI,
-  optionally send `/review` after GDI reports completion when the work is
-  complex enough to benefit from adversarial review, and return the final copied
-  GDI tail response to Foreman;
-- do not require the human to copy separate completion and review messages;
-  Foreman should rediscover diff, status, and verification evidence locally
-  when deciding acceptance or correction routing;
-- Foreman owns acceptance after reading the returned GDI tail and locally
+- do not make review part of GDI's assigned implementation task unless the user
+  explicitly asks;
+- after GDI reports completion, Foreman inspects local diff/status/evidence;
+- spawn a bounded review or correction only when the slice actually needs it;
+- Foreman owns acceptance after reading the returned report and locally
   inspecting the relevant diff, status, and test evidence;
 - if the returned tail is only a work report and the slice has meaningful
   behavioral, architectural, or integration risk, Foreman may recommend a

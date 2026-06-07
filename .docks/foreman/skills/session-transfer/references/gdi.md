@@ -35,13 +35,13 @@ For non-trivial GDI work, create or update a work card with:
 
 For the full flexible authoring shape, read
 `references/gdi-work-card-authoring.md`. Keep that detail in the work card, not
-in the clipboard dispatch.
+in the subagent dispatch.
 
-When the card lives on a branch that is not `origin/main`, the dispatch should
-also mention the branch:
+When the card lives on a branch that is not `origin/main`, the subagent prompt
+should also mention the branch:
 
 ```text
-follow the instructions in docs/design/work-cards/<card>.md; start from <ref>
+Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md; start from <ref>
 ```
 
 ## Branch/Base Rules
@@ -74,12 +74,12 @@ Then GDI reports `human_needed` with the script output and waits for the human.
 After the human returns with "finished", return the exact blocker to Foreman.
 Foreman owns any binary rebuild and manual TCC regrant handoff.
 
-Keep the copied GDI dispatch plain. Do not prepend `/goal`, and do not add
-addressee ceremony. If the work is TCC-sensitive, put the TCC stop branch in the
-work card or append a plain suffix to the dispatch, for example:
+Keep the GDI dispatch plain. Do not add addressee ceremony. If the work is
+TCC-sensitive, put the TCC stop branch in the work card or append a plain
+suffix to the subagent prompt, for example:
 
 ```text
-follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed
+Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed
 ```
 
 The GDI helper is stop-only: it prints the human-needed blocker and does not

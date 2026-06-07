@@ -1,8 +1,8 @@
 # Foreman Subagents
 
 Foreman can spawn three Codex native subagents. This document describes the
-dual-layer architecture, what each subagent does, and when to use subagent
-spawning versus a separate CLI session.
+subagent-first architecture, what each subagent does, and when the legacy
+terminal/AFK path is still acceptable.
 
 ## Architecture: Two Layers
 
@@ -18,11 +18,11 @@ spawning versus a separate CLI session.
   explorer.toml                  ← spawnable Explorer utility subagent
 ```
 
-The `.docks/` tree is canonical. It owns role definitions, inbound contracts,
-hooks, scripts, and skills. The `.codex/agents/` files are thin adapters: they
-set `model`, `model_reasoning_effort`, and brief `developer_instructions` that
-point back to the canonical dock AGENTS.md. If the dock contract changes, only
-the dock AGENTS.md changes; the adapter TOML references it by path.
+The `.docks/` tree is canonical. It owns role definitions, scripts, skills, and
+legacy terminal metadata. The `.codex/agents/` files are thin adapters: they set
+`model`, `model_reasoning_effort`, and brief `developer_instructions` that point
+back to the canonical dock AGENTS.md. If the dock contract changes, only the
+dock AGENTS.md changes; the adapter TOML references it by path.
 
 ## Subagent Catalog
 
@@ -34,27 +34,21 @@ the dock AGENTS.md changes; the adapter TOML references it by path.
 
 Foreman itself runs at `gpt-5.5 / xhigh` (see `.docks/foreman/.codex/config.toml`).
 
-## When to Use Subagents vs. Separate CLI Sessions
+## Routing Policy
 
 ### Use subagent spawning when:
 
-- The task is small enough that a separate CLI session is more overhead than the
-  work itself (e.g., "find all files that reference the old target-card schema").
+- The task has a bounded goal and a clear stop condition.
 - You need parallel reconnaissance without filling Foreman's context window
   (spawn one or more `explorer` subagents).
-- You need a single bounded Operator probe (one URL check, one element-clip
-  acceptance) with no multi-step HITL needed.
-- The GDI task has a single clear done condition, no multi-milestone work card,
-  and no `/goal` iteration benefit.
+- You need GDI to execute a deterministic work card and report verification.
+- You need Operator to run a bounded supervised probe or capture-plan check.
 
-### Use separate CLI sessions when:
+### Use the legacy terminal/AFK path only when:
 
-- The GDI work card has multiple ordered milestones or a blast-radius that
-  warrants Foreman acceptance between steps.
-- The Operator run is multi-step, requires a capture plan, or needs the human to
-  intervene between steps.
-- The work benefits from `/review` in a live GDI session.
-- Token budget for the subagent would exceed the cost of a fresh session.
+- The work explicitly tests or repairs the legacy AFK terminal substrate.
+- Native subagent role resolution is unavailable.
+- The human explicitly asks for a separate supervised terminal session.
 
 ## How Foreman Spawns Subagents
 
@@ -68,12 +62,11 @@ Example invocation patterns:
 "Spawn explorer: find all files under src/ that import from aos-gesture-frame
 and return a plain list of paths and import forms."
 
-# Small bounded GDI task
-"Spawn gdi: in docs/design/work-cards/open-cards.md, replace every occurrence
-of 'human-readable name as identity' with 'label ref, not durable id'.
-Verify with grep and report."
+# GDI work card
+"Spawn gdi: follow the instructions in
+docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main."
 
-# Single-probe Operator task
+# Operator probe
 "Spawn operator: open https://localhost:3000/workbench and report whether
 the avatar compact control renders without error in the console. Stop
 immediately on any login or paywall gate."

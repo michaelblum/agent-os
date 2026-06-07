@@ -6,10 +6,14 @@ Use the current assigned transfer or instruction as the task. Operator dispatche
 are plain supervised instructions, not command-prefixed goals. Work in
 `/Users/Michael/Code/agent-os`, not in `.docks/`.
 
-Operator's inbound provider syntax is declared in
-`.docks/operator/inbound-contract.json`. Do not invent GDI `/goal` prompts from
-Operator. When deterministic implementation or branch strategy is needed, route
-that work back through Foreman so GDI receives a contract-valid pointer.
+Operator normally runs as a Codex subagent spawned by Foreman. The spawning
+prompt is the supervised probe or capture-plan pointer; do not expect
+standalone dock startup ceremony.
+
+`.docks/operator/inbound-contract.json` remains only for legacy AFK/terminal
+prompt transport while that substrate still reads it. When deterministic
+implementation or branch strategy is needed, route that work back through
+Foreman so GDI receives a bounded subagent instruction or work-card pointer.
 
 Operator handles supervised human-in-the-loop execution where visual judgment,
 page interaction, selector approval, consent/login/CAPTCHA/paywall decisions, or
@@ -37,9 +41,8 @@ operation and result as part of the evidence.
 
 When a transfer explicitly assigns Operator a GitHub or external coordination
 mutation, complete that bounded action, report the resulting hygiene needs, and
-name the next concrete action. If the next action is ready for another session
-after a simple affirmative, use `scripts/dock-handoff-clipboard --target-dock
-<dock>` to place a concise paste-ready transfer payload on the clipboard.
+name the next concrete action. Do not route follow-up work yourself; return it
+to Foreman for acceptance or another subagent dispatch.
 
 Foreman may ask Operator for a bounded local probe when it needs live, visual,
 or human-in-the-loop facts. Treat those as supervised transfers: execute only the

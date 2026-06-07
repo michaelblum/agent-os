@@ -18,15 +18,11 @@ terminal_title = ["current-dir", "activity", "git-branch", "model"]
 # Paths are relative to THIS config file's directory (.docks/foreman/.codex/).
 # Per docs: "relative paths resolve from the config file that declares the role."
 #
-# These are NOT replacements for separate GDI/Operator CLI sessions.
-# Use subagent spawning for:
-#   - small bounded tasks where a full CLI session is more overhead than value;
-#   - parallel reconnaissance (explorer) that would exhaust Foreman's context;
-#   - single-probe Operator inspections.
-# Use separate CLI sessions for:
-#   - non-trivial multi-milestone work cards;
-#   - multi-step HITL runs;
-#   - any work that benefits from /goal iteration or /review in GDI.
+# This is the normal Foreman-to-GDI/Operator/Explorer routing path. The old
+# standalone GDI/Operator CLI bootstrap is retired. Use a separate terminal path
+# only when explicitly testing or repairing the legacy AFK terminal substrate,
+# when native subagent role resolution is unavailable, or when the human asks
+# for a separate supervised session.
 
 [agents.gdi]
 config_file = "agents/gdi.toml"

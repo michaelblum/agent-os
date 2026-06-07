@@ -174,8 +174,8 @@ Use precise transfer language so dock roles do not inherit the wrong workflow:
   session or actor.
 - **Handoff** is state transfer to a successor session, especially
   Foreman-to-Foreman continuity.
-- **Dispatch** is the short clipboard payload that starts a target dock on an
-  existing artifact.
+- **Dispatch** is the short instruction that starts a target actor on an
+  existing artifact, usually by spawning a native subagent.
 - **Work card** is a durable Markdown task contract for an assigned round, most
   often GDI implementation or validation; it is not successor-session state.
 - **Round** is one recipient session's attempt at one goal until completion,
@@ -187,11 +187,11 @@ Keep storage aligned with the transfer kind. Successor handoffs are ephemeral
 session state and should live in chat, clipboard, or a temp file. Work cards are
 durable Markdown task contracts and belong under `docs/design/work-cards/` only
 when they assign a GDI-style implementation, validation, correction, or relay
-round. Operator and human-needed transfers are usually clipboard/chat packets
-unless their capture plan or recovery path needs durable documentation.
+round. Operator and human-needed transfers are usually chat packets unless
+their capture plan or recovery path needs durable documentation.
 
-For cross-session clipboard payloads, use the repo-level agent handoff tool from
-the repo root:
+For Foreman successor handoffs, use the repo-level agent handoff tool from the
+repo root:
 
 ```bash
 scripts/agent-handoff --text "$transfer_payload" --options-json '{"timestamp":true,"gateStringStart":"----- BEGIN HANDOFF -----","gateStringEnd":"----- END HANDOFF -----","addPostInstructions":"(copied to clipboard)","addHRTimestamp":true}'
@@ -202,13 +202,13 @@ append block. When a recipient is supplied through `--options-json`, the printed
 block includes `Recipient: <dock>` before the gated payload. Use the exact
 printed block at the end of the final chat response so the human can recover
 the payload from chat if the clipboard is lost. Clipboard transfer payloads are
-plain instructions for every target dock; do not prepend command prefixes or
-addressee ceremony to the copied payload.
+plain instructions; do not prepend command prefixes or addressee ceremony to
+the copied payload.
 
-`scripts/dock-handoff-clipboard --target-dock <dock>` is the compatibility
-wrapper for dock-targeted transfer payloads. Individual docks may add thin local
-wrappers or hooks for their own default payload construction, but clipboard
-writes and chat demarcation should still go through `scripts/agent-handoff`.
+`scripts/dock-handoff-clipboard --target-dock <dock>` is a compatibility
+wrapper for successor-Foreman handoffs and explicit legacy terminal/AFK
+transport. Do not use it as the normal GDI/Operator path; Foreman should spawn
+subagents for bounded GDI and Operator work.
 
 ## Momentum After External Changes
 

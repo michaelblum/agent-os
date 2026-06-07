@@ -329,49 +329,38 @@ between.
 ### Work Card Mechanics
 
 For non-trivial GDI implementation or validation work, create or update a
-Markdown work card under `docs/design/work-cards/` and copy only a concise
-plain dispatch:
+Markdown work card under `docs/design/work-cards/` and spawn the `gdi`
+subagent with only a concise pointer:
 
-`follow the instructions in docs/design/work-cards/<card>.md`
+`Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md`
 
-Use the Foreman handoff wrapper only when routing a real cross-session transfer:
+Use the Foreman handoff wrapper only for successor-Foreman handoffs or an
+explicitly legacy terminal/AFK transfer:
 
 ```bash
-.docks/foreman/scripts/handoff --target-dock gdi --text "follow the instructions in docs/design/work-cards/<card>.md"
+.docks/foreman/scripts/handoff --target-dock foreman --text "<successor handoff>"
 ```
 
-Use `--target-dock operator` for supervised/HITL dispatches and `--target-dock
-foreman` for successor-Foreman handoffs. The wrapper delegates clipboard and
-chat demarcation to the dock-level handoff tool, which validates and previews
-provider entry through `.docks/<dock>/inbound-contract.json`. Do not use it for
-normal final answers, progress updates, review findings, status reports, or
-notes that are not intended to be pasted into another dock session.
+The wrapper still supports `--target-dock gdi|operator` only for the legacy
+terminal/AFK substrate while `.docks/<dock>/inbound-contract.json` remains
+load-bearing. Do not use it for normal GDI/Operator routing, final answers,
+progress updates, review findings, status reports, or notes that are not
+intended to be pasted into another session.
 
 For non-trivial Operator runs, put the detailed live-run contract in a Markdown
-work card under `docs/design/work-cards/` and copy only a concise dispatch:
+work card under `docs/design/work-cards/` and spawn the `operator` subagent
+with a concise pointer:
 
-`follow the instructions in docs/design/work-cards/operator-<card>.md`
+`Spawn operator: follow the instructions in docs/design/work-cards/operator-<card>.md`
 
-Short Operator checks may still go directly into the clipboard when the whole
-prompt is comfortably under the observed 4,000-character CLI goal limit and
-does not need durable capture instructions.
+Short Operator checks may be direct `Spawn operator:` prompts when they fit in a
+single bounded probe and do not need durable capture instructions.
 
-Foreman-to-GDI clipboard payloads follow the target dock inbound contract: the
-copied text stays a plain pointer, while provider entry may use the contract's
-interactive prefix. Do not make the copied payload carry `/goal` or addressee
-ceremony unless a later contract revision says so.
-The wrapper's printed chat-visible block includes the recipient, gates, copy
-notice, and timestamp; include that exact block in the final chat response when
-routing the transfer.
-
-The dock inbound contract owns provider mechanics, dock role boundaries, reset
-semantics, stop-condition reminders, and evidence/reporting expectations.
-Foreman owns routing judgment. Use GDI when `/goal` adds value through
-autonomous iteration, verification, or durable work-card execution. Keep
-ordinary one-shot coordination with Foreman or Operator unless the one-shot
-prompt deliberately tests the contract or live provider mechanics. Loop-prone
-GDI shapes such as reply-exactly proof prompts should be visible warnings or
-policy diagnostics unless they cross a real dock/protocol boundary.
+Foreman owns routing judgment. Prefer subagent dispatch for bounded GDI,
+Operator, and Explorer tasks. Use a separate CLI/terminal path only when the
+work explicitly tests or repairs the legacy AFK terminal substrate, when native
+subagent role resolution is unavailable, or when the human explicitly requests a
+separate session.
 
 Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 as the flexible authoring shape: fresh context, read-first files, state
@@ -381,18 +370,18 @@ When dirty checkouts or large proof artifacts would make review harder, ask for
 the reference's path-scoped completion summary; skip that extra shape for tiny
 fixes where it adds noise.
 
-Do not paste long implementation, validation, or live-run instructions directly
-into the clipboard goal unless the task is genuinely small. If Foreman creates
-draft evidence, label it clearly in the work card so the recipient knows
-whether to retain, amend, supersede, or revert it.
+Do not put long implementation, validation, or live-run instructions directly
+in a spawn prompt unless the task is genuinely small. If Foreman creates draft
+evidence, label it clearly in the work card so the recipient knows whether to
+retain, amend, supersede, or revert it.
 
 When the GDI work card, report, fixture, or prerequisite commit is not on
 `origin/main`, include a Branch/Base section in the card with
 `branch_from: <ref>` and `required_start_ref: <ref>`, and include the start ref
-in the clipboard dispatch, for example:
+in the subagent prompt, for example:
 
 ```text
-follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>
+Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>
 ```
 
 GDI rounds are one-goal sessions. If the next expected work is validation only,
@@ -404,18 +393,13 @@ repo-standard stall path in the card:
 rebuild and manual TCC regrant handoff.
 
 When routing non-trivial GDI implementation work, keep the clipboard payload to
-the concise plain work-card instruction, then add human-facing manual steps in
-Foreman's chat response. The default helper is:
+the concise plain work-card instruction only when using an explicitly legacy
+terminal path. The default subagent path is:
 
-- paste/send the clipboard contents to GDI;
-- after GDI reports completion, optionally send `/review` in that same GDI
-  session when the slice is complex enough to benefit from adversarial review;
-- bring the final copied GDI tail response back to Foreman, either review
-  results or the GDI work report. Do not require the human to copy separate
-  completion and review messages; Foreman should rediscover diff, status, and
-  verification evidence locally when deciding acceptance, correction routing,
-  same-session follow-up, whether to recommend another review round, or
-  next-slice selection.
+- spawn `gdi` with the concise work-card pointer;
+- wait only when the result is needed for the next critical-path step;
+- review the returned completion report against local diff/status/evidence;
+- route correction or the next bounded subagent task from Foreman.
 
 Do not make GDI self-accept a non-trivial review. Tiny mechanical review fixes
 may stay with GDI, but behavioral, architectural, or priority-bearing review
