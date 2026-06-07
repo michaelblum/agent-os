@@ -100,21 +100,47 @@ test('InteractionSurface disable moves offscreen and clears interactivity in one
   }])
 })
 
-test('InteractionSurface duplicate create is treated as already ready', async () => {
+test('InteractionSurface duplicate create is treated as already ready and reconciles placement', async () => {
+  const updates = []
+  let resolveUpdate
+  const updatePromise = new Promise((resolve) => {
+    resolveUpdate = resolve
+  })
   const surface = createInteractionSurface({
     runtime: {
       canvasCreate() {
         return Promise.reject(new Error('DUPLICATE: exists'))
       },
-      canvasUpdate() {},
+      canvasUpdate(payload) {
+        updates.push(payload)
+        return updatePromise
+      },
       canvasRemove: () => Promise.resolve(),
     },
     id: 'surface-d',
     url: 'aos://test/surface.html',
+    frame: [10, 20, 80, 40],
+    interactive: false,
+    windowLevel: 'screen_saver',
   })
 
-  assert.equal(await surface.ensureCreated(), 'surface-d')
+  let ensureResolved = false
+  const ensurePromise = surface.ensureCreated().then((id) => {
+    ensureResolved = true
+    return id
+  })
+
+  await Promise.resolve()
+  assert.equal(ensureResolved, false)
+  resolveUpdate()
+  assert.equal(await ensurePromise, 'surface-d')
   assert.equal(surface.snapshot().ready, true)
+  assert.deepEqual(updates, [{
+    id: 'surface-d',
+    frame: [10, 20, 80, 40],
+    interactive: false,
+    window_level: 'screen_saver',
+  }])
 })
 
 test('InteractionSurface remove resets local lifecycle state', async () => {

@@ -83,6 +83,12 @@ export function createInteractionSurface(options = {}) {
     } catch (error) {
       if (String(error?.message || error).includes('DUPLICATE')) {
         state.ready = true
+        await callRuntime(runtime, 'canvasUpdate', {
+          id: state.id,
+          frame: state.frame,
+          interactive: state.interactive,
+          window_level: state.windowLevel,
+        })
         return state.id
       }
       throw error
