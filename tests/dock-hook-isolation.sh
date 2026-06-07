@@ -145,6 +145,8 @@ for script_name in ("stop.sh", "subagent-start.sh", "subagent-stop.sh"):
 root_codex_config = (root / ".codex" / "config.toml").read_text()
 foreman_config = (root / ".docks" / "foreman" / ".codex" / "config.toml").read_text()
 for label, text in (("repo Codex config", root_codex_config), ("Foreman Codex config", foreman_config)):
+    if "notify = []" not in text:
+        raise SystemExit(f"FAIL: {label} must disable global Codex notify; dock hooks own Foreman speech")
     if "[agents]" not in text:
         raise SystemExit(f"FAIL: {label} missing global [agents] limits")
     for required in ("max_threads = 6", "max_depth = 1"):
