@@ -1,5 +1,29 @@
 {
   "hooks": {
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/Michael/Code/agent-os/.docks/foreman/hooks/subagent-start.sh",
+            "statusMessage": "Speaking subagent start",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/Michael/Code/agent-os/.docks/foreman/hooks/subagent-stop.sh",
+            "statusMessage": "Speaking subagent stop",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

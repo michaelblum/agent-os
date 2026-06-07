@@ -4,8 +4,8 @@ set -euo pipefail
 phase="${1:-}"
 dock="${2:-}"
 
-if [[ "$phase" != "stop" ]]; then
-  echo "FAIL: usage: dock-hook-runner.sh stop <dock>" >&2
+if [[ "$phase" != "stop" && "$phase" != "subagent-start" && "$phase" != "subagent-stop" ]]; then
+  echo "FAIL: usage: dock-hook-runner.sh stop|subagent-start|subagent-stop <dock>" >&2
   exit 2
 fi
 if [[ -z "$dock" ]]; then
@@ -107,6 +107,54 @@ elif isinstance(value, str):
 PY
 }
 
+# Read voice config for an arbitrary role from subagent-voices.json.
+# Usage: subagent_voice_field <role> <field> <fallback>
+subagent_voice_field() {
+  local role="$1" field="$2" fallback="${3:-}"
+  local voices_file="$REPO_ROOT/.docks/foreman/subagent-voices.json"
+  python3 - "$voices_file" "$role" "$field" "$fallback" <<'PY'
+import json, sys
+voices_file, role, field, fallback = sys.argv[1:]
+try:
+    data = json.load(open(voices_file, encoding="utf-8"))
+except FileNotFoundError:
+    print(fallback)
+    raise SystemExit(0)
+entry = data.get(role) or data.get("_fallback") or {}
+val = entry.get(field, fallback)
+if isinstance(val, bool):
+    print("true" if val else "false")
+elif val is None:
+    print(fallback)
+else:
+    print(str(val))
+PY
+}
+
+subagent_voice_array() {
+  local role="$1" field="$2"
+  local voices_file="$REPO_ROOT/.docks/foreman/subagent-voices.json"
+  python3 - "$voices_file" "$role" "$field" <<'PY'
+import json, sys
+voices_file, role, field = sys.argv[1:]
+try:
+    data = json.load(open(voices_file, encoding="utf-8"))
+except FileNotFoundError:
+    raise SystemExit(0)
+entry = data.get(role) or data.get("_fallback") or {}
+val = entry.get(field)
+if isinstance(val, list):
+    for item in val:
+        if item:
+            print(str(item))
+elif isinstance(val, str):
+    for item in val.split(","):
+        item = item.strip()
+        if item:
+            print(item)
+PY
+}
+
 run_command_with_input() {
   local payload="$1"
   shift
@@ -131,51 +179,147 @@ run_aos_bounded() {
   fi
 }
 
+# Build and run an aos say command for a given voice slot.
+# Usage: speak_slot <slot> <gender> <language> <tiers_array_nameref> <text>
+speak_slot() {
+  local slot="$1" gender="$2" language="$3" text="$5"
+  local -n _tiers="$4"
+  [[ -z "$slot" ]] && return 0
+  local say_args=("$AOS_BIN" say --voice-slot "$slot")
+  [[ -n "$language" ]] && say_args+=(--language "$language")
+  for tier in "${_tiers[@]}"; do
+    say_args+=(--quality-tier "$tier")
+  done
+  [[ -n "$gender" ]] && say_args+=(--gender "$gender")
+  say_args+=("$text")
+  run_aos_bounded "${say_args[@]}"
+}
+
 HOOK_INPUT="$(cat || true)"
 hook_timeout="${AOS_DOCK_HOOK_TIMEOUT_SECONDS:-$(dock_json_value hook_timeout_seconds 3)}"
 name="$(dock_json_value name "$dock")"
 voice_enabled="$(dock_json_value voice.enabled true)"
-voice_language="$(dock_json_value voice.language en)"
-voice_gender="$(dock_json_value voice.gender "")"
-voice_slot="$(dock_json_value voice.voice_slot "")"
-stop_notice="$(dock_json_value events.stop.stop_notice "")"
-if [[ -z "$stop_notice" ]]; then
-  stop_notice="$(dock_json_value stop_notice "")"
-fi
-if [[ -z "$stop_notice" ]]; then
-  stop_notice="$(dock_json_value voice.stop_notice "$name finished.")"
-fi
 
-voice_quality_tiers=()
-while IFS= read -r tier; do
-  voice_quality_tiers+=("$tier")
-done < <(dock_json_array voice.quality_tiers)
-if [[ "${#voice_quality_tiers[@]}" -eq 0 ]]; then
+# ─── STOP ──────────────────────────────────────────────────────────────────────
+if [[ "$phase" == "stop" ]]; then
+  voice_language="$(dock_json_value voice.language en)"
+  voice_gender="$(dock_json_value voice.gender "")"
+  voice_slot="$(dock_json_value voice.voice_slot "")"
+  stop_notice="${AOS_FOREMAN_DONE:-}"
+  if [[ -z "$stop_notice" ]]; then
+    stop_notice="$(dock_json_value events.stop.stop_notice "")"
+  fi
+  if [[ -z "$stop_notice" ]]; then
+    stop_notice="$(dock_json_value stop_notice "")"
+  fi
+  if [[ -z "$stop_notice" ]]; then
+    stop_notice="$(dock_json_value voice.stop_notice "$name finished.")"
+  fi
+
+  voice_quality_tiers=()
   while IFS= read -r tier; do
     voice_quality_tiers+=("$tier")
-  done < <(dock_json_array voice.quality_tier)
-fi
+  done < <(dock_json_array voice.quality_tiers)
+  if [[ "${#voice_quality_tiers[@]}" -eq 0 ]]; then
+    while IFS= read -r tier; do
+      voice_quality_tiers+=("$tier")
+    done < <(dock_json_array voice.quality_tier)
+  fi
 
-run_optional_hook "pre-stop"
+  run_optional_hook "pre-stop"
+
+  if [[ "$voice_enabled" == "true" && -n "$voice_slot" ]]; then
+    speak_slot "$voice_slot" "$voice_gender" "$voice_language" voice_quality_tiers "$stop_notice"
+  fi
+
+  run_optional_hook "post-stop"
+
+# ─── SUBAGENT-START ────────────────────────────────────────────────────────────
+elif [[ "$phase" == "subagent-start" ]]; then
+  # Resolve subagent name from env. If fallback fires, stderr dump helps
+  # identify the correct var name on first run.
+  # VERIFY: if you hear "Subagent begin!" run: env | grep -iE '(codex|agent|subagent)' in the hook
+  subagent_name="${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}"
+  if [[ -z "$subagent_name" ]]; then
+    subagent_name="subagent"
+    env | grep -i -E '(codex|agent|subagent)' >&2 || true
+  fi
+  subagent_label="$(echo "${subagent_name:0:1}" | tr '[:lower:]' '[:upper:]')${subagent_name:1}"
+
+  # Foreman voice (from dock.json)
+  foreman_slot="$(dock_json_value voice.voice_slot "")"
+  foreman_gender="$(dock_json_value voice.gender "")"
+  foreman_language="$(dock_json_value voice.language en)"
+  foreman_tiers=()
+  while IFS= read -r tier; do
+    foreman_tiers+=("$tier")
+  done < <(dock_json_array voice.quality_tiers)
+
+  # Subagent voice (from subagent-voices.json)
+  sub_slot="$(subagent_voice_field "$subagent_name" voice_slot "")"
+  sub_gender="$(subagent_voice_field "$subagent_name" gender "")"
+  sub_language="$(subagent_voice_field "$subagent_name" language en)"
+  sub_tiers=()
+  while IFS= read -r tier; do
+    sub_tiers+=("$tier")
+  done < <(subagent_voice_array "$subagent_name" quality_tiers)
+
+  # Dynamic overrides; fallbacks are imperative command + acknowledgment
+  foreman_cmd="${AOS_FOREMAN_CMD:-${subagent_label}, begin!}"
+  subagent_ack="${AOS_SUBAGENT_ACK:-${subagent_label} ready!}"
+
+  run_optional_hook "pre-subagent-start"
+
+  if [[ "$voice_enabled" == "true" ]]; then
+    [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_cmd"
+    [[ -n "$sub_slot" ]]     && speak_slot "$sub_slot"     "$sub_gender"     "$sub_language"     sub_tiers     "$subagent_ack"
+  fi
+
+  run_optional_hook "post-subagent-start"
+
+# ─── SUBAGENT-STOP ─────────────────────────────────────────────────────────────
+elif [[ "$phase" == "subagent-stop" ]]; then
+  subagent_name="${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}"
+  if [[ -z "$subagent_name" ]]; then
+    subagent_name="subagent"
+    env | grep -i -E '(codex|agent|subagent)' >&2 || true
+  fi
+  subagent_label="$(echo "${subagent_name:0:1}" | tr '[:lower:]' '[:upper:]')${subagent_name:1}"
+
+  # Subagent voice
+  sub_slot="$(subagent_voice_field "$subagent_name" voice_slot "")"
+  sub_gender="$(subagent_voice_field "$subagent_name" gender "")"
+  sub_language="$(subagent_voice_field "$subagent_name" language en)"
+  sub_tiers=()
+  while IFS= read -r tier; do
+    sub_tiers+=("$tier")
+  done < <(subagent_voice_array "$subagent_name" quality_tiers)
+
+  # Foreman voice
+  foreman_slot="$(dock_json_value voice.voice_slot "")"
+  foreman_gender="$(dock_json_value voice.gender "")"
+  foreman_language="$(dock_json_value voice.language en)"
+  foreman_tiers=()
+  while IFS= read -r tier; do
+    foreman_tiers+=("$tier")
+  done < <(dock_json_array voice.quality_tiers)
+
+  # Dynamic overrides; fallbacks are stop announcement + acknowledgment
+  subagent_done="${AOS_SUBAGENT_DONE:-${subagent_label} stopped, returning to Foreman.}"
+  foreman_ack="${AOS_FOREMAN_ACK:-Acknowledged, ${subagent_label}!}"
+
+  run_optional_hook "pre-subagent-stop"
+
+  if [[ "$voice_enabled" == "true" ]]; then
+    [[ -n "$sub_slot" ]]     && speak_slot "$sub_slot"     "$sub_gender"     "$sub_language"     sub_tiers     "$subagent_done"
+    [[ -n "$foreman_slot" ]] && speak_slot "$foreman_slot" "$foreman_gender" "$foreman_language" foreman_tiers "$foreman_ack"
+  fi
+
+  run_optional_hook "post-subagent-stop"
+
+fi
 
 system_message=""
-
-if [[ "$voice_enabled" == "true" && -n "$voice_slot" ]]; then
-  say_args=("$AOS_BIN" say --voice-slot "$voice_slot")
-  if [[ -n "$voice_language" ]]; then
-    say_args+=(--language "$voice_language")
-  fi
-  for tier in "${voice_quality_tiers[@]}"; do
-    say_args+=(--quality-tier "$tier")
-  done
-  if [[ -n "$voice_gender" ]]; then
-    say_args+=(--gender "$voice_gender")
-  fi
-  say_args+=("$stop_notice")
-  run_aos_bounded "${say_args[@]}"
-fi
-
-run_optional_hook "post-stop"
 
 if [[ -n "$system_message" ]]; then
   python3 - "$system_message" <<'PY'
