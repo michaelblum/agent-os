@@ -146,6 +146,10 @@ until the input-event-v2 cutover is designed.
 - Work Recording owns durable intent storage, execution-map storage, evidence,
   replay plans, health, and repair patches. It records and verifies work; it
   does not make raw input replay canonical.
+- The Work Recording frame contract defines the baseline, delta, keyframe,
+  evidence-ref, replay-policy, and frame-health storage layer over this
+  interaction family:
+  [`aos-work-recording-frame-contract-v0.md`](aos-work-recording-frame-contract-v0.md).
 - Raw `input_event` / input-event-v2 is source evidence and compatibility debt.
   It is not the canonical recording grammar for AOS-owned controls.
 
@@ -161,4 +165,3 @@ proves:
 - stale `state_id`/`ref` rejection before execution, followed by a
   machine-first reacquisition replay plan;
 - ambiguous same-label reacquisition that remains blocked.
-

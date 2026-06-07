@@ -1,0 +1,115 @@
+{
+  "schema": "aos.work-recording-frame.fixture.v0",
+  "case": "periodic_keyframe_is_recovery_checkpoint",
+  "recording_id": "recording:display-brightness-070",
+  "target_descriptor": {
+    "ref": "display-brightness-slider",
+    "state_id": "see_recording_slider010",
+    "role": "slider",
+    "name": "Brightness",
+    "target": {
+      "target_id": "control:display-brightness",
+      "owner_namespace": {
+        "app_id": "aos-toolkit-demo",
+        "canvas_id": "display-settings-panel",
+        "surface_id": "display-settings-panel",
+        "component_family": "toolkit.zag.slider",
+        "structural_owner": [
+          "settings-workbench",
+          "display-section"
+        ]
+      }
+    },
+    "state": {
+      "value": 0.7,
+      "min": 0,
+      "max": 1,
+      "step": 0.05,
+      "orientation": "horizontal",
+      "thumb_count": 1
+    },
+    "actions": [
+      "drag",
+      "set-value",
+      "focus"
+    ],
+    "provenance": {
+      "canvas_id": "display-settings-panel",
+      "do_target": "canvas:display-settings-panel/display-brightness-slider"
+    },
+    "reacquisition": {
+      "strategy": "owner-structural-fingerprint",
+      "machine_fingerprint": {
+        "role": "slider",
+        "structural_path": [
+          "settings-workbench",
+          "display-section",
+          "field:brightness"
+        ],
+        "capabilities": [
+          "drag",
+          "set-value",
+          "focus"
+        ],
+        "range_shape": {
+          "min": 0,
+          "max": 1,
+          "step": 0.05,
+          "orientation": "horizontal",
+          "thumb_count": 1
+        }
+      },
+      "hint_fingerprint": {
+        "label_hints": [
+          "Brightness"
+        ]
+      }
+    }
+  },
+  "previous_delta_frame_ref": "frame:delta:display-brightness:002",
+  "semantic_delta_refs": {
+    "action_intent_refs": [
+      "intent:set-brightness-070"
+    ],
+    "execution_result_refs": [
+      "result:set-brightness-070"
+    ],
+    "state_patch_refs": [
+      "patch:set-brightness-070"
+    ]
+  },
+  "frame": {
+    "schema": "aos.work-recording-frame",
+    "schema_version": 0,
+    "frame_type": "recording_keyframe",
+    "id": "frame:keyframe:display-brightness:010",
+    "recording_id": "recording:display-brightness-070",
+    "work_record_ref": "work-record:display-brightness-slider-070",
+    "sequence": 10,
+    "after_frame_id": "frame:delta:display-brightness:002",
+    "keyframe_reason": "periodic_recovery_checkpoint",
+    "snapshot_scope": "partial_surface",
+    "state_id": "see_recording_slider010",
+    "target_descriptors": [
+      {
+        "$ref": "#/target_descriptor"
+      }
+    ],
+    "state_summary": {
+      "display-brightness-slider": {
+        "value": 0.7
+      }
+    },
+    "does_not_replace_semantic_deltas": true,
+    "recovery_from_frame_ref": "frame:keyframe:display-brightness:010",
+    "evidence_refs": [
+      {
+        "type": "recording_evidence_ref",
+        "evidence_id": "evidence:keyframe-010-see",
+        "artifact_ref": "artifact:recordings/display-brightness/keyframe-010-see.json",
+        "immutable": true
+      }
+    ]
+  }
+}
+

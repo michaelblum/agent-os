@@ -1,0 +1,15 @@
+{
+  "schema": "aos.work-recording-frame.fixture-pack.v0",
+  "contract": "../../aos-work-recording-frame-contract-v0.md",
+  "depends_on": [
+    "../../aos-interaction-grammar-v0.md",
+    "../../aos-shared-gesture-spine-v0.md",
+    "../../../../shared/schemas/aos-semantic-targets.md",
+    "../../../../shared/schemas/aos-work-record-v0.md"
+  ],
+  "fixtures": [
+    "toolkit-slider-recording.json",
+    "periodic-keyframe-checkpoint.json",
+    "blocked-replay-repair-needed.json"
+  ]
+}

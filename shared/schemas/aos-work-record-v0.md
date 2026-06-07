@@ -248,6 +248,31 @@ The schema requires both `replay_requires_workflow_gate` and
 evidence-backed replay or repair loops need an explicit Workflow gate even when
 the record has an executable or compatibility origin.
 
+## Work Recording Frame Packs
+
+Work Recording frame packs are an additive recording layer over this Work
+Record shape. The frame contract is defined in
+[`docs/design/aos-work-recording-frame-contract-v0.md`](../../docs/design/aos-work-recording-frame-contract-v0.md).
+
+Baseline, delta, and keyframe records relate to the existing model as follows:
+
+- `recording_baseline` captures the initial surface state, state ids, target
+  descriptors, environment metadata, and Work Record/replay policy context.
+- `recording_delta_frame` stores typed #430 interaction records: action
+  intents, execution results, optional gesture frames, observed input evidence,
+  state patches, observations, and artifact refs.
+- `recording_keyframe` is a periodic recovery snapshot. It does not replace the
+  semantic action/state delta records.
+- `recording_evidence_ref` points to existing immutable `evidence[]` entries
+  and artifact routes.
+- `recording_replay_policy` re-perceives, resolves target descriptors, reissues
+  semantic action intents, and verifies state patches under the same replay and
+  repair gates required by `execution_map.replay_policy`.
+
+The v0 JSON Schema does not add a top-level frame-pack slot yet. Fixtures keep
+the recording contract beside Work Records until a runtime producer needs an
+additive persisted field.
+
 ## Capture Builder And Report-Only Profile
 
 The first runtime producer is intentionally narrow:
