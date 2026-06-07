@@ -294,6 +294,7 @@ specialist roles with their own adapter-declared model and reasoning effort. Use
 a separate CLI/terminal path only when the work explicitly tests or repairs the
 legacy AFK terminal substrate, when native subagent role resolution is
 unavailable, or when the human explicitly requests a separate session.
+Apply `.docks/foreman/SUBAGENTS.md#context-firewall` when routing subagents.
 
 Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 as the flexible authoring shape: fresh context, read-first files, state

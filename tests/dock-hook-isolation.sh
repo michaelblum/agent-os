@@ -182,6 +182,9 @@ for label, text in (("Foreman AGENTS", foreman_agents), ("Foreman transfer skill
         if forbidden in text:
             raise SystemExit(f"FAIL: {label} reintroduced command/addressee ceremony: {forbidden}")
 
+if ".docks/foreman/SUBAGENTS.md#context-firewall" not in foreman_agents:
+    raise SystemExit("FAIL: Foreman AGENTS does not reference the subagent context firewall")
+
 for required in (
     "## Context Firewall",
     "Foreman owns the read-first set",
