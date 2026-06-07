@@ -202,6 +202,7 @@ OWNED_IDS="avatar-main sigil-hit-avatar-main sigil-radial-menu-avatar-main sigil
 DIAGNOSTIC_IDS="sigil-render-performance sigil-interaction-trace aos-desktop-world-stage"
 UNOWNED_IDS="surface-inspector __log__ clean-unowned-canvas"
 
+write_status_item_config true "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT"
 OWNED_DRY_RUN="$(./aos clean --dry-run --json)"
 OWNED_DRY_RUN="$OWNED_DRY_RUN" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
 import json, os
@@ -220,6 +221,40 @@ for canvas_id in os.environ["DIAGNOSTIC_IDS"].split():
 for canvas_id in os.environ["UNOWNED_IDS"].split():
     assert canvas_id in stale_ids, (canvas_id, payload)
 PY
+
+write_status_item_config true 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch'
+./aos show update \
+  --id avatar-main \
+  --url 'http://127.0.0.1:49152/sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' \
+  >/dev/null
+STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
+STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+notes = "\n".join(payload.get("notes", []))
+assert "Active experience sigil status item target drift" in notes, payload
+assert "missing content root" in notes, payload
+assert "Active experience sigil canvas avatar-main is loaded at" not in notes, payload
+PY
+write_status_item_config true "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT"
+STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
+STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
+import json, os
+
+payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
+assert payload["status"] == "dirty", payload
+notes = "\n".join(payload.get("notes", []))
+assert "Active experience sigil status item target drift" not in notes, payload
+assert "missing content root" not in notes, payload
+assert "Active experience sigil canvas avatar-main is loaded at" in notes, payload
+assert any(canvas.get("id") == "avatar-main" for canvas in payload.get("canvases", [])), payload
+PY
+./aos show update \
+  --id avatar-main \
+  --url "http://127.0.0.1:49152/$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" \
+  >/dev/null
 
 OWNED_STATUS="$(./aos status --json)"
 OWNED_STATUS="$OWNED_STATUS" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'
