@@ -235,6 +235,23 @@ PY
 esac
 ```
 
+After the stale-renderer freshness check and any URL refresh, explicitly put
+Sigil into the visible status-item state before enabling the probe or attempting
+real input. A fresh renderer can legitimately replay or preserve a hidden
+status-item state; hidden Sigil leaves the avatar hit target parked offscreen and
+cannot prove the handled child hit-surface path.
+
+```bash
+./aos show eval --id avatar-main --js 'window.__sigilDebug?.dispatch?.({ type: "status_item.show", source: "operator-live-proof" }); JSON.stringify(window.__sigilDebug?.snapshot?.() ?? null)' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-status-item-show-post.json
+./aos show wait --id avatar-main \
+  --js 'window.__sigilDebug && window.__sigilDebug.snapshot().avatarVisible === true && window.__sigilDebug.snapshot().hitTargetInteractive === true' \
+  --timeout 8s --json \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-visible-hit-target-wait.json
+./aos show eval --id avatar-main --js 'JSON.stringify({avatarVisible: window.__sigilDebug?.snapshot?.().avatarVisible ?? null, hitTargetFrame: window.__sigilDebug?.snapshot?.().hitTargetFrame ?? null, hitTargetInteractive: window.__sigilDebug?.snapshot?.().hitTargetInteractive ?? null, inputRegions: window.__sigilDebug?.snapshot?.().inputRegions ?? null})' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-visible-hit-target-before-probe.json
+```
+
 Enable and reset the Sigil transport probe before interaction:
 
 ```bash
@@ -362,7 +379,9 @@ For Sigil child hit-surface proof, use the transport probe's compact
 `input_events` sample. It should distinguish canvas-origin identity with
 `routed_schema_version`, `event_kind`, `sequence`, `coordinate_authority`,
 `source_origin`, `source_canvas_id`, `owner_canvas_id`, and `region_id` when the
-renderer handles normalized child input.
+renderer handles normalized child input. Scroll-only canvas-origin samples or
+child hit-canvas entries ignored as `controls-closed` are diagnostic evidence,
+not handled child hit-surface proof.
 
 ## Pass / Partial / Fail
 
