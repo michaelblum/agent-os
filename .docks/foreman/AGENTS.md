@@ -261,10 +261,12 @@ between.
 ### Work Card Mechanics
 
 For non-trivial GDI implementation or validation work, create or update a
-Markdown work card under `docs/design/work-cards/` and spawn the `gdi`
-subagent with only a concise pointer:
+Markdown work card under `docs/design/work-cards/` and spawn a child with
+`agent_type` set to `gdi` and only a concise pointer in the child prompt:
 
-`Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md`
+`agent_type: gdi`
+
+`prompt: follow the instructions in docs/design/work-cards/<card>.md`
 
 Use the Foreman handoff wrapper only for successor-Foreman handoffs or an
 explicitly legacy terminal/AFK transfer:
@@ -280,13 +282,16 @@ progress updates, review findings, status reports, or notes that are not
 intended to be pasted into another session.
 
 For non-trivial Operator runs, put the detailed live-run contract in a Markdown
-work card under `docs/design/work-cards/` and spawn the `operator` subagent
-with a concise pointer:
+work card under `docs/design/work-cards/` and spawn a child with `agent_type`
+set to `operator` and a concise pointer in the child prompt:
 
-`Spawn operator: follow the instructions in docs/design/work-cards/operator-<card>.md`
+`agent_type: operator`
 
-Short Operator checks may be direct `Spawn operator:` prompts when they fit in a
-single bounded probe and do not need durable capture instructions.
+`prompt: follow the instructions in docs/design/work-cards/operator-<card>.md`
+
+Short Operator checks may be direct child prompts when they fit in a single
+bounded probe and do not need durable capture instructions, but the spawn still
+must set `agent_type` to `operator`.
 
 Foreman owns routing judgment. Prefer subagent dispatch for bounded team tasks:
 implementation, validation, reconnaissance, supervised inspection, and other
@@ -315,7 +320,8 @@ When the GDI work card, report, fixture, or prerequisite commit is not on
 in the subagent prompt, for example:
 
 ```text
-Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>
+agent_type: gdi
+prompt: follow the instructions in docs/design/work-cards/<card>.md; start from origin/<branch>
 ```
 
 GDI rounds are one-goal sessions. If the next expected work is validation only,

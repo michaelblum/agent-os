@@ -83,12 +83,16 @@ decide follow-up work.
 
 ## How Foreman Spawns Subagents
 
-Foreman invokes subagents by name. Codex resolves custom agents from standalone
-TOML files or `config_file` registrations in the active project `.codex`
-configuration. In this repo, the role adapter files live under
-`.docks/foreman/.codex/agents/`, and repo-root `.codex/config.toml` registers
-them for repo-root sessions. The `name` field inside each adapter file is the
-runtime identity.
+Foreman must select the role with the spawn tool's `agent_type` field. Codex
+resolves custom agents from standalone TOML files or `config_file`
+registrations in the active project `.codex` configuration. In this repo, the
+role adapter files live under `.docks/foreman/.codex/agents/`, and repo-root
+`.codex/config.toml` registers them for repo-root sessions. The `name` field
+inside each adapter file is the runtime identity.
+
+Do not rely on writing `Spawn explorer:` or `Spawn gdi:` inside the child
+prompt. If `agent_type` is omitted, Codex uses `default`, and the child inherits
+Foreman's model/effort.
 
 Before broad fan-out, smoke one child. The visible spawn/status line and
 SubagentStart/SubagentStop voice labels must identify the intended role
@@ -97,15 +101,18 @@ must match the adapter. If it says `default` or inherits Foreman's
 `gpt-5.5 / xhigh`, stop and fix adapter loading before continuing.
 
 ```
-"Spawn explorer: find all files under src/ that import from aos-gesture-frame
-and return paths, import forms, and counts only."
+agent_type: explorer
+prompt: find all files under src/ that import from aos-gesture-frame and return
+paths, import forms, and counts only.
 
-"Spawn gdi: follow the instructions in
-docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main."
+agent_type: gdi
+prompt: follow the instructions in
+docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main.
 
-"Spawn operator: open https://localhost:3000/workbench and report whether
+agent_type: operator
+prompt: open https://localhost:3000/workbench and report whether
 the avatar compact control renders without error in the console. Stop
-immediately on any login or paywall gate."
+immediately on any login or paywall gate.
 ```
 
 ## What Subagents Inherit from Foreman

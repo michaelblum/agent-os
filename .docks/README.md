@@ -158,11 +158,14 @@ or design note and reference it from the handoff.
   and reasoning effort instead of inheriting Foreman's coordination posture.
 
 For non-trivial GDI work, Foreman should prefer a Markdown work card under
-`docs/design/work-cards/` plus a concise subagent instruction:
+`docs/design/work-cards/` plus a concise `gdi` child prompt:
 
 ```text
-Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md
+agent_type: gdi
+prompt: follow the instructions in docs/design/work-cards/<card>.md
 ```
 
 Before broad fan-out, Foreman must smoke one spawned child and verify the
 visible role, voice label, model, and effort match the intended adapter.
+Writing `Spawn gdi:` in the child prompt is not role selection; the spawned
+agent must have `agent_type` set to `gdi`.

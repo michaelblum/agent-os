@@ -37,11 +37,12 @@ For the full flexible authoring shape, read
 `references/gdi-work-card-authoring.md`. Keep that detail in the work card, not
 in the subagent dispatch.
 
-When the card lives on a branch that is not `origin/main`, the subagent prompt
-should also mention the branch:
+When the card lives on a branch that is not `origin/main`, set `agent_type` to
+`gdi` and mention the branch in the child prompt:
 
 ```text
-Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md; start from <ref>
+agent_type: gdi
+prompt: follow the instructions in docs/design/work-cards/<card>.md; start from <ref>
 ```
 
 ## Branch/Base Rules
@@ -79,7 +80,8 @@ TCC-sensitive, put the TCC stop branch in the work card or append a plain
 suffix to the subagent prompt, for example:
 
 ```text
-Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed
+agent_type: gdi
+prompt: follow the instructions in docs/design/work-cards/<card>.md; if repo-mode TCC or input tap blocks live verification, run .docks/gdi/scripts/human-needed-tcc-reset and stop with human_needed
 ```
 
 The GDI helper is stop-only: it prints the human-needed blocker and does not

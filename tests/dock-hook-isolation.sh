@@ -208,6 +208,8 @@ for required in (
     "Design docs",
     "Explorer performs bounded read-only scans only",
     "Repo-root `.codex/config.toml` registers those dock-owned adapters",
+    "agent_type",
+    "If `agent_type` is omitted, Codex uses `default`",
     "not `default`",
 ):
     if required not in foreman_subagents:
@@ -229,9 +231,17 @@ for required in (
     "voice label",
     "model",
     "effort",
+    "agent_type",
 ):
     if required not in docks_readme and required not in foreman_subagents:
         raise SystemExit(f"FAIL: subagent smoke gate missing token {required!r}")
+
+for label, text in (
+    ("Foreman AGENTS", foreman_agents),
+    ("Foreman transfer skill", foreman_transfer_skill),
+):
+    if "Spawn gdi:" in text or "Spawn operator:" in text or "Spawn explorer:" in text:
+        raise SystemExit(f"FAIL: {label} still teaches prompt-text role selection")
 
 for required in (
     "Foreman selects the read-first set",
