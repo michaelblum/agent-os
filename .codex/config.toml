@@ -3,7 +3,6 @@ model_reasoning_effort = "medium"
 personality = "pragmatic"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
-notify = []
 
 [features]
 hooks = true
