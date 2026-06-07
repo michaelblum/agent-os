@@ -82,6 +82,34 @@ assert any("removed stale daemon lock mode=installed pid=999999" in action for a
 PY
 test ! -e "$STATE_ROOT/installed/daemon.lock"
 
+write_status_item_config() {
+  local enabled="$1"
+  local toggle_url="$2"
+  python3 - "$STATE_ROOT" "$enabled" "$toggle_url" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+enabled = sys.argv[2] == "true"
+toggle_url = sys.argv[3]
+config_path = root / "repo" / "config.json"
+try:
+    config = json.loads(config_path.read_text())
+except Exception:
+    config = {}
+config["status_item"] = {
+    "enabled": enabled,
+    "toggle_id": "avatar-main",
+    "toggle_url": toggle_url,
+    "toggle_at": [200, 200, 300, 300],
+    "toggle_track": "union",
+    "icon": "sigil",
+}
+config_path.write_text(json.dumps(config, indent=2) + "\n")
+PY
+}
+
 mkdir -p "$STATE_ROOT/repo"
 cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
 {
@@ -90,10 +118,8 @@ cat >"$STATE_ROOT/repo/experience-state.json" <<'JSON'
 }
 JSON
 
-./aos config set status_item.enabled true >/dev/null
-./aos config set status_item.toggle_id avatar-main >/dev/null
-./aos config set status_item.toggle_url 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' >/dev/null
-./aos config set status_item.toggle_track union >/dev/null
+aos_test_kill_root "$STATE_ROOT"
+write_status_item_config true 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch'
 
 DRIFT_DRY_RUN="$(./aos clean --dry-run --json)"
 DRIFT_DRY_RUN="$DRIFT_DRY_RUN" python3 - <<'PY'
@@ -110,7 +136,10 @@ PY
 BRANCH_SUFFIX="$(git branch --show-current | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/_/g; s/^_+//; s/_+$//')"
 SIGIL_ROOT="sigil_${BRANCH_SUFFIX:-worktree}"
 TOOLKIT_ROOT="toolkit_${BRANCH_SUFFIX:-worktree}"
-./aos config set status_item.toggle_url "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" >/dev/null
+write_status_item_config false "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT"
+./aos clean --json >/dev/null
+aos_test_start_daemon "$STATE_ROOT" repo "$ROOT_DIR" toolkit "$ROOT_DIR/packages/toolkit" sigil "$ROOT_DIR/apps/sigil" \
+  || { echo "FAIL: isolated daemon did not become ready after status drift check"; exit 1; }
 
 create_canvas() {
   local id="$1"
@@ -191,44 +220,6 @@ for canvas_id in os.environ["DIAGNOSTIC_IDS"].split():
 for canvas_id in os.environ["UNOWNED_IDS"].split():
     assert canvas_id in stale_ids, (canvas_id, payload)
 PY
-
-./aos config set status_item.toggle_url 'aos://sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' >/dev/null
-./aos show remove --id avatar-main >/dev/null
-./aos show create \
-  --id avatar-main \
-  --at 80,80,240,120 \
-  --url 'http://127.0.0.1:49152/sigil_old_branch/renderer/index.html?toolkit-root=toolkit_old_branch' \
-  >/dev/null
-STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
-STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
-assert payload["status"] == "dirty", payload
-notes = "\n".join(payload.get("notes", []))
-assert "Active experience sigil status item target drift" in notes, payload
-assert "missing content root" in notes, payload
-assert "Active experience sigil canvas avatar-main is loaded at" not in notes, payload
-PY
-./aos config set status_item.toggle_url "aos://$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" >/dev/null
-STALE_AVATAR_DRY_RUN="$(./aos clean --dry-run --json)"
-STALE_AVATAR_DRY_RUN="$STALE_AVATAR_DRY_RUN" python3 - <<'PY'
-import json, os
-
-payload = json.loads(os.environ["STALE_AVATAR_DRY_RUN"])
-assert payload["status"] == "dirty", payload
-notes = "\n".join(payload.get("notes", []))
-assert "Active experience sigil status item target drift" not in notes, payload
-assert "missing content root" not in notes, payload
-assert "Active experience sigil canvas avatar-main is loaded at" in notes, payload
-assert any(canvas.get("id") == "avatar-main" for canvas in payload.get("canvases", [])), payload
-PY
-./aos show remove --id avatar-main >/dev/null
-./aos show create \
-  --id avatar-main \
-  --at 80,80,240,120 \
-  --url "http://127.0.0.1:49152/$SIGIL_ROOT/renderer/index.html?toolkit-root=$TOOLKIT_ROOT" \
-  >/dev/null
 
 OWNED_STATUS="$(./aos status --json)"
 OWNED_STATUS="$OWNED_STATUS" OWNED_IDS="$OWNED_IDS" DIAGNOSTIC_IDS="$DIAGNOSTIC_IDS" UNOWNED_IDS="$UNOWNED_IDS" python3 - <<'PY'

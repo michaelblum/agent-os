@@ -142,7 +142,7 @@ function runContentStatus() {
 }
 
 function norm(value) {
-  return path.resolve(value);
+  return path.resolve(repoRoot, value);
 }
 
 function rootsLive(roots) {
@@ -312,7 +312,14 @@ function ensureContentRoots(roots, steps, allowStart) {
   if (removedRoots.length > 0) {
     steps.push({ id: 'content-root:reconcile', status: 'success', removed: removedRoots });
   }
+  const config = readRuntimeConfig();
+  const configuredRoots = config.content?.roots || {};
   for (const root of roots) {
+    const configuredPath = configuredRoots[root.key];
+    if (typeof configuredPath === 'string' && norm(configuredPath) === norm(root.path)) {
+      steps.push({ id: `content-root:${root.key}`, status: 'unchanged', path: configuredPath, canonical_path: root.path });
+      continue;
+    }
     requireSuccess(runAos(['config', 'set', `content.roots.${root.key}`, root.path]), `set content root ${root.key}`);
     steps.push({ id: `content-root:${root.key}`, status: 'success', path: root.path });
   }
