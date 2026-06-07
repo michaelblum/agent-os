@@ -716,6 +716,10 @@ current `state`, `provenance` for the current address, and `reacquisition`
 fingerprints for repair. They should not promote labels or coordinates into
 durable target identity.
 
+For the design split between action intents, execution results, optional
+gesture evidence, state patches, and Work Recording replay plans, see
+[`docs/design/aos-interaction-grammar-v0.md`](../design/aos-interaction-grammar-v0.md).
+
 ## `aos graph`
 
 Primary public verbs:

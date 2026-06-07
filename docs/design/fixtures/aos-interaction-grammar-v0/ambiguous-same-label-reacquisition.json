@@ -1,0 +1,207 @@
+{
+  "schema": "aos.interaction-grammar.fixture.v0",
+  "case": "ambiguous_same_label_reacquisition_stays_blocked",
+  "previous_target_descriptor": {
+    "ref": "open-command",
+    "state_id": "see_interaction_menu001",
+    "surface": "recent-projects-menu",
+    "role": "button",
+    "name": "Open",
+    "kind": "semantic_target",
+    "enabled": true,
+    "target": {
+      "target_id": "command:open",
+      "owner_namespace": {
+        "app_id": "sigil",
+        "canvas_id": "recent-projects-menu",
+        "surface_id": "recent-projects-menu",
+        "component_family": "toolkit.menu",
+        "structural_owner": [
+          "recent-projects"
+        ]
+      }
+    },
+    "state": {
+      "current": "true"
+    },
+    "actions": [
+      "click",
+      "open"
+    ],
+    "provenance": {
+      "canvas_id": "recent-projects-menu",
+      "do_target": "canvas:recent-projects-menu/open-command",
+      "center": {
+        "x": 80,
+        "y": 44
+      }
+    },
+    "reacquisition": {
+      "strategy": "owner-structural-fingerprint",
+      "machine_fingerprint": {
+        "role": "button",
+        "structural_path": [
+          "recent-projects",
+          "command"
+        ],
+        "capabilities": [
+          "click",
+          "open"
+        ]
+      },
+      "hint_fingerprint": {
+        "label_hints": [
+          "Open"
+        ]
+      }
+    }
+  },
+  "current_state_id": "see_interaction_menu010",
+  "candidates": [
+    {
+      "ref": "file-open-command",
+      "state_id": "see_interaction_menu010",
+      "surface": "file-menu",
+      "role": "button",
+      "name": "Open",
+      "kind": "semantic_target",
+      "enabled": true,
+      "target": {
+        "target_id": "command:open",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "file-menu-canvas",
+          "surface_id": "file-menu",
+          "component_family": "toolkit.menu",
+          "structural_owner": [
+            "menu-bar",
+            "file"
+          ]
+        }
+      },
+      "state": {
+        "current": "true"
+      },
+      "actions": [
+        "click",
+        "open"
+      ],
+      "provenance": {
+        "canvas_id": "file-menu-canvas",
+        "do_target": "canvas:file-menu-canvas/file-open-command"
+      },
+      "reacquisition": {
+        "machine_fingerprint": {
+          "role": "button",
+          "structural_path": [
+            "menu-bar",
+            "file",
+            "command"
+          ],
+          "capabilities": [
+            "click",
+            "open"
+          ]
+        },
+        "hint_fingerprint": {
+          "label_hints": [
+            "Open"
+          ]
+        }
+      }
+    },
+    {
+      "ref": "project-open-command",
+      "state_id": "see_interaction_menu010",
+      "surface": "project-card",
+      "role": "button",
+      "name": "Open",
+      "kind": "semantic_target",
+      "enabled": true,
+      "target": {
+        "target_id": "command:open",
+        "owner_namespace": {
+          "app_id": "sigil",
+          "canvas_id": "project-card-canvas",
+          "surface_id": "project-card",
+          "component_family": "toolkit.card",
+          "structural_owner": [
+            "recent-projects",
+            "project-42"
+          ]
+        }
+      },
+      "state": {
+        "current": "true"
+      },
+      "actions": [
+        "click",
+        "open"
+      ],
+      "provenance": {
+        "canvas_id": "project-card-canvas",
+        "do_target": "canvas:project-card-canvas/project-open-command"
+      },
+      "reacquisition": {
+        "machine_fingerprint": {
+          "role": "button",
+          "structural_path": [
+            "recent-projects",
+            "project-42",
+            "command"
+          ],
+          "capabilities": [
+            "click",
+            "open"
+          ]
+        },
+        "hint_fingerprint": {
+          "label_hints": [
+            "Open"
+          ]
+        }
+      }
+    }
+  ],
+  "resolution": {
+    "status": "ambiguous",
+    "reason": "same_label_without_unique_machine_fingerprint",
+    "action_blocked": true,
+    "selected_ref": null,
+    "candidate_refs": [
+      "file-open-command",
+      "project-open-command"
+    ],
+    "labels_used_as_hints_only": true
+  },
+  "recording_replay_plan": {
+    "id": "replay-plan:ambiguous-open",
+    "mode": "semantic_reacquire_then_do",
+    "steps": [
+      {
+        "kind": "re_perceive",
+        "surface": "sigil"
+      },
+      {
+        "kind": "resolve_descriptor",
+        "machine_facts_first": [
+          "target.owner_namespace",
+          "target.target_id",
+          "role",
+          "reacquisition.machine_fingerprint.structural_path",
+          "reacquisition.machine_fingerprint.capabilities"
+        ],
+        "hint_facts_only": [
+          "name",
+          "reacquisition.hint_fingerprint.label_hints"
+        ],
+        "ambiguous_result": "block"
+      },
+      {
+        "kind": "request_repair_patch",
+        "reason": "ambiguous"
+      }
+    ],
+    "raw_input_policy": "do_not_select_by_label_or_coordinates"
+  }
+}
