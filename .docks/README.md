@@ -114,8 +114,9 @@ Use precise transfer language so dock roles do not inherit the wrong workflow.
 - **Relay** is a GitHub-visible branch/report exchange.
 
 For Foreman successor handoffs, use the Foreman handoff wrapper or a temp file.
-Do not route normal GDI/Operator work through clipboard payloads; spawn the
-named subagent when the task is bounded enough for subagent execution.
+Do not route normal subagent-team work through clipboard payloads; spawn the
+named role-scoped subagent when the task is bounded enough for subagent
+execution.
 
 ```bash
 printf '%s' "$transfer_payload" | scripts/dock-handoff-clipboard --target-dock foreman
@@ -132,6 +133,7 @@ Choose durable storage by transfer kind:
 | Foreman successor handoff | Clipboard/chat or a temp file from `mktemp -t foreman-handoff-XXXXXX.md`; do not commit it. |
 | GDI work card | `docs/design/work-cards/<card>.md`, then spawn `gdi` with a concise instruction pointing at the card. |
 | Operator run | Spawn `operator` for bounded probes; use a durable work card only when the run needs a capture plan. |
+| Specialist subagent probe | Spawn the named subagent directly when the prompt is short and bounded; create a durable work card only when the role needs reusable instructions or evidence capture. |
 | Human-needed packet | Clipboard/chat unless the recovery path should become reusable SOP. |
 
 Do not store successor-Foreman handoffs under `docs/design/work-cards/`. If a
@@ -148,6 +150,9 @@ or design note and reference it from the handoff.
 - `operator/` defines the Operator subagent role. It performs bounded supervised human-in-the-loop evidence collection
   and locator review. It does not own implementation or git/GitHub scope unless
   the transfer explicitly assigns that responsibility.
+- `foreman/.codex/agents/` defines the current native subagent roster. The
+  roster is extensible; each subagent adapter must declare its own model and
+  reasoning effort instead of inheriting Foreman's coordination posture.
 
 For non-trivial GDI work, Foreman should prefer a Markdown work card under
 `docs/design/work-cards/` plus a concise subagent instruction:

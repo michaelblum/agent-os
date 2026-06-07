@@ -1,8 +1,8 @@
 # Foreman Subagents
 
-Foreman can spawn three Codex native subagents. This document describes the
-subagent-first architecture, what each subagent does, and when the legacy
-terminal/AFK path is still acceptable.
+Foreman leads an extensible Codex native subagent team. This document describes
+the subagent-first architecture, the currently registered team members, and when
+the legacy terminal/AFK path is still acceptable.
 
 ## Architecture: Two Layers
 
@@ -24,7 +24,7 @@ legacy terminal metadata. The `.codex/agents/` files are thin adapters: they set
 back to the canonical dock AGENTS.md. If the dock contract changes, only the
 dock AGENTS.md changes; the adapter TOML references it by path.
 
-## Subagent Catalog
+## Registered Subagent Catalog
 
 | Name | Model | Effort | Role |
 |---|---|---|---|
@@ -33,14 +33,19 @@ dock AGENTS.md changes; the adapter TOML references it by path.
 | `explorer` | gpt-5.4-mini | low | Read-only codebase scanner |
 
 Foreman itself runs at `gpt-5.5 / xhigh` (see `.docks/foreman/.codex/config.toml`).
+That expensive coordination posture is for Foreman only. Each subagent adapter
+must declare its own `model` and `model_reasoning_effort`; cheap reconnaissance,
+validation, and bounded execution roles should not inherit Foreman's model or
+effort by default.
 
 ## Routing Policy
 
 ### Use subagent spawning when:
 
 - The task has a bounded goal and a clear stop condition.
-- You need parallel reconnaissance without filling Foreman's context window
-  (spawn one or more `explorer` subagents).
+- You need parallel reconnaissance, validation, or bounded execution without
+  filling Foreman's context window or spending Foreman's model/effort on the
+  side task.
 - You need GDI to execute a deterministic work card and report verification.
 - You need Operator to run a bounded supervised probe or capture-plan check.
 
@@ -80,7 +85,10 @@ Per Codex runtime rules, subagents inherit the parent session's:
 - Runtime permission state (TCC, file access).
 
 Subagents do **not** inherit Foreman's model or reasoning effort. Each subagent
-uses its own `model` and `model_reasoning_effort` from its TOML file.
+uses its own `model` and `model_reasoning_effort` from its TOML file. Adding a
+subagent without those fields is a configuration bug because it risks wasting
+Foreman's xhigh coordination posture on work that should be cheaper and more
+bounded.
 
 ## Adding New Subagent Types
 

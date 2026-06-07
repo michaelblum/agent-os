@@ -1,8 +1,9 @@
 # Docked Session Contract
 
-Docks are repo-local session roots for durable agent roles. They are portable
-role/persona boundaries, not workflows, task types, skills, entry paths, or
-development workflow profiles.
+Docks are repo-local role contracts for durable agent responsibilities. They are
+portable role/persona boundaries, not workflows, task types, skills, entry
+paths, or development workflow profiles. A dock may be the normal session root
+or a spawnable native subagent role under a Foreman-led team.
 
 Work in `/Users/Michael/Code/agent-os` unless the task explicitly changes dock
 configuration, hooks, skills, or local instructions under `.docks/`.
@@ -141,9 +142,9 @@ then handle them with normal software-development judgment. Use external
 connector tools only when the user explicitly asks for them or when `gh` cannot
 represent the needed operation.
 
-Foreman is the default git/GitHub steward. GDI and Operator should perform
-GitHub operations only when the assigned goal or transfer explicitly includes
-that work.
+Foreman is the default git/GitHub steward. Subagents should perform GitHub
+operations only when the assigned goal or transfer explicitly includes that
+work.
 
 ## Issues, Work Cards, And Execution State
 
@@ -156,7 +157,8 @@ Keep artifact roles distinct:
 
 - GitHub issues explain durable threads, side missions, parked ideas, and why a
   lane exists.
-- Work cards define bounded GDI, Operator, correction, or validation rounds.
+- Work cards define bounded implementation, validation, correction, supervised,
+  or specialist subagent rounds.
 - Branches and commits are implementation checkpoints.
 - Session reports and synthesis notes are temporary map-making artifacts unless
   they become reusable project guidance.
@@ -207,8 +209,8 @@ the copied payload.
 
 `scripts/dock-handoff-clipboard --target-dock <dock>` is a compatibility
 wrapper for successor-Foreman handoffs and explicit legacy terminal/AFK
-transport. Do not use it as the normal GDI/Operator path; Foreman should spawn
-subagents for bounded GDI and Operator work.
+transport. Do not use it as the normal subagent-team path; Foreman should spawn
+role-scoped subagents for bounded work.
 
 ## Momentum After External Changes
 

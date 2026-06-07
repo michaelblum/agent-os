@@ -166,6 +166,8 @@ for role in ("gdi", "operator", "explorer"):
             raise SystemExit(f"FAIL: {role} subagent TOML missing {required!r}")
     if "prompt = " in agent_text:
         raise SystemExit(f"FAIL: {role} subagent TOML reintroduced deprecated prompt field")
+    if 'model = "gpt-5.5"' in agent_text and 'model_reasoning_effort = "xhigh"' in agent_text:
+        raise SystemExit(f"FAIL: {role} subagent TOML inherits Foreman's expensive model/effort posture")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 foreman_transfer_skill = (root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md").read_text()

@@ -23,14 +23,17 @@ publish externally, or perform a destructive operation.
 
 ### Agentic Relay (`agentic_relay`)
 
-Use this when a local GDI implementation agent works in tandem with a designated
-relay authority that owns review and merge. The relay authority performs the
-Foreman merge/review function, but it may be running remotely with GitHub access
-and no local checkout, local hooks, `./aos`, or local dirty-state visibility.
+Use this when local GDI implementation, whether a native subagent or an
+explicitly assigned terminal relay, works in tandem with a designated relay
+authority that owns review and merge. The relay authority performs the Foreman
+merge/review function, but it may be running remotely with GitHub access and no
+local checkout, local hooks, `./aos`, or local dirty-state visibility.
 
-- GDI creates a `gdi/<work-card-slug>` branch from `main` before starting work.
-- GDI commits verified work to that branch and pushes it to origin at
-  completion.
+- The assigned GDI executor creates a `gdi/<work-card-slug>` branch from `main`
+  before starting work.
+- The assigned GDI executor commits verified work to that branch and pushes it
+  to origin at completion when the profile and dispatch explicitly authorize
+  publication.
 - GDI reports the branch name, HEAD SHA, verification, and local-only state in
   its completion report. GDI does not merge to main.
 - The pushed branch is the remote-visible relay artifact. The relay authority
@@ -47,8 +50,8 @@ and no local checkout, local hooks, `./aos`, or local dirty-state visibility.
 
 ### Local Relay (`local_relay`)
 
-Use this when Foreman, the human, and GDI are sharing one local checkout and the
-branch or stash is the local safety boundary.
+Use this when Foreman, the human, and the dock team are sharing one local
+checkout and the branch or stash is the local safety boundary.
 
 - Work only in `/Users/Michael/Code/agent-os`; do not create linked git
   worktrees for this workflow.
@@ -59,6 +62,15 @@ branch or stash is the local safety boundary.
   is explicitly assigned.
 - Foreman or the human reviews local branch state and verification before
   deciding whether to merge, publish to GitHub, or ask for a correction.
+- After accepting a slice, Foreman keeps the loop moving by taking the next
+  reversible local step: run missing evidence, commit a scoped checkpoint,
+  update the relevant ledger, or route the next bounded subagent task.
+- When the next step crosses a non-local gate, Foreman stops with an actionable
+  decision packet instead of a vague prompt. The packet names the blocked action
+  (`push`, `open PR`, `merge`, `delete branch`, credential change, permission
+  change, destructive cleanup, or product judgment), the recommended default,
+  the exact approval phrase or human action, the command path Foreman will run
+  after approval, and the safe alternative.
 - At practical review points, Foreman may suggest publishing a small focused PR
   for a non-local reviewer when outsider review would reduce risk. This remains
   an explicit human-approved option, not automatic publication, and the PR
@@ -102,15 +114,16 @@ Use this for projects with multiple environments or formal release cycles.
 
 Prefer `agentic_relay` when:
 
-- a local GDI agent does bounded implementation work and a remote partner
-  (human or agent) owns the merge gate through GitHub-visible branch state;
+- local GDI does bounded implementation work and a remote partner (human or
+  agent) owns the merge gate through GitHub-visible branch state;
 - you want rollback/fix-forward safety without mandatory pull requests;
 - the remote partner can evaluate and merge via GitHub API without a local
   checkout, and can request local probes when local-only evidence matters.
 
 Prefer `local_relay` when:
 
-- Foreman, the human, and GDI need a nimble local loop in one checkout;
+- Foreman, the human, and the dock team need a nimble local loop in one
+  checkout;
 - branches and stashes are enough isolation and GitHub publication should be an
   explicit later decision;
 - outsider review may occasionally be useful, but should be offered as a

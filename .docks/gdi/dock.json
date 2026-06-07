@@ -43,6 +43,12 @@
   "handoff": {
     "requires_goal_prefix": false
   },
+  "metadata": {
+    "execution_topology": "native_subagent",
+    "normal_launch_root": false,
+    "spawned_by": "foreman",
+    "legacy_terminal_transport": true
+  },
   "voice": {
     "gender": "female",
     "voice_slot": 2

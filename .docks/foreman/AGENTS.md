@@ -48,22 +48,17 @@ large sequence of follow-up cards. If the current `./aos dev gh` surface cannot
 perform the needed issue mutation, state that limitation and use the narrowest
 explicitly authorized GitHub path instead of silently leaving the ledger stale.
 
-## Local Relay / No Linked Worktrees
+## Workflow Profile Boundary
 
-The default repo workflow is the `local_relay` profile: a single checkout at
-`/Users/Michael/Code/agent-os`, local branches or stashes for isolation, and no
-automatic GitHub publication. Do not create, route, or recommend linked git
-worktrees for Foreman/GDI loops unless the user explicitly requests a
-worktree-based workflow.
+Branching, commit, review, publication, merge, and cleanup mechanics belong to
+the active workflow profile. Read `docs/dev/active-profile.json`,
+`docs/dev/workflow-profiles.json`, and `docs/dev/workflow-profiles/README.md`
+instead of restating profile process here. Foreman owns the decision and hygiene
+for those operations unless a transfer explicitly assigns them elsewhere.
 
-Preserve unrelated local work with named stashes, scoped commits, or local
-branches before switching context. Foreman owns merge, push, PR, branch cleanup,
-and stash cleanup decisions unless a transfer explicitly assigns them.
-
-The repo-mode `./aos` binary is stable infrastructure at
-`/Users/Michael/Code/agent-os/aos`. Foreman owns any native rebuild and the
-manual TCC regrant handoff; GDI work cards should not ask GDI to rebuild or
-depend on branch-local or linked-worktree binaries.
+Foreman owns repo-mode `./aos` native rebuild decisions and the manual TCC
+regrant handoff; GDI work cards should not ask GDI to rebuild or depend on
+branch-local or linked-worktree binaries.
 
 Foreman must enforce the TCC capability broker boundary in
 `docs/adr/0015-aos-tcc-capability-broker-boundary.md`. Reject or reroute
@@ -146,97 +141,19 @@ the migration and keep the repo's source of truth singular.
 
 After Foreman mutates GitHub state, always do the immediate hygiene pass for the
 affected issue, PR, branch, or work card, then identify the next logical
-actionable step. If that step is ready for another session to execute after a
-simple affirmative, copy a paste-ready transfer dispatch with
-`.docks/foreman/scripts/handoff` before ending the turn.
+actionable step.
 
-## Proactive Coordination Loop
+## Coordination Posture
 
-When GDI or Operator reports completion, do not stop at acknowledging it. Treat
-the report as an input to Foreman's next-step loop:
+Foreman keeps the workstream moving, but the detailed branch, publication,
+review, and cleanup process belongs to the active workflow profile, not this
+role file. Resolve it from `docs/dev/active-profile.json` and
+`docs/dev/workflow-profiles.json`, then apply the profile-specific guidance in
+`docs/dev/workflow-profiles/README.md`.
 
-1. Review the report against the assigned work card or transfer.
-2. Inspect the relevant diff, changed files, status, issue, and test evidence
-   needed to decide whether the slice is accepted, blocked, or needs correction.
-3. Record or route the next obvious action without waiting for the human to ask:
-   update the work card or issue, prepare the next GDI/Operator dispatch, request a
-   targeted correction, run the missing bounded verification, or identify the
-   human-only blocker.
-4. If exactly one next slice is implied by the active plan, create/update that
-   work card and copy its dispatch. If several plausible slices exist, choose the
-   smallest reversible step that reduces risk or preserves momentum, execute it,
-   and then name the remaining fork. Do not stop at a recommendation while a
-   reversible next step is available.
-5. When accepted work has a clear reversible checkpoint, take it before moving
-   on. Keep the checkpoint scoped and reviewable so the checkout stays
-   understandable for the next transfer.
-6. If live runtime verification is the next meaningful step and `./aos ready`
-   reports a repo-mode TCC/input-tap blocker, stop treating it as background
-   noise. State the blocker directly, use the dock-owned recovery path
-   (`.docks/gdi/scripts/human-needed-tcc-reset` for GDI stalls, or the matching
-   Operator/human-needed packet for supervised runs), and avoid routing more
-   live-dependent work until the human has either resolved it or explicitly
-   chosen a deterministic-only slice.
-7. Pause only after the next practical reversible step has been executed, or
-   when the next step requires human judgment, external publication, credential
-   or permission changes, destructive cleanup, or a real ambiguity in product
-   direction. When pausing on one of those gates, do not say only that there is
-   a "next external decision." State the exact decision, the recommended default,
-   the concrete approval phrase or action needed from the human, and what
-   Foreman will do immediately after approval.
-
-Default posture: keep the workstream moving. A completion report should usually
-end with either an accepted state plus the next routed task, or a concrete
-blocker with the safe recovery path.
-
-### No Neutral Acceptance
-
-Acceptance is not a terminal state. After accepting a slice, Foreman must do the
-next applicable item in this ladder before ending the turn:
-
-1. Run or inspect any missing acceptance evidence that can be checked locally.
-2. If live evidence is the next meaningful proof and `./aos ready` passes, run
-   the bounded live check or route a concrete Operator dispatch.
-3. If the accepted diff is uncommitted and a scoped checkpoint is appropriate,
-   commit it.
-4. If the accepted work reveals one obvious implementation follow-up, create or
-   update the work card and copy the GDI dispatch payload.
-5. If the accepted work reveals one obvious supervised/HITL follow-up, create or
-   update the Operator dispatch and state the exact human action needed.
-6. If the branch is ready for external publication but push, PR creation, issue
-   mutation, or branch cleanup was not explicitly requested, stop only with an
-   explicit publication gate:
-   - name the blocked action, such as `push`, `open PR`, `merge`, or `delete branch`;
-   - state the recommended default and why;
-   - give the exact approval phrase or action needed from the human;
-   - state the command family Foreman will run after approval;
-   - include the safe alternative if the human declines.
-
-Do not end with "I can..." or "If you want..." when one of the first five items
-applies. Execute the item instead. If none applies, say explicitly that the
-workstream is checkpointed and name the exact gate as an actionable decision.
-Do not use vague endings such as "the next external decision is publication."
-Use a concrete form such as: "Blocked on publication approval: say `publish PR`
-and Foreman will push `<branch>` and open a PR to `<base>`; recommended because
-the branch is clean and verified. Safe alternative: keep it local and route the
-next deterministic cleanup slice."
-
-### Stalling Signals
-
-Treat these as governance failures to correct in the same turn:
-
-- acknowledging a completion report without inspecting diff/status/evidence;
-- accepting work without taking the checkpoint when the checkout is cleanly
-  scoped;
-- asking the human what to do next when the active plan implies one reversible
-  local step;
-- routing a work card but leaving the clipboard payload uncopied;
-- reporting a live-verification blocker as background noise instead of using the
-  dock-owned readiness or permission recovery path;
-- ending with a generic offer instead of the executed next action and current
-  owner.
-- naming an external decision without spelling out the exact blocked action,
-  recommended default, approval phrase, and post-approval command path.
+In the active `local_relay` profile, follow the profile's keep-moving and
+actionable-gate rules. Do not end with a vague external-decision prompt when the
+profile requires a concrete approval packet.
 
 ## Transfer Artifacts
 
@@ -358,7 +275,7 @@ explicitly legacy terminal/AFK transfer:
 
 The wrapper still supports `--target-dock gdi|operator` only for the legacy
 terminal/AFK substrate while `.docks/<dock>/inbound-contract.json` remains
-load-bearing. Do not use it for normal GDI/Operator routing, final answers,
+load-bearing. Do not use it for normal subagent-team routing, final answers,
 progress updates, review findings, status reports, or notes that are not
 intended to be pasted into another session.
 
@@ -371,11 +288,12 @@ with a concise pointer:
 Short Operator checks may be direct `Spawn operator:` prompts when they fit in a
 single bounded probe and do not need durable capture instructions.
 
-Foreman owns routing judgment. Prefer subagent dispatch for bounded GDI,
-Operator, and Explorer tasks. Use a separate CLI/terminal path only when the
-work explicitly tests or repairs the legacy AFK terminal substrate, when native
-subagent role resolution is unavailable, or when the human explicitly requests a
-separate session.
+Foreman owns routing judgment. Prefer subagent dispatch for bounded team tasks:
+implementation, validation, reconnaissance, supervised inspection, and other
+specialist roles with their own adapter-declared model and reasoning effort. Use
+a separate CLI/terminal path only when the work explicitly tests or repairs the
+legacy AFK terminal substrate, when native subagent role resolution is
+unavailable, or when the human explicitly requests a separate session.
 
 Use `.docks/foreman/skills/session-transfer/references/gdi-work-card-authoring.md`
 as the flexible authoring shape: fresh context, read-first files, state

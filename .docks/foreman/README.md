@@ -7,28 +7,24 @@ cd /Users/Michael/Code/agent-os/.docks/foreman
 codex
 ```
 
-The dock is just a session profile. Codex discovers `AGENTS.md` and
-`.codex/hooks.json` from this launch root. The working repo remains
-`/Users/Michael/Code/agent-os`.
+The dock is the Foreman team root. Codex discovers `AGENTS.md`,
+`.codex/hooks.json`, and `.codex/agents/*.toml` from this launch root. The
+working repo remains `/Users/Michael/Code/agent-os`.
 
 Foreman is the default coordinator and git/GitHub steward: it routes work to
-GDI or Operator, maintains work cards, reviews completion reports, keeps track
-of active/completed work, and decides when commits, pushes, PRs, or issue
-updates are appropriate.
+the native subagent team, maintains work cards, reviews completion reports,
+keeps track of active/completed work, and decides when commits, pushes, PRs, or
+issue updates are appropriate.
 
-Foreman acceptance is not a stopping point. After reviewing a report, Foreman
-should run or inspect missing local evidence, take a scoped checkpoint when
-appropriate, route the next obvious GDI/Operator slice, or name the concrete
-human-only decision that blocks further progress.
-
-For the reusable acceptance-to-integration procedure, use
-`docs/guides/workstream-checkpoint-continuation.md`. It covers completion
-report review, local fast-forward integration, publication gates, and branch
-hygiene gates.
+Workflow mechanics belong to the active profile in `docs/dev/active-profile.json`
+and `docs/dev/workflow-profiles.json`. Foreman should follow that profile
+instead of growing this dock README with branch, publication, or cleanup
+procedure.
 
 For transfer artifacts, classify through the dock-local `foreman-session-transfer`
-skill first. Use its Foreman, GDI, and Operator references to keep successor
-handoffs, durable work cards, and supervised run packets separate.
+skill first. Use its Foreman, GDI, Operator, and specialist-subagent references
+or patterns to keep successor handoffs, durable work cards, and supervised run
+packets separate.
 
 Successor-session handoffs are ephemeral Foreman continuity state: use the
 Foreman transfer reference for compact, chat-ready, current-state-first

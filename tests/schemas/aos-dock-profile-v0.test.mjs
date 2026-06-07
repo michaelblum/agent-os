@@ -167,6 +167,23 @@ test('role envelopes preserve the intended coordination boundaries', async () =>
   assert.ok(!profiles.get('operator').allowed_capability_classes.includes('external_write'));
   assert.ok(!profiles.get('operator').allowed_capability_classes.includes('host_write'));
 
+  assert.equal(profiles.get('foreman').metadata.execution_topology, 'team_root');
+  assert.equal(profiles.get('foreman').metadata.normal_launch_root, true);
+  assert.equal(profiles.get('foreman').metadata.subagent_team.extensible, true);
+  assert.deepEqual(profiles.get('foreman').metadata.subagent_team.registered_agents, ['gdi', 'operator', 'explorer']);
+  assert.equal(
+    profiles.get('foreman').metadata.subagent_team.model_policy,
+    'role_adapter_declares_model_and_effort',
+  );
+  assert.equal(profiles.get('foreman').metadata.subagent_team.inherits_foreman_model, false);
+
+  for (const profileName of ['gdi', 'operator']) {
+    assert.equal(profiles.get(profileName).metadata.execution_topology, 'native_subagent');
+    assert.equal(profiles.get(profileName).metadata.normal_launch_root, false);
+    assert.equal(profiles.get(profileName).metadata.spawned_by, 'foreman');
+    assert.equal(profiles.get(profileName).metadata.legacy_terminal_transport, true);
+  }
+
   assert.ok(profiles.get('foreman').allowed_capabilities.includes('dev.test.schema_node'));
   assert.ok(profiles.get('gdi').allowed_capabilities.includes('dev.test.schema_node'));
   assert.ok(!profiles.get('operator').allowed_capabilities.includes('dev.test.schema_node'));

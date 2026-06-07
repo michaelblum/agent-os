@@ -35,9 +35,9 @@ Name the transfer kind before writing:
 - **Human-needed packet:** a stall transfer whose next actor is the human.
   State the exact blocker and the bounded recovery command path.
 
-For GDI and Operator dispatches, prefer native subagent spawning. Use clipboard
-payloads only for successor-Foreman handoffs or explicitly legacy terminal/AFK
-transport.
+For GDI, Operator, Explorer, and other specialist subagent dispatches, prefer
+native subagent spawning. Use clipboard payloads only for successor-Foreman
+handoffs or explicitly legacy terminal/AFK transport.
 
 ## Terms
 
@@ -90,6 +90,7 @@ Use path and storage as part of the contract:
 | Successor handoff | Temporary `mktemp -t foreman-handoff-XXXXXX.md` file only, unless the user requests chat-only. Do not commit it. | Full compact handoff via `.docks/foreman/scripts/handoff --target-dock foreman` when another session should start from it. |
 | GDI round | `docs/design/work-cards/<card>.md` for non-trivial implementation or validation contracts. | Thin subagent prompt: `Spawn gdi: follow the instructions in docs/design/work-cards/<card>.md`. |
 | Operator run | `docs/design/work-cards/operator-<card>.md` for non-trivial or long supervised run contracts. Use direct prompts only for short self-contained checks. | Thin subagent prompt: `Spawn operator: follow the instructions in docs/design/work-cards/operator-<card>.md`. |
+| Specialist subagent probe | Usually none; use a durable artifact only when the role needs reusable instructions or evidence capture. | Direct bounded prompt, e.g. `Spawn explorer: find all references to <symbol> and report locations only`. |
 | Relay packet | GitHub-visible issue, PR, branch report, or explicitly named durable artifact. | The minimal pointer needed to start the relay. |
 | Human-needed packet | Usually chat and clipboard only. Durable docs only when the recovery path becomes reusable SOP. | Exact blocker and bounded recovery command path. |
 

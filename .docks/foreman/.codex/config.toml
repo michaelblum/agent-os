@@ -18,11 +18,11 @@ terminal_title = ["current-dir", "activity", "git-branch", "model"]
 # Paths are relative to THIS config file's directory (.docks/foreman/.codex/).
 # Per docs: "relative paths resolve from the config file that declares the role."
 #
-# This is the normal Foreman-to-GDI/Operator/Explorer routing path. The old
-# standalone GDI/Operator CLI bootstrap is retired. Use a separate terminal path
-# only when explicitly testing or repairing the legacy AFK terminal substrate,
-# when native subagent role resolution is unavailable, or when the human asks
-# for a separate supervised session.
+# This is the normal Foreman-to-subagent-team routing path. The registered team
+# starts with GDI, Operator, and Explorer, but the roster is intentionally
+# extensible. Every agent adapter must declare its own model and
+# model_reasoning_effort so cheap read-only or validation work does not inherit
+# Foreman's gpt-5.5/xhigh coordination posture by default.
 
 [agents.gdi]
 config_file = "agents/gdi.toml"

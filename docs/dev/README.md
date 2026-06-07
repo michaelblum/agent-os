@@ -9,9 +9,10 @@ encode app-specific playbooks here.
 workflow profiles: branch, commit, review, PR, merge-authority, and release
 postures for repo work without treating that posture as an immutable AOS
 primitive. `local_relay` is the single-checkout local branch/stash procedure for
-tight Foreman-human-GDI loops with no linked git worktrees or automatic pushes.
-`agentic_relay` is the GitHub-branch relay procedure for local GDI
-implementation reviewed by a designated Foreman-compatible relay authority; it
+tight Foreman-human-dock-team loops with no linked git worktrees or automatic
+pushes. `agentic_relay` is the GitHub-branch relay procedure for local GDI
+implementation, whether run as a native subagent or explicitly assigned
+terminal relay, reviewed by a designated Foreman-compatible relay authority; it
 does not create a separate product role.
 `active-profile.json` is the single repo-local selector for the active profile.
 For the current cleanup narrative that led from real-input/live-drag testing to
