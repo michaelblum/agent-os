@@ -143,10 +143,25 @@ packages/toolkit/components/spatial-telemetry/launch.sh
 ./aos show wait --id spatial-telemetry --manifest spatial-telemetry --timeout 10s --json
 
 apps/sigil/sigilctl-seed.sh --mode repo
-./aos show remove --id avatar-main 2>/dev/null || true
-./aos show create --id avatar-main --url 'aos://sigil/renderer/index.html?aos-surface-transport-probe=1' --track union
+./aos show get --id avatar-main > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-before.json
+if python3 - /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-before.json <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1]))
+raise SystemExit(0 if payload.get("exists") else 1)
+PY
+then
+  true
+else
+  ./aos show create --id avatar-main --url 'aos://sigil/renderer/index.html?toolkit-root=toolkit' --track union
+  printf 'created\n' > /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-created-by-run.txt
+fi
 ./aos show wait --id avatar-main --timeout 12s --json
 ```
+
+Do not remove or reload an existing `avatar-main` just to enable the probe. The
+Sigil renderer exposes `window.__sigilDebug.surfaceTransportProbe.enable()`
+without requiring the URL flag; preserving the status-item-owned canvas avoids
+the remove/recreate lifecycle path that blocked the prior rerun.
 
 Enable and reset the Sigil transport probe before interaction:
 
@@ -296,7 +311,9 @@ evidence:
 ```bash
 ./aos show remove --id spatial-telemetry 2>/dev/null || true
 ./aos show remove --id surface-inspector 2>/dev/null || true
-./aos show remove --id avatar-main 2>/dev/null || true
+if [[ -f /tmp/aos-input-event-v2-live-proof-v0-rerun/avatar-main-created-by-run.txt ]]; then
+  ./aos show remove --id avatar-main 2>/dev/null || true
+fi
 ./aos show list --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/show-list-final.json
 ```
 
@@ -312,6 +329,8 @@ Report:
   mutated;
 - whether Sigil status-item drift was present and whether `./aos experience
   activate sigil` was needed or successful;
+- whether `avatar-main` was reused or created, and confirmation that an existing
+  status-item-owned `avatar-main` was not removed/reloaded for probe setup;
 - surfaces launched and commands used;
 - raw `input_event` result for Surface Inspector, Spatial Telemetry, and Sigil;
 - routed `input_region.event` result for panel chrome/stage affordance and Sigil;
