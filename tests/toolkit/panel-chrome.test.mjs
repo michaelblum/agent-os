@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import {
   clampFrameToWorkArea,
   chipFrameFromWindow,
+  createAnchoredPanelPlacementPlan,
   createDragDropController,
   createPlacementPlan,
   createDragController,
@@ -370,6 +371,75 @@ test('createPlacementPlan reports requested policy-adjusted final and overflow p
     anchorFrame: [1320, 80, 60, 40],
     gap: 8,
   }).final_settled_frame, [892, 80, 420, 260]);
+});
+
+test('anchored placement chooses left when right side would leave the anchor display', () => {
+  const plan = createAnchoredPanelPlacementPlan({
+    anchorRect: { x: 1450, y: 420, w: 40, h: 40 },
+    panelSize: { w: 292, h: 448 },
+    displays: panelDisplays,
+    preferredPlacements: ['right', 'left'],
+    gap: 12,
+    viewportOverflowPolicy: 'flip-shift',
+    cause: 'test.anchor',
+  });
+
+  assert.equal(plan.chosen_placement, 'left');
+  assert.equal(plan.anchor_display_id, 'main');
+  assert.deepEqual(plan.anchor_frame, [1450, 420, 40, 40]);
+  assert.deepEqual(plan.final_settled_frame, [1146, 216, 292, 448]);
+  assert.equal(plan.viewport_overflow_policy, 'flip-shift');
+});
+
+test('anchored placement chooses right when left edge anchor has room on that display', () => {
+  const plan = createAnchoredPanelPlacementPlan({
+    anchorRect: { x: 20, y: 420, w: 40, h: 40 },
+    panelSize: [292, 448],
+    displays: panelDisplays,
+    preferredPlacements: ['right', 'left'],
+    gap: 12,
+  });
+
+  assert.equal(plan.chosen_placement, 'right');
+  assert.equal(plan.anchor_display_id, 'main');
+  assert.deepEqual(plan.final_settled_frame, [72, 216, 292, 448]);
+});
+
+test('anchored placement near stacked-display seam stays inside anchor display work area', () => {
+  const plan = createAnchoredPanelPlacementPlan({
+    anchorRect: { x: 980, y: 930, w: 80, h: 60 },
+    panelSize: { w: 332, h: 540 },
+    displays: stackedDisplays,
+    preferredPlacements: ['right', 'left'],
+    gap: 18,
+  });
+
+  assert.equal(plan.anchor_display_id, 'main-top');
+  assert.equal(plan.chosen_placement, 'right');
+  assert.deepEqual(plan.final_settled_frame, [1078, 442, 332, 540]);
+});
+
+test('anchored placement shifts oversized vertical candidates inside anchor display viewport', () => {
+  const plan = createAnchoredPanelPlacementPlan({
+    anchorRect: { x: 500, y: 60, w: 80, h: 60 },
+    panelSize: { w: 332, h: 540 },
+    displays: panelDisplays,
+    preferredPlacements: ['right', 'left'],
+    gap: 18,
+  });
+
+  assert.equal(plan.chosen_placement, 'right');
+  assert.deepEqual(plan.final_settled_frame, [598, 33, 332, 540]);
+  assert.deepEqual(Object.keys(plan).sort(), [
+    'anchor_display_id',
+    'anchor_frame',
+    'cause',
+    'chosen_placement',
+    'final_settled_frame',
+    'policy_adjusted_frame',
+    'requested_frame',
+    'viewport_overflow_policy',
+  ].sort());
 });
 
 test('chip frame helper uses top-left display inference when display geometry is available', () => {

@@ -348,7 +348,10 @@ test('panel avatar controls treats child panel canvas input as inside the surfac
         avatarBase: 153,
       },
       liveJs: {
-        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        displays: [
+          { id: 'main', visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } },
+          { id: 'extended', visibleBounds: { x: 1200, y: 0, w: 1600, h: 900 } },
+        ],
         avatarPos: { x: 300, y: 300 },
       },
       projectPoint: (point) => point,
@@ -442,7 +445,10 @@ test('panel avatar controls route detached panel changes through the compact ses
     const controls = createSigilAvatarControls({
       state,
       liveJs: {
-        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        displays: [
+          { id: 'main', bounds: { x: 0, y: 0, w: 1200, h: 900 }, visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } },
+          { id: 'extended', bounds: { x: 1200, y: 0, w: 1600, h: 900 }, visibleBounds: { x: 1200, y: 0, w: 1600, h: 900 } },
+        ],
         avatarPos: { x: 300, y: 300 },
       },
       projectPoint: (point) => point,
@@ -1184,7 +1190,10 @@ test('embedded controls (panelUrl:null) activate embedded path and never dispatc
     const controls = createSigilAvatarControls({
       state,
       liveJs: {
-        displays: [{ visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } }],
+        displays: [
+          { id: 'main', bounds: { x: 0, y: 0, w: 1200, h: 900 }, visibleBounds: { x: 0, y: 0, w: 1200, h: 900 } },
+          { id: 'extended', bounds: { x: 1200, y: 0, w: 1600, h: 900 }, visibleBounds: { x: 1200, y: 0, w: 1600, h: 900 } },
+        ],
         avatarPos: { x: 300, y: 300 },
       },
       projectPoint: (point) => point,
@@ -1206,6 +1215,11 @@ test('embedded controls (panelUrl:null) activate embedded path and never dispatc
     controls.openAt({ x: 300, y: 300 })
     assert.equal(controls.isOpen(), true)
     assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.toggle'), false)
+    assert.deepEqual(controls.bounds(), { x: 358, y: 30, w: 332, h: 540 })
+    assert.equal(overlaps(controls.bounds(), { x: 260, y: 260, w: 80, h: 80 }), false)
+    assert.equal(controls.snapshot().placementPlan.chosen_placement, 'right')
+    assert.equal(controls.snapshot().placementPlan.anchor_display_id, 'main')
+    assert.deepEqual(controls.snapshot().placementPlan.final_settled_frame, [358, 30, 332, 540])
 
     await waitUntil(
       () => childWithClass(avatarControlsAnchor(document), 'aos-panel'),
@@ -1288,6 +1302,84 @@ test('embedded controls (panelUrl:null) activate embedded path and never dispatc
       entry.action === 'canvas.resume'
     )
     assert.deepEqual(panelOrCanvasActions, [])
+  } finally {
+    globalThis.document = previousDocument
+    globalThis.window = previousWindow
+    globalThis.Event = previousEvent
+  }
+})
+
+test('embedded controls initial placement uses toolkit panel dimensions on stacked display seams', async () => {
+  const previousDocument = globalThis.document
+  const previousWindow = globalThis.window
+  const previousEvent = globalThis.Event
+  const document = createPatchedDocument()
+  globalThis.document = document
+  globalThis.window = { innerHeight: 982 }
+  globalThis.Event = document.defaultView.Event
+
+  try {
+    const state = {
+      avatar: createDefaultAvatarState(),
+      currentGeometryType: 12,
+      currentType: 12,
+      avatarBase: 153,
+    }
+    const dispatchedActions = []
+    const controls = createSigilAvatarControls({
+      state,
+      liveJs: {
+        displays: [
+          { id: '1', bounds: { x: 207, y: 0, w: 1512, h: 982 }, visibleBounds: { x: 207, y: 0, w: 1512, h: 982 } },
+          { id: '2', bounds: { x: 0, y: 982, w: 1920, h: 1080 }, visibleBounds: { x: 0, y: 982, w: 1920, h: 1080 } },
+        ],
+        avatarPos: { x: 1467, y: 818 },
+      },
+      projectPoint: (point) => point,
+      updatePrimaryAppearance() {},
+      onAppearanceChange() {},
+      actionDispatcher(action, payload = {}) {
+        dispatchedActions.push({ action, payload })
+        return Promise.resolve({ status: 'ok' })
+      },
+      panelId: 'sigil-avatar-controls-avatar-main',
+      panelUrl: null,
+      allowTestAnchorFallback: true,
+    })
+
+    controls.openAt({ x: 1467, y: 818 })
+    assert.equal(controls.usesExternalPanel(), false)
+    assert.equal(dispatchedActions.some((entry) => entry.action === 'panel.toggle'), false)
+
+    const expectedBounds = { x: 1077, y: 442, w: 332, h: 540 }
+    assert.deepEqual(controls.bounds(), expectedBounds)
+    assert.deepEqual(controls.snapshot().bounds, expectedBounds)
+    assert.deepEqual(controls.interactiveBounds(), expectedBounds)
+    assert.equal(controls.snapshot().placementPlan.chosen_placement, 'left')
+    assert.equal(controls.snapshot().placementPlan.anchor_display_id, '1')
+    assert.deepEqual(controls.snapshot().placementPlan.anchor_frame, [1427, 778, 80, 80])
+    assert.deepEqual(controls.snapshot().placementPlan.final_settled_frame, [1077, 442, 332, 540])
+    assert.equal(expectedBounds.y + expectedBounds.h, 982)
+
+    await waitUntil(
+      () => childWithClass(avatarControlsAnchor(document), 'aos-panel'),
+      'embedded controls must mount toolkit panel chrome'
+    )
+    const anchor = avatarControlsAnchor(document)
+    const panel = childWithClass(anchor, 'aos-panel')
+    setRect(anchor, {
+      left: expectedBounds.x,
+      top: expectedBounds.y,
+      width: expectedBounds.w,
+      height: expectedBounds.h,
+    })
+    setRect(panel, {
+      left: expectedBounds.x,
+      top: expectedBounds.y,
+      width: expectedBounds.w,
+      height: expectedBounds.h,
+    })
+    assert.deepEqual(controls.snapshot().bounds, controls.interactiveBounds())
   } finally {
     globalThis.document = previousDocument
     globalThis.window = previousWindow
