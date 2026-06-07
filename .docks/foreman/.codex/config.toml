@@ -15,6 +15,9 @@ terminal_title = ["current-dir", "activity", "git-branch", "model"]
 # Foreman invokes these by name in natural language ("spawn gdi", "spawn explorer").
 # The Codex runtime resolves the name to the matching agents/*.toml file.
 #
+# Paths are relative to THIS config file's directory (.docks/foreman/.codex/).
+# Per docs: "relative paths resolve from the config file that declares the role."
+#
 # These are NOT replacements for separate GDI/Operator CLI sessions.
 # Use subagent spawning for:
 #   - small bounded tasks where a full CLI session is more overhead than value;
@@ -26,6 +29,6 @@ terminal_title = ["current-dir", "activity", "git-branch", "model"]
 #   - any work that benefits from /goal iteration or /review in GDI.
 
 [agents]
-gdi      = ".docks/foreman/.codex/agents/gdi.toml"
-operator = ".docks/foreman/.codex/agents/operator.toml"
-explorer = ".docks/foreman/.codex/agents/explorer.toml"
+gdi      = "agents/gdi.toml"
+operator = "agents/operator.toml"
+explorer = "agents/explorer.toml"
