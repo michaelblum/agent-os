@@ -7,3 +7,25 @@ goals = false
 [tui]
 status_line = ["current-dir", "git-branch", "context-remaining", "model-with-reasoning"]
 terminal_title = ["current-dir", "activity", "git-branch", "model"]
+
+# Subagent definitions live inside .docks/foreman/ so they are owned by the
+# dock that spawns them. Each entry maps a logical name to the TOML file that
+# defines the subagent's model, effort, and prompt constraints.
+#
+# Foreman invokes these by name in natural language ("spawn gdi", "spawn explorer").
+# The Codex runtime resolves the name to the matching agents/*.toml file.
+#
+# These are NOT replacements for separate GDI/Operator CLI sessions.
+# Use subagent spawning for:
+#   - small bounded tasks where a full CLI session is more overhead than value;
+#   - parallel reconnaissance (explorer) that would exhaust Foreman's context;
+#   - single-probe Operator inspections.
+# Use separate CLI sessions for:
+#   - non-trivial multi-milestone work cards;
+#   - multi-step HITL runs;
+#   - any work that benefits from /goal iteration or /review in GDI.
+
+[agents]
+gdi      = ".docks/foreman/.codex/agents/gdi.toml"
+operator = ".docks/foreman/.codex/agents/operator.toml"
+explorer = ".docks/foreman/.codex/agents/explorer.toml"
