@@ -179,15 +179,17 @@ run_aos_bounded() {
   fi
 }
 
-# Build and run an aos say command for a given voice config.
-# Usage: speak_with_slot <slot> <gender> <language> <quality_tiers_array_name> <text>
+# Build and run an aos say command for a given voice slot.
+# Usage: speak_slot <slot> <gender> <language> <tiers_array_nameref> <text>
 speak_slot() {
   local slot="$1" gender="$2" language="$3" text="$5"
-  local -n _tiers="$4"
+  local tiers_name="$4"
+  local -a tiers=()
+  eval "tiers=(\"\${${tiers_name}[@]}\")"
   [[ -z "$slot" ]] && return 0
   local say_args=("$AOS_BIN" say --voice-slot "$slot")
   [[ -n "$language" ]] && say_args+=(--language "$language")
-  for tier in "${_tiers[@]}"; do
+  for tier in "${tiers[@]}"; do
     say_args+=(--quality-tier "$tier")
   done
   [[ -n "$gender" ]] && say_args+=(--gender "$gender")
@@ -236,13 +238,12 @@ if [[ "$phase" == "stop" ]]; then
 
 # ─── SUBAGENT-START ────────────────────────────────────────────────────────────
 elif [[ "$phase" == "subagent-start" ]]; then
-  # Resolve the subagent name from env. Log available names on first run to
-  # identify the correct var if the fallback fires.
-  # VERIFY: if you hear "subagent" spoken, run: env | grep -i codex in the hook
+  # Resolve subagent name from env. If fallback fires, stderr dump helps
+  # identify the correct var name on first run.
+  # VERIFY: if you hear "Subagent begin!" run: env | grep -iE '(codex|agent|subagent)' in the hook
   subagent_name="${CODEX_SUBAGENT_NAME:-${CODEX_AGENT_NAME:-}}"
   if [[ -z "$subagent_name" ]]; then
     subagent_name="subagent"
-    # Dump env to help identify the correct variable name
     env | grep -i -E '(codex|agent|subagent)' >&2 || true
   fi
   subagent_label="$(echo "${subagent_name:0:1}" | tr '[:lower:]' '[:upper:]')${subagent_name:1}"
@@ -265,7 +266,7 @@ elif [[ "$phase" == "subagent-start" ]]; then
     sub_tiers+=("$tier")
   done < <(subagent_voice_array "$subagent_name" quality_tiers)
 
-  # Dynamic message overrides with fallbacks
+  # Dynamic overrides; fallbacks are imperative command + acknowledgment
   foreman_cmd="${AOS_FOREMAN_CMD:-${subagent_label}, begin!}"
   subagent_ack="${AOS_SUBAGENT_ACK:-${subagent_label} ready!}"
 
@@ -305,7 +306,7 @@ elif [[ "$phase" == "subagent-stop" ]]; then
     foreman_tiers+=("$tier")
   done < <(dock_json_array voice.quality_tiers)
 
-  # Dynamic message overrides with fallbacks
+  # Dynamic overrides; fallbacks are stop announcement + acknowledgment
   subagent_done="${AOS_SUBAGENT_DONE:-${subagent_label} stopped, returning to Foreman.}"
   foreman_ack="${AOS_FOREMAN_ACK:-Acknowledged, ${subagent_label}!}"
 

@@ -128,10 +128,19 @@ for role in ("gdi", "foreman", "operator"):
     expected_stop = f".docks/{role}/hooks/stop.sh"
     hook_names = set(payload.get("hooks", {}).keys())
     expected_hook_names = {"Stop"}
+    if role == "foreman":
+        expected_hook_names = {"Stop", "SubagentStart", "SubagentStop"}
     if hook_names != expected_hook_names:
         raise SystemExit(f"FAIL: {role} hooks mismatch: got {sorted(hook_names)} expected {sorted(expected_hook_names)}")
     if not any(expected_stop in command for command in commands):
         raise SystemExit(f"FAIL: {role} hooks do not use isolated stop script: {commands}")
+    if role == "foreman":
+        for expected_subagent_hook in (
+            ".docks/foreman/hooks/subagent-start.sh",
+            ".docks/foreman/hooks/subagent-stop.sh",
+        ):
+            if not any(expected_subagent_hook in command for command in commands):
+                raise SystemExit(f"FAIL: foreman hooks do not use isolated subagent script {expected_subagent_hook}: {commands}")
     if any("pre-tool-use" in command or "post-tool-use" in command for command in commands):
         raise SystemExit(f"FAIL: {role} must not install per-tool hooks: {commands}")
     if any("session-start.sh" in command for command in commands):
@@ -142,7 +151,9 @@ for role in ("gdi", "foreman", "operator"):
         for entry in matcher:
             for hook in entry.get("hooks", []):
                 timeout = hook.get("timeout")
-                if not isinstance(timeout, int) or timeout > 10:
+                command = hook.get("command", "")
+                max_timeout = 15 if role == "foreman" and "subagent-" in command else 10
+                if not isinstance(timeout, int) or timeout > max_timeout:
                     raise SystemExit(f"FAIL: {role} hook timeout is not bounded tightly: {hook}")
 
     dock_config = json.loads((root / ".docks" / role / "dock.json").read_text())
@@ -180,6 +191,16 @@ for role in ("gdi", "foreman", "operator"):
         raise SystemExit(f"FAIL: {role} stop.sh should exec the shared harness")
     if ".agents/hooks/session-common.sh" in script or "aos_resolve_session_id" in script:
         raise SystemExit(f"FAIL: {role} stop.sh still duplicates shared harness mechanics")
+
+for script_name in ("subagent-start.sh", "subagent-stop.sh"):
+    script_path = root / ".docks" / "foreman" / "hooks" / script_name
+    if not os.access(script_path, os.X_OK):
+        raise SystemExit(f"FAIL: foreman {script_name} is not executable")
+    script = script_path.read_text()
+    if ".docks/harness/dock-hook-runner.sh" not in script:
+        raise SystemExit(f"FAIL: foreman {script_name} is not a shared harness wrapper")
+    if "exec " not in script:
+        raise SystemExit(f"FAIL: foreman {script_name} should exec the shared harness")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
 foreman_transfer_skill_path = root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md"
@@ -324,11 +345,10 @@ python3 - "$helper_out" <<'PY'
 import sys
 text = sys.argv[1]
 for required in (
-    "human_needed: TCC reset needed",
-    "does not reset TCC",
-    "does not reset TCC, open System Settings, write hook",
+    "human_needed: accessibility",
     "Return this blocker to Foreman",
-    "Foreman owns repo-mode binary rebuilds",
+    "physically remove and re-add the",
+    "Do not run permission reset, Settings-open, rebuild, or readiness-repair loops.",
 ):
     if required not in text:
         raise SystemExit(f"FAIL: human-needed helper output missing {required!r}:\n{text}")
