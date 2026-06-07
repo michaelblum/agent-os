@@ -99,6 +99,132 @@ work is a native-boundary/live-evidence follow-up, not a deterministic
 JS/toolkit cleanup, once Foreman is ready to route native producer changes and
 TCC-safe live subscriber proof.
 
+## Native/Live Gate Map
+
+### satisfied_by_pr_436_or_437
+
+- `packages/toolkit/runtime/input-events.js` validates canonical raw
+  `input_schema_version: 2` payloads and routed `routed_schema_version: 1`
+  payloads before adding router aliases. Version-claiming payloads with missing
+  required fields now fail deterministically in
+  `tests/toolkit/runtime-input-events.test.mjs`.
+- `packages/toolkit/runtime/gesture-stream.js` consumes
+  `normalizeCanvasInputMessage()` and has canonical routed pointer coverage in
+  `tests/toolkit/runtime-gesture-stream.test.mjs`; no separate gesture-stream
+  compatibility bridge remains.
+- `apps/sigil/renderer/live-modules/input-message.js` delegates
+  `input_event` unwrapping to toolkit normalization. The duplicate app-local
+  unwrap path was removed and guarded by
+  `tests/renderer/input-message.test.mjs`.
+- `tests/daemon-input-surface-ownership.sh` proves the current native builders
+  claim raw v2 or routed v1 only for complete deterministic pointer, scroll,
+  and cancel payloads, and keep helper-only incomplete scroll/cancel payloads
+  unversioned.
+
+### deterministic_js_followup_possible
+
+No remaining owned bridge is safely removable by deterministic JS inspection
+alone. The remaining JS compatibility paths are tied to either native producer
+shape, live active-subscriber proof, child WebView coordinate ownership, or
+external/test producers.
+
+### native_producer_followup_required
+
+- Raw `input_event` fanout: `src/perceive/events.swift`,
+  `src/perceive/daemon.swift`, and `src/daemon/unified.swift`.
+  Missing fact: the daemon still has builder paths that can produce unversioned
+  raw input when scroll/cancel required facts are absent, and canvas fanout in
+  `forwardInputEventToCanvases()` forwards the native payload as-is. Next
+  owner: Foreman routes a native-boundary GDI/Swift slice. Live AOS restart:
+  not required for the deterministic native edit itself, but required later to
+  prove active fanout. Smallest verification: update
+  `tests/daemon-input-surface-ownership.sh` so every daemon-produced raw
+  pointer, scroll, key, cancel, and snapshot payload intended for owned canvas
+  subscribers can claim `input_schema_version: 2`, then run
+  `tests/daemon-input-surface-ownership.sh` and
+  `node --test tests/toolkit/runtime-input-events.test.mjs`.
+- Routed `input_region.event` producer: `src/daemon/input-surface-ownership.swift`
+  and `src/daemon/unified.swift`. Missing fact: the routed bridge still emits
+  top-level compatibility fields beside `routed_input`, and routed helper-only
+  scroll/cancel payloads without `scroll` or `cancel_reason` intentionally do
+  not claim `routed_schema_version: 1`. Next owner: Foreman routes a
+  native-boundary GDI/Swift slice. Live AOS restart: not required for the
+  deterministic native edit itself, but required later to prove live routed
+  delivery. Smallest verification: make routed delivery always include a
+  canonical `routed_input` for owned/captured deliveries, prove it in
+  `tests/daemon-input-surface-ownership.sh`, then rerun
+  `node --test tests/toolkit/runtime-input-events.test.mjs`,
+  `node --test tests/toolkit/stage-affordance.test.mjs`, and
+  `node --test tests/toolkit/panel-chrome.test.mjs`.
+- Local deterministic router bridge:
+  `packages/toolkit/runtime/interaction-region.js`. Missing fact: this helper
+  still routes raw event names such as `left_mouse_down`, `mouse_moved`,
+  `scroll_wheel`, `pointer_cancel`, and `mouse_cancel`. Next owner: GDI only
+  after Foreman accepts a canonical routed-v1 producer/input contract for this
+  helper. Live AOS restart: no. Smallest verification:
+  `node --test tests/toolkit/runtime-interaction-region.test.mjs` with canonical
+  routed-v1 fixtures, after the native routed producer gate is resolved.
+
+### live_aos_evidence_required
+
+- Active `input_event` subscribers:
+  `packages/toolkit/components/surface-inspector/index.js`,
+  `packages/toolkit/components/spatial-telemetry/index.js`,
+  `apps/sigil/renderer/live-modules/main.js`, and
+  `packages/toolkit/panel/chrome.js`. Missing fact: deterministic tests prove
+  these consumers normalize canonical and compatibility shapes, but cannot
+  prove the live daemon only delivers canonical raw v2 payloads to active
+  subscribers. Next owner: Operator after Michael explicitly approves live AOS
+  restart. Live AOS restart: yes. Smallest observation: launch the repo daemon,
+  open each active subscriber surface, trigger pointer, scroll, key, cancel or
+  drag where applicable, and observe through surface debug state or a focused
+  probe that received `input_event` messages carry `input_schema_version: 2`
+  with required fields and no consumer depends on unversioned raw names.
+- Active `input_region.event` consumers:
+  `packages/toolkit/panel/stage-affordance.js`,
+  `packages/toolkit/panel/chrome.js`, and
+  `apps/sigil/renderer/live-modules/main.js`. Missing fact: deterministic tests
+  cover canonical `routed_input` and top-level compatibility, but cannot prove
+  live daemon routed delivery always includes canonical `routed_input` for
+  owned/captured regions. Next owner: Operator after the native producer gate
+  lands and Michael approves live AOS restart. Live AOS restart: yes. Smallest
+  observation: create a stage affordance/minimized chip or Sigil input region,
+  trigger down/drag/up/cancel, and observe `input_region.event.routed_input`
+  with `routed_schema_version: 1`, required region ownership, capture identity
+  for captured deliveries, and DesktopWorld coordinates.
+
+### child_canvas_coordinate_followup_required
+
+- Child WebView `canvas_message` input:
+  `packages/toolkit/runtime/input-events.js`,
+  `apps/sigil/renderer/live-modules/input-message.js`, and
+  `apps/sigil/renderer/live-modules/main.js`. Missing fact: identity-only
+  child messages from Sigil hit/radial surfaces lack parent-resolved
+  DesktopWorld coordinates, so toolkit intentionally leaves them unresolved
+  until the parent supplies `desktop_world`. Next owner: GDI for the
+  parent-coordinate adapter once Foreman routes that slice. Live AOS restart:
+  no for deterministic adapter tests; yes only for final real-input proof.
+  Smallest verification:
+  `node --test tests/renderer/input-message.test.mjs` and
+  `node --test tests/toolkit/runtime-input-events.test.mjs` proving
+  identity-only child messages remain unresolved while parent-resolved child
+  messages normalize to canonical routed v1 with `source_origin: "canvas"`.
+
+### external_or_non_updatable_compatibility
+
+- Unversioned `{type:"input_event", payload}` wrappers in
+  `packages/toolkit/runtime/input-events.js` and focused tests remain bounded
+  compatibility for test fixtures, ad hoc `show post` probes such as
+  `tests/spatial-telemetry-smoke.sh`, and any external canvas producer that
+  cannot be updated in the same repo slice. Missing fact: there is no live
+  inventory proving every non-repo producer has stopped sending unversioned
+  wrapper envelopes. Next owner: Foreman for disposition; Operator only if
+  Foreman asks for a live producer inventory. Live AOS restart: not required
+  unless Foreman requests live inventory. Smallest verification: keep wrapper
+  handling bounded to `input_event` envelopes in
+  `normalizeCanvasInputMessage()` and rerun
+  `node --test tests/toolkit/runtime-input-events.test.mjs`.
+
 ## Migrated Or Guarded In This Slice
 
 - Runtime v2/v1 normalizing now validates version-claiming payloads before
