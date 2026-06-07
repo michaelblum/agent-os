@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { normalizeMessage } from '../../apps/sigil/renderer/live-modules/input-message.js'
 
-test('normalizeMessage unwraps legacy input_event payload type and coordinates', () => {
+test('normalizeMessage delegates input_event payload unwrapping to toolkit normalization', () => {
   const msg = normalizeMessage({
     type: 'input_event',
     payload: {
@@ -17,6 +17,13 @@ test('normalizeMessage unwraps legacy input_event payload type and coordinates',
   assert.equal(msg.envelope_type, 'input_event')
   assert.equal(msg.x, 120)
   assert.equal(msg.y, 240)
+})
+
+test('Sigil input normalizer does not keep a duplicate input_event unwrap branch', async () => {
+  const source = await readFile(new URL('../../apps/sigil/renderer/live-modules/input-message.js', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /msg\?\.type === 'input_event' && payload/)
+  assert.match(source, /normalizeCanvasInputMessage\(msg\)/)
 })
 
 test('normalizeMessage preserves non-input envelope type precedence', () => {
