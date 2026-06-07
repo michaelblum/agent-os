@@ -296,8 +296,22 @@ writeJSON("routed-cancel", routedCancel)
 print("PASS input event v2 builder and routed payload contract")
 SWIFT
 
+cat >"$TMP/json-value.swift" <<'SWIFT'
+import Foundation
+
+enum JSONValue: Codable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+}
+SWIFT
+
 swiftc \
   "$ROOT/src/shared/types.swift" \
+  "$TMP/json-value.swift" \
   "$ROOT/src/perceive/models.swift" \
   "$ROOT/src/perceive/events.swift" \
   "$ROOT/src/daemon/input-surface-ownership.swift" \
