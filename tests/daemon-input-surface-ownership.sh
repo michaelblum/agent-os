@@ -192,15 +192,44 @@ let rawPointer = inputEventData(type: "left_mouse_down", x: 25, y: 25, flags: fl
 assert(rawPointer["input_schema_version"] as? Int == 2, "complete pointer events may claim input v2")
 writeJSON("raw-pointer", rawPointer)
 
+for pointerType in [
+    "left_mouse_down",
+    "left_mouse_up",
+    "left_mouse_dragged",
+    "right_mouse_down",
+    "right_mouse_up",
+    "right_mouse_dragged",
+    "middle_mouse_down",
+    "middle_mouse_up",
+    "middle_mouse_dragged",
+    "other_mouse_down",
+    "other_mouse_up",
+    "other_mouse_dragged",
+    "mouse_moved",
+] {
+    let payload = inputEventData(type: pointerType, x: 25, y: 25, flags: flags)
+    assert(payload["input_schema_version"] as? Int == 2, "\(pointerType) daemon payload may claim input v2")
+    assert(payload["event_kind"] as? String == "pointer", "\(pointerType) daemon payload is pointer kind")
+}
+
+let rawSnapshot = inputEventData(type: "mouse_moved", x: 25, y: 25, flags: flags)
+assert(rawSnapshot["input_schema_version"] as? Int == 2, "input_event snapshot mouse move may claim input v2")
+writeJSON("raw-snapshot", rawSnapshot)
+
 let unsupportedScroll = inputEventData(type: "scroll_wheel", x: 25, y: 25, flags: flags)
-assert(unsupportedScroll["input_schema_version"] == nil, "scroll without dx/dy must remain legacy-shaped")
+assert(unsupportedScroll["input_schema_version"] == nil, "helper-only scroll without dx/dy must remain legacy-shaped")
 
 let rawScroll = inputEventData(type: "scroll_wheel", x: 25, y: 25, flags: flags, scrollDX: 2, scrollDY: -8)
 assert(rawScroll["input_schema_version"] as? Int == 2, "complete scroll events may claim input v2")
 writeJSON("raw-scroll", rawScroll)
 
+let rawKey = inputEventData(type: "key_down", keyCode: 36, flags: flags)
+assert(rawKey["input_schema_version"] as? Int == 2, "daemon key payload may claim input v2")
+assert(rawKey["event_kind"] as? String == "key", "daemon key payload is key kind")
+writeJSON("raw-key", rawKey)
+
 let unsupportedCancel = inputEventData(type: "pointer_cancel", flags: flags)
-assert(unsupportedCancel["input_schema_version"] == nil, "cancel without cancel_reason must remain legacy-shaped")
+assert(unsupportedCancel["input_schema_version"] == nil, "helper-only cancel without cancel_reason must remain legacy-shaped")
 
 let rawCancel = inputEventData(type: "pointer_cancel", flags: flags, cancelReason: "surface_removed")
 assert(rawCancel["input_schema_version"] as? Int == 2, "complete cancel events may claim input v2")
@@ -231,6 +260,7 @@ let routedPointer = aosInputRegionRoutedInputPayload(
     gestureID: rawPointer["gesture_id"] as? String
 )
 assert(routedPointer["routed_schema_version"] as? Int == 1, "complete routed pointer may claim routed v1")
+assert((routedPointer["source_event"] as? [String: Any])?["input_schema_version"] as? Int == 2, "routed pointer should preserve canonical raw v2 source_event")
 writeJSON("routed-pointer", routedPointer)
 
 let scrollRoute = AOSInputRegionRoute(
@@ -250,6 +280,7 @@ let routedScrollLegacy = aosInputRegionRoutedInputPayload(
     gestureID: "g-2"
 )
 assert(routedScrollLegacy["routed_schema_version"] == nil, "routed scroll without scroll data must not claim v1")
+assert(routedScrollLegacy["source_event"] as? String == "daemon:2", "helper-only unversioned routed scroll should keep string source_event")
 
 let routedScroll = aosInputRegionRoutedInputPayload(
     event: "scroll_wheel",
@@ -261,6 +292,7 @@ let routedScroll = aosInputRegionRoutedInputPayload(
     gestureID: rawScroll["gesture_id"] as? String
 )
 assert(routedScroll["routed_schema_version"] as? Int == 1, "complete routed scroll may claim routed v1")
+assert((routedScroll["source_event"] as? [String: Any])?["input_schema_version"] as? Int == 2, "routed scroll should preserve canonical raw v2 source_event")
 writeJSON("routed-scroll", routedScroll)
 
 let cancelRoute = AOSInputRegionRoute(
@@ -280,6 +312,7 @@ let routedCancelLegacy = aosInputRegionRoutedInputPayload(
     gestureID: "g-4"
 )
 assert(routedCancelLegacy["routed_schema_version"] == nil, "routed cancel without cancel_reason must not claim v1")
+assert(routedCancelLegacy["source_event"] as? String == "daemon:4", "helper-only unversioned routed cancel should keep string source_event")
 
 let routedCancel = aosInputRegionRoutedInputPayload(
     event: "pointer_cancel",
@@ -291,6 +324,7 @@ let routedCancel = aosInputRegionRoutedInputPayload(
     gestureID: rawCancel["gesture_id"] as? String
 )
 assert(routedCancel["routed_schema_version"] as? Int == 1, "complete routed cancel may claim routed v1")
+assert((routedCancel["source_event"] as? [String: Any])?["input_schema_version"] as? Int == 2, "routed cancel should preserve canonical raw v2 source_event")
 writeJSON("routed-cancel", routedCancel)
 
 print("PASS input event v2 builder and routed payload contract")

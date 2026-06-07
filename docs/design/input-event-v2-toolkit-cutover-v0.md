@@ -48,24 +48,28 @@ the input-region router receives only canonical routed v1 payloads.
 
 Current native raw input is built in `src/perceive/events.swift` and delivered
 from `src/perceive/daemon.swift` into `src/daemon/unified.swift`.
-Deterministic inspection shows complete CGEvent pointer, scroll, key, and
-snapshot move payloads can claim `input_schema_version: 2`, while helper-only
-scroll or cancel payloads without required facts intentionally remain
-unversioned in `tests/daemon-input-surface-ownership.sh`. Removing the raw
-event-name bridge from toolkit is therefore native-boundary work: Foreman must
-route a separate native/live round to prove the daemon no longer emits
-unversioned raw input to active subscribers.
+Deterministic coverage in `tests/daemon-input-surface-ownership.sh` proves
+every current daemon-produced CGEvent pointer name, scroll, key, and
+subscription snapshot move payload can claim `input_schema_version: 2`.
+Incomplete scroll or cancel builder calls without required facts intentionally
+remain unversioned only as helper/non-delivery guards; the current CGEvent
+producer does not emit `pointer_cancel` or `mouse_cancel` into raw
+`input_event`.
 
 Current routed input is built by
 `src/daemon/input-surface-ownership.swift` and delivered by
 `src/daemon/unified.swift` as `input_region.event` with both
-`routed_input` and top-level compatibility fields. Complete routed pointer,
-scroll, and cancel payloads can claim `routed_schema_version: 1`; routed scroll
-or cancel helpers without `scroll` or `cancel_reason` intentionally remain
-unversioned in deterministic Swift coverage. The top-level-only
-`input_region.event` bridge is intentionally retained until a native/live round
-proves every active daemon routed producer includes canonical `routed_input`
-and no live subscriber depends on the top-level fallback.
+`routed_input` and top-level compatibility fields. Deterministic coverage
+proves complete routed pointer and scroll deliveries can claim
+`routed_schema_version: 1` with `source_event` preserving the canonical raw v2
+payload. Complete routed cancel helpers can also claim routed v1 when supplied
+with `cancel_reason`, while helper-only scroll or cancel payloads without
+`scroll` or `cancel_reason` intentionally remain unversioned. Current live
+input-region routing is driven by pointer/scroll CGEvent names; key events do
+not route through `AOSInputRegionRegistry`, and cancel routing remains a
+helper/native-follow-up boundary until a producer supplies an explicit cancel
+reason. The top-level-only `input_region.event` bridge is retained until live
+subscriber proof shows no consumer depends on the top-level fallback fields.
 
 Active owned subscribers currently route through the toolkit normalizer:
 
@@ -118,8 +122,8 @@ TCC-safe live subscriber proof.
   `tests/renderer/input-message.test.mjs`.
 - `tests/daemon-input-surface-ownership.sh` proves the current native builders
   claim raw v2 or routed v1 only for complete deterministic pointer, scroll,
-  and cancel payloads, and keep helper-only incomplete scroll/cancel payloads
-  unversioned.
+  key, snapshot, and cancel payloads, and keep helper-only incomplete
+  scroll/cancel payloads unversioned.
 
 ### deterministic_js_followup_possible
 
@@ -130,32 +134,27 @@ external/test producers.
 
 ### native_producer_followup_required
 
-- Raw `input_event` fanout: `src/perceive/events.swift`,
-  `src/perceive/daemon.swift`, and `src/daemon/unified.swift`.
-  Missing fact: the daemon still has builder paths that can produce unversioned
-  raw input when scroll/cancel required facts are absent, and canvas fanout in
-  `forwardInputEventToCanvases()` forwards the native payload as-is. Next
-  owner: Foreman routes a native-boundary GDI/Swift slice. Live AOS restart:
-  not required for the deterministic native edit itself, but required later to
-  prove active fanout. Smallest verification: update
-  `tests/daemon-input-surface-ownership.sh` so every daemon-produced raw
-  pointer, scroll, key, cancel, and snapshot payload intended for owned canvas
-  subscribers can claim `input_schema_version: 2`, then run
-  `tests/daemon-input-surface-ownership.sh` and
-  `node --test tests/toolkit/runtime-input-events.test.mjs`.
-- Routed `input_region.event` producer: `src/daemon/input-surface-ownership.swift`
-  and `src/daemon/unified.swift`. Missing fact: the routed bridge still emits
-  top-level compatibility fields beside `routed_input`, and routed helper-only
-  scroll/cancel payloads without `scroll` or `cancel_reason` intentionally do
-  not claim `routed_schema_version: 1`. Next owner: Foreman routes a
-  native-boundary GDI/Swift slice. Live AOS restart: not required for the
-  deterministic native edit itself, but required later to prove live routed
-  delivery. Smallest verification: make routed delivery always include a
-  canonical `routed_input` for owned/captured deliveries, prove it in
-  `tests/daemon-input-surface-ownership.sh`, then rerun
-  `node --test tests/toolkit/runtime-input-events.test.mjs`,
-  `node --test tests/toolkit/stage-affordance.test.mjs`, and
-  `node --test tests/toolkit/panel-chrome.test.mjs`.
+- Raw `input_event` fanout: none for current deterministic CGEvent pointer,
+  scroll, key, and snapshot move producers. `src/perceive/daemon.swift`
+  supplies the facts needed by `src/perceive/events.swift`, and
+  `tests/daemon-input-surface-ownership.sh` validates the resulting raw v2
+  payloads against `shared/schemas/input-event-v2.schema.json`. Remaining
+  unversioned scroll/cancel builder calls are helper/non-delivery guards, not
+  current owned-subscriber raw daemon deliveries. Next owner: Foreman only if a
+  future native producer starts emitting cancel. Live AOS restart: no for this
+  deterministic fact; yes only for active-subscriber observation.
+- Routed `input_region.event` producer: no remaining deterministic
+  pointer/scroll routed producer change is required after
+  `src/daemon/input-surface-ownership.swift` preserves canonical raw v2
+  `source_event` objects for complete routed deliveries. Missing fact:
+  top-level compatibility fields beside `routed_input` may still be live
+  subscriber dependencies, and no current deterministic source path proves a
+  live cancel delivery with `cancel_reason`. Next owner: Operator for live
+  subscriber proof after Foreman review; Foreman routes a smaller native slice
+  only if live or future source inspection finds a real cancel producer without
+  `cancel_reason`. Live AOS restart: yes for subscriber proof, no for the
+  deterministic pointer/scroll producer gate now covered by
+  `tests/daemon-input-surface-ownership.sh`.
 - Local deterministic router bridge:
   `packages/toolkit/runtime/interaction-region.js`. Missing fact: this helper
   still routes raw event names such as `left_mouse_down`, `mouse_moved`,
