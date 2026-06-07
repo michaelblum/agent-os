@@ -64,6 +64,33 @@ function summarizeWindow(events, endedAt = nowMs(), windowMs = DEFAULT_WINDOW_MS
     };
 }
 
+function compactSequence(sequence) {
+    if (!sequence || typeof sequence !== 'object') return sequence ?? null;
+    return {
+        source: sequence.source ?? null,
+        value: sequence.value ?? null,
+    };
+}
+
+function compactInputEvent(event = {}, recordedAt = nowMs()) {
+    const routedInput = event.routedInput || event.routed_input || null;
+    return {
+        at: recordedAt,
+        kind: event.kind || event.type || event.envelope_type || event.envelopeType || 'unknown',
+        canvasId: event.canvas_id || event.canvasId || event.id || null,
+        envelope_type: event.envelope_type || event.envelopeType || null,
+        input_schema_version: event.input_schema_version ?? null,
+        routed_schema_version: event.routed_schema_version ?? routedInput?.routed_schema_version ?? null,
+        event_kind: event.event_kind || event.eventKind || routedInput?.event_kind || null,
+        sequence: compactSequence(event.sequence || routedInput?.sequence),
+        coordinate_authority: event.coordinate_authority || event.coordinateAuthority || routedInput?.coordinate_authority || null,
+        source_origin: event.source_origin || event.sourceOrigin || routedInput?.source_origin || null,
+        source_canvas_id: event.source_canvas_id || event.sourceCanvasId || routedInput?.source_canvas_id || null,
+        owner_canvas_id: event.owner_canvas_id || event.ownerCanvasId || routedInput?.owner_canvas_id || null,
+        region_id: event.region_id || event.regionId || routedInput?.region_id || null,
+    };
+}
+
 export function createSurfaceTransportProbe({
     windowObject = currentWindowObject(),
     label = 'surface-transport',
@@ -156,11 +183,7 @@ export function createSurfaceTransportProbe({
 
     function recordInputEvent(event = {}) {
         if (!active()) return;
-        state.input_events.push({
-            at: nowMs(),
-            kind: event.kind || event.type || event.envelope_type || 'unknown',
-            canvasId: event.canvas_id || event.canvasId || event.id || null,
-        });
+        state.input_events.push(compactInputEvent(event));
         if (state.input_events.length > 5000) {
             state.input_events.splice(0, state.input_events.length - 5000);
         }

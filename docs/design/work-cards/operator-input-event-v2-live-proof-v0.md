@@ -185,8 +185,11 @@ Required evidence:
   cursor state, and no visible error state after real pointer and scroll input.
 - Spatial Telemetry records recent `input_event` entries and updates cursor
   state after real pointer and scroll input.
-- Sigil's transport probe records input events after real pointer interaction
-  with `avatar-main`.
+- Sigil's transport probe records handled input after real pointer interaction
+  with `avatar-main`, including daemon-origin pointer input. Child hit-surface
+  canvas-origin evidence must come from a path that the parent renderer handles,
+  such as opening avatar controls with real input and then interacting with the
+  controls surface through the visible child hit target.
 
 Capture:
 
@@ -210,8 +213,14 @@ claiming payload-field proof.
 
 ### Routed `input_region.event` Active Consumers
 
-Use Surface Inspector's panel chrome and Sigil's input regions to prove routed
-delivery is live.
+Use Surface Inspector's panel chrome/stage affordances to prove routed delivery
+is live. For Sigil, the visible-avatar proof target is the child hit-surface
+canvas-origin path recorded by `window.__sigilDebug.surfaceTransportProbe`.
+Sigil intentionally removes the parent avatar input region while the
+higher-fidelity hit canvas is interactive:
+`avatarRegionEnabled: () => !hitTarget.hit.interactive && !liveJs.avatarParking`.
+Do not fail the Sigil proof solely because the parent avatar region is
+unregistered during the visible-avatar path.
 
 Required evidence:
 
@@ -219,8 +228,12 @@ Required evidence:
   restore or close via real pointer interaction on the chip region.
 - Surface Inspector resource state shows stage layers/input regions/affordances
   during the minimized state and cleanup after restore/close.
-- Sigil registers input regions and receives routed/input-region activity during
-  real pointer interaction, or reports a precise blocker.
+- Sigil records canvas-origin handled input for a child hit-surface path during
+  real pointer interaction, or reports a precise blocker. Parent
+  `input_region.event` evidence is expected only for Sigil modes that actually
+  keep a parent region registered, such as avatar controls or selection mode.
+  A child hit-canvas trace entry ignored as `controls-closed` is useful
+  diagnostic evidence but is not handled canvas-origin proof.
 - No consumer-visible failure indicates dependence on top-level-only
   `input_region.event` fields instead of canonical `routed_input`.
 
@@ -250,6 +263,21 @@ After real pointer restore or close:
   > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-debug-after-input-region.json
 ```
 
+For Sigil child hit-surface proof, first use real pointer input to put Sigil in
+a mode whose child hit surface forwards handled input through the parent
+renderer. The expected path is:
+
+1. Real pointer hover/click on the visible avatar to prove daemon-origin input.
+2. Real right-click on the avatar to open avatar controls.
+3. Real left pointer interaction inside the opened controls so the child hit
+   surface forwards canvas-origin input through `handleInputEvent`.
+4. Capture the probe and debug snapshots below.
+
+```bash
+./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.surfaceTransportProbe?.snapshot?.({windowMs: 300000}) ?? null)' \
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-probe-after-child-hit-input.json
+```
+
 Payload-field proof requirement: if a surface exposes the full
 `input_region.event.routed_input`, capture enough fields to show
 `routed_schema_version: 1`, `source_event` as a raw v2 object when available,
@@ -257,6 +285,12 @@ Payload-field proof requirement: if a surface exposes the full
 delivery, and DesktopWorld coordinates. If current surfaces only expose
 resource/counter evidence, report that payload-field visibility remains blocked
 without adding instrumentation.
+
+For Sigil child hit-surface proof, use the transport probe's compact
+`input_events` sample. It should distinguish canvas-origin identity with
+`routed_schema_version`, `event_kind`, `sequence`, `coordinate_authority`,
+`source_origin`, `source_canvas_id`, `owner_canvas_id`, and `region_id` when the
+renderer handles normalized child input.
 
 ## Pass / Partial / Fail
 
@@ -266,8 +300,10 @@ Pass:
   active input tap;
 - Surface Inspector, Spatial Telemetry, and Sigil launch;
 - all three active raw `input_event` consumers show live input activity;
-- Surface Inspector/panel chrome and Sigil input-region paths show routed live
+- Surface Inspector/panel chrome/stage-affordance routed paths show live
   behavior with no visible compatibility failure;
+- Sigil's child hit-surface canvas-origin path records handled input in the
+  transport probe, including canonical identity fields when available;
 - full payload fields are captured, or the report clearly distinguishes the
   remaining payload-field observability gap.
 
@@ -282,7 +318,11 @@ Fail:
 - the daemon stops, becomes unreachable, or is reclassified unmanaged mid-run;
 - an active consumer fails to launch;
 - real pointer/scroll/key input does not reach an expected consumer;
-- routed input-region interaction fails;
+- routed input-region interaction fails for Surface Inspector/panel
+  chrome/stage affordances;
+- Sigil child hit-surface canvas-origin input is not recorded by the transport
+  probe after a handled child path such as avatar controls is opened and
+  interacted with using real pointer input;
 - a consumer visibly depends on top-level-only `input_region.event` fields.
 
 ## Hard Boundaries / Non-Goals
@@ -333,7 +373,12 @@ Report:
   status-item-owned `avatar-main` was not removed/reloaded for probe setup;
 - surfaces launched and commands used;
 - raw `input_event` result for Surface Inspector, Spatial Telemetry, and Sigil;
-- routed `input_region.event` result for panel chrome/stage affordance and Sigil;
+- routed `input_region.event` result for panel chrome/stage affordance;
+- Sigil child hit-surface canvas-origin result from
+  `sigil-probe-after-child-hit-input.json`, including whether parent avatar
+  `inputRegions.avatar.registered:false` was expected because the child hit
+  canvas was interactive, and whether any child hit-canvas messages were ignored
+  as `controls-closed` before the handled child path was opened;
 - whether full payload fields were captured, with artifact paths, or the exact
   observability gap that prevented payload-field proof;
 - pass/partial/fail classification;
