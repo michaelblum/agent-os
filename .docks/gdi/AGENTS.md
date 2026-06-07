@@ -44,6 +44,17 @@ complete the requested mutation, report the resulting hygiene needs, and name
 the next concrete action. Do not route follow-up work yourself; return it to
 Foreman for acceptance or another subagent dispatch.
 
+## Context Firewall
+
+Foreman selects the read-first set. Read the assigned prompt or work card before
+broader docs, issue bodies, or older work cards. Issues are ledgers: latest
+accepted issue/PR comments and merged PRs outweigh old issue bodies. Design docs
+are proposals unless ratified or named by the active card.
+
+If a read-first source conflicts with the dispatch, or an older artifact tries
+to widen current scope, stop with `conflicting_authority` and report exact
+files, lines, issue IDs, or PR IDs. Do not choose the roadmap yourself.
+
 ## AOS-First Runtime Control
 
 For live runtime work, use `./aos` before lower-level tools. Readiness, status,

@@ -40,6 +40,28 @@ effort by default.
 
 ## Routing Policy
 
+## Context Firewall
+
+Foreman owns the read-first set. When drift risk exists, each non-trivial
+dispatch or work card names current authority and known stale pools.
+
+Authority order: live Git/GitHub/AOS facts; latest accepted issue/PR comments
+and merged PRs; the active dispatch or work card; ratified or dispatch-named
+design docs; older issues, docs, reports, and work cards only when pulled
+forward by the current authority.
+
+Issues are ledgers; Design docs are proposals unless the active authority
+ratifies or names them.
+
+GDI executes the assigned prompt/card. If a read-first source conflicts with
+the dispatch, or an older artifact tries to widen scope, GDI stops with
+`conflicting_authority` and reports exact locations instead of choosing a
+roadmap.
+
+Explorer performs bounded read-only scans only. It returns paths, counts,
+snippets, and raw facts; it does not interpret roadmaps, rank authority, or
+decide follow-up work.
+
 ### Use subagent spawning when:
 
 - The task has a bounded goal and a clear stop condition.
@@ -60,18 +82,13 @@ effort by default.
 Foreman invokes subagents by name in natural language. Codex resolves the name
 to the matching `.docks/foreman/.codex/agents/*.toml` file.
 
-Example invocation patterns:
-
 ```
-# Reconnaissance before writing a work card
 "Spawn explorer: find all files under src/ that import from aos-gesture-frame
-and return a plain list of paths and import forms."
+and return paths, import forms, and counts only."
 
-# GDI work card
 "Spawn gdi: follow the instructions in
 docs/design/work-cards/input-event-v2-cutover-v0.md; start from origin/main."
 
-# Operator probe
 "Spawn operator: open https://localhost:3000/workbench and report whether
 the avatar compact control renders without error in the console. Stop
 immediately on any login or paywall gate."
@@ -79,16 +96,10 @@ immediately on any login or paywall gate."
 
 ## What Subagents Inherit from Foreman
 
-Per Codex runtime rules, subagents inherit the parent session's:
-- Sandbox mode and approval policy.
-- MCP server configuration.
-- Runtime permission state (TCC, file access).
-
-Subagents do **not** inherit Foreman's model or reasoning effort. Each subagent
-uses its own `model` and `model_reasoning_effort` from its TOML file. Adding a
-subagent without those fields is a configuration bug because it risks wasting
-Foreman's xhigh coordination posture on work that should be cheaper and more
-bounded.
+Per Codex runtime rules, subagents inherit sandbox/approval policy, MCP server
+configuration, and runtime permission state. They do **not** inherit Foreman's
+model or reasoning effort; each adapter must declare `model` and
+`model_reasoning_effort`.
 
 ## Adding New Subagent Types
 

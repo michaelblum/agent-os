@@ -170,6 +170,9 @@ for role in ("gdi", "operator", "explorer"):
         raise SystemExit(f"FAIL: {role} subagent TOML inherits Foreman's expensive model/effort posture")
 
 foreman_agents = (root / ".docks" / "foreman" / "AGENTS.md").read_text()
+foreman_subagents = (root / ".docks" / "foreman" / "SUBAGENTS.md").read_text()
+gdi_agents = (root / ".docks" / "gdi" / "AGENTS.md").read_text()
+explorer_agent = (root / ".docks" / "foreman" / ".codex" / "agents" / "explorer.toml").read_text()
 foreman_transfer_skill = (root / ".docks" / "foreman" / "skills" / "session-transfer" / "SKILL.md").read_text()
 if "name: foreman-session-transfer" not in foreman_transfer_skill:
     raise SystemExit("FAIL: Foreman transfer skill uses the wrong name")
@@ -178,6 +181,33 @@ for label, text in (("Foreman AGENTS", foreman_agents), ("Foreman transfer skill
     for forbidden in (f"receives a `{legacy_command_token}", "`attn: GDI,", "attn: GDI, follow"):
         if forbidden in text:
             raise SystemExit(f"FAIL: {label} reintroduced command/addressee ceremony: {forbidden}")
+
+for required in (
+    "## Context Firewall",
+    "Foreman owns the read-first set",
+    "known stale pools",
+    "Design docs",
+    "Explorer performs bounded read-only scans only",
+):
+    if required not in foreman_subagents:
+        raise SystemExit(f"FAIL: Foreman SUBAGENTS missing context-firewall contract token {required!r}")
+
+for required in (
+    "Foreman selects the read-first set",
+    "accepted issue/PR comments",
+    "merged PRs outweigh old issue bodies",
+    "conflicting_authority",
+):
+    if required not in gdi_agents:
+        raise SystemExit(f"FAIL: GDI AGENTS missing context-firewall stop token {required!r}")
+
+for required in (
+    "Expand beyond Foreman's named paths, symbols, refs, or date bounds",
+    "raw counts",
+    "Do not interpret, recommend, or decide",
+):
+    if required not in explorer_agent:
+        raise SystemExit(f"FAIL: Explorer adapter missing bounded raw-scan token {required!r}")
 PY
 
 TMPDIR_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/aos-dock-hook-isolation.XXXXXX")"
