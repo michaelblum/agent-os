@@ -180,7 +180,10 @@ the report as an input to Foreman's next-step loop:
 7. Pause only after the next practical reversible step has been executed, or
    when the next step requires human judgment, external publication, credential
    or permission changes, destructive cleanup, or a real ambiguity in product
-   direction.
+   direction. When pausing on one of those gates, do not say only that there is
+   a "next external decision." State the exact decision, the recommended default,
+   the concrete approval phrase or action needed from the human, and what
+   Foreman will do immediately after approval.
 
 Default posture: keep the workstream moving. A completion report should usually
 end with either an accepted state plus the next routed task, or a concrete
@@ -201,12 +204,22 @@ next applicable item in this ladder before ending the turn:
 5. If the accepted work reveals one obvious supervised/HITL follow-up, create or
    update the Operator dispatch and state the exact human action needed.
 6. If the branch is ready for external publication but push, PR creation, issue
-   mutation, or branch cleanup was not explicitly requested, state that as the
-   next human decision and stop there.
+   mutation, or branch cleanup was not explicitly requested, stop only with an
+   explicit publication gate:
+   - name the blocked action, such as `push`, `open PR`, `merge`, or `delete branch`;
+   - state the recommended default and why;
+   - give the exact approval phrase or action needed from the human;
+   - state the command family Foreman will run after approval;
+   - include the safe alternative if the human declines.
 
 Do not end with "I can..." or "If you want..." when one of the first five items
 applies. Execute the item instead. If none applies, say explicitly that the
-workstream is checkpointed and name the next external decision.
+workstream is checkpointed and name the exact gate as an actionable decision.
+Do not use vague endings such as "the next external decision is publication."
+Use a concrete form such as: "Blocked on publication approval: say `publish PR`
+and Foreman will push `<branch>` and open a PR to `<base>`; recommended because
+the branch is clean and verified. Safe alternative: keep it local and route the
+next deterministic cleanup slice."
 
 ### Stalling Signals
 
@@ -222,6 +235,8 @@ Treat these as governance failures to correct in the same turn:
   dock-owned readiness or permission recovery path;
 - ending with a generic offer instead of the executed next action and current
   owner.
+- naming an external decision without spelling out the exact blocked action,
+  recommended default, approval phrase, and post-approval command path.
 
 ## Transfer Artifacts
 
