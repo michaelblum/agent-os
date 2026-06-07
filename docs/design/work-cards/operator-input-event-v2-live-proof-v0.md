@@ -102,6 +102,10 @@ status-item path for the Sigil proof, run the scoped activation once:
 ./aos experience status --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/experience-status-after-activate.json
 ```
 
+This activation path is permitted only for restart-free `status_item.*` repair.
+It must not rewrite `content.roots.*`, restart the service, or bypass the
+fail-closed live-operation guard.
+
 If that command is unavailable or fails, launch Sigil directly with `show
 create` below and report status-item proof as blocked.
 
@@ -273,8 +277,11 @@ Fail:
 - Do not run `./aos ready`; it auto-starts the daemon by design.
 - Do not run `./aos clean`, permission repair, TCC reset, or service
   start/restart loops.
-- Do not run `./aos set` or `./aos config set`; config changes can require a
-  daemon restart.
+- Do not run `./aos set` or direct `./aos config set` mutations for
+  `content.roots.*` or any restart-triggering config. The only allowed config
+  mutation is the scoped `./aos experience activate sigil` status-item repair
+  above, which must remain restart-free and fail closed without start
+  permission.
 - Do not create commits, branches, PRs, issue comments, or issue closure.
 - Do not use raw daemon HTTP, direct socket control, `tmux`, or launchd state
   unless an `./aos` command is missing or broken; state the bypass reason if you
@@ -301,6 +308,8 @@ Report:
 - exact `./aos service status --mode repo --json` summary;
 - exact `./aos status --json` runtime verdict summary;
 - confirmation that `./aos ready` was not run;
+- confirmation that no `content.roots.*` or other restart-triggering config was
+  mutated;
 - whether Sigil status-item drift was present and whether `./aos experience
   activate sigil` was needed or successful;
 - surfaces launched and commands used;
