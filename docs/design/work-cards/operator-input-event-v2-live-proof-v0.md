@@ -10,8 +10,8 @@ Operator run.
 
 ## Branch / Base
 
-- required_start_ref: local `main` at or after `5f6445a4`
-  (`feat(daemon): canonicalize input region source events`).
+- required_start_ref: local `main` containing this corrected work card and
+  `5f6445a4` (`feat(daemon): canonicalize input region source events`).
 - published review PR: #438
   https://github.com/michaelblum/agent-os/pull/438
 - tracker issue: #431
@@ -37,8 +37,28 @@ and handle canonical daemon payloads, and any remaining dependence on top-level
 `input_region.event` compatibility fields must be reported precisely.
 
 Michael approved this live proof run. Live readiness/control is allowed only for
-this bounded verification. Do not run service start/restart, permission repair,
-or `./aos dev build` unless a later Foreman card explicitly assigns it.
+this bounded verification after Foreman/human clears the runtime state. Do not
+run service start/restart, permission repair, `./aos ready`, or `./aos dev
+build` unless a later Foreman card explicitly assigns it.
+
+## Blocked Run Review
+
+The first Operator run under `/tmp/aos-input-event-v2-live-proof-v0/` did not
+reach input observation. Treat it as a blocked live-environment result, not as a
+#431 payload regression.
+
+Observed blocker from that run:
+
+- initial `./aos ready --json` was ready on PID `45958`;
+- Surface Inspector and Spatial Telemetry launched;
+- canonical Sigil launch blocked before observation;
+- a follow-up `./aos ready --json` auto-started a new daemon on PID `27724`;
+- `./aos status --json` then still reported stale/unmanaged PID `45958`;
+- current Foreman passive review found repo service loaded but not running,
+  launchd last exit code `11`, and a stale lock for dead PID `27724`.
+
+For the rerun, leave `/tmp/aos-input-event-v2-live-proof-v0/` intact and save
+new evidence under `/tmp/aos-input-event-v2-live-proof-v0-rerun/`.
 
 ## Read First
 
@@ -52,29 +72,34 @@ or `./aos dev build` unless a later Foreman card explicitly assigns it.
 
 ## Rediscover State
 
-Run and save output under `/tmp/aos-input-event-v2-live-proof-v0/`:
+Run and save output under `/tmp/aos-input-event-v2-live-proof-v0-rerun/`:
 
 ```bash
-mkdir -p /tmp/aos-input-event-v2-live-proof-v0
+mkdir -p /tmp/aos-input-event-v2-live-proof-v0-rerun
 git status --short --branch
 git rev-parse HEAD origin/main
-./aos ready --json | tee /tmp/aos-input-event-v2-live-proof-v0/ready.json
-./aos status --json | tee /tmp/aos-input-event-v2-live-proof-v0/status.json
-./aos show list --json | tee /tmp/aos-input-event-v2-live-proof-v0/show-list-before.json
-./aos experience status --json | tee /tmp/aos-input-event-v2-live-proof-v0/experience-status-before.json
+./aos service status --mode repo --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/service-status-before.json
+./aos status --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/status.json
+./aos show list --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/show-list-before.json
+./aos experience status --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/experience-status-before.json
 ```
 
-If `./aos ready --json` reports `ready:false`,
-`diagnosis=daemon_tcc_grant_stale_or_missing`, `input_tap_not_active`, or a
-permission blocker, stop and report the blocker. Do not improvise a permission
-repair loop.
+If `service-status-before.json` is not `status:"ok"`, `running:true`, and
+`target_matches_expected:true`, stop and report `blocked_runtime_not_ready`.
+Do not start the service from this card.
+
+If `status.json` reports `runtime_verdict.ready:false`,
+`diagnosis=daemon_tcc_grant_stale_or_missing`, `input_tap_not_active`,
+`daemon_unmanaged`, `daemon_unreachable`, or a permission blocker, stop and
+report the blocker. Do not run `./aos ready`, `./aos clean`, service
+start/restart, or a permission repair loop.
 
 If `./aos status --json` reports Sigil status-item target drift and you need the
 status-item path for the Sigil proof, run the scoped activation once:
 
 ```bash
 ./aos experience activate sigil
-./aos experience status --json | tee /tmp/aos-input-event-v2-live-proof-v0/experience-status-after-activate.json
+./aos experience status --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/experience-status-after-activate.json
 ```
 
 If that command is unavailable or fails, launch Sigil directly with `show
@@ -82,14 +107,23 @@ create` below and report status-item proof as blocked.
 
 ## Setup
 
-Use canonical repo content roots:
+Verify canonical repo content roots without mutating config:
 
 ```bash
-./aos set content.roots.toolkit packages/toolkit
-./aos set content.roots.sigil apps/sigil
-./aos content wait --root toolkit --auto-start --timeout 15s
-./aos content wait --root sigil --auto-start --timeout 15s
+./aos config get content.roots.toolkit --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/content-root-toolkit.json
+./aos config get content.roots.sigil --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/content-root-sigil.json
+./aos content wait --root toolkit --timeout 15s
+./aos content wait --root sigil --timeout 15s
 ```
+
+If either content root is not the canonical repo path (`packages/toolkit` and
+`apps/sigil`), stop and report `blocked_content_root_drift`. Do not run `./aos
+set`; setting content roots can require a daemon restart, and this rerun is not
+allowed to start or restart the daemon.
+
+Do not pass `--auto-start` to `content wait`; the current command policy rejects
+auto-start without an explicit start allowance, and this rerun is not allowed to
+start the daemon.
 
 Do not run `./aos show remove-all` unless you have confirmed no existing canvas
 is human-owned or needed as evidence. Prefer removing only surfaces created for
@@ -114,9 +148,9 @@ Enable and reset the Sigil transport probe before interaction:
 
 ```bash
 ./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.surfaceTransportProbe?.enable?.() ?? null)' \
-  > /tmp/aos-input-event-v2-live-proof-v0/sigil-probe-enable.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-probe-enable.json
 ./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.surfaceTransportProbe?.reset?.() ?? null)' \
-  > /tmp/aos-input-event-v2-live-proof-v0/sigil-probe-reset.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-probe-reset.json
 ```
 
 ## Required Observations
@@ -139,13 +173,13 @@ Capture:
 
 ```bash
 ./aos show eval --id surface-inspector --js 'JSON.stringify({inputSubscriptionActive: window.__canvasInspectorState?.inputSubscriptionActive ?? null, cursor: window.__canvasInspectorState?.cursor ?? null, nativeCursor: window.__canvasInspectorState?.nativeCursor ?? null, eventCount: window.__canvasInspectorState?.eventCount ?? null})' \
-  > /tmp/aos-input-event-v2-live-proof-v0/surface-inspector-input-state.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/surface-inspector-input-state.json
 
 ./aos show eval --id spatial-telemetry --js 'JSON.stringify({cursor: window.__spatialTelemetryState?.raw?.cursor ?? null, recentEvents: window.__spatialTelemetryState?.events?.slice(-20) ?? null})' \
-  > /tmp/aos-input-event-v2-live-proof-v0/spatial-telemetry-input-state.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/spatial-telemetry-input-state.json
 
 ./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.surfaceTransportProbe?.snapshot?.({windowMs: 10000}) ?? null)' \
-  > /tmp/aos-input-event-v2-live-proof-v0/sigil-input-probe.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-input-probe.json
 ```
 
 Payload-field proof requirement: if any existing surface or AOS command exposes
@@ -175,26 +209,26 @@ Suggested capture around minimize/restore:
 
 ```bash
 ./aos show eval --id surface-inspector --js 'JSON.stringify(window.__canvasInspectorState?.surfaceResources ?? null)' \
-  > /tmp/aos-input-event-v2-live-proof-v0/surface-resources-before-minimize.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/surface-resources-before-minimize.json
 
 ./aos show eval --id surface-inspector --js 'JSON.stringify(window.__aosPanelWindowController?.getState?.() ?? null)' \
-  > /tmp/aos-input-event-v2-live-proof-v0/surface-inspector-panel-before-minimize.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/surface-inspector-panel-before-minimize.json
 ```
 
 After real pointer minimize and before restore:
 
 ```bash
-./aos show list --json > /tmp/aos-input-event-v2-live-proof-v0/show-list-minimized.json
+./aos show list --json > /tmp/aos-input-event-v2-live-proof-v0-rerun/show-list-minimized.json
 ./aos show eval --id surface-inspector --js 'JSON.stringify(window.__canvasInspectorState?.surfaceResources ?? null)' \
-  > /tmp/aos-input-event-v2-live-proof-v0/surface-resources-minimized.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/surface-resources-minimized.json
 ```
 
 After real pointer restore or close:
 
 ```bash
-./aos show list --json > /tmp/aos-input-event-v2-live-proof-v0/show-list-after-restore-or-close.json
+./aos show list --json > /tmp/aos-input-event-v2-live-proof-v0-rerun/show-list-after-restore-or-close.json
 ./aos show eval --id avatar-main --js 'JSON.stringify(window.__sigilDebug?.snapshot?.() ?? null)' \
-  > /tmp/aos-input-event-v2-live-proof-v0/sigil-debug-after-input-region.json
+  > /tmp/aos-input-event-v2-live-proof-v0-rerun/sigil-debug-after-input-region.json
 ```
 
 Payload-field proof requirement: if a surface exposes the full
@@ -209,7 +243,8 @@ without adding instrumentation.
 
 Pass:
 
-- repo AOS is ready with active input tap;
+- repo AOS is already running and `./aos status --json` reports ready with
+  active input tap;
 - Surface Inspector, Spatial Telemetry, and Sigil launch;
 - all three active raw `input_event` consumers show live input activity;
 - Surface Inspector/panel chrome and Sigil input-region paths show routed live
@@ -224,7 +259,8 @@ Partial pass:
 
 Fail:
 
-- readiness blocks;
+- passive service/status readiness blocks;
+- the daemon stops, becomes unreachable, or is reclassified unmanaged mid-run;
 - an active consumer fails to launch;
 - real pointer/scroll/key input does not reach an expected consumer;
 - routed input-region interaction fails;
@@ -234,7 +270,11 @@ Fail:
 
 - Do not implement fixes or add temporary instrumentation.
 - Do not run `./aos dev build`.
-- Do not run permission repair, TCC reset, or repeated service restart loops.
+- Do not run `./aos ready`; it auto-starts the daemon by design.
+- Do not run `./aos clean`, permission repair, TCC reset, or service
+  start/restart loops.
+- Do not run `./aos set` or `./aos config set`; config changes can require a
+  daemon restart.
 - Do not create commits, branches, PRs, issue comments, or issue closure.
 - Do not use raw daemon HTTP, direct socket control, `tmux`, or launchd state
   unless an `./aos` command is missing or broken; state the bypass reason if you
@@ -250,7 +290,7 @@ evidence:
 ./aos show remove --id spatial-telemetry 2>/dev/null || true
 ./aos show remove --id surface-inspector 2>/dev/null || true
 ./aos show remove --id avatar-main 2>/dev/null || true
-./aos show list --json | tee /tmp/aos-input-event-v2-live-proof-v0/show-list-final.json
+./aos show list --json | tee /tmp/aos-input-event-v2-live-proof-v0-rerun/show-list-final.json
 ```
 
 ## Completion Report
@@ -258,7 +298,9 @@ evidence:
 Report:
 
 - exact `git status --short --branch`;
-- exact `./aos ready --json` verdict summary;
+- exact `./aos service status --mode repo --json` summary;
+- exact `./aos status --json` runtime verdict summary;
+- confirmation that `./aos ready` was not run;
 - whether Sigil status-item drift was present and whether `./aos experience
   activate sigil` was needed or successful;
 - surfaces launched and commands used;
